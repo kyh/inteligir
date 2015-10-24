@@ -1,6 +1,12 @@
+@import '_variables';
+
 .feed {
   display: flex;
   max-width: var(--pageMaxWidth);
   margin: 0 auto;
   padding: 53px 0;
+}
+
+.feed > .nav-tabs {
+  width: 22%;
 }

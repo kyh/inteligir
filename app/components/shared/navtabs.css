@@ -1,6 +1,7 @@
+@import '_variables';
+
 .nav-tabs {
   position: relative;
-  width: 22%;
 }
 
 .nav-tabs__item {
@@ -15,13 +16,6 @@
 .nav-tabs__item:hover {
   opacity: 1;
 }
-
-/*.nav-tabs__item > a {
-  display: block;
-  padding: 10px 39px;
-  color: var(--black);
-  opacity: 0.5;
-}*/
 
 .nav-tabs__highlight {
   position: absolute;
