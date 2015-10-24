@@ -26,8 +26,8 @@
 .nav-tabs__highlight {
   position: absolute;
   top: 0;
-  width: 3px;
+  width: 4px;
   height: 40px;
   background: var(--brandPrimary);
-  transition: top 0.4s cubic-bezier(.45,1.8,.5,.75);
+  transition: top 0.4s cubic-bezier(0.23, 1, 0.32, 1);
 }
