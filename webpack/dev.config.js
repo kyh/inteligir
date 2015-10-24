@@ -1,6 +1,5 @@
 import webpack from 'webpack';
 import cssnext from 'cssnext';
-import precss from 'precss';
 import { isArray } from 'lodash';
 
 import baseConfig from './base.config';

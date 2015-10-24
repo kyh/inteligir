@@ -1,12 +1,11 @@
 /* eslint-disable */
 require('babel/register');
 
-var path              = require('path');
-var webpack           = require('webpack');
+var path = require('path');
+var webpack = require('webpack');
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
-var baseConfig        = require('./base.config');
-var cssnext           = require('cssnext');
-var precss            = require('precss');
+var baseConfig = require('./base.config');
+var cssnext = require('cssnext');
 
 // clean `.tmp` && `dist`
 require('./utils/clean-dist')();
