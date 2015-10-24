@@ -31,7 +31,7 @@ config.module.loaders = config.module.loaders.concat([
 ]);
 
 config.postcss = [
-  cssnext({browsers: 'last 2 versions'})
+  cssnext({ browsers: 'last 2 versions', import: { path:['./app/styles'] }})
 ];
 
 config.plugins = [

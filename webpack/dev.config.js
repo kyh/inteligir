@@ -40,7 +40,7 @@ export default {
       ]
     },
     ouput: { ...baseConfig.output, publicPath: PUBLIC_PATH },
-    postcss: [ cssnext() ],
+    postcss: [ cssnext({ import: { path:['./app/styles'] } }) ],
     module: {
       ...baseConfig.module,
       loaders: [
