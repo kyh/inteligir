@@ -1,10 +1,12 @@
 import React, { Component, PropTypes } from 'react';
 import imageResolver from 'utils/image-resolver';
 
-import Header from 'components/header';
-import Footer from 'components/footer';
+import Header from 'components/shared/header';
+import Footer from 'components/shared/footer';
 
-if (process.env.BROWSER) require('styles/app.css');
+if (process.env.BROWSER) {
+  require('styles/app.css');
+}
 
 let bgImage;
 if (process.env.BROWSER) {
@@ -48,7 +50,7 @@ class App extends Component {
 
   render() {
     return (
-      <main>
+      <section>
         <img className='placeholder' src={ bgImage } alt='test' />
         <Header
           {...this.state.i18n}
@@ -56,7 +58,7 @@ class App extends Component {
         { React.Children
             .map(this.props.children, this.renderChild) }
         <Footer />
-      </main>
+      </section>
     );
   }
 

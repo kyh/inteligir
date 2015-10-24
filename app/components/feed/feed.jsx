@@ -2,6 +2,10 @@ import React, { Component, PropTypes } from 'react';
 import Navtab from 'components/shared/navtab';
 import { IntlMixin } from 'react-intl';
 
+if (process.env.BROWSER) {
+  require('components/feed/feed.css');
+}
+
 class Feed extends Component {
 
   static propTypes = {

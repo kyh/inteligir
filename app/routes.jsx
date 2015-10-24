@@ -7,19 +7,19 @@ export default (
     <Route component={ require('./components/app') }>
       { generateRoute({
         paths: ['/', '/feed'],
-        component: require('./components/feed')
+        component: require('./components/feed/feed')
       }) }
       { generateRoute({
         paths: ['/groups'],
-        component: require('./components/groups')
+        component: require('./components/groups/groups')
       }) }
       { generateRoute({
         paths: ['/feed/:id'],
-        component: require('./components/post')
+        component: require('./components/feed/post')
       }) }
       { generateRoute({
         paths: ['/profile'],
-        component: require('./components/profile')
+        component: require('./components/profile/profile')
       }) }
       { generateRoute({
         paths: ['/protected'],

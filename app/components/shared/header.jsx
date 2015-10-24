@@ -2,6 +2,10 @@ import React, { Component, PropTypes } from 'react';
 import { Link } from 'react-router';
 import { IntlMixin } from 'react-intl';
 
+if (process.env.BROWSER) {
+  require('components/shared/header.css');
+}
+
 // import imageResolver from 'utils/image-resolver';
 // import Spinner from 'components/shared/spinner';
 
