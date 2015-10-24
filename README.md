@@ -14,8 +14,6 @@ Use with `nodejs^4.x`, clone the repo, `npm install` and `npm run dev`.
 
 Learn React ([react-prime-draft](https://github.com/mikechau/react-primer-draft)), learn Flux and Alt ([alt guide](http://alt.js.org/guide/)).
 
-Build for production with `npm run build`.
-
 ## Concepts
 
 **Koa** will be our server for the server side rendering, we use **alt** for our Flux architecture and **react-router** for routing in our app.
@@ -58,6 +56,20 @@ componentWillMount() {
   return postsActions.fetch();
 }
 ```
+
+### Run in production
+
+Build the project first:
+
+* `$ npm run build`
+
+Then start the koa server:
+
+* `$ NODE_ENV=production node server/index.js`
+
+You can also use `processes.json` to run the application with [PM2 Monitor](https://github.com/Unitech/pm2) on the production server:
+
+* `$ pm2 start processes.json`
 
 ## Libraries Used
 
