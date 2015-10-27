@@ -1,8 +1,6 @@
 import React, { Component, PropTypes } from 'react';
 import imageResolver from 'utils/image-resolver';
-
 import Header from 'components/shared/header';
-import Footer from 'components/shared/footer';
 
 if (process.env.BROWSER) {
   require('styles/app.css');
@@ -55,9 +53,7 @@ class App extends Component {
         <Header
           {...this.state.i18n}
           flux={ this.props.flux } />
-        { React.Children
-            .map(this.props.children, this.renderChild) }
-        <Footer />
+        { React.Children.map(this.props.children, this.renderChild) }
       </section>
     );
   }
