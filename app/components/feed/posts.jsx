@@ -38,29 +38,17 @@ class Posts extends Component {
     return this.setState(state);
   }
 
-  _removePost(index) {
-    this.props.flux
-      .getActions('posts')
-      .remove(index);
-  }
-
   renderPost = (post, index) => {
-    const profileRoute = replaceParams(
-      this._getIntlMessage('routes.profile'),
+    const postRoute = replaceParams(
+      this._getIntlMessage('routes.post'),
       { id: post.id }
     );
+
     return (
       <tr className='post--row' key={ index }>
-        <td>{ post.post.email }</td>
+        <td>{ post.post.title }</td>
         <td className='text-center'>
-          <Link to={ profileRoute }>Profile</Link>
-        </td>
-        <td className='text-center'>
-          <button
-            className='post--remove'
-            onClick={ this._removePost.bind(this, index) }>
-            X
-          </button>
+          <Link to={ postRoute }>Link</Link>
         </td>
       </tr>
     );
@@ -68,33 +56,13 @@ class Posts extends Component {
 
   render() {
     return (
-      <div>
+      <section>
         <table className='app--posts'>
-          <thead>
-            <tr>
-              <th>
-                { this._getIntlMessage('posts.email') }
-              </th>
-              <th colSpan='2'>
-                { this._getIntlMessage('posts.actions') }
-              </th>
-            </tr>
-          </thead>
           <tbody>
-            {
-              this.state.posts
-                .map(this.renderPost)
-            }
+            { this.state.posts.map(this.renderPost) }
           </tbody>
         </table>
-        <p className='text-center'>
-          <button
-            className='add--button'
-            onClick={ this.props.flux.getActions('posts').add }>
-            { this._getIntlMessage('posts.add') }
-          </button>
-        </p>
-      </div>
+      </section>
     );
   }
 
