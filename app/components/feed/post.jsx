@@ -13,33 +13,33 @@ class Post extends Component {
   _formatMessage = IntlMixin.formatMessage.bind(Object.assign({}, this, IntlMixin))
 
   state = this.props.flux
-    .getStore('users')
-    .getBySeed(this.props.params.seed)
+    .getStore('posts')
+    .getByID(this.props.params.id)
 
   componentWillMount() {
     this._setPageTitle();
 
     this.props.flux
-      .getActions('users')
-      .fetchBySeed(this.props.params.seed);
+      .getActions('posts')
+      .fetchByID(this.props.params.id);
   }
 
   componentDidMount() {
     this.props.flux
-      .getStore('users')
+      .getStore('posts')
       .listen(this._handleStoreChange);
   }
 
   componentWillUnmount() {
     this.props.flux
-      .getStore('users')
+      .getStore('posts')
       .unlisten(this._handleStoreChange);
   }
 
   _handleStoreChange = () => {
     const user = this.props.flux
-      .getStore('users')
-      .getBySeed(this.props.params.seed);
+      .getStore('posts')
+      .getByID(this.props.params.id);
 
     this.setState(user);
     this._setPageTitle();
@@ -51,10 +51,10 @@ class Post extends Component {
       const user = this.state.user.user;
       const fullName = this._getFullName(user.name);
 
-      title = this._getIntlMessage('profile.page-title');
+      title = this._getIntlMessage('post.page-title');
       title = this._formatMessage(title, { fullName });
     } else {
-      title = this._getIntlMessage('profile.not-found-page-title');
+      title = this._getIntlMessage('post.not-found-page-title');
     }
 
     // Set page title
