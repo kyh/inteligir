@@ -1,5 +1,8 @@
 import React, { Component, PropTypes } from 'react';
+
 import Navtab from 'components/shared/navtab';
+import Posts from 'components/feed/posts';
+
 import { IntlMixin } from 'react-intl';
 
 if (process.env.BROWSER) {
@@ -32,7 +35,7 @@ class Feed extends Component {
     return (
       <section className="feed">
         <Navtab items={ this.props.params.listItems } />
-        <h1>Feed</h1>
+        <Posts {...this.props} flux={ this.props.flux } />
       </section>
     );
   }
