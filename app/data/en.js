@@ -20,14 +20,6 @@ export default {
     },
     feed: {
       'page-title': 'Feed'
-    },
-    routes: {
-      'feed': '/feed',
-      'post': '/feed/:id',
-      'groups': '/groups',
-      'profile': '/profile',
-      'protected': '/protected',
-      'login-info': '/login-info'
     }
   }
 };
