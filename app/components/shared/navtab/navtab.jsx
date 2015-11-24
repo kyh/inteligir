@@ -3,7 +3,7 @@ import { Link } from 'react-router';
 import { IntlMixin } from 'react-intl';
 
 if (process.env.BROWSER) {
-  require('components/shared/navtabs.css');
+  require('components/shared/navtab/navtab.css');
 }
 
 class Navtab extends Component {

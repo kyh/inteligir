@@ -1,9 +1,10 @@
 import React, { Component, PropTypes } from 'react';
+import Routes from 'data/routes';
 import { Link } from 'react-router';
 import { IntlMixin } from 'react-intl';
 
 if (process.env.BROWSER) {
-  require('components/shared/header.css');
+  require('components/shared/header/header.css');
 }
 
 // import imageResolver from 'utils/image-resolver';
@@ -60,17 +61,17 @@ class Header extends Component {
           <nav className='app__header-navbar'>
             <Link
               activeClassName='active'
-              to={ this._getIntlMessage('routes.feed') }>
+              to={ Routes.feed }>
               { this._getIntlMessage('header.feed') }
             </Link>
             <Link
               activeClassName='active'
-              to={ this._getIntlMessage('routes.groups') }>
+              to={ Routes.groups }>
               { this._getIntlMessage('header.groups') }
             </Link>
             <Link
               activeClassName='active'
-              to={ this._getIntlMessage('routes.profile') }>
+              to={ Routes.profile }>
               { this._getIntlMessage('header.profile') }
             </Link>
           </nav>

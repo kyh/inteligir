@@ -1,7 +1,7 @@
 import React, { Component, PropTypes } from 'react';
 
-import Navtab from 'components/shared/navtab';
-import Posts from 'components/feed/posts';
+import Navtab from 'components/shared/navtab/navtab';
+import Posts from 'components/feed/posts/posts';
 
 import { IntlMixin } from 'react-intl';
 

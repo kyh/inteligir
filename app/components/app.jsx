@@ -1,6 +1,6 @@
 import React, { Component, PropTypes } from 'react';
 import imageResolver from 'utils/image-resolver';
-import Header from 'components/shared/header';
+import Header from 'components/shared/header/header';
 
 if (process.env.BROWSER) {
   require('styles/app.css');

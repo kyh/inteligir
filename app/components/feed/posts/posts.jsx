@@ -39,16 +39,11 @@ class Posts extends Component {
   }
 
   renderPost = (post, index) => {
-    const postRoute = replaceParams(
-      this._getIntlMessage('routes.post'),
-      { id: post.id }
-    );
-
     return (
       <tr className='post--row' key={ index }>
         <td>{ post.post.title }</td>
         <td className='text-center'>
-          <Link to={ postRoute }>Link</Link>
+          <Link to={ `/feed/${post.id}` }>Link</Link>
         </td>
       </tr>
     );
