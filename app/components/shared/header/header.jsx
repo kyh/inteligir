@@ -61,17 +61,17 @@ class Header extends Component {
           <nav className='app__header-navbar'>
             <Link
               activeClassName='active'
-              to={ Routes.feed }>
+              to="/">
               { this._getIntlMessage('header.feed') }
             </Link>
             <Link
               activeClassName='active'
-              to={ Routes.groups }>
+              to="/groups">
               { this._getIntlMessage('header.groups') }
             </Link>
             <Link
               activeClassName='active'
-              to={ Routes.profile }>
+              to="/profile">
               { this._getIntlMessage('header.profile') }
             </Link>
           </nav>

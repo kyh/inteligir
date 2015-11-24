@@ -1,5 +1,5 @@
 export default {
   'feed': '/',
-  'groups': '/groups',
-  'profile': '/profile'
+  'groups': 'groups',
+  'profile': 'profile'
 };

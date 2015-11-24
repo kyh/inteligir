@@ -43,7 +43,7 @@ class Posts extends Component {
       <tr className='post--row' key={ index }>
         <td>{ post.post.title }</td>
         <td className='text-center'>
-          <Link to={ `/feed/${post.id}` }>Link</Link>
+          <Link to={ `/${post.id}` }>Link</Link>
         </td>
       </tr>
     );
