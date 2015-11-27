@@ -8,5 +8,6 @@
 }
 
 .feed > .nav-tabs {
-  width: 22%;
+  position: absolute;
+  width: 20%;
 }
