@@ -6,7 +6,7 @@ import Routes from 'data/routes';
 export default (
   <Router>
     <Route path="/" component={ require('./components/app') }>
-      <IndexRoute component={ require('./components/feed/feed') } />
+      <Route path={ Routes.feed } component={ require('./components/feed/feed') }></Route>
       <Route path={ Routes.groups } component={ require('./components/groups/groups') }></Route>
       <Route path={ Routes.profile } component={ require('./components/profile/profile') }></Route>
       <Route path='*' component={ require('./pages/not-found') } />
