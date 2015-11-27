@@ -1,0 +1,11 @@
+@import '_variables';
+
+.posts {
+  width: 60%;
+  margin: 0 auto;
+  background-color: #fff;
+  padding: 60px;
+  border-radius: 3px;
+  box-shadow: var(--boxShadowFaded);
+}
+

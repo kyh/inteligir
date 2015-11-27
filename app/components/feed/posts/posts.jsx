@@ -4,6 +4,10 @@ import { Link } from 'react-router';
 import { IntlMixin } from 'react-intl';
 import { replaceParams } from 'utils/localized-routes';
 
+if (process.env.BROWSER) {
+  require('components/feed/posts/posts.css');
+}
+
 class Posts extends Component {
 
   static propTypes = {
@@ -51,8 +55,8 @@ class Posts extends Component {
 
   render() {
     return (
-      <section>
-        <table className='app--posts'>
+      <section className='posts'>
+        <table>
           <tbody>
             { this.state.posts.map(this.renderPost) }
           </tbody>
