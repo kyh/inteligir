@@ -1,6 +1,6 @@
 @import '_variables';
 
-.app__header-wrapper {
+.app-header--wrapper {
   margin: 0 auto;
   padding: 20px 22px;
   display: flex;
@@ -9,18 +9,18 @@
   flex-wrap: no-wrap;
 }
 
-.app__header-navbar > a {
+.app-header--navbar > a {
   color: #606466;
   padding-left: 30px;
   font-weight: 500;
   text-transform: uppercase;
 }
 
-.app__header-navbar > a:hover {
+.app-header--navbar > a:hover {
   color: #606466;
 }
 
-.app__header-navbar > a.active {
+.app-header--navbar > a.active {
   color: #fff;
 }
 

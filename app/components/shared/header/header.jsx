@@ -53,12 +53,12 @@ class Header extends Component {
   render() {
     return (
       <header>
-        <div className='app__header-wrapper'>
-          <div className='app__header-logo'>
+        <div className='app-header--wrapper'>
+          <div className='app-header--logo'>
             Logo
           </div>
           {/* Links in the navbar */}
-          <nav className='app__header-navbar'>
+          <nav className='app-header--navbar'>
             <Link
               activeClassName='active'
               to={ Routes.feed }>
