@@ -9,3 +9,30 @@
   box-shadow: var(--boxShadowFaded);
 }
 
+.post-preview {
+  margin-bottom: 3rem;
+}
+
+.post-preview > a,
+.post-preview > a:hover {
+  color: var(--black);
+}
+
+.post-preview--title {
+  font-weight: 600;
+}
+
+.post-preview--content {
+  color: var(--grey);
+  font-size: 1.4rem;
+  line-height: 2;
+  margin-bottom: 3rem;
+}
+
+.post-preview--footer {
+  color: var(--greyLight);
+  font-size: 1.2rem;
+  font-weight: 600;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid var(--borderColor);
+}
