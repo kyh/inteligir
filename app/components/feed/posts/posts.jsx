@@ -43,24 +43,24 @@ class Posts extends Component {
   }
 
   renderPost = (post, index) => {
+    var postContent = post.post;
     return (
-      <tr className='post--row' key={ index }>
-        <td>{ post.post.title }</td>
-        <td className='text-center'>
-          <Link to={ `/${post.id}` }>Link</Link>
-        </td>
-      </tr>
+      <article className='post-preview' key={ index }>
+        <Link to={ `/${post.id}` }>
+          <h3>{ postContent.title }</h3>
+          <p>{ postContent.content }</p>
+        </Link>
+        <div className="post-preview--footer">
+          <span class="date">{ postContent.posted_on }</span>
+        </div>
+      </article>
     );
   }
 
   render() {
     return (
       <section className='posts'>
-        <table>
-          <tbody>
-            { this.state.posts.map(this.renderPost) }
-          </tbody>
-        </table>
+        { this.state.posts.map(this.renderPost) }
       </section>
     );
   }
