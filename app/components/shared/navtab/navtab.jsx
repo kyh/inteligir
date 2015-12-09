@@ -1,6 +1,7 @@
 import React, { Component, PropTypes } from 'react';
 import { Link } from 'react-router';
 import { IntlMixin } from 'react-intl';
+import cx from 'classnames';
 
 if (process.env.BROWSER) {
   require('components/shared/navtab/navtab.css');
@@ -32,8 +33,13 @@ class Navtab extends Component {
   }
 
   renderItem = (item, index) => {
+    let itemClass = cx({
+      'nav-tabs--item': true,
+      'active': this.state.selectedIndex === index
+    });
+
     return (
-      <li className="nav-tabs--item"
+      <li className={ itemClass }
           onClick={ this._selectTab.bind(this, index) }
           key={ index }>
         { item }
@@ -42,7 +48,7 @@ class Navtab extends Component {
   }
 
   render() {
-    var highlightBarStyle = {
+    let highlightBarStyle = {
       transform: `translateY(${ this.state.selectedIndex * 40 }px)`
     };
 

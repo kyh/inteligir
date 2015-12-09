@@ -13,6 +13,7 @@
   transition: opacity .85s cubic-bezier(0.2,0.6,0.35,1);
 }
 
+.nav-tabs--item.active,
 .nav-tabs--item:hover {
   opacity: 1;
 }
