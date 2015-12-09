@@ -8,6 +8,13 @@ if (process.env.BROWSER) {
 
 class Navtab extends Component {
 
+  constructor(props) {
+    super(props);
+    this.state = {
+      selectedIndex: 0,
+    };
+  }
+
   static propTypes = {
     items: PropTypes.array.isRequired
   }
@@ -18,23 +25,30 @@ class Navtab extends Component {
 
   }
 
-  _selectItem(item, index) {
-    var $highlightBar = this.refs.highlightBar;
-    $highlightBar.style.top = (index * 40) + 'px';
+  _selectTab(index) {
+    this.setState({
+      selectedIndex: index
+    });
   }
 
   renderItem = (item, index) => {
     return (
-      <li className="nav-tabs__item" key={ index } onClick={ this._selectItem.bind(this, item, index) }>
+      <li className="nav-tabs--item"
+          onClick={ this._selectTab.bind(this, index) }
+          key={ index }>
         { item }
       </li>
     );
   }
 
   render() {
+    var highlightBarStyle = {
+      transform: `translateY(${ this.state.selectedIndex * 40 }px)`
+    };
+
     return (
       <ul className="nav-tabs">
-        <li className="nav-tabs__highlight" ref="highlightBar"></li>
+        <li className="nav-tabs--highlight" style={ highlightBarStyle }></li>
         { this.props.items.map(this.renderItem, this) }
       </ul>
     );
