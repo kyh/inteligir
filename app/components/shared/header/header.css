@@ -16,6 +16,10 @@
   text-transform: uppercase;
 }
 
+.app__header-navbar > a:hover {
+  color: #606466;
+}
+
 .app__header-navbar > a.active {
   color: #fff;
 }

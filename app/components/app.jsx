@@ -6,13 +6,6 @@ if (process.env.BROWSER) {
   require('styles/app.css');
 }
 
-let bgImage;
-if (process.env.BROWSER) {
-  bgImage = require('images/bg-image.png');
-} else {
-  bgImage = imageResolver('images/bg-image.png');
-}
-
 class App extends Component {
 
   static propTypes = {
@@ -49,7 +42,6 @@ class App extends Component {
   render() {
     return (
       <section>
-        <img className='placeholder' src={ bgImage } alt='test' />
         <Header
           {...this.state.i18n}
           flux={ this.props.flux } />
