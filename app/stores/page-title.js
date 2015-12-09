@@ -5,7 +5,7 @@ class PageTitleStore {
   constructor() {
     this.bindActions(this.alt.getActions('page-title'));
 
-    this.baseTitle = 'ISO-ReactJS';
+    this.baseTitle = 'Write';
     this.delimeter = '|';
 
     // Defaut title
