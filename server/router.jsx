@@ -1,66 +1,43 @@
 import debug from 'debug';
 
 import React from 'react';
-import { RoutingContext, match } from 'react-router';
+import { renderToString } from 'react-dom/server';
 
-import createLocation from 'history/lib/createLocation';
+import createFlux from 'flux/createFlux';
 
-// Paths are relative to `app` directory
-import routes from 'routes';
-import Flux from 'utils/flux';
+import ServerHTML from './server-html';
+import ApiClient from '../shared/api-client';
+import universalRender from '../shared/universal-render';
 
-// We need wrap `Router.run` into a promise
-// in order to use the keyword `yield` and keep
-// the correct way `koajs` works
-const promisifiedRouter = (location) =>
-  new Promise((resolve) =>
-    match({ routes, location }, (...args) => resolve(args)));
-
-export default function *() {
+export default async function (ctx) {
   // Init alt instance
-  const flux = new Flux();
+  const client = new ApiClient(ctx.get('cookie'));
+  const flux = createFlux(client);
 
   // Get request locale for rendering
-  const locale = this.cookies.get('_lang') || this.acceptsLanguages(require('./config/init').locales) || 'en';
+  const locale = ctx.cookies.get('_lang') || ctx.acceptsLanguages(require('./config/init').locales) || 'en';
   const { messages } = require(`data/${locale}`);
+
+  // Get auth-token from cookie
+  const username = ctx.cookies.get('_auth');
 
   // Populate store with locale
   flux
     .getActions('locale')
-    .switchLocaleSuccess({ locale, messages });
+    .switchLocale({ locale, messages });
+
+  // Populate store with auth
+  if (username) {
+    flux
+      .getActions('session')
+      .update({ username });
+  }
 
   debug('dev')(`locale of request: ${locale}`);
 
   try {
-    // Pass correct location of the request to `react-router`
-    // it will return the matched components for the route into `initialState`
-    const location = createLocation(this.request.path, this.request.query);
-    const [ error, redirect, renderProps ] = yield promisifiedRouter(location);
-
-    // Render 500 error page from server
-    if (error) throw error;
-
-    // Handle component `onEnter` transition
-    if (redirect) {
-      const { pathname, search } = redirect;
-      return this.redirect(pathname + search);
-    }
-
-    // Render application of correct location
-    // We need to re-define `createElement` of `react-router`
-    // in order to include `flux` on children components props
-    const routerProps = {
-      ...renderProps, location,
-      createElement: (component, props) => {
-        // Take locale and messages from `locale` store
-        // and pass them to every components rendered from `Router`
-        const i18n = flux.getStore('locale').getState();
-        return React.createElement(component, { ...props, ...i18n, flux });
-      }
-    };
-
-    // Use `alt-resolver` to render component with fetched data
-    const { body, title } = yield flux.render(<RoutingContext { ...routerProps } />);
+    const { body, title, statusCode, description } =
+      await universalRender({ flux, location: ctx.request.url });
 
     // Assets name are found into `webpack-stats`
     const assets = require('./webpack-stats.json');
@@ -71,10 +48,20 @@ export default function *() {
     }
 
     debug('dev')('return html content');
-    yield this.render('main', { body, assets, locale, title });
-  } catch (error) {
-    // Catch error from rendering procress
-    // In other cases just return the error
-    throw error;
+    const props = { body, assets, locale, title, description };
+    ctx.status = statusCode;
+    ctx.body = '<!DOCTYPE html>' + renderToString(<ServerHTML { ...props } />);
+  } catch (err) {
+    // Render 500 error page from server
+    const { error, redirect } = err;
+    if (error) throw error;
+
+    // Handle component `onEnter` transition
+    if (redirect) {
+      const { pathname, search } = redirect;
+      return ctx.redirect(pathname + search);
+    }
+
+    throw err;
   }
 }

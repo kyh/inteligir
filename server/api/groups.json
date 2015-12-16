@@ -1,0 +1,335 @@
+{
+   "groups":[
+      {
+         "name":"Public",
+         "description":"Everyone belongs to this group",
+         "public":true,
+         "created_at":"2015-12-07T05:22:45.882Z",
+         "updated_at":"2015-12-07T05:22:45.882Z",
+         "users":[
+            {
+               "first_name":"Test",
+               "last_name":"Example",
+               "headline":null,
+               "posts":[
+                  {
+                     "id":1,
+                     "title":"Something learned",
+                     "content":"\u003cp\u003eSomething important\u003c/p\u003e.",
+                     "user_id":1,
+                     "comments":[
+                        {
+                           "id":1
+                        },
+                        {
+                           "id":2
+                        }
+                     ]
+                  },
+                  {
+                     "id":2,
+                     "title":"Week 2",
+                     "content":"Something funny \u003cimg\u003e\u003c/img\u003e.",
+                     "user_id":1,
+                     "comments":[
+
+                     ]
+                  }
+               ],
+               "comments":[
+
+               ]
+            },
+            {
+               "first_name":"John",
+               "last_name":"Doe",
+               "headline":null,
+               "posts":[
+                  {
+                     "id":3,
+                     "title":"Mario Kart",
+                     "content":"I learned a lot.",
+                     "user_id":2,
+                     "comments":[
+                        {
+                           "id":3
+                        }
+                     ]
+                  }
+               ],
+               "comments":[
+                  {
+                     "id":2
+                  }
+               ]
+            },
+            {
+               "first_name":"I'm",
+               "last_name":"Here",
+               "headline":null,
+               "posts":[
+                  {
+                     "id":4,
+                     "title":"Ender's Game",
+                     "content":"***Spoilers*** The end is in sight.",
+                     "user_id":3,
+                     "comments":[
+
+                     ]
+                  },
+                  {
+                     "id":5,
+                     "title":"Procrastination is bad",
+                     "content":"Here is how I got over it.",
+                     "user_id":3,
+                     "comments":[
+
+                     ]
+                  }
+               ],
+               "comments":[
+                  {
+                     "id":1
+                  }
+               ]
+            },
+            {
+               "first_name":"Bye",
+               "last_name":"Bye Bye",
+               "headline":null,
+               "posts":[
+
+               ],
+               "comments":[
+                  {
+                     "id":3
+                  }
+               ]
+            }
+         ],
+         "posts":[
+            {
+               "id":1,
+               "title":"Something learned",
+               "content":"\u003cp\u003eSomething important\u003c/p\u003e.",
+               "user_id":1,
+               "comments":[
+                  {
+                     "id":1
+                  },
+                  {
+                     "id":2
+                  }
+               ]
+            },
+            {
+               "id":2,
+               "title":"Week 2",
+               "content":"Something funny \u003cimg\u003e\u003c/img\u003e.",
+               "user_id":1,
+               "comments":[
+
+               ]
+            },
+            {
+               "id":3,
+               "title":"Mario Kart",
+               "content":"I learned a lot.",
+               "user_id":2,
+               "comments":[
+                  {
+                     "id":3
+                  }
+               ]
+            },
+            {
+               "id":4,
+               "title":"Ender's Game",
+               "content":"***Spoilers*** The end is in sight.",
+               "user_id":3,
+               "comments":[
+
+               ]
+            },
+            {
+               "id":5,
+               "title":"Procrastination is bad",
+               "content":"Here is how I got over it.",
+               "user_id":3,
+               "comments":[
+
+               ]
+            }
+         ]
+      },
+      {
+         "name":"Cool Kids",
+         "description":"Only the cool kids",
+         "public":false,
+         "created_at":"2015-12-07T05:22:45.897Z",
+         "updated_at":"2015-12-07T05:22:45.897Z",
+         "users":[
+            {
+               "first_name":"I'm",
+               "last_name":"Here",
+               "headline":null,
+               "posts":[
+                  {
+                     "id":4,
+                     "title":"Ender's Game",
+                     "content":"***Spoilers*** The end is in sight.",
+                     "user_id":3,
+                     "comments":[
+
+                     ]
+                  },
+                  {
+                     "id":5,
+                     "title":"Procrastination is bad",
+                     "content":"Here is how I got over it.",
+                     "user_id":3,
+                     "comments":[
+
+                     ]
+                  }
+               ],
+               "comments":[
+                  {
+                     "id":1
+                  }
+               ]
+            },
+            {
+               "first_name":"Bye",
+               "last_name":"Bye Bye",
+               "headline":null,
+               "posts":[
+
+               ],
+               "comments":[
+                  {
+                     "id":3
+                  }
+               ]
+            }
+         ],
+         "posts":[
+            {
+               "id":4,
+               "title":"Ender's Game",
+               "content":"***Spoilers*** The end is in sight.",
+               "user_id":3,
+               "comments":[
+
+               ]
+            },
+            {
+               "id":5,
+               "title":"Procrastination is bad",
+               "content":"Here is how I got over it.",
+               "user_id":3,
+               "comments":[
+
+               ]
+            }
+         ]
+      },
+      {
+         "name":"Design",
+         "description":"All the cool new design stuff",
+         "public":false,
+         "created_at":"2015-12-07T05:22:45.917Z",
+         "updated_at":"2015-12-07T05:22:45.917Z",
+         "users":[
+            {
+               "first_name":"John",
+               "last_name":"Doe",
+               "headline":null,
+               "posts":[
+                  {
+                     "id":3,
+                     "title":"Mario Kart",
+                     "content":"I learned a lot.",
+                     "user_id":2,
+                     "comments":[
+                        {
+                           "id":3
+                        }
+                     ]
+                  }
+               ],
+               "comments":[
+                  {
+                     "id":2
+                  }
+               ]
+            },
+            {
+               "first_name":"I'm",
+               "last_name":"Here",
+               "headline":null,
+               "posts":[
+                  {
+                     "id":4,
+                     "title":"Ender's Game",
+                     "content":"***Spoilers*** The end is in sight.",
+                     "user_id":3,
+                     "comments":[
+
+                     ]
+                  },
+                  {
+                     "id":5,
+                     "title":"Procrastination is bad",
+                     "content":"Here is how I got over it.",
+                     "user_id":3,
+                     "comments":[
+
+                     ]
+                  }
+               ],
+               "comments":[
+                  {
+                     "id":1
+                  }
+               ]
+            },
+            {
+               "first_name":"Bye",
+               "last_name":"Bye Bye",
+               "headline":null,
+               "posts":[
+
+               ],
+               "comments":[
+                  {
+                     "id":3
+                  }
+               ]
+            }
+         ],
+         "posts":[
+            {
+               "id":3,
+               "title":"Mario Kart",
+               "content":"I learned a lot.",
+               "user_id":2,
+               "comments":[
+                  {
+                     "id":3
+                  }
+               ]
+            },
+            {
+               "id":5,
+               "title":"Procrastination is bad",
+               "content":"Here is how I got over it.",
+               "user_id":3,
+               "comments":[
+
+               ]
+            }
+         ]
+      }
+   ]
+}
