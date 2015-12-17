@@ -1,6 +1,7 @@
+[![npm](https://img.shields.io/npm/tehkaiyu/write.svg.svg?style=flat-square)]()
 [![Dependency Status](https://david-dm.org/tehkaiyu/write.svg)](https://david-dm.org/tehkaiyu/write)
 [![devDependency Status](https://david-dm.org/tehkaiyu/write/dev-status.svg)](https://david-dm.org/tehkaiyu/write#info=devDependencies)
-[![NPM Version](http://img.shields.io/npm/v/tehkaiyu/write.svg?style=flat)](https://www.npmjs.com/package/tehkaiyu/write)
+[![npm](https://img.shields.io/npm/tehkaiyu/write.svg?style=flat-square)]()
 
 # Write
 
