@@ -30,36 +30,11 @@ class Feed extends Component {
   render() {
     return (
       <section className='feed'>
-        <Navtab items={ [ '1', 'two' ] } />
+        <Navtab items={ [ 'Popular', 'Design', 'Front-end Development' ] } />
         <Posts posts={ this.props.collection } />
       </section>
     );
   }
 }
-
-// <Posts />
-
-// render() {
-//   const { collection } = this.props;
-
-//   return (
-//     <div>
-//       <h1 className='text-center'>
-//         { this.i18n('users.title') }
-//       </h1>
-//       <table className='app--users'>
-//         <thead>
-//           <tr>
-//             <th> { this.i18n('users.email') } </th>
-//             <th colSpan='2'> { this.i18n('users.actions') } </th>
-//           </tr>
-//         </thead>
-//         <tbody>
-//           { collection.map(this.renderUser) }
-//         </tbody>
-//       </table>
-//     </div>
-//   );
-// }
 
 export default Feed;
