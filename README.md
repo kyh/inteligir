@@ -1,7 +1,7 @@
-[![npm](https://img.shields.io/npm/tehkaiyu/write.svg.svg?style=flat-square)]()
+[![npm](https://img.shields.io/npm/v/npm.svg?style=flat-square)]()
 [![Dependency Status](https://david-dm.org/tehkaiyu/write.svg)](https://david-dm.org/tehkaiyu/write)
 [![devDependency Status](https://david-dm.org/tehkaiyu/write/dev-status.svg)](https://david-dm.org/tehkaiyu/write#info=devDependencies)
-[![npm](https://img.shields.io/npm/tehkaiyu/write.svg?style=flat-square)]()
+[![npm](https://img.shields.io/npm/l/express.svg?style=flat-square)]()
 
 # Write
 
