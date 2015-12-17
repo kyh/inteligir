@@ -15,7 +15,7 @@ const loaders = {
       });
     } else {
       require.ensure(
-        ['data/en'],
+        [ 'data/en' ],
         (require) => callback(require('data/en'))
       );
     }

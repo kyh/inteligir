@@ -1,45 +1,43 @@
-:root {
+/* Base Colours
+/––––––––––––––––––––––––––––––––––––––––––––––––––*/
+$dashboardBg: #e2e2e2;
+$headerBg: #2a3136;
 
-  /* Base Colours
-  /––––––––––––––––––––––––––––––––––––––––––––––––––*/
-  --dashboardBg: #e2e2e2;
-  --headerBg: #2a3136;
+$brandPrimary: #58975f;
+$brandPrimaryDark: #39633D;
 
-  --brandPrimary: #58975f;
-  --brandPrimaryDark: #39633D;
+$grey: #7c8483;
+$greyLight: #bebebe;
+$black: #2a3136;
+$white: #ffffff;
 
-  --grey: #7c8483;
-  --greyLight: #bebebe;
-  --black: #2a3136;
-  --white: #ffffff;
+$borderColor: rgba(0,0,0,0.1);
 
-  --borderColor: rgba(0,0,0,0.1);
+/* Layout
+/––––––––––––––––––––––––––––––––––––––––––––––––––*/
+$pageMaxWidth: 1400px;
 
-  /* Layout
-  /––––––––––––––––––––––––––––––––––––––––––––––––––*/
-  --pageMaxWidth: 1400px;
+/* Shadows
+/––––––––––––––––––––––––––––––––––––––––––––––––––*/
+$boxShadowFaded: 0 8px 30px 0 rgba(140, 148, 158, 0.75);
 
-  /* Shadows
-  /––––––––––––––––––––––––––––––––––––––––––––––––––*/
-  --boxShadowFaded: 0 8px 30px 0 rgba(140, 148, 158, 0.75);
+$boxShadow1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
+$boxShadow2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
+$boxShadow3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
+$boxShadow4: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
+$boxShadow5: 0 19px 38px rgba(0,0,0,0.30), 0 15px 12px rgba(0,0,0,0.22);
 
-  --boxShadow1: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24);
-  --boxShadow2: 0 3px 6px rgba(0,0,0,0.16), 0 3px 6px rgba(0,0,0,0.23);
-  --boxShadow3: 0 10px 20px rgba(0,0,0,0.19), 0 6px 6px rgba(0,0,0,0.23);
-  --boxShadow4: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22);
-  --boxShadow5: 0 19px 38px rgba(0,0,0,0.30), 0 15px 12px rgba(0,0,0,0.22);
+/* Media Queries
+–––––––––––––––––––––––––––––––––––––––––––––––––– */
+/*
+Note: The best way to structure the use of media queries is to create the queries
+near the relevant code. For example, if you wanted to change the styles for buttons
+on small devices, paste the mobile query code up in the buttons section and style it
+there.
+*/
 
-  /* Media Queries
-  –––––––––––––––––––––––––––––––––––––––––––––––––– */
-  /*
-  Note: The best way to structure the use of media queries is to create the queries
-  near the relevant code. For example, if you wanted to change the styles for buttons
-  on small devices, paste the mobile query code up in the buttons section and style it
-  there.
-  */
+$media-mobile: 400px;
+$media-phablet: 550px;
+$media-tablet: 750px;
+$media-desktop: 1200px;
 
-  --media-mobile: 400px;
-  --media-phablet: 550px;
-  --media-tablet: 750px;
-  --media-desktop: 1200px;
-}

@@ -17,7 +17,7 @@ body {
   font-size: 1.3em;
   line-height: 1.6;
   font-family: 'Open Sans', sans-serif;
-  background-color: var(--dashboardBg);
+  background-color: $dashboardBg;
 }
 
 *, *:before, *:after {
@@ -51,12 +51,12 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 /––––––––––––––––––––––––––––––––––––––––––––––––––*/
 
 a {
-  color: var(--brandPrimary);
+  color: $brandPrimary;
   text-decoration: none;
 }
 
 a:hover {
-  color: var(--brandPrimaryDark);
+  color: $brandPrimaryDark;
 }
 
 /* Typography

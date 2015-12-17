@@ -1,25 +1,41 @@
 export default {
   messages: {
     header: {
-      'feed': 'Feed',
-      'groups': 'Groups',
-      'profile': 'Profile'
+      feed: 'Feed',
+      groups: 'Groups',
+      account: 'Account',
+      logout: 'Logout',
+      login: 'Login'
     },
     groups: {
       'page-title': 'Groups'
     },
-    profile: {
-      'page-title': 'Profile'
-    },
     protected: {
       'page-title': 'Protected Page'
     },
-    post: {
-      'page-title': 'Post - {title}',
-      'not-found-page-title': 'Post not found'
+    profile: {
+      'page-title': 'Profile - {fullName}',
+      'not-found-page-title': 'User profile not found'
     },
     feed: {
       'page-title': 'Feed'
+    },
+    login: {
+      help: 'Any credentials will work, it creates a fake session for example.',
+      username: {
+        label: 'Login',
+        placeholder: 'example@app.com'
+      },
+      password: {
+        label: 'Password'
+      },
+      submit: 'Submit'
+    },
+    routes: {
+      feed: '/feed',
+      groups: '/groups',
+      login: '/login',
+      account: '/account'
     }
   }
 };

@@ -9,7 +9,8 @@
     "mocha": true
   },
   "globals": {
-    "chai": true
+    "chai": true,
+    "sinon": true
   },
   "rules": {
     "react/display-name": [2, { "acceptTranspilerName": true }],
@@ -19,6 +20,7 @@
     "react/jsx-quotes": 0,
     "react/jsx-uses-react": 2,
     "react/jsx-uses-vars": 2,
+    "react/jsx-closing-bracket-location": [2, "after-props" ],
     "react/no-did-mount-set-state": 2,
     "react/no-did-update-set-state": 2,
     "react/no-multi-comp": 2,
@@ -35,12 +37,14 @@
     "comma-dangle": [2, "never"],
     "indent": [2, 2],
     "object-curly-spacing": [2, "always"],
+    "array-bracket-spacing": [2, "always"],
     "no-undef": 2,
     "no-underscore-dangle": 0,
     "func-names": 0,
     "no-else-return": 0,
     "no-console": 0,
     "no-throw-literal": 0,
-    "id-length": 0
+    "id-length": 0,
+    "no-unused-expressions": 0
   }
 }
