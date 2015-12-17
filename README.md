@@ -1,3 +1,7 @@
+[![Dependency Status](https://david-dm.org/tehkaiyu/write.svg)](https://david-dm.org/tehkaiyu/write)
+[![devDependency Status](https://david-dm.org/tehkaiyu/write/dev-status.svg)](https://david-dm.org/tehkaiyu/write#info=devDependencies)
+[![NPM Version](http://img.shields.io/npm/v/tehkaiyu/write.svg?style=flat)](https://www.npmjs.com/package/tehkaiyu/write)
+
 # Write
 
 > Share knowledge.
@@ -32,30 +36,62 @@ Alt-resolver will be our tool for resolving promises (data-fetching) before serv
 
 Wrap data-fetching requests from actions into promises and send them to `altResolver` like:
 
-```
-fetch() {
-  const promise = (resolve) => {
-    request
-      .get('http://example.com/api/posts')
-      .end((response) => {
-        // fire new action to send data to store
-        this.actions.fetchSuccess(response.body);
-        return resolve();
-      });
-  };
-  // Send the `promise` to altResolver
-  this.alt.resolve(promise);
+```javascript
+show(id) {
+  // You need to return a fn in actions
+  // to get alt instance as second parameter to access
+  // `alt-resolver` and the ApiClient
+  return (dispatch, { resolve, request  }) =>
+  // We use `alt-resolver` from the boilerplate
+  // to indicate the server we need to resolve
+  // this data before server side rendering
+    resolve(async () => {
+      try {
+        const response = await request({ url: '/users' });
+        this.actions.indexSuccess(response);
+      } catch (error) {
+        this.actions.indexFail({ error });
+      }
+    });
 }
 ```
 
-Call the fetch action from `componentWillMount` method:
+Call the fetch action from component in the `componentWillMount` method:
 
-```
-componentWillMount() {
-  const postsActions = this.props.flux.getActions('posts');
-  return postsActions.fetch();
+```javascript
+import React, { Component, PropTypes } from 'react';
+import connect from 'connect-alt';
+
+// connect-alt is an util to connect store state to component props
+// you can read more about it here: http://github.com/iam4x/connect-alt
+// it handle store changes for you :)
+//
+// posts -> store name
+// collection -> `this.collection` into posts store
+//
+@connect(({ posts: { collection } }) => ({ posts: collection }))
+class Posts extends Component {
+
+  static contextTypes: { flux: PropTypes.object.isRequired }
+  static propTypes: { posts: PropTypes.array.isRequired }
+
+  componentWillMount() {
+    const { flux } = this.context
+    return flux.getActions('posts').fetch();
+  }
+
+  render() {
+    const { posts } = this.props;
+    return (<pre>{ JSON.stringify(posts, null, 4) }</pre>)
+  }
 }
 ```
+
+On browser side, the rendering won't be stopped and will resolve the promise instantly.
+
+On server side, `altResolver.render` will fire a first render to collect all the promises needed for a complete rendering. It will then resolve them, and try to re-render the application for a complete markup.
+
+Open `app/actions/posts.js`, `app/utils/alt-resolver.js`, `app/stores/posts.js` for more information about data-fetching.
 
 ### Run in production
 
