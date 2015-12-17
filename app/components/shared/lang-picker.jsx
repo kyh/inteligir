@@ -8,7 +8,7 @@ class LangPicker extends Component {
     onChange: PropTypes.func.isRequired
   }
 
-  locales = ['fr', 'en']
+  locales = [ 'fr', 'en' ]
 
   render() {
     const { onChange, activeLocale } = this.props;
@@ -22,8 +22,7 @@ class LangPicker extends Component {
               onClick={ () => onChange(locale) }>
               { locale }
             </a>
-          </li>
-        ) }
+          </li>) }
       </ul>
     );
   }

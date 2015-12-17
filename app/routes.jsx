@@ -1,15 +1,34 @@
 import React from 'react';
-import { Router, Route, IndexRoute } from 'react-router';
-import { generateRoute } from 'utils/localized-routes';
-import Routes from 'data/routes';
+import { Route } from 'react-router';
 
-export default (
-  <Router>
-    <Route path="/" component={ require('./components/app') }>
-      <Route path={ Routes.feed } component={ require('./components/feed/feed') }></Route>
-      <Route path={ Routes.groups } component={ require('./components/groups/groups') }></Route>
-      <Route path={ Routes.profile } component={ require('./components/profile/profile') }></Route>
+import { generateRoute } from 'utils/localized-routes';
+import { isConnected } from 'utils/routes-hooks';
+
+export default function (flux) { /* eslint react/display-name: 0 */
+  return (
+    <Route component={ require('./components/app') }>
+      { generateRoute({
+        paths: [ '/', '/feed' ],
+        component: require('./components/feed/feed')
+      }) }
+      { generateRoute({
+        paths: [ '/account' ],
+        component: require('./pages/account'),
+        onEnter: isConnected(flux)
+      }) }
+      { generateRoute({
+        paths: [ '/guides' ],
+        component: require('./components/groups/guides')
+      }) }
+      { generateRoute({
+        paths: [ '/profile/:seed' ],
+        component: require('./components/profile/profile')
+      }) }
+      { generateRoute({
+        paths: [ '/login' ],
+        component: require('./pages/login')
+      }) }
       <Route path='*' component={ require('./pages/not-found') } />
     </Route>
-  </Router>
-);
+  );
+}

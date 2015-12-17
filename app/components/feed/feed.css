@@ -2,7 +2,7 @@
 
 .feed {
   display: flex;
-  max-width: var(--pageMaxWidth);
+  max-width: $pageMaxWidth;
   margin: 0 auto;
   padding: 53px 0;
 }

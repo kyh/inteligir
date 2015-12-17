@@ -1,45 +1,65 @@
 import React, { Component, PropTypes } from 'react';
+import connect from 'connect-alt';
 
 import Navtab from 'components/shared/navtab/navtab';
 import Posts from 'components/feed/posts/posts';
 
 import { IntlMixin } from 'react-intl';
 
-if (process.env.BROWSER) {
-  require('components/feed/feed.css');
-}
+if (process.env.BROWSER) require('./feed.css');
 
+@connect(({ posts: { collection } }) => ({ collection }))
 class Feed extends Component {
 
-  static propTypes = {
-    flux: PropTypes.object.isRequired
+  static propTypes = { collection: PropTypes.array.isRequired }
+
+  static contextTypes = {
+    flux: PropTypes.object.isRequired,
+    messages: PropTypes.object.isRequired
   }
 
-  _getIntlMessage = IntlMixin.getIntlMessage
+  i18n = IntlMixin.getIntlMessage
 
   componentWillMount() {
-    this.props.flux
-      .getActions('page-title')
-      .set(this._getIntlMessage('feed.page-title'));
+    const { flux } = this.context;
 
-    this.props.params.listItems = [
-      'popular',
-      'my groups',
-      'design',
-      'ux group',
-      'frontend'
-    ];
+    flux.getActions('helmet').update({ title: this.i18n('feed.page-title') });
+    flux.getActions('posts').index();
   }
 
   render() {
     return (
-      <section className="feed">
-        <Navtab items={ this.props.params.listItems } />
-        <Posts {...this.props} flux={ this.props.flux } />
+      <section className='feed'>
+        <Navtab items={ [ '1', 'two' ] } />
+        <Posts posts={ this.props.collection } />
       </section>
     );
   }
-
 }
+
+// <Posts />
+
+// render() {
+//   const { collection } = this.props;
+
+//   return (
+//     <div>
+//       <h1 className='text-center'>
+//         { this.i18n('users.title') }
+//       </h1>
+//       <table className='app--users'>
+//         <thead>
+//           <tr>
+//             <th> { this.i18n('users.email') } </th>
+//             <th colSpan='2'> { this.i18n('users.actions') } </th>
+//           </tr>
+//         </thead>
+//         <tbody>
+//           { collection.map(this.renderUser) }
+//         </tbody>
+//       </table>
+//     </div>
+//   );
+// }
 
 export default Feed;

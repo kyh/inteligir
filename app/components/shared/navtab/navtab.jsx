@@ -1,18 +1,16 @@
 import React, { Component, PropTypes } from 'react';
-import { Link } from 'react-router';
+// import { Link } from 'react-router';
 import { IntlMixin } from 'react-intl';
 import cx from 'classnames';
 
-if (process.env.BROWSER) {
-  require('components/shared/navtab/navtab.css');
-}
+if (process.env.BROWSER) require('./navtab.css');
 
 class Navtab extends Component {
 
   constructor(props) {
     super(props);
     this.state = {
-      selectedIndex: 0,
+      selectedIndex: 0
     };
   }
 
@@ -22,10 +20,6 @@ class Navtab extends Component {
 
   _getIntlMessage = IntlMixin.getIntlMessage
 
-  componentWillMount() {
-
-  }
-
   _selectTab(index) {
     this.setState({
       selectedIndex: index
@@ -33,28 +27,28 @@ class Navtab extends Component {
   }
 
   renderItem = (item, index) => {
-    let itemClass = cx({
+    const itemClass = cx({
       'nav-tabs--item': true,
       'active': this.state.selectedIndex === index
     });
 
     return (
       <li className={ itemClass }
-          onClick={ this._selectTab.bind(this, index) }
-          key={ index }>
+        onClick={ this._selectTab.bind(this, index) }
+        key={ index }>
         { item }
       </li>
     );
   }
 
   render() {
-    let highlightBarStyle = {
+    const highlightBarStyle = {
       transform: `translateY(${ this.state.selectedIndex * 40 }px)`
     };
 
     return (
-      <ul className="nav-tabs">
-        <li className="nav-tabs--highlight" style={ highlightBarStyle }></li>
+      <ul className='nav-tabs'>
+        <li className='nav-tabs--highlight' style={ highlightBarStyle }></li>
         { this.props.items.map(this.renderItem, this) }
       </ul>
     );

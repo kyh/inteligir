@@ -6,7 +6,7 @@
   background-color: #fff;
   padding: 60px;
   border-radius: 3px;
-  box-shadow: var(--boxShadowFaded);
+  box-shadow: $boxShadowFaded;
 }
 
 .post-preview {
@@ -15,7 +15,7 @@
 
 .post-preview > a,
 .post-preview > a:hover {
-  color: var(--black);
+  color: $black;
 }
 
 .post-preview--title {
@@ -23,16 +23,16 @@
 }
 
 .post-preview--content {
-  color: var(--grey);
+  color: $grey;
   font-size: 1.4rem;
   line-height: 2;
   margin-bottom: 3rem;
 }
 
 .post-preview--footer {
-  color: var(--greyLight);
+  color: $greyLight;
   font-size: 1.2rem;
   font-weight: 600;
   padding-bottom: 1.5rem;
-  border-bottom: 1px solid var(--borderColor);
+  border-bottom: 1px solid $borderColor;
 }

@@ -1,14 +1,11 @@
 import React, { Component, PropTypes } from 'react';
-import Routes from 'data/routes';
+import connect from 'connect-alt';
 import { Link } from 'react-router';
 import { IntlMixin } from 'react-intl';
 
-if (process.env.BROWSER) {
-  require('components/shared/header/header.css');
-}
+if (process.env.BROWSER) require('./header.css');
 
 // import imageResolver from 'utils/image-resolver';
-// import Spinner from 'components/shared/spinner';
 
 // Load styles for the header
 // and load the `react-logo.png` image
@@ -20,37 +17,54 @@ if (process.env.BROWSER) {
 //   reactLogo = imageResolver('images/react-logo.png');
 // }
 
+@connect(({ requests: { inProgress }, session: { session } }) =>
+  ({ inProgress, session }))
 class Header extends Component {
 
   static propTypes = {
-    flux: PropTypes.object.isRequired,
-    locales: PropTypes.array.isRequired
+    // inProgress: PropTypes.bool,
+    session: PropTypes.object
   }
 
-  _getIntlMessage = IntlMixin.getIntlMessage
-
-  // state = {
-  //   spinner: false
-  // }
-
-  componentDidMount() {
-    // this.props.flux
-    //   .getStore('requests')
-    //   .listen(this._handleRequestStoreChange);
+  static contextTypes = {
+    locales: PropTypes.array.isRequired,
+    messages: PropTypes.object.isRequired,
+    flux: PropTypes.object.isRequired
   }
 
-  // _handleRequestStoreChange = ({ inProgress }) =>
-  //   this.setState({ spinner: inProgress })
+  i18n = IntlMixin.getIntlMessage
 
-  //   {/* Spinner in the top right corner */}
-  //   <Spinner active={ this.state.spinner } />
+  handleLocaleChange(locale) {
+    const { flux } = this.context;
+    flux.getActions('locale').switchLocale({ locale });
+  }
 
-  //   {/* React Logo in header */}
-  //   <Link to='/' className='app--logo'>
-  //     <img src={ reactLogo } alt='react-logo' />
-  //   </Link>
+  handleLogout() {
+    const { flux } = this.context;
+    flux.getActions('session').logout();
+  }
 
   render() {
+    const { session } = this.props;
+    // const { locales: [ activeLocale ] } = this.context;
+
+    const sessionLinks = session ? [
+      <span>
+        <Link to={ this.i18n('routes.account') } activeClassName='active'>
+          { this.i18n('header.account') }
+        </Link>
+        <a href='#' onClick={ ::this.handleLogout }>
+          { this.i18n('header.logout') }
+        </a>
+      </span>
+    ] : [
+      <span>
+        <Link to={ this.i18n('routes.login') } activeClassName='active'>
+          { this.i18n('header.login') }
+        </Link>
+      </span>
+    ];
+
     return (
       <header>
         <div className='app-header--wrapper'>
@@ -59,21 +73,13 @@ class Header extends Component {
           </div>
           {/* Links in the navbar */}
           <nav className='app-header--navbar'>
-            <Link
-              activeClassName='active'
-              to={ Routes.feed }>
-              { this._getIntlMessage('header.feed') }
+            <Link to={ this.i18n('routes.feed') } activeClassName='active'>
+              { this.i18n('header.feed') }
             </Link>
-            <Link
-              activeClassName='active'
-              to={ Routes.groups }>
-              { this._getIntlMessage('header.groups') }
+            <Link to={ this.i18n('routes.groups') } activeClassName='active'>
+              { this.i18n('header.groups') }
             </Link>
-            <Link
-              activeClassName='active'
-              to={ Routes.profile }>
-              { this._getIntlMessage('header.profile') }
-            </Link>
+            { sessionLinks }
           </nav>
         </div>
       </header>
