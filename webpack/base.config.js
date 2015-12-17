@@ -33,7 +33,7 @@ export default {
     modulesDirectories: [ 'node_modules', 'app' ]
   },
   postcss: (webpack) => [
-    require('postcss-import')({ addDependencyTo: webpack }),
+    require('postcss-import')({ addDependencyTo: webpack, path: './app/styles' }),
     require('postcss-url')(),
     require('precss')(),
     require('autoprefixer')({ browsers: [ 'last 2 versions' ] })
