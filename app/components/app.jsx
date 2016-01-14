@@ -1,4 +1,6 @@
 import React, { Component, PropTypes } from 'react';
+import injectTapEventPlugin from 'react-tap-event-plugin';
+injectTapEventPlugin();
 
 import Header from 'components/shared/header/header';
 
