@@ -1,63 +1,66 @@
-import webpack from 'webpack';
-import baseConfig from './webpack/base.config';
+var webpack = require('webpack');
 
-let coverage;
-let reporters;
-if (process.env.CIRCLECI) {
-  coverage = {
-    type: 'lcov',
-    dir: process.env.CIRCLE_ARTIFACTS
-  };
-  reporters = ['coverage', 'coveralls'];
-} else {
-  coverage = {
-    type: 'html',
-    dir: 'coverage/'
-  };
-  reporters = ['progress', 'coverage'];
-}
-
-export default function(config) {
+module.exports = function (config) {
   config.set({
-    browsers: ['Firefox'],
-    browserNoActivityTimeout: 30000,
-    frameworks: ['mocha', 'chai', 'sinon-chai'],
-    files: ['tests.webpack.js'],
-    preprocessors: { 'tests.webpack.js': ['webpack'] },
-    reporters: reporters,
-    coverageReporter: coverage,
+
+    browsers: ['PhantomJS'],
+
+    singleRun: !!process.env.CI,
+
+    frameworks: [ 'mocha' ],
+
+    files: [
+      './node_modules/phantomjs-polyfill/bind-polyfill.js',
+      'tests.webpack.js'
+    ],
+
+    preprocessors: {
+      'tests.webpack.js': [ 'webpack', 'sourcemap' ]
+    },
+
+    reporters: [ 'mocha' ],
+
+    plugins: [
+      require("karma-webpack"),
+      require("karma-mocha"),
+      require("karma-mocha-reporter"),
+      require("karma-phantomjs-launcher"),
+      require("karma-sourcemap-loader")
+    ],
+
     webpack: {
-      ...baseConfig,
-      devtool: 'inline',
+      devtool: 'inline-source-map',
       module: {
-        ...baseConfig.module,
         loaders: [
-          ...baseConfig.module.loaders,
-          {
-            test: /\.js$|.jsx$/,
-            loader: 'isparta?{babel: {stage: 0}}',
-            exclude: /node_modules|test|utils/
-          },
-          {
-            test: /\.css$/,
-            loader: 'style!css!postcss'
-          },
-          {
-            test: /\.(jpe?g|png|gif|svg|woff|woff2|eot|ttf)(\?v=[0-9].[0-9].[0-9])?$/,
-            loader: 'file?name=[sha512:hash:base64:7].[ext]',
-            exclude: /node_modules\/(?!font-awesome)/
-          }
+          { test: /\.(jpe?g|png|gif|svg)$/, loader: 'url', query: {limit: 10240} },
+          { test: /\.js$/, exclude: /node_modules/, loaders: ['babel']},
+          { test: /\.json$/, loader: 'json-loader' },
+          { test: /\.less$/, loader: 'style!css!less' },
+          { test: /\.scss$/, loader: 'style!css?modules&importLoaders=2&sourceMap&localIdentName=[local]___[hash:base64:5]!autoprefixer?browsers=last 2 version!sass?outputStyle=expanded&sourceMap' }
         ]
       },
+      resolve: {
+        modulesDirectories: [
+          'src',
+          'node_modules'
+        ],
+        extensions: ['', '.json', '.js']
+      },
       plugins: [
+        new webpack.IgnorePlugin(/\.json$/),
+        new webpack.NoErrorsPlugin(),
         new webpack.DefinePlugin({
-          'process.env': {
-            BROWSER: JSON.stringify(true),
-            NODE_ENV: JSON.stringify('test')
-          }
+          __CLIENT__: true,
+          __SERVER__: false,
+          __DEVELOPMENT__: true,
+          __DEVTOOLS__: false  // <-------- DISABLE redux-devtools HERE
         })
       ]
     },
-    webpackServer: { noInfo: true }
+
+    webpackServer: {
+      noInfo: true
+    }
+
   });
-}
+};
