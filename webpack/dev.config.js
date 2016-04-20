@@ -1,78 +1,113 @@
-import webpack from 'webpack';
-import { isArray } from 'lodash';
+require('babel-polyfill');
 
-import baseConfig from './base.config';
-import startKoa from './utils/start-koa';
+// Webpack config for development
+var fs = require('fs');
+var path = require('path');
+var webpack = require('webpack');
+var assetsPath = path.resolve(__dirname, '../static/dist');
+var host = (process.env.HOST || 'localhost');
+var port = (+process.env.PORT + 1) || 3001;
 
-const { VIRTUAL_HOST, C9_HOSTNAME } = process.env;
+// https://github.com/halt-hammerzeit/webpack-isomorphic-tools
+var WebpackIsomorphicToolsPlugin = require('webpack-isomorphic-tools/plugin');
+var webpackIsomorphicToolsPlugin = new WebpackIsomorphicToolsPlugin(require('./webpack-isomorphic-tools'));
 
-const LOCAL_IP = require('dev-ip')();
+var babelrc = fs.readFileSync('./.babelrc');
+var babelrcObject = {};
 
-const PORT = (C9_HOSTNAME) ? '443' : parseInt(process.env.PORT, 10) + 1 || 3001;
-const HOST = VIRTUAL_HOST || C9_HOSTNAME || isArray(LOCAL_IP) && LOCAL_IP[0] || LOCAL_IP || 'localhost';
-const PUBLIC_PATH = `//${HOST}:${PORT}/assets/`;
+try {
+  babelrcObject = JSON.parse(babelrc);
+} catch (err) {
+  console.error('==>     ERROR: Error parsing your .babelrc.');
+  console.error(err);
+}
 
-export default {
-  server: {
-    port: PORT,
-    options: {
-      publicPath: (C9_HOSTNAME) ? '/' : PUBLIC_PATH,
-      hot: true,
-      stats: {
-        assets: true,
-        colors: true,
-        version: false,
-        hash: false,
-        timings: true,
-        chunks: false,
-        chunkModules: false
-      }
-    }
-  },
-  webpack: {
-    ...baseConfig,
-    devtool: 'cheap-module-source-map',
-    entry: {
-      app: [
-        `webpack-hot-middleware/client?path=//${HOST}:${PORT}/__webpack_hmr`,
-        './app/index.js'
-      ]
-    },
-    ouput: { ...baseConfig.output, publicPath: PUBLIC_PATH },
-    module: {
-      ...baseConfig.module,
-      loaders: [
-        ...baseConfig.module.loaders,
-        {
-          test: /\.(jpe?g|png|gif|svg|woff|woff2|eot|ttf)(\?v=[0-9].[0-9].[0-9])?$/,
-          loader: 'file?name=[sha512:hash:base64:7].[ext]',
-          exclude: /node_modules\/(?!font-awesome)/
-        },
-        {
-          test: /\.css$/,
-          loader: 'style!css?sourceMap!postcss',
-          exclude: /node_modules/
-        }
-      ]
-    },
-    plugins: [
-      // hot reload
-      new webpack.optimize.OccurenceOrderPlugin(),
-      new webpack.HotModuleReplacementPlugin(),
-      new webpack.NoErrorsPlugin(),
 
-      new webpack.DefinePlugin({
-        'process.env': {
-          BROWSER: JSON.stringify(true),
-          NODE_ENV: JSON.stringify('development')
-        }
-      }),
+var babelrcObjectDevelopment = babelrcObject.env && babelrcObject.env.development || {};
 
-      new webpack.optimize.DedupePlugin(),
+// merge global and dev-only plugins
+var combinedPlugins = babelrcObject.plugins || [];
+combinedPlugins = combinedPlugins.concat(babelrcObjectDevelopment.plugins);
 
-      ...baseConfig.plugins,
+var babelLoaderQuery = Object.assign({}, babelrcObjectDevelopment, babelrcObject, {plugins: combinedPlugins});
+delete babelLoaderQuery.env;
 
-      function () { this.plugin('done', startKoa); }
-    ]
+// Since we use .babelrc for client and server, and we don't want HMR enabled on the server, we have to add
+// the babel plugin react-transform-hmr manually here.
+
+// make sure react-transform is enabled
+babelLoaderQuery.plugins = babelLoaderQuery.plugins || [];
+var reactTransform = null;
+for (var i = 0; i < babelLoaderQuery.plugins.length; ++i) {
+  var plugin = babelLoaderQuery.plugins[i];
+  if (Array.isArray(plugin) && plugin[0] === 'react-transform') {
+    reactTransform = plugin;
   }
+}
+
+if (!reactTransform) {
+  reactTransform = ['react-transform', {transforms: []}];
+  babelLoaderQuery.plugins.push(reactTransform);
+}
+
+if (!reactTransform[1] || !reactTransform[1].transforms) {
+  reactTransform[1] = Object.assign({}, reactTransform[1], {transforms: []});
+}
+
+// make sure react-transform-hmr is enabled
+reactTransform[1].transforms.push({
+  transform: 'react-transform-hmr',
+  imports: ['react'],
+  locals: ['module']
+});
+
+module.exports = {
+  devtool: 'inline-source-map',
+  context: path.resolve(__dirname, '..'),
+  entry: {
+    'main': [
+      'webpack-hot-middleware/client?path=http://' + host + ':' + port + '/__webpack_hmr',
+      './src/client.js'
+    ]
+  },
+  output: {
+    path: assetsPath,
+    filename: '[name]-[hash].js',
+    chunkFilename: '[name]-[chunkhash].js',
+    publicPath: 'http://' + host + ':' + port + '/dist/'
+  },
+  module: {
+    loaders: [
+      { test: /\.jsx?$/, exclude: /node_modules/, loaders: ['babel?' + JSON.stringify(babelLoaderQuery), 'eslint-loader']},
+      { test: /\.json$/, loader: 'json-loader' },
+      { test: /\.less$/, loader: 'style!css?modules&importLoaders=2&sourceMap&localIdentName=[local]___[hash:base64:5]!autoprefixer?browsers=last 2 version!less?outputStyle=expanded&sourceMap' },
+      { test: /\.scss$/, loader: 'style!css?modules&importLoaders=2&sourceMap&localIdentName=[local]___[hash:base64:5]!autoprefixer?browsers=last 2 version!sass?outputStyle=expanded&sourceMap' },
+      { test: /\.woff(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=application/font-woff" },
+      { test: /\.woff2(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=application/font-woff" },
+      { test: /\.ttf(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=application/octet-stream" },
+      { test: /\.eot(\?v=\d+\.\d+\.\d+)?$/, loader: "file" },
+      { test: /\.svg(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=image/svg+xml" },
+      { test: webpackIsomorphicToolsPlugin.regular_expression('images'), loader: 'url-loader?limit=10240' }
+    ]
+  },
+  progress: true,
+  resolve: {
+    modulesDirectories: [
+      'src',
+      'node_modules'
+    ],
+    extensions: ['', '.json', '.js', '.jsx']
+  },
+  plugins: [
+    // hot reload
+    new webpack.HotModuleReplacementPlugin(),
+    new webpack.IgnorePlugin(/webpack-stats\.json$/),
+    new webpack.DefinePlugin({
+      __CLIENT__: true,
+      __SERVER__: false,
+      __DEVELOPMENT__: true,
+      __DEVTOOLS__: true  // <-------- DISABLE redux-devtools HERE
+    }),
+    webpackIsomorphicToolsPlugin.development()
+  ]
 };

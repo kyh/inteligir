@@ -1,85 +1,83 @@
-import webpack from 'webpack';
-import ExtractTextPlugin from 'extract-text-webpack-plugin';
-import PurifyCSSPlugin from 'bird3-purifycss-webpack-plugin';
+require('babel-polyfill');
 
-import baseConfig from './base.config';
+// Webpack config for creating the production bundle.
+var path = require('path');
+var webpack = require('webpack');
+var CleanPlugin = require('clean-webpack-plugin');
+var ExtractTextPlugin = require('extract-text-webpack-plugin');
+var strip = require('strip-loader');
 
-export default {
-  ...baseConfig,
-  module: {
-    loaders: [
-      ...baseConfig.module.loaders,
-      {
-        test: /\.(woff|woff2|eot|ttf|svg)(\?v=[0-9].[0-9].[0-9])?$/,
-        loader: 'file?name=[sha512:hash:base64:7].[ext]',
-        exclude: /node_modules\/(?!font-awesome)/
-      },
-      {
-        test: /\.(jpe?g|png|gif|svg)$/,
-        loader: 'file?name=[sha512:hash:base64:7].[ext]!image?optimizationLevel=7&progressive&interlaced',
-        exclude: /node_modules\/(?!font-awesome)/
-      },
-      {
-        test: /\.css$/,
-        loader: ExtractTextPlugin.extract('style', 'css?sourceMap!postcss'),
-        exclude: /node_modules/
-      }
+var projectRootPath = path.resolve(__dirname, '../');
+var assetsPath = path.resolve(projectRootPath, './static/dist');
+
+// https://github.com/halt-hammerzeit/webpack-isomorphic-tools
+var WebpackIsomorphicToolsPlugin = require('webpack-isomorphic-tools/plugin');
+var webpackIsomorphicToolsPlugin = new WebpackIsomorphicToolsPlugin(require('./webpack-isomorphic-tools'));
+
+module.exports = {
+  devtool: 'source-map',
+  context: path.resolve(__dirname, '..'),
+  entry: {
+    'main': [
+      './src/client.js'
     ]
   },
+  output: {
+    path: assetsPath,
+    filename: '[name]-[chunkhash].js',
+    chunkFilename: '[name]-[chunkhash].js',
+    publicPath: '/dist/'
+  },
+  module: {
+    loaders: [
+      { test: /\.jsx?$/, exclude: /node_modules/, loaders: [strip.loader('debug'), 'babel']},
+      { test: /\.json$/, loader: 'json-loader' },
+      { test: /\.less$/, loader: ExtractTextPlugin.extract('style', 'css?modules&importLoaders=2&sourceMap!autoprefixer?browsers=last 2 version!less?outputStyle=expanded&sourceMap=true&sourceMapContents=true') },
+      { test: /\.scss$/, loader: ExtractTextPlugin.extract('style', 'css?modules&importLoaders=2&sourceMap!autoprefixer?browsers=last 2 version!sass?outputStyle=expanded&sourceMap=true&sourceMapContents=true') },
+      { test: /\.woff(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=application/font-woff" },
+      { test: /\.woff2(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=application/font-woff" },
+      { test: /\.ttf(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=application/octet-stream" },
+      { test: /\.eot(\?v=\d+\.\d+\.\d+)?$/, loader: "file" },
+      { test: /\.svg(\?v=\d+\.\d+\.\d+)?$/, loader: "url?limit=10000&mimetype=image/svg+xml" },
+      { test: webpackIsomorphicToolsPlugin.regular_expression('images'), loader: 'url-loader?limit=10240' }
+    ]
+  },
+  progress: true,
+  resolve: {
+    modulesDirectories: [
+      'src',
+      'node_modules'
+    ],
+    extensions: ['', '.json', '.js', '.jsx']
+  },
   plugins: [
-    // extract css
-    new ExtractTextPlugin('[name]-[chunkhash].css'),
+    new CleanPlugin([assetsPath], { root: projectRootPath }),
 
-    // set env
+    // css files from the extract-text-plugin loader
+    new ExtractTextPlugin('[name]-[chunkhash].css', {allChunks: true}),
     new webpack.DefinePlugin({
       'process.env': {
-        BROWSER: JSON.stringify(true),
-        NODE_ENV: JSON.stringify('production')
-      }
+        NODE_ENV: '"production"'
+      },
+
+      __CLIENT__: true,
+      __SERVER__: false,
+      __DEVELOPMENT__: false,
+      __DEVTOOLS__: false
     }),
 
-    new PurifyCSSPlugin({
-      purifyOptions: { info: true },
-      paths: [
-        'app/**/*.jsx',
-        'app/**/*.js',
-        'server/views/**/*.hbs',
-        'shared/universal-render.jsx',
-
-        // VENDORS WHICH CREATE HTML WITH ID OR CLASSES
-        'node_modules/iso/src/iso.js',
-        'node_modules/react-router/lib/*.js',
-        'node_modules/react-intl/lib/components/*.js'
-      ]
-    }),
+    // ignore dev config
+    new webpack.IgnorePlugin(/\.\/dev/, /\/config$/),
 
     // optimizations
     new webpack.optimize.DedupePlugin(),
     new webpack.optimize.OccurenceOrderPlugin(),
     new webpack.optimize.UglifyJsPlugin({
       compress: {
-        warnings: false,
-        screw_ie8: true,
-        sequences: true,
-        dead_code: true,
-        drop_debugger: true,
-        comparisons: true,
-        conditionals: true,
-        evaluate: true,
-        booleans: true,
-        loops: true,
-        unused: true,
-        hoist_funs: true,
-        if_return: true,
-        join_vars: true,
-        cascade: true,
-        drop_console: true
-      },
-      output: {
-        comments: false
+        warnings: false
       }
     }),
 
-    ...baseConfig.plugins
+    webpackIsomorphicToolsPlugin
   ]
 };
