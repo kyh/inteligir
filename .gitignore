@@ -1,10 +1,7 @@
-**/webpack-stats.json
-coverage
-node_modules
+.idea/
+node_modules/
+dist/
+*.iml
+webpack-assets.json
+webpack-stats.json
 npm-debug.log
-dist
-.tmp
-.DS_Store
-.sass-cache
-.env
-.c9

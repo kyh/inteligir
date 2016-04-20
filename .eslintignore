@@ -1,4 +1,4 @@
-coverage/
 node_modules/
-dist/
-test/
+webpack/*
+karma.conf.js
+tests.webpack.js
