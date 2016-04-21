@@ -1,1 +1,100 @@
+/* Base Styles
+–––––––––––––––––––––––––––––––––––––––––––––––––– */
+@import './normalize.css';
+@import './variables';
+@import './mixins';
 
+/*
+  html is set to 62.5% so that all the REM measurements are based on 10px sizing.
+  So basically 1.5rem = 15px :)
+*/
+html {
+  font-size: 62.5%;
+  box-sizing: border-box; // apply a natural box layout model to all elements, but allowing components to change
+}
+
+body {
+  font-size: 1.5em;
+  line-height: 1.6;
+  font-family: $opensans-font;
+  color: $text-color;
+}
+
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+// clearfix helper class
+@mixin clearfix {
+  &:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+}
+
+// Reset lists
+ol, ul { margin: 0; padding: 0; list-style: none; }
+
+// Reset description lists
+dd, dt { margin: 0; }
+
+.container {
+  @include container();
+}
+
+// Links
+//––––––––––––––––––––––––––––––––––––––––––––––––––
+
+a {
+  color: $brand-primary;
+  text-decoration: none;
+  transition: color 0.233s ease;
+
+  &:hover {
+    color: darken($brand-primary, 10%);
+  }
+}
+
+// Typography
+//––––––––––––––––––––––––––––––––––––––––––––––––––
+
+h1, h2, h3, h4, h5, h6 {
+  color: $title-color;
+  margin-top: 0;
+  margin-bottom: 2rem;
+}
+
+h1 { line-height: 1.2; font-size: 3.0rem;  }
+h2 { line-height: 1.25; font-size: 2.6rem; }
+h3 { line-height: 1.3; font-size: 2.0rem;  }
+h4 { line-height: 1.35; font-size: 1.8rem; }
+h5 { line-height: 1.5; font-size: 1.6rem;  }
+h6 { line-height: 1.6; font-size: 1.4rem;  }
+
+p {
+  margin-top: 0;
+}
+
+strong {
+  font-weight: 800;
+}
+
+blockquote {
+  margin: 0;
+}
+
+cite {
+  display: block;
+}
+
+// Images
+//––––––––––––––––––––––––––––––––––––––––––––––––––
+
+figure {
+  margin: 0;
+}
+
+img {
+  max-width: 100%;
+}

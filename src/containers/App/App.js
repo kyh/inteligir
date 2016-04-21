@@ -8,6 +8,8 @@ import { routeActions } from 'react-router-redux';
 import config from '../../config';
 import { asyncConnect } from 'redux-async-connect';
 
+require('./App.scss');
+
 @asyncConnect([{
   promise: ({store: {dispatch, getState}}) => {
     const promises = [];
@@ -49,10 +51,9 @@ export default class App extends Component {
 
   render() {
     const {user} = this.props;
-    const styles = require('./App.scss');
 
     return (
-      <section className={styles.app}>
+      <section>
         <Helmet {...config.app.head}/>
         <Navigation user={user} logout={this.props.logout} />
         {this.props.children}
