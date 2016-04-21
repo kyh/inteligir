@@ -1,0 +1,23 @@
+@import 'variables';
+
+// clearfix helper class
+@mixin clearfix {
+  &:after {
+    content: "";
+    display: table;
+    clear: both;
+  }
+}
+
+@mixin container {
+  position: relative;
+  width: 100%;
+  max-width: $container-max;
+  margin: 0 auto;
+  padding: 0 $base-spacing-unit;
+  @include clearfix;
+
+  @media (#{$bp-smaller-than-mobile}) {
+    padding: 0 15px;
+  }
+}
