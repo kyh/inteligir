@@ -19,6 +19,9 @@ module.exports = Object.assign({
     description: 'Learning is much better with friends',
     head: {
       titleTemplate: 'Learn with Friends | %s',
+      link: [
+        {rel: 'stylesheet', href: 'https://fonts.googleapis.com/css?family=Droid+Serif|Lato:700,400,300'}
+      ],
       meta: [
         {name: 'description', content: 'Learning is much better with friends.'},
         {charset: 'utf-8'},

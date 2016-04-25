@@ -1,24 +1,24 @@
 /* Colors
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
-$brand-primary    : #107EB1;
-$brand-black      : #3b475f;
-$brand-teal       : #25bfa9;
-$border-color     : #e5e5e9;
+$brand-primary    : #E92121;
+$brand-black      : #333945;
+$border-color     : #85878D;
 $background-grey  : #f6f8fd;
-$text-color       : #818c98;
-$title-color      : #3b475f;
+$text-color       : #a8a9aa;
+$title-color      : #2a2d33;
 
 /* Fonts
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
-$montserrat-font: 'Montserrat', sans-serif;
-$opensans-font: 'Open Sans', sans-serif;
+$droid-font: 'Droid Serif', serif;
+$lato-font: 'Lato', sans-serif;
 
 /* Layout
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
 $container-max: 1100px;
+$container-max-small: 840px;
 
 // Spacing units for padding and margins
-$base-spacing-unit: 20px !default;
+$base-spacing-unit: 30px !default;
 $half-spacing-unit: $base-spacing-unit / 2 !default;
 $quarter-spacing-unit: $base-spacing-unit / 4 !default;
 
