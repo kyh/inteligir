@@ -1,58 +1,33 @@
 @import '../../containers/App/variables';
 
-$nav-link-color: #edecdf;
-$nav-link-hover: #fff;
-
-@mixin whiteNavigation {
-  background-color: #fff;
-  border-bottom: 2px solid $background-grey;
-
-  .navLogo svg path, ellipse {
-    fill: $brand-primary;
-  }
-
-  a {
-    color: $brand-black;
-    &.navSignupMobile {
-      color: #fff;
-    }
-  }
-
-  .navMenuItem:after {
-    background-color: $brand-teal;
-  }
-
-  .navLogin {
-    border: none;
-    padding: 0;
-    margin-right: 15px;
-  }
-
-  @media (#{$bp-larger-than-mobile}) {
-    .navSignup {
-      display: block;
-      color: $brand-primary;
-      border-color: $brand-primary;
-    }
-  }
-}
+$nav-link-color: #A1A2A4;
+$nav-link-hover: #47494D;
 
 .nav {
+  font-size: 0.9em;
+  letter-spacing: 0.5px;
   position: absolute;
   width: 100%;
   z-index: 1000;
-  transition: background-color 0.3s ease;
 
   a {
     color: $nav-link-color;
   }
 
+  &Dark {
+    .navMenuItem, .navLogin, .navSignup {
+      &:hover, &.active {
+        color: #fff;
+      }
+    }
+  }
+
   &Wrapper {
-    max-width: $container-max;
+    max-width: $container-max-small;
     margin: 0 auto;
     display: flex;
     justify-content: space-between;
-    padding: 30px;
+    border-bottom: 1px solid $border-color;
   }
 
   &Logo {
@@ -65,154 +40,33 @@ $nav-link-hover: #fff;
   }
 
   &MenuItem {
-    font-size: 0.85em;
-    font-weight: 600;
+    font-size: 0.8em;
+    font-weight: 700;
     text-transform: uppercase;
-    margin-left: $base-spacing-unit;
+    margin-right: 20px;
     position: relative;
-    padding-bottom: 3px;
+    padding: 37px 20px;
     transition: color 0.3s ease, box-shadow 0.3s ease;
-
-    &:after {
-      content: '';
-      position: absolute;
-      left: 50%;
-      bottom: -7px;
-      width: 30px;
-      margin-left: -15px;
-      background-color: $nav-link-color;
-      height: 2px;
-      transform: scale(0,1);
-      transition: transform 0.3s ease;
-    }
 
     &:hover, &.active {
       color: $nav-link-hover;
-      &:after {
-        transform: scale(1,1);
-      }
+      box-shadow: 0 1px 0 $brand-primary;
     }
   }
 
   &Login, &Signup {
-    border: 2px solid #fff;
-    border-radius: 30px;
-    padding: 7px 34px;
+    border: 1px solid rgba(255, 255, 255 , 0.5);
+    border-radius: 3px;
+    padding: 7px 30px;
     text-transform: uppercase;
     font-size: 0.8em;
-    font-weight: 600;
+    font-weight: 700;
+    margin-right: 12px;
     transition: background-color 0.3s ease, color 0.3s ease;
 
     &:hover {
       color: $nav-link-hover;
       background-color: rgba(255, 255, 255, 0.2);
     }
-  }
-
-  &Signup {
-    display: none;
-  }
-
-  &MenuIcon {
-    display: none;
-    cursor: pointer;
-    text-transform: uppercase;
-    font-size: 0.7em;
-    font-weight: 700;
-    letter-spacing: 1px;
-    padding: $half-spacing-unit;
-  }
-
-  &SignupMobile, &LoginMobile {
-    display: none;
-  }
-
-  &SignupMobile {
-    font-size: 0.9em;
-    background: $brand-primary;
-    width: calc(100% - 40px);
-    padding: 10px;
-    margin-left: 20px;
-    text-align: center;
-    border-radius: 3px;
-    margin-bottom: 35px;
-    text-transform: uppercase;
-  }
-
-  @media (#{$bp-smaller-than-mobile}) {
-    &.open {
-      @include whiteNavigation();
-      .nav-menu {
-        display: block;
-      }
-    }
-
-    &Wrapper {
-      position: relative;
-      padding: 30px 15px;
-
-      .nav-menu > .nav-menu-item {
-        color: $text-color;
-        &:hover, &.active {
-          color: $brand-black;
-          box-shadow: inset 3px 0 0 0 $brand-teal;
-        }
-        &:after {
-          display: none;
-        }
-      }
-    }
-
-    &Menu {
-      display: none;
-      position: absolute;
-      left: 0;
-      right: 0;
-      top: 95px;
-      height: 100vh;
-      padding: 30px 0;
-      background-color: #f9f9f9;
-      box-shadow: inset 0 2px 2px -2px rgba(6,8,8,0.15);
-      animation: 0.3s fadeNavIn ease;
-    }
-
-    &MenuIcon {
-      display: block;
-    }
-
-    &MenuItem {
-      display: block;
-      margin: 0 0 $base-spacing-unit;
-      padding-left: $base-spacing-unit;
-    }
-
-    &Login {
-      display: none;
-    }
-
-    &Signup-mobile, &LoginMobile {
-      display: block;
-    }
-  }
-
-  @media (#{$bp-smaller-than-mobile-xs}) {
-    &Wrapper {
-      padding: 15px;
-    }
-
-    &Menu {
-      top: 68px;
-    }
-  }
-}
-
-@keyframes fadeNavIn {
-  0% {
-    transform: translateY(-20px);
-    opacity: 0;
-  }
-  100% {
-    transform: translateY(0);
-    opacity: 1;
   }
 }

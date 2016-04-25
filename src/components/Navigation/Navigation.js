@@ -10,18 +10,9 @@ export default class Navigation extends Component {
     logout: PropTypes.func.isRequired
   };
 
-  constructor(props) {
-    super(props);
-    this.state = {
-      isMenuOpen: false
-    };
-  }
-
-  toggleMenuState(toggle = !this.state.isMenuOpen) {
-    this.setState({
-      isMenuOpen: toggle
-    });
-  }
+  static contextTypes = {
+    router: React.PropTypes.object.isRequired
+  };
 
   handleLogout = (event) => {
     event.preventDefault();
@@ -31,8 +22,8 @@ export default class Navigation extends Component {
   render() {
     const {user} = this.props;
     const navClass = classNames({
-      [styles.nav]: true,
-      [styles.open]: this.state.isMenuOpen
+      [styles.navDark]: this.context.router.isActive('/', true),
+      [styles.nav]: true
     });
 
     return (
@@ -40,44 +31,23 @@ export default class Navigation extends Component {
         <div className={styles.navWrapper}>
           <div className={styles.navMenuWrapper}>
             <div className={styles.navLogo}>
-              <IndexLink
-                onClick={ () => this.toggleMenuState(false) }
-                to="/"
-              >
-                Write
+              <IndexLink to="/">
+                Learn
               </IndexLink>
             </div>
+          </div>
+
+          <div className={styles.navRight}>
             <nav className={styles.navMenu}>
               <Link
                 className={styles.navMenuItem}
                 to="/about"
                 activeClassName={styles.active}
-                onClick={ () => this.toggleMenuState(false) }
               >
                 About
               </Link>
-              {!user &&
-                <Link
-                  className={`${styles.navMenuItem} ${styles.navLoginMobile}`}
-                  to="/login"
-                  activeClassName={styles.active}
-                  onClick={ () => this.toggleMenuState(false) }
-                >
-                  Login
-                </Link>
-              }
               {user && <a onClick={this.handleLogout}>Logout</a>}
             </nav>
-          </div>
-
-          <div className={styles.navRight}>
-            <a
-              className={styles.navMenuIcon}
-              onClick={ () => this.toggleMenuState() }
-              aria-label="Menu"
-            >
-              Menu
-            </a>
             {!user && <Link className={styles.navLogin} to="/login">Login</Link>}
             {user && <a href="" className={styles.navLogin} onClick={this.handleLogout}>Logout</a>}
           </div>
