@@ -1,3 +1,26 @@
-.home {
+@import '../../containers/App/variables';
+@import '../../containers/App/mixins';
 
+.home {
+  height: 100%;
+  background-color: $brand-black;
+  padding: 100px 30px;
+
+  &Container {
+    @include container();
+    padding-top: 40px;
+    padding-bottom: 40px;
+    text-align: center;
+  }
+
+  &Title {
+    color: #fff;
+    margin-bottom: 10px;
+  }
+
+  &Details {
+
+    max-width: 630px;
+    margin: 0 auto 30px;
+  }
 }
