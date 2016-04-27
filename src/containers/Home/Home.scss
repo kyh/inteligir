@@ -4,7 +4,7 @@
 .home {
   height: 100%;
   background-color: $brand-black;
-  padding: 100px 30px;
+  padding: 100px 30px 20px;
 
   &Container {
     @include container();
@@ -19,8 +19,26 @@
   }
 
   &Details {
-
     max-width: 630px;
-    margin: 0 auto 30px;
+    margin: 0 auto 60px;
+  }
+
+  &Image {
+    position: relative;
+  }
+
+  &ImageScreen {
+    width: 180px;
+    height: 70%;
+    background-color: #fff;
+    position: absolute;
+    left: 50%;
+    top: 50px;
+    transform: translateX(-47%);
+    border-radius: 3px;
+
+    @media (#{$bp-smaller-than-mobile}) {
+      display: none;
+    }
   }
 }

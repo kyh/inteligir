@@ -1,7 +1,8 @@
 import React, { Component } from 'react';
 import Helmet from 'react-helmet';
+import copy from './copy';
 
-const bgImage = require('./home.png');
+const mainImage = require('./main-image.png');
 
 export default class Home extends Component {
   render() {
@@ -11,20 +12,18 @@ export default class Home extends Component {
         <Helmet title="Home"/>
         <section className={styles.homeContainer}>
           <h1 className={styles.homeTitle}>
-            Learning is much better with friends
+            {copy.title}
           </h1>
           <p className={styles.homeDetails}>
-            Create private groups and broadcast your learnings. A place to debate, share knowledge and collaborate because everything is better with community.
+            {copy.details}
           </p>
+          <figure className={styles.homeImage}>
+            <section className={styles.homeImageScreen}>
+
+            </section>
+            <img src={mainImage} alt="Learn with friends today!"/>
+          </figure>
         </section>
-        <img src={bgImage} style={{
-          position: 'absolute',
-          width: '100%',
-          left: '0',
-          top: '0',
-          opacity: '0.1',
-          pointerEvents: 'none'
-        }}/>
       </section>
     );
   }
