@@ -2,7 +2,7 @@
 
 $nav-link-color: #A1A2A4;
 $nav-link-hover: #47494D;
-$nav-border-color: #e9e9e9;
+$nav-border-color: rgba(161, 162, 164, 0.3);
 
 .nav {
   font-size: 0.9em;
@@ -17,7 +17,7 @@ $nav-border-color: #e9e9e9;
 
   &Dark {
     .navWrapper, .navLogin, .navSignup {
-      border-color: $nav-link-color;
+      border-color: rgba(161, 162, 164, 0.3);
     }
 
     .navMenuItem, .navLogin, .navSignup {
@@ -26,20 +26,15 @@ $nav-border-color: #e9e9e9;
       }
     }
 
-    .navLogo svg {
-      > path {
-        fill: #fff;
-      }
-
-      > g > path {
-        fill: #fff;
-      }
+    .navLogo svg > path, .navLogo svg > g > path {
+      fill: #fff;
     }
   }
 
   &Wrapper {
     max-width: $container-max-small;
     margin: 0 auto;
+    padding: 0 12px;
     display: flex;
     justify-content: space-between;
     border-bottom: 1px solid $nav-border-color;
@@ -49,15 +44,18 @@ $nav-border-color: #e9e9e9;
     width: 60px;
     height: 20px;
 
+    > path {
+      fill: $brand-black;
+    }
+
     > g > path {
+      fill: $brand-black;
       transition: fill 0.3s ease;
     }
   }
 
-  &Logo:hover, &Logo.active {
-    svg > g > path {
-      fill: $brand-primary;
-    }
+  &Logo:hover svg > g > path {
+    fill: $brand-primary;
   }
 
   &Menu, &MenuWrapper, &Right {
@@ -87,7 +85,6 @@ $nav-border-color: #e9e9e9;
     text-transform: uppercase;
     font-size: 0.8em;
     font-weight: 700;
-    margin-right: 12px;
     transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 
     &:hover {
