@@ -10,6 +10,7 @@ $nav-border-color: rgba(161, 162, 164, 0.3);
   position: absolute;
   width: 100%;
   z-index: 1000;
+  transition: transform 0.4s cubic-bezier(.82, 0, .12, 1.4);
 
   a {
     color: $nav-link-color;
@@ -29,6 +30,10 @@ $nav-border-color: rgba(161, 162, 164, 0.3);
     .navLogo svg > path, .navLogo svg > g > path {
       fill: #fff;
     }
+  }
+
+  &Hidden {
+    transform: translateY(-95px);
   }
 
   &Wrapper {
@@ -58,7 +63,7 @@ $nav-border-color: rgba(161, 162, 164, 0.3);
     fill: $brand-primary;
   }
 
-  &Menu, &MenuWrapper, &Right {
+  &Menu, &MenuWrapper, &Right, &MenuItemWrapper {
     display: flex;
     align-items: center;
   }
@@ -91,6 +96,11 @@ $nav-border-color: rgba(161, 162, 164, 0.3);
       color: $nav-link-hover;
       border-color: $nav-link-color;
       background-color: rgba(255, 255, 255, 0.2);
+    }
+
+    &.active {
+      color: $brand-primary;
+      border-color: $brand-primary;
     }
   }
 }

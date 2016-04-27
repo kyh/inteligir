@@ -23,6 +23,7 @@ export default class Navigation extends Component {
     const {user} = this.props;
     const navClass = classNames({
       [styles.navDark]: this.context.router.isActive('/', true),
+      [styles.navHidden]: this.context.router.isActive('/login', true),
       [styles.nav]: true
     });
 
@@ -57,16 +58,55 @@ export default class Navigation extends Component {
 
           <div className={styles.navRight}>
             <nav className={styles.navMenu}>
-              <Link
-                className={styles.navMenuItem}
-                to="/about"
-                activeClassName={styles.active}
-              >
-                About
-              </Link>
-              {user && <a onClick={this.handleLogout}>Logout</a>}
+              {
+                !user &&
+                <div className={styles.navMenuItemWrapper}>
+                  <Link
+                    className={styles.navMenuItem}
+                    activeClassName={styles.active}
+                    to="/about"
+                  >
+                    About
+                  </Link>
+                </div>
+              }
+              {
+                user &&
+                <div className={styles.navMenuItemWrapper}>
+                  <Link
+                    className={styles.navMenuItem}
+                    activeClassName={styles.active}
+                    to="/feed"
+                  >
+                    Feed
+                  </Link>
+                  <Link
+                    className={styles.navMenuItem}
+                    activeClassName={styles.active}
+                    to="/groups"
+                  >
+                    Groups
+                  </Link>
+                  <Link
+                    className={styles.navMenuItem}
+                    activeClassName={styles.active}
+                    to="/profile"
+                  >
+                    Profile
+                  </Link>
+                </div>
+              }
             </nav>
-            {!user && <Link className={styles.navLogin} to="/login">Login</Link>}
+            {
+              !user &&
+              <Link
+                className={styles.navLogin}
+                activeClassName={styles.active}
+                to="/login"
+              >
+                Login
+              </Link>
+            }
             {user && <a href="" className={styles.navLogin} onClick={this.handleLogout}>Logout</a>}
           </div>
         </div>
