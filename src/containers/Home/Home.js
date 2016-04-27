@@ -2,7 +2,7 @@ import React, { Component } from 'react';
 import Helmet from 'react-helmet';
 import copy from './copy';
 
-const mainImage = require('./main-image.png');
+const mainBg = require('./main-bg.png');
 
 export default class Home extends Component {
   render() {
@@ -18,10 +18,10 @@ export default class Home extends Component {
             {copy.details}
           </p>
           <figure className={styles.homeImage}>
-            <section className={styles.homeImageScreen}>
+            <section className={styles.homeImagePhone}>
 
             </section>
-            <img src={mainImage} alt="Learn with friends today!"/>
+            <img src={mainBg} alt="Learn with friends today!"/>
           </figure>
         </section>
       </section>
