@@ -1,18 +1,22 @@
 import React, {Component} from 'react';
 import Helmet from 'react-helmet';
-
-const bgImage = require('./about.png');
+import copy from './copy';
 
 export default class About extends Component {
   render() {
+    const styles = require('./About.scss');
     return (
-      <div className="container">
+      <section className={styles.about}>
         <Helmet title="About Us"/>
-        <img src={bgImage} style={{
-          position: 'absolute',
-          width: '100%'
-        }}/>
-      </div>
+        <section className={styles.aboutContainer}>
+          <h5 className={styles.aboutSubtitle}>{copy.subtitle}</h5>
+          <h1 className={styles.aboutTitle}>{copy.title}</h1>
+          <section
+            className={styles.aboutDetails}
+            dangerouslySetInnerHTML={{ __html: copy.details }}
+          />
+        </section>
+      </section>
     );
   }
 }
