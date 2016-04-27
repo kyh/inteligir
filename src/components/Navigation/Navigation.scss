@@ -27,7 +27,7 @@ $nav-border-color: rgba(161, 162, 164, 0.3);
       }
     }
 
-    .navLogo svg > path, .navLogo svg > g > path {
+    .navLogo svg > path {
       fill: #fff;
     }
   }
@@ -52,15 +52,6 @@ $nav-border-color: rgba(161, 162, 164, 0.3);
     > path {
       fill: $brand-black;
     }
-
-    > g > path {
-      fill: $brand-black;
-      transition: fill 0.3s ease;
-    }
-  }
-
-  &Logo:hover svg > g > path {
-    fill: $brand-primary;
   }
 
   &Menu, &MenuWrapper, &Right, &MenuItemWrapper {
