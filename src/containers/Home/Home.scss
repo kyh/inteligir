@@ -5,7 +5,7 @@
 .home {
   background-color: $brand-black;
   padding: 100px 30px 20px;
-  height: 100vh;
+  min-height: 100vh;
 
   &Container {
     @include container();
