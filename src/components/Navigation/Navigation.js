@@ -41,7 +41,7 @@ export default class Navigation extends Component {
     const {user} = this.props;
     const navClass = classNames({
       [styles.navDark]: this.context.router.isActive('/', true),
-      [styles.navHidden]: this.context.router.isActive('/login', true),
+      [styles.navHidden]: this.context.router.isActive('/login', true) && !user,
       [styles.nav]: true
     });
 
