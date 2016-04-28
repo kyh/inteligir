@@ -1,8 +1,9 @@
 /* Base Styles
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
-@import './normalize.css';
-@import './variables';
-@import './mixins';
+@import '../../theme/normalize.css';
+@import '../../theme/variables';
+@import '../../theme/mixins';
+@import '../../theme/forms';
 
 /*
   html is set to 62.5% so that all the REM measurements are based on 10px sizing.
