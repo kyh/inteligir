@@ -11,14 +11,10 @@ import {
   } from 'containers';
 
 export default (store) => {
-  const requireLogin = (nextState, replace, cb) => {
+  const checkUser = (callback) => {
     function checkAuth() {
       const { auth: { user }} = store.getState();
-      if (!user) {
-        // oops, not logged in, so can't be here!
-        replace('/');
-      }
-      cb();
+      return callback(user);
     }
 
     if (!isAuthLoaded(store.getState())) {
@@ -28,13 +24,38 @@ export default (store) => {
     }
   };
 
+  // Routes that require user to be logged in
+  const requireLogin = (nextState, replace, cb) => {
+    return checkUser((user) => {
+      if (!user) {
+        // oops, not logged in, so can't be here!
+        replace('/');
+      }
+      cb();
+    });
+  };
+
+  // Check if user is already logged in, redirect to 'feed' if they are
+  const redirectIfLoggedIn = (nextState, replace, cb) => {
+    return checkUser((user) => {
+      if (user) {
+        // user already logged in
+        replace('/feed');
+      }
+      cb();
+    });
+  };
+
   /**
    * Please keep routes in alphabetical order
    */
   return (
     <Route path="/" component={App}>
       { /* Home (main) route */ }
-      <IndexRoute component={Home}/>
+      <Route onEnter={redirectIfLoggedIn}>
+        <IndexRoute component={Home}/>
+        <Route path="login" component={Login}/>
+      </Route>
 
       { /* Routes requiring login */ }
       <Route onEnter={requireLogin}>
@@ -43,7 +64,6 @@ export default (store) => {
 
       { /* Routes */ }
       <Route path="about" component={About}/>
-      <Route path="login" component={Login}/>
 
       { /* Catch all route */ }
       <Route path="*" component={NotFound} status={404} />
