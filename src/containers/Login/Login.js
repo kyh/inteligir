@@ -7,7 +7,8 @@ const styles = require('./Login.scss');
 
 @connect(
   null,
-  authActions)
+  authActions
+)
 export default class Login extends Component {
   static propTypes = {
     login: PropTypes.func,
