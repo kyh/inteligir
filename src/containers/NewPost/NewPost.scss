@@ -1,0 +1,22 @@
+@import '../../theme/variables';
+@import '../../theme/mixins';
+@import '../../theme/animations';
+
+.newPost {
+  &Nav {
+    color: #fff;
+    padding: 20px $base-spacing-unit;
+    background-color: $brand-black;
+    transform: translate3d(0, -100%, 0);
+    animation: slideInDown 0.6s cubic-bezier(.82, 0, .12, 1.4) 0.3s;
+    animation-fill-mode: forwards;
+  }
+
+  &Content {
+    @include container();
+    opacity: 0;
+    padding-top: 20px;
+    animation: fadeInUp 0.3s cubic-bezier(0.25, 0.46, 0.7, 1) 0.6s;
+    animation-fill-mode: forwards;
+  }
+}
