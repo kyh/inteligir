@@ -38,9 +38,12 @@ export default class Navigation extends Component {
 
   render() {
     const {user} = this.props;
+    const router = this.context.router;
+    const shouldHideNav = (router.isActive('/login', true) && !user) ||
+                          router.isActive('/new-post', true);
     const navClass = classNames({
-      [styles.navDark]: this.context.router.isActive('/', true),
-      [styles.navHidden]: this.context.router.isActive('/login', true) && !user,
+      [styles.navDark]: router.isActive('/', true),
+      [styles.navHidden]: shouldHideNav,
       [styles.navFull]: !!user,
       [styles.nav]: true
     });
@@ -114,6 +117,16 @@ export default class Navigation extends Component {
                 to="/login"
               >
                 Login
+              </Link>
+            }
+            {
+              user &&
+              <Link
+                className={styles.navNewPost}
+                activeClassName={styles.active}
+                to="/new-post"
+              >
+                New Post
               </Link>
             }
           </div>

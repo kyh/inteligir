@@ -6,7 +6,10 @@ import {
     Home,
     About,
     Login,
+    Feed,
+    Groups,
     Profile,
+    NewPost,
     NotFound,
   } from 'containers';
 
@@ -59,6 +62,9 @@ export default (store) => {
 
       { /* Routes requiring login */ }
       <Route onEnter={requireLogin}>
+        <Route path="feed" component={Feed}/>
+        <Route path="groups" component={Groups}/>
+        <Route path="new-post" component={NewPost}/>
         <Route path="profile" component={Profile}/>
       </Route>
 

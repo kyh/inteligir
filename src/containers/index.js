@@ -2,5 +2,8 @@ export App from './App/App';
 export Home from './Home/Home';
 export About from './About/About';
 export Login from './Login/Login';
+export Feed from './Feed/Feed';
+export Groups from './Groups/Groups';
 export Profile from './Profile/Profile';
+export NewPost from './NewPost/NewPost';
 export NotFound from './NotFound/NotFound';

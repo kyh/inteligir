@@ -3,8 +3,9 @@ import {connect} from 'react-redux';
 import * as authActions from 'redux/modules/auth';
 
 @connect(
-    state => ({user: state.auth.user}),
-    authActions)
+  state => ({user: state.auth.user}),
+  authActions
+)
 export default
 class Profile extends Component {
   static propTypes = {
