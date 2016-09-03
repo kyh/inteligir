@@ -6,7 +6,7 @@ import {
     Home,
     About,
     Login,
-    LoginSuccess,
+    Profile,
     NotFound,
   } from 'containers';
 
@@ -59,7 +59,7 @@ export default (store) => {
 
       { /* Routes requiring login */ }
       <Route onEnter={requireLogin}>
-        <Route path="loginSuccess" component={LoginSuccess}/>
+        <Route path="profile" component={Profile}/>
       </Route>
 
       { /* Routes */ }

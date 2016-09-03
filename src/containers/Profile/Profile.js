@@ -6,7 +6,7 @@ import * as authActions from 'redux/modules/auth';
     state => ({user: state.auth.user}),
     authActions)
 export default
-class LoginSuccess extends Component {
+class Profile extends Component {
   static propTypes = {
     user: PropTypes.object,
     logout: PropTypes.func
@@ -14,9 +14,9 @@ class LoginSuccess extends Component {
 
   render() {
     const {user, logout} = this.props;
-    return (user &&
-      <div className="container">
-        <h1>Login Success</h1>
+    return (
+      <div className="page-wrapper container">
+        <h1>Profile</h1>
 
         <div>
           <p>Hi, {user.name}. You have just successfully logged in, and were forwarded here
@@ -29,7 +29,7 @@ class LoginSuccess extends Component {
           </p>
 
           <div>
-            <button className="btn btn-danger" onClick={logout}><i className="fa fa-sign-out"/>{' '}Log Out</button>
+            <button onClick={logout}>Log Out</button>
           </div>
         </div>
       </div>
