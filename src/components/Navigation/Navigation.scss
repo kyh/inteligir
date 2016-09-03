@@ -36,6 +36,15 @@ $nav-border-color: rgba(161, 162, 164, 0.3);
     transform: translateY(-95px);
   }
 
+  &Full {
+    border-bottom: 1px solid $nav-border-color;
+
+    .navWrapper {
+      max-width: $container-max;
+      border-bottom: 0;
+    }
+  }
+
   &Wrapper {
     max-width: $container-max-small;
     margin: 0 auto;
