@@ -40,10 +40,6 @@ ol, ul { margin: 0; padding: 0; list-style: none; }
 // Reset description lists
 dd, dt { margin: 0; }
 
-.container {
-  @include container();
-}
-
 // Links
 //––––––––––––––––––––––––––––––––––––––––––––––––––
 
@@ -99,4 +95,24 @@ figure {
 
 img {
   max-width: 100%;
+}
+
+// Page
+//––––––––––––––––––––––––––––––––––––––––––––––––––
+:global {
+  .container {
+    @include container();
+  }
+
+  .page-wrapper {
+    padding-top: 120px;
+
+    &.grey {
+      background-color: $background-grey;
+    }
+
+    &.no-padding {
+      padding-top: 0;
+    }
+  }
 }

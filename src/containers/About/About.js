@@ -2,9 +2,10 @@ import React, {Component} from 'react';
 import Helmet from 'react-helmet';
 import copy from './copy';
 
+const styles = require('./About.scss');
+
 export default class About extends Component {
   render() {
-    const styles = require('./About.scss');
     return (
       <section className={styles.about}>
         <Helmet title="About Us"/>

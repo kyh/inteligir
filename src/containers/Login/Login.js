@@ -3,6 +3,8 @@ import {connect} from 'react-redux';
 import Helmet from 'react-helmet';
 import * as authActions from 'redux/modules/auth';
 
+const styles = require('./Login.scss');
+
 @connect(
   null,
   authActions)
@@ -20,8 +22,6 @@ export default class Login extends Component {
   }
 
   render() {
-    const styles = require('./Login.scss');
-
     return (
       <section className={styles.login}>
         <Helmet title="Login"/>
