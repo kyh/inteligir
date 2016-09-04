@@ -33,15 +33,22 @@ export default (store) => {
   };
 
   // Check if user is already logged in, redirect to 'feed' if they are
-  // const redirectIfLoggedIn = (nextState, replace, cb) => {
-  //   return checkUser(replace, (user) => {
-  //     if (user) {
-  //       // user already logged in
-  //       replace('/feed');
-  //     }
-  //     cb();
-  //   });
-  // };
+  const redirectIfLoggedIn = (nextState, replace, cb) => {
+    function checkAuth() {
+      const { auth: { user }} = store.getState();
+      if (user) {
+        // oops, not logged in, so can't be here!
+        replace('/feed');
+      }
+      cb();
+    }
+
+    if (isAuthLoaded(store.getState())) {
+      checkAuth();
+    } else {
+      store.dispatch(loadAuth()).then(checkAuth, checkAuth);
+    }
+  };
 
   /**
    * Please keep routes in alphabetical order
@@ -49,7 +56,7 @@ export default (store) => {
   return (
     <Route path="/" component={App}>
       { /* Home (main) route */ }
-      <Route>
+      <Route onEnter={redirectIfLoggedIn}>
         <IndexRoute component={Home}/>
         <Route path="login" component={Login}/>
       </Route>
