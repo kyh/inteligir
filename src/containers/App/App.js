@@ -22,7 +22,8 @@ require('./App.scss');
 }])
 @connect(
   state => ({user: state.auth.user}),
-  {logout, pushState: push})
+  {logout, pushState: push}
+)
 export default class App extends Component {
   static propTypes = {
     children: PropTypes.object.isRequired,
