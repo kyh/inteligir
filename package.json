@@ -72,6 +72,7 @@
     "body-parser": "^1.14.1",
     "classnames": "2.2.3",
     "compression": "^1.6.0",
+    "cookie-parser": "1.4.3",
     "draft-js": "0.8.1",
     "express": "^4.13.3",
     "express-jwt-proxy": "0.6.2",

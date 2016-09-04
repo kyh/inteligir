@@ -26,7 +26,7 @@ export default (store) => {
     }
 
     if (!isAuthLoaded(store.getState())) {
-      store.dispatch(loadAuth()).then(checkAuth);
+      store.dispatch(loadAuth()).then(checkAuth, checkAuth);
     } else {
       checkAuth();
     }

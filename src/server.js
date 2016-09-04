@@ -11,6 +11,7 @@ import ApiClient from './helpers/ApiClient';
 import Html from './helpers/Html';
 import PrettyError from 'pretty-error';
 import http from 'http';
+import cookieParser from 'cookie-parser';
 import cookie from 'react-cookie';
 
 import { match } from 'react-router';
@@ -34,6 +35,7 @@ app.use(compression());
 app.use(favicon(path.join(__dirname, '..', 'static', 'favicon.ico')));
 
 app.use(Express.static(path.join(__dirname, '..', 'static')));
+app.use(cookieParser());
 
 // Proxy to API server
 app.use('/api', (req, res) => {
