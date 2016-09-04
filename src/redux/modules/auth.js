@@ -11,7 +11,8 @@ const LOGOUT_SUCCESS = 'LOGOUT_SUCCESS';
 const LOGOUT_FAIL = 'LOGOUT_FAIL';
 
 const initialState = {
-  loaded: false
+  loaded: false,
+  initialLoad: false
 };
 
 export default function reducer(state = initialState, action = {}) {
@@ -19,7 +20,8 @@ export default function reducer(state = initialState, action = {}) {
     case LOAD:
       return {
         ...state,
-        loading: true
+        loading: true,
+        initialLoad: true
       };
     case LOAD_SUCCESS:
       return {
@@ -81,6 +83,10 @@ function onLogout() {
 
 export function isLoaded(globalState) {
   return globalState.auth && globalState.auth.loaded;
+}
+
+export function hasTriedLoading(globalState) {
+  return globalState.auth.initialLoad;
 }
 
 export function load() {

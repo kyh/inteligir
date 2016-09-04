@@ -2,7 +2,7 @@ import React, { Component, PropTypes } from 'react';
 import { connect } from 'react-redux';
 import Helmet from 'react-helmet';
 import { Navigation } from 'components';
-import { isLoaded as isAuthLoaded, load as loadAuth, logout } from 'redux/modules/auth';
+import { isLoaded as isAuthLoaded, load as loadAuth, logout, hasTriedLoading } from 'redux/modules/auth';
 import { push } from 'react-router-redux';
 import config from '../../config';
 import { asyncConnect } from 'redux-connect';
@@ -12,8 +12,8 @@ require('./App.scss');
 @asyncConnect([{
   promise: ({store: {dispatch, getState}}) => {
     const promises = [];
-
-    if (!isAuthLoaded(getState())) {
+    const globalState = getState();
+    if (!isAuthLoaded(globalState) && !hasTriedLoading(globalState)) {
       promises.push(dispatch(loadAuth()));
     }
 

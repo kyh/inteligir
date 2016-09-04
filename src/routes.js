@@ -1,6 +1,6 @@
 import React from 'react';
 import {IndexRoute, Route} from 'react-router';
-import { isLoaded as isAuthLoaded, load as loadAuth } from 'redux/modules/auth';
+import { isLoaded as isAuthLoaded, load as loadAuth, hasTriedLoading } from 'redux/modules/auth';
 import {
     App,
     Home,
@@ -24,7 +24,8 @@ export default (store) => {
       cb();
     }
 
-    if (!isAuthLoaded(store.getState())) {
+    const globalState = store.getState();
+    if (!isAuthLoaded(globalState) && !hasTriedLoading(globalState)) {
       store.dispatch(loadAuth()).then(checkUser, checkUser);
     } else {
       checkUser();
