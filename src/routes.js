@@ -14,10 +14,15 @@ import {
   } from 'containers';
 
 export default (store) => {
-  const checkUser = (callback) => {
+  // Routes that require user to be logged in
+  const requireLogin = (nextState, replace, cb) => {
     function checkAuth() {
       const { auth: { user }} = store.getState();
-      return callback(user);
+      if (!user) {
+        // oops, not logged in, so can't be here!
+        replace('/');
+      }
+      cb();
     }
 
     if (!isAuthLoaded(store.getState())) {
@@ -27,27 +32,16 @@ export default (store) => {
     }
   };
 
-  // Routes that require user to be logged in
-  const requireLogin = (nextState, replace, cb) => {
-    return checkUser((user) => {
-      if (!user) {
-        // oops, not logged in, so can't be here!
-        replace('/');
-      }
-      cb();
-    });
-  };
-
   // Check if user is already logged in, redirect to 'feed' if they are
-  const redirectIfLoggedIn = (nextState, replace, cb) => {
-    return checkUser((user) => {
-      if (user) {
-        // user already logged in
-        replace('/feed');
-      }
-      cb();
-    });
-  };
+  // const redirectIfLoggedIn = (nextState, replace, cb) => {
+  //   return checkUser(replace, (user) => {
+  //     if (user) {
+  //       // user already logged in
+  //       replace('/feed');
+  //     }
+  //     cb();
+  //   });
+  // };
 
   /**
    * Please keep routes in alphabetical order
@@ -55,7 +49,7 @@ export default (store) => {
   return (
     <Route path="/" component={App}>
       { /* Home (main) route */ }
-      <Route onEnter={redirectIfLoggedIn}>
+      <Route>
         <IndexRoute component={Home}/>
         <Route path="login" component={Login}/>
       </Route>

@@ -1,3 +1,5 @@
+import cookie from 'react-cookie';
+
 const LOAD = 'LOAD';
 const LOAD_SUCCESS = 'LOAD_SUCCESS';
 const LOAD_FAIL = 'LOAD_FAIL';
@@ -24,7 +26,7 @@ export default function reducer(state = initialState, action = {}) {
         ...state,
         loading: false,
         loaded: true,
-        user: action.result
+        user: action.result.data
       };
     case LOAD_FAIL:
       return {
@@ -42,7 +44,7 @@ export default function reducer(state = initialState, action = {}) {
       return {
         ...state,
         loggingIn: false,
-        user: action.result
+        user: action.result.data
       };
     case LOGIN_FAIL:
       return {
@@ -73,6 +75,10 @@ export default function reducer(state = initialState, action = {}) {
   }
 }
 
+function onLogout() {
+  cookie.remove('token');
+}
+
 export function isLoaded(globalState) {
   return globalState.auth && globalState.auth.loaded;
 }
@@ -80,17 +86,15 @@ export function isLoaded(globalState) {
 export function load() {
   return {
     types: [LOAD, LOAD_SUCCESS, LOAD_FAIL],
-    promise: (client) => client.get('/loadAuth')
+    promise: (client) => client.get('/auth/validate_token')
   };
 }
 
-export function login(name) {
+export function login(email, password) {
   return {
     types: [LOGIN, LOGIN_SUCCESS, LOGIN_FAIL],
-    promise: (client) => client.post('/login', {
-      data: {
-        name: name
-      }
+    promise: (client) => client.post('/auth/sign_in', {
+      data: { email, password }
     })
   };
 }
@@ -98,6 +102,7 @@ export function login(name) {
 export function logout() {
   return {
     types: [LOGOUT, LOGOUT_SUCCESS, LOGOUT_FAIL],
-    promise: (client) => client.get('/logout')
+    onSuccess: onLogout,
+    promise: (client) => client.del('/auth/sign_out')
   };
 }

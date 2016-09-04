@@ -1,4 +1,5 @@
 import superagent from 'superagent';
+import cookie from 'react-cookie';
 import config from '../config';
 
 const methods = ['get', 'post', 'put', 'patch', 'del'];
@@ -25,6 +26,17 @@ class _ApiClient {
       this[method] = (path, { params, data } = {}) => new Promise((resolve, reject) => {
         const request = superagent[method](formatUrl(path));
 
+        const token = cookie.load('token');
+        const client = cookie.load('client');
+        const uid = cookie.load('uid');
+
+        if (token) {
+          request.set('access-token', token);
+          request.set('token-type', 'Bearer');
+          request.set('uid', uid);
+          request.set('client', client);
+        }
+
         if (params) {
           request.query(params);
         }
@@ -37,7 +49,15 @@ class _ApiClient {
           request.send(data);
         }
 
-        request.end((err, { body } = {}) => err ? reject(body || err) : resolve(body));
+        request.end((err, { body, header } = {}) => {
+          if (err) return reject(body || err);
+          if (header['access-token']) {
+            cookie.save('token', header['access-token']);
+            cookie.save('client', header.client);
+            cookie.save('uid', header.uid);
+          }
+          return resolve(body);
+        });
       }));
   }
 }
