@@ -4,7 +4,6 @@ import { asyncConnect } from 'redux-connect';
 import {isLoaded, load} from 'redux/modules/posts';
 
 @asyncConnect([{
-  deferred: true,
   promise: ({store: {dispatch, getState}}) => {
     if (!isLoaded(getState())) {
       return dispatch(load());
@@ -21,7 +20,7 @@ export default class Feed extends Component {
 
   renderSinglePost(post) {
     return (
-      <div>
+      <div key={post.id}>
         <h3>{post.title}</h3>
         <div>{post.content}</div>
       </div>
