@@ -6,3 +6,4 @@
  */
 
 export Navigation from './Navigation/Navigation';
+export Post from './Post/Post';

@@ -1,14 +1,11 @@
 import React, {Component, PropTypes} from 'react';
 import {connect} from 'react-redux';
-import { asyncConnect } from 'redux-connect';
-import {isLoaded, load} from 'redux/modules/posts';
+import {asyncConnect} from 'redux-connect';
+import {load} from 'redux/modules/posts';
+import {Post} from 'components';
 
 @asyncConnect([{
-  promise: ({store: {dispatch, getState}}) => {
-    if (!isLoaded(getState())) {
-      return dispatch(load());
-    }
-  }
+  promise: ({store: {dispatch}}) => dispatch(load())
 }])
 @connect(
   state => ({data: state.posts.data})
@@ -19,12 +16,7 @@ export default class Feed extends Component {
   }
 
   renderSinglePost(post) {
-    return (
-      <div key={post.id}>
-        <h3>{post.title}</h3>
-        <div>{post.content}</div>
-      </div>
-    );
+    return <Post post={post} />;
   }
 
   render() {
