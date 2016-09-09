@@ -6,13 +6,14 @@ import * as authActions from 'redux/modules/auth';
 const styles = require('./Login.scss');
 
 @connect(
-  null,
+  state => ({error: state.auth.loginError}),
   authActions
 )
 export default class Login extends Component {
   static propTypes = {
     login: PropTypes.func,
-    logout: PropTypes.func
+    logout: PropTypes.func,
+    error: PropTypes.object
   }
 
   handleSubmit = (event) => {
@@ -23,6 +24,7 @@ export default class Login extends Component {
   }
 
   render() {
+    const { error } = this.props;
     return (
       <section className={styles.login}>
         <Helmet title="Login"/>
@@ -31,6 +33,7 @@ export default class Login extends Component {
             <h3 className={styles.loginFormTitle}>Welcome back</h3>
           </header>
           <section className={styles.loginFormBody}>
+            { error && <span className={styles.loginErrorMessage}>{ error.errors[0] }</span> }
             <section className={styles.loginFormInputWrapper}>
               <input
                 type="email"

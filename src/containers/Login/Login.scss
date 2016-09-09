@@ -46,4 +46,16 @@ $body-bg-color: #FFF;
     margin-top: 30px;
     width: 100%;
   }
+
+  &ErrorMessage {
+    position: absolute;
+    width: 100%;
+    left: 0;
+    text-align: center;
+    top: 100px;
+    padding: 10px;
+    color: $brand-red;
+    animation: fadeInDown 0.3s cubic-bezier(.82, 0, .12, 1.4);
+    animation-fill-mode: forwards;
+  }
 }
