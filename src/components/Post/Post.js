@@ -10,7 +10,7 @@ export default class Post extends Component {
     const {post} = this.props;
 
     return (
-      <div key={post.id}>
+      <div>
         <h3>{post.title}</h3>
         <div>{post.content}</div>
       </div>

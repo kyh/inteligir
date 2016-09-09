@@ -16,7 +16,7 @@ export default class Feed extends Component {
   }
 
   renderSinglePost(post) {
-    return <Post post={post} />;
+    return <Post key={post.id} post={post} />;
   }
 
   render() {
