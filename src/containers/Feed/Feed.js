@@ -1,19 +1,38 @@
 import React, {Component, PropTypes} from 'react';
 import {connect} from 'react-redux';
+import { asyncConnect } from 'redux-connect';
+import {isLoaded, load} from 'redux/modules/posts';
 
+@asyncConnect([{
+  deferred: true,
+  promise: ({store: {dispatch, getState}}) => {
+    if (!isLoaded(getState())) {
+      return dispatch(load());
+    }
+  }
+}])
 @connect(
-  state => ({user: state.auth.user})
+  state => ({data: state.posts.data})
 )
-export default
-class Profile extends Component {
+export default class Feed extends Component {
   static propTypes = {
-    user: PropTypes.object
+    data: PropTypes.object
+  }
+
+  renderSinglePost(post) {
+    return (
+      <div>
+        <h3>{post.title}</h3>
+        <div>{post.content}</div>
+      </div>
+    );
   }
 
   render() {
+    const {data} = this.props;
     return (
       <section className="page-wrapper container">
-        <h1>Feed</h1>
+        {data.feed.map(this.renderSinglePost)}
       </section>
     );
   }

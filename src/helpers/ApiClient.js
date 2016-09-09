@@ -49,6 +49,8 @@ class _ApiClient {
           request.send(data);
         }
 
+        console.log('API Request:', request.url);
+
         request.end((err, { body, header } = {}) => {
           if (err) return reject(body || err);
           if (header['access-token']) {

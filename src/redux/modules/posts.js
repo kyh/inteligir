@@ -1,12 +1,12 @@
-const LOAD = 'LOAD';
-const LOAD_SUCCESS = 'LOAD_SUCCESS';
-const LOAD_FAIL = 'LOAD_FAIL';
+const LOAD = 'LOAD_POSTS';
+const LOAD_SUCCESS = 'LOAD_POSTS_SUCCESS';
+const LOAD_FAIL = 'LOAD_POSTS_FAIL';
 
 const initialState = {
   loaded: false
 };
 
-export default function info(state = initialState, action = {}) {
+export default function posts(state = initialState, action = {}) {
   switch (action.type) {
     case LOAD:
       return {
@@ -33,12 +33,12 @@ export default function info(state = initialState, action = {}) {
 }
 
 export function isLoaded(globalState) {
-  return globalState.info && globalState.info.loaded;
+  return globalState.posts && globalState.posts.loaded;
 }
 
 export function load() {
   return {
     types: [LOAD, LOAD_SUCCESS, LOAD_FAIL],
-    promise: (client) => client.get('/loadInfo')
+    promise: (client) => client.get('/feed')
   };
 }
