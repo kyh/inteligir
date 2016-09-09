@@ -1,14 +1,14 @@
 import cookie from 'react-cookie';
 
-const LOAD = 'LOAD';
-const LOAD_SUCCESS = 'LOAD_SUCCESS';
-const LOAD_FAIL = 'LOAD_FAIL';
-const LOGIN = 'LOGIN';
-const LOGIN_SUCCESS = 'LOGIN_SUCCESS';
-const LOGIN_FAIL = 'LOGIN_FAIL';
-const LOGOUT = 'LOGOUT';
-const LOGOUT_SUCCESS = 'LOGOUT_SUCCESS';
-const LOGOUT_FAIL = 'LOGOUT_FAIL';
+const LOAD = 'LOAD_AUTH';
+const LOAD_SUCCESS = 'LOAD_AUTH_SUCCESS';
+const LOAD_FAIL = 'LOAD_AUTH_FAIL';
+const LOGIN = 'LOGIN_AUTH';
+const LOGIN_SUCCESS = 'LOGIN_AUTH_SUCCESS';
+const LOGIN_FAIL = 'LOGIN_AUTH_FAIL';
+const LOGOUT = 'LOGOUT_AUTH';
+const LOGOUT_SUCCESS = 'LOGOUT_AUTH_SUCCESS';
+const LOGOUT_FAIL = 'LOGOUT_AUTH_FAIL';
 
 const initialState = {
   loaded: false,
