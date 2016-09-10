@@ -13,6 +13,7 @@ export default class Profile extends Component {
     return (
       <div className="page-wrapper container">
         <h1>Groups</h1>
+        <p>Kai is working on this page... Must work faster.</p>
       </div>
     );
   }

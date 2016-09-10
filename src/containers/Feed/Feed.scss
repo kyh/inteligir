@@ -1,0 +1,12 @@
+@import '../../theme/variables';
+@import '../../theme/mixins';
+
+.feed {
+  @include container();
+  padding: 90px 0 20px;
+  display: flex;
+
+  &Content {
+    width: 70%;
+  }
+}

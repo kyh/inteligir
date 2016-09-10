@@ -4,6 +4,8 @@ import {asyncConnect} from 'redux-connect';
 import {load} from 'redux/modules/posts';
 import {Post} from 'components';
 
+const styles = require('./Feed.scss');
+
 @asyncConnect([{
   promise: ({store: {dispatch}}) => dispatch(load())
 }])
@@ -22,8 +24,10 @@ export default class Feed extends Component {
   render() {
     const {data} = this.props;
     return (
-      <section className="page-wrapper container">
-        {data.feed.map(this.renderSinglePost)}
+      <section className={styles.feed}>
+        <section className={styles.feedContent}>
+          {data.feed.map(this.renderSinglePost)}
+        </section>
       </section>
     );
   }
