@@ -54,12 +54,8 @@
   z-index: 1;
 }
 
-.megadraft-editor .paragraph + .paragraph {
-  margin-top: 40px;
-}
-
 .megadraft-editor .public-DraftEditor-content figure {
-  margin: 40px 0;
+  margin: 20px 0;
 }
 
 .megadraft-editor .public-DraftStyleDefault-ul {
@@ -73,7 +69,7 @@
 .megadraft-editor .public-DraftStyleDefault-ol,
 .megadraft-editor .public-DraftStyleDefault-ul {
   line-height: 2;
-  margin: 24px 0 40px 0;
+  margin: 20px 0;
   padding-left: 40px;
 }
 
@@ -92,12 +88,12 @@
   border-left: 2px solid #ddd;
   color: #999;
   font-style: italic;
-  margin: 12px 0 40px 0;
+  margin: 20px 0;
   padding: 6px 0 5px 18px;
 }
 
 .megadraft-editor .paragraph + blockquote {
-  margin-top: 40px;
+  margin-top: 20px;
 }
 
 .megadraft-editor h2 {
