@@ -1,6 +1,8 @@
 /* Base Styles
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
-@import '../../theme/normalize.css';
+@import '../../theme/lib/normalize.css';
+@import '../../theme/lib/megadraft.css';
+
 @import '../../theme/variables';
 @import '../../theme/mixins';
 @import '../../theme/forms';

@@ -4,12 +4,48 @@
 
 .newPost {
   &Nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     color: #fff;
     padding: 20px $base-spacing-unit;
     background-color: $brand-black;
     transform: translate3d(0, -100%, 0);
     animation: slideInDown 0.6s cubic-bezier(.82, 0, .12, 1.4) 0.3s;
     animation-fill-mode: forwards;
+  }
+
+  &HeaderTitle {
+    color: #fff;
+    font-size: 2rem;
+    margin: 0;
+  }
+
+  &Back, &Save {
+    height: 30px;
+    line-height: 30px;
+  }
+
+  &Back {
+    color: #fff;
+    border: 0;
+
+    &:hover {
+      color: #fff;
+    }
+  }
+
+  &Save {
+    font-size: 1rem;
+    color: #fff;
+    background-color: $brand-primary;
+    border-color: $brand-primary;
+
+    &:hover {
+      color: #fff;
+      background-color: darken($brand-primary, 5%);
+      border-color: darken($brand-primary, 5%);
+    }
   }
 
   &Content {

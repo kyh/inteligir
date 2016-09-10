@@ -31,11 +31,6 @@ export default class Navigation extends Component {
     router: React.PropTypes.object.isRequired
   };
 
-  handleLogout = (event) => {
-    event.preventDefault();
-    this.props.logout();
-  };
-
   render() {
     const {user} = this.props;
     const router = this.context.router;
