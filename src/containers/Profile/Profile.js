@@ -6,8 +6,7 @@ import * as authActions from 'redux/modules/auth';
   state => ({user: state.auth.user}),
   authActions
 )
-export default
-class Profile extends Component {
+export default class Profile extends Component {
   static propTypes = {
     user: PropTypes.object,
     logout: PropTypes.func
