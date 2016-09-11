@@ -1,6 +1,6 @@
 # Learn with Friends
 
-> Share knowledge, debate and collaborate. Learning is much better with friends.
+> Create private groups and broadcast your learnings. A place to debate, share knowledge, and collaborate because everything is better with community.
 
 ## Getting Started
 Clone the repo and install Node.js modules:
