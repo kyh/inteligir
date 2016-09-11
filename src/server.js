@@ -21,7 +21,8 @@ import createHistory from 'react-router/lib/createMemoryHistory';
 import {Provider} from 'react-redux';
 import getRoutes from './routes';
 
-const targetUrl = config.apiHost + ':' + config.apiPort;
+const port = config.apiPort ? ':' + config.apiPort : '';
+const targetUrl = config.apiHost + port;
 const pretty = new PrettyError();
 const app = new Express();
 const server = new http.Server(app);

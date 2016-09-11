@@ -7,8 +7,9 @@ const methods = ['get', 'post', 'put', 'patch', 'del'];
 function formatUrl(path) {
   const adjustedPath = path[0] !== '/' ? '/' + path : path;
   if (__SERVER__) {
+    const port = config.apiPort ? ':' + config.apiPort : '';
     // Prepend host and port of the API server to the path.
-    return config.apiHost + ':' + config.apiPort + adjustedPath;
+    return config.apiHost + port + adjustedPath;
   }
   // Prepend `/api` to relative URL, to proxy to API server.
   return '/api' + adjustedPath;

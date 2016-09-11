@@ -26,7 +26,6 @@
       "env": {
         "NODE_PATH": "./src",
         "NODE_ENV": "production",
-        "APIPORT": 8080,
         "APIHOST": "http://fast-wildwood-3513.herokuapp.com"
       }
     },
