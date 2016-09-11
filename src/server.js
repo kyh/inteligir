@@ -21,6 +21,8 @@ import createHistory from 'react-router/lib/createMemoryHistory';
 import {Provider} from 'react-redux';
 import getRoutes from './routes';
 
+require('newrelic');
+
 const port = config.apiPort ? ':' + config.apiPort : '';
 const targetUrl = config.apiHost + port;
 const pretty = new PrettyError();
