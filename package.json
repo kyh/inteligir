@@ -26,7 +26,8 @@
       "env": {
         "NODE_PATH": "./src",
         "NODE_ENV": "production",
-        "APIPORT": 5000
+        "APIPORT": 8080,
+        "APIHOST": "http://fast-wildwood-3513.herokuapp.com"
       }
     },
     "start-dev": {
@@ -36,7 +37,7 @@
         "NODE_ENV": "development",
         "PORT": 3000,
         "APIPORT": 5000,
-        "APIHOST": "localhost"
+        "APIHOST": "http://localhost"
       }
     },
     "watch-client": {
@@ -46,7 +47,7 @@
         "NODE_PATH": "./src",
         "PORT": 3000,
         "APIPORT": 5000,
-        "APIHOST": "localhost"
+        "APIHOST": "http://localhost"
       }
     },
     "build": {
