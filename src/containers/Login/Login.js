@@ -50,7 +50,7 @@ export default class Login extends Component {
               />
             </section>
             <button
-              className={styles.loginFormSubmit}
+              className={`${styles.loginFormSubmit} button-primary`}
               onClick={this.handleSubmit}>
               Log In
             </button>
