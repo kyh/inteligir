@@ -1,3 +1,5 @@
+require('newrelic');
+
 import Express from 'express';
 import React from 'react';
 import ReactDOM from 'react-dom/server';
@@ -20,8 +22,6 @@ import { ReduxAsyncConnect, loadOnServer } from 'redux-connect';
 import createHistory from 'react-router/lib/createMemoryHistory';
 import {Provider} from 'react-redux';
 import getRoutes from './routes';
-
-require('newrelic');
 
 const port = config.apiPort ? ':' + config.apiPort : '';
 const targetUrl = config.apiHost + port;

@@ -26,7 +26,7 @@
       "env": {
         "NODE_PATH": "./src",
         "NODE_ENV": "production",
-        "APIHOST": "http://fast-wildwood-3513.herokuapp.com"
+        "APIHOST": "http://lwf-api.herokuapp.com/"
       }
     },
     "start-dev": {
