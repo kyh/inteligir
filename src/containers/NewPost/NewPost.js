@@ -39,6 +39,7 @@ export default class NewPost extends Component {
 
     this.props.createPost(postTitle, content).then(() => {
       console.log('post created');
+      this.context.router.push('/profile');
     });
   }
 
