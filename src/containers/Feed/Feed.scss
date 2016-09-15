@@ -9,4 +9,8 @@
   &Content {
     width: 70%;
   }
+
+  @media (#{$bp-smaller-than-mobile}) {
+    padding: 90px 15px;
+  }
 }
