@@ -64,10 +64,11 @@ export function load() {
 }
 
 export function createPost(title, content) {
+  const post = { title, content };
   return {
     types: [CREATE_POST, CREATE_POST_SUCCESS, CREATE_POST_FAIL],
-    promise: (client) => client.post('/api/v1/posts/new', {
-      data: { title, content }
+    promise: (client) => client.post('/posts', {
+      data: { post }
     })
   };
 }
