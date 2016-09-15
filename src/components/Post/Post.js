@@ -16,8 +16,11 @@ export default class Post extends Component {
   constructor(props) {
     super(props);
     const {user} = props.post;
-    const authorTextString = postAuthorText[Math.floor(Math.random() * postAuthorText.length)];
-    this.author = authorTextString.replace('$name', user.first_name);
+
+    if (user) {
+      const authorTextString = postAuthorText[Math.floor(Math.random() * postAuthorText.length)];
+      this.author = authorTextString.replace('$name', user.first_name);
+    }
   }
 
   render() {
@@ -28,7 +31,7 @@ export default class Post extends Component {
         <span className={styles.postTag}>technology</span>
         <h3 className={styles.postTitle}>{post.title}</h3>
         <div className={styles.postContent}>{post.content}</div>
-        <span className={styles.postAuthor}>{this.author}</span>
+        {this.author && <span className={styles.postAuthor}>{this.author}</span>}
       </article>
     );
   }

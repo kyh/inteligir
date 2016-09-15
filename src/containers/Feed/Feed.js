@@ -10,7 +10,7 @@ const styles = require('./Feed.scss');
   promise: ({store: {dispatch}}) => dispatch(load())
 }])
 @connect(
-  state => ({data: state.posts.data})
+  state => ({data: state.posts.feed})
 )
 export default class Feed extends Component {
   static propTypes = {
