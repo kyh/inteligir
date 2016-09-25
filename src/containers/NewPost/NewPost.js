@@ -25,11 +25,16 @@ export default class NewPost extends Component {
       postTitle: '',
       editorState: editorStateFromRaw(null),
     };
-    this.onChange = ::this.onChange;
+    this.handleTitleChange = ::this.handleTitleChange;
+    this.handleBodyChange = ::this.handleBodyChange;
     this.submitPost = ::this.submitPost;
   }
 
-  onChange(editorState) {
+  handleTitleChange(event) {
+    this.setState({ postTitle: event.target.value });
+  }
+
+  handleBodyChange(editorState) {
     this.setState({ editorState });
   }
 
@@ -62,11 +67,12 @@ export default class NewPost extends Component {
             <input
               className={styles.newPostContentTitle}
               placeholder="Type your title here"
+              onChange={this.handleTitleChange}
               type="text"
             />
             <MegadraftEditor
               editorState={this.state.editorState}
-              onChange={this.onChange}
+              onChange={this.handleBodyChange}
               placeholder="Type your post..."
             />
           </section>
