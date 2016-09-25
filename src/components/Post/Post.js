@@ -1,4 +1,5 @@
 import React, { Component, PropTypes } from 'react';
+import classNames from 'classnames';
 const styles = require('./Post.scss');
 
 const postAuthorText = [
@@ -10,7 +11,8 @@ const postAuthorText = [
 
 export default class Post extends Component {
   static propTypes = {
-    post: PropTypes.object
+    post: PropTypes.object,
+    onlyAbstract: PropTypes.bool
   };
 
   constructor(props) {
@@ -24,14 +26,21 @@ export default class Post extends Component {
   }
 
   render() {
-    const {post} = this.props;
+    const {post, onlyAbstract} = this.props;
+    const postClass = classNames({
+      [styles.post]: true,
+      [styles.postAbstract]: onlyAbstract,
+    });
 
     return (
-      <article className={styles.post}>
+      <article className={postClass}>
         <span className={styles.postTag}>technology</span>
         <h3 className={styles.postTitle}>{post.title}</h3>
-        <div className={styles.postContent}>{post.content}</div>
-        {this.author && <span className={styles.postAuthor}>{this.author}</span>}
+        {!onlyAbstract && <div className={styles.postContent}>{post.content}</div>}
+        {
+          this.author && !onlyAbstract &&
+            <span className={styles.postAuthor}>{this.author}</span>
+        }
       </article>
     );
   }

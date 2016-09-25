@@ -8,6 +8,10 @@ $lines-to-show: 3;
   padding: 30px;
   border-bottom: 1px solid $border-color;
 
+  &Abstract {
+    padding: 30px 0;
+  }
+
   &Tag {
     font-family: "Lato", sans-serif;
     text-transform: uppercase;
