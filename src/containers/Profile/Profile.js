@@ -3,7 +3,7 @@ import {connect} from 'react-redux';
 import * as authActions from 'redux/modules/auth';
 import {asyncConnect} from 'redux-connect';
 import {loadUserPosts} from 'redux/modules/posts';
-import {Post} from 'components';
+import {Post, UserProfile} from 'components';
 
 @asyncConnect([{
   promise: ({store: {dispatch}}) => dispatch(loadUserPosts())
@@ -23,19 +23,18 @@ export default class Profile extends Component {
   }
 
   renderSinglePost(post) {
-    return <Post key={post.id} post={post} />;
+    return <Post key={post.id} post={post} onlyAbstract />;
   }
 
   render() {
     const {user, logout, userPosts} = this.props;
     return (
       <section className="page-wrapper container">
-        <h1>Hi, {user.first_name}</h1>
-        <p>Kai is working on this page... Must work faster.</p>
+        <UserProfile user={user} logout={logout} />
         <section>
+          <h3>Your posts</h3>
           {userPosts.posts.map(this.renderSinglePost)}
         </section>
-        <button onClick={logout}>Log Out</button>
       </section>
     );
   }
