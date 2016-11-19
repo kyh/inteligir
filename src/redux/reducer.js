@@ -1,10 +1,10 @@
 import { combineReducers } from 'redux';
 import { routerReducer } from 'react-router-redux';
-import {reducer as reduxAsyncConnect} from 'redux-connect';
+import { reducer as reduxAsyncConnect } from 'redux-connect';
 
-import auth from './auth';
-import posts from './posts';
-import {reducer as form} from 'redux-form';
+import auth from './modules/auth';
+import posts from './modules/posts';
+import { reducer as form } from 'redux-form';
 
 export default combineReducers({
   routing: routerReducer,
