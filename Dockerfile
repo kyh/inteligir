@@ -1,30 +1,41 @@
-FROM mhart/alpine-node:4.2.1
-EXPOSE 3000
-EXPOSE 3001
-EXPOSE 3002
-EXPOSE 3003
+FROM mhart/alpine-node:6
 
-WORKDIR /src
+# Install required dependencies (Alpine Linux packages)
+RUN apk update && \
+  apk add --no-cache \
+    sudo \
+    g++ \
+    gcc \
+    git \
+    libev-dev \
+    libevent-dev \
+    libuv-dev \
+    make \
+    openssl-dev \
+    perl \
+    python
 
-RUN apk add --update \
-  build-base \
-  autoconf \
-  automake \
-  file \
-  nasm \
-  libpng-dev \
-  python \
-  bash \
-  git \
-  && rm -rf /var/cache/apk/*
+# Add user and make it sudoer
+ARG uid=1000
+ARG user
+RUN adduser -DS -u $uid $user
+RUN echo $user' ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
 
-# Install and cache node_modules
-ADD package.json /src/package.json
-RUN npm install -g npm
-RUN npm install
+# Switch to directory for external dependencies (installed from source)
+WORKDIR /external
 
-# We need to add `.babelrc` as same level as `node_modules`
-ADD .babelrc /src/.babelrc
+# Install (global) NPM packages/dependencies
+RUN npm install -g \
+  node-gyp
 
-# Add `node_modules/.bin` to $PATH
-ENV PATH /src/node_modules/.bin:$PATH
+# Make project directory with permissions
+RUN mkdir /project
+
+# Switch to project directory
+WORKDIR /project
+
+# Copy required stuff
+COPY . .
+
+# Install (local) NPM packages and build
+RUN npm install && npm run postinstall
