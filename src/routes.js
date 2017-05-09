@@ -1,67 +1,92 @@
 import React from 'react';
-import {IndexRoute, Route} from 'react-router';
-import { isLoaded as isAuthLoaded, load as loadAuth, hasTriedLoading } from 'redux/modules/auth';
-import {
-    App,
-    Home,
-    About,
-    Login,
-    Feed,
-    Groups,
-    Profile,
-    NewPost,
-    NotFound,
-  } from 'containers';
+import { IndexRoute, Route } from 'react-router';
+import { routerActions } from 'react-router-redux';
+import { UserAuthWrapper } from 'redux-auth-wrapper';
+import { App, Home, NotFound } from 'containers';
+import getRoutesUtils from 'utils/routes';
 
-export default (store) => {
-  const checkAuthOnEnter = (redirect, isUserLoggedIn) => (nextState, replace, cb) => {
-    function checkUser() {
-      const { auth: { user }} = store.getState();
-      if ((isUserLoggedIn && user) || (!isUserLoggedIn && !user)) {
-        // oops, not logged in, so can't be here!
-        replace(redirect);
-      }
-      cb();
-    }
+// eslint-disable-next-line import/no-dynamic-require
+if (typeof System.import === 'undefined') System.import = module => Promise.resolve(require(module));
 
-    const globalState = store.getState();
-    if (!isAuthLoaded(globalState) && !hasTriedLoading(globalState)) {
-      store.dispatch(loadAuth()).then(checkUser, checkUser);
-    } else {
-      checkUser();
-    }
-  };
+export default store => {
+  const {
+    injectReducerAndRender,
+    permissionsComponent
+  } = getRoutesUtils(store);
 
-  // Routes that require user to be logged in
-  const requireLogin = checkAuthOnEnter('/', false);
+  /* Permissions */
 
-  // Check if user is already logged in, redirect to 'feed' if they are
-  const redirectIfLoggedIn = checkAuthOnEnter('/feed', true);
+  const isAuthenticated = UserAuthWrapper({
+    authSelector: state => state.auth.user,
+    redirectAction: routerActions.replace,
+    wrapperDisplayName: 'UserIsAuthenticated'
+  });
+
+  const isNotAuthenticated = UserAuthWrapper({
+    authSelector: state => state.auth.user,
+    redirectAction: routerActions.replace,
+    wrapperDisplayName: 'UserIsNotAuthenticated',
+    predicate: user => !user,
+    failureRedirectPath: '/',
+    allowRedirectBack: false
+  });
 
   /**
    * Please keep routes in alphabetical order
    */
   return (
     <Route path="/" component={App}>
-      { /* Home (main) route */ }
-      <Route onEnter={redirectIfLoggedIn}>
-        <IndexRoute component={Home}/>
-        <Route path="login" component={Login}/>
+      {/* Home (main) route */}
+      <IndexRoute component={Home} />
+
+      {/* Routes requiring login */}
+      {/*
+        You can also protect a route like this:
+        <Route path="protected-route" {...permissionsComponent(isAuthenticated)(Component)}>
+      */}
+      <Route {...permissionsComponent(isAuthenticated)()}>
+        <Route path="profile" getComponent={() => System.import('./containers/Profile/Profile')} />
+        <Route path="feed" getComponent={() => System.import('./containers/Feed/Feed')} />
       </Route>
 
-      { /* Routes requiring login */ }
-      <Route onEnter={requireLogin}>
-        <Route path="feed" component={Feed}/>
-        <Route path="groups" component={Groups}/>
-        <Route path="new-post" component={NewPost}/>
-        <Route path="profile" component={Profile}/>
+      {/* Routes disallow login */}
+      <Route {...permissionsComponent(isNotAuthenticated)()}>
+        <Route path="register" getComponent={() => System.import('./containers/Login/Login')} />
       </Route>
 
-      { /* Routes */ }
-      <Route path="about" component={About}/>
+      {/* Routes */}
+      <Route path="login" getComponent={() => System.import('./containers/Login/Login')} />
+      <Route path="about" getComponent={() => System.import('./containers/About/About')} />
 
-      { /* Catch all route */ }
+      {/* Catch all route */}
       <Route path="*" component={NotFound} status={404} />
     </Route>
   );
 };
+
+/*
+<Route
+  path="chatFeathers"
+  getComponent={() => injectReducerAndRender(
+    { chat: System.import('./redux/modules/chat') },
+    System.import('./containers/ChatFeathers/ChatFeathers')
+  )}
+/>
+<Route path="loginSuccess" getComponent={() => System.import('./containers/LoginSuccess/LoginSuccess')} />
+
+<Route
+  path="survey"
+  getComponent={() => injectReducerAndRender(
+    { survey: System.import('./redux/modules/survey') },
+    System.import('./containers/Survey/Survey')
+  )}
+/>
+<Route
+  path="widgets"
+  getComponent={() => injectReducerAndRender(
+    { widgets: System.import('./redux/modules/widgets') },
+    System.import('./containers/Widgets/Widgets')
+  )}
+/>
+<Route path="chat" getComponent={() => System.import('./containers/Chat/Chat')} />
+*/
