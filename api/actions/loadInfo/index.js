@@ -1,0 +1,1 @@
+export loadInfo from './load';
