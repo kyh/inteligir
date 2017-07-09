@@ -1,4 +1,4 @@
-# Learn with Friends
+# Inteligir
 
 > Create private groups and broadcast your learnings. A place to debate, share knowledge, and collaborate because everything is better with community.
 
@@ -6,8 +6,8 @@
 Clone the repo and install Node.js modules:
 
 ```
-$ git clone git@github.com:tehkaiyu/learn-with-friends.git .
-$ npm install
+$ git clone git@github.com:Inteligir/Inteligir.git .
+$ yarn
 ```
 
 ## Directory Layout
@@ -37,7 +37,7 @@ $ npm install
 ## Running Dev Server
 
 ```bash
-npm run dev
+yarn dev
 ```
 
 The first time it may take a little while to generate the first `webpack-assets.json` and complain with a few dozen `[webpack-isomorphic-tools] (waiting for the first Webpack build to finish)` printouts, but be patient. Give it 30 seconds.
@@ -59,8 +59,8 @@ DevTools are not enabled during production.
 ## Building and Running Production Server
 
 ```bash
-npm run build
-npm run start
+yarn build
+yarn start
 ```
 
 ## Explanation

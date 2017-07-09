@@ -5,7 +5,6 @@ var path = require('path');
 var webpack = require('webpack');
 var CleanPlugin = require('clean-webpack-plugin');
 var ExtractTextPlugin = require('extract-text-webpack-plugin');
-var strip = require('strip-loader');
 
 var projectRootPath = path.resolve(__dirname, '../');
 var assetsPath = path.resolve(projectRootPath, './static/dist');
@@ -38,14 +37,7 @@ module.exports = {
     rules: [
       {
         test: /\.jsx?$/,
-        use: [{
-          loader: 'strip-loader',
-          options: {
-            strip: ['debug']
-          }
-        }, {
-          loader: 'babel-loader'
-        }],
+        loader: 'babel-loader',
         exclude: /node_modules/
       }, {
         test: /\.less$/,
@@ -54,21 +46,19 @@ module.exports = {
           use: [
             {
               loader: 'css-loader',
-              query: {
+              options: {
                 modules: true,
-                importLoaders: 3,
+                importLoaders: 2,
                 sourceMap: true
               }
             }, {
-              loader: 'autoprefixer-loader',
-              query: {
-                browsers: 'last 2 version'
+              loader: 'postcss-loader',
+              options: {
+                sourceMap: true,
               }
             }, {
-              loader: 'resolve-url-loader',
-            }, {
               loader: 'less-loader',
-              query: {
+              options: {
                 outputStyle: 'expanded',
                 sourceMap: true,
                 sourceMapContents: true
@@ -83,21 +73,19 @@ module.exports = {
           use: [
             {
               loader: 'css-loader',
-              query: {
+              options: {
                 modules: true,
-                importLoaders: 3,
+                importLoaders: 2,
                 sourceMap: true
               }
             }, {
-              loader: 'autoprefixer-loader',
-              query: {
-                browsers: 'last 2 version'
+              loader: 'postcss-loader',
+              options: {
+                sourceMap: true,
               }
             }, {
-              loader: 'resolve-url-loader',
-            }, {
               loader: 'sass-loader',
-              query: {
+              options: {
                 outputStyle: 'expanded',
                 sourceMap: true,
                 sourceMapContents: true
@@ -146,7 +134,26 @@ module.exports = {
     extensions: ['.json', '.js', '.jsx']
   },
   plugins: [
-    new CleanPlugin([assetsPath, 'static/service-worker.js'], { root: projectRootPath }),
+    new webpack.LoaderOptionsPlugin({
+      test: /\.(less|scss)/,
+      options: {
+        postcss: function (webpack) {
+          return [
+            require("postcss-import")({ addDependencyTo: webpack }),
+            require("postcss-url")(),
+            require("postcss-cssnext")({ browsers: 'last 2 version' }),
+            // add your "plugins" here
+            // ...
+            // and if you want to compress,
+            // just use css-loader option that already use cssnano under the hood
+            require("postcss-browser-reporter")(),
+            require("postcss-reporter")(),
+          ]
+        }
+      }
+    }),
+
+    new CleanPlugin([assetsPath], { root: projectRootPath }),
 
     // css files from the extract-text-plugin loader
     new ExtractTextPlugin({
@@ -183,7 +190,7 @@ module.exports = {
 
     new SWPrecacheWebpackPlugin({
       cacheId: 'react-redux-universal-hot-example',
-      filename: '../service-worker.js',
+      filename: 'service-worker.js',
       maximumFileSizeToCacheInBytes: 8388608,
 
       // Ensure all our static, local assets are cached.

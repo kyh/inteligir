@@ -121,6 +121,24 @@ var webpackConfig = module.exports = {
     extensions: ['.json', '.js', '.jsx']
   },
   plugins: [
+    new webpack.LoaderOptionsPlugin({
+      test: /\.(less|scss)/,
+      options: {
+        postcss: function (webpack) {
+          return [
+            require("postcss-import")({ addDependencyTo: webpack }),
+            require("postcss-url")(),
+            require("postcss-cssnext")({ browsers: 'last 2 version' }),
+            // add your "plugins" here
+            // ...
+            // and if you want to compress,
+            // just use css-loader option that already use cssnano under the hood
+            require("postcss-browser-reporter")(),
+            require("postcss-reporter")(),
+          ]
+        }
+      }
+    }),
     // hot reload
     new webpack.HotModuleReplacementPlugin(),
     new webpack.IgnorePlugin(/webpack-stats\.json$/),
@@ -137,7 +155,7 @@ var webpackConfig = module.exports = {
         loader: 'react-hot-loader/webpack'
       }, {
         loader: 'babel-loader',
-        query: babelLoaderQuery
+        options: babelLoaderQuery
       }, {
         loader: 'eslint-loader',
         options: { emitWarning: true }
@@ -145,22 +163,21 @@ var webpackConfig = module.exports = {
     ]),
     helpers.createHappyPlugin('less', [
       {
-        loader: 'style-loader'
+        loader: 'style-loader',
+        options: { sourceMap: true }
       }, {
         loader: 'css-loader',
-        query: {
+        options: {
           modules: true,
-          importLoaders: 3,
+          importLoaders: 2,
           sourceMap: true,
           localIdentName: '[local]___[hash:base64:5]'
         }
       }, {
-        loader: 'autoprefixer-loader',
-        query: {
-          browser: 'last 2 version'
+        loader: 'postcss-loader',
+        options: {
+          sourceMap: true,
         }
-      }, {
-        loader: 'resolve-url-loader',
       }, {
         loader: 'less-loader',
         query: {
@@ -171,25 +188,24 @@ var webpackConfig = module.exports = {
     ]),
     helpers.createHappyPlugin('sass', [
       {
-        loader: 'style-loader'
+        loader: 'style-loader',
+        options: { sourceMap: true }
       }, {
         loader: 'css-loader',
-        query: {
+        options: {
           modules: true,
-          importLoaders: 3,
+          importLoaders: 2,
           sourceMap: true,
           localIdentName: '[local]___[hash:base64:5]'
         }
       }, {
-        loader: 'autoprefixer-loader',
-        query: {
-          browsers: 'last 2 version'
+        loader: 'postcss-loader',
+        options: {
+          sourceMap: true,
         }
       }, {
-        loader: 'resolve-url-loader',
-      }, {
         loader: 'sass-loader',
-        query: {
+        options: {
           outputStyle: 'expanded',
           sourceMap: true
         }

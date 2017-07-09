@@ -15,21 +15,21 @@ module.exports = Object.assign({
   apiHost: process.env.APIHOST || 'localhost',
   apiPort: process.env.APIPORT,
   app: {
-    title: 'Learn with Friends',
-    description: 'Learning is much better with friends',
+    title: 'Inteligir',
+    description: 'Learning is much better with community',
     head: {
-      titleTemplate: 'Learn with Friends | %s',
+      titleTemplate: 'Inteligir | %s',
       link: [
         { rel: 'stylesheet', href: 'https://fonts.googleapis.com/css?family=Droid+Serif|Lato:700,400,300' }
       ],
       meta: [
-        { name: 'description', content: 'Learning is much better with friends' },
+        { name: 'description', content: 'Learning is much better with community' },
         { charset: 'utf-8' },
-        { property: 'og:site_name', content: 'Learn with Friends' },
+        { property: 'og:site_name', content: 'Inteligir' },
         { property: 'og:image', content: 'https://react-redux.herokuapp.com/logo.jpg' },
         { property: 'og:locale', content: 'en_US' },
-        { property: 'og:title', content: 'Learn with Friends' },
-        { property: 'og:description', content: 'Learning is much better with friends' },
+        { property: 'og:title', content: 'Inteligir' },
+        { property: 'og:description', content: 'Learning is much better with community' },
         { property: 'og:card', content: 'summary' },
         { property: 'og:image:width', content: '200' },
         { property: 'og:image:height', content: '200' }
