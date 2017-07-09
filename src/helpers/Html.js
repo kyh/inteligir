@@ -43,15 +43,20 @@ export default class Html extends Component {
           <link rel="manifest" href="/manifest.json" />
           <meta name="mobile-web-app-capable" content="yes" />
           <meta name="apple-mobile-web-app-capable" content="yes" />
-          <meta name="application-name" content="React Hot" />
+          <meta name="application-name" content="Inteligir" />
           <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-          <meta name="apple-mobile-web-app-title" content="React Hot" />
-          <meta name="theme-color" content="#3677dd" />
+          <meta name="apple-mobile-web-app-title" content="Inteligir" />
+          <meta name="theme-color" content="#009fe8" />
           {/* styles (will be present only in production with webpack extract text plugin) */}
           {assets.styles && Object.keys(assets.styles).map(style =>
             <link
-              href={assets.styles[style]} key={style} media="screen, projection"
-              rel="stylesheet" type="text/css" charSet="UTF-8" />
+              href={assets.styles[style]}
+              key={style}
+              media="screen, projection"
+              rel="stylesheet"
+              type="text/css"
+              charSet="UTF-8"
+            />
           )}
 
           {/* (will be present only in development mode) */}
@@ -59,7 +64,7 @@ export default class Html extends Component {
             <style dangerouslySetInnerHTML={{ __html: '#content{display:none}' }} /> : null}
         </head>
         <body>
-          <div id="content" dangerouslySetInnerHTML={{ __html: content }} />
+          <main id="content" dangerouslySetInnerHTML={{ __html: content }} />
           {store && <script
             dangerouslySetInnerHTML={{ __html: `window.__data=${serialize(store.getState())};` }}
             charSet="UTF-8"

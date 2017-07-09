@@ -1,10 +1,26 @@
+/**
+ * Converts ApiClient into a middleware
+ * Expected action object:
+  {
+    types: [REQUEST_ACTION, SUCCESS_ACTION, FAILURE_ACTION],
+    promise: (client) => client[METHOD]
+  }
+ *
+ * @param {ApiClient}
+ * @return {func} - returns redux middleware
+ */
 export default function clientMiddleware({ client, app, restApp }) {
   return ({ dispatch, getState }) => next => action => {
     if (typeof action === 'function') {
       return action(dispatch, getState);
     }
 
-    const { promise, types, ...rest } = action; // eslint-disable-line no-redeclare
+    const {
+      promise,
+      types,
+      ...rest
+    } = action;
+
     if (!promise) {
       return next(action);
     }
