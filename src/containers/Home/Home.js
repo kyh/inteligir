@@ -9,7 +9,7 @@ export default class Home extends Component {
   render() {
     return (
       <section className={styles.home}>
-        <Helmet title="Home"/>
+        <Helmet title="Home" />
         <section className={styles.homeContainer}>
           <h1 className={styles.homeTitle}>
             {copy.title}
@@ -21,7 +21,7 @@ export default class Home extends Component {
             <section className={styles.homeImagePhone}>
 
             </section>
-            <img src={mainBg} alt="Learn with friends today!"/>
+            <img src={mainBg} alt="Inteligir" />
           </figure>
         </section>
       </section>

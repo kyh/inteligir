@@ -5,6 +5,10 @@
  *
  */
 
+export Provider from './Provider/Provider';
 export Navigation from './Navigation/Navigation';
-export Post from './Post/Post';
 export UserProfile from './UserProfile/UserProfile';
+export LoginForm from './AuthenticationForms/LoginForm';
+export RegisterForm from './AuthenticationForms/RegisterForm';
+export Notifs from './Notifs/Notifs';
+export Post from './Post/Post';

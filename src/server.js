@@ -6,6 +6,7 @@ import compression from 'compression';
 import cookieParser from 'cookie-parser';
 import httpProxy from 'http-proxy';
 import path from 'path';
+import VError from 'verror';
 import PrettyError from 'pretty-error';
 import http from 'http';
 import { match } from 'react-router';
@@ -36,10 +37,14 @@ app.use(compression());
 app.use(favicon(path.join(__dirname, '..', 'static', 'favicon.ico')));
 app.get('/manifest.json', (req, res) => res.sendFile(path.join(__dirname, '..', 'static', 'manifest.json')));
 
+app.use('/dist/service-worker.js', (req, res, next) => {
+  res.setHeader('Service-Worker-Allowed', '/');
+  return next();
+});
+
 app.use(express.static(path.join(__dirname, '..', 'static')));
 
 app.use((req, res, next) => {
-  res.setHeader('Service-Worker-Allowed', '*');
   res.setHeader('X-Forwarded-For', req.ip);
   return next();
 });
@@ -106,13 +111,12 @@ app.use((req, res) => {
       res.status(500);
       hydrateOnClient();
     } else if (renderProps) {
-      const redirect = ::res.redirect;
+      const redirect = to => { throw new VError({ name: 'RedirectError', info: { to } }); };
       loadOnServer({
         ...renderProps,
         store,
         helpers: { ...providers, redirect }
       }).then(() => {
-        if (res.headersSent) return;
         const component = (
           <Provider store={store} app={providers.app} restApp={providers.restApp} key="provider">
             <ReduxAsyncConnect {...renderProps} />
@@ -132,6 +136,9 @@ app.use((req, res) => {
           />
         )}`);
       }).catch(mountError => {
+        if (mountError.name === 'RedirectError') {
+          return res.redirect(VError.info(mountError).to);
+        }
         console.error('MOUNT ERROR:', pretty.render(mountError));
         res.status(500);
         hydrateOnClient();

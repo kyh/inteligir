@@ -1,6 +1,6 @@
 import React, { Component, PropTypes } from 'react';
 import classNames from 'classnames';
-import { Link, IndexLink } from 'react-router';
+import { IndexLink, Link } from 'react-router';
 
 const styles = require('./Navigation.scss');
 
@@ -32,7 +32,7 @@ export default class Navigation extends Component {
   };
 
   render() {
-    const {user} = this.props;
+    const { user } = this.props;
     const router = this.context.router;
     const shouldHideNav = (router.isActive('/login', true) && !user) ||
                           router.isActive('/new-post', true);
@@ -44,20 +44,20 @@ export default class Navigation extends Component {
     });
 
     return (
-      <header className={ navClass }>
+      <header className={navClass}>
         <div className={styles.navWrapper}>
           <div className={styles.navMenuWrapper}>
             <div className={styles.navLogo}>
               {
                 !user &&
                 <IndexLink to="/">
-                  { renderLogo() }
+                  {renderLogo()}
                 </IndexLink>
               }
               {
                 user &&
                 <Link to="/feed">
-                  { renderLogo() }
+                  {renderLogo()}
                 </Link>
               }
             </div>
@@ -90,13 +90,6 @@ export default class Navigation extends Component {
                   <Link
                     className={styles.navMenuItem}
                     activeClassName={styles.active}
-                    to="/groups"
-                  >
-                    Groups
-                  </Link>
-                  <Link
-                    className={styles.navMenuItem}
-                    activeClassName={styles.active}
                     to="/profile"
                   >
                     Profile
@@ -112,16 +105,6 @@ export default class Navigation extends Component {
                 to="/login"
               >
                 Login
-              </Link>
-            }
-            {
-              user &&
-              <Link
-                className={styles.navNewPost}
-                activeClassName={styles.active}
-                to="/new-post"
-              >
-                New Post
               </Link>
             }
           </div>

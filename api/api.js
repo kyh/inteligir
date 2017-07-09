@@ -25,7 +25,7 @@ app.set('config', config)
   .use(morgan('dev'))
   .use(cookieParser())
   .use(session({
-    secret: 'react and redux rule!!!!',
+    secret: 'somesecretkey',
     resave: false,
     saveUninitialized: false,
     cookie: { maxAge: 60000 }

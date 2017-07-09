@@ -8,11 +8,13 @@ export default class UserProfile extends Component {
   };
 
   renderUserThumbnail(user) {
-    return user.first_name[0] + user.last_name[0];
+    console.log(user);
+    return;
+    // return user.first_name[0] + user.last_name[0];
   }
 
   render() {
-    const {user, logout} = this.props;
+    const { user, logout } = this.props;
 
     return (
       <section className={styles.userProfile}>

@@ -11,13 +11,13 @@ const postAuthorText = [
 
 export default class Post extends Component {
   static propTypes = {
-    post: PropTypes.object,
+    post: PropTypes.object.isRequired,
     onlyAbstract: PropTypes.bool
   };
 
   constructor(props) {
     super(props);
-    const {user} = props.post;
+    const { user } = props.post;
 
     if (user) {
       const authorTextString = postAuthorText[Math.floor(Math.random() * postAuthorText.length)];
@@ -26,7 +26,7 @@ export default class Post extends Component {
   }
 
   render() {
-    const {post, onlyAbstract} = this.props;
+    const { post, onlyAbstract } = this.props;
     const postClass = classNames({
       [styles.post]: true,
       [styles.postAbstract]: onlyAbstract,

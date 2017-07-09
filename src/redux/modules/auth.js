@@ -1,18 +1,22 @@
-import cookie from 'react-cookie';
+import { socket } from 'app';
+import { SubmissionError } from 'redux-form';
+import cookie from 'js-cookie';
 
-const LOAD = 'LOAD_AUTH';
-const LOAD_SUCCESS = 'LOAD_AUTH_SUCCESS';
-const LOAD_FAIL = 'LOAD_AUTH_FAIL';
-const LOGIN = 'LOGIN_AUTH';
-const LOGIN_SUCCESS = 'LOGIN_AUTH_SUCCESS';
-const LOGIN_FAIL = 'LOGIN_AUTH_FAIL';
-const LOGOUT = 'LOGOUT_AUTH';
-const LOGOUT_SUCCESS = 'LOGOUT_AUTH_SUCCESS';
-const LOGOUT_FAIL = 'LOGOUT_AUTH_FAIL';
+const LOAD = 'LOAD';
+const LOAD_SUCCESS = 'LOAD_SUCCESS';
+const LOAD_FAIL = 'LOAD_FAIL';
+const LOGIN = 'LOGIN';
+const LOGIN_SUCCESS = 'LOGIN_SUCCESS';
+const LOGIN_FAIL = 'LOGIN_FAIL';
+const REGISTER = 'REGISTER';
+const REGISTER_SUCCESS = 'REGISTER_SUCCESS';
+const REGISTER_FAIL = 'REGISTER_FAIL';
+const LOGOUT = 'LOGOUT';
+const LOGOUT_SUCCESS = 'LOGOUT_SUCCESS';
+const LOGOUT_FAIL = 'LOGOUT_FAIL';
 
 const initialState = {
-  loaded: false,
-  initialLoad: false
+  loaded: false
 };
 
 export default function reducer(state = initialState, action = {}) {
@@ -20,15 +24,15 @@ export default function reducer(state = initialState, action = {}) {
     case LOAD:
       return {
         ...state,
-        loading: true,
-        initialLoad: true
+        loading: true
       };
     case LOAD_SUCCESS:
       return {
         ...state,
         loading: false,
         loaded: true,
-        user: action.result.data
+        accessToken: action.result.accessToken,
+        user: action.result.user
       };
     case LOAD_FAIL:
       return {
@@ -40,21 +44,36 @@ export default function reducer(state = initialState, action = {}) {
     case LOGIN:
       return {
         ...state,
-        loginError: null,
         loggingIn: true
       };
     case LOGIN_SUCCESS:
       return {
         ...state,
         loggingIn: false,
-        user: action.result.data
+        accessToken: action.result.accessToken,
+        user: action.result.user
       };
     case LOGIN_FAIL:
       return {
         ...state,
         loggingIn: false,
-        user: null,
         loginError: action.error
+      };
+    case REGISTER:
+      return {
+        ...state,
+        registeringIn: true
+      };
+    case REGISTER_SUCCESS:
+      return {
+        ...state,
+        registeringIn: false
+      };
+    case REGISTER_FAIL:
+      return {
+        ...state,
+        registeringIn: false,
+        registerError: action.error
       };
     case LOGOUT:
       return {
@@ -65,6 +84,7 @@ export default function reducer(state = initialState, action = {}) {
       return {
         ...state,
         loggingOut: false,
+        accessToken: null,
         user: null
       };
     case LOGOUT_FAIL:
@@ -78,38 +98,90 @@ export default function reducer(state = initialState, action = {}) {
   }
 }
 
-function onLogout() {
-  cookie.remove('token');
+const catchValidation = error => {
+  if (error.message) {
+    if (error.message === 'Validation failed' && error.data) {
+      throw new SubmissionError(error.data);
+    }
+    throw new SubmissionError({ _error: error.message });
+  }
+  return Promise.reject(error);
+};
+
+function setToken({ client, app, restApp }) {
+  return response => {
+    const { accessToken } = response;
+
+    app.set('accessToken', accessToken);
+    restApp.set('accessToken', accessToken);
+    client.setJwtToken(accessToken);
+
+    return response;
+  };
 }
+
+function setCookie({ app }) {
+  return response => app.passport.verifyJWT(response.accessToken)
+    .then(payload => {
+      const options = payload.exp ? { expires: new Date(payload.exp * 1000) } : undefined;
+      cookie.set('feathers-jwt', app.get('accessToken'), options);
+      return response;
+    });
+}
+
+function setUser({ app, restApp }) {
+  return response => {
+    app.set('user', response.user);
+    restApp.set('user', response.user);
+    return response;
+  };
+}
+
+/*
+* Actions
+* * * * */
 
 export function isLoaded(globalState) {
   return globalState.auth && globalState.auth.loaded;
 }
 
-export function hasTriedLoading(globalState) {
-  return globalState.auth.initialLoad;
-}
-
 export function load() {
   return {
     types: [LOAD, LOAD_SUCCESS, LOAD_FAIL],
-    promise: (client) => client.get('/auth/validate_token')
+    promise: ({ client, app, restApp }) => restApp.authenticate()
+      .then(setToken({ client, app, restApp }))
+      .then(setCookie({ app }))
+      .then(setUser({ app, restApp }))
   };
 }
 
-export function login(email, password) {
+export function register(data) {
+  return {
+    types: [REGISTER, REGISTER_SUCCESS, REGISTER_FAIL],
+    promise: ({ app }) => app.service('users').create(data).catch(catchValidation)
+  };
+}
+
+export function login(strategy, data, validation = true) {
+  const socketId = socket.io.engine.id;
   return {
     types: [LOGIN, LOGIN_SUCCESS, LOGIN_FAIL],
-    promise: (client) => client.post('/auth/sign_in', {
-      data: { email, password }
+    promise: ({ client, restApp, app }) => restApp.authenticate({
+      ...data,
+      strategy,
+      socketId
     })
+      .then(setToken({ client, app, restApp }))
+      .then(setCookie({ app }))
+      .then(setUser({ app, restApp }))
+      .catch(validation ? catchValidation : error => Promise.reject(error))
   };
 }
 
 export function logout() {
   return {
     types: [LOGOUT, LOGOUT_SUCCESS, LOGOUT_FAIL],
-    onSuccess: onLogout,
-    promise: (client) => client.del('/auth/sign_out')
+    promise: ({ client, app, restApp }) => app.logout()
+      .then(() => setToken({ client, app, restApp })({ accessToken: null }))
   };
 }

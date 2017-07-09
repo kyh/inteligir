@@ -1,17 +1,8 @@
-import React, {Component, PropTypes} from 'react';
-import {connect} from 'react-redux';
-import {asyncConnect} from 'redux-connect';
-import {load} from 'redux/modules/posts';
-import {Post} from 'components';
+import React, { Component, PropTypes } from 'react';
+import { Post } from 'components';
 
 const styles = require('./Feed.scss');
 
-@asyncConnect([{
-  promise: ({store: {dispatch}}) => dispatch(load())
-}])
-@connect(
-  state => ({data: state.posts.feed})
-)
 export default class Feed extends Component {
   static propTypes = {
     data: PropTypes.object
@@ -22,11 +13,19 @@ export default class Feed extends Component {
   }
 
   render() {
-    const {data} = this.props;
+    const data = [{
+      title: 'Test Post',
+      content: 'Lorem ipsum dolor sit amet, consectetur adipisicing elit. Voluptas dolor consectetur molestiae possimus tempore vitae dignissimos totam aspernatur ex eum, officia nulla, veniam fuga quisquam cumque, atque in veritatis deserunt.',
+      author: 'Kai'
+    }, {
+      title: 'Another Post',
+      content: 'Lorem ipsum dolor sit amet, consectetur adipisicing elit. Voluptas dolor consectetur molestiae possimus tempore vitae dignissimos totam aspernatur ex eum, officia nulla, veniam fuga quisquam cumque, atque in veritatis deserunt.',
+      author: 'Ming'
+    }];
     return (
       <section className={styles.feed}>
         <section className={styles.feedContent}>
-          {data.feed.map(this.renderSinglePost)}
+          {data.map(this.renderSinglePost)}
         </section>
       </section>
     );

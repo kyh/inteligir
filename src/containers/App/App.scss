@@ -1,8 +1,6 @@
 /* Base Styles
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
 @import '../../theme/lib/normalize.css';
-@import '../../theme/lib/megadraft';
-
 @import '../../theme/variables';
 @import '../../theme/mixins';
 @import '../../theme/forms';
@@ -17,7 +15,7 @@ html {
 }
 
 body {
-  font-size: 1.4em;
+  font-size: 1.5em;
   line-height: 1.6;
   font-family: $lato-font;
   color: $text-color;
