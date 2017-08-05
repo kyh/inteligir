@@ -9,64 +9,55 @@ $button-primary-hover: darken($brand-primary, 5%);
   input[type="reset"],
   input[type="button"] {
     display: inline-block;
-    height: 38px;
     padding: 0 30px;
-    color: $brand-black;
+    color: #555;
     text-align: center;
     font-size: 11px;
-    font-weight: 700;
-    line-height: 38px;
+    font-weight: 600;
+    line-height: 40px;
     letter-spacing: .1rem;
     text-transform: uppercase;
     text-decoration: none;
     white-space: nowrap;
     background-color: transparent;
-    border-radius: 3px;
+    border-radius: 5px;
     border: 1px solid $border-color;
     cursor: pointer;
-    transition: border-color 0.3s ease, background-color 0.3s ease;
-  }
+    box-shadow: 0 4px 6px rgba(50,50,93,.11), 0 1px 3px rgba(0,0,0,.08);
+    transition: color 0.23s ease, background-color 0.23s ease, transform 0.23s ease;
 
-  .button:hover,
-  button:hover,
-  input[type="submit"]:hover,
-  input[type="reset"]:hover,
-  input[type="button"]:hover,
-  .button:focus,
-  button:focus,
-  input[type="submit"]:focus,
-  input[type="reset"]:focus,
-  input[type="button"]:focus {
-    color: $brand-black;
-    border-color: $brand-black;
-    outline: 0;
-  }
+    &:hover, &:focus {
+      color: $brand-black;
+      outline: 0;
+    }
 
-  .button.button-primary,
-  button.button-primary,
-  input[type="submit"].button-primary,
-  input[type="reset"].button-primary,
-  input[type="button"].button-primary {
-    color: #FFF;
-    background-color: $brand-primary;
-    border-color: $brand-primary;
-  }
+    &.button-primary {
+      color: #FFF;
+      background-color: $brand-primary;
+      border-color: $brand-primary;
 
-  .button.button-primary:hover,
-  button.button-primary:hover,
-  input[type="submit"].button-primary:hover,
-  input[type="reset"].button-primary:hover,
-  input[type="button"].button-primary:hover,
-  .button.button-primary:focus,
-  button.button-primary:focus,
-  input[type="submit"].button-primary:focus,
-  input[type="reset"].button-primary:focus,
-  input[type="button"].button-primary:focus {
-    color: #FFF;
-    background-color: $button-primary-hover;
-    border-color: $button-primary-hover;
-  }
+      &:hover, &:focus, &:active {
+        background-color: $button-primary-hover;
+        border-color: $button-primary-hover;
+      }
+    }
 
+    &.button-full {
+      width: 100%;
+    }
+
+    &[disabled] {
+      opacity: 0.5;
+
+      &:active, &:hover, &:focus {
+        transform: none;
+      }
+    }
+
+    &:active {
+      transform: translateY(2px);
+    }
+  }
 
   /* Forms
   –––––––––––––––––––––––––––––––––––––––––––––––––– */
@@ -79,44 +70,41 @@ $button-primary-hover: darken($brand-primary, 5%);
   input[type="password"],
   textarea,
   select {
-    height: 38px;
-    padding: 6px 10px; /* The 6px vertically centers text on FF, ignored by Webkit */
-    border: none;
-    box-shadow: none;
+    border-radius: 0;
+    border: 0;
+    border-bottom: 1px solid $light-grey;
+    font-size: 1.5rem;
+    padding: 15px 0;
+    height: auto;
+    display: block;
     width: 100%;
-    box-sizing: border-box;
+    line-height: 1;
+    background: transparent;
+    transition: border-color 0.23s ease;
+    /* Removes awkward default styles on some inputs for iOS */
+    appearance: none;
+
+    &.error {
+      border-color: $brand-red;
+    }
+
+    &:focus {
+      border-color: $brand-primary;
+      outline: 0;
+    }
   }
 
-  /* Removes awkward default styles on some inputs for iOS */
-  input[type="email"],
-  input[type="number"],
-  input[type="search"],
-  input[type="text"],
-  input[type="tel"],
-  input[type="url"],
-  input[type="password"],
   textarea {
-    -webkit-appearance: none;
-       -moz-appearance: none;
-            appearance: none;
+    border: 1px solid $light-grey;
+    min-height: 40px;
+    padding: 10px;
+    border-radius: 3px;
+    resize: vertical;
   }
 
-  textarea {
-    min-height: 65px;
-    padding-top: 6px;
-    padding-bottom: 6px;
-  }
-
-  input[type="email"]:focus,
-  input[type="number"]:focus,
-  input[type="search"]:focus,
-  input[type="text"]:focus,
-  input[type="tel"]:focus,
-  input[type="url"]:focus,
-  input[type="password"]:focus,
-  textarea:focus,
-  select:focus {
-    outline: 0;
+  textarea::placeholder,
+  input::placeholder {
+    opacity: 0.5;
   }
 
   label,
@@ -134,11 +122,5 @@ $button-primary-hover: darken($brand-primary, 5%);
   input[type="checkbox"],
   input[type="radio"] {
     display: inline;
-  }
-
-  label > .label-body {
-    display: inline-block;
-    margin-left: .5rem;
-    font-weight: normal;
   }
 }

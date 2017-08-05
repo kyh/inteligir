@@ -18,7 +18,8 @@ export default class LoginForm extends Component {
     isLoading: false
   }
 
-  handleSubmit = () => {
+  handleSubmit = (event) => {
+    event.preventDefault();
     this.setState({ isLoading: true });
     this.props.handleSubmit();
   }
@@ -49,7 +50,8 @@ export default class LoginForm extends Component {
           />
           <button
             className={`${styles.loginFormSubmit} button-primary`}
-            type="submit">
+            type="submit"
+          >
             Log In
           </button>
         </section>

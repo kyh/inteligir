@@ -18,7 +18,8 @@ export default class RegisterForm extends Component {
     isLoading: false
   }
 
-  handleSubmit = () => {
+  handleSubmit = (event) => {
+    event.preventDefault();
     this.setState({ isLoading: true });
     this.props.handleSubmit();
   }

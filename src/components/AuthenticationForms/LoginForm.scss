@@ -33,16 +33,11 @@ $body-bg-color: #FFF;
     position: relative;
     padding: 10px 0;
     margin-bottom: 10px;
-    border-bottom: 1px solid $border-color;
   }
 
   &FormSubmit {
     margin-top: 30px;
     width: 100%;
-  }
-
-  &InputError {
-    border-color: $brand-red;
   }
 
   &InputErrorMessage {

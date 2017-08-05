@@ -6,12 +6,7 @@ export default function Input({
   input, label, type, meta: { touched, error }
 }) {
   return (
-    <section
-      className={`
-        ${styles.loginFormInputWrapper}
-        ${error && touched ? styles.loginInputError : ''}
-      `}
-    >
+    <section className={styles.loginFormInputWrapper}>
       {
         error && touched &&
           <div className={styles.loginInputErrorMessage}>
@@ -21,7 +16,10 @@ export default function Input({
       <input
         {...input}
         type={type}
-        className={styles.loginFormInput}
+        className={`
+          ${styles.loginFormInput}
+          ${error && touched ? 'error' : ''}
+        `}
         placeholder={label}
       />
     </section>
