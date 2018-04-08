@@ -1,7 +1,7 @@
 # Inteligir
 
-> Create open souce courses. A place to debate, share knowledge, and collaborate because
-everything is better with community.
+> Document your proccess, share knowledge, and create open souce courses.
+Everything is better with community.
 
 ## Getting Started
 Clone the repo and install Node.js modules:
