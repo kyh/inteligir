@@ -1,6 +1,6 @@
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
-import { fetchBlog } from '../../actions';
+import { fetchBlog } from 'redux/modules/lesson.module';
 
 class BlogShow extends Component {
   componentDidMount() {

@@ -10,12 +10,19 @@
     "npm": "5.5.1"
   },
   "scripts": {
+    "analyze": "source-map-explorer client/build/static/js/main.*",
     "start": "NODE_ENV=\"production\" node -r dotenv/config server/index.js",
     "server": "nodemon -r dotenv/config server/index.js --ignore tests",
     "client": "npm run start --prefix client",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "build": "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client",
-    "setup": "npm install && npm install --prefix client",
+    "build":
+      "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client",
+    "setup":
+      "npm install && npm install --prefix client && npm run decrypt-env",
+    "encrypt-env":
+      "openssl aes-256-cbc -a -salt -in .env -pass file:encrypted/.inteligir_dev.key -out encrypted/env.enc",
+    "decrypt-env":
+      "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
     "heroku-postbuild": "npm run build"
   },
   "repository": {
@@ -38,6 +45,7 @@
     "path-parser": "^2.0.2",
     "puppeteer": "^1.0.0",
     "redis": "^2.8.0",
+    "source-map-explorer": "^1.5.0",
     "uuid": "^3.2.1"
   },
   "devDependencies": {

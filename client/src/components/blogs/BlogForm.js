@@ -1,5 +1,5 @@
 // BlogForm shows a form for a user to add input
-import _ from 'lodash';
+import { map, each } from 'lodash';
 import React, { Component } from 'react';
 import { reduxForm, Field } from 'redux-form';
 import { Link } from 'react-router-dom';
@@ -8,7 +8,7 @@ import formFields from './formFields';
 
 class BlogForm extends Component {
   renderFields() {
-    return _.map(formFields, ({ label, name }) => {
+    return map(formFields, ({ label, name }) => {
       return (
         <Field
           key={name}
@@ -42,7 +42,7 @@ class BlogForm extends Component {
 function validate(values) {
   const errors = {};
 
-  _.each(formFields, ({ name }) => {
+  each(formFields, ({ name }) => {
     if (!values[name]) {
       errors[name] = 'You must provide a value';
     }

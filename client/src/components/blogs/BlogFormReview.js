@@ -1,16 +1,16 @@
 // BlogFormReview shows users their form inputs for review
-import _ from 'lodash';
+import { map } from 'lodash';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
-import formFields from './formFields';
 import { withRouter } from 'react-router-dom';
-import * as actions from '../../actions';
+import formFields from './formFields';
+import { submitBlog } from 'redux/modules/lesson.module';
 
 class BlogFormReview extends Component {
   renderFields() {
     const { formValues } = this.props;
 
-    return _.map(formFields, ({ name, label }) => {
+    return map(formFields, ({ name, label }) => {
       return (
         <div key={name}>
           <label>{label}</label>
@@ -63,4 +63,6 @@ function mapStateToProps(state) {
   return { formValues: state.form.blogForm.values };
 }
 
-export default connect(mapStateToProps, actions)(withRouter(BlogFormReview));
+export default connect(mapStateToProps, { submitBlog })(
+  withRouter(BlogFormReview)
+);

@@ -1,7 +1,7 @@
 import React, { Component } from 'react';
 import { BrowserRouter, Route, Switch } from 'react-router-dom';
 import { connect } from 'react-redux';
-import * as actions from '../actions';
+import { loadUser } from 'redux/modules/auth.module';
 
 import Header from './Header';
 import Landing from './Landing';
@@ -11,7 +11,7 @@ import BlogShow from './blogs/BlogShow';
 
 class App extends Component {
   componentDidMount() {
-    this.props.fetchUser();
+    this.props.loadUser();
   }
 
   render() {
@@ -33,4 +33,4 @@ class App extends Component {
   }
 }
 
-export default connect(null, actions)(App);
+export default connect(null, { loadUser })(App);
