@@ -1,16 +1,21 @@
 import React, { Component } from 'react';
+import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import { Link } from 'react-router-dom';
 
 class Header extends Component {
+  static propTypes = {
+    isAuthenticated: PropTypes.bool.isRequired,
+  };
+
   renderContent() {
-    switch (this.props.auth) {
+    switch (this.props.isAuthenticated) {
       case null:
         return;
       case false:
         return (
           <li>
-            <a href={'/auth/google'}>Login With Google</a>
+            <a href="/auth/google">Login With Google</a>
           </li>
         );
       default:
@@ -19,8 +24,8 @@ class Header extends Component {
             <Link to="/blogs">My Blogs</Link>
           </li>,
           <li key="2">
-            <a href={'/auth/logout'}>Logout</a>
-          </li>
+            <a href="/auth/logout">Logout</a>
+          </li>,
         ];
     }
   }
@@ -30,7 +35,7 @@ class Header extends Component {
       <nav className="indigo">
         <div className="nav-wrapper">
           <Link
-            to={this.props.auth ? '/blogs' : '/'}
+            to={this.props.isAuthenticated ? '/blogs' : '/'}
             className="left brand-logo"
             style={{ marginLeft: '10px' }}
           >
@@ -44,7 +49,9 @@ class Header extends Component {
 }
 
 function mapStateToProps({ auth }) {
-  return { auth };
+  return {
+    isAuthenticated: auth.isAuthenticated,
+  };
 }
 
 export default connect(mapStateToProps)(Header);

@@ -14,20 +14,44 @@ export const LOAD_USER_FAIL = 'LOAD_USER_FAIL';
 /**
  * Fetches current logged in user given HTTP cookie
  */
-export const loadUser = () => async dispatch => {
-  const res = await axios.get('/api/current_user');
-  dispatch({ type: LOAD_USER_SUCCESS, payload: res.data });
-};
+export function loadUser() {
+  return {
+    types: [LOAD_USER, LOAD_USER_SUCCESS, LOAD_USER_FAIL],
+    callApi: () => axios.get('/api/current_user'),
+  };
+}
 
 // Reducer
-const initialState = null;
+const initialState = {
+  isAuthenticated: false,
+  isLoading: false,
+  user: false,
+  error: null,
+};
 
 const reducerMap = {
+  [LOAD_USER]: (state, action) => {
+    return {
+      ...state,
+      isLoading: true,
+    };
+  },
   [LOAD_USER_SUCCESS]: (state, action) => {
     return {
-      ...action.payload
+      ...state,
+      user: action.result,
+      isAuthenticated: action.result ? true : false,
+      isLoading: false,
     };
-  }
+  },
+  [LOAD_USER_FAIL]: (state, action) => {
+    return {
+      ...state,
+      isAuthenticated: false,
+      isLoading: false,
+      error: action.error,
+    };
+  },
 };
 
 export default function reducer(state = initialState, action = {}) {

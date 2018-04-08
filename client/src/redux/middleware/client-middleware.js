@@ -55,8 +55,8 @@ export default function clientMiddleware() {
     const actionPromise = callApi();
     actionPromise
       .then(
-        result => next({ ...rest, result, type: SUCCESS }),
-        error => next({ ...rest, error, type: FAILURE })
+        result => next({ ...rest, result: result.data, type: SUCCESS }),
+        error => next({ ...rest, error, type: FAILURE }),
       )
       .catch(error => {
         console.error('MIDDLEWARE ERROR:', error);
