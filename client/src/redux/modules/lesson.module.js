@@ -17,14 +17,14 @@ export const submitBlog = (values, history) => async dispatch => {
 };
 
 // Load all
-export const LOAD_LESSONS = 'LOAD_LESSONS';
-export const LOAD_LESSONS_SUCCESS = 'LOAD_LESSONS_SUCCESS';
-export const LOAD_LESSONS_FAIL = 'LOAD_LESSONS_FAIL';
+export const LOAD_ALL_LESSONS = 'LOAD_ALL_LESSONS';
+export const LOAD_ALL_LESSONS_SUCCESS = 'LOAD_ALL_LESSONS_SUCCESS';
+export const LOAD_ALL_LESSONS_FAIL = 'LOAD_ALL_LESSONS_FAIL';
 
 export const fetchBlogs = () => async dispatch => {
   const res = await axios.get('/api/blogs');
 
-  dispatch({ type: LOAD_LESSONS_SUCCESS, payload: res.data });
+  dispatch({ type: LOAD_ALL_LESSONS_SUCCESS, payload: res.data });
 };
 
 // Load single
@@ -46,9 +46,9 @@ const reducerMap = {
     const blog = action.payload;
     return { ...state, [blog._id]: blog };
   },
-  [LOAD_LESSONS_SUCCESS]: (state, action) => {
+  [LOAD_ALL_LESSONS_SUCCESS]: (state, action) => {
     return { ...state, ...mapKeys(action.payload, '_id') };
-  }
+  },
 };
 
 export default function reducer(state = initialState, action = {}) {

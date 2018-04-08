@@ -1,4 +1,5 @@
 import React, { Component } from 'react';
+import PropTypes from 'prop-types';
 import { BrowserRouter, Route, Switch } from 'react-router-dom';
 import { connect } from 'react-redux';
 import { loadUser } from 'redux/modules/auth.module';
@@ -10,6 +11,10 @@ import BlogNew from './blogs/BlogNew';
 import BlogShow from './blogs/BlogShow';
 
 class App extends Component {
+  static propTypes = {
+    loadUser: PropTypes.func.isRequired,
+  };
+
   componentDidMount() {
     this.props.loadUser();
   }
