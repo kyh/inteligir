@@ -1,0 +1,32 @@
+:root {
+  /* Colors
+–––––––––––––––––––––––––––––––––––––––––––––––––– */
+  --brand-primary: #009fe8;
+  --brand-dark-blue: #0669de;
+  --brand-yellow: #f8df64;
+  --brand-black: #273e4b;
+  --brand-red: #f44336;
+  --border-color: #edebeb;
+  --background-grey: #f6f9fa;
+  --text-color: #2e3236;
+  --title-color: #000;
+  --dark-grey: #d4d5d6;
+  --light-grey: #f1f3f4;
+
+  /* Fonts
+–––––––––––––––––––––––––––––––––––––––––––––––––– */
+  --droid-font: 'Droid Serif', serif;
+  --lato-font: 'Lato', sans-serif;
+
+  /* Layout
+–––––––––––––––––––––––––––––––––––––––––––––––––– */
+  --container-max: 1000px;
+  --container-max-small: 840px;
+
+  /* Breakpoints
+–––––––––––––––––––––––––––––––––––––––––––––––––– */
+  --bp-mobile-xs: 321px;
+  --bp-mobile: 767px;
+  --bp-tablet: 992px;
+  --bp-desktop: 1200px;
+}
