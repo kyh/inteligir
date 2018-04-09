@@ -1,3 +1,9 @@
+/**
+ * Reboot
+ * Normalization of HTML elements, manually forked from bootstrap.css to remove
+ * styles targeting irrelevant browsers while applying new styles.
+ */
+
 /*
   html is set to 62.5% so that all the REM measurements are based on 10px sizing.
   So basically 1.5rem = 15px :)
@@ -5,12 +11,18 @@
 html {
   font-size: 62.5%;
   box-sizing: border-box;
+  line-height: 1.15;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+  -ms-overflow-style: scrollbar;
+  -webkit-tap-highlight-color: transparent;
 }
 
 body {
   margin: 0;
-  font-size: 1.5em;
-  line-height: 1.6;
+  font-size: 1.8em;
+  line-height: 1.5;
+  text-align: left;
   font-family: var(--lato-font);
   color: var(--text-color);
   background-color: var(--background-grey);
@@ -36,6 +48,13 @@ section {
   display: block;
 }
 
+/**
+ * Suppress the focus outline on elements that cannot be accessed via keyboard.
+ * This prevents an unwanted focus outline from appearing around elements that
+ * might still respond to pointer events.
+ *
+ * Credit: https://github.com/suitcss/base
+ */
 [tabindex='-1']:focus {
   outline: 0 !important;
 }
