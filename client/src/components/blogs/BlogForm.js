@@ -54,5 +54,5 @@ function validate(values) {
 export default reduxForm({
   validate,
   form: 'blogForm',
-  destroyOnUnmount: false
+  destroyOnUnmount: false,
 })(BlogForm);

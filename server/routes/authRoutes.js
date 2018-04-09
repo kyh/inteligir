@@ -1,11 +1,11 @@
 const passport = require('passport');
 
-module.exports = app => {
+module.exports = (app) => {
   app.get(
     '/auth/google',
     passport.authenticate('google', {
-      scope: ['profile', 'email']
-    })
+      scope: ['profile', 'email'],
+    }),
   );
 
   app.get(
@@ -13,7 +13,7 @@ module.exports = app => {
     passport.authenticate('google'),
     (req, res) => {
       res.redirect('/blogs');
-    }
+    },
   );
 
   app.get('/auth/logout', (req, res) => {

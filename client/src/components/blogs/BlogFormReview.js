@@ -64,5 +64,5 @@ function mapStateToProps(state) {
 }
 
 export default connect(mapStateToProps, { submitBlog })(
-  withRouter(BlogFormReview)
+  withRouter(BlogFormReview),
 );

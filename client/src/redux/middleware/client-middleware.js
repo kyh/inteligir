@@ -26,7 +26,7 @@
  * @return {func} - returns redux middleware
  */
 export default function clientMiddleware() {
-  return ({ dispatch, getState }) => next => action => {
+  return ({ dispatch, getState }) => (next) => (action) => {
     if (typeof action === 'function') {
       return action(dispatch, getState);
     }
@@ -40,7 +40,7 @@ export default function clientMiddleware() {
     if (
       !Array.isArray(types) ||
       types.length !== 3 ||
-      !types.every(type => typeof type === 'string')
+      !types.every((type) => typeof type === 'string')
     ) {
       throw new Error('Expected an array of three string types.');
     }
@@ -55,10 +55,10 @@ export default function clientMiddleware() {
     const actionPromise = callApi();
     actionPromise
       .then(
-        result => next({ ...rest, result: result.data, type: SUCCESS }),
-        error => next({ ...rest, error, type: FAILURE }),
+        (result) => next({ ...rest, result: result.data, type: SUCCESS }),
+        (error) => next({ ...rest, error, type: FAILURE }),
       )
-      .catch(error => {
+      .catch((error) => {
         console.error('MIDDLEWARE ERROR:', error);
         next({ ...rest, error, type: FAILURE });
       });
