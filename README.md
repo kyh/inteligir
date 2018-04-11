@@ -2,15 +2,6 @@
 
 > The easiest way to build interactive lesson plans. Document your proccess, share knowledge, and create open source courses
 
-## Getting Started
-
-Clone the repo and install Node.js modules:
-
-```
-$ git clone git@github.com:Inteligir/Inteligir.git .
-$ yarn
-```
-
 ## Directory Layout
 
 ```
@@ -33,7 +24,13 @@ $ yarn
 └── /test                        # Javascript tests
 ```
 
-## Development Setup
+## Getting Started
+
+Clone the repo:
+
+```
+$ git clone git@github.com:Inteligir/Inteligir.git .
+```
 
 We recommend using nvm to manage multiple node installs:
 
