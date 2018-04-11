@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/Inteligir/Inteligir.svg?branch=master)](https://travis-ci.org/Inteligir/Inteligir)
+
 # Inteligir
 
 > The easiest way to build interactive lesson plans. Document your proccess, share knowledge, and create open source courses
