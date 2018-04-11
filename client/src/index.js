@@ -1,5 +1,6 @@
 // import 'materialize-css/dist/css/materialize.min.css';
 import 'styles/variables.css';
+import 'styles/global.css';
 import 'styles/app.css';
 
 import React from 'react';
@@ -8,7 +9,7 @@ import axios from 'axios';
 import { Provider } from 'react-redux';
 
 import createStore from './redux/create';
-import App from './components/App';
+import App from './routes/App';
 
 window.axios = axios;
 

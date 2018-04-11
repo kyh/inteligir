@@ -6,7 +6,10 @@ module.exports = {
   env: {
     browser: true,
     node: true,
-    mocha: true
+    mocha: true,
+  },
+  rules: {
+    'react/jsx-filename-extension': [1, { extensions: ['.js', '.jsx'] }],
   },
   settings: {
     'import/resolver': {
@@ -14,9 +17,9 @@ module.exports = {
         paths: [
           path.resolve(__dirname, './node_modules'),
           path.resolve(__dirname, './client/node_modules'),
-          path.resolve(__dirname, './client/src')
-        ]
-      }
-    }
-  }
+          path.resolve(__dirname, './client/src'),
+        ],
+      },
+    },
+  },
 };
