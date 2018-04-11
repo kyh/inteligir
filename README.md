@@ -1,7 +1,6 @@
 # Inteligir
 
-> Document your proccess, share knowledge, and create open souce courses.
-> Everything is better with community.
+> The easiest way to build interactive lesson plans. Document your proccess, share knowledge, and create open source courses
 
 ## Getting Started
 
