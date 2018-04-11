@@ -23,7 +23,8 @@
       "openssl aes-256-cbc -a -salt -in .env -pass file:encrypted/.inteligir_dev.key -out encrypted/env.enc",
     "decrypt-env":
       "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
-    "heroku-postbuild": "npm run build"
+    "heroku-postbuild": "npm run build",
+    "test": "echo \"No test specified\" && exit 0"
   },
   "repository": {
     "type": "git",
