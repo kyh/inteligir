@@ -1,0 +1,75 @@
+.nav {
+  --nav-link-color: #dbdcde;
+  --nav-link-hover: #47494d;
+  --nav-border-color: rgba(161, 162, 164, 0.3);
+  --nav-index: 1000;
+}
+
+.nav {
+  position: absolute;
+  font-size: 0.9em;
+  letter-spacing: 0.5px;
+  width: 100%;
+  z-index: var(--nav-index);
+  transition: transform 0.4s cubic-bezier(0.82, 0, 0.12, 1.4);
+}
+
+.nav-container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 12px;
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--nav-border-color);
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+}
+
+.nav-logo svg {
+  width: 60px;
+  height: 20px;
+}
+
+.nav-logo svg > path {
+  fill: var(--brand-black);
+}
+
+.nav-link {
+  color: var(--nav-link-color);
+  display: inline-block;
+  font-size: 0.8em;
+  font-weight: 700;
+  text-transform: uppercase;
+  margin-right: 20px;
+  position: relative;
+  padding: 37px 20px;
+  transition: color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.nav-link:hover,
+.nav-link.active {
+  color: var(--nav-link-hover);
+  box-shadow: 0 1px 0 var(--brand-primary);
+}
+
+/* Animation */
+.nav.hidden {
+  transform: translateY(-95px);
+}
+
+/* Light Nav */
+.nav.light svg > path {
+  fill: #fff;
+}
+
+.nav a {
+  fill: #fff;
+}
+
+.nav a:hover,
+.nav a:active {
+  color: #fff;
+}

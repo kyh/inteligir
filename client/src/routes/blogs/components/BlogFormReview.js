@@ -3,8 +3,8 @@ import { map } from 'lodash';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
 import { withRouter } from 'react-router-dom';
-import formFields from './formFields';
 import { submitBlog } from 'redux/modules/lesson.module';
+import formFields from './formFields';
 
 class BlogFormReview extends Component {
   renderFields() {

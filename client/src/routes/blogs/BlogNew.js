@@ -1,8 +1,8 @@
 // BlogNew shows BlogForm and BlogFormReview
 import React, { Component } from 'react';
 import { reduxForm } from 'redux-form';
-import BlogForm from './BlogForm';
-import BlogFormReview from './BlogFormReview';
+import BlogForm from './components/BlogForm';
+import BlogFormReview from './components/BlogFormReview';
 
 class BlogNew extends Component {
   state = { showFormReview: false };

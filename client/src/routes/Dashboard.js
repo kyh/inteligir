@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import BlogList from './blogs/BlogList';
+import BlogList from 'routes/blogs/components/BlogList';
 
 const Dashboard = () => {
   return (
