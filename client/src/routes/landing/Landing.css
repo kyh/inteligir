@@ -1,0 +1,68 @@
+.landing-page {
+  --landing-page-title-color: #fafafa;
+  --landing-page-subtitle-color: #c7ccd8;
+  background-color: #1e2430;
+}
+
+.landing-page-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  height: 100vh;
+}
+
+.landing-page-title-container {
+  position: relative;
+  z-index: 3;
+  text-align: center;
+  max-width: var(--container-max-xsmall);
+}
+
+.landing-page-title {
+  color: var(--landing-page-title-color);
+  font-size: 3.8rem;
+}
+
+.landing-page-subtitle {
+  color: var(--landing-page-subtitle-color);
+}
+
+.landing-page-video-container {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 100%;
+  max-width: 80em;
+}
+
+.landing-page-video-container:after {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  background: linear-gradient(180deg, rgba(40, 42, 46, 0), #1e2430 95%);
+  z-index: 2;
+  content: '';
+}
+
+.landing-page-video-container video {
+  opacity: 0.5;
+  position: relative;
+  width: 100%;
+  z-index: 1;
+  mix-blend-mode: screen;
+}
+
+.landing-page-particles {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  opacity: 0.5;
+  mix-blend-mode: screen;
+  background-repeat: repeat;
+  background-position: 0 0;
+}
