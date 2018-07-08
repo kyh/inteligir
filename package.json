@@ -15,14 +15,10 @@
     "server": "nodemon -r dotenv/config server/index.js --ignore tests",
     "client": "npm run start --prefix client",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "build":
-      "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client",
-    "setup":
-      "npm install && npm install --prefix client && npm run decrypt-env",
-    "encrypt-env":
-      "openssl aes-256-cbc -a -salt -in .env -pass file:encrypted/.inteligir_dev.key -out encrypted/env.enc",
-    "decrypt-env":
-      "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
+    "build": "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client",
+    "setup": "npm install && npm install --prefix client && npm run decrypt-env",
+    "encrypt-env": "openssl aes-256-cbc -a -salt -in .env -pass file:encrypted/.inteligir_dev.key -out encrypted/env.enc",
+    "decrypt-env": "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
     "heroku-postbuild": "npm run build",
     "test": "echo \"No test specified\" && exit 0"
   },
@@ -31,13 +27,13 @@
     "url": "https://github.com/Inteligir/Inteligir"
   },
   "dependencies": {
-    "aws-sdk": "^2.188.0",
-    "body-parser": "^1.17.2",
+    "aws-sdk": "^2.254.1",
+    "body-parser": "^1.18.3",
     "concurrently": "^3.5.0",
     "cookie-session": "^2.0.0-beta.2",
     "dotenv": "^5.0.1",
-    "express": "^4.15.3",
-    "jest": "^22.1.4",
+    "express": "^4.16.3",
+    "jest": "^22.4.4",
     "migrate-mongoose": "^3.2.2",
     "mongoose": "^5.0.14",
     "nodemon": "^1.11.0",
@@ -50,15 +46,15 @@
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
-    "babel-eslint": "^8.0.1",
+    "babel-eslint": "^8.2.3",
     "eslint": "^4.10.0",
     "eslint-config-airbnb": "^16.1.0",
     "eslint-config-prettier": "^2.7.0",
-    "eslint-plugin-import": "^2.8.0",
+    "eslint-plugin-import": "^2.12.0",
     "eslint-plugin-jsx-a11y": "^6.0.2",
     "eslint-plugin-prettier": "^2.3.1",
-    "eslint-plugin-react": "^7.4.0",
-    "prettier": "^1.7.4",
+    "eslint-plugin-react": "^7.9.1",
+    "prettier": "^1.13.5",
     "source-map-explorer": "^1.5.0"
   }
 }
