@@ -2,6 +2,8 @@
 
 # Inteligir
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/Inteligir/Inteligir.svg)](https://greenkeeper.io/)
+
 > The easiest way to build interactive lesson plans. Document your proccess, share knowledge, and create open source courses
 
 ## Directory Layout
