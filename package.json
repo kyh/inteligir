@@ -14,6 +14,7 @@
     "start": "NODE_ENV=\"production\" node -r dotenv/config server/index.js",
     "server": "nodemon -r dotenv/config server/index.js --ignore tests",
     "client": "npm run start --prefix client",
+    "deploy": "node -r dotenv/config tools/deploy",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build": "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client",
     "setup": "npm install && npm install --prefix client && npm run decrypt-env",
@@ -53,6 +54,7 @@
     "eslint-plugin-jsx-a11y": "6.1.1",
     "eslint-plugin-prettier": "2.6.2",
     "eslint-plugin-react": "7.10.0",
+    "inquirer": "6.0.0",
     "prettier": "1.13.7",
     "source-map-explorer": "1.5.0"
   }
