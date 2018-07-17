@@ -21,6 +21,7 @@
     "encrypt-env": "openssl aes-256-cbc -a -salt -in .env -pass file:encrypted/.inteligir_dev.key -out encrypted/env.enc",
     "decrypt-env": "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
     "heroku-postbuild": "npm run build",
+    "precommit": "pretty-quick --staged",
     "test": "echo \"No test specified\" && exit 0"
   },
   "repository": {
@@ -54,8 +55,10 @@
     "eslint-plugin-jsx-a11y": "6.1.1",
     "eslint-plugin-prettier": "2.6.2",
     "eslint-plugin-react": "7.10.0",
+    "husky": "0.14.3",
     "inquirer": "6.0.0",
     "prettier": "1.13.7",
+    "pretty-quick": "1.6.0",
     "source-map-explorer": "1.5.0"
   }
 }
