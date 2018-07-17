@@ -2,7 +2,7 @@ const path = require('path');
 
 module.exports = {
   parser: 'babel-eslint',
-  extends: ['airbnb', 'plugin:prettier/recommended'],
+  extends: ['plugin:prettier/recommended'],
   env: {
     browser: true,
     node: true,
