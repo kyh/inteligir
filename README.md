@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/Inteligir/Inteligir.svg?branch=master)](https://travis-ci.org/Inteligir/Inteligir)
+[![Greenkeeper badge](https://badges.greenkeeper.io/Inteligir/Inteligir.svg)](https://greenkeeper.io/)
 
 # Inteligir
 
@@ -64,7 +65,7 @@ npm run build
 npm start
 ```
 
-You can then load: (http://localhost:5000/)[http://localhost:5000/]
+You can then load: [http://localhost:5000/](http://localhost:5000/)
 
 #### To start a dev web server with Webpack Dev Server:
 
@@ -98,7 +99,7 @@ git tag <tag>
 git push origin <tag>
 ```
 
-This add a new release tag at this git commit and push the tag up to (GitHub)[https://github.com/Inteligir/Inteligir/releases].
+This add a new release tag at this git commit and push the tag up to [GitHub](https://github.com/Inteligir/Inteligir/releases).
 Tag names follow [semantic versioning](http://semver.org/) e.g.
 
 * `v1.0.0`
