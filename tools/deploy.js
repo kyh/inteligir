@@ -106,5 +106,5 @@ inquirer
       }
     }
 
-    await afterDeploy(isDeployingWebsite);
+    await afterDeploy();
   });
