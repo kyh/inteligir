@@ -1,10 +1,10 @@
 import { createStore as _createStore, applyMiddleware, compose } from 'redux';
-import createMiddleware from './middleware/client-middleware';
+import reduxThunk from 'redux-thunk';
 import reducers from './reducers';
 
 export default function createStore() {
   // Insert in any middleware we may want to use.
-  const middlewares = [createMiddleware()];
+  const middlewares = [reduxThunk];
 
   const finalCreateStore = compose(
     applyMiddleware(...middlewares),

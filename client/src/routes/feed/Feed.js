@@ -1,14 +1,14 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import BlogList from 'routes/blogs/components/BlogList';
+import LessonList from 'routes/feed/LessonList';
 
 const Dashboard = () => {
   return (
     <div>
-      <BlogList />
+      <LessonList />
       <div className="fixed-action-btn">
-        <Link to="/blogs/new" className="btn-floating btn-large red">
-          <i className="material-icons">add</i>
+        <Link to="/lessons/new" className="btn-floating btn-large red">
+          Add new lesson
         </Link>
       </div>
     </div>

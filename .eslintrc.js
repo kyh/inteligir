@@ -3,10 +3,12 @@ const path = require('path');
 module.exports = {
   parser: 'babel-eslint',
   extends: ['plugin:prettier/recommended'],
+  parserOptions: {
+    ecmaVersion: 2018,
+  },
   env: {
     browser: true,
     node: true,
-    mocha: true,
   },
   rules: {
     'react/jsx-filename-extension': [1, { extensions: ['.js', '.jsx'] }],

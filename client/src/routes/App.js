@@ -4,11 +4,11 @@ import { BrowserRouter, Route, Switch } from 'react-router-dom';
 import { connect } from 'react-redux';
 import { loadUser } from 'redux/modules/auth.module';
 
-import Nav from 'components/nav/Nav';
+import Navigation from 'components/nav/Navigation';
 import Landing from 'routes/landing/Landing';
-import Dashboard from 'routes/Dashboard';
-import BlogNew from 'routes/blogs/BlogNew';
-import BlogShow from 'routes/blogs/BlogShow';
+import Feed from 'routes/feed/Feed';
+import LessonNew from 'routes/lessons/LessonNew';
+import LessonShow from 'routes/lessons/LessonShow';
 
 class App extends Component {
   static propTypes = {
@@ -23,11 +23,11 @@ class App extends Component {
     return (
       <BrowserRouter>
         <section>
-          <Nav />
+          <Navigation />
           <Switch>
-            <Route path="/blogs/new" component={BlogNew} />
-            <Route exact path="/blogs/:_id" component={BlogShow} />
-            <Route path="/blogs" component={Dashboard} />
+            <Route path="/lesson/new" component={LessonNew} />
+            <Route exact path="/lesson/:_id" component={LessonShow} />
+            <Route path="/feed" component={Feed} />
             <Route path="/" component={Landing} />
           </Switch>
         </section>
@@ -36,4 +36,7 @@ class App extends Component {
   }
 }
 
-export default connect(null, { loadUser })(App);
+export default connect(
+  null,
+  { loadUser },
+)(App);

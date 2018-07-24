@@ -3,9 +3,9 @@ import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import { withRouter, NavLink } from 'react-router-dom';
 import Logo from 'components/icons/Logo';
-import './Nav.css';
+import './Navigation.css';
 
-class Nav extends Component {
+class Navigation extends Component {
   static propTypes = {
     isAuthenticated: PropTypes.bool.isRequired,
     location: PropTypes.object.isRequired,
@@ -28,11 +28,6 @@ class Nav extends Component {
         );
       default:
         return [
-          <li className="nav-item" key="3">
-            <NavLink className="nav-link" to="/blogs">
-              My Blogs
-            </NavLink>
-          </li>,
           <li className="nav-item" key="2">
             <a className="nav-link logout-button" href="/auth/logout">
               Logout
@@ -49,7 +44,7 @@ class Nav extends Component {
       >
         <section className="nav-container">
           <NavLink
-            to={this.props.isAuthenticated ? '/blogs' : '/'}
+            to={this.props.isAuthenticated ? '/feed' : '/'}
             className="nav-logo"
           >
             <Logo />
@@ -67,4 +62,4 @@ function mapStateToProps({ auth }) {
   };
 }
 
-export default connect(mapStateToProps)(withRouter(Nav));
+export default connect(mapStateToProps)(withRouter(Navigation));

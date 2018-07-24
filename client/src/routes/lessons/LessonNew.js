@@ -1,23 +1,24 @@
-// BlogNew shows BlogForm and BlogFormReview
 import React, { Component } from 'react';
 import { reduxForm } from 'redux-form';
-import BlogForm from './components/BlogForm';
-import BlogFormReview from './components/BlogFormReview';
+import LessonForm from './components/LessonForm';
+import LessonFormReview from './components/LessonFormReview';
 
-class BlogNew extends Component {
+class LessonNew extends Component {
   state = { showFormReview: false };
 
   renderContent() {
     if (this.state.showFormReview) {
       return (
-        <BlogFormReview
+        <LessonFormReview
           onCancel={() => this.setState({ showFormReview: false })}
         />
       );
     }
 
     return (
-      <BlogForm onBlogSubmit={() => this.setState({ showFormReview: true })} />
+      <LessonForm
+        onLessonSubmit={() => this.setState({ showFormReview: true })}
+      />
     );
   }
 
@@ -27,5 +28,5 @@ class BlogNew extends Component {
 }
 
 export default reduxForm({
-  form: 'blogForm',
-})(BlogNew);
+  form: 'lessonForm',
+})(LessonNew);
