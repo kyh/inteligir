@@ -1,18 +1,18 @@
-// BlogForm shows a form for a user to add input
+// LessonForm shows a form for a user to add input
 import { map, each } from 'lodash';
 import React, { Component } from 'react';
 import { reduxForm, Field } from 'redux-form';
 import { Link } from 'react-router-dom';
-import BlogField from './BlogField';
+import LessonField from './LessonField';
 import formFields from './formFields';
 
-class BlogForm extends Component {
+class LessonForm extends Component {
   renderFields() {
     return map(formFields, ({ label, name }) => {
       return (
         <Field
           key={name}
-          component={BlogField}
+          component={LessonField}
           type="text"
           label={label}
           name={name}
@@ -24,14 +24,13 @@ class BlogForm extends Component {
   render() {
     return (
       <div>
-        <form onSubmit={this.props.handleSubmit(this.props.onBlogSubmit)}>
+        <form onSubmit={this.props.handleSubmit(this.props.onLessonSubmit)}>
           {this.renderFields()}
-          <Link to="/blogs" className="red btn-flat white-text">
+          <Link to="/feed" className="red btn-flat white-text">
             Cancel
           </Link>
           <button type="submit" className="teal btn-flat right white-text">
             Next
-            <i className="material-icons right">done</i>
           </button>
         </form>
       </div>
@@ -53,6 +52,6 @@ function validate(values) {
 
 export default reduxForm({
   validate,
-  form: 'blogForm',
+  form: 'lessonForm',
   destroyOnUnmount: false,
-})(BlogForm);
+})(LessonForm);

@@ -1,4 +1,4 @@
 export default [
-  { label: 'Blog Title', name: 'title' },
+  { label: 'Lesson Title', name: 'title' },
   { label: 'Content', name: 'content' },
 ];

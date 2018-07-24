@@ -1,12 +1,12 @@
 import { combineReducers } from 'redux';
 import { reducer as reduxForm } from 'redux-form';
 import authReducer, { RESET_REDUX_STORE } from './modules/auth.module';
-import blogsReducer from './modules/lesson.module';
+import lessonReducer from './modules/lesson.module';
 
 const appReducer = combineReducers({
   auth: authReducer,
   form: reduxForm,
-  blogs: blogsReducer
+  lessons: lessonReducer,
 });
 
 const rootReducer = (state, action) => {
