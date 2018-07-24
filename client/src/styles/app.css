@@ -3,6 +3,17 @@
   margin: 0 auto;
 }
 
+.section-title {
+}
+
+.section-subtitle {
+  font-family: var(--lato-font);
+  text-transform: uppercase;
+  color: var(--brand-primary);
+  font-size: 1.6rem;
+  letter-spacing: 1px;
+}
+
 /**
  * Helper classes
  */
