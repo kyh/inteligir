@@ -20,7 +20,7 @@ html {
 
 body {
   margin: 0;
-  font-size: 1.8em;
+  font-size: 2rem;
   line-height: 1.5;
   text-align: left;
   font-family: var(--lato-font);
@@ -73,12 +73,45 @@ h5,
 h6 {
   font-family: var(--droid-font);
   margin-top: 0;
-  margin-bottom: 0.5rem;
+  line-height: 1.2;
+  margin-bottom: 4rem;
+  letter-spacing: -0.6px;
+}
+
+h1,
+.h1 {
+  font-size: 3.5rem;
+}
+
+h2,
+.h2 {
+  font-size: 3rem;
+}
+
+h3,
+.h3 {
+  font-size: 2.5rem;
+}
+
+h4,
+.h4 {
+  font-size: 2.15rem;
+}
+
+h5,
+.h5 {
+  font-size: 2rem;
+}
+
+h6,
+.h6 {
+  font-size: 1.7rem;
 }
 
 p {
   margin-top: 0;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
+  line-height: 1.7;
 }
 
 abbr[title],
@@ -151,15 +184,16 @@ sup {
 }
 
 a {
-  color: var(--brand-primary);
+  color: var(--brand-dark-blue);
   text-decoration: none;
   background-color: transparent;
   -webkit-text-decoration-skip: objects;
-  transition: color 0.23s ease;
+  border-bottom: 1px solid var(--border-color);
+  transition: color, border-color 0.2s linear;
 }
 
 a:hover {
-  color: var(--brand-dark-blue);
+  border-bottom-color: var(--brand-dark-blue);
 }
 
 a:not([href]):not([tabindex]) {

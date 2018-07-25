@@ -62,4 +62,4 @@ function mapStateToProps({ auth }) {
   };
 }
 
-export default connect(mapStateToProps)(withRouter(Navigation));
+export default withRouter(connect(mapStateToProps)(Navigation));

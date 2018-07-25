@@ -4,7 +4,7 @@ import { BrowserRouter, Route, Switch } from 'react-router-dom';
 import { connect } from 'react-redux';
 import { loadUser } from 'redux/modules/auth.module';
 
-import Navigation from 'components/nav/Navigation';
+import Navigation from 'components/navigation/Navigation';
 import LandingPage from 'routes/landing/Landing';
 import AboutPage from 'routes/about/About';
 
@@ -22,13 +22,15 @@ class App extends Component {
   }
 
   render() {
+    if (!this.props.isLoaded) return null;
+
     return (
       <BrowserRouter>
         <section>
           <Navigation />
           <Switch>
-            <Route exact path="/lesson/new" component={LessonNew} />
-            <Route exact path="/lesson/:_id" component={LessonShow} />
+            <Route exact path="/lessons/new" component={LessonNew} />
+            <Route exact path="/lessons/:_id" component={LessonShow} />
             <Route exact path="/feed" component={Feed} />
 
             <Route exact path="/" component={LandingPage} />
@@ -40,7 +42,11 @@ class App extends Component {
   }
 }
 
+function mapStateToProps({ auth }) {
+  return { isLoaded: auth.isLoaded };
+}
+
 export default connect(
-  null,
+  mapStateToProps,
   { loadUser },
 )(App);
