@@ -1,5 +1,4 @@
 import React from 'react';
-import { Heading } from 'evergreen-ui';
 import './About.css';
 
 const About = () => {
