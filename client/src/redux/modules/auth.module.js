@@ -15,14 +15,20 @@ export const LOAD_USER_FAIL = 'LOAD_USER_FAIL';
  * Fetches current logged in user given HTTP cookie
  */
 export const loadUser = () => async (dispatch) => {
-  const res = await axios.get('/api/current_user');
-  dispatch({ type: LOAD_USER_SUCCESS, payload: res.data });
+  dispatch({ type: LOAD_USER });
+  try {
+    const res = await axios.get('/api/current_user');
+    dispatch({ type: LOAD_USER_SUCCESS, payload: res.data });
+  } catch (error) {
+    dispatch({ type: LOAD_USER_FAIL, error });
+  }
 };
 
 // Reducer
 const initialState = {
   isAuthenticated: false,
   isLoading: false,
+  isLoaded: false,
   user: false,
   error: null,
 };
@@ -40,6 +46,7 @@ const reducerMap = {
       user: action.payload,
       isAuthenticated: action.payload ? true : false,
       isLoading: false,
+      isLoaded: true,
     };
   },
   [LOAD_USER_FAIL]: (state, action) => {
@@ -47,6 +54,7 @@ const reducerMap = {
       ...state,
       isAuthenticated: false,
       isLoading: false,
+      isLoaded: true,
       error: action.error,
     };
   },

@@ -26,6 +26,7 @@
 .nav-logo {
   display: flex;
   align-items: center;
+  border: 0;
 }
 
 .nav-logo svg {
@@ -40,12 +41,13 @@
 .nav-link {
   color: var(--nav-link-color);
   display: inline-block;
-  font-size: 0.8em;
+  font-size: 1.4rem;
   font-weight: 700;
   text-transform: uppercase;
   margin-right: 20px;
   position: relative;
   padding: 37px 20px;
+  border-bottom: 0;
   transition: color 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -65,11 +67,11 @@
   fill: #fff;
 }
 
-.nav a {
+.nav.light a {
   fill: #fff;
 }
 
-.nav a:hover,
-.nav a:active {
+.nav.light a:hover,
+.nav.light a:active {
   color: #fff;
 }

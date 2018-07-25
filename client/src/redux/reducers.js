@@ -4,8 +4,8 @@ import authReducer, { RESET_REDUX_STORE } from './modules/auth.module';
 import lessonReducer from './modules/lesson.module';
 
 const appReducer = combineReducers({
-  auth: authReducer,
   form: reduxForm,
+  auth: authReducer,
   lessons: lessonReducer,
 });
 

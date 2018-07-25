@@ -1,8 +1,28 @@
-.container {
+/**
+ * Layout
+ */
+.container,
+.container-small,
+.container-xsmall {
   max-width: var(--container-max);
   margin: 0 auto;
 }
 
+.container-small {
+  max-width: var(--container-max-small);
+}
+
+.container-xsmall {
+  max-width: var(--container-max-xsmall);
+}
+
+.padded-page {
+  padding: 140px 20px 20px;
+}
+
+/**
+ * Typography
+ */
 .section-title {
 }
 
@@ -10,8 +30,9 @@
   font-family: var(--lato-font);
   text-transform: uppercase;
   color: var(--brand-primary);
-  font-size: 1.6rem;
+  font-size: 1.4rem;
   letter-spacing: 1px;
+  margin-bottom: 1rem;
 }
 
 /**

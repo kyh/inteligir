@@ -23,7 +23,7 @@ class LessonNew extends Component {
   }
 
   render() {
-    return <div>{this.renderContent()}</div>;
+    return <section className="padded-page">{this.renderContent()}</section>;
   }
 }
 
