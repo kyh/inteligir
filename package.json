@@ -4,14 +4,14 @@
   "author": "Kaiyu Hsu <im.kaiyu@gmail.com> (http://github.com/tehkaiyu)",
   "license": "MIT",
   "version": "0.0.0",
-  "main": "index.js",
+  "main": "server/index.js",
   "engines": {
     "node": "8.11.1",
     "npm": "5.6.0"
   },
   "scripts": {
     "analyze": "source-map-explorer client/build/static/js/main.*",
-    "start": "NODE_ENV=\"production\" node -r dotenv/config server/index.js",
+    "start": "node server/index.js",
     "server": "nodemon -r dotenv/config server/index.js --ignore tests",
     "client": "npm run start --prefix client",
     "deploy": "node -r dotenv/config tools/deploy",
