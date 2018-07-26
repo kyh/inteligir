@@ -24,6 +24,9 @@
     "precommit": "pretty-quick --staged",
     "test": "jest"
   },
+  "jest": {
+    "setupTestFrameworkScriptFile": "./tests/setup.js"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Inteligir/Inteligir"
@@ -43,12 +46,12 @@
     "puppeteer": "1.6.0",
     "redis": "2.8.0",
     "concurrently": "3.6.0",
+    "dotenv": "6.0.0",
     "uuid": "3.3.2"
   },
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-eslint": "8.2.6",
-    "dotenv": "6.0.0",
     "eslint": "4.19.1",
     "eslint-config-airbnb": "17.0.0",
     "eslint-config-prettier": "2.9.0",
