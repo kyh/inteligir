@@ -1,7 +1,6 @@
 {
   "name": "Inteligir",
-  "scripts": {
-  },
+  "scripts": {},
   "env": {
     "GOOGLE_CLIENT_ID": {
       "required": true
@@ -9,10 +8,13 @@
     "GOOGLE_CLIENT_SECRET": {
       "required": true
     },
-    "MONGO_URI": {
+    "MONGODB_URI": {
       "required": true
     },
     "COOKIE_KEY": {
+      "required": true
+    },
+    "REDIS_URL": {
       "required": true
     }
   },
@@ -24,14 +26,10 @@
       "quantity": 1
     }
   },
-  "addons": [
-    "newrelic"
-  ],
+  "addons": ["newrelic"],
   "buildpacks": [
     {
       "url": "https://github.com/heroku/heroku-buildpack-nodejs"
     }
   ]
 }
-
-

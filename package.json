@@ -22,7 +22,7 @@
     "decrypt-env": "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
     "heroku-postbuild": "npm run build",
     "precommit": "pretty-quick --staged",
-    "test": "echo \"No test specified\" && exit 0"
+    "test": "jest"
   },
   "repository": {
     "type": "git",
@@ -42,12 +42,12 @@
     "path-parser": "4.2.0",
     "puppeteer": "1.6.0",
     "redis": "2.8.0",
+    "concurrently": "3.6.0",
     "uuid": "3.3.2"
   },
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-eslint": "8.2.6",
-    "concurrently": "3.6.0",
     "dotenv": "6.0.0",
     "eslint": "4.19.1",
     "eslint-config-airbnb": "17.0.0",
