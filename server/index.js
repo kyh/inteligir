@@ -29,7 +29,7 @@ app.use(passport.session());
 require('./routes/authRoutes')(app);
 require('./routes/lessonRoutes')(app);
 
-if (['production'].includes(process.env.NODE_ENV)) {
+if (['production', 'ci'].includes(process.env.NODE_ENV)) {
   app.use(express.static('client/build'));
   app.get('*', (req, res) => {
     res.sendFile(path.resolve('client', 'build', 'index.html'));
