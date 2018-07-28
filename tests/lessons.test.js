@@ -83,7 +83,11 @@ describe('User is not logged in', async () => {
     const results = await page.execRequests(actions);
 
     for (let result of results) {
-      expect(result).toEqual({ error: 'You must log in!' });
+      expect(result).toEqual({
+        error: 'Unauthorized',
+        message: 'User not authenticated',
+        statusCode: 401,
+      });
     }
   });
 });
