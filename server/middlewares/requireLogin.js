@@ -1,6 +1,8 @@
+const { sendError } = require('../services/route-util');
+
 module.exports = (req, res, next) => {
   if (!req.user) {
-    return res.status(401).send({ error: 'You must log in!' });
+    return sendError(res, 401)(new Error('User not authenticated'));
   }
 
   next();
