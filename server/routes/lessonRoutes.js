@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const boom = require('boom');
 const requireLogin = require('../middlewares/requireLogin');
 const cleanCache = require('../middlewares/cleanCache');
 
@@ -17,7 +18,7 @@ module.exports = (app) => {
   });
 
   app.get('/api/lessons', requireLogin, async (req, res) => {
-    const lessons = Lesson.find({ _user: req.user.id }).cache({
+    const lessons = await Lesson.find({ _user: req.user.id }).cache({
       key: req.user.id,
     });
     res.sendSuccess(lessons);
