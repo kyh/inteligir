@@ -1,5 +1,4 @@
 const passport = require('passport');
-const { sendSuccess } = require('../services/route-util');
 
 module.exports = (app) => {
   app.get(
@@ -23,6 +22,6 @@ module.exports = (app) => {
   });
 
   app.get('/api/current_user', (req, res) => {
-    sendSuccess(res)(req.user);
+    res.sendSuccess(req.user);
   });
 };
