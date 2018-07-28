@@ -6,7 +6,9 @@ function sendError(boomError) {
   if (boomError.isServer) {
     console.log(boomError);
   }
-  return res.status(boomError.output.statusCode).json(boomError.output.payload);
+  return this.status(boomError.output.statusCode).json(
+    boomError.output.payload,
+  );
 }
 
 module.exports = (req, res, next) => {

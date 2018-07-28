@@ -34,9 +34,6 @@ require('./routes/authRoutes')(app);
 require('./routes/uploadRoutes')(app);
 require('./routes/lessonRoutes')(app);
 
-// Catchall API error handler.
-app.use((err, req, res) => res.sendError(err));
-
 if (['production', 'ci'].includes(process.env.NODE_ENV)) {
   app.use(express.static('client/build'));
   app.get('*', (req, res) => {
