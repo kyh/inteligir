@@ -5,6 +5,8 @@ const cookieSession = require('cookie-session');
 const passport = require('passport');
 const bodyParser = require('body-parser');
 const keys = require('./config/keys');
+const routeUtilMiddleware = require('./middlewares/route-util');
+require('express-async-errors');
 
 require('./models/User');
 require('./models/Lesson');
@@ -17,6 +19,7 @@ mongoose.connect(keys.mongoURI);
 const app = express();
 
 app.use(bodyParser.json());
+app.use(routeUtilMiddleware);
 app.use(
   cookieSession({
     maxAge: 30 * 24 * 60 * 60 * 1000,
@@ -26,6 +29,7 @@ app.use(
 app.use(passport.initialize());
 app.use(passport.session());
 
+// API routes.
 require('./routes/authRoutes')(app);
 require('./routes/uploadRoutes')(app);
 require('./routes/lessonRoutes')(app);
