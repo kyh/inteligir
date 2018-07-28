@@ -3,6 +3,7 @@ function sendSuccess(data, message) {
 }
 
 function sendError(boomError) {
+  // TODO: Check if error is a boom object.
   if (boomError.isServer) {
     console.log(boomError);
   }
