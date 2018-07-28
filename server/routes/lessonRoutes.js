@@ -1,48 +1,26 @@
 const mongoose = require('mongoose');
 const requireLogin = require('../middlewares/requireLogin');
 const cleanCache = require('../middlewares/cleanCache');
-const {
-  sendSuccess,
-  sendError,
-  throwIf,
-  throwError,
-  ERRORS,
-} = require('../services/route-util');
 
 const Lesson = mongoose.model('Lesson');
 
 module.exports = (app) => {
   app.get('/api/lessons/:id', requireLogin, async (req, res) => {
-    try {
-      await Lesson.findOne({
-        _user: req.user.id,
-        _id: req.params.id,
-      })
-        .then(
-          throwIf(
-            (lesson) => !lesson,
-            404,
-            ERRORS.notFound,
-            'Lesson not found',
-          ),
-          throwError(500, ERRORS.database),
-        )
-        .then(sendSuccess(res));
-    } catch (error) {
-      sendError(res)(error);
-    }
+    const lesson = await Lesson.findOne({
+      _user: req.user.id,
+      _id: req.params.id,
+    });
+
+    if (!lesson) res.sendError(boom.notFound('Lesson not found'));
+
+    res.sendSuccess(lesson);
   });
 
   app.get('/api/lessons', requireLogin, async (req, res) => {
-    try {
-      await Lesson.find({ _user: req.user.id })
-        .then(sendSuccess(res), throwError(500, ERRORS.database))
-        .cache({
-          key: req.user.id,
-        });
-    } catch (error) {
-      sendError(res)(error);
-    }
+    const lessons = Lesson.find({ _user: req.user.id }).cache({
+      key: req.user.id,
+    });
+    res.sendSuccess(lessons);
   });
 
   app.post('/api/lessons', requireLogin, cleanCache, async (req, res) => {
@@ -55,11 +33,10 @@ module.exports = (app) => {
     });
 
     try {
-      await lesson
-        .save()
-        .then(sendSuccess(res), throwError(500, ERRORS.database));
-    } catch (error) {
-      sendError(res)(error);
+      await lesson.save();
+      res.sendSuccess(lesson);
+    } catch (err) {
+      res.sendError(boom.badRequest(err));
     }
   });
 };
