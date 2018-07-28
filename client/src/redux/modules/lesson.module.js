@@ -40,11 +40,11 @@ const initialState = {};
 
 const reducerMap = {
   [LOAD_LESSON_SUCCESS]: (state, action) => {
-    const lesson = action.payload;
+    const lesson = action.payload.data;
     return { ...state, [lesson._id]: lesson };
   },
   [LOAD_ALL_LESSONS_SUCCESS]: (state, action) => {
-    return { ...state, ...mapKeys(action.payload, '_id') };
+    return { ...state, ...mapKeys(action.payload.data, '_id') };
   },
 };
 

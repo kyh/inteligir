@@ -41,10 +41,11 @@ const reducerMap = {
     };
   },
   [LOAD_USER_SUCCESS]: (state, action) => {
+    const { data } = action.payload;
     return {
       ...state,
-      user: action.payload,
-      isAuthenticated: action.payload ? true : false,
+      user: data,
+      isAuthenticated: data ? true : false,
       isLoading: false,
       isLoaded: true,
     };
