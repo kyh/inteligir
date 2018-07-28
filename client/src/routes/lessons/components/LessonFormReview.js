@@ -7,6 +7,8 @@ import { createLesson } from 'redux/modules/lesson.module';
 import formFields from './formFields';
 
 class LessonFormReview extends Component {
+  state = { file: null };
+
   renderFields() {
     const { formValues } = this.props;
 
@@ -36,6 +38,10 @@ class LessonFormReview extends Component {
     );
   }
 
+  onFileChange(event) {
+    this.setState({ file: event.target.files[0] });
+  }
+
   onSubmit(event) {
     event.preventDefault();
     const { createLesson, history, formValues } = this.props;
@@ -47,6 +53,7 @@ class LessonFormReview extends Component {
       <form onSubmit={this.onSubmit.bind(this)}>
         <h5>Please confirm your entries</h5>
         {this.renderFields()}
+        <input type="file" accept="image/*" onChange={this.onFileChange} />
         {this.renderButtons()}
       </form>
     );
