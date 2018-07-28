@@ -27,6 +27,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 require('./routes/authRoutes')(app);
+require('./routes/uploadRoutes')(app);
 require('./routes/lessonRoutes')(app);
 
 if (['production', 'ci'].includes(process.env.NODE_ENV)) {
