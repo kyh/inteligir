@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 const boom = require('boom');
-const requireLogin = require('../middlewares/requireLogin');
-const cleanCache = require('../middlewares/cleanCache');
+const requireLogin = require('middlewares/requireLogin');
+const cleanCache = require('middlewares/cleanCache');
 
 const Lesson = mongoose.model('Lesson');
 
