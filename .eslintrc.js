@@ -1,3 +1,4 @@
+const packageJson = require('./package.json');
 const path = require('path');
 
 module.exports = {
@@ -29,6 +30,7 @@ module.exports = {
           path.resolve(__dirname, './node_modules'),
           path.resolve(__dirname, './client/node_modules'),
           path.resolve(__dirname, './client/src'),
+          ...packageJson._moduleDirectories,
         ],
       },
     },

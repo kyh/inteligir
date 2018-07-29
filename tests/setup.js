@@ -2,7 +2,7 @@ require('dotenv').config();
 
 jest.setTimeout(30000);
 
-require('../server/models/User');
+require('../server/api/users/user.model');
 
 const mongoose = require('mongoose');
 const keys = require('../server/config/keys');

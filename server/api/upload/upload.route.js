@@ -1,7 +1,7 @@
 const AWS = require('aws-sdk');
 const uuid = require('uuid/v1');
-const requireLogin = require('../middlewares/requireLogin');
-const keys = require('../config/keys');
+const requireLogin = require('middlewares/requireLogin');
+const keys = require('config/keys');
 
 const s3 = new AWS.S3({
   accessKeyId: keys.awsAccessKeyId,
