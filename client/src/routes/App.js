@@ -1,8 +1,9 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
-import { BrowserRouter, Route, Switch } from 'react-router-dom';
+import { Router, Route, Switch } from 'react-router-dom';
 import { connect } from 'react-redux';
 import { loadUser } from 'redux/modules/auth.module';
+import History from 'util/History';
 
 import Navigation from 'components/navigation/Navigation';
 import LandingPage from 'routes/landing/Landing';
@@ -25,7 +26,7 @@ class App extends Component {
     if (!this.props.isLoaded) return null;
 
     return (
-      <BrowserRouter>
+      <Router history={History}>
         <section>
           <Navigation />
           <Switch>
@@ -37,7 +38,7 @@ class App extends Component {
             <Route exact path="/about" component={AboutPage} />
           </Switch>
         </section>
-      </BrowserRouter>
+      </Router>
     );
   }
 }

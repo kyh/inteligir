@@ -44,8 +44,8 @@ class LessonFormReview extends Component {
 
   onSubmit = (event) => {
     event.preventDefault();
-    const { createLesson, history, formValues } = this.props;
-    createLesson(formValues, this.state.file, history);
+    const { createLesson, formValues } = this.props;
+    createLesson(formValues, this.state.file);
   };
 
   render() {

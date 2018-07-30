@@ -3,13 +3,14 @@
  */
 import axios from 'axios';
 import { mapKeys } from 'lodash';
+import History from 'util/History';
 
 // Create
 export const CREATE_LESSON = 'CREATE_LESSON';
 export const CREATE_LESSON_SUCCESS = 'CREATE_LESSON_SUCCESS';
 export const CREATE_LESSON_FAIL = 'CREATE_LESSON_FAIL';
 
-export const createLesson = (values, file, history) => async (dispatch) => {
+export const createLesson = (values, file) => async (dispatch) => {
   const uploadConfig = await axios.get('/api/upload');
   await axios.put(uploadConfig.data.data.url, file, {
     headers: {
@@ -20,7 +21,7 @@ export const createLesson = (values, file, history) => async (dispatch) => {
     ...values,
     imageUrl: uploadConfig.data.key,
   });
-  history.push('/feed');
+  History.push('/feed');
   dispatch({ type: CREATE_LESSON_SUCCESS, payload: res.data });
 };
 
