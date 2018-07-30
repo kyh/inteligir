@@ -45,6 +45,7 @@
     "express-async-errors": "3.0.0",
     "jest": "23.4.1",
     "migrate-mongoose": "3.2.2",
+    "mime-types": "^2.1.19",
     "module-alias": "^2.1.0",
     "mongoose": "5.2.5",
     "nodemon": "1.18.3",
