@@ -9,7 +9,7 @@ import formFields from './formFields';
 class LessonFormReview extends Component {
   state = { file: null };
 
-  renderFields() {
+  renderFields = () => {
     const { formValues } = this.props;
 
     return map(formFields, ({ name, label }) => {
@@ -20,9 +20,9 @@ class LessonFormReview extends Component {
         </div>
       );
     });
-  }
+  };
 
-  renderButtons() {
+  renderButtons = () => {
     const { onCancel } = this.props;
 
     return (
@@ -36,21 +36,21 @@ class LessonFormReview extends Component {
         <button className="green btn-flat right white-text">Save Lesson</button>
       </div>
     );
-  }
+  };
 
-  onFileChange(event) {
+  onFileChange = (event) => {
     this.setState({ file: event.target.files[0] });
-  }
+  };
 
-  onSubmit(event) {
+  onSubmit = (event) => {
     event.preventDefault();
     const { createLesson, history, formValues } = this.props;
-    createLesson(formValues, history);
-  }
+    createLesson(formValues, this.state.file, history);
+  };
 
   render() {
     return (
-      <form onSubmit={this.onSubmit.bind(this)}>
+      <form onSubmit={this.onSubmit}>
         <h5>Please confirm your entries</h5>
         {this.renderFields()}
         <input type="file" accept="image/*" onChange={this.onFileChange} />

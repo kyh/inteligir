@@ -9,7 +9,13 @@ export const CREATE_LESSON = 'CREATE_LESSON';
 export const CREATE_LESSON_SUCCESS = 'CREATE_LESSON_SUCCESS';
 export const CREATE_LESSON_FAIL = 'CREATE_LESSON_FAIL';
 
-export const createLesson = (values, history) => async (dispatch) => {
+export const createLesson = (values, file, history) => async (dispatch) => {
+  const uploadConfig = await axios.get('/api/upload');
+  await axios.put(uploadConfig.data.data.url, file, {
+    headers: {
+      'Content-Type': file.type,
+    },
+  });
   const res = await axios.post('/api/lessons', values);
   history.push('/feed');
   dispatch({ type: CREATE_LESSON_SUCCESS, payload: res.data });

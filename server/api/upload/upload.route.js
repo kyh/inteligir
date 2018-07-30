@@ -1,4 +1,5 @@
 const AWS = require('aws-sdk');
+const boom = require('boom');
 const uuid = require('uuid/v1');
 const requireLogin = require('middlewares/requireLogin');
 const keys = require('config/keys');
@@ -19,7 +20,10 @@ module.exports = (app) => {
         ContentType: 'jpeg',
         Key: key,
       },
-      (err, url) => res.send({ key, url }),
+      (err, url) => {
+        if (err) return res.sendError(boom.badRequest(err));
+        return res.sendSuccess({ key, url });
+      },
     );
   });
 };
