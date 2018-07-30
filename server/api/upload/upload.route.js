@@ -17,7 +17,7 @@ module.exports = (app) => {
       'putObject',
       {
         Bucket: 'inteligir-dev-bucket',
-        ContentType: 'jpeg',
+        ContentType: 'image/jpeg',
         Key: key,
       },
       (err, url) => {

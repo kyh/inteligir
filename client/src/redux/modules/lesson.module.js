@@ -13,10 +13,13 @@ export const createLesson = (values, file, history) => async (dispatch) => {
   const uploadConfig = await axios.get('/api/upload');
   await axios.put(uploadConfig.data.data.url, file, {
     headers: {
-      'Content-Type': file.type,
+      'Content-Type': 'image/jpeg',
     },
   });
-  const res = await axios.post('/api/lessons', values);
+  const res = await axios.post('/api/lessons', {
+    ...values,
+    imageUrl: uploadConfig.data.key,
+  });
   history.push('/feed');
   dispatch({ type: CREATE_LESSON_SUCCESS, payload: res.data });
 };

@@ -25,11 +25,12 @@ module.exports = (app) => {
   });
 
   app.post('/api/lessons', requireLogin, cleanCache, async (req, res) => {
-    const { title, content } = req.body;
+    const { title, content, imageUrl } = req.body;
 
     const lesson = new Lesson({
       title,
       content,
+      imageUrl,
       _user: req.user.id,
     });
 
