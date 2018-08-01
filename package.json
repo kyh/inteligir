@@ -51,7 +51,7 @@
     "passport": "0.4.0",
     "passport-google-oauth20": "1.0.0",
     "path-parser": "4.2.0",
-    "puppeteer": "1.6.1",
+    "puppeteer": "1.6.2",
     "redis": "2.8.0",
     "uuid": "3.3.2"
   },
