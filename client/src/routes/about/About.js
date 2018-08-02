@@ -7,10 +7,12 @@ const About = () => {
       <section className="container-xsmall">
         <header className="text-center">
           <h5 className="section-subtitle">A little about us</h5>
-          <h1 className="section-title">
-            Inteligir is a collaborative knowledge sharing platform
-          </h1>
+          <h1 className="section-title">The web is a educational medium</h1>
         </header>
+        <p>
+          Inteligir is a platform to build interactive stories and lessons
+          through scrollytelling.
+        </p>
         <p>
           We started Inteligir with a simple goal: to live and learn vicariously
           through the experiences of our friends across the world. We have
