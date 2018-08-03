@@ -1,7 +1,6 @@
 const mongoose = require('mongoose');
 const boom = require('boom');
 const requireLogin = require('middlewares/requireLogin');
-const cleanCache = require('middlewares/cleanCache');
 
 const Lesson = mongoose.model('Lesson');
 
@@ -18,13 +17,11 @@ module.exports = (app) => {
   });
 
   app.get('/api/lessons', requireLogin, async (req, res) => {
-    const lessons = await Lesson.find({ _user: req.user.id }).cache({
-      key: req.user.id,
-    });
+    const lessons = await Lesson.find({ _user: req.user.id });
     res.sendSuccess(lessons);
   });
 
-  app.post('/api/lessons', requireLogin, cleanCache, async (req, res) => {
+  app.post('/api/lessons', requireLogin, async (req, res) => {
     const { title, content, imageUrl } = req.body;
 
     const lesson = new Lesson({

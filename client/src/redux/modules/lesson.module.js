@@ -13,9 +13,7 @@ export const CREATE_LESSON_FAIL = 'CREATE_LESSON_FAIL';
 export const createLesson = (values, file) => async (dispatch) => {
   const uploadConfig = await axios.get('/api/upload');
   await axios.put(uploadConfig.data.data.url, file, {
-    headers: {
-      'Content-Type': 'image/jpeg',
-    },
+    headers: { 'Content-Type': 'image/jpeg' },
   });
   const res = await axios.post('/api/lessons', {
     ...values,
