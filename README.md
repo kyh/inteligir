@@ -3,25 +3,32 @@
 
 # Inteligir
 
-> The easiest way to build interactive lesson plans. Document your proccess, share knowledge, and create open source courses
+> The web is a educational medium. Inteligir is a platform to build interactive stories and lessons through scrollytelling.
+
+#### What is scrollytelling?
+
+Scrollytelling is a storytelling technique on the web where content unfolds as a user scrolls. Some examples in the wild:
+
+- [R2D3](http://www.r2d3.us/visual-intro-to-machine-learning-part-1/)
+- [Waveforms](https://pudding.cool/2018/02/waveforms/)
+- [Differences in how news outlets cover the news](https://pudding.cool/2018/01/chyrons/)
 
 ## Directory Layout
 
 ```
 ├── /client                      # [ReactJS client](app/README.md), which contains most of our UI
-│   ├── /public                  # Static files (icons/images)
-│   ├── /components              # React components, reusable across all pages
-│   ├── /util                    # Helper functions/Utilities/Services
-│   ├── /redux                   # Redux modules
-│   ├── /routes                  # App route definitions
-│   ├── /styles                  # Global app styles
+│   ├── /src
+│   │   ├── /components          # React components, reusable across all pages
+│   │   ├── /util                # Helper functions/Utilities/Services
+│   │   ├── /redux               # Redux modules
+│   │   ├── /routes              # App route definitions
+│   │   └── /styles              # Global app styles
 │   └── index.js                 # Web client entry point
 │── /server                      # NodeJS server
+│   ├── /api                     # Inteligir API routes, models, and controllers
 │   ├── /config                  # Server environment variables
 │   ├── /middlewares             # Express app middleware
-│   ├── /models                  # Cardiogram app pages
-│   ├── /routes                  # API endpoints
-│   ├── /services                # Server helper functions and utilities
+│   ├── /services                # Server helper functions/Utilities/Services
 │   └── index.js                 # Server entry point
 │── /science                     # Deep neural network training and evaluation, as well as data analyses.
 └── /test                        # Javascript tests
@@ -44,14 +51,14 @@ printf "\nexport NVM_DIR=~/.nvm" >> ~/.bash_profile
 printf '\nsource $$(brew --prefix nvm)/nvm.sh' >> ~/.bash_profile
 source ~/.bash_profile
 # now we can use nvm!
-nvm install 8.9.4
-# Switch versions with "nvm use 8.9.4"
-# You can default your node version with "nvm alias default 8.9.4"
+nvm install 8.11.1
+# Switch versions with "nvm use 8.11.1"
+# You can default your node version with "nvm alias default 8.11.1"
 ```
 
 To setup the server:
 
-* grab a `.inteligir_dev.key` from another team member and move the file into `/encrypted` directory
+- grab a `.inteligir_dev.key` from another team member and move the file into `/encrypted` directory
   then run:
 
 ```bash
@@ -80,44 +87,64 @@ This will do two things:
 
 ## Deployment
 
-#### To deploy to dev server on Heroku:
+#### To deploy to dev server or production:
 
 ```bash
-git push dev <branch>:master
+npm run deploy
 ```
 
-#### To push to production:
+The deploy script will guide you through the rest of the deployment process.
 
-```bash
-git push prod <branch>:master
-```
+Release tag names follow [semantic versioning](http://semver.org/) e.g.
 
-After deploying the app to production and testing whether it works, you will want to tag your release:
-
-```bash
-git tag <tag>
-git push origin <tag>
-```
-
-This add a new release tag at this git commit and push the tag up to [GitHub](https://github.com/Inteligir/Inteligir/releases).
-Tag names follow [semantic versioning](http://semver.org/) e.g.
-
-* `v1.0.0`
+- `v1.0.0`
 
 ## Style Guide
 
-JavaScript - this project follows the [Airbnb Style Guide](https://github.com/airbnb/javascript). If using Sublime, you can install [SublimeLinter](http://sublimelinter.readthedocs.io/en/latest/installation.html), followed by [SublimeLinter-eslint](https://github.com/roadhump/SublimeLinter-eslint) to highlight syntax directly in your editor.
+JavaScript - this project follows the [Airbnb Style Guide](https://github.com/airbnb/javascript) along with [Prettier](https://prettier.io/) formatting.
 
-#### Redux Middleware
+#### Sublime text
 
-The middleware, [`client-middleware.js`](), serves two functions:
+Make sure you have [Package Control](https://packagecontrol.io/installation) installed on your Sublime Text. This will allow us to automatically install extensions needed to syntax highlight directly in your editor.
 
-1.  To allow the action creators access to the client API facade. Remember this is the same on both the client and the server, and cannot simply be `import`ed because it holds the cookie needed to maintain session on server-to-server requests.
-2.  To allow some actions to pass a "promise generator", a function that takes the API client and returns a promise. Such actions require three action types, the `REQUEST` action that initiates the data loading, and a `SUCCESS` and `FAILURE` action that will be fired depending on the result of the promise.
+To get syntax highlighting to work on Sublime you'll want to install the following packages:
+
+- [Sass](https://packagecontrol.io/packages/Sass) - Sass syntax highlighting for `.scss` files
+- [Babel Sublime](https://github.com/babel/babel-sublime) - JavaScript syntax highlighting for ES6/ES7 and JSX
+  - You should set this as your default syntax when opening `.js` files by following the instructions [here](https://github.com/babel/babel-sublime#setting-as-the-default-syntax)
+- [SublimeLinter](http://sublimelinter.readthedocs.io/en/latest/installation.html)
+- [SublimeLinter-eslint](https://github.com/roadhump/SublimeLinter-eslint) - Linter plugin to highlight JavaScript by reading the `.eslintrc.js` file
+
+Some additional helper plugins:
+
+- [DocBlockr](https://github.com/spadgos/sublime-jsdocs) - Helps document functions by typing `/**` and pressing tab
+- [Emmet](https://emmet.io/) - autocomplete HTML snippets, you can type `div.header{hello}` and press tab -> it will turn into `<div className="header">hello</div>`
+
+You can install all the packages at once by pressing <kbd>cmd</kbd><kbd>shift</kbd><kbd>p</kbd> (On OSX) and typing "Advanced install package". Copy and paste the list of packages below:
+
+```
+"Babel", "DocBlockr", "Sass", "SublimeLinter", "SublimeLinter-eslint",
+```
+
+## Debugging Tips
+
+You can debug node apps by attaching an `ndb` instance to your running node server. First install the
+[ndb](https://www.npmjs.com/package/ndb) package into your global environment:
+
+```bash
+npm i -g ndb
+```
+
+You can now use the node debugger to profile, add breakpoints, log errors, and even inject JavaScript
+without needing to restart the server! Start the debugger by running:
+
+```bash
+make debug
+```
 
 #### Redux Modules... _What the Duck_?
 
-The `src/redux/modules` folder contains "modules" to help
+The `client/src/redux/modules` folder contains "modules" to help
 isolate concerns within a Redux application (aka [Ducks](https://github.com/erikras/ducks-modular-redux).
 
 #### Styles

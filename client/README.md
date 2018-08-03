@@ -1,7 +1,6 @@
 # Inteligir Web Client
 
-> Create open souce courses. A place to debate, share knowledge, and collaborate because
-everything is better with community.
+> The web is a educational medium. Inteligir is a platform to build interactive stories and lessons through scrollytelling.
 
 This project was bootstrapped with [Create React App](https://github.com/facebookincubator/create-react-app).
 See the [README](https://github.com/facebook/create-react-app/blob/next/README.md) for there for details on how

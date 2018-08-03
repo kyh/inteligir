@@ -1,6 +1,6 @@
 {
   "name": "Inteligir",
-  "description": "Learning is much better with community",
+  "description": "Inteligir is a platform to build interactive stories and lessons through scrollytelling",
   "author": "Kaiyu Hsu <im.kaiyu@gmail.com> (http://github.com/tehkaiyu)",
   "license": "MIT",
   "version": "0.0.0",
@@ -35,7 +35,7 @@
     "server"
   ],
   "dependencies": {
-    "aws-sdk": "2.282.1",
+    "aws-sdk": "2.283.1",
     "body-parser": "1.18.3",
     "boom": "7.2.0",
     "concurrently": "3.6.0",
@@ -47,12 +47,12 @@
     "migrate-mongoose": "3.2.2",
     "mime-types": "^2.1.19",
     "module-alias": "^2.1.0",
-    "mongoose": "5.2.5",
+    "mongoose": "5.2.6",
     "nodemon": "1.18.3",
     "passport": "0.4.0",
     "passport-google-oauth20": "1.0.0",
     "path-parser": "4.2.0",
-    "puppeteer": "1.6.1",
+    "puppeteer": "1.6.2",
     "redis": "2.8.0",
     "uuid": "3.3.2"
   },
