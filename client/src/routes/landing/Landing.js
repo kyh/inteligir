@@ -8,8 +8,8 @@ const Landing = () => {
         <section className="container landing-page-title-container">
           <h1 className="landing-page-title">Inteligir</h1>
           <p className="landing-page-subtitle">
-            The easiest way to build interactive lesson plans. Document your
-            proccess, share knowledge, and create open source courses
+            A platform to build interactive stories and lessons through
+            scrollytelling.
           </p>
         </section>
         <section className="landing-page-video-container">
