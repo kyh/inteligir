@@ -2,6 +2,7 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import { withRouter, NavLink } from 'react-router-dom';
+import { Dialog } from 'evergreen-ui';
 import Logo from 'components/icons/Logo';
 import './Navigation.css';
 
@@ -9,6 +10,18 @@ class Navigation extends Component {
   static propTypes = {
     isAuthenticated: PropTypes.bool.isRequired,
     location: PropTypes.object.isRequired,
+  };
+
+  state = {
+    isDialopOpen: false,
+  };
+
+  toggleLoginDialog = () => {
+    this.setState((prevState) => {
+      return {
+        isDialopOpen: !prevState.isDialopOpen,
+      };
+    });
   };
 
   renderContent() {
@@ -21,9 +34,24 @@ class Navigation extends Component {
             <NavLink className="nav-link" to="/about">
               About
             </NavLink>
-            <a className="nav-link login-button" href="/auth/google">
+            <button
+              className="button button-outline"
+              onClick={this.toggleLoginDialog}
+            >
               Login
-            </a>
+            </button>
+            <Dialog
+              isShown={this.state.isDialopOpen}
+              hasHeader={false}
+              hasFooter={false}
+              onCloseComplete={this.toggleLoginDialog}
+            >
+              {({ close }) => (
+                <div>
+                  <a href="/auth/google">Login with Google</a>
+                </div>
+              )}
+            </Dialog>
           </li>
         );
       default:
