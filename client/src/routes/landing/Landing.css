@@ -6,7 +6,7 @@
 
 .landing-page-hero {
   display: flex;
-  align-items: center;
+  padding-top: 20%;
   justify-content: center;
   position: relative;
   height: 100vh;
@@ -22,6 +22,8 @@
 .landing-page-title {
   color: var(--landing-page-title-color);
   font-size: 3.8rem;
+  font-weight: 400;
+  margin-bottom: 2rem;
 }
 
 .landing-page-subtitle {

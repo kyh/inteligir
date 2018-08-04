@@ -17,7 +17,7 @@
 }
 
 .padded-page {
-  padding: 140px 20px 20px;
+  padding: 150px 20px 20px;
 }
 
 /**
@@ -27,7 +27,7 @@
 }
 
 .section-subtitle {
-  font-family: var(--lato-font);
+  font-family: var(--pxn-font);
   text-transform: uppercase;
   color: var(--brand-primary);
   font-size: 1.4rem;

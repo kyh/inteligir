@@ -23,7 +23,7 @@ body {
   font-size: 2rem;
   line-height: 1.5;
   text-align: left;
-  font-family: var(--lato-font);
+  font-family: var(--pxn-font);
   color: var(--text-color);
   background-color: var(--background-grey);
 }
@@ -71,7 +71,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--droid-font);
+  font-family: var(--ssp-font);
   margin-top: 0;
   line-height: 1.2;
   margin-bottom: 4rem;
