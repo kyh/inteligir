@@ -1,7 +1,7 @@
 .landing-page {
   --landing-page-title-color: #fafafa;
   --landing-page-subtitle-color: #c7ccd8;
-  background-color: #1e2430;
+  background-color: var(--background-black);
 }
 
 .landing-page-hero {
@@ -44,7 +44,11 @@
   right: 0;
   top: 0;
   bottom: 0;
-  background: linear-gradient(180deg, rgba(40, 42, 46, 0), #1e2430 95%);
+  background: linear-gradient(
+    180deg,
+    rgba(40, 42, 46, 0),
+    var(--background-black) 95%
+  );
   z-index: 2;
   content: '';
 }
