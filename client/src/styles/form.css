@@ -54,11 +54,7 @@
   fill: white;
 }
 .button-primary:hover {
-  background: linear-gradient(
-    to bottom,
-    var(--brand-primary),
-    var(--brand-dark-blue)
-  );
+  background: linear-gradient(to bottom, #5c6ac4, #4959bd);
   border-color: #3f4eae;
   color: white;
   text-decoration: none;
@@ -127,11 +123,12 @@
 }
 .button-outline:focus {
   border-color: rgba(99, 115, 129, 0.8);
-  box-shadow: 0 0 0 1px rgba(99, 115, 129, 0.8);
+  box-shadow: none;
 }
 .button-outline:active {
   background: rgba(99, 115, 129, 0.1);
-  box-shadow: none;
+  box-shadow: 0 0 0 0 transparent, inset 0 1px 1px 0 rgba(99, 115, 129, 0.1),
+    inset 0 1px 4px 0 rgba(99, 115, 129, 0.2);
 }
 .button-outline:disabled {
   background: transparent;

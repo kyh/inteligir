@@ -55,6 +55,14 @@
   box-shadow: 0 1px 0 var(--brand-primary);
 }
 
+.nav .login-button {
+  text-transform: uppercase;
+  font-size: 1.4rem;
+  font-weight: 500;
+  color: var(--brand-primary);
+  border-color: var(--brand-primary);
+}
+
 /* Animation */
 .nav.hidden {
   transform: translateY(-95px);
