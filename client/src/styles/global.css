@@ -65,6 +65,10 @@ hr {
   overflow: visible;
 }
 
+.section-title {
+  margin-bottom: 4rem;
+}
+
 h1,
 h2,
 h3,
@@ -75,7 +79,7 @@ h6 {
   font-family: var(--ssp-font);
   margin-top: 0;
   line-height: 1.2;
-  margin-bottom: 4rem;
+  margin-bottom: 2rem;
   letter-spacing: -0.6px;
 }
 

@@ -65,7 +65,7 @@
 
 /* Animation */
 .nav.hidden {
-  transform: translateY(-95px);
+  transform: translateY(-100px);
 }
 
 /* Light Nav */
@@ -85,4 +85,19 @@
 .nav.light .nav-link:hover,
 .nav.light .nav-link.active {
   color: var(--color-n-1);
+}
+
+/* Signup/Login Dialog */
+.login-dialog-content {
+  padding: 30px 50px;
+}
+
+.login-dialog-content p {
+  font-size: 1.8rem;
+}
+
+.login-dialog-content .login-links {
+  padding: 20px;
+  font-size: 1.7rem;
+  margin-bottom: 1rem;
 }
