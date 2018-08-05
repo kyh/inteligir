@@ -3,6 +3,7 @@ import PropTypes from 'prop-types';
 import { connect } from 'react-redux';
 import { withRouter, NavLink } from 'react-router-dom';
 import { Dialog } from 'evergreen-ui';
+import Button from 'components/button/Button';
 import Logo from 'components/icons/Logo';
 import './Navigation.css';
 
@@ -34,12 +35,13 @@ class Navigation extends Component {
             <NavLink className="nav-link" to="/about">
               About
             </NavLink>
-            <button
-              className="button button-outline login-button"
+            <Button
+              className="button-outline login-button"
               onClick={this.toggleDialog}
+              marginRight={10}
             >
               Get Started
-            </button>
+            </Button>
             <Dialog
               isShown={this.state.isDialopOpen}
               hasHeader={false}
@@ -53,18 +55,12 @@ class Navigation extends Component {
                     Sign in to access your personalized homepage, support your
                     favorite authors, and create your own lessons.
                   </p>
-                  <a
-                    className="button button-full login-links"
-                    href="/auth/google"
-                  >
-                    Sign in with Google
-                  </a>
-                  <a
-                    className="button button-full login-links"
-                    href="/auth/facebook"
-                  >
-                    Sign in with Facebook
-                  </a>
+                  <Button className="login-links">
+                    <a href="/auth/google">Sign in with Google</a>
+                  </Button>
+                  <Button className="login-links">
+                    <a href="/auth/facebook">Sign in with Facebook</a>
+                  </Button>
                 </section>
               )}
             </Dialog>
