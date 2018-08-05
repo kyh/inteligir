@@ -2,7 +2,6 @@ import 'styles/variables.css';
 import 'styles/global.css';
 import 'styles/app.css';
 import 'styles/fonts/fonts.css';
-import 'styles/form.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom';
