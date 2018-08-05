@@ -16,7 +16,7 @@ class Navigation extends Component {
     isDialopOpen: false,
   };
 
-  toggleLoginDialog = () => {
+  toggleDialog = () => {
     this.setState((prevState) => {
       return {
         isDialopOpen: !prevState.isDialopOpen,
@@ -35,20 +35,21 @@ class Navigation extends Component {
               About
             </NavLink>
             <button
-              className="button button-outline"
-              onClick={this.toggleLoginDialog}
+              className="button button-outline login-button"
+              onClick={this.toggleDialog}
             >
-              Login
+              Get Started
             </button>
             <Dialog
               isShown={this.state.isDialopOpen}
               hasHeader={false}
               hasFooter={false}
-              onCloseComplete={this.toggleLoginDialog}
+              onCloseComplete={this.toggleDialog}
             >
               {({ close }) => (
                 <div>
                   <a href="/auth/google">Login with Google</a>
+                  <button>Hello</button>
                 </div>
               )}
             </Dialog>
