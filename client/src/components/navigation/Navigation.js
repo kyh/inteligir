@@ -47,10 +47,25 @@ class Navigation extends Component {
               onCloseComplete={this.toggleDialog}
             >
               {({ close }) => (
-                <div>
-                  <a href="/auth/google">Login with Google</a>
-                  <button>Hello</button>
-                </div>
+                <section className="login-dialog-content">
+                  <h3>Welcome back.</h3>
+                  <p>
+                    Sign in to access your personalized homepage, support your
+                    favorite authors, and create your own lessons.
+                  </p>
+                  <a
+                    className="button button-full login-links"
+                    href="/auth/google"
+                  >
+                    Sign in with Google
+                  </a>
+                  <a
+                    className="button button-full login-links"
+                    href="/auth/facebook"
+                  >
+                    Sign in with Facebook
+                  </a>
+                </section>
               )}
             </Dialog>
           </li>
