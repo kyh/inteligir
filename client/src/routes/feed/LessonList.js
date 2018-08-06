@@ -2,33 +2,36 @@ import React, { Component } from 'react';
 import { map } from 'lodash';
 import { connect } from 'react-redux';
 import { Link } from 'react-router-dom';
+import LessonCard from 'components/lesson-card/LessonCard';
 import { loadAllLessons } from 'redux/modules/lesson.module';
+
+import './LessonList.css';
 
 class LessonList extends Component {
   componentDidMount() {
     this.props.loadAllLessons();
   }
 
-  renderLessons() {
+  renderLessons = () => {
     return map(this.props.lessons, (lesson) => {
       return (
-        <div className="card darken-1 horizontal" key={lesson._id}>
-          <div className="card-stacked">
-            <div className="card-content">
-              <span className="card-title">{lesson.title}</span>
-              <p>{lesson.content}</p>
-            </div>
-            <div className="card-action">
-              <Link to={`/lessons/${lesson._id}`}>Read</Link>
-            </div>
-          </div>
-        </div>
+        <Link
+          className="lesson-card-container"
+          to={`/lessons/${lesson._id}`}
+          key={lesson._id}
+        >
+          <LessonCard lesson={lesson} />
+        </Link>
       );
     });
-  }
+  };
 
   render() {
-    return <div>{this.renderLessons()}</div>;
+    return (
+      <section className="lesson-list-container">
+        {this.renderLessons()}
+      </section>
+    );
   }
 }
 

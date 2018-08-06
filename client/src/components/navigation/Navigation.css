@@ -55,12 +55,17 @@
   box-shadow: 0 1px 0 var(--brand-primary);
 }
 
-.nav .login-button {
+.nav .nav-item-container .nav-item > .login-button {
   text-transform: uppercase;
   font-size: 1.4rem;
   font-weight: 500;
   color: var(--brand-primary);
   border-color: var(--brand-primary);
+}
+
+.nav .nav-item-container .nav-item > .login-button:hover {
+  color: var(--brand-dark-blue);
+  border-color: var(--brand-dark-blue);
 }
 
 /* Animation */
@@ -87,16 +92,35 @@
   color: var(--color-n-1);
 }
 
+.nav.light .nav-item-container .nav-item > .login-button {
+  color: var(--color-n-6);
+  border-color: var(--color-n-6);
+}
+
+.nav.light .nav-item-container .nav-item > .login-button:hover {
+  color: var(--color-n-1);
+  border-color: var(--color-n-1);
+}
+
 /* Signup/Login Dialog */
 .login-dialog-content {
   padding: 30px 50px;
 }
 
+.login-dialog-content h3 {
+  margin-bottom: 1rem;
+}
+
 .login-dialog-content p {
   font-size: 1.8rem;
+  line-height: 1.6;
 }
 
 .login-dialog-content .login-links {
+  border: 0;
+}
+
+.login-dialog-content .login-links .button {
   font-size: 1.7rem;
   margin-bottom: 1rem;
   display: block;
