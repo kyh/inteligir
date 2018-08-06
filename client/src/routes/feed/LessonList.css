@@ -9,7 +9,6 @@
 .lesson-card-container {
   border: 0;
   grid-column: span 3;
-  padding: 20px;
 }
 
 .lesson-card-container:nth-of-type(8n-7) {

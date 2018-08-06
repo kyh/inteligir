@@ -5,7 +5,12 @@ import './LessonCard.css';
 
 export default class LessonCard extends Component {
   componentDidMount() {
-    Tilt.init(this.el);
+    Tilt.init(this.el, {
+      reverse: true,
+      scale: 1.05,
+      glare: true,
+      max: 15,
+    });
   }
 
   componentWillUnmount() {
