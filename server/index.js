@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const cookieSession = require('cookie-session');
 const passport = require('passport');
 const bodyParser = require('body-parser');
+const helmet = require('helmet');
 const keys = require('config/keys');
 const {
   responseMiddleware,
@@ -24,6 +25,7 @@ mongoose.connect(keys.mongoURI);
 
 const app = express();
 
+app.use(helmet());
 app.use(bodyParser.json());
 app.use(responseMiddleware);
 app.use(

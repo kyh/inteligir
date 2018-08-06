@@ -1,8 +1,10 @@
 import React, { Component } from 'react';
 import PropTypes from 'prop-types';
+import classnames from 'classnames';
 import { connect } from 'react-redux';
 import { withRouter, NavLink } from 'react-router-dom';
-import { Dialog } from 'evergreen-ui';
+import { Dialog, Popover, Position } from 'evergreen-ui';
+import Avatar from 'components/avatar/Avatar';
 import Button from 'components/button/Button';
 import Logo from 'components/icons/Logo';
 import './Navigation.css';
@@ -14,13 +16,21 @@ class Navigation extends Component {
   };
 
   state = {
-    isDialopOpen: false,
+    isDialogOpen: false,
+  };
+
+  togglePopover = () => {
+    this.setState((prevState) => {
+      return {
+        isPopoverOpen: !prevState.isPopoverOpen,
+      };
+    });
   };
 
   toggleDialog = () => {
     this.setState((prevState) => {
       return {
-        isDialopOpen: !prevState.isDialopOpen,
+        isDialogOpen: !prevState.isDialogOpen,
       };
     });
   };
@@ -30,11 +40,13 @@ class Navigation extends Component {
       case null:
         return;
       case false:
-        return (
+        return [
           <li className="nav-item">
             <NavLink className="nav-link" to="/about">
               About
             </NavLink>
+          </li>,
+          <li className="nav-item">
             <Button
               className="button-outline login-button"
               onClick={this.toggleDialog}
@@ -43,7 +55,7 @@ class Navigation extends Component {
               Get Started
             </Button>
             <Dialog
-              isShown={this.state.isDialopOpen}
+              isShown={this.state.isDialogOpen}
               hasHeader={false}
               hasFooter={false}
               onCloseComplete={this.toggleDialog}
@@ -64,24 +76,40 @@ class Navigation extends Component {
                 </section>
               )}
             </Dialog>
-          </li>
-        );
+          </li>,
+        ];
       default:
         return [
-          <li className="nav-item" key="2">
-            <a className="nav-link logout-button" href="/auth/logout">
-              Logout
-            </a>
+          <li className="nav-item profile-button" key="1">
+            <Popover
+              content={
+                <a className="nav-link logout-button" href="/auth/logout">
+                  Logout
+                </a>
+              }
+              position={Position.BOTTOM_RIGHT}
+            >
+              <Button onClick={this.togglePopover} appearance="minimal">
+                <Avatar
+                  profileImageUrl={this.props.profileImageUrl}
+                  userId={this.props.userId}
+                />
+              </Button>
+            </Popover>
           </li>,
         ];
     }
   }
 
   render() {
+    const navClass = classnames({
+      nav: true,
+      light: this.props.location.pathname === '/',
+      hidden: this.props.location.pathname.includes('/lessons/'),
+    });
+
     return (
-      <nav
-        className={`nav ${this.props.location.pathname === '/' ? 'light' : ''}`}
-      >
+      <nav className={navClass}>
         <section className="nav-container">
           <NavLink
             to={this.props.isAuthenticated ? '/feed' : '/'}
@@ -99,6 +127,9 @@ class Navigation extends Component {
 function mapStateToProps({ auth }) {
   return {
     isAuthenticated: auth.isAuthenticated,
+    displayName: auth.user && auth.user.displayName,
+    userId: auth.user && auth.user._id,
+    profileImageUrl: auth.user && auth.user.profileImageUrl,
   };
 }
 
