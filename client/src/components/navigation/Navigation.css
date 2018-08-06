@@ -14,6 +14,7 @@
 
 .nav-container {
   max-width: var(--container-max);
+  height: 95px;
   margin: 0 auto;
   padding: 0 12px;
   display: flex;
@@ -34,6 +35,11 @@
 
 .nav-logo svg > path {
   fill: var(--brand-black);
+}
+
+.nav .nav-item-container {
+  display: flex;
+  align-items: center;
 }
 
 .nav .nav-link {
@@ -66,6 +72,16 @@
 .nav .nav-item-container .nav-item > .login-button:hover {
   color: var(--brand-dark-blue);
   border-color: var(--brand-dark-blue);
+}
+
+.nav .nav-item.profile-button .button {
+  background: transparent;
+}
+
+.nav .nav-item.profile-button .button:focus,
+.nav .nav-item.profile-button .button:active {
+  background: transparent;
+  box-shadow: none;
 }
 
 /* Animation */
