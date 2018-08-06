@@ -1,0 +1,26 @@
+.lesson-list-container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  grid-gap: 20px;
+}
+
+.lesson-card-container {
+  border: 0;
+  grid-column: span 3;
+  padding: 20px;
+}
+
+.lesson-card-container:nth-of-type(8n-7) {
+  grid-column: span 6;
+  grid-row: span 2;
+}
+
+.lesson-card-container:nth-of-type(8n-2),
+.lesson-card-container:nth-of-type(8n-2) + .lesson-card-container,
+.lesson-card-container:nth-of-type(8n-2)
+  + .lesson-card-container
+  + .lesson-card-container {
+  grid-column: span 4;
+}

@@ -55,12 +55,12 @@ class Navigation extends Component {
                     Sign in to access your personalized homepage, support your
                     favorite authors, and create your own lessons.
                   </p>
-                  <Button className="login-links">
-                    <a href="/auth/google">Sign in with Google</a>
-                  </Button>
-                  <Button className="login-links">
-                    <a href="/auth/facebook">Sign in with Facebook</a>
-                  </Button>
+                  <a href="/auth/google" className="login-links">
+                    <Button>Sign in with Google</Button>
+                  </a>
+                  <a href="/auth/facebook" className="login-links">
+                    <Button>Sign in with Facebook</Button>
+                  </a>
                 </section>
               )}
             </Dialog>
