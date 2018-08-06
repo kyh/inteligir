@@ -7,7 +7,7 @@ import axios from 'axios';
 export const RESET_REDUX_STORE = 'RESET_REDUX_STORE';
 
 // Load
-export const LOAD_USER = 'LOAD_USER';
+export const LOAD_USER_REQUEST = 'LOAD_USER_REQUEST';
 export const LOAD_USER_SUCCESS = 'LOAD_USER_SUCCESS';
 export const LOAD_USER_FAIL = 'LOAD_USER_FAIL';
 
@@ -15,7 +15,7 @@ export const LOAD_USER_FAIL = 'LOAD_USER_FAIL';
  * Fetches current logged in user given HTTP cookie
  */
 export const loadUser = () => async (dispatch) => {
-  dispatch({ type: LOAD_USER });
+  dispatch({ type: LOAD_USER_REQUEST });
   try {
     const res = await axios.get('/api/current_user');
     dispatch({ type: LOAD_USER_SUCCESS, payload: res.data });
@@ -34,7 +34,7 @@ const initialState = {
 };
 
 const reducerMap = {
-  [LOAD_USER]: (state, action) => {
+  [LOAD_USER_REQUEST]: (state, action) => {
     return {
       ...state,
       isLoading: true,
