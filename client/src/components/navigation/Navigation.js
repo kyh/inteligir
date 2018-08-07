@@ -19,14 +19,6 @@ class Navigation extends Component {
     isDialogOpen: false,
   };
 
-  togglePopover = () => {
-    this.setState((prevState) => {
-      return {
-        isPopoverOpen: !prevState.isPopoverOpen,
-      };
-    });
-  };
-
   toggleDialog = () => {
     this.setState((prevState) => {
       return {
@@ -82,14 +74,34 @@ class Navigation extends Component {
         return [
           <li className="nav-item profile-button" key="1">
             <Popover
-              content={
-                <a className="nav-link logout-button" href="/auth/logout">
-                  Logout
-                </a>
-              }
               position={Position.BOTTOM_RIGHT}
+              content={({ close }) => (
+                <ul role="menu" className="profile-dropdown">
+                  <li className="profile-dropdown-item">
+                    <NavLink onClick={close} to="/lessons/new">
+                      New lesson
+                    </NavLink>
+                  </li>
+                  <li className="profile-dropdown-item">
+                    <NavLink onClick={close} to="/lessons/drafts">
+                      My lessons
+                    </NavLink>
+                  </li>
+                  <li className="profile-dropdown-item">
+                    <NavLink
+                      onClick={close}
+                      to={`/profile/${this.props.userId}`}
+                    >
+                      Profile
+                    </NavLink>
+                  </li>
+                  <li className="profile-dropdown-item">
+                    <a href="/auth/logout">Sign out</a>
+                  </li>
+                </ul>
+              )}
             >
-              <Button onClick={this.togglePopover} appearance="minimal">
+              <Button appearance="minimal">
                 <Avatar
                   profileImageUrl={this.props.profileImageUrl}
                   userId={this.props.userId}
