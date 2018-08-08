@@ -33,12 +33,12 @@ class Navigation extends Component {
         return;
       case false:
         return [
-          <li className="nav-item">
+          <li className="nav-item" key="about">
             <NavLink className="nav-link" to="/about">
               About
             </NavLink>
           </li>,
-          <li className="nav-item">
+          <li className="nav-item" key="login">
             <Button
               className="button-outline login-button"
               onClick={this.toggleDialog}

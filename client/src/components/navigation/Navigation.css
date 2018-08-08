@@ -78,7 +78,8 @@
   border-color: var(--brand-dark-blue);
 }
 
-.nav .nav-item.profile-button .button {
+.nav .nav-item.profile-button .button,
+.nav .nav-item.profile-button .button:hover {
   background: transparent;
 }
 
