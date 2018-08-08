@@ -1,4 +1,5 @@
-.button {
+a.button,
+button.button {
   height: 40px;
   padding: 0 20px;
   font-family: var(--pxn-font);
@@ -9,17 +10,17 @@
   background: linear-gradient(to bottom, white, #f9fafb);
   user-select: none;
 }
-.button:not([disabled]):not([data-disabled]):hover {
+button.button:not([disabled]):not([data-disabled]):hover {
   background: linear-gradient(to bottom, #f9fafb, #f4f6f8);
 }
-.button:not([disabled]):not([data-disabled]):active {
+button.button:not([disabled]):not([data-disabled]):active {
   outline: none;
   box-shadow: 0 0 0 0 transparent, inset 0 1px 1px 0 rgba(99, 115, 129, 0.1),
     inset 0 1px 4px 0 rgba(99, 115, 129, 0.2);
   background-color: transparent;
   background: linear-gradient(to bottom, #f4f6f8, #f4f6f8);
 }
-.button:focus {
+button.button:focus {
   outline: 0;
 }
 
