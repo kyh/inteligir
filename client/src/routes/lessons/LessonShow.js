@@ -10,8 +10,8 @@ import './LessonShow.css';
 class LessonShow extends Component {
   constructor(props) {
     super(props);
-    this.scrollContents = {};
-    this.scrollama = {};
+    this.scrollContents = {}; // Map of `{ <scrollContentId>: <element> }
+    this.scrollerParams = {}; // Map of `{ <scrollContentId>: { scrollerParam } }
     this.state = {
       currentStepNumber: null,
     };
@@ -19,7 +19,7 @@ class LessonShow extends Component {
 
   componentDidMount() {
     forEach(this.scrollContents, (el, scrollContentId) => {
-      const scrollerParams = {
+      const scrollerParam = {
         instance: scrollama(),
         container: el,
         stepsContainer: el.querySelector('.steps-container'),
@@ -28,65 +28,45 @@ class LessonShow extends Component {
         chart: el.querySelector('.chart-container .chart'),
       };
 
-      this.handleResize(scrollerParams);
-      this.scrollama[scrollContentId] = scrollerParams.instance
+      scrollerParam.instance.resize();
+      scrollerParam.instance
         .setup({
-          container: scrollerParams.container,
-          step: scrollerParams.steps,
-          graphic: scrollerParams.chartContainer,
+          container: scrollerParam.container,
+          step: scrollerParam.steps,
+          graphic: scrollerParam.chartContainer,
         })
         .onStepEnter(this.handleStepEnter.bind(this, scrollContentId))
         .onContainerEnter(this.handleContainerEnter)
         .onContainerExit(this.handleContainerExit);
+
+      this.scrollerParams[scrollContentId] = scrollerParam;
     });
+
+    window.addEventListener('resize', this.handleResize);
 
     // this.props.loadLesson(this.props.match.params._id);
   }
 
-  handleContainerEnter = (response) => {};
+  handleContainerEnter = (response) => {
+    // response = { element, direction, index }
+  };
 
-  handleContainerExit = (response) => {};
+  handleContainerExit = (response) => {
+    // response = { element, direction, index }
+  };
 
   handleStepEnter = (scrollContentId, response) => {
     // response = { element, direction, index }
-    console.log(scrollContentId, response);
     this.setState({
       currentActiveStep: scrollContentId + response.index,
       currentStepNumber: response.index,
     });
   };
 
-  handleResize = ({
-    instance,
-    stepsContainer,
-    steps,
-    chartContainer,
-    chart,
-  }) => {
-    // 1. update height of step elements
-    const stepHeight = Math.floor(window.innerHeight * 0.75);
-    forEach(steps, (step) => {
-      step.setAttribute('style', `height: ${stepHeight}px`);
+  handleResize = () => {
+    forEach(this.scrollerParams, ({ instance }, scrollContentId) => {
+      instance.resize();
     });
-
-    // 2. update width/height of chartContainer element
-    const bodyWidth = document.body.offsetWidth;
-    const textWidth = stepsContainer.offsetWidth;
-    const chartContainerWidth = bodyWidth - textWidth;
-    chartContainer.setAttribute(
-      'style',
-      `width: ${chartContainerWidth}px; height: ${window.innerHeight}px`,
-    );
-
-    const chartMargin = 32;
-    const chartWidth = chartContainer.offsetWidth - chartMargin;
-    chart.setAttribute(
-      'style',
-      `width: ${chartWidth}px; height: ${window.innerHeight}px`,
-    );
-
-    // 3. tell scrollama to update new element dimensions
-    instance.resize();
   };
 
   renderScrollContent = (scrollContentId) => {
@@ -95,11 +75,6 @@ class LessonShow extends Component {
         className="lesson-content-scroll"
         ref={(el) => (this.scrollContents[scrollContentId] = el)}
       >
-        <div className="chart-container">
-          <div className="chart">
-            <p>{this.state.currentStepNumber}</p>
-          </div>
-        </div>
         <div className="steps-container">
           <div
             className={`step ${
@@ -142,6 +117,11 @@ class LessonShow extends Component {
               dolor repudiandae consequatur perferendis adipisci cum ea
               provident expedita dolore blanditiis.
             </p>
+          </div>
+        </div>
+        <div className="chart-container">
+          <div className="chart">
+            <p>{this.state.currentStepNumber}</p>
           </div>
         </div>
       </div>
