@@ -11,7 +11,7 @@ class LessonShow extends Component {
   constructor(props) {
     super(props);
     this.scrollContents = {};
-    this.scrollamaInstances = {};
+    this.scrollama = {};
     this.state = {
       currentStepNumber: null,
     };
@@ -19,18 +19,21 @@ class LessonShow extends Component {
 
   componentDidMount() {
     forEach(this.scrollContents, (el, scrollContentId) => {
-      const scroller = scrollama();
-      const stepsContainer = el.querySelector('.steps-container');
-      const steps = el.querySelectorAll('.steps-container .step');
-      const chartContainer = el.querySelector('.chart-container');
-      const chart = el.querySelector('.chart-container .chart');
+      const scrollerParams = {
+        instance: scrollama(),
+        container: el,
+        stepsContainer: el.querySelector('.steps-container'),
+        steps: el.querySelectorAll('.steps-container .step'),
+        chartContainer: el.querySelector('.chart-container'),
+        chart: el.querySelector('.chart-container .chart'),
+      };
 
-      this.handleResize(scroller, stepsContainer, steps, chartContainer, chart);
-      this.scrollamaInstances[scrollContentId] = scroller
+      this.handleResize(scrollerParams);
+      this.scrollama[scrollContentId] = scrollerParams.instance
         .setup({
-          container: el,
-          step: steps,
-          graphic: chartContainer,
+          container: scrollerParams.container,
+          step: scrollerParams.steps,
+          graphic: scrollerParams.chartContainer,
         })
         .onStepEnter(this.handleStepEnter.bind(this, scrollContentId))
         .onContainerEnter(this.handleContainerEnter)
@@ -53,7 +56,13 @@ class LessonShow extends Component {
     });
   };
 
-  handleResize = (scroller, stepsContainer, steps, chartContainer, chart) => {
+  handleResize = ({
+    instance,
+    stepsContainer,
+    steps,
+    chartContainer,
+    chart,
+  }) => {
     // 1. update height of step elements
     const stepHeight = Math.floor(window.innerHeight * 0.75);
     forEach(steps, (step) => {
@@ -77,7 +86,7 @@ class LessonShow extends Component {
     );
 
     // 3. tell scrollama to update new element dimensions
-    scroller.resize();
+    instance.resize();
   };
 
   renderScrollContent = (scrollContentId) => {
