@@ -35,7 +35,7 @@
     "server"
   ],
   "dependencies": {
-    "aws-sdk": "2.287.0",
+    "aws-sdk": "2.289.0",
     "body-parser": "1.18.3",
     "boom": "7.2.0",
     "concurrently": "3.6.0",
@@ -48,12 +48,12 @@
     "migrate-mongoose": "3.2.2",
     "mime-types": "^2.1.19",
     "module-alias": "^2.1.0",
-    "mongoose": "5.2.7",
+    "mongoose": "5.2.8",
     "nodemon": "1.18.3",
     "passport": "0.4.0",
     "passport-google-oauth20": "1.0.0",
     "path-parser": "4.2.0",
-    "puppeteer": "1.6.2",
+    "puppeteer": "1.7.0",
     "redis": "2.8.0",
     "uuid": "3.3.2"
   },
@@ -61,16 +61,16 @@
     "babel-cli": "6.26.0",
     "babel-eslint": "8.2.6",
     "eslint": "4.19.1",
-    "eslint-config-airbnb": "17.0.0",
+    "eslint-config-airbnb": "17.1.0",
     "eslint-config-prettier": "2.10.0",
     "eslint-plugin-import": "2.13.0",
     "eslint-plugin-jsx-a11y": "6.1.0",
     "eslint-plugin-prettier": "2.6.2",
-    "eslint-plugin-react": "7.10.0",
+    "eslint-plugin-react": "7.11.0",
     "husky": "0.14.3",
     "inquirer": "6.1.0",
-    "prettier": "1.14.0",
+    "prettier": "1.14.1",
     "pretty-quick": "1.6.0",
-    "source-map-explorer": "1.5.0"
+    "source-map-explorer": "1.6.0"
   }
 }
