@@ -69,7 +69,7 @@
     "eslint-plugin-react": "7.11.0",
     "husky": "0.14.3",
     "inquirer": "6.1.0",
-    "prettier": "1.14.0",
+    "prettier": "1.14.1",
     "pretty-quick": "1.6.0",
     "source-map-explorer": "1.6.0"
   }
