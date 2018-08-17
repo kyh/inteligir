@@ -10,8 +10,8 @@ const About = () => {
           <h1 className="section-title">The web is a educational medium</h1>
         </header>
         <p>
-          Inteligir is a platform to build interactive stories and lessons
-          through scrollytelling.
+          Inteligir is a platform to build interactive lessons and visually
+          explain them.
         </p>
         <p>
           Lorem ipsum dolor amet you probably haven't heard of them cliche kale
