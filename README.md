@@ -3,11 +3,11 @@
 
 # Inteligir
 
-> The web is a educational medium. Inteligir is a platform to build interactive stories and lessons through scrollytelling.
+> The web is a educational medium. Inteligir is a platform to build interactive lessons and visually explain them.
 
-#### What is scrollytelling?
+#### What does it mean to visually explain?
 
-Scrollytelling is a storytelling technique on the web where content unfolds as a user scrolls. Some examples in the wild:
+Inteligir uses a technique on the web called scrollytelling. Scrollytelling is a way of storytelling where content unfolds as a user scrolls. Some examples in the wild:
 
 - [R2D3](http://www.r2d3.us/visual-intro-to-machine-learning-part-1/)
 - [Waveforms](https://pudding.cool/2018/02/waveforms/)
