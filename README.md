@@ -5,7 +5,7 @@
 
 > The web is a educational medium. Inteligir is a platform to build interactive lessons and visually explain them.
 
-#### What does it mean to visually explain?
+#### How does visually explaining work?
 
 Inteligir uses a technique on the web called scrollytelling. Scrollytelling is a way of storytelling where content unfolds as a user scrolls. Some examples in the wild:
 
