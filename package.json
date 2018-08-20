@@ -35,7 +35,7 @@
     "server"
   ],
   "dependencies": {
-    "aws-sdk": "2.295.0",
+    "aws-sdk": "2.296.0",
     "body-parser": "1.18.3",
     "boom": "7.2.0",
     "concurrently": "3.6.0",
@@ -44,7 +44,7 @@
     "express": "4.16.3",
     "express-async-errors": "3.0.0",
     "helmet": "^3.13.0",
-    "jest": "23.4.1",
+    "jest": "23.5.0",
     "migrate-mongoose": "3.2.2",
     "mime-types": "^2.1.19",
     "module-alias": "^2.1.0",
@@ -60,16 +60,16 @@
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-eslint": "8.2.6",
-    "eslint": "4.19.1",
+    "eslint": "5.4.0",
     "eslint-config-airbnb": "17.1.0",
-    "eslint-config-prettier": "2.10.0",
-    "eslint-plugin-import": "2.13.0",
-    "eslint-plugin-jsx-a11y": "6.1.0",
+    "eslint-config-prettier": "3.0.1",
+    "eslint-plugin-import": "2.14.0",
+    "eslint-plugin-jsx-a11y": "6.1.1",
     "eslint-plugin-prettier": "2.6.2",
-    "eslint-plugin-react": "7.11.0",
+    "eslint-plugin-react": "7.11.1",
     "husky": "0.14.3",
     "inquirer": "6.1.0",
-    "prettier": "1.14.1",
+    "prettier": "1.14.2",
     "pretty-quick": "1.6.0",
     "source-map-explorer": "1.6.0"
   }
