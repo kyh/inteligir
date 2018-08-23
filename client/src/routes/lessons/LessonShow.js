@@ -1,8 +1,6 @@
 import 'intersection-observer';
 import React, { Component } from 'react';
 import { connect } from 'react-redux';
-import scrollama from 'scrollama';
-import { forEach } from 'lodash';
 
 import ScrollContent from 'components/scroll-content/ScrollContent';
 import { loadLesson } from 'redux/modules/lesson.module';
@@ -27,38 +25,6 @@ const steps = [
 ];
 
 class LessonShow extends Component {
-  constructor(props) {
-    super(props);
-    this.scrollContents = {}; // Map of `{ <scrollContentId>: <element> }
-    this.scrollerParams = {}; // Map of `{ <scrollContentId>: { scrollerParam } }
-  }
-
-  componentDidMount() {
-    // forEach(this.scrollContents, (el, scrollContentId) => {
-    //   const scrollerParam = {
-    //     instance: scrollama(),
-    //     container: el,
-    //     stepsContainer: el.querySelector('.steps-container'),
-    //     steps: el.querySelectorAll('.steps-container .step'),
-    //     chartContainer: el.querySelector('.chart-container'),
-    //     chart: el.querySelector('.chart-container .chart'),
-    //   };
-    //   scrollerParam.instance.resize();
-    //   scrollerParam.instance
-    //     .setup({
-    //       container: scrollerParam.container,
-    //       step: scrollerParam.steps,
-    //       graphic: scrollerParam.chartContainer,
-    //     })
-    //     .onStepEnter(this.handleStepEnter.bind(this, scrollContentId))
-    //     .onContainerEnter(this.handleContainerEnter)
-    //     .onContainerExit(this.handleContainerExit);
-    //   this.scrollerParams[scrollContentId] = scrollerParam;
-    // });
-    // window.addEventListener('resize', this.handleResize);
-    // this.props.loadLesson(this.props.match.params._id);
-  }
-
   handleContainerEnter = (response) => {
     // response = { element, direction, index }
   };
@@ -75,7 +41,11 @@ class LessonShow extends Component {
             <h3>Blue Ice Experience</h3>
             <p>By: Kevin Wu, Kaiyu Hsu</p>
           </header>
-          <ScrollContent steps={steps} />
+          <ScrollContent
+            steps={steps}
+            handleContainerEnter={this.handleContainerEnter}
+            handleContainerExit={this.handleContainerExit}
+          />
           <footer className="outro">Done.</footer>
         </section>
       </section>
