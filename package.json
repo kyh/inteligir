@@ -6,7 +6,7 @@
   "version": "0.0.0",
   "main": "server/index.js",
   "engines": {
-    "node": "8.11.1",
+    "node": "8.11.4",
     "npm": "5.6.0"
   },
   "scripts": {
