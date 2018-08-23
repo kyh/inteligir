@@ -42,18 +42,14 @@ Clone the repo:
 $ git clone git@github.com:Inteligir/Inteligir.git .
 ```
 
-We recommend using nvm to manage multiple node installs:
+We recommend using `n` to manage multiple node installs:
 
 ```bash
-brew install nvm
-# add the following two lines to your shell config:
-printf "\nexport NVM_DIR=~/.nvm" >> ~/.bash_profile
-printf '\nsource $$(brew --prefix nvm)/nvm.sh' >> ~/.bash_profile
-source ~/.bash_profile
-# now we can use nvm!
-nvm install 8.11.1
-# Switch versions with "nvm use 8.11.1"
-# You can default your node version with "nvm alias default 8.11.1"
+npm install -g n
+# now we can use n to manage our node version!
+n 8.11.4
+# Switch versions with "n <version>"
+# See datails of n here: https://github.com/tj/n
 ```
 
 To setup the server:
