@@ -1,0 +1,29 @@
+{
+  "AWSEBDockerrunVersion": 2,
+  "containerDefinitions": [
+    {
+      "name": "router",
+      "image": "inteligir/multi-router",
+      "portMappings": [
+        {
+          "hostPort": 80,
+          "containerPort": 80
+        }
+      ],
+      "links": ["client", "server"],
+      "essential": true
+    },
+    {
+      "name": "client",
+      "image": "inteligir/multi-client",
+      "hostname": "client",
+      "essential": false
+    },
+    {
+      "name": "server",
+      "image": "inteligir/multi-server",
+      "hostname": "api",
+      "essential": false
+    }
+  ]
+}
