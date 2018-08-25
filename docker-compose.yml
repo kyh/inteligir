@@ -1,21 +1,34 @@
 version: '3'
 services:
-  web:
+  mongo:
+    image: 'mongo:latest'
+  redis:
+    image: 'redis:latest'
+  router:
+    restart: always
     build:
-      context: .
       dockerfile: Dockerfile.dev
+      context: './router'
     ports:
-      - '5000:5000'
-    volumes:
-      - /app/node_modules
-      - /app/client/node_modules
-      - .:/app
-  tests:
+      - '5000:80'
+  api:
     build:
-      context: .
       dockerfile: Dockerfile.dev
+      context: './server'
     volumes:
       - /app/node_modules
-      - /app/client/node_modules
-      - .:/app
-    command: ['npm', 'run', 'test']
+      - ./server:/app
+  client:
+    build:
+      dockerfile: Dockerfile.dev
+      context: ./client
+    volumes:
+      - /app/node_modules
+      - .client:/app
+  worker:
+    build:
+      dockerfile: Dockerfile.dev
+      context: './worker'
+    volumes:
+      - /app/node_modules
+      - ./worker:/app
