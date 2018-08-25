@@ -1,0 +1,25 @@
+# Docker build proccess on Travis
+# (Not being used since we're deploying on Heroku)
+sudo: required
+services:
+  - docker
+
+before_install:
+  - docker build -t inteligir/inteligir -f ./client/Dockerfile.dev ./client
+
+script:
+  - docker run inteligir/inteligir npm test -- --coverage
+
+after_success:
+  - docker build -t inteligir/multi-router ./router
+  - docker build -t inteligir/multi-client ./client
+  - docker build -t inteligir/multi-server ./server
+  # - docker build -t inteligir/multi-worker ./worker
+
+  # Log into docker CLI
+  - echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_ID" --password-stdin
+  # Push build images to Docker Hub
+  - docker push inteligir/multi-router
+  - docker push inteligir/multi-client
+  - docker push inteligir/multi-server
+  # - docker build -t inteligir/multi-worker ./worker

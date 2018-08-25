@@ -25,10 +25,11 @@ services:
     volumes:
       - /app/node_modules
       - .client:/app
-  worker:
-    build:
-      dockerfile: Dockerfile.dev
-      context: './worker'
-    volumes:
-      - /app/node_modules
-      - ./worker:/app
+  # worker:
+  #   build:
+  #     dockerfile: Dockerfile.dev
+  #     context: './worker'
+  #   volumes:
+  #     - /app/node_modules
+  #     - ./worker:/app
+  # DONT FORGET, add worker into Dockerrun.aws.json
