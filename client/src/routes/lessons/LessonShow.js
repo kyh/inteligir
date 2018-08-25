@@ -25,6 +25,10 @@ const steps = [
 ];
 
 class LessonShow extends Component {
+  componentDidMount() {
+    // this.props.loadLesson(this.props.match.params._id);
+  }
+
   handleContainerEnter = (response) => {
     // response = { element, direction, index }
   };

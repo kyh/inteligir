@@ -7,7 +7,7 @@ const Lesson = mongoose.model('Lesson');
 const FAKE_DATA = require('data/lessons.json');
 
 module.exports = (app) => {
-  app.get('/api/lessons/:id', requireLogin, async (req, res) => {
+  app.get('/api/lessons/:id', async (req, res) => {
     const lesson = await Lesson.findOne({
       _user: req.user.id,
       _id: req.params.id,
@@ -18,7 +18,7 @@ module.exports = (app) => {
     res.sendSuccess(lesson);
   });
 
-  app.get('/api/lessons', requireLogin, async (req, res) => {
+  app.get('/api/lessons', async (req, res) => {
     const lessons = await Lesson.find({ _user: req.user.id });
     res.sendSuccess(FAKE_DATA);
   });
