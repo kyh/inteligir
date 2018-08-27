@@ -10,6 +10,8 @@ class ScrollContent extends Component {
   };
 
   componentDidMount() {
+    if (!this.el) return;
+
     this.scrollerParam = {
       instance: scrollama(),
       container: this.el,
@@ -34,6 +36,8 @@ class ScrollContent extends Component {
   }
 
   componentWillUnmount() {
+    if (!this.el) return;
+
     this.scrollerParam.instance.destroy();
     window.removeEventListener('resize', this.handleResize);
   }
@@ -50,14 +54,19 @@ class ScrollContent extends Component {
   };
 
   render() {
+    const { steps } = this.props;
+    const { currentActiveStep } = this.state;
+
+    if (!steps || !steps.length) return null;
+
     return (
       <div className="lesson-content-scroll" ref={(el) => (this.el = el)}>
         <div className="steps-container">
-          {map(this.props.steps, (step) => (
+          {map(steps, (step) => (
             <div
               key={step.id}
               className={`step ${
-                this.state.currentActiveStep === step.id ? 'active' : ''
+                currentActiveStep === step.id ? 'active' : ''
               }`}
             >
               {step.content}
@@ -66,7 +75,7 @@ class ScrollContent extends Component {
         </div>
         <div className="chart-container">
           <div className="chart">
-            <p>{this.state.currentActiveStep}</p>
+            <p>{currentActiveStep}</p>
           </div>
         </div>
       </div>
