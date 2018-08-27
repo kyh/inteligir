@@ -13,6 +13,20 @@
         "_id": 2,
         "displayName": "Kaiyu Hsu"
       }
+    ],
+    "steps": [
+      {
+        "id": 0,
+        "content": "Your Glacier Walk kicks off with meeting your certified glacier guide at the Icelandic Mountain Guides lodge next to the visitor center in Skaftafell"
+      },
+      {
+        "id": 1,
+        "content": "After meeting your group, you will be provided with an ice axe, crampons and a harness. At the edge of the glacier, your guide will give you a short safety briefing. Nihil nisi iusto eum hic laudantium eligendi nam."
+      },
+      {
+        "id": 2,
+        "content": "On the glacier, you will experience a stunning wonderland of ice. The tour ends at the original meeting point. Lorem ipsum dolor sit amet, consectetur adipisicing elit. Harum laboriosam asperiores dolor repudiandae consequatur perferendis adipisci cum ea provident expedita dolore blanditiis."
+      }
     ]
   },
   {
@@ -25,7 +39,8 @@
         "_id": 1,
         "displayName": "Kaiyu Hsu"
       }
-    ]
+    ],
+    "setps": []
   },
   {
     "_id": 3,
@@ -37,7 +52,8 @@
         "_id": 1,
         "displayName": "John Boggs"
       }
-    ]
+    ],
+    "setps": []
   },
   {
     "_id": 4,
@@ -49,7 +65,8 @@
         "_id": 1,
         "displayName": "Yao Yang"
       }
-    ]
+    ],
+    "setps": []
   },
   {
     "_id": 5,
@@ -61,7 +78,8 @@
         "_id": 1,
         "displayName": "Avesh Singh"
       }
-    ]
+    ],
+    "setps": []
   },
   {
     "_id": 6,
@@ -73,7 +91,8 @@
         "_id": 1,
         "displayName": "Kaiyu Hsu"
       }
-    ]
+    ],
+    "setps": []
   },
   {
     "_id": 7,
@@ -85,7 +104,8 @@
         "_id": 1,
         "displayName": "Kevin Wu"
       }
-    ]
+    ],
+    "setps": []
   },
   {
     "_id": 8,
@@ -97,6 +117,7 @@
         "_id": 1,
         "displayName": "Kevin Wu"
       }
-    ]
+    ],
+    "setps": []
   }
 ]
