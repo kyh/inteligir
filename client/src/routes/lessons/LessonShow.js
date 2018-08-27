@@ -28,7 +28,7 @@ class LessonShow extends Component {
             <p>By: Kevin Wu, Kaiyu Hsu</p>
           </header>
           <ScrollContent
-            steps={this.props.lesson.steps}
+            steps={this.props.lesson && this.props.lesson.steps}
             handleContainerEnter={this.handleContainerEnter}
             handleContainerExit={this.handleContainerExit}
           />
