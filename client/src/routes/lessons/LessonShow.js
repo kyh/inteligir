@@ -6,24 +6,6 @@ import ScrollContent from 'components/scroll-content/ScrollContent';
 import { loadLesson } from 'redux/modules/lesson.module';
 import './LessonShow.css';
 
-const steps = [
-  {
-    id: 0,
-    content:
-      'Your Glacier Walk kicks off with meeting your certified glacier guide at the Icelandic Mountain Guides lodge next to the visitor center in Skaftafell',
-  },
-  {
-    id: 1,
-    content:
-      'After meeting your group, you will be provided with an ice axe, crampons and a harness. At the edge of the glacier, your guide will give you a short safety briefing. Nihil nisi iusto eum hic laudantium eligendi nam.',
-  },
-  {
-    id: 2,
-    content:
-      'On the glacier, you will experience a stunning wonderland of ice. The tour ends at the original meeting point. Lorem ipsum dolor sit amet, consectetur adipisicing elit. Harum laboriosam asperiores dolor repudiandae consequatur perferendis adipisci cum ea provident expedita dolore blanditiis.',
-  },
-];
-
 class LessonShow extends Component {
   componentDidMount() {
     // this.props.loadLesson(this.props.match.params._id);
@@ -46,7 +28,7 @@ class LessonShow extends Component {
             <p>By: Kevin Wu, Kaiyu Hsu</p>
           </header>
           <ScrollContent
-            steps={steps}
+            steps={this.props.lesson.steps}
             handleContainerEnter={this.handleContainerEnter}
             handleContainerExit={this.handleContainerExit}
           />
