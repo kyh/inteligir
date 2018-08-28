@@ -1,8 +1,30 @@
-/* Other */
-.intro {
-  margin-bottom: 300px;
+.lesson-page {
+  background: #fff;
+  padding-bottom: 10rem;
 }
 
-.outro {
-  height: 640px;
+.intro {
+  width: 50%;
+  padding: 5rem 7rem;
+}
+
+.intro .intro-author {
+  font-weight: 500;
+  text-transform: uppercase;
+  font-size: 1.3rem;
+}
+
+.intro .intro-title {
+  font-size: 4.5rem;
+}
+
+.intro .intro-title::after {
+  content: '';
+  display: block;
+  margin-top: 0.8em;
+  width: 1.54em;
+  height: 0.14em;
+  background-image: url(/assets/stripes.svg);
+  background-size: 100%;
+  background-repeat: no-repeat;
 }

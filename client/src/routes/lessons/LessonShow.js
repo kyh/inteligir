@@ -24,15 +24,14 @@ class LessonShow extends Component {
       <section className="lesson-page">
         <section className="lesson-content-container">
           <header className="intro">
-            <h3>Blue Ice Experience</h3>
-            <p>By: Kevin Wu, Kaiyu Hsu</p>
+            <span className="intro-author">By: Kevin Wu, Kaiyu Hsu</span>
+            <h3 className="intro-title">Blue Ice Experience</h3>
           </header>
           <ScrollContent
             steps={this.props.lesson && this.props.lesson.steps}
             handleContainerEnter={this.handleContainerEnter}
             handleContainerExit={this.handleContainerExit}
           />
-          <footer className="outro">Done.</footer>
         </section>
       </section>
     );
