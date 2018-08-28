@@ -1,6 +1,6 @@
 {
   "name": "Inteligir",
-  "description": "Inteligir is a platform to build interactive stories and lessons through scrollytelling",
+  "description": "Inteligir is a platform to build interactive visual explanations",
   "author": "Kaiyu Hsu <im.kaiyu@gmail.com> (http://github.com/tehkaiyu)",
   "license": "MIT",
   "version": "0.0.0",
@@ -35,7 +35,7 @@
     "server"
   ],
   "dependencies": {
-    "aws-sdk": "2.297.0",
+    "aws-sdk": "2.303.0",
     "body-parser": "1.18.3",
     "boom": "7.2.0",
     "concurrently": "4.0.1",
