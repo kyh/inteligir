@@ -1,22 +1,22 @@
 .lesson-content-scroll {
   position: relative;
-  border-top: 1px dashed #000;
-  border-bottom: 1px dashed #000;
   display: grid;
   grid-template-columns: 1fr 1fr;
 }
 
 .steps-container {
   position: relative;
-  padding: 0 2rem;
+  padding: 0 7rem;
 }
+
 .step {
-  min-height: 75vh;
-  padding: 2rem;
-  border: 1px solid #333;
+  opacity: 0.3;
+  min-height: 50vh;
+  transition: opacity 0.3s;
 }
+
 .step.active {
-  background-color: lightgoldenrodyellow;
+  opacity: 1;
 }
 
 .chart-container {
