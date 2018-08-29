@@ -8,13 +8,15 @@ const FAKE_DATA = require('data/lessons.json');
 
 module.exports = (app) => {
   app.get('/api/lessons/:id', async (req, res) => {
-    const lesson = await Lesson.findOne({
-      _user: req.user.id,
-      _id: req.params.id,
-    });
+    // const lesson = await Lesson.findOne({
+    //   _user: req.user.id,
+    //   _id: req.params.id,
+    // });
 
-    if (!lesson) res.sendError(boom.notFound('Lesson not found'));
+    // if (!lesson) res.sendError(boom.notFound('Lesson not found'));
 
+    // res.sendSuccess(lesson);
+    const lesson = FAKE_DATA.find((l) => l._id === +req.params.id);
     res.sendSuccess(lesson);
   });
 
