@@ -1,4 +1,3 @@
-const packageJson = require('./package.json');
 const path = require('path');
 
 module.exports = {
@@ -27,10 +26,10 @@ module.exports = {
     'import/resolver': {
       node: {
         paths: [
-          path.resolve(__dirname, './node_modules'),
           path.resolve(__dirname, './client/node_modules'),
           path.resolve(__dirname, './client/src'),
-          ...packageJson._moduleDirectories,
+          path.resolve(__dirname, './server/node_modules'),
+          path.resolve(__dirname, './server'),
         ],
       },
     },

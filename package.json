@@ -10,18 +10,19 @@
     "npm": "5.6.0"
   },
   "scripts": {
-    "analyze": "source-map-explorer client/build/static/js/main.*",
+    "heroku-postbuild": "npm run build",
+    "postinstall": "npm install --prefix server && npm install --prefix client",
+    "setup": "npm run decrypt-env && npm install",
     "start": "node server/index.js",
     "server": "nodemon -r dotenv/config server/index.js --ignore tests",
     "client": "npm run start --prefix client",
-    "deploy": "node -r dotenv/config tools/deploy",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "build": "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client",
-    "setup": "npm install && npm install --prefix client && npm run decrypt-env",
+    "build": "NPM_CONFIG_PRODUCTION=false npm run build --prefix client",
+    "deploy": "node -r dotenv/config tools/deploy",
+    "precommit": "pretty-quick --staged",
     "encrypt-env": "openssl aes-256-cbc -a -salt -in .env -pass file:encrypted/.inteligir_dev.key -out encrypted/env.enc",
     "decrypt-env": "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
-    "heroku-postbuild": "npm run build",
-    "precommit": "pretty-quick --staged",
+    "analyze": "source-map-explorer client/build/static/js/main.*",
     "test": "jest"
   },
   "jest": {
@@ -31,36 +32,11 @@
     "type": "git",
     "url": "https://github.com/Inteligir/Inteligir"
   },
-  "_moduleDirectories": [
-    "server"
-  ],
-  "dependencies": {
-    "aws-sdk": "2.303.0",
-    "body-parser": "1.18.3",
-    "boom": "7.2.0",
-    "concurrently": "4.0.1",
-    "cookie-session": "2.0.0-beta.3",
-    "dotenv": "6.0.0",
-    "express": "4.16.3",
-    "express-async-errors": "3.0.0",
-    "helmet": "3.13.0",
-    "jest": "23.5.0",
-    "migrate-mongoose": "3.2.2",
-    "mime-types": "2.1.20",
-    "module-alias": "2.1.0",
-    "mongoose": "5.2.10",
-    "nodemon": "1.18.3",
-    "passport": "0.4.0",
-    "passport-google-oauth20": "1.0.0",
-    "path-parser": "4.2.0",
-    "puppeteer": "1.7.0",
-    "redis": "2.8.0",
-    "uuid": "3.3.2"
-  },
   "devDependencies": {
-    "ajv": "6.0.0",
     "babel-cli": "6.26.0",
     "babel-eslint": "9.0.0",
+    "concurrently": "4.0.1",
+    "dotenv": "6.0.0",
     "eslint": "5.4.0",
     "eslint-config-airbnb": "17.1.0",
     "eslint-config-prettier": "3.0.1",
@@ -70,6 +46,7 @@
     "eslint-plugin-react": "7.11.1",
     "husky": "0.14.3",
     "inquirer": "6.2.0",
+    "nodemon": "1.18.4",
     "prettier": "1.14.2",
     "pretty-quick": "1.6.0",
     "source-map-explorer": "1.6.0"
