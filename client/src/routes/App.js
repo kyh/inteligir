@@ -29,14 +29,7 @@ class App extends Component {
     return (
       <Router history={History}>
         <section>
-          <LoadingBar
-            style={{
-              backgroundColor: '#009fe8',
-              boxShadow: '#009fe8 1px 1px 3px 0px',
-              height: '2px',
-              transition: 'transform .8s linear, opacity .4s',
-            }}
-          />
+          <LoadingBar className="loading-bar" maxProgress={100} />
           <Navigation />
           <Switch>
             <Route exact path="/lessons/new" component={LessonNew} />

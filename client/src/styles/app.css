@@ -20,6 +20,31 @@
   padding: 150px 20px 20px;
 }
 
+.loading-bar {
+  opacity: 1;
+  position: absolute;
+  top: 0;
+  background: linear-gradient(
+    90deg,
+    var(--brand-primary) 0,
+    var(--brand-dark-blue) 50%,
+    var(--brand-primary)
+  );
+  background-size: 400% 400%;
+  height: 3px;
+  animation: loading-bar 1s linear infinite;
+  transition: transform 0.8s linear, opacity 0.4s;
+}
+
+@keyframes loading-bar {
+  0% {
+    background-position: 0 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+
 /**
  * Typography
  */
