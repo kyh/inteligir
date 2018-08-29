@@ -9,7 +9,9 @@ export default ({ lesson }) => {
       <span className="intro-author">
         By:{' '}
         {lesson.authors.map((a) => (
-          <Link to={`/profile/${a._id}`}>{a.displayName}</Link>
+          <Link key={a._id} to={`/profile/${a._id}`}>
+            {a.displayName}
+          </Link>
         ))}
       </span>
       <h3 className="intro-title">{lesson.title}</h3>
