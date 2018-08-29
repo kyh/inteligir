@@ -14,6 +14,14 @@
   font-size: 1.3rem;
 }
 
+.intro .intro-author > a::after {
+  content: ', ';
+}
+
+.intro .intro-author > a:last-child::after {
+  content: '';
+}
+
 .intro .intro-title {
   font-size: 4.5rem;
 }
