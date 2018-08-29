@@ -32,6 +32,11 @@
     "type": "git",
     "url": "https://github.com/Inteligir/Inteligir"
   },
+  "cacheDirectories": [
+    "node_modules",
+    "client/node_modules",
+    "server/node_modules"
+  ],
   "devDependencies": {
     "babel-cli": "6.26.0",
     "babel-eslint": "9.0.0",
