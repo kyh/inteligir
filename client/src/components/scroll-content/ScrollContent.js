@@ -7,11 +7,33 @@ import './ScrollContent.css';
 class ScrollContent extends Component {
   state = {
     currentActiveStep: null,
+    initialized: false,
   };
 
   componentDidMount() {
-    if (!this.el) return;
+    if (!this.state.initialized && this.el) {
+      this.initializeScroller();
+    }
+  }
 
+  componentWillUnmount() {
+    if (this.state.initialized) {
+      this.scrollerParam.instance.destroy();
+      window.removeEventListener('resize', this.handleResize);
+    }
+  }
+
+  componentDidUpdate() {
+    if (
+      !this.state.initialized &&
+      this.props.steps &&
+      this.props.steps.length
+    ) {
+      this.initializeScroller();
+    }
+  }
+
+  initializeScroller = () => {
     this.scrollerParam = {
       instance: scrollama(),
       container: this.el,
@@ -33,14 +55,9 @@ class ScrollContent extends Component {
       .onContainerExit(this.props.handleContainerExit);
 
     window.addEventListener('resize', this.handleResize);
-  }
 
-  componentWillUnmount() {
-    if (!this.el) return;
-
-    this.scrollerParam.instance.destroy();
-    window.removeEventListener('resize', this.handleResize);
-  }
+    this.setState({ initialized: true });
+  };
 
   handleResize = () => {
     this.scrollerParam.instance.resize();

@@ -1,6 +1,11 @@
 .lesson-page {
   background: #fff;
-  padding-bottom: 10rem;
+  padding: 5rem 0 15rem;
+}
+
+.lesson-content-container {
+  max-width: 1500px;
+  margin: 0 auto;
 }
 
 .intro {
