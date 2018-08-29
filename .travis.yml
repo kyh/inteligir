@@ -8,6 +8,7 @@ services:
 cache:
   directories:
     - node_modules
+    - server/node_modules
     - client/node_modules
 install:
   - npm install
