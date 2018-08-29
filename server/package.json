@@ -1,0 +1,33 @@
+{
+  "name": "api-server",
+  "version": "0.0.0",
+  "private": true,
+  "main": "index.js",
+  "_moduleDirectories": [
+    "."
+  ],
+  "dependencies": {
+    "ajv": "6.0.0",
+    "aws-sdk": "2.303.0",
+    "body-parser": "1.18.3",
+    "boom": "7.2.0",
+    "cookie-session": "2.0.0-beta.3",
+    "express": "4.16.3",
+    "express-async-errors": "3.0.0",
+    "helmet": "3.13.0",
+    "jest": "23.5.0",
+    "migrate-mongoose": "3.2.2",
+    "mime-types": "2.1.20",
+    "module-alias": "2.1.0",
+    "mongoose": "5.2.10",
+    "passport": "0.4.0",
+    "passport-google-oauth20": "1.0.0",
+    "path-parser": "4.2.0",
+    "puppeteer": "1.7.0",
+    "redis": "2.8.0",
+    "uuid": "3.3.2"
+  },
+  "scripts": {
+    "start": "node index.js"
+  }
+}
