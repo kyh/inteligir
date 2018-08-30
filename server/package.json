@@ -7,7 +7,7 @@
     "."
   ],
   "dependencies": {
-    "aws-sdk": "2.303.0",
+    "aws-sdk": "2.305.0",
     "body-parser": "1.18.3",
     "boom": "7.2.0",
     "cookie-session": "2.0.0-beta.3",
