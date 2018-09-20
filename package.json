@@ -51,12 +51,12 @@
     "eslint-plugin-prettier": "2.6.2",
     "eslint-plugin-react": "7.11.1",
     "jest": "23.5.0",
-    "puppeteer": "1.7.0",
+    "puppeteer": "1.8.0",
     "husky": "0.14.3",
     "inquirer": "6.2.0",
     "nodemon": "1.18.4",
     "prettier": "1.14.3",
-    "pretty-quick": "1.6.0",
+    "pretty-quick": "1.7.0",
     "source-map-explorer": "1.6.0"
   }
 }
