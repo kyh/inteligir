@@ -47,7 +47,7 @@ We recommend using `n` to manage multiple node installs:
 ```bash
 npm install -g n
 # now we can use n to manage our node version!
-n 8.11.4
+n 8.12.0
 # Switch versions with "n <version>"
 # See datails of n here: https://github.com/tj/n
 ```
