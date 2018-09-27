@@ -1,7 +1,7 @@
 require('module-alias/register');
 
-const path = require('path');
 const express = require('express');
+const cors = require('cors');
 const mongoose = require('mongoose');
 const cookieSession = require('cookie-session');
 const passport = require('passport');
@@ -13,8 +13,8 @@ const {
   catchErrorMiddleware,
 } = require('middlewares/route-util');
 
+// Set up models and services.
 require('express-async-errors');
-
 require('api/users/user.model');
 require('api/lessons/lesson.model');
 require('services/passport');
@@ -25,6 +25,13 @@ mongoose.connect(keys.mongoURI);
 
 const app = express();
 
+// Set up app middlewares.
+app.use(
+  cors({
+    origin: keys.clientUrl,
+    credentials: true,
+  }),
+);
 app.use(helmet());
 app.use(bodyParser.json());
 app.use(responseMiddleware);
@@ -41,13 +48,6 @@ app.use(passport.session());
 require('api/users/auth.route')(app);
 require('api/upload/upload.route')(app);
 require('api/lessons/lesson.route')(app);
-
-if (['production', 'ci'].includes(process.env.NODE_ENV)) {
-  app.use(express.static('client/build'));
-  app.get('*', (req, res) => {
-    res.sendFile(path.resolve('client', 'build', 'index.html'));
-  });
-}
 
 // Catch all errors.
 app.use(catchErrorMiddleware);
