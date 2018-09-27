@@ -23,15 +23,6 @@ module.exports = {
     'operator-linebreak': 'off',
   },
   settings: {
-    'import/resolver': {
-      node: {
-        paths: [
-          path.resolve(__dirname, './client/node_modules'),
-          path.resolve(__dirname, './client/src'),
-          path.resolve(__dirname, './server/node_modules'),
-          path.resolve(__dirname, './server'),
-        ],
-      },
-    },
+    'import/resolver': {},
   },
 };

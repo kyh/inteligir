@@ -10,19 +10,17 @@
     "npm": "6.4.1"
   },
   "scripts": {
-    "postinstall": "npm install --prefix server && npm install --prefix client",
-    "setup": "npm run decrypt-env && npm install",
-    "start": "node server/index.js",
-    "server": "nodemon -r dotenv/config server/index.js --ignore tests",
-    "client": "npm run dev --prefix client",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "build": "NPM_CONFIG_PRODUCTION=false npm run build --prefix client",
-    "deploy": "node -r dotenv/config tools/deploy",
-    "precommit": "pretty-quick --staged",
     "encrypt-env": "openssl aes-256-cbc -a -salt -in .env -pass file:encrypted/.inteligir_dev.key -out encrypted/env.enc",
     "decrypt-env": "openssl aes-256-cbc -d -a -salt -in encrypted/env.enc -pass file:encrypted/.inteligir_dev.key -out .env",
+    "setup": "npm run decrypt-env && npm install",
+    "dev": "nodemon -r dotenv/config server.js",
+    "build": "next build client",
+    "start": "NODE_ENV=production node server.js",
+    "deploy": "node -r dotenv/config tools/deploy",
+    "precommit": "pretty-quick --staged",
     "analyze": "source-map-explorer client/build/static/js/main.*",
-    "test": "jest"
+    "test": "jest",
+    "heroku-postbuild": "npm run build"
   },
   "jest": {
     "setupTestFrameworkScriptFile": "./tests/setup.js"
@@ -31,13 +29,52 @@
     "type": "git",
     "url": "https://github.com/Inteligir/Inteligir"
   },
-  "cacheDirectories": [
-    "node_modules",
-    "client/node_modules",
-    "server/node_modules"
-  ],
+  "dependencies": {
+    "aws-sdk": "2.319.0",
+    "body-parser": "1.18.3",
+    "boom": "7.2.0",
+    "cookie-session": "2.0.0-beta.3",
+    "cors": "^2.8.4",
+    "express": "4.16.3",
+    "express-async-errors": "3.0.0",
+    "helmet": "3.13.0",
+    "migrate-mongoose": "3.2.2",
+    "mime-types": "2.1.20",
+    "module-alias": "2.1.0",
+    "mongoose": "5.2.16",
+    "passport": "0.4.0",
+    "passport-google-oauth20": "1.0.0",
+    "redis": "2.8.0",
+    "uuid": "3.3.2",
+    "axios": "0.18.0",
+    "babel-plugin-styled-components": "^1.7.1",
+    "classnames": "2.2.6",
+    "draft-js": "0.10.5",
+    "draft-js-anchor-plugin": "2.0.2",
+    "draft-js-buttons": "^2.0.1",
+    "draft-js-divider-plugin": "0.2.1",
+    "draft-js-focus-plugin": "2.2.0",
+    "draft-js-inline-toolbar-plugin": "2.0.3",
+    "draft-js-markdown-shortcuts-plugin": "0.5.0",
+    "draft-js-plugins-editor": "2.1.1",
+    "evergreen-ui": "4.0.0-30",
+    "intersection-observer": "0.5.0",
+    "lodash": "4.17.11",
+    "next": "7.0.0",
+    "next-redux-wrapper": "^2.0.0",
+    "nprogress": "0.2.0",
+    "prop-types": "15.6.2",
+    "react": "16.5.2",
+    "react-dom": "16.5.2",
+    "react-redux": "5.0.7",
+    "redux": "4.0.0",
+    "redux-form": "7.4.2",
+    "redux-thunk": "2.3.0",
+    "scrollama": "1.4.4",
+    "styled-components": "^3.4.9",
+    "vanilla-tilt": "1.4.1"
+  },
   "devDependencies": {
-    "ajv": "6.0.0",
     "babel-cli": "6.26.0",
     "babel-eslint": "9.0.0",
     "concurrently": "4.0.1",
@@ -56,6 +93,13 @@
     "prettier": "1.14.3",
     "pretty-quick": "1.7.0",
     "puppeteer": "1.8.0",
-    "source-map-explorer": "1.6.0"
+    "source-map-explorer": "1.6.0",
+    "webpack": "4.20.2",
+    "workbox-webpack-plugin": "^3.6.1"
+  },
+  "_moduleAliases": {
+    "@root": ".",
+    "@server": "server",
+    "@client": "client"
   }
 }
