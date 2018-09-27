@@ -2,7 +2,7 @@ const path = require('path');
 const WorkboxPlugin = require('workbox-webpack-plugin');
 
 module.exports = {
-  webpack: (config, { buildId, dev }) => {
+  webpack: (config, { dev }) => {
     /**
      * Install and Update our Service worker
      * on our main entry file :)
@@ -12,8 +12,10 @@ module.exports = {
 
     config.entry = () =>
       oldEntry().then((entry) => {
-        entry['main.js'] &&
+        if (entry['main.js']) {
           entry['main.js'].push(path.resolve('./utils/offline'));
+        }
+
         return entry;
       });
 

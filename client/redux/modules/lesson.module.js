@@ -3,7 +3,6 @@
  */
 import axios from 'axios';
 import { mapKeys } from 'lodash';
-import History from 'util/History';
 
 // Create
 export const CREATE_LESSON_REQUEST = 'CREATE_LESSON_REQUEST';
@@ -20,7 +19,6 @@ export const createLesson = (values, file) => async (dispatch) => {
     ...values,
     imageUrl: uploadConfig.data.key,
   });
-  History.push('/feed');
   dispatch({ type: CREATE_LESSON_SUCCESS, payload: res.data });
 };
 

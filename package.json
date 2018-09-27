@@ -10,12 +10,11 @@
     "npm": "6.4.1"
   },
   "scripts": {
-    "heroku-postbuild": "npm run build",
     "postinstall": "npm install --prefix server && npm install --prefix client",
     "setup": "npm run decrypt-env && npm install",
     "start": "node server/index.js",
     "server": "nodemon -r dotenv/config server/index.js --ignore tests",
-    "client": "npm run start --prefix client",
+    "client": "npm run dev --prefix client",
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build": "NPM_CONFIG_PRODUCTION=false npm run build --prefix client",
     "deploy": "node -r dotenv/config tools/deploy",
