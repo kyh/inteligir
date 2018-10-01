@@ -3,11 +3,11 @@
 
 # Inteligir
 
-> The web is a educational medium. Inteligir is a platform to build interactive lessons and visually explain them.
+> The web is a educational medium. Inteligir is a platform to build interactive visual explanations.
 
-#### How does visually explaining work?
+#### What do you mean by visual explaining?
 
-Inteligir uses a technique on the web called scrollytelling. Scrollytelling is a way of storytelling where content unfolds as a user scrolls. Some examples in the wild:
+We uses a technique on the web called scrollytelling. Scrollytelling is a way of storytelling where content unfolds as a user scrolls. Some examples in the wild:
 
 - [R2D3](http://www.r2d3.us/visual-intro-to-machine-learning-part-1/)
 - [Waveforms](https://pudding.cool/2018/02/waveforms/)
@@ -54,7 +54,7 @@ n 8.12.0
 
 To setup the server:
 
-- grab a `.inteligir_dev.key` from another team member and move the file into `/encrypted` directory
+- grab a `.inteligir_dev.key` from another contributor and move the file into `/encrypted` directory
   then run:
 
 ```bash
