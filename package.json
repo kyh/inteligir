@@ -27,8 +27,8 @@
   },
   "_moduleAliases": {
     "@root": ".",
-    "@server": "server",
-    "@client": "client"
+    "@server": "./server",
+    "@client": "./client"
   },
   "husky": {
     "hooks": {
