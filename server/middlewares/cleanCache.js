@@ -1,4 +1,4 @@
-const { clearHash } = require('services/cache');
+const { clearHash } = require('@server/services/cache');
 
 module.exports = async (req, res, next) => {
   await next();

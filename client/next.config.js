@@ -1,8 +1,13 @@
 const path = require('path');
 const WorkboxPlugin = require('workbox-webpack-plugin');
+const npmPackage = require('../package.json');
 
 module.exports = {
   webpack: (config, { dev }) => {
+    config.resolve = {
+      alias: npmPackage._moduleAliases || {},
+    };
+
     /**
      * Install and Update our Service worker
      * on our main entry file :)

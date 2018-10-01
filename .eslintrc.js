@@ -23,6 +23,8 @@ module.exports = {
     'operator-linebreak': 'off',
   },
   settings: {
-    'import/resolver': {},
+    'import/resolver': {
+      alias: true,
+    },
   },
 };
