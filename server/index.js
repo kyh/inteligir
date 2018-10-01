@@ -7,18 +7,18 @@ const cookieSession = require('cookie-session');
 const passport = require('passport');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
-const keys = require('config/keys');
+const keys = require('@server/config/keys');
 const {
   responseMiddleware,
   catchErrorMiddleware,
-} = require('middlewares/route-util');
+} = require('@server/middlewares/route-util');
 
 // Set up models and services.
 require('express-async-errors');
-require('api/users/user.model');
-require('api/lessons/lesson.model');
-require('services/passport');
-require('services/cache');
+require('@server/api/users/user.model');
+require('@server/api/lessons/lesson.model');
+require('@server/services/passport');
+require('@server/services/cache');
 
 mongoose.Promise = global.Promise;
 mongoose.connect(keys.mongoURI);
@@ -45,9 +45,9 @@ app.use(passport.initialize());
 app.use(passport.session());
 
 // API routes.
-require('api/users/auth.route')(app);
-require('api/upload/upload.route')(app);
-require('api/lessons/lesson.route')(app);
+require('@server/api/users/auth.route')(app);
+require('@server/api/upload/upload.route')(app);
+require('@server/api/lessons/lesson.route')(app);
 
 // Catch all errors.
 app.use(catchErrorMiddleware);
