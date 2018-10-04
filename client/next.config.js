@@ -2,11 +2,12 @@ const path = require('path');
 const WorkboxPlugin = require('workbox-webpack-plugin');
 const npmPackage = require('../package.json');
 
+/* eslint-disable */
 module.exports = {
   webpack: (config, { dev }) => {
-    config.resolve = {
+    config.resolve = Object.assign(config.resolve || {}, {
       alias: npmPackage._moduleAliases || {},
-    };
+    });
 
     /**
      * Install and Update our Service worker
