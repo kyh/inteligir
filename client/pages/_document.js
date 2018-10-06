@@ -1,6 +1,11 @@
 import React from 'react';
 import Document, { Head, Main, NextScript } from 'next/document';
 
+// import '@client/styles/variables.css';
+// import '@client/styles/global.css';
+// import '@client/styles/app.css';
+// import '@client/styles/fonts/fonts.css';
+
 export default class MyDocument extends Document {
   render() {
     return (
@@ -95,8 +100,6 @@ export default class MyDocument extends Document {
             sizes="16x16"
             href="static/favicon-16x16.png"
           />
-
-          <title>Inteligir</title>
           <link
             href="https://fonts.googleapis.com/css?family=Source+Serif+Pro:400,700"
             rel="stylesheet"
