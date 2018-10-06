@@ -5,7 +5,6 @@ import { connect } from 'react-redux';
 import { loadUser } from 'redux/modules/auth.module';
 import History from 'util/History';
 
-import LoadingBar from 'react-redux-loading-bar';
 import Navigation from 'components/navigation/Navigation';
 import LandingPage from 'routes/landing/Landing';
 import AboutPage from 'routes/about/About';
@@ -29,7 +28,6 @@ class App extends Component {
     return (
       <Router history={History}>
         <section>
-          <LoadingBar className="loading-bar" maxProgress={100} />
           <Navigation />
           <Switch>
             <Route exact path="/lessons/new" component={LessonNew} />
