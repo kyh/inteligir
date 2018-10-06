@@ -1,11 +1,6 @@
 import React from 'react';
 import Document, { Head, Main, NextScript } from 'next/document';
 
-// import '@client/styles/variables.css';
-// import '@client/styles/global.css';
-// import '@client/styles/app.css';
-// import '@client/styles/fonts/fonts.css';
-
 export default class MyDocument extends Document {
   render() {
     return (
