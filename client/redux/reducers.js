@@ -1,12 +1,10 @@
 import { combineReducers } from 'redux';
 import { reducer as reduxForm } from 'redux-form';
-import { loadingBarReducer } from 'react-redux-loading-bar';
 
 import authReducer, { RESET_REDUX_STORE } from './modules/auth.module';
 import lessonReducer from './modules/lesson.module';
 
 const appReducer = combineReducers({
-  loadingBar: loadingBarReducer,
   form: reduxForm,
   auth: authReducer,
   lessons: lessonReducer,
