@@ -105,7 +105,6 @@ Make sure you have [Package Control](https://packagecontrol.io/installation) ins
 
 To get syntax highlighting to work on Sublime you'll want to install the following packages:
 
-- [Sass](https://packagecontrol.io/packages/Sass) - Sass syntax highlighting for `.scss` files
 - [Babel Sublime](https://github.com/babel/babel-sublime) - JavaScript syntax highlighting for ES6/ES7 and JSX
   - You should set this as your default syntax when opening `.js` files by following the instructions [here](https://github.com/babel/babel-sublime#setting-as-the-default-syntax)
 - [SublimeLinter](http://sublimelinter.readthedocs.io/en/latest/installation.html)

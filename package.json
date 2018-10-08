@@ -39,6 +39,7 @@
     "setupTestFrameworkScriptFile": "./tests/setup.js"
   },
   "dependencies": {
+    "adorable-avatars": "^0.2.1",
     "aws-sdk": "2.325.0",
     "axios": "0.18.0",
     "body-parser": "1.18.3",

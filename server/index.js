@@ -1,19 +1,25 @@
 require('module-alias/register');
 
+// Core module requirements.
 const path = require('path');
 const express = require('express');
 const next = require('next');
 const cors = require('cors');
 const mongoose = require('mongoose');
+
+// Express Middleware.
 const cookieSession = require('cookie-session');
 const passport = require('passport');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
-const keys = require('@server/config/keys');
+const avatarsMiddleware = require('adorable-avatars');
 const {
   responseMiddleware,
   catchErrorMiddleware,
 } = require('@server/middlewares/route-util');
+
+// Configuration keys.
+const keys = require('@server/config/keys');
 
 const PORT = process.env.PORT || 5000;
 const IS_DEV = process.env.NODE_ENV !== 'production';
@@ -68,6 +74,7 @@ app.prepare().then(() => {
   );
   server.use(passport.initialize());
   server.use(passport.session());
+  server.use('/avatars', avatarsMiddleware);
 
   // Instantiate API routes.
   authRoutes(server);
