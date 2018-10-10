@@ -12,7 +12,7 @@ const cookieSession = require('cookie-session');
 const passport = require('passport');
 const bodyParser = require('body-parser');
 const helmet = require('helmet');
-const avatarsMiddleware = require('adorable-avatars');
+const avatarsMiddleware = require('adorable-avatars').default;
 const {
   responseMiddleware,
   catchErrorMiddleware,
