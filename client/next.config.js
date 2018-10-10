@@ -23,7 +23,6 @@ module.exports = {
     /* Enable only in Production */
     if (!dev) {
       // Service Worker
-
       config.plugins.push(
         new WorkboxPlugin.InjectManifest({
           swSrc: path.join(__dirname, 'utils', 'sw.js'),

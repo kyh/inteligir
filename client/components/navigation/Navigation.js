@@ -2,12 +2,26 @@ import React, { Component } from 'react';
 import PropTypes from 'prop-types';
 import classnames from 'classnames';
 import { connect } from 'react-redux';
-import { withRouter, NavLink } from 'react-router-dom';
+import Link from 'next/link';
+import Router from 'next/router';
 import { Dialog, Popover, Position } from 'evergreen-ui';
-import Avatar from 'components/avatar/Avatar';
-import Button from 'components/button/Button';
-import Logo from 'components/icons/Logo';
+import NProgress from 'nprogress';
+
+import Avatar from '@client/components/avatar/Avatar';
+import Button from '@client/components/button/Button';
+import Logo from '@client/components/icons/Logo';
 import './Navigation.css';
+
+Router.onRouteChangeStart = () => {
+  NProgress.start();
+};
+Router.onRouteChangeComplete = () => {
+  NProgress.done();
+};
+
+Router.onRouteChangeError = () => {
+  NProgress.done();
+};
 
 class Navigation extends Component {
   static propTypes = {
@@ -30,13 +44,13 @@ class Navigation extends Component {
   renderContent() {
     switch (this.props.isAuthenticated) {
       case null:
-        return;
+        return null;
       case false:
         return [
           <li className="nav-item" key="about">
-            <NavLink className="nav-link" to="/about">
+            <Link className="nav-link" to="/about">
               About
-            </NavLink>
+            </Link>
           </li>,
           <li className="nav-item" key="login">
             <Button
@@ -78,22 +92,19 @@ class Navigation extends Component {
               content={({ close }) => (
                 <ul role="menu" className="profile-dropdown">
                   <li className="profile-dropdown-item">
-                    <NavLink onClick={close} to="/lessons/new">
+                    <Link onClick={close} to="/lessons/new">
                       New lesson
-                    </NavLink>
+                    </Link>
                   </li>
                   <li className="profile-dropdown-item">
-                    <NavLink onClick={close} to="/lessons/drafts">
+                    <Link onClick={close} to="/lessons/drafts">
                       My lessons
-                    </NavLink>
+                    </Link>
                   </li>
                   <li className="profile-dropdown-item">
-                    <NavLink
-                      onClick={close}
-                      to={`/profile/${this.props.userId}`}
-                    >
+                    <Link onClick={close} to={`/profile/${this.props.userId}`}>
                       Profile
-                    </NavLink>
+                    </Link>
                   </li>
                   <li className="profile-dropdown-item">
                     <a href="/auth/logout">Sign out</a>
@@ -123,12 +134,12 @@ class Navigation extends Component {
     return (
       <nav className={navClass}>
         <section className="nav-container">
-          <NavLink
+          <Link
             to={this.props.isAuthenticated ? '/feed' : '/'}
             className="nav-logo"
           >
             <Logo />
-          </NavLink>
+          </Link>
           <ul className="nav-item-container">{this.renderContent()}</ul>
         </section>
       </nav>

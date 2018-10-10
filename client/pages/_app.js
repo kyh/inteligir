@@ -2,8 +2,8 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import App, { Container } from 'next/app';
 import withRedux from 'next-redux-wrapper';
-import Head from 'next/head';
 
+import Page from '@client/components/Page';
 import initStore from '@client/utils/store';
 
 /* debug to log how the store is being used */
@@ -26,11 +26,10 @@ export default withRedux(initStore, {
       const { Component, pageProps, store } = this.props;
       return (
         <Container>
-          <Head>
-            <title>Inteligir</title>
-          </Head>
           <Provider store={store}>
-            <Component {...pageProps} />
+            <Page>
+              <Component {...pageProps} />
+            </Page>
           </Provider>
         </Container>
       );

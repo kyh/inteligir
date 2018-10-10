@@ -1,13 +1,41 @@
-/**
- * Reboot
- * Normalization of HTML elements, manually forked from bootstrap.css to remove
- * styles targeting irrelevant browsers while applying new styles.
- */
+import React from 'react';
+import { ThemeProvider, createGlobalStyle } from 'styled-components';
+import Meta from '@client/components/Meta';
+import theme from '@client/utils/theme';
 
-/*
-  html is set to 62.5% so that all the REM measurements are based on 10px sizing.
-  So basically 1.5rem = 15px :)
-*/
+const GlobalStyle = createGlobalStyle`
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/static/fonts/ProximaNova-Light.woff2') format('woff2'),
+    url('/static/fonts/ProximaNova-Light.woff') format('woff');
+  font-weight: 300;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/static/fonts/ProximaNova-Regular.woff2') format('woff2'),
+    url('/static/fonts/ProximaNova-Regular.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/static/fonts/ProximaNova-Semibold.woff2') format('woff2'),
+    url('/static/fonts/ProximaNova-Semibold.woff') format('woff');
+  font-weight: 500;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Proxima Nova';
+  src: url('/static/fonts/ProximaNova-Bold.woff2') format('woff2'),
+    url('/static/fonts/ProximaNova-Bold.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+}
+
 html {
   font-size: 62.5%;
   box-sizing: border-box;
@@ -23,9 +51,9 @@ body {
   font-size: 2rem;
   line-height: 1.77;
   text-align: left;
-  font-family: var(--pxn-font);
-  color: var(--text-color);
-  background-color: var(--background-grey);
+  font-family: ${theme['pxn-font']};
+  color: ${theme['text-color']};
+  background-color: ${theme['background-grey']};
 }
 
 *,
@@ -48,13 +76,6 @@ section {
   display: block;
 }
 
-/**
- * Suppress the focus outline on elements that cannot be accessed via keyboard.
- * This prevents an unwanted focus outline from appearing around elements that
- * might still respond to pointer events.
- *
- * Credit: https://github.com/suitcss/base
- */
 [tabindex='-1']:focus {
   outline: 0 !important;
 }
@@ -65,18 +86,14 @@ hr {
   overflow: visible;
 }
 
-.section-title {
-  margin-bottom: 4rem;
-}
-
 h1,
 h2,
 h3,
 h4,
 h5,
 h6 {
-  color: var(--title-color);
-  font-family: var(--ssp-font);
+  color: ${theme['title-color']});
+  font-family: ${theme['ssp-font']});
   margin-top: 0;
   line-height: 1.2;
   margin-bottom: 2rem;
@@ -189,16 +206,16 @@ sup {
 }
 
 a {
-  color: var(--brand-dark-blue);
+  color: ${theme['brand-dark-blue']});
   text-decoration: none;
   background-color: transparent;
   -webkit-text-decoration-skip: objects;
-  border-bottom: 1px solid var(--border-color);
+  border-bottom: 1px solid ${theme['border-color']});
   transition: color, border-color 0.2s linear;
 }
 
 a:hover {
-  border-bottom-color: var(--brand-dark-blue);
+  border-bottom-color: ${theme['brand-dark-blue']});
 }
 
 a:not([href]):not([tabindex]) {
@@ -388,3 +405,16 @@ template {
 [hidden] {
   display: none !important;
 }
+`;
+
+const Page = ({ children }) => (
+  <ThemeProvider theme={theme}>
+    <main>
+      <Meta />
+      {children}
+      <GlobalStyle />
+    </main>
+  </ThemeProvider>
+);
+
+export default Page;
