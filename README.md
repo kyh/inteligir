@@ -17,22 +17,23 @@ We uses a technique on the web called scrollytelling. Scrollytelling is a way of
 ## Directory Layout
 
 ```
-├── /client                      # [ReactJS client](app/README.md), which contains most of our UI
-│   ├── /src
-│   │   ├── /components          # React components, reusable across all pages
-│   │   ├── /util                # Helper functions/Utilities/Services
-│   │   ├── /redux               # Redux modules
-│   │   ├── /routes              # App route definitions
-│   │   └── /styles              # Global app styles
-│   └── index.js                 # Web client entry point
-│── /server                      # NodeJS server
-│   ├── /api                     # Inteligir API routes, models, and controllers
+├── /client                      # ReactJS client, which contains most of our UI
+│   ├── /components              # React components, reusable across all pages
+│   ├── /utils                   # Helper functions/Utilities/Services
+│   ├── /redux                   # Redux modules
+│   ├── /pages                   # App route definitions
+│   └── /static                  # Static assets
+│   └── next.config.js           # Next.js SSR configuration
+│── /server                      # Node.js server, serves the web app as well as API endpoints
+│   ├── /api                     # API routes, models, and controllers
 │   ├── /config                  # Server environment variables
 │   ├── /middlewares             # Express app middleware
-│   ├── /services                # Server helper functions/Utilities/Services
+│   ├── /services                # Server Helper functions/Utilities/Services
 │   └── index.js                 # Server entry point
-│── /science                     # Deep neural network training and evaluation, as well as data analyses.
-└── /test                        # Javascript tests
+│── /worker                      # JavaScript worker modules
+│── /science                     # DNN training and evaluation, as well as data analyses.
+│── /k8s                         # K8 configuration and deployment files
+└── /tests                       # Javascript tests
 ```
 
 ## Getting Started
