@@ -1,4 +1,5 @@
 [![Build Status](https://travis-ci.org/Inteligir/Inteligir.svg?branch=master)](https://travis-ci.org/Inteligir/Inteligir)
+[![Dependency Status](https://david-dm.org/inteligir/inteligir-platform/status.svg)](https://david-dm.org/inteligir/inteligir-platform)
 [![Greenkeeper badge](https://badges.greenkeeper.io/Inteligir/Inteligir.svg)](https://greenkeeper.io/)
 
 # Inteligir
