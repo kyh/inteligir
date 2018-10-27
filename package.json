@@ -62,7 +62,7 @@
     "intersection-observer": "0.5.0",
     "lodash": "4.17.11",
     "migrate-mongoose": "3.2.2",
-    "mime-types": "2.1.20",
+    "mime-types": "2.1.21",
     "module-alias": "2.1.0",
     "mongoose": "5.3.2",
     "next": "7.0.2",
