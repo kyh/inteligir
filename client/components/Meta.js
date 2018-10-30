@@ -15,6 +15,7 @@ const Meta = () => (
       content="static/favicons/ms-icon-144x144.png"
     />
     <meta name="referrer" content="origin" />
+    <meta name="description" content="Educational medium for the web" />
 
     <meta property="fb:app_id" content="" />
     <meta property="og:title" content="Educational medium for the web" />
