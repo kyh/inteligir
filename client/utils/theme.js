@@ -38,11 +38,4 @@ export default {
   'container-max': '1000px',
   'container-max-small': '840px',
   'container-max-xsmall': '600px',
-
-  /* Breakpoints
-–––––––––––––––––––––––––––––––––––––––––––––––––– */
-  'bp-mobile-xs': '321px',
-  'bp-mobile': '767px',
-  'bp-tablet': '992px',
-  'bp-desktop': '1200px',
 };
