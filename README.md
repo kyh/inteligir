@@ -6,7 +6,7 @@
 
 > Build quick machine learning models directly in your browser
 
-Upload a CSV file and train a pre-built machine learning model. Make predictions, tune, and export your model directly from your browser.
+Upload your dataset and train a pre-built machine learning model. Make predictions, tune, and export your model directly from your browser.
 
 ## Directory Layout
 
