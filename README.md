@@ -4,15 +4,9 @@
 
 # Inteligir
 
-> The web is a educational medium. Inteligir is a platform to build interactive visual explanations.
+> Build quick machine learning models directly in your browser
 
-#### What do you mean by visual explaining?
-
-We uses a technique on the web called scrollytelling. Scrollytelling is a way of storytelling where content unfolds as a user scrolls. Some examples in the wild:
-
-- [R2D3](http://www.r2d3.us/visual-intro-to-machine-learning-part-1/)
-- [Waveforms](https://pudding.cool/2018/02/waveforms/)
-- [Differences in how news outlets cover the news](https://pudding.cool/2018/01/chyrons/)
+Upload a CSV file and train a pre-built machine learning model. Make predictions, tune, and export your model directly from your browser.
 
 ## Directory Layout
 
@@ -49,7 +43,7 @@ We recommend using `n` to manage multiple node installs:
 ```bash
 npm install -g n
 # now we can use n to manage our node version!
-n 8.12.0
+n 10.13.0
 # Switch versions with "n <version>"
 # See datails of n here: https://github.com/tj/n
 ```
@@ -101,28 +95,6 @@ Release tag names follow [semantic versioning](http://semver.org/) e.g.
 
 JavaScript - this project follows the [Airbnb Style Guide](https://github.com/airbnb/javascript) along with [Prettier](https://prettier.io/) formatting.
 
-#### Sublime text
-
-Make sure you have [Package Control](https://packagecontrol.io/installation) installed on your Sublime Text. This will allow us to automatically install extensions needed to syntax highlight directly in your editor.
-
-To get syntax highlighting to work on Sublime you'll want to install the following packages:
-
-- [Babel Sublime](https://github.com/babel/babel-sublime) - JavaScript syntax highlighting for ES6/ES7 and JSX
-  - You should set this as your default syntax when opening `.js` files by following the instructions [here](https://github.com/babel/babel-sublime#setting-as-the-default-syntax)
-- [SublimeLinter](http://sublimelinter.readthedocs.io/en/latest/installation.html)
-- [SublimeLinter-eslint](https://github.com/roadhump/SublimeLinter-eslint) - Linter plugin to highlight JavaScript by reading the `.eslintrc.js` file
-
-Some additional helper plugins:
-
-- [DocBlockr](https://github.com/spadgos/sublime-jsdocs) - Helps document functions by typing `/**` and pressing tab
-- [Emmet](https://emmet.io/) - autocomplete HTML snippets, you can type `div.header{hello}` and press tab -> it will turn into `<div className="header">hello</div>`
-
-You can install all the packages at once by pressing <kbd>cmd</kbd><kbd>shift</kbd><kbd>p</kbd> (On OSX) and typing "Advanced install package". Copy and paste the list of packages below:
-
-```
-"Babel", "DocBlockr", "Sass", "SublimeLinter", "SublimeLinter-eslint",
-```
-
 ## Debugging Tips
 
 You can debug node apps by attaching an `ndb` instance to your running node server. First install the
@@ -138,12 +110,3 @@ without needing to restart the server! Start the debugger by running:
 ```bash
 make debug
 ```
-
-#### Redux Modules... _What the Duck_?
-
-The `client/src/redux/modules` folder contains "modules" to help
-isolate concerns within a Redux application (aka [Ducks](https://github.com/erikras/ducks-modular-redux).
-
-#### Styles
-
-TODO: complete this section.

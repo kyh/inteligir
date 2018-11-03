@@ -7,12 +7,10 @@ const About = () => {
       <section className="container-xsmall">
         <header className="text-center">
           <h5 className="section-subtitle">A little about us</h5>
-          <h1 className="section-title">The web is a educational medium</h1>
+          <h1 className="section-title">
+            Build quick machine learning models directly in your browser
+          </h1>
         </header>
-        <p>
-          Inteligir is a platform to build interactive lessons and visually
-          explain them.
-        </p>
         <p>
           Lorem ipsum dolor amet you probably haven't heard of them cliche kale
           chips cornhole, ennui scenester godard. Lumbersexual occupy hexagon,
