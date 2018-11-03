@@ -30,8 +30,8 @@ export default {
 
   /* Fonts
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
-  'ssp-font': 'Source Serif Pro serif',
-  'pxn-font': 'Proxima Nova Helvetica Neue sans-serif',
+  'ssp-font': 'Source Serif Pro, serif',
+  'pxn-font': 'Proxima Nova, Helvetica Neue, sans-serif',
 
   /* Layout
 –––––––––––––––––––––––––––––––––––––––––––––––––– */
