@@ -40,7 +40,7 @@
   },
   "dependencies": {
     "adorable-avatars": "^0.2.1",
-    "aws-sdk": "2.345.0",
+    "aws-sdk": "2.346.0",
     "axios": "0.18.0",
     "body-parser": "1.18.3",
     "boom": "7.2.1",
