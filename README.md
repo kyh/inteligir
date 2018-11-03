@@ -91,10 +91,6 @@ Release tag names follow [semantic versioning](http://semver.org/) e.g.
 
 - `v1.0.0`
 
-## Style Guide
-
-JavaScript - this project follows the [Airbnb Style Guide](https://github.com/airbnb/javascript) along with [Prettier](https://prettier.io/) formatting.
-
 ## Debugging Tips
 
 You can debug node apps by attaching an `ndb` instance to your running node server. First install the
@@ -110,3 +106,7 @@ without needing to restart the server! Start the debugger by running:
 ```bash
 make debug
 ```
+
+## Style Guide
+
+JavaScript - this project follows the [Airbnb Style Guide](https://github.com/airbnb/javascript) along with [Prettier](https://prettier.io/) formatting.
