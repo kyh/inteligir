@@ -15,10 +15,16 @@ const Meta = () => (
       content="static/favicons/ms-icon-144x144.png"
     />
     <meta name="referrer" content="origin" />
-    <meta name="description" content="Educational medium for the web" />
+    <meta
+      name="description"
+      content="Build quick machine learning models directly in your browser"
+    />
 
     <meta property="fb:app_id" content="" />
-    <meta property="og:title" content="Educational medium for the web" />
+    <meta
+      property="og:title"
+      content="Build quick machine learning models directly in your browser"
+    />
     <meta property="og:image" content="" />
     <meta property="og:site_name" content="Inteligir" />
     <meta property="og:url" content="https://inteligir.com" />

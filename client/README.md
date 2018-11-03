@@ -1,3 +1,3 @@
 # Inteligir Web Client
 
-> The web is a educational medium. Inteligir is a platform to build interactive lessons and visually explain them.
+> Build quick machine learning models directly in your browser

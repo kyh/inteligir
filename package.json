@@ -1,16 +1,16 @@
 {
   "name": "Inteligir",
-  "description": "Inteligir is a platform to build interactive visual explanations",
+  "description": "Build quick machine learning models directly in your browser",
   "author": "Kaiyu Hsu <im.kaiyu@gmail.com> (http://github.com/tehkaiyu)",
   "license": "MIT",
   "version": "0.0.0",
   "main": "server/index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/Inteligir/Inteligir"
+    "url": "https://github.com/inteligir/inteligir-platform"
   },
   "engines": {
-    "node": "8.11.4",
+    "node": "10.13.0",
     "npm": "6.4.1"
   },
   "scripts": {
