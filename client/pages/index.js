@@ -1,10 +1,10 @@
 import React from 'react';
-import Avatar from '@client/components/Avatar';
+import Button from '@client/components/Button';
 
 const Home = () => (
   <div>
     Hello there
-    <Avatar imgUrl="/avatars/1" status="brand-yellow" />
+    <Button isLoading>Click</Button>
   </div>
 );
 
