@@ -1,8 +1,7 @@
 export default {
   /* Colors
-–––––––––––––––––––––––––––––––––––––––––––––––––– */
-  'brand-primary': '#009fe8',
-  'brand-dark-blue': '#0669de',
+–––––––––––––––––––––––––––––––––––––––––––––– */
+  'brand-primary': '#0076ff',
   'brand-yellow': '#f8df64',
   'brand-black': '#273e4b',
   'brand-red': '#f44336',
@@ -29,12 +28,12 @@ export default {
   'color-n-10': '#234361',
 
   /* Fonts
-–––––––––––––––––––––––––––––––––––––––––––––––––– */
+–––––––––––––––––––––––––––––––––––––––––––––– */
   'ssp-font': 'Source Serif Pro, serif',
   'pxn-font': 'Proxima Nova, Helvetica Neue, sans-serif',
 
   /* Layout
-–––––––––––––––––––––––––––––––––––––––––––––––––– */
+–––––––––––––––––––––––––––––––––––––––––––––– */
   'container-max': '1000px',
   'container-max-small': '840px',
   'container-max-xsmall': '600px',
