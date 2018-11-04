@@ -8,8 +8,8 @@ export default {
   'brand-red': '#f44336',
 
   /* Text colors */
-  'text-color': '#425a70',
-  'title-color': '#234361',
+  'text-color': '#424648',
+  'title-color': '#1c1d1e',
 
   /* Background Colors */
   'border-color': '#edebeb',
