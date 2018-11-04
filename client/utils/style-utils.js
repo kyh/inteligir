@@ -1,17 +1,23 @@
-import { css } from 'styled-components';
+/**
+ * Style constants: Enums used for component props.
+ */
+export const KIND = {
+  primary: 'primary',
+  blue: 'blue',
+  plain: 'plain',
+  minimal: 'minimal',
+};
 
-export function textOverflow() {
-  return `
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  `;
-}
+export const SHAPE = {
+  default: 'default',
+  round: 'round',
+  pill: 'pill',
+};
 
-export const media = {
-  mobile: (...args) => css`
-    @media (max-width: 768px) {
-      ${css(...args)};
-    }
-  `,
+export const SIZE = {
+  default: 'default',
+  small: 'small',
+  large: 'large',
+  jumbo: 'jumbo',
+  compact: 'compact',
 };

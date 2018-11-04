@@ -1,6 +1,7 @@
+// @flow
 import React from 'react';
 import styled from 'styled-components';
-import { textOverflow } from '@client/utils/style-utils';
+import { ellipsis } from 'polished';
 
 export const StyledAvatarInfo = styled.div`
   margin-left: 1rem;
@@ -15,14 +16,14 @@ export const StyledName = styled.span`
   color: ${(props) => props.theme['title-color']};
   font-weight: ${(props) => (props.highlighted ? '500' : '400')}
   line-height: 2.2rem;
-  ${textOverflow()};
+  ${ellipsis('250px')};
 `;
 
 export const StyledTextTop = styled.span`
   font-size: 1.2rem;
   color: ${(props) => props.theme['text-color']};
   line-height: 1.8rem;
-  ${textOverflow()};
+  ${ellipsis('250px')};
 `;
 
 export const StyledTextBottom = styled.span`
@@ -30,7 +31,7 @@ export const StyledTextBottom = styled.span`
   color: ${(props) => props.theme['text-color']};
   line-height: 1.8rem;
   margin-top: 2px;
-  ${textOverflow()};
+  ${ellipsis('250px')};
 `;
 
 type AvatarInfoProps = {

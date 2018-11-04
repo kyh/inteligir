@@ -1,20 +1,37 @@
+// @flow
 import React from 'react';
 import styled from 'styled-components';
+import { SIZE } from '@client/utils/style-utils';
 import AvatarImage from './AvatarImage';
 import AvatarInfo from './AvatarInfo';
 
 function getAvatarPxSize(size) {
   switch (size) {
-    case 'small':
-      return '28px';
-    case 'medium':
+    case SIZE.default:
       return '38px';
-    case 'large':
+    case SIZE.small:
+      return '28px';
+    case SIZE.large:
       return '60px';
-    case 'jumbo':
+    case SIZE.jumbo:
       return '120px';
     default:
       return '38px';
+  }
+}
+
+function getStatusSize(size) {
+  switch (size) {
+    case SIZE.default:
+      return '10px';
+    case SIZE.small:
+      return '6px';
+    case SIZE.large:
+      return '15px';
+    case SIZE.jumbo:
+      return '20px';
+    default:
+      return '10px';
   }
 }
 
@@ -30,21 +47,6 @@ const StyledAvatarAction = styled.div`
   bottom: 0;
   right: 0;
 `;
-
-function getStatusSize(size) {
-  switch (size) {
-    case 'small':
-      return '6px';
-    case 'medium':
-      return '10px';
-    case 'large':
-      return '15px';
-    case 'jumbo':
-      return '20px';
-    default:
-      return '10px';
-  }
-}
 
 const StyledAvatarStatus = styled.div`
   position: absolute;
@@ -65,7 +67,7 @@ export type AvatarProps = {
   highlighted?: Boolean,
   textBottom?: React.node,
   actionIcon?: React.node,
-  size?: 'small' | 'medium' | 'large' | 'jumbo',
+  size?: $Keys<typeof SIZE>,
 };
 
 const Avatar = ({
@@ -104,7 +106,7 @@ Avatar.defaultProps = {
   highlighted: false,
   status: null,
   imgUrl: null,
-  size: 'medium',
+  size: SIZE.default,
 };
 
 export default Avatar;
