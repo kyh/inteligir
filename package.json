@@ -30,11 +30,6 @@
     "@server": "./server",
     "@client": "./client"
   },
-  "husky": {
-    "hooks": {
-      "pre-commit": "pretty-quick --staged"
-    }
-  },
   "jest": {
     "setupTestFrameworkScriptFile": "./tests/setup.js"
   },
@@ -62,6 +57,7 @@
     "nprogress": "0.2.0",
     "passport": "0.4.0",
     "passport-google-oauth20": "1.0.0",
+    "polished": "2.3.0",
     "prop-types": "15.6.2",
     "react": "16.6.0",
     "react-dom": "16.6.0",
@@ -88,6 +84,7 @@
     "eslint-config-airbnb": "17.1.0",
     "eslint-config-prettier": "3.1.0",
     "eslint-import-resolver-alias": "1.1.1",
+    "eslint-plugin-flowtype": "^3.2.0",
     "eslint-plugin-import": "2.14.0",
     "eslint-plugin-jsx-a11y": "6.1.2",
     "eslint-plugin-prettier": "3.0.0",
