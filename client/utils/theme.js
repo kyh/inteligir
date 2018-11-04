@@ -3,7 +3,7 @@ export default {
 –––––––––––––––––––––––––––––––––––––––––––––– */
   'brand-primary': '#0076ff',
   'brand-yellow': '#f8df64',
-  'brand-black': '#273e4b',
+  'brand-black': '#141516',
   'brand-red': '#f44336',
 
   /* Text colors */
