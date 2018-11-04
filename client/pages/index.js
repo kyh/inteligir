@@ -4,13 +4,7 @@ import Avatar from '@client/components/Avatar';
 const Home = () => (
   <div>
     Hello there
-    <Avatar
-      imgUrl={[
-        { imgUrl: '/avatars/2' },
-        { imgUrl: '/avatars/1' },
-        { imgUrl: '/avatars/4' },
-      ]}
-    />
+    <Avatar imgUrl="/avatars/1" status="brand-yellow" />
   </div>
 );
 

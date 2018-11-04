@@ -1,82 +1,26 @@
 import React from 'react';
 import styled from 'styled-components';
-import AvatarStatus from './AvatarStatus';
 import AvatarImage from './AvatarImage';
 import AvatarInfo from './AvatarInfo';
 
-const StyledAvatar = styled.div`
-  display: flex;
-  align-items: center;
-  ${(props) =>
-    props.highlighted &&
-    `
-    .name {
-      font-weight: 500;
-    }
-  `}
+function getAvatarPxSize(size) {
+  switch (size) {
+    case 'small':
+      return '28px';
+    case 'large':
+      return '60px';
+    case 'jumbo':
+      return '120px';
+    default:
+      return '38px';
+  }
+}
 
-  ${(props) =>
-    props.size === 'small' &&
-    `
-    .avatar-container {
-      height: 28px;
-      width: 28px;
-    }
-  `}
-
-  ${(props) =>
-    props.size === 'large' &&
-    `
-    .avatar-container {
-      height: 60px;
-      width: 60px;
-    }
-    .name {
-      font-size: 1.7rem;
-    }
-  `}
-
-  ${(props) =>
-    props.size === 'larger' &&
-    `
-    .avatar-container {
-      height: 80px;
-      width: 80px;
-    }
-    .name {
-      font-size: 2rem;
-    }
-  `}
-
-  ${(props) =>
-    props.size === 'extraLarge' &&
-    `
-    .avatar-container {
-      height: 100px;
-      width: 100px;
-    }
-    .name {
-      font-size: 2rem;
-    }
-  `}
-
-  ${(props) =>
-    props.size === 'jumbo' &&
-    `
-    .avatar-container {
-      height: 120px;
-      width: 120px;
-    }
-  `}
-`;
-
-const StyledAvatarContainer = styled.div.attrs({
-  className: 'avatar-container',
-})`
+const StyledAvatarContainer = styled.div`
+  display: inline-block;
   position: relative;
-  height: 38px;
-  width: 38px;
-  flex-shrink: 0;
+  height: ${(props) => getAvatarPxSize(props.size)};
+  width: ${(props) => getAvatarPxSize(props.size)};
 `;
 
 const StyledAvatarAction = styled.div`
@@ -85,15 +29,39 @@ const StyledAvatarAction = styled.div`
   right: 0;
 `;
 
+function getStatusSize(size) {
+  switch (size) {
+    case 'small':
+      return '6px';
+    case 'large':
+      return '15px';
+    case 'jumbo':
+      return '20px';
+    default:
+      return '10px';
+  }
+}
+
+const StyledAvatarStatus = styled.div`
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  background: ${(props) => props.theme[props.status]};
+  height: ${(props) => getStatusSize(props.size)};
+  width: ${(props) => getStatusSize(props.size)};
+  border-radius: 50%;
+  border: 1px solid #fff;
+`;
+
 export type AvatarProps = {
   name?: React.node,
-  status?: React.node,
-  imgUrl?: String | Array<String>,
+  status?: String,
+  imgUrl?: String,
   textTop?: String,
   highlighted?: Boolean,
   textBottom?: React.node,
   actionIcon?: React.node,
-  size?: 'small' | 'large' | 'larger' | 'extraLarge' | 'jumbo',
+  size?: 'small' | 'large' | 'jumbo',
 };
 
 const Avatar = ({
@@ -106,16 +74,22 @@ const Avatar = ({
   size,
   textBottom,
 }: AvatarProps) => (
-  <StyledAvatar highlighted={highlighted} size={size}>
-    <StyledAvatarContainer>
+  <>
+    <StyledAvatarContainer size={size}>
       <AvatarImage imgUrl={imgUrl} />
       {actionIcon && <StyledAvatarAction>{actionIcon}</StyledAvatarAction>}
+      {status && <StyledAvatarStatus status={status} size={size} />}
     </StyledAvatarContainer>
     {name && (
-      <AvatarInfo name={name} textTop={textTop} textBottom={textBottom} />
+      <AvatarInfo
+        name={name}
+        textTop={textTop}
+        textBottom={textBottom}
+        size={size}
+        highlighted={highlighted}
+      />
     )}
-    {status && <AvatarStatus status={status} />}
-  </StyledAvatar>
+  </>
 );
 
 Avatar.defaultProps = {
