@@ -9,7 +9,12 @@ const MODULE_ALIAS = [
 
 module.exports = {
   parser: 'babel-eslint',
-  extends: ['airbnb', 'plugin:prettier/recommended'],
+  extends: [
+    'plugin:flowtype/recommended',
+    'airbnb',
+    'plugin:prettier/recommended',
+  ],
+  plugins: ['flowtype'],
   env: {
     browser: true,
     node: true,
