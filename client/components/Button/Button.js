@@ -7,7 +7,7 @@ type ButtonProps = {
   children?: React.node,
   type?: String,
   // appearence
-  size?: 'small' | 'default' | 'large',
+  size?: 'small' | 'medium' | 'large',
   appearance?: 'default' | 'primary' | 'minimal',
   intent?: 'none' | 'success' | 'warning' | 'danger',
   // functionality
@@ -47,7 +47,7 @@ export default class Button extends React.PureComponent<ButtonProps> {
     children: null,
     type: 'button',
     href: null,
-    size: 'default',
+    size: 'medium',
     appearance: 'default',
     intent: 'none',
     isLoading: false,

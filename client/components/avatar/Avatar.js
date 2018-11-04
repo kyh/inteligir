@@ -7,6 +7,8 @@ function getAvatarPxSize(size) {
   switch (size) {
     case 'small':
       return '28px';
+    case 'medium':
+      return '38px';
     case 'large':
       return '60px';
     case 'jumbo':
@@ -33,6 +35,8 @@ function getStatusSize(size) {
   switch (size) {
     case 'small':
       return '6px';
+    case 'medium':
+      return '10px';
     case 'large':
       return '15px';
     case 'jumbo':
@@ -61,7 +65,7 @@ export type AvatarProps = {
   highlighted?: Boolean,
   textBottom?: React.node,
   actionIcon?: React.node,
-  size?: 'small' | 'large' | 'jumbo',
+  size?: 'small' | 'medium' | 'large' | 'jumbo',
 };
 
 const Avatar = ({
@@ -100,7 +104,7 @@ Avatar.defaultProps = {
   highlighted: false,
   status: null,
   imgUrl: null,
-  size: null,
+  size: 'medium',
 };
 
 export default Avatar;
