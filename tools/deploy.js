@@ -4,7 +4,7 @@ const inquirer = require('inquirer');
 const DEPLOY_LOCATIONS = {
   dev: { herokuName: 'inteligir-dev', value: 'dev' },
   staging: { herokuName: 'inteligir-staging', value: 'staging' },
-  prod: { herokuName: 'inteligir', value: 'prod' },
+  prod: { herokuName: 'inteligir-prod', value: 'prod' },
 };
 
 function execLog(command) {
@@ -49,62 +49,66 @@ function clearCloudFlareCache() {
   return Promise.resolve();
 }
 
-inquirer
-  .prompt([
-    {
-      type: 'list',
-      name: 'location',
-      message: 'Where would you like to deploy to?',
-      choices: Object.values(DEPLOY_LOCATIONS),
-      default: DEPLOY_LOCATIONS.dev.value,
-    },
-    {
-      type: 'input',
-      name: 'branch',
-      message: 'What branch do you want to deploy?',
-      default: () => execPromise('git rev-parse --abbrev-ref HEAD'),
-      filter: (val) => val.replace(/\n$/, ''),
-    },
-    {
-      type: 'input',
-      name: 'release',
-      message: 'What would you like to tag your release?',
-      default: () =>
-        execPromise('git describe --tags --abbrev=0 --match node-*').then(
-          (stdout) => {
-            const latestRelease = stdout.split('.');
-            // Increment by 1 minor version.
-            return `${latestRelease[0]}.${latestRelease[1]}.${parseInt(
-              latestRelease[2],
-              10,
-            ) + 1}`;
-          },
-        ),
-      when: (answers) => answers.location === DEPLOY_LOCATIONS.prod.value,
-      filter: (val) => val.replace(/\n$/, ''),
-    },
-  ])
-  .then(async (answers) => {
-    await beforeDeploy();
+console.log('Fetching the latest branches and tags...');
+// Before we do anything, fetch the latest branches and tags.
+exec('git fetch origin', () => {
+  inquirer
+    .prompt([
+      {
+        type: 'list',
+        name: 'location',
+        message: 'Where would you like to deploy to?',
+        choices: Object.values(DEPLOY_LOCATIONS),
+        default: DEPLOY_LOCATIONS.dev.value,
+      },
+      {
+        type: 'input',
+        name: 'branch',
+        message: 'What branch do you want to deploy?',
+        default: () => execPromise('git rev-parse --abbrev-ref HEAD'),
+        filter: (val) => val.replace(/\n$/, ''),
+      },
+      // {
+      //   type: 'input',
+      //   name: 'release',
+      //   message: 'What would you like to tag your release?',
+      //   default: () =>
+      //     execPromise('git describe --tags --abbrev=0 --match node-*').then(
+      //       (stdout) => {
+      //         const latestRelease = stdout.split('.');
+      //         // Increment by 1 minor version.
+      //         return `${latestRelease[0]}.${latestRelease[1]}.${parseInt(
+      //           latestRelease[2],
+      //           10,
+      //         ) + 1}`;
+      //       },
+      //     ),
+      //   when: (answers) => answers.location === DEPLOY_LOCATIONS.prod.value,
+      //   filter: (val) => val.replace(/\n$/, ''),
+      // },
+    ])
+    .then(async (answers) => {
+      await beforeDeploy();
 
-    if (answers.location === DEPLOY_LOCATIONS.dev.value) {
-      console.log('Deploying Inteligir App to dev:');
-      await deploy(answers.location, answers.branch);
-    }
-
-    if (answers.location === DEPLOY_LOCATIONS.staging.value) {
-      console.log('Deploying Inteligir App to staging:');
-      await deploy(answers.location, answers.branch);
-    }
-
-    if (answers.location === DEPLOY_LOCATIONS.prod.value) {
-      console.log('Deploying Inteligir App to prod:');
-      await deploy(answers.location, answers.branch);
-      await tagRelease(answers.release);
-      if (answers.cache) {
-        await clearCloudFlareCache();
+      if (answers.location === DEPLOY_LOCATIONS.dev.value) {
+        console.log('Deploying Inteligir to dev:');
+        await deploy(answers.location, answers.branch);
       }
-    }
 
-    await afterDeploy();
-  });
+      if (answers.location === DEPLOY_LOCATIONS.staging.value) {
+        console.log('Deploying Inteligir to staging:');
+        await deploy(answers.location, answers.branch);
+      }
+
+      if (answers.location === DEPLOY_LOCATIONS.prod.value) {
+        console.log('Deploying Inteligir to prod:');
+        await deploy(answers.location, answers.branch);
+        // await tagRelease(answers.release);
+        // if (answers.cache) {
+        //   await clearCloudFlareCache();
+        // }
+      }
+
+      await afterDeploy();
+    });
+});
