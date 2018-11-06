@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "adorable-avatars": "0.2.1",
-    "aws-sdk": "2.346.0",
+    "aws-sdk": "2.349.0",
     "axios": "0.18.0",
     "body-parser": "1.18.3",
     "boom": "7.2.2",
@@ -95,7 +95,7 @@
     "husky": "1.1.3",
     "inquirer": "6.2.0",
     "jest": "23.6.0",
-    "nodemon": "1.18.5",
+    "nodemon": "1.18.6",
     "prettier": "1.14.3",
     "pretty-quick": "1.8.0",
     "puppeteer": "1.10.0",
