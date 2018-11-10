@@ -42,8 +42,8 @@
     "cookie-session": "2.0.0-beta.3",
     "cors": "2.8.5",
     "evergreen-ui": "4.3.0",
-    "express": "4.16.3",
-    "express-async-errors": "3.1.0",
+    "express": "4.16.4",
+    "express-async-errors": "3.1.1",
     "helmet": "3.14.0",
     "intersection-observer": "0.5.1",
     "lodash": "4.17.11",
@@ -70,7 +70,7 @@
     "uuid": "3.3.2",
     "vanilla-tilt": "1.5.0",
     "workbox-webpack-plugin": "3.6.3",
-    "webpack": "4.25.0"
+    "webpack": "4.25.1"
   },
   "devDependencies": {
     "babel-eslint": "10.0.1",
@@ -78,7 +78,7 @@
     "babel-plugin-styled-components": "1.8.0",
     "babel-plugin-transform-flow-strip-types": "6.22.0",
     "dotenv": "6.1.0",
-    "eslint": "5.6.1",
+    "eslint": "5.9.0",
     "eslint-config-airbnb": "17.1.0",
     "eslint-config-prettier": "3.1.0",
     "eslint-import-resolver-alias": "1.1.1",
