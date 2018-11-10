@@ -14,7 +14,7 @@ module.exports = {
     config.entry = () =>
       oldEntry().then((entry) => {
         if (entry['main.js']) {
-          entry['main.js'].push(path.resolve('./client/utils/offline'));
+          entry['main.js'].push(path.resolve(__dirname, 'utils/offline'));
         }
 
         return entry;
