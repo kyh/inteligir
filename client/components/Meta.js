@@ -1,6 +1,11 @@
 import React from 'react';
 import Head from 'next/head';
 
+const TITLE = 'Inteligir';
+const DESCRIPTION = '';
+const PREVIEW_IMAGE_URL = '';
+const SITE_URL = 'https://inteligir.com';
+
 const Meta = () => (
   <Head>
     <meta charSet="utf-8" />
@@ -8,26 +13,32 @@ const Meta = () => (
       name="viewport"
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui"
     />
-    <meta name="theme-color" content="#2C4452" />
+    <meta name="referrer" content="origin" />
+
+    <meta name="title" content={TITLE} />
+    <meta name="description" content={DESCRIPTION} />
+
+    <meta property="og:title" content={TITLE} />
+    <meta property="og:description" content={DESCRIPTION} />
+    <meta property="og:url" content={SITE_URL} />
+    <meta property="og:image" content={PREVIEW_IMAGE_URL} />
+    <meta property="og:site_name" content={TITLE} />
+    <meta property="og:type" content="website" />
+    <meta property="fb:app_id" content="" />
+
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content={TITLE} />
+    <meta property="twitter:description" content={DESCRIPTION} />
+    <meta property="twitter:url" content={SITE_URL} />
+    <meta property="twitter:image" content={PREVIEW_IMAGE_URL} />
+
     <meta name="msapplication-TileColor" content="#2C4452" />
     <meta
       name="msapplication-TileImage"
       content="static/favicons/ms-icon-144x144.png"
     />
-    <meta name="referrer" content="origin" />
-    <meta
-      name="description"
-      content="Build quick machine learning models directly in your browser"
-    />
 
-    <meta property="fb:app_id" content="" />
-    <meta
-      property="og:title"
-      content="Build quick machine learning models directly in your browser"
-    />
-    <meta property="og:image" content="" />
-    <meta property="og:site_name" content="Inteligir" />
-    <meta property="og:url" content="https://inteligir.com" />
+    <meta name="theme-color" content="#2C4452" />
 
     <link rel="manifest" href="static/manifest.json" />
     <link
@@ -98,10 +109,6 @@ const Meta = () => (
       type="image/png"
       sizes="16x16"
       href="static/favicons/favicon-16x16.png"
-    />
-    <link
-      href="https://fonts.googleapis.com/css?family=Source+Serif+Pro:400,700"
-      rel="stylesheet"
     />
   </Head>
 );
