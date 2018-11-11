@@ -60,7 +60,7 @@
     "prop-types": "15.6.2",
     "react": "16.6.1",
     "react-dom": "16.6.1",
-    "react-redux": "5.1.0",
+    "react-redux": "5.1.1",
     "redis": "2.8.0",
     "redux": "4.0.1",
     "redux-form": "7.4.2",
