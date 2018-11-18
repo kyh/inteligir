@@ -50,7 +50,7 @@
     "migrate-mongoose": "3.2.2",
     "mime-types": "2.1.21",
     "module-alias": "2.1.0",
-    "mongoose": "5.3.11",
+    "mongoose": "5.3.12",
     "next": "7.0.2",
     "next-redux-wrapper": "2.0.0",
     "nprogress": "0.2.0",
