@@ -1,10 +1,12 @@
 import React from 'react';
 import Head from 'next/head';
+import theme from '@client/utils/theme';
 
 const TITLE = 'Inteligir';
 const DESCRIPTION = '';
 const PREVIEW_IMAGE_URL = '';
 const SITE_URL = 'https://inteligir.com';
+const FB_ID = '';
 
 const Meta = () => (
   <Head>
@@ -14,31 +16,36 @@ const Meta = () => (
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui"
     />
     <meta name="referrer" content="origin" />
+    <meta httpEquiv="Content-Security-Policy" content="default-src 'self'" />
 
+    <meta name="application-name" content={TITLE} />
+    <meta name="theme-color" content={theme['brand-black']} />
     <meta name="title" content={TITLE} />
     <meta name="description" content={DESCRIPTION} />
 
-    <meta property="og:title" content={TITLE} />
-    <meta property="og:description" content={DESCRIPTION} />
+    <meta property="fb:app_id" content={FB_ID} />
     <meta property="og:url" content={SITE_URL} />
-    <meta property="og:image" content={PREVIEW_IMAGE_URL} />
-    <meta property="og:site_name" content={TITLE} />
     <meta property="og:type" content="website" />
-    <meta property="fb:app_id" content="" />
+    <meta property="og:title" content={TITLE} />
+    <meta property="og:image" content={PREVIEW_IMAGE_URL} />
+    <meta property="og:description" content={DESCRIPTION} />
+    <meta property="og:site_name" content={TITLE} />
+    <meta property="og:locale" content="en_US" />
+    <meta property="article:author" content="Kaiyu Hsu" />
 
-    <meta property="twitter:card" content="summary_large_image" />
-    <meta property="twitter:title" content={TITLE} />
-    <meta property="twitter:description" content={DESCRIPTION} />
-    <meta property="twitter:url" content={SITE_URL} />
-    <meta property="twitter:image" content={PREVIEW_IMAGE_URL} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:site" content="@inteligir" />
+    <meta name="twitter:creator" content="@tehkaiyu" />
+    <meta name="twitter:url" content={SITE_URL} />
+    <meta name="twitter:title" content={TITLE} />
+    <meta name="twitter:description" content={DESCRIPTION} />
+    <meta name="twitter:image" content={PREVIEW_IMAGE_URL} />
 
     <meta name="msapplication-TileColor" content="#2C4452" />
     <meta
       name="msapplication-TileImage"
       content="static/favicons/ms-icon-144x144.png"
     />
-
-    <meta name="theme-color" content="#2C4452" />
 
     <link rel="manifest" href="static/manifest.json" />
     <link
