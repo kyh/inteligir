@@ -8,7 +8,7 @@ const About = () => {
         <header className="text-center">
           <h5 className="section-subtitle">A little about us</h5>
           <h1 className="section-title">
-            Build quick machine learning models directly in your browser
+            Making open source more accessible for everyone
           </h1>
         </header>
         <p>

@@ -4,9 +4,9 @@
 
 # Inteligir
 
-> Build quick machine learning models directly in your browser
+> Making open source more accessible for everyone
 
-Upload your dataset and train a pre-built machine learning model. Make predictions, tune, and export your model directly from your browser.
+Two of the most prominent barriers to developers’ involvement in open source are (a) not knowing where to begin and (b) doubting they have the right skills[*](https://www.digitalocean.com/currents/october-2018/). Inteligir is here to change that.
 
 ## Directory Layout
 
