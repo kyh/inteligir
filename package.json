@@ -48,7 +48,7 @@
     "lodash": "4.17.11",
     "migrate-mongoose": "3.2.2",
     "module-alias": "2.1.0",
-    "mongoose": "5.3.13",
+    "mongoose": "5.3.14",
     "next": "7.0.2",
     "next-redux-wrapper": "2.0.0",
     "nprogress": "0.2.0",
