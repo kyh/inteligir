@@ -1,3 +1,3 @@
 # Inteligir Server
 
-> Build quick machine learning models directly in your browser
+> Making open source more accessible for everyone

@@ -3,7 +3,7 @@ import Head from 'next/head';
 import theme from '@client/utils/theme';
 
 const TITLE = 'Inteligir';
-const DESCRIPTION = '';
+const DESCRIPTION = 'Making open source more accessible for everyone';
 const PREVIEW_IMAGE_URL = '';
 const SITE_URL = 'https://inteligir.com';
 const FB_ID = '';
