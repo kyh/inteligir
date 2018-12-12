@@ -4,9 +4,9 @@
 
 # Inteligir
 
-> Build quick machine learning models directly in your browser
+> Making open source more accessible for everyone
 
-Upload your dataset and train a pre-built machine learning model. Make predictions, tune, and export your model directly from your browser.
+Two of the most prominent barriers to developers’ involvement in open source are (a) not knowing where to begin and (b) doubting they have the right skills[*](https://www.digitalocean.com/currents/october-2018/). Inteligir is here to change that.
 
 ## Directory Layout
 
@@ -35,7 +35,7 @@ Upload your dataset and train a pre-built machine learning model. Make predictio
 Clone the repo:
 
 ```
-$ git clone git@github.com:Inteligir/Inteligir.git .
+$ git clone git@github.com:inteligir/inteligir.git .
 ```
 
 We recommend using `n` to manage multiple node installs:
@@ -75,11 +75,11 @@ npm run dev
 This will do two things:
 
 1.  Start the Webpack Dev Server that serves assets in the client directory (it will refresh the page on any changes)
-2.  Start a nodemon server for the server directory which will watch all server files
+2.  Start a nodemon server for the server directory which will watch all server files and restart the server on changes
 
 ## Deployment
 
-#### To deploy to dev server or production:
+#### To deploy to development or production:
 
 ```bash
 npm run deploy

@@ -6,7 +6,7 @@ const Home = () => {
   return (
     <div className="body-wrap boxed-container">
       <Head>
-        <title>Inteligir | Coming soon</title>
+        <title>Inteligir | Making open source more accessible for everyone</title>
         <link rel="stylesheet" href="/static/landing-page/style.css" />
       </Head>
       <header className="site-header">
@@ -26,11 +26,10 @@ const Home = () => {
             <div className="hero-inner">
               <div className="hero-copy">
                 <h1 className="hero-title mt-0 is-revealing">
-                  Build quick machine learning models directly in your browser.
+                  Making open source more accessible for everyone.
                 </h1>
                 <p className="hero-paragraph is-revealing">
-                  Inteligir is an open source project to help bring machine
-                  learning to your everyday person.
+                  Contributing to open source shouldn’t be scary. Inteligir is here to help you get over the hump and hand hold you through the process to becoming a core contributor.
                 </p>
               </div>
               <div className="hero-illustration">
@@ -862,9 +861,7 @@ const Home = () => {
                       <h4 className="feature-title m-0">Discover</h4>
                     </div>
                     <p className="text-sm mb-0">
-                      Upload your own dataset (or use one of our published ones)
-                      and train it our pre-built machine learning models to
-                      discover insights around your data.
+                      If you’re a new open source contributor, the process can be intimidating. How do you find the right project? What if you don’t know how to code? Don’t worry, Inteligir can help you find a perfect fit whether you’re a coder, designer, organizer, writer, or just want to help!
                     </p>
                   </div>
                 </div>
@@ -893,11 +890,10 @@ const Home = () => {
                           </g>
                         </svg>
                       </div>
-                      <h4 className="feature-title m-0">Predict</h4>
+                      <h4 className="feature-title m-0">Community</h4>
                     </div>
                     <p className="text-sm mb-0">
-                      Once trained, you can use this model to predict any new
-                      incoming data points.
+                      Contributing to open source community can be a rewarding way to learn, teach, and build experience in just about any skill you can imagine.
                     </p>
                   </div>
                 </div>
@@ -934,11 +930,10 @@ const Home = () => {
                           </g>
                         </svg>
                       </div>
-                      <h4 className="feature-title m-0">Export</h4>
+                      <h4 className="feature-title m-0">Publish</h4>
                     </div>
                     <p className="text-sm mb-0">
-                      Export your model along with the code for manual tuning
-                      and deployment on your own platform.
+                      Inteligir can help you format and publish your open source reputation to help grow your career and demonstrate what you can do.
                     </p>
                   </div>
                 </div>
