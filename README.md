@@ -4,9 +4,9 @@
 
 # Inteligir
 
-> Making open source more accessible for everyone
+> Making open source accessible for everyone
 
-Two of the most prominent barriers to developers’ involvement in open source are (a) not knowing where to begin and (b) doubting they have the right skills[*](https://www.digitalocean.com/currents/october-2018/). Inteligir is here to change that.
+Two of the most prominent barriers to developers’ involvement in open source are (a) not knowing where to begin and (b) doubting they have the right skills[\*](https://www.digitalocean.com/currents/october-2018/). Inteligir is here to change that.
 
 ## Directory Layout
 

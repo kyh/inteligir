@@ -3,7 +3,7 @@ import Head from 'next/head';
 import theme from '@client/utils/theme';
 
 const TITLE = 'Inteligir';
-const DESCRIPTION = 'Making open source more accessible for everyone';
+const DESCRIPTION = 'Making open source accessible for everyone';
 const PREVIEW_IMAGE_URL = '';
 const SITE_URL = 'https://inteligir.com';
 const FB_ID = '';
@@ -16,7 +16,6 @@ const Meta = () => (
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui"
     />
     <meta name="referrer" content="origin" />
-    <meta httpEquiv="Content-Security-Policy" content="default-src 'self'" />
 
     <meta name="application-name" content={TITLE} />
     <meta name="theme-color" content={theme['brand-black']} />
