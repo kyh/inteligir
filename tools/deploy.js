@@ -1,11 +1,6 @@
 const { spawn, exec } = require('child_process');
 const inquirer = require('inquirer');
-
-const DEPLOY_LOCATIONS = {
-  dev: { herokuName: 'inteligir-dev', value: 'dev' },
-  staging: { herokuName: 'inteligir-staging', value: 'staging' },
-  prod: { herokuName: 'inteligir-prod', value: 'prod' },
-};
+const DEPLOY_LOCATIONS = require('./heroku_mappings');
 
 function execLog(command) {
   return new Promise((resolve, reject) => {
