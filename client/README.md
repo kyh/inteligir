@@ -1,3 +1,3 @@
 # Inteligir Web Client
 
-> Making open source more accessible for everyone
+> Making open source accessible for everyone
