@@ -15,8 +15,8 @@ const DEPLOY_LOCATIONS = require('./heroku_mappings');
 
 const ENV_TO_APP_MAPPING = {
   local: DEPLOY_LOCATIONS.dev.herokuName,
-  development: DEPLOY_LOCATIONS.dev.herokuName,
-  production: DEPLOY_LOCATIONS.prod.herokuName,
+  dev: DEPLOY_LOCATIONS.dev.herokuName,
+  prod: DEPLOY_LOCATIONS.prod.herokuName,
 };
 
 const OVERRIDES = {
@@ -47,5 +47,5 @@ Promise.map(_.keys(ENV_TO_APP_MAPPING), async (env) => {
   const vars = _.extend(herokuVars, OVERRIDES[env] || {});
   const fileContents = generateDotenv(vars);
 
-  return writeFile(`.env.${env}`, fileContents);
+  return writeFile(`config/.env.${env}`, fileContents);
 });
