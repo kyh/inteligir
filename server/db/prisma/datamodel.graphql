@@ -1,0 +1,10 @@
+type User {
+  id: ID! @unique
+  googleId: String @unique
+  displayName: String
+  email: String! @unique
+  password: String
+  profileImageUrl: String
+  updatedAt: DateTime!
+  createdAt: DateTime!
+}
