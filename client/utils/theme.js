@@ -1,19 +1,20 @@
 export default {
   /* Colors
 –––––––––––––––––––––––––––––––––––––––––––––– */
-  'brand-primary': '#0076ff',
-  'brand-yellow': '#f8df64',
-  'brand-black': '#141516',
-  'brand-red': '#f44336',
+  'brand-cyan': '#9CD3FA',
+  'brand-cyan-dark': '#15C6E3',
+  'brand-purple': '#8389E1',
+  'brand-purple-dark': '#484A9F',
+  'brand-black': '#4D4F6A',
+  'brand-black-dark': '#242537',
 
   /* Text colors */
-  'text-color': '#424648',
-  'title-color': '#1c1d1e',
+  'text-color': '#C3CBD0',
+  'text-grey': '#8A96AD',
+  'title-color': '#FFFFFF',
 
   /* Background Colors */
-  'border-color': '#edebeb',
-  'background-grey': '#f6f9fa',
-  'background-black': '#1e2430',
+  'border-color': '#535473',
 
   /* Neutral Scales */
   'color-n-1': '#f9f9fb',
