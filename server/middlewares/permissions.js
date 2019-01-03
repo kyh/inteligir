@@ -26,6 +26,4 @@ const permissions = shield({
   },
 });
 
-module.exports = {
-  permissions,
-};
+module.exports = permissions;

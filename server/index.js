@@ -9,11 +9,12 @@ const path = require('path');
 const { GraphQLServer, PubSub } = require('graphql-yoga');
 
 /**
- * Express Middlewares.
+ * Express/Yoga Middlewares.
  */
 const avatarsMiddleware = require('adorable-avatars').default;
 const helmet = require('helmet');
 const passport = require('passport');
+const permissions = require('@server/middlewares/permissions');
 
 /**
  * Database: Postgres database with Prisma ORM for GraphQl mapping.
@@ -21,7 +22,6 @@ const passport = require('passport');
  */
 const { prisma } = require('@server/db/generated/prisma-client');
 const { resolvers } = require('@server/resolvers');
-const { permissions } = require('@server/middlewares/permissions');
 
 const PORT = process.env.PORT || 5000;
 const IS_DEV = process.env.NODE_ENV !== 'production';
