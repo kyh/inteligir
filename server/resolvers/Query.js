@@ -1,31 +1,32 @@
-module.exports = {
-  users(parent, args, { prisma }, info) {
-    const opArgs = {
-      first: args.first,
-      skip: args.skip,
-      after: args.after,
-      orderBy: args.orderBy,
-    };
+const { getUserId } = require('../utils')
 
-    if (args.query) {
-      opArgs.where = {
+const Query = {
+  me: (parent, args, context) => {
+    const userId = getUserId(context)
+    return context.prisma.user({ id: userId })
+  },
+  feed: (parent, args, context) => {
+    return context.prisma.posts({ where: { published: true } })
+  },
+  filterPosts: (parent, { searchString }, context) => {
+    return context.prisma.posts({
+      where: {
         OR: [
           {
-            name_contains: args.query,
+            title_contains: searchString,
+          },
+          {
+            content_contains: searchString,
           },
         ],
-      };
-    }
-
-    return prisma.query.users(opArgs, info);
-  },
-  me(parent, args, { prisma, request }, info) {
-    const userId = getUserId(request);
-
-    return prisma.query.user({
-      where: {
-        id: userId,
       },
-    });
+    })
   },
-};
+  post: (parent, { id }, context) => {
+    return context.prisma.post({ id })
+  },
+}
+
+module.exports = {
+  Query,
+}
