@@ -21,7 +21,7 @@ const passport = require('passport');
  */
 const { prisma } = require('@server/db/generated/prisma-client');
 const { resolvers } = require('@server/resolvers');
-const { permissions } = require('@server/permissions');
+const { permissions } = require('@server/middlewares/permissions');
 
 const PORT = process.env.PORT || 5000;
 const IS_DEV = process.env.NODE_ENV !== 'production';

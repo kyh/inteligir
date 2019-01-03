@@ -21,11 +21,13 @@ Two of the most prominent barriers to developers’ involvement in open source a
 │── /server                      # Node.js server, serves the web app as well as API endpoints
 │   ├── /api                     # API routes, models, and controllers
 │   ├── /config                  # Server environment variables
-│   ├── /middlewares             # Express app middleware
+│   ├── /db                      # Prisma generated files and app schema
+│   ├── /middlewares             # Express/Yoga middleware
+│   ├── /resolvers               # GraphQl resolvers
 │   ├── /services                # Server Helper functions/Utilities/Services
 │   └── index.js                 # Server entry point
+│── /prisma                      # Prisma datamodel and seed data
 │── /worker                      # JavaScript worker modules
-│── /science                     # DNN training and evaluation, as well as data analyses.
 │── /k8s                         # K8 configuration and deployment files
 └── /tests                       # Javascript tests
 ```
