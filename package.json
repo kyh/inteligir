@@ -14,11 +14,11 @@
     "npm": "6.4.1"
   },
   "scripts": {
-    "setup": "npm i && node tools/generate_env",
+    "setup": "npm i && node tools/generate_env && npm run deploy:schema",
     "dev": "env-cmd ./config/local.env nodemon server/index.js --ext js,graphql",
     "build": "env-cmd ./config/local.env next build client",
     "deploy": "env-cmd ./config/local.env node tools/deploy",
-    "get-schema": "env-cmd ./config/local.env graphql get-schema -p prisma",
+    "deploy:schema": "env-cmd ./config/local.env prisma deploy",
     "analyze": "source-map-explorer client/build/static/js/main.*",
     "test": "env-cmd ./config/test.env jest --watch --runInBand",
     "heroku-postbuild": "npm run build"

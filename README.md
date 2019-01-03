@@ -33,6 +33,8 @@ Two of the most prominent barriers to developers’ involvement in open source a
 ## Want to contribute?
 
 - [Setup your local Inteligir instance](docs/setup.md)
+- [Using the GraphQL API](docs/graphql.md)
+- [Evolving the server](docs/server.md)
 - [List of supported environment variables](docs/environment_variables.md)
 
 ## Discussion
