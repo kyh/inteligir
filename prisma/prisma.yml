@@ -1,11 +1,12 @@
 # Specifies the HTTP endpoint of your Prisma API.
-endpoint: ${env:PRISMA_ENDPOINT}
+# endpoint: ${env:PRISMA_ENDPOINT}
+endpoint: https://us1.prisma.sh/kaiyu-hsu-f70d57/inteligir-demo/dev
 
 # Defines your models, each model is mapped to the database as a table.
 datamodel: datamodel.prisma
 
 # Lock down prisma with the secret.
-secret: ${env:PRISMA_SECRET}
+# secret: ${env:PRISMA_SECRET}
 
 # Specifies the language and directory for the generated Prisma client.
 generate:
