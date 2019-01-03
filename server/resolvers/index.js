@@ -1,17 +1,17 @@
-const { extractFragmentReplacements } = require('prisma-binding');
-
-const Query = require('@server/resolvers/Query');
-const Mutation = require('@server/resolvers/Mutation');
-const Subscription = require('@server/resolvers/Subscription');
-const User = require('@server/resolvers/User');
+const { Query } = require('./Query');
+const { Mutation } = require('./Mutation');
+const { User } = require('./User');
+const { Post } = require('./Post');
+const { Subscription } = require('./Subscription');
 
 const resolvers = {
   Query,
   Mutation,
   // Subscription,
   User,
+  Post,
 };
 
-const fragmentReplacements = extractFragmentReplacements(resolvers);
-
-module.exports = { resolvers, fragmentReplacements };
+module.exports = {
+  resolvers,
+};

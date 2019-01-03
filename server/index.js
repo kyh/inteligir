@@ -12,24 +12,16 @@ const { GraphQLServer, PubSub } = require('graphql-yoga');
  * Express Middlewares.
  */
 const avatarsMiddleware = require('adorable-avatars').default;
-const bodyParser = require('body-parser');
-const cookieSession = require('cookie-session');
-const cors = require('cors');
 const helmet = require('helmet');
 const passport = require('passport');
-
-/**
- * Configuration keys:
- * See `docs/environment_variables.md` for server environment configuration.
- */
-const keys = require('@server/config/keys');
 
 /**
  * Database: Postgres database with Prisma ORM for GraphQl mapping.
  * - https://github.com/prisma/prisma
  */
-const { resolvers, fragmentReplacements } = require('@server/resolvers');
-const db = require('@server/db/db');
+const { prisma } = require('@server/db/generated/prisma-client');
+const { resolvers } = require('@server/resolvers');
+const { permissions } = require('@server/permissions');
 
 const PORT = process.env.PORT || 5000;
 const IS_DEV = process.env.NODE_ENV !== 'production';
@@ -53,29 +45,16 @@ app.prepare().then(() => {
   const pubsub = new PubSub();
   // Start up GraphQl web server.
   const server = new GraphQLServer({
-    typeDefs: './schema/schema.graphql',
+    typeDefs: './db/schema.graphql',
     resolvers,
+    middlewares: [permissions],
     context(request) {
-      return { pubsub, db, request };
+      return { pubsub, prisma, ...request };
     },
-    fragmentReplacements,
   });
 
   // Set up express middlewares.
-  server.express.use(
-    cors({
-      origin: keys.clientUrl,
-      credentials: true,
-    }),
-  );
   server.express.use(helmet());
-  server.express.use(bodyParser.json());
-  server.express.use(
-    cookieSession({
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-      keys: [keys.cookieKey],
-    }),
-  );
   server.express.use(passport.initialize());
   server.express.use(passport.session());
   server.express.use('/avatars', avatarsMiddleware);
