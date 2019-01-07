@@ -1,5 +1,5 @@
 const { rule, shield } = require('graphql-shield');
-const { getUserId } = require('../utils');
+// const { getUserId } = require('../utils');
 
 const rules = {
   isAuthenticatedUser: rule()((parent, args, context) => {
