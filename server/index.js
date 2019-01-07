@@ -62,7 +62,15 @@ app.prepare().then(() => {
   // Handle Next.js pages.
   server.express.get('*', handle);
 
-  server.start({ port: PORT }, () => {
-    console.log(`Listening on port`, PORT);
-  });
+  server.start(
+    {
+      port: PORT,
+      endpoint: '/graphql',
+      playground: '/playground',
+      debug: IS_DEV,
+    },
+    () => {
+      console.log(`Listening on port`, PORT);
+    },
+  );
 });
