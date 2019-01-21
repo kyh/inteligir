@@ -89,7 +89,7 @@ type Post {
 After having updated the datamodel, you need to deploy the changes:
 
 ```
-prisma deploy
+npm run deploy:schema
 ```
 
 Note that this also invokes `prisma generate` (because of the `post-deploy` hook in [`prisma.yml`](../prisma/prisma.yml)) which regenerates the Prisma client in [`../server/db/generated/prisma-client`](../server/db/generated/prisma-client).
@@ -192,10 +192,7 @@ You can now send the following mutation to your GraphQL API. Note that this muta
 
 ```graphql
 mutation {
-  writeComment(
-    postId: "__POST_ID__"
-    text: "I like turtles 🐢"
-  ) {
+  writeComment(postId: "__POST_ID__", text: "I like turtles 🐢") {
     id
     name
   }
