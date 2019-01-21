@@ -52,6 +52,7 @@
     "passport-google-oauth20": "1.0.0",
     "polished": "2.3.3",
     "prisma-binding": "2.2.14",
+    "prisma-client-lib": "^1.24.0",
     "prop-types": "15.6.2",
     "react": "16.7.0",
     "react-adopt": "0.6.0",

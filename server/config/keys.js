@@ -1,4 +1,5 @@
 module.exports = {
+  jwtSecret: process.env.JWT_SECRET,
   clientUrl: process.env.CLIENT_URL,
   googleClientID: process.env.GOOGLE_CLIENT_ID,
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET,
