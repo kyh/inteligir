@@ -13,7 +13,6 @@ const { GraphQLServer, PubSub } = require('graphql-yoga');
  */
 const avatarsMiddleware = require('adorable-avatars').default;
 const helmet = require('helmet');
-const passport = require('passport');
 const permissions = require('@server/middlewares/permissions');
 
 /**
@@ -28,7 +27,6 @@ const IS_DEV = process.env.NODE_ENV !== 'production';
 
 // Set up services.
 require('express-async-errors');
-require('@server/services/passport');
 
 /**
  * SSR is done using `Next.js`:
@@ -55,8 +53,6 @@ app.prepare().then(() => {
 
   // Set up express middlewares.
   server.express.use(helmet());
-  server.express.use(passport.initialize());
-  server.express.use(passport.session());
   server.express.use('/avatars', avatarsMiddleware);
 
   // Handle Next.js pages.

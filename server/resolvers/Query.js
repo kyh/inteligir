@@ -1,12 +1,12 @@
-const { getUserId } = require('../utils')
+const { getUserId } = require('@server/services/authentication');
 
 const Query = {
   me: (parent, args, context) => {
-    const userId = getUserId(context)
-    return context.prisma.user({ id: userId })
+    const userId = getUserId(context);
+    return context.prisma.user({ id: userId });
   },
   feed: (parent, args, context) => {
-    return context.prisma.posts({ where: { published: true } })
+    return context.prisma.posts({ where: { published: true } });
   },
   filterPosts: (parent, { searchString }, context) => {
     return context.prisma.posts({
@@ -20,13 +20,13 @@ const Query = {
           },
         ],
       },
-    })
+    });
   },
   post: (parent, { id }, context) => {
-    return context.prisma.post({ id })
+    return context.prisma.post({ id });
   },
-}
+};
 
 module.exports = {
   Query,
-}
+};
