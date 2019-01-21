@@ -11,7 +11,7 @@ const { GraphQLServer, PubSub } = require('graphql-yoga');
 /**
  * Express/Yoga Middlewares.
  */
-const avatarsMiddleware = require('adorable-avatars').default;
+const avatarsMiddleware = require('adorable-avatars');
 const helmet = require('helmet');
 const permissions = require('@server/middlewares/permissions');
 
@@ -43,7 +43,7 @@ app.prepare().then(() => {
   const pubsub = new PubSub();
   // Start up GraphQl web server.
   const server = new GraphQLServer({
-    typeDefs: './db/schema.graphql',
+    typeDefs: 'server/db/schema.graphql',
     resolvers,
     middlewares: [permissions],
     context(request) {
