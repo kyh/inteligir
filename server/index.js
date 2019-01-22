@@ -56,7 +56,17 @@ app.prepare().then(() => {
   server.express.use('/avatars', avatarsMiddleware);
 
   // Handle Next.js pages.
-  server.express.get('*', handle);
+  server.express.get('*', (req, res, nxt) => {
+    const { originalUrl } = req;
+    if (
+      originalUrl.startsWith('/graphql') ||
+      originalUrl.startsWith('/playground')
+    ) {
+      // Skip any /graphql routes.
+      return nxt();
+    }
+    return handle(req, res, nxt);
+  });
 
   server.start(
     {
