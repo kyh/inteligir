@@ -1,5 +1,9 @@
 # Evolving the server
 
+Inteligir's backend is built using [GraphQL Yoga](https://github.com/prisma/graphql-yoga) and [NextJS](https://github.com/zeit/next.js). We use a Postgres database with [Prisma](https://github.com/prisma/prisma) bindings to help with the GraphQL interface.
+
+### Updating the API
+
 If you want to change the GraphQL API, you need to adjust the GraphQL schema in [`../server/db/schema.graphql`](../server/db/schema.graphql) and the respective resolver functions.
 
 <Details><Summary><strong>Adding an operation without updating the datamodel</strong></Summary>
