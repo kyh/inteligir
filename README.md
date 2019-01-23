@@ -13,12 +13,15 @@ Two of the most prominent barriers to developers’ involvement in open source a
 ```
 ├── /client                      # ReactJS client, which contains most of our UI
 │   ├── /components              # React components, reusable across all pages
-│   ├── /utils                   # Helper functions/Utilities/Services
-│   ├── /redux                   # Redux modules
 │   ├── /pages                   # App route definitions
-│   └── /static                  # Static assets
+│   ├── /static                  # Static assets
+│   └── /utils                   # Client side helper functions/Utilities/Services
 │   └── next.config.js           # Next.js SSR configuration
-│── /server                      # Node.js server, serves the web app as well as API endpoints
+│── /config                      # Environment configuration
+│── /docs                        # App documentation
+│── /k8s                         # Kubernetes configuration and deployment files
+│── /prisma                      # Prisma datamodel and seed data
+│── /server                      # Node.js server
 │   ├── /api                     # API routes, models, and controllers
 │   ├── /config                  # Server environment variables
 │   ├── /db                      # Prisma generated files and app schema
@@ -26,18 +29,21 @@ Two of the most prominent barriers to developers’ involvement in open source a
 │   ├── /resolvers               # GraphQl resolvers
 │   ├── /services                # Server Helper functions/Utilities/Services
 │   └── index.js                 # Server entry point
-│── /prisma                      # Prisma datamodel and seed data
-│── /worker                      # JavaScript worker modules
-│── /k8s                         # K8 configuration and deployment files
-└── /tests                       # Javascript tests
+│── /tests                       # Test setup files
+│── /tools                       # Setup and deployment scripts
+└── /worker                      # JavaScript worker modules
 ```
 
 ## Want to contribute?
 
+- [How can I help?](docs/how-to-help.md)
 - [Setup your local Inteligir instance](docs/setup.md)
-- [Using the GraphQL API](docs/graphql.md)
 - [Evolving the server](docs/server.md)
+- [Using the GraphQL API](docs/graphql.md)
+- [Updating the client](docs/client.md)
 - [List of supported environment variables](docs/environment_variables.md)
+- [The design process](docs/design.md)
+- [Product Features](docs/product.md)
 
 ## Discussion
 
