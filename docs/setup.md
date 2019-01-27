@@ -87,7 +87,7 @@ You can now use the node debugger to profile, add breakpoints, log errors, and e
 without needing to restart the server! Start the debugger by running:
 
 ```bash
-make debug
+npm run debug
 ```
 
 ## Style Guide
