@@ -51,9 +51,9 @@ body {
   margin: 0;
   font-size: 2rem;
   line-height: 1.77;
-  font-family: ${theme['pxn-font']};
-  color: ${theme['text-color']};
-  background-color: ${theme['background-grey']};
+  font-family: ${theme.pxnFont};
+  color: ${theme.textColor};
+  background-color: ${theme.backgroundColor};
 }
 
 *,
