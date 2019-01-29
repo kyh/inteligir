@@ -116,6 +116,8 @@ const Meta = () => (
       sizes="16x16"
       href="static/favicons/favicon-16x16.png"
     />
+
+    <link rel="stylesheet" type="text/css" href="static/assets/nprogress.css" />
   </Head>
 );
 

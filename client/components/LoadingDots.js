@@ -12,7 +12,7 @@ const bounce = keyframes`
   }
 `;
 
-export const StyledLoadingDots = styled.div`
+const StyledLoadingDots = styled.div`
   display: inline-block;
   width: 70px;
   text-align: center;
