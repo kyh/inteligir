@@ -1,9 +1,5 @@
 import React from 'react';
 
-const Community = () => (
-  <header>
-    <h1>Community</h1>
-  </header>
-);
+const Community = () => <section />;
 
 export default Community;

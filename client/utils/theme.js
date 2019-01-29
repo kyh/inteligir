@@ -1,7 +1,7 @@
 const theme = {
   /* Colors
 –––––––––––––––––––––––––––––––––––––––––––––– */
-  brandCyan: '#9CD3FA',
+  brandCyan: '#00ddf8',
   brandCyanDark: '#15C6E3',
   brandPurple: '#8389E1',
   brandPurpleDark: '#484A9F',
@@ -21,6 +21,8 @@ const theme = {
   baseSpacing: '8px',
   baseSpacing2: '16px',
   baseSpacing3: '24px',
+  baseSpacing4: '32px',
+  baseSpacing5: '40px',
 
   /* Fonts
 –––––––––––––––––––––––––––––––––––––––––––––– */

@@ -1,8 +1,10 @@
 import React from 'react';
 import { ThemeProvider, createGlobalStyle } from 'styled-components';
 import { Normalize } from 'styled-normalize';
+
 import Meta from '@client/components/Meta';
 import theme from '@client/utils/theme';
+import Navigation from '@client/components/Navigation';
 
 const GlobalStyle = createGlobalStyle`
 @font-face {
@@ -61,12 +63,41 @@ body {
 *:after {
   box-sizing: inherit;
 }
+
+a {
+  color: ${theme.brandCyan};
+  text-decoration: none;
+  background-color: transparent;
+  -webkit-text-decoration-skip: objects;
+  border-bottom: 1px solid ${theme.borderColor};
+  transition: color 0.2s linear, border-color 0.2s linear;
+}
+
+a:hover {
+  border-bottom-color: ${theme.brandCyanDark};
+}
+
+a:not([href]):not([tabindex]) {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:not([href]):not([tabindex]):hover,
+a:not([href]):not([tabindex]):focus {
+  color: inherit;
+  text-decoration: none;
+}
+
+a:not([href]):not([tabindex]):focus {
+  outline: 0;
+}
 `;
 
 const Page = ({ children }) => (
   <ThemeProvider theme={theme}>
     <main>
       <Meta />
+      <Navigation />
       {children}
       <Normalize />
       <GlobalStyle />
