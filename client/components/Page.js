@@ -51,7 +51,7 @@ html {
 
 body {
   margin: 0;
-  font-size: 2rem;
+  font-size: 1.6rem;
   line-height: 1.77;
   font-family: ${theme.pxnFont};
   color: ${theme.textColor};

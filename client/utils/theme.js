@@ -30,8 +30,8 @@ const theme = {
 
   /* Layout
 –––––––––––––––––––––––––––––––––––––––––––––– */
-  container: '1000px',
-  containerSmall: '840px',
+  container: '1400px',
+  containerSmall: '1000px',
   containerXSmall: '600px',
 };
 

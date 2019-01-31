@@ -3,7 +3,6 @@ import styled from 'styled-components';
 import NProgress from 'nprogress';
 import Router from 'next/router';
 
-import theme from '@client/utils/theme';
 import Logo from '@client/components/Logo';
 import ActiveLink from '@client/components/ActiveLink';
 
@@ -21,8 +20,8 @@ Router.onRouteChangeError = () => {
 const StyledHeader = styled.header`
   display: flex;
   justify-content: space-between;
-  padding: ${theme.baseSpacing2};
-  background: ${theme.brandBlack1};
+  padding: ${({ theme }) => theme.baseSpacing2};
+  background: ${({ theme }) => theme.brandBlack1};
 
   .left {
     display: flex;
@@ -33,18 +32,18 @@ const StyledHeader = styled.header`
   .logo {
     width: 30px;
     height: 30px;
-    margin-right: ${theme.baseSpacing4};
+    margin-right: ${({ theme }) => theme.baseSpacing4};
   }
 `;
 
 const StyledNav = styled.nav`
   a {
     color: #fff;
-    margin-right: ${theme.baseSpacing4};
+    margin-right: ${({ theme }) => theme.baseSpacing4};
     border: 0;
 
     &.active {
-      color: ${theme.brandCyanDark};
+      color: ${({ theme }) => theme.brandCyanDark};
     }
   }
 `;
