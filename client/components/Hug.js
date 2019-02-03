@@ -6,13 +6,8 @@ import Icon from './Icon'
 import Text from './Text'
 import theme from './theme'
 import styled from 'styled-components'
-import { responsiveStyle } from 'styled-system'
+import { display } from 'styled-system'
 import PropTypes from 'prop-types'
-
-const display = responsiveStyle({
-  prop: 'display',
-  cssProperty: 'display'
-})
 
 const HugCard = styled(Card)`
   border-top-left-radius: ${props => props.theme.radius};
@@ -32,18 +27,9 @@ const HideableIcon = styled(Icon)`
   ${display};
 `
 
-const Hug = ({
-  bg,
-  color,
-  p,
-  fontSize,
-  icon,
-  iconDisplay,
-  legacy,
-  ...props
-}) => (
+const Hug = ({ bg, color, p, fontSize, icon, iconDisplay, ...props }) => (
   <HugCard {...props} borderColor={bg}>
-    <Flex bg={bg} color={color} p={p} align="center">
+    <Flex bg={bg} color={color} p={p} alignItems="center">
       {!!icon && (
         <HideableIcon
           mr={2}
@@ -52,7 +38,6 @@ const Hug = ({
           name={icon}
           size={24}
           display={iconDisplay}
-          legacy={legacy}
         />
       )}
       <Text fontSize={fontSize}>{props.text}</Text>

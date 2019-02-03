@@ -23,8 +23,8 @@ const arrowAlign = props => {
   return props.left
     ? { left: '16px', 'margin-left': props.top ? 0 : '15px' }
     : props.center
-      ? { left: '50%', 'margin-left': props.top ? '-7px' : '7px' }
-      : { right: '16px', 'margin-right': props.top ? '5px' : '-10px' }
+    ? { left: '50%', 'margin-left': props.top ? '-7px' : '7px' }
+    : { right: '16px', 'margin-right': props.top ? '5px' : '-10px' }
 }
 
 const arrowPosition = props => {
@@ -61,8 +61,8 @@ const tooltipAlign = props => {
   return props.right
     ? { right: 0 }
     : props.center
-      ? { left: '50%', width: 'auto', transform: 'translateX(-50%)' }
-      : null
+    ? { left: '50%', width: 'auto', transform: 'translateX(-50%)' }
+    : null
 }
 
 const TooltipContent = styled(Box)`
@@ -105,7 +105,6 @@ const defaultProps = {
   position: 'bottom',
   color: 'text',
   bg: 'white',
-  align: 'right',
   theme: theme,
   zIndex: 'auto'
 }
