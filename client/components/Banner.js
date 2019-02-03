@@ -1,53 +1,54 @@
-import React from 'react'
-import Box from './Box'
-import Flex from './Flex'
-import Text from './Text'
-import Icon from './Icon'
-import CloseButton from './CloseButton'
-import Heading from './Heading'
-import PropTypes from 'prop-types'
+import React from 'react';
+import PropTypes from 'prop-types';
+
+import Box from './Box';
+import Flex from './Flex';
+import Text from './Text';
+import Icon from './Icon';
+import CloseButton from './CloseButton';
+import Heading from './Heading';
 
 const bannerColors = {
   green: {
     backgroundColor: 'green',
     color: 'white',
-    icon: 'success'
+    icon: 'success',
   },
   lightGreen: {
     backgroundColor: 'lightGreen',
     color: 'darkGreen',
-    icon: 'success'
+    icon: 'success',
   },
   red: {
     backgroundColor: 'red',
     color: 'white',
-    icon: 'warning'
+    icon: 'warning',
   },
   lightRed: {
     backgroundColor: 'lightRed',
     color: 'darkRed',
-    icon: 'warning'
+    icon: 'warning',
   },
   orange: {
     backgroundColor: 'orange',
     color: 'white',
-    icon: 'attention'
+    icon: 'attention',
   },
   blue: {
     backgroundColor: 'blue',
     color: 'white',
-    icon: 'information'
+    icon: 'information',
   },
   lightBlue: {
     backgroundColor: 'lightBlue',
     color: 'darkBlue',
-    icon: 'information'
-  }
-}
+    icon: 'information',
+  },
+};
 
-const Banner = props => {
-  const bannerColor = bannerColors[props.bg] || {}
-  const icon = props.iconName || bannerColor.icon
+const Banner = (props) => {
+  const bannerColor = bannerColors[props.bg] || {};
+  const icon = props.iconName || bannerColor.icon;
 
   return (
     <Box
@@ -77,10 +78,10 @@ const Banner = props => {
         )}
       </Flex>
     </Box>
-  )
-}
+  );
+};
 
-Banner.displayName = 'Banner'
+Banner.displayName = 'Banner';
 
 Banner.propTypes = {
   header: PropTypes.string,
@@ -88,13 +89,13 @@ Banner.propTypes = {
   onClose: PropTypes.func,
   showIcon: PropTypes.bool,
   text: PropTypes.node,
-  textAlign: PropTypes.string
-}
+  textAlign: PropTypes.string,
+};
 
 Banner.defaultProps = {
   bg: 'green',
   textAlign: 'left',
-  showIcon: true
-}
+  showIcon: true,
+};
 
-export default Banner
+export default Banner;

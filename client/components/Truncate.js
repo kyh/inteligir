@@ -1,16 +1,16 @@
-import styled from 'styled-components'
-import Text from './Text'
-import theme from './theme'
+import styled from 'styled-components';
+import Text from './Text';
+import theme from './theme';
 
 const Truncate = styled(Text)`
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
-`
+`;
 Truncate.defaultProps = {
-  theme: theme
-}
+  theme,
+};
 
-Truncate.displayName = 'Truncate'
+Truncate.displayName = 'Truncate';
 
-export default Truncate
+export default Truncate;

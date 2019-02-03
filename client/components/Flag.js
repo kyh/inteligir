@@ -1,14 +1,15 @@
-import React from 'react'
-import styled from 'styled-components'
-import { color, themeGet } from 'styled-system'
-import Flex from './Flex'
-import Hide from './Hide'
-import Box from './Box'
+import React from 'react';
+import styled from 'styled-components';
+import { color, themeGet } from 'styled-system';
 
-const capitalize = str => str.charAt(0).toUpperCase() + str.slice(1)
+import Flex from './Flex';
+import Hide from './Hide';
+import Box from './Box';
 
-const shadowColor = props => {
-  const darkColor = themeGet(`colors.dark${capitalize(props.color)}`)(props)
+const capitalize = (str) => str.charAt(0).toUpperCase() + str.slice(1);
+
+const shadowColor = (props) => {
+  const darkColor = themeGet(`colors.dark${capitalize(props.color)}`)(props);
 
   return {
     backgroundImage: !darkColor
@@ -16,9 +17,9 @@ const shadowColor = props => {
         linear-gradient(45deg, transparent 50%, rgba(0, 0, 0, 0.5) 50%),
         linear-gradient(45deg, transparent 50%, ${props.color} 50%)
       `
-      : `linear-gradient(45deg, transparent 50%, ${darkColor} 50%)`
-  }
-}
+      : `linear-gradient(45deg, transparent 50%, ${darkColor} 50%)`,
+  };
+};
 
 const FlagShadow = styled(Box)`
   width: 8px;
@@ -27,36 +28,36 @@ const FlagShadow = styled(Box)`
   ${shadowColor};
   position: absolute;
   bottom: 0;
-`
+`;
 
 const FlagRight = styled(Box)`
   flex: none;
-  background-color: ${props =>
+  background-color: ${(props) =>
     themeGet(`colors.${props.color}`, props.color)(props)};
   border-radius: 0 ${themeGet('radius')} ${themeGet('radius')} 0;
   /* for 32 x 8 triangle */
   transform: skew(-14deg);
   position: relative;
   z-index: 1;
-`
+`;
 
-const flexAuto = props =>
+const flexAuto = (props) =>
   props.flexAuto
     ? {
-        flex: '1 1 auto'
+        flex: '1 1 auto',
       }
-    : null
+    : null;
 
 const FlagBody = styled(Box)`
   font-size: ${themeGet('fontSizes.0')}px;
   border-radius: 0 0 ${themeGet('radius')} 0;
   ${flexAuto} ${color};
   z-index: 2;
-`
+`;
 
 const RelativeHide = styled(Hide)`
   position: relative;
-`
+`;
 
 const Flag = ({ color, bg, children, width, ...props }) => (
   <Flex width={width} {...props} ml={[0, -2]}>
@@ -68,17 +69,17 @@ const Flag = ({ color, bg, children, width, ...props }) => (
     </FlagBody>
     <FlagRight width="18px" color={bg} ml={-2} />
   </Flex>
-)
+);
 
 Flag.propTypes = {
-  ...color.propTypes
-}
+  ...color.propTypes,
+};
 
 Flag.defaultProps = {
   color: 'white',
-  bg: 'green'
-}
+  bg: 'green',
+};
 
-Flag.displayName = 'Flag'
+Flag.displayName = 'Flag';
 
-export default Flag
+export default Flag;

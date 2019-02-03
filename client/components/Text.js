@@ -11,7 +11,6 @@ import {
   themeGet,
 } from 'styled-system';
 import theme from './theme';
-import { mapProps, deprecatedPropType } from './utils';
 
 export const caps = (props) =>
   props.caps
@@ -27,10 +26,7 @@ export const regular = (props) =>
 export const bold = (props) =>
   props.bold ? { fontWeight: props.theme.bold } : null;
 
-const Text = mapProps(({ align, ...props }) => ({
-  textAlign: align,
-  ...props,
-}))(styled.div`
+const Text = styled.div`
   ${textStyle}
   ${fontSize}
   ${fontWeight}
@@ -41,7 +37,7 @@ const Text = mapProps(({ align, ...props }) => ({
   ${caps}
   ${regular}
   ${bold}
-`);
+`;
 
 Text.displayName = 'Text';
 
@@ -56,11 +52,10 @@ Text.propTypes = {
   caps: PropTypes.bool,
   regular: PropTypes.bool,
   bold: PropTypes.bool,
-  align: deprecatedPropType('textAlign'),
 };
 
 Text.defaultProps = {
-  theme: theme,
+  theme,
 };
 
 Text.span = Text.withComponent('span');

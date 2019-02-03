@@ -1,14 +1,14 @@
-import React from 'react'
-import styled from 'styled-components'
-import { space, fontSize, themeGet } from 'styled-system'
+import React from 'react';
+import styled from 'styled-components';
+import { space, fontSize, themeGet } from 'styled-system';
 
-import theme from './theme'
-import Flex from './Flex'
-import Icon from './Icon'
+import theme from './theme';
+import Flex from './Flex';
+import Icon from './Icon';
 
 const ClickableIcon = styled(Icon)`
   pointer-events: none;
-`
+`;
 
 const SelectBase = styled.select`
   appearance: none;
@@ -26,28 +26,28 @@ const SelectBase = styled.select`
     border-color: ${themeGet('colors.blue')};
     box-shadow: 0 0 0 1px ${themeGet('colors.blue')};
   }
-`
+`;
 SelectBase.defaultProps = {
   theme,
   fontSize: 1,
   m: 0,
   pl: 12,
   pr: 32,
-  py: 14
-}
+  py: 14,
+};
 
 SelectBase.propTypes = {
   ...space.propTypes,
-  ...fontSize.propTypes
-}
+  ...fontSize.propTypes,
+};
 
-const Select = styled(props => (
+const Select = styled((props) => (
   <Flex width={1} alignItems="center">
     <SelectBase {...props} />
     <ClickableIcon ml={-32} name="chevronDown" color="gray" />
   </Flex>
-))``
+))``;
 
-Select.isField = true
+Select.isField = true;
 
-export default Select
+export default Select;

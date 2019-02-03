@@ -1,25 +1,35 @@
-import styled from 'styled-components'
-import PropTypes from 'prop-types'
-import { color } from 'styled-system'
-import theme from './theme'
+import React, { Children } from 'react';
+import styled from 'styled-components';
+import { color } from 'styled-system';
+import NextLink from 'next/link';
 
-const Link = styled.a`
+import theme from './theme';
+
+const StyledLink = styled.a`
   cursor: pointer;
   text-decoration: none;
   ${color} &:hover {
     text-decoration: underline;
   }
-`
+`;
 
-Link.displayName = 'Link'
+StyledLink.displayName = 'Link';
 
-Link.propTypes = {
-  ...color.propTypes
-}
+StyledLink.propTypes = {
+  ...color.propTypes,
+};
 
-Link.defaultProps = {
+StyledLink.defaultProps = {
   color: 'blue',
-  theme: theme
-}
+  theme,
+};
 
-export default Link
+const Link = ({ children, href, ...props }) => (
+  <NextLink href={href}>
+    <StyledLink {...props}>
+      {React.cloneElement(Children.only(children))}
+    </StyledLink>
+  </NextLink>
+);
+
+export default Link;

@@ -1,18 +1,18 @@
-import styled from 'styled-components'
-import Button from './Button'
-import theme from './theme'
+import styled from 'styled-components';
+import Button from './Button';
+import theme from './theme';
 
 const RedButton = styled(Button)`
-  background-color: ${props => props.theme.colors.red};
+  background-color: ${(props) => props.theme.colors.red};
 
   &:hover {
-    background-color: ${props =>
+    background-color: ${(props) =>
       props.disabled ? null : props.theme.colors.darkRed};
   }
-`
+`;
 
 RedButton.defaultProps = {
-  theme: theme
-}
+  theme,
+};
 
-export default RedButton
+export default RedButton;

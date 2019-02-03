@@ -1,18 +1,18 @@
-import React from 'react'
-import styled from 'styled-components'
-import theme from './theme'
-import Icon from './Icon'
+import React from 'react';
+import styled from 'styled-components';
+import theme from './theme';
+import Icon from './Icon';
 
 const RadioWrap = styled.div`
   display: inline-block;
-  color: ${props => props.theme.colors.borderGray};
+  color: ${(props) => props.theme.colors.borderGray};
   &:hover {
-    ${props =>
+    ${(props) =>
       props.checked || props.disabled
         ? null
         : `color: ${props.theme.colors.blue};`};
   }
-`
+`;
 
 const RadioInput = styled.input`
   appearance: none;
@@ -23,32 +23,32 @@ const RadioInput = styled.input`
     box-shadow: none;
   }
   &:checked ~ svg {
-    color: ${props => props.theme.colors.blue};
+    color: ${(props) => props.theme.colors.blue};
   }
   &:disabled ~ svg {
-    color: ${props => props.theme.colors.borderGray};
+    color: ${(props) => props.theme.colors.borderGray};
   }
-`
+`;
 
 const RadioIcon = styled(Icon)`
   vertical-align: middle;
-`
+`;
 
-const Radio = props => {
-  const { checked, disabled } = props
+const Radio = (props) => {
+  const { checked, disabled } = props;
 
-  const radioIconName = checked ? 'radioChecked' : 'radioEmpty'
+  const radioIconName = checked ? 'radioChecked' : 'radioEmpty';
 
   return (
     <RadioWrap checked={checked} disabled={disabled}>
       <RadioInput type="radio" {...props} />
       <RadioIcon name={radioIconName} size={24} />
     </RadioWrap>
-  )
-}
+  );
+};
 
 Radio.defaultProps = {
-  theme: theme
-}
+  theme,
+};
 
-export default Radio
+export default Radio;

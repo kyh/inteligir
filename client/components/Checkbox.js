@@ -1,27 +1,27 @@
-import React from 'react'
-import styled, { css } from 'styled-components'
-import PropTypes from 'prop-types'
-import theme from './theme'
-import Icon from './Icon'
-import Box from './Box'
+import React from 'react';
+import styled from 'styled-components';
+import PropTypes from 'prop-types';
+import theme from './theme';
+import Icon from './Icon';
+import Box from './Box';
 
-const Checkbox = props => {
-  const { disabled, size } = props
+const Checkbox = (props) => {
+  const { disabled, size } = props;
   return (
     <CheckBoxWrapper disabled={disabled}>
       <StyledInput type="checkbox" {...props} />
       <Icon name="boxChecked" size={size} data-name="checked" />
       <Icon name="boxEmpty" size={size} data-name="empty" />
     </CheckBoxWrapper>
-  )
-}
+  );
+};
 
 const CheckBoxWrapper = styled(Box)`
   display: inline-block;
   position: relative;
   vertical-align: middle;
   cursor: pointer;
-  color: ${props =>
+  color: ${(props) =>
     props.disabled ? props.theme.colors.borderGray : props.theme.colors.gray};
 
   svg[data-name='checked'] {
@@ -31,7 +31,7 @@ const CheckBoxWrapper = styled(Box)`
   > input:checked {
     & ~ svg[data-name='checked'] {
       display: inline-block;
-      color: ${props =>
+      color: ${(props) =>
         props.disabled
           ? props.theme.colors.borderGray
           : props.theme.colors.blue};
@@ -41,29 +41,31 @@ const CheckBoxWrapper = styled(Box)`
       display: none;
     }
   }
-`
+`;
 
 CheckBoxWrapper.defaultProps = {
-  theme
-}
+  theme,
+};
 
 const StyledInput = styled.input`
   appearance: none;
   opacity: 0;
   position: absolute;
   z-index: 0;
-`
+`;
 
-Checkbox.displayName = 'Checkbox'
+Checkbox.displayName = 'Checkbox';
 
 Checkbox.propTypes = {
   id: PropTypes.string.isRequired,
+  onChange: PropTypes.func.isRequired,
   size: PropTypes.number,
-  onChange: PropTypes.func.isRequired
-}
+  disabled: PropTypes.bool,
+};
 
 Checkbox.defaultProps = {
-  size: 20
-}
+  size: 20,
+  disabled: false,
+};
 
-export default Checkbox
+export default Checkbox;

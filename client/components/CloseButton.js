@@ -1,21 +1,22 @@
-import React from 'react'
-import IconButton from './IconButton'
-import PropTypes from 'prop-types'
-import theme from './theme'
+import React from 'react';
+import PropTypes from 'prop-types';
 
-const CloseButton = props => <IconButton {...props} name="close" />
+import IconButton from './IconButton';
+
+const CloseButton = (props) => <IconButton {...props} name="close" />;
 
 CloseButton.defaultProps = {
   size: 24,
-  title: 'close'
-}
+  title: 'close',
+  onClick: () => {},
+};
 
 CloseButton.propTypes = {
   onClick: PropTypes.func,
   size: PropTypes.number,
-  title: PropTypes.string
-}
+  title: PropTypes.string,
+};
 
-CloseButton.displayName = 'CloseButton'
+CloseButton.displayName = 'CloseButton';
 
-export default CloseButton
+export default CloseButton;
