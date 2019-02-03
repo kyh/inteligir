@@ -2,6 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import NProgress from 'nprogress';
 import Router from 'next/router';
+import Link from 'next/link';
 
 import Logo from '@client/components/Logo';
 import ActiveLink from '@client/components/ActiveLink';
@@ -29,10 +30,15 @@ const StyledHeader = styled.header`
     font-size: 2.2rem;
   }
 
-  .logo {
-    width: 30px;
-    height: 30px;
+  .nav-logo {
+    display: flex;
     margin-right: ${({ theme }) => theme.baseSpacing4};
+    border: 0;
+
+    .logo {
+      width: 30px;
+      height: 30px;
+    }
   }
 `;
 
@@ -42,6 +48,7 @@ const StyledNav = styled.nav`
     margin-right: ${({ theme }) => theme.baseSpacing4};
     border: 0;
 
+    &:hover,
     &.active {
       color: ${({ theme }) => theme.brandCyanDark};
     }
@@ -51,7 +58,11 @@ const StyledNav = styled.nav`
 const Navigation = () => (
   <StyledHeader>
     <div className="left">
-      <Logo />
+      <Link href="/">
+        <a className="nav-logo">
+          <Logo />
+        </a>
+      </Link>
       <StyledNav>
         <ActiveLink href="/discover" prefetch>
           <a>Discover</a>
