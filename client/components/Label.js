@@ -1,23 +1,23 @@
-import styled from 'styled-components'
-import { space, fontSize, fontWeight, color } from 'styled-system'
-import theme from './theme'
+import styled from 'styled-components';
+import { space, fontSize, fontWeight, color } from 'styled-system';
+import theme from './theme';
 
-const nowrap = props =>
+const nowrap = (props) =>
   props.nowrap
     ? {
-        whiteSpace: 'nowrap'
+        whiteSpace: 'nowrap',
       }
-    : null
+    : null;
 
-const accessiblyHide = props =>
+const accessiblyHide = (props) =>
   props.hidden
     ? {
         position: 'absolute',
         width: '1px',
         height: '1px',
-        clip: 'rect(1px, 1px, 1px, 1px)'
+        clip: 'rect(1px, 1px, 1px, 1px)',
       }
-    : null
+    : null;
 
 const Label = styled.label`
   font-size: 10px;
@@ -29,23 +29,23 @@ const Label = styled.label`
   ${space} ${fontSize} ${color} ${fontWeight};
   ${nowrap}
   ${accessiblyHide}
-`
+`;
 
 Label.propTypes = {
   ...space.propTypes,
   ...fontSize.propTypes,
   ...color.propTypes,
-  ...fontWeight.propTypes
-}
+  ...fontWeight.propTypes,
+};
 
 Label.defaultProps = {
   fontSize: '10px',
   fontWeight: 'bold',
   color: 'gray',
-  theme: theme
-}
+  theme,
+};
 
-Label.displayName = 'Label'
-Label.isLabel = true
+Label.displayName = 'Label';
+Label.isLabel = true;
 
-export default Label
+export default Label;
