@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import theme from '@client/utils/theme';
-import Icon from './Icon';
+import Icon from 'react-icons-kit';
 import Button from './Button';
 
 const TransparentButton = styled(Button)`
@@ -17,10 +17,10 @@ const TransparentButton = styled(Button)`
   }
 `;
 
-const IconButton = ({ name, size, color, ...props }) => (
+const IconButton = ({ icon, size, color, ...props }) => (
   <TransparentButton {...props}>
     <div>
-      <Icon name={name} size={size} color={color} />
+      <Icon icon={icon} size={size} color={color} />
     </div>
   </TransparentButton>
 );

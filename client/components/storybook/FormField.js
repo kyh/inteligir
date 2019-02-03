@@ -1,22 +1,18 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
-import { action } from '@storybook/addon-actions';
-import {
-  Flex,
-  Box,
-  FormField,
-  Label,
-  Input,
-  Icon,
-  Select,
-  Tooltip,
-} from '../index';
+import Icon from 'react-icons-kit';
+import { mail } from 'react-icons-kit/feather/x';
+import { check } from 'react-icons-kit/feather/check';
+import { mapPin } from 'react-icons-kit/feather/mapPin';
+import { checkCircle } from 'react-icons-kit/feather/checkCircle';
+import { alertCircle } from 'react-icons-kit/feather/alertCircle';
+import { Flex, Box, FormField, Label, Input, Select, Tooltip } from '../index';
 
 storiesOf('FormField', module)
   .add('with Icon', () => (
     <FormField>
       <Label htmlFor="demo">Email Address</Label>
-      <Icon name="email" color="blue" />
+      <Icon icon={mail} color="blue" />
       <Input id="demo" name="demo" defaultValue="hello@example.com" />
     </FormField>
   ))
@@ -60,13 +56,13 @@ storiesOf('FormField', module)
         placeholder="hello@example.com"
         value="hello@example.com"
       />
-      <Icon name="check" color="green" />
+      <Icon icon={check} color="green" />
     </FormField>
   ))
   .add('with Select', () => (
     <FormField>
       <Label htmlFor="demo">State</Label>
-      <Icon name="pin" color="blue" />
+      <Icon icon={mapPin} color="blue" />
       <Select id="demo" name="demo">
         <option>New York</option>
         <option>New Jersey</option>
@@ -82,7 +78,7 @@ storiesOf('FormField', module)
         placeholder="hello@example.com"
         color="green"
       />
-      <Icon name="success" color="green" />
+      <Icon icon={checkCircle} color="green" />
     </FormField>
   ))
   .add('with error Tooltip', () => (
@@ -96,7 +92,7 @@ storiesOf('FormField', module)
           aria-describedby="demo-error"
           color="red"
         />
-        <Icon name="warning" color="red" />
+        <Icon icon={alertCircle} color="red" />
       </FormField>
       <Tooltip id="demo-error" right color="white" bg="red">
         Email address is required

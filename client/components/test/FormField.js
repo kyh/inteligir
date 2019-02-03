@@ -1,8 +1,9 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 import renderer from 'react-test-renderer';
-import { renderIntoDocument } from 'react-dom/test-utils';
-import { FormField, Icon, Input, Label, Select } from '../index';
+import Icon from 'react-icons-kit';
+import { mail } from 'react-icons-kit/feather/mail';
+import { FormField, Input, Label, Select } from '../index';
 
 afterEach(() => {
   // bust cache for propTypes
@@ -27,7 +28,7 @@ describe('FormField', () => {
       .create(
         <FormField>
           <Label>Email Address</Label>
-          <Icon name="email" />
+          <Icon icon={mail} />
           <Input name="email" />
         </FormField>,
       )
@@ -50,7 +51,7 @@ describe('FormField', () => {
     const json = renderer
       .create(
         <FormField>
-          <Icon name="email" />
+          <Icon icon={mail} />
           <Select />
         </FormField>,
       )
@@ -63,7 +64,7 @@ describe('FormField', () => {
       .create(
         <FormField>
           <Label autoHide>Email</Label>
-          <Icon name="email" />
+          <Icon icon={mail} />
           <Input name="email" />
         </FormField>,
       )
@@ -76,7 +77,7 @@ describe('FormField', () => {
       .create(
         <FormField>
           <Label autoHide>Email</Label>
-          <Icon name="email" />
+          <Icon icon={mail} />
           <Input name="email" value="hello@example.com" />
         </FormField>,
       )

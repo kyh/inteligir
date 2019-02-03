@@ -1,8 +1,9 @@
 import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
+import Icon from 'react-icons-kit';
+
 import theme from '@client/utils/theme';
-import Icon from './Icon';
 import Box from './Box';
 
 const Checkbox = (props) => {
@@ -10,8 +11,8 @@ const Checkbox = (props) => {
   return (
     <CheckBoxWrapper disabled={disabled}>
       <StyledInput type="checkbox" {...props} />
-      <Icon name="boxChecked" size={size} data-name="checked" />
-      <Icon name="boxEmpty" size={size} data-name="empty" />
+      <Icon icon="boxChecked" size={size} data-name="checked" />
+      <Icon icon="boxEmpty" size={size} data-name="empty" />
     </CheckBoxWrapper>
   );
 };

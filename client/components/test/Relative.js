@@ -1,6 +1,8 @@
 import React from 'react';
 import renderer from 'react-test-renderer';
-import { Absolute, Icon, Text, Relative } from '../index';
+import Icon from 'react-icons-kit';
+import { zap } from 'react-icons-kit/feather/zap';
+import { Absolute, Text, Relative } from '../index';
 
 describe('Relative', () => {
   test('renders with top, left and zIndex props', () => {
@@ -18,7 +20,7 @@ describe('Relative', () => {
     const json = renderer.create(
       <Relative top={10} left={0}>
         <Absolute top={10} right={0} zIndex={2}>
-          <Icon name="coupon" />
+          <Icon icon={zap} />
           <Text.span>EXCLUSIVE</Text.span>
         </Absolute>
       </Relative>,

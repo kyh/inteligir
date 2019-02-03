@@ -1,10 +1,14 @@
 import React from 'react';
 import PropTypes from 'prop-types';
+import Icon from 'react-icons-kit';
+
+import { checkCircle } from 'react-icons-kit/feather/checkCircle';
+import { alertCircle } from 'react-icons-kit/feather/alertCircle';
+import { info } from 'react-icons-kit/feather/info';
 
 import Box from './Box';
 import Flex from './Flex';
 import Text from './Text';
-import Icon from './Icon';
 import CloseButton from './CloseButton';
 import Heading from './Heading';
 
@@ -12,37 +16,37 @@ const bannerColors = {
   green: {
     backgroundColor: 'green',
     color: 'white',
-    icon: 'success',
+    icon: checkCircle,
   },
   lightGreen: {
     backgroundColor: 'lightGreen',
     color: 'darkGreen',
-    icon: 'success',
+    icon: checkCircle,
   },
   red: {
     backgroundColor: 'red',
     color: 'white',
-    icon: 'warning',
+    icon: alertCircle,
   },
   lightRed: {
     backgroundColor: 'lightRed',
     color: 'darkRed',
-    icon: 'warning',
+    icon: alertCircle,
   },
   orange: {
     backgroundColor: 'orange',
     color: 'white',
-    icon: 'attention',
+    icon: alertCircle,
   },
   blue: {
     backgroundColor: 'blue',
     color: 'white',
-    icon: 'information',
+    icon: info,
   },
   lightBlue: {
     backgroundColor: 'lightBlue',
     color: 'darkBlue',
-    icon: 'information',
+    icon: info,
   },
 };
 
@@ -58,7 +62,7 @@ const Banner = (props) => {
     >
       <Flex justifyContent="space-between" alignItems="flex-start">
         {!!icon && !!props.showIcon && (
-          <Icon name={icon} mr={2} size={24} mt="-2px" />
+          <Icon icon={icon} mr={2} size={24} mt="-2px" />
         )}
         <Box w={1}>
           <Text textAlign={props.textAlign}>
