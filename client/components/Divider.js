@@ -1,7 +1,6 @@
 import styled from 'styled-components';
 import { space, width, borderColor } from 'styled-system';
-
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const Divider = styled.hr`
   border: 0;

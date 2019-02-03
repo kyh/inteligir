@@ -1,13 +1,13 @@
-import styled from 'styled-components'
-import { fontWeight, borderRadius } from 'styled-system'
-import Box from './Box'
-import theme from './theme'
+import styled from 'styled-components';
+import { fontWeight, borderRadius } from 'styled-system';
+import theme from '@client/utils/theme';
+import Box from './Box';
 
 const RatingBadge = styled(Box)`
   display: inline-block;
   line-height: 1.5;
   ${fontWeight} ${borderRadius};
-`
+`;
 
 RatingBadge.defaultProps = {
   fontWeight: 'bold',
@@ -15,12 +15,12 @@ RatingBadge.defaultProps = {
   color: 'white',
   bg: 'orange',
   borderRadius: 1,
-  theme: theme
-}
+  theme,
+};
 
 RatingBadge.propTypes = {
   ...fontWeight.propTypes,
-  ...borderRadius.propTypes
-}
+  ...borderRadius.propTypes,
+};
 
-export default RatingBadge
+export default RatingBadge;

@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { themeGet, space, color } from 'styled-system';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const type = (props) => {
   const badgeColors = {

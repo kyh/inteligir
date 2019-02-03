@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { width, space } from 'styled-system';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const size = (props) => {
   switch (props.size) {

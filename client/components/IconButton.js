@@ -1,8 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
+import theme from '@client/utils/theme';
 import Icon from './Icon';
 import Button from './Button';
-import theme from './theme';
 
 const TransparentButton = styled(Button)`
   padding: 0;

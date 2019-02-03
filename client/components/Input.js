@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import { space, themeGet } from 'styled-system';
 import PropTypes from 'prop-types';
-import defaultTheme from './theme';
+import defaultTheme from '@client/utils/theme';
 
 const borders = ({ color, theme }) => {
   const borderColor = color ? theme.colors[color] : theme.colors.borderGray;

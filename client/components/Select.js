@@ -1,8 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { space, fontSize, themeGet } from 'styled-system';
-
-import theme from './theme';
+import theme from '@client/utils/theme';
 import Flex from './Flex';
 import Icon from './Icon';
 

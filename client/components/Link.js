@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import { color } from 'styled-system';
 import NextLink from 'next/link';
 
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const StyledLink = styled.a`
   cursor: pointer;

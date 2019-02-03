@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { themeGet, space, fontSize, color } from 'styled-system';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const Stamp = styled.div`
   display: inline-flex;
@@ -13,7 +13,7 @@ const Stamp = styled.div`
   border-radius: 2px;
   border-width: 1px;
   border-style: solid;
-  border-color: ${(props) => theme.colors.borderGray};
+  border-color: ${theme.colors.borderGray};
   ${space} ${fontSize} ${color};
 `;
 

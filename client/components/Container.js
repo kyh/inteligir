@@ -1,7 +1,6 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
-
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const maxWidth = (props) =>
   props.maxWidth
