@@ -1,36 +1,38 @@
-import styled from 'styled-components'
-import PropTypes from 'prop-types'
-import { space } from 'styled-system'
-import theme from './theme'
+import styled from 'styled-components';
+import PropTypes from 'prop-types';
+import { width, space } from 'styled-system';
+import theme from './theme';
+import { mapProps, deprecatedPropType } from './utils';
 
-const size = props => {
+const size = (props) => {
   switch (props.size) {
     case 'small':
       return {
         fontSize: `${props.theme.fontSizes[0]}px`,
-        padding: '7px 12px'
-      }
+        padding: '7px 12px',
+      };
     case 'medium':
       return {
         fontSize: `${props.theme.fontSizes[1]}px`,
-        padding: '9.5px 18px'
-      }
+        padding: '9.5px 18px',
+      };
     case 'large':
       return {
         fontSize: `${props.theme.fontSizes[2]}px`,
-        padding: '12px 22px'
-      }
+        padding: '12px 22px',
+      };
     default:
       return {
         fontSize: `${props.theme.fontSizes[1]}px`,
-        padding: '9.5px 18px'
-      }
+        padding: '9.5px 18px',
+      };
   }
-}
+};
 
-const fullWidth = props => (props.fullWidth ? { width: '100%' } : null)
-
-const Button = styled.button`
+const Button = mapProps(({ fullWidth, ...props }) => ({
+  width: fullWidth ? 1 : undefined,
+  ...props,
+}))(styled.button`
   -webkit-font-smoothing: antialiased;
   display: inline-block;
   vertical-align: middle;
@@ -40,9 +42,9 @@ const Button = styled.button`
   font-weight: 600;
   line-height: 1.5;
   cursor: pointer;
-  border-radius: ${props => props.theme.radius};
-  background-color: ${props => props.theme.colors.blue};
-  color: ${props => props.theme.colors.white};
+  border-radius: ${(props) => props.theme.radius};
+  background-color: ${(props) => props.theme.colors.blue};
+  color: ${(props) => props.theme.colors.white};
   border-width: 0;
   border-style: solid;
 
@@ -51,45 +53,24 @@ const Button = styled.button`
   }
 
   &:hover {
-    background-color: ${props =>
+    background-color: ${(props) =>
       props.disabled ? null : props.theme.colors.darkBlue};
   }
 
-  ${fullWidth} ${size} ${space};
-`
-
-const numberStringOrArray = PropTypes.oneOfType([
-  PropTypes.number,
-  PropTypes.string,
-  PropTypes.array
-])
+  ${width} ${size} ${space};
+`);
 
 Button.propTypes = {
-  /** Size */
   size: PropTypes.oneOf(['small', 'medium', 'large']),
-  fullWidth: PropTypes.bool,
-  /** Margin */
-  m: numberStringOrArray,
-  mt: numberStringOrArray,
-  mr: numberStringOrArray,
-  mb: numberStringOrArray,
-  ml: numberStringOrArray,
-  mx: numberStringOrArray,
-  my: numberStringOrArray,
-  /** Padding */
-  p: numberStringOrArray,
-  pt: numberStringOrArray,
-  pr: numberStringOrArray,
-  pb: numberStringOrArray,
-  pl: numberStringOrArray,
-  px: numberStringOrArray,
-  py: numberStringOrArray
-}
+  ...width.propTypes,
+  ...space.propTypes,
+  fullWidth: deprecatedPropType('width'),
+};
 
 Button.defaultProps = {
-  theme: theme
-}
+  theme: theme,
+};
 
-Button.displayName = 'Button'
+Button.displayName = 'Button';
 
-export default Button
+export default Button;

@@ -1,7 +1,7 @@
 import React from 'react'
 import PropTypes from 'prop-types'
 import styled from 'styled-components'
-import { theme as themeGet, space, color } from 'styled-system'
+import { themeGet, space, color } from 'styled-system'
 import theme from './theme'
 
 const type = props => {
@@ -34,10 +34,6 @@ const type = props => {
       backgroundColor: props.theme.colors.orange,
       color: props.theme.colors.text
     },
-    lightOrange: {
-      backgroundColor: props.theme.colors.lightOrange,
-      color: props.theme.colors.darkOrange
-    },
     gray: {
       backgroundColor: props.theme.colors.gray,
       color: props.theme.colors.white
@@ -65,16 +61,9 @@ const Badge = styled.div`
 
 Badge.displayName = 'Badge'
 
-const numberStringOrArray = PropTypes.oneOfType([
-  PropTypes.number,
-  PropTypes.string,
-  PropTypes.array
-])
-
 Badge.propTypes = {
-  bg: PropTypes.string,
-  px: numberStringOrArray,
-  py: numberStringOrArray
+  ...space.propTypes,
+  ...color.propTypes
 }
 
 Badge.defaultProps = {

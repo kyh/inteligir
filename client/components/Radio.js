@@ -1,28 +1,7 @@
 import React from 'react'
 import styled from 'styled-components'
-import PropTypes from 'prop-types'
-import { color } from 'styled-system'
 import theme from './theme'
 import Icon from './Icon'
-import Text from './Text'
-
-const propTypes = {
-  checked: PropTypes.bool,
-  disabled: PropTypes.bool
-}
-
-const Radio = props => {
-  const { checked, disabled } = props
-
-  const radioIconName = checked ? 'radioChecked' : 'radioEmpty'
-
-  return (
-    <RadioWrap checked={checked} disabled={disabled}>
-      <RadioInput type="radio" {...props} />
-      <RadioIcon name={radioIconName} size={24} />
-    </RadioWrap>
-  )
-}
 
 const RadioWrap = styled.div`
   display: inline-block;
@@ -55,7 +34,19 @@ const RadioIcon = styled(Icon)`
   vertical-align: middle;
 `
 
-Radio.propTypes = propTypes
+const Radio = props => {
+  const { checked, disabled } = props
+
+  const radioIconName = checked ? 'radioChecked' : 'radioEmpty'
+
+  return (
+    <RadioWrap checked={checked} disabled={disabled}>
+      <RadioInput type="radio" {...props} />
+      <RadioIcon name={radioIconName} size={24} />
+    </RadioWrap>
+  )
+}
+
 Radio.defaultProps = {
   theme: theme
 }
