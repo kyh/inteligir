@@ -1,6 +1,5 @@
 import React from 'react';
 import Head from 'next/head';
-import Logo from '@client/components/Logo';
 
 const Home = () => (
   <div className="body-wrap boxed-container">
@@ -8,17 +7,6 @@ const Home = () => (
       <title>Inteligir | Making open source accessible for everyone</title>
       <link rel="stylesheet" href="/static/landing-page/style.css" />
     </Head>
-    <header className="site-header">
-      <div className="container">
-        <div className="site-header-inner">
-          <div className="brand header-brand">
-            <h1 className="m-0">
-              <Logo />
-            </h1>
-          </div>
-        </div>
-      </div>
-    </header>
     <main>
       <section className="hero">
         <div className="container">
