@@ -2,12 +2,13 @@ import React from 'react';
 import styled from 'styled-components';
 import { display } from 'styled-system';
 import PropTypes from 'prop-types';
+import Icon from 'react-icons-kit';
+
 import theme from '@client/utils/theme';
 
 import Box from './Box';
 import Card from './Card';
 import Flex from './Flex';
-import Icon from './Icon';
 import Text from './Text';
 
 const HugCard = styled(Card)`
@@ -36,7 +37,7 @@ const Hug = ({ bg, color, p, fontSize, icon, iconDisplay, ...props }) => (
           mr={2}
           mt="-2px"
           mb="2px"
-          name={icon}
+          icon={icon}
           size={24}
           display={iconDisplay}
         />

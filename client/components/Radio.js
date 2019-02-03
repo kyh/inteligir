@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
+import Icon from 'react-icons-kit';
 import theme from '@client/utils/theme';
-import Icon from './Icon';
 
 const RadioWrap = styled.div`
   display: inline-block;

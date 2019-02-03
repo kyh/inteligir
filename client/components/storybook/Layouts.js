@@ -1,7 +1,7 @@
 import React from 'react';
 import styled from 'styled-components';
 import { storiesOf } from '@storybook/react';
-import { Flex, Box, Text, Icon, Image, Heading } from '../index';
+import { Flex, Box, Text, Image, Heading } from '../index';
 
 storiesOf('Layout Examples', module)
   .add('Grid', () => (
@@ -46,7 +46,6 @@ storiesOf('Layout Examples', module)
   ))
   .add('Navbar', () => (
     <Flex p={2} alignItems="center" color="white" bg="blue">
-      <Icon name="hotel" mr={2} />
       <Text bold mx={2}>
         Hello
       </Text>

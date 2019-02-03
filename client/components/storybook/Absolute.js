@@ -1,7 +1,9 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import styled from 'styled-components';
-import { Absolute, Card, Flag, Icon, Image, Relative, Text } from '../index';
+import Icon from 'react-icons-kit';
+import { x } from 'react-icons-kit/feather/x';
+import { Absolute, Card, Flag, Image, Relative, Text } from '../index';
 
 const TallCard = styled(Card)`
   height: 420px;
@@ -44,7 +46,7 @@ storiesOf('Absolute', module)
           vel sollicitudin lectus viverra. Curabitur sit amet fringilla velit.
         </Text>
         <Absolute top="10px" right="10px">
-          <Icon name="close" color="gray" size={24} />
+          <Icon icon={x} color="gray" size={24} />
         </Absolute>
       </Relative>
     </Card>

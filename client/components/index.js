@@ -15,7 +15,6 @@ export { default as GreenButton } from './GreenButton';
 export { default as Heading } from './Heading';
 export { default as Hide } from './Hide';
 export { default as Hug } from './Hug';
-export { default as Icon } from './Icon';
 export { default as IconButton } from './IconButton';
 export { default as IconField } from './IconField';
 export { default as Image } from './Image';

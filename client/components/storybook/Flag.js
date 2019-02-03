@@ -1,6 +1,8 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
-import { Box, Card, Flag, Flex, Icon, Text } from '../index';
+import Icon from 'react-icons-kit';
+import { cloudRain } from 'react-icons-kit/feather/cloudRain';
+import { Box, Card, Flag, Flex, Text } from '../index';
 
 storiesOf('Flag', module)
   .add('Default', () => (
@@ -70,7 +72,7 @@ storiesOf('Flag', module)
       <Card pb={3}>
         <Flag mt={2}>
           <Flex>
-            <Icon size={14} mr={1} name="loyalty" />
+            <Icon size={14} mr={1} icon={cloudRain} />
             <Text>Hello World</Text>
           </Flex>
         </Flag>
