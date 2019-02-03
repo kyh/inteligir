@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const Image = styled.img`
   display: block;

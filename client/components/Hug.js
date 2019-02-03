@@ -2,13 +2,13 @@ import React from 'react';
 import styled from 'styled-components';
 import { display } from 'styled-system';
 import PropTypes from 'prop-types';
+import theme from '@client/utils/theme';
 
 import Box from './Box';
 import Card from './Card';
 import Flex from './Flex';
 import Icon from './Icon';
 import Text from './Text';
-import theme from './theme';
 
 const HugCard = styled(Card)`
   border-top-left-radius: ${(props) => props.theme.radius};

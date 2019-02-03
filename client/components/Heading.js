@@ -1,5 +1,5 @@
+import theme from '@client/utils/theme';
 import Text from './Text';
-import theme from './theme';
 
 const Heading = Text.withComponent('h3');
 

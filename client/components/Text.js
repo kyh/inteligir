@@ -10,7 +10,7 @@ import {
   color,
   themeGet,
 } from 'styled-system';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 export const caps = (props) =>
   props.caps

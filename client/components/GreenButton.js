@@ -1,6 +1,6 @@
 import styled from 'styled-components';
+import theme from '@client/utils/theme';
 import Button from './Button';
-import theme from './theme';
 
 const GreenButton = styled(Button)`
   background-color: ${(props) => props.theme.colors.green};

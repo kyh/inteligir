@@ -8,7 +8,7 @@ import {
   flexWrap,
   flexDirection,
 } from 'styled-system';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const Flex = styled.div`
   display: flex;

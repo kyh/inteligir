@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { space, width, color, textAlign } from 'styled-system';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const Box = styled.div`
   ${space} ${width} ${color} ${textAlign}

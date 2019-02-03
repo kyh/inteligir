@@ -1,9 +1,8 @@
 import React from 'react';
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
-
+import theme from '@client/utils/theme';
 import Box from './Box';
-import theme from './theme';
 
 const arrowShadow = (props) => {
   return props.top

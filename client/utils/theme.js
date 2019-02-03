@@ -1,40 +1,4 @@
-// const theme = {
-//   /* Colors
-// –––––––––––––––––––––––––––––––––––––––––––––– */
-//   brandCyan: '#00ddf8',
-//   brandCyanDark: '#15C6E3',
-//   brandPurple: '#8389E1',
-//   brandPurpleDark: '#484A9F',
-//   brandBlack: '#3d3f58',
-//   brandBlack1: '#313348',
-//   brandBlack2: '#242537',
-//
-//   /* Text colors */
-//   textColor: '#C3CBD0',
-//   textGrey: '#8A96AD',
-//
-//   /* Background Colors */
-//   borderColor: '#535473',
-//   backgroundColor: '#242537',
-//
-//   /* Spacing */
-//   baseSpacing: '8px',
-//   baseSpacing2: '16px',
-//   baseSpacing3: '24px',
-//   baseSpacing4: '32px',
-//   baseSpacing5: '40px',
-//
-//
-//   /* Layout
-// –––––––––––––––––––––––––––––––––––––––––––––– */
-//   container: '1400px',
-//   containerSmall: '1000px',
-//   containerXSmall: '600px',
-// };
-//
-// export default theme;
-
-const createMediaQuery = (n) => `@media screen and (min-width:${n}em)`;
+const createMediaQuery = (n) => `@media screen and (min-width:${n})`;
 
 const addAliases = (arr, aliases) =>
   aliases.forEach((key, i) =>
@@ -46,7 +10,7 @@ const addAliases = (arr, aliases) =>
     }),
   );
 
-export const breakpoints = [32, 40, 48, 64];
+export const breakpoints = [32, 40, 48, 64].map((n) => `${n}em`);
 
 export const mediaQueries = breakpoints.map(createMediaQuery);
 
@@ -59,108 +23,249 @@ export const space = [0, 4, 8, 16, 32, 64, 128];
 
 export const font = `Proxima Nova, Helvetica Neue, sans-serif`;
 
-export const fontSizes = [12, 14, 16, 20, 24, 32, 48];
+export const fontSizes = [12, 14, 16, 20, 24, 32, 40, 56, 72];
 
-export const regular = 400;
-export const bold = 600;
+export const medium = 500;
+export const bold = 700;
+// alias
+export const regular = medium;
 
 // styled-system's `fontWeight` function can hook into the `fontWeights` object
 export const fontWeights = {
-  regular,
+  medium,
   bold,
+  // alias
+  regular,
+};
+
+export const lineHeights = {
+  standard: 1.5,
+  display: 1.25,
 };
 
 const letterSpacings = {
   normal: 'normal',
-  title: '-0.5px',
   caps: '0.025em',
 };
 
-// color palette
-const black = '#242537';
+export const textStyles = {
+  display8: {
+    fontSize: `${fontSizes[8]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display7: {
+    fontSize: `${fontSizes[7]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display6: {
+    fontSize: `${fontSizes[6]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display5: {
+    fontSize: `${fontSizes[5]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display4: {
+    fontSize: `${fontSizes[4]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display3: {
+    fontSize: `${fontSizes[3]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display2: {
+    fontSize: `${fontSizes[2]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display1: {
+    fontSize: `${fontSizes[1]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
+  display0: {
+    fontSize: `${fontSizes[0]}px`,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+    letterSpacing: letterSpacings.caps,
+    textTransform: 'uppercase',
+  },
+  body2: {
+    fontSize: `${fontSizes[2]}px`,
+    fontWeight: fontWeights.medium,
+    lineHeight: lineHeights.standard,
+  },
+  body1: {
+    fontSize: `${fontSizes[1]}px`,
+    fontWeight: fontWeights.medium,
+    lineHeight: lineHeights.standard,
+  },
+  body0: {
+    fontSize: `${fontSizes[0]}px`,
+    fontWeight: fontWeights.medium,
+    lineHeight: lineHeights.standard,
+  },
+};
+
+// Color palette.
+const text = '#001833';
+const borderGray = '#c0cad5';
+
 const white = '#fff';
 
-const text = '#C3CBD0';
+const lightBlack = '#3d3f58';
+const black = '#313348';
+const darkBlack = '#242537';
 
-// Brand Colors.
-const lightBlue = '#cdf';
-const blue = '#00ddf8'; // primary
-const darkBlue = '#15C6E3';
+const lightGray = '#f4f6f8';
+const gray = '#4f6f8f';
+const darkGray = '#364049';
 
-const lightPurple = '#ecf';
-const purple = '#8389E1'; // secondary
+const lightPurple = '#8389E1';
+const purple = '#8389E1';
 const darkPurple = '#484A9F';
 
-const lightGray = '#f6f8fa';
-const gray = '#687B8E'; // primary
-const darkGray = '#364049';
-const borderGray = '#535473';
+const lightBlue = '#00ddf8';
+const blue = '#00ddf8';
+const darkBlue = '#15C6E3';
 
-const lightGreen = '#cec';
-const green = '#0a0'; // secondary
+const lightGreen = '#ecf7ec';
+const green = '#0a0';
 const darkGreen = '#060';
 
-const lightRed = '#fcc';
-const red = '#c00'; // secondary
+const lightRed = '#fbebeb';
+const red = '#c00';
 const darkRed = '#800';
 
-const lightOrange = '#feb';
-const orange = '#fa0'; // secondary
-const darkOrange = '#a50';
+const lightOrange = '#f68013';
+const orange = '#f68013';
+const darkOrange = '#f06f20';
 
-// tints
-const flatten = (name, colors) =>
-  colors.reduce((a, b, i) => {
-    const color = {
-      [name + i]: b,
-    };
-    return { ...a, ...color };
-  }, {});
-
-const blues = [lightBlue, lightBlue, blue, blue];
-const purples = [lightPurple, lightPurple, purple, purple];
-const grays = [lightGray, lightGray, gray, gray];
-const greens = [lightGreen, lightGreen, green, green];
-const reds = [lightRed, lightRed, red, red];
-const oranges = [lightOrange, lightOrange, orange, orange];
+const lightYellow = '#fedc2a';
+const yellow = '#fff3c0';
+const darkYellow = '#fff3c0';
 
 const colors = {
-  black,
-  white,
   text,
-  blue,
-  lightBlue,
-  darkBlue,
-  gray,
-  lightGray,
   borderGray,
+  white,
+  lightBlack,
+  black,
+  darkBlack,
+  lightGray,
+  gray,
   darkGray,
-  green,
-  lightGreen,
-  darkGreen,
-  red,
-  lightRed,
-  darkRed,
-  orange,
-  lightOrange,
-  darkOrange,
-  purple,
+  lightBlue,
+  blue,
+  darkBlue,
   lightPurple,
+  purple,
   darkPurple,
-  blues,
-  greens,
-  reds,
-  oranges,
-  purples,
-  ...flatten('blue', blues),
-  ...flatten('gray', grays),
-  ...flatten('green', greens),
-  ...flatten('red', reds),
-  ...flatten('orange', oranges),
-  ...flatten('purple', purples),
+  lightGreen,
+  green,
+  darkGreen,
+  lightRed,
+  red,
+  darkRed,
+  lightOrange,
+  orange,
+  darkOrange,
+  lightYellow,
+  yellow,
+  darkYellow,
 };
 
 export { colors };
+
+export const colorStyles = {
+  whiteOnText: {
+    color: colors.white,
+    backgroundColor: colors.text,
+  },
+  whiteOnGray: {
+    color: colors.white,
+    backgroundColor: colors.gray,
+  },
+  textOnLightGray: {
+    color: colors.text,
+    backgroundColor: colors.lightGray,
+  },
+  whiteOnBlue: {
+    color: colors.white,
+    backgroundColor: colors.blue,
+  },
+  blueOnLightBlue: {
+    color: colors.blue,
+    backgroundColor: colors.lightBlue,
+  },
+  whiteOnGreen: {
+    color: colors.white,
+    backgroundColor: colors.green,
+  },
+  greenOnLightGreen: {
+    color: colors.green,
+    backgroundColor: colors.lightGreen,
+  },
+  whiteOnRed: {
+    color: colors.white,
+    backgroundColor: colors.red,
+  },
+  redOnLightRed: {
+    color: colors.red,
+    backgroundColor: colors.lightRed,
+  },
+  textOnOrange: {
+    color: colors.text,
+    backgroundColor: colors.orange,
+  },
+  whiteOnPurple: {
+    color: colors.white,
+    backgroundColor: colors.purple,
+  },
+  purpleOnLightPurple: {
+    color: colors.purple,
+    backgroundColor: colors.lightPurple,
+  },
+  textOnWhite: {
+    color: colors.text,
+    backgroundColor: colors.white,
+  },
+  grayOnWhite: {
+    color: colors.gray,
+    backgroundColor: colors.white,
+  },
+  blueOnWhite: {
+    color: colors.blue,
+    backgroundColor: colors.white,
+  },
+  greenOnWhite: {
+    color: colors.green,
+    backgroundColor: colors.white,
+  },
+  redOnWhite: {
+    color: colors.red,
+    backgroundColor: colors.white,
+  },
+  purpleOnWhite: {
+    color: colors.purple,
+    backgroundColor: colors.white,
+  },
+  whiteOnDarkOrange: {
+    color: colors.white,
+    backgroundColor: colors.darkOrange,
+  },
+};
+
+colorStyles.info = colorStyles.textOnLightGray;
+colorStyles.success = colorStyles.whiteOnGreen;
+colorStyles.warning = colorStyles.textOnOrange;
+colorStyles.danger = colorStyles.whiteOnRed;
 
 // styled-system's `borderRadius` function can hook into the `radii` object/array
 export const radii = [0, 2, 6];
@@ -210,10 +315,13 @@ const theme = {
   font,
   fontSizes,
   fontWeights,
+  lineHeights,
   letterSpacings,
   regular,
   bold,
+  textStyles,
   colors,
+  colorStyles,
   radii,
   radius,
   boxShadows,

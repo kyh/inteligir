@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { width } from 'styled-system';
-import theme from './theme';
+import theme from '@client/utils/theme';
 
 const image = (props) =>
   props.image ? { backgroundImage: `url(${props.image})` } : null;

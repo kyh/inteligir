@@ -2,7 +2,7 @@ import React from 'react';
 import styled, {
   ThemeProvider as StyledThemeProvider,
 } from 'styled-components';
-import nextTheme from './theme';
+import nextTheme from '@client/utils/theme';
 
 export const Base = styled.div`
   font-family: ${(props) => props.theme.font};
