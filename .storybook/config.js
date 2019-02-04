@@ -16,10 +16,10 @@ addDecorator((story) => (
 
 const req = require.context('../client', true, /[\w\d\s]+\.stories.js$/);
 
-const load = () => {
+const loadStories = () => {
   req.keys().forEach((key) => {
     req(key);
   });
 };
 
-configure(load, module);
+configure(loadStories, module);

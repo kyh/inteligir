@@ -29,7 +29,7 @@ storiesOf('Positioning', module)
   .add('Over an image', () => (
     <Relative width={1 / 2}>
       <Absolute bottom={16} right={16}>
-        Absolute positioned over image
+        <Text color="black">Absolute positioned over image</Text>
       </Absolute>
       <Image src="https://cdn.dribbble.com/users/452635/screenshots/5945084/133.7..png" />
     </Relative>
