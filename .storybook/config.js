@@ -1,11 +1,16 @@
 import React from 'react';
+import { ThemeProvider } from 'styled-components';
 import { configure, addDecorator } from '@storybook/react';
 
-import { ThemeProvider, Box } from '../client/components';
+import theme from '../client/utils/theme';
+import { GlobalStyles, Box } from '../client/components';
 
 addDecorator((story) => (
-  <ThemeProvider>
-    <Box p={3}>{story()}</Box>
+  <ThemeProvider theme={theme}>
+    <main>
+      <GlobalStyles />
+      <Box p={3}>{story()}</Box>
+    </main>
   </ThemeProvider>
 ));
 

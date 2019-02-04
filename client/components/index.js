@@ -1,15 +1,15 @@
 export {
   Box,
-  Card,
   Container,
   Loading,
   Logo,
   Meta,
   Navigation,
   Page,
-  ThemeProvider,
-  Text,
   Image,
+  GlobalStyles,
 } from './base';
 
-export { Absolute, Relative } from './position';
+export { Absolute, Relative } from './layout';
+export { Text, Link, ActiveLink } from './typography';
+export { Card } from './card';
