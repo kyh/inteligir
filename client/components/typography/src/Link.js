@@ -1,4 +1,4 @@
-import React, { Children } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import { color } from 'styled-system';
 import NextLink from 'next/link';
@@ -47,9 +47,7 @@ StyledLink.defaultProps = {
 
 const Link = ({ children, href, ...props }) => (
   <NextLink href={href}>
-    <StyledLink {...props}>
-      {React.cloneElement(Children.only(children))}
-    </StyledLink>
+    <StyledLink {...props}>{children}</StyledLink>
   </NextLink>
 );
 
