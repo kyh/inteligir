@@ -114,7 +114,7 @@ export const textStyles = {
 };
 
 // Color palette.
-const text = '#001833';
+const text = '#f4f6f8';
 const borderGray = '#c0cad5';
 
 const white = '#fff';

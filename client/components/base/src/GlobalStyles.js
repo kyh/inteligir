@@ -49,8 +49,8 @@ body {
   font-size: 1.6rem;
   line-height: 1.77;
   font-family: ${theme.font};
-  color: ${theme.color.text};
-  background-color: ${theme.darkBlack};
+  color: ${theme.colors.text};
+  background-color: ${theme.colors.darkBlack};
 }
 
 *,
