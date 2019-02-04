@@ -11,7 +11,7 @@ const util = require('util');
 const exec = util.promisify(require('child_process').exec);
 const writeFile = util.promisify(require('fs').writeFile);
 
-const DEPLOY_LOCATIONS = require('./heroku_mappings');
+const DEPLOY_LOCATIONS = require('./heroku-mappings');
 
 const ENV_TO_APP_MAPPING = {
   local: DEPLOY_LOCATIONS.dev.herokuName,
