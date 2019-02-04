@@ -9,7 +9,7 @@ addDecorator((story) => (
   </ThemeProvider>
 ));
 
-const req = require.context('../client', true, /storybook\/[\w\d\s]+\.js$/);
+const req = require.context('../client', true, /[\w\d\s]+\.stories.js$/);
 
 const load = () => {
   req.keys().forEach((key) => {

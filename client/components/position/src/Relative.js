@@ -1,15 +1,15 @@
 import styled from 'styled-components';
 import { top, right, bottom, left, zIndex } from 'styled-system';
 
-import Box from './Box';
+import { Box } from '@client/components';
 
-const Absolute = styled(Box)`
-  position: absolute;
+const Relative = styled(Box)`
+  position: relative;
   ${top} ${bottom} ${left} ${right}
   ${zIndex}
 `;
 
-Absolute.propTypes = {
+Relative.propTypes = {
   ...top.propTypes,
   ...right.propTypes,
   ...bottom.propTypes,
@@ -17,6 +17,6 @@ Absolute.propTypes = {
   ...zIndex.propTypes,
 };
 
-Absolute.displayName = 'Absolute';
+Relative.displayName = 'Relative';
 
-export default Absolute;
+export default Relative;
