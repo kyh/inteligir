@@ -2,10 +2,7 @@ import React from 'react';
 import styled from 'styled-components';
 import NProgress from 'nprogress';
 import Router from 'next/router';
-import Link from 'next/link';
-
-import Logo from '@client/components/Logo';
-import ActiveLink from '@client/components/ActiveLink';
+import { Logo, ActiveLink, Link } from '@client/components';
 
 Router.onRouteChangeStart = () => {
   NProgress.start();
@@ -58,20 +55,18 @@ const StyledNav = styled.nav`
 const Navigation = () => (
   <StyledHeader>
     <div className="left">
-      <Link href="/">
-        <a className="nav-logo">
-          <Logo />
-        </a>
+      <Link href="/" className="nav-logo">
+        <Logo />
       </Link>
       <StyledNav>
         <ActiveLink href="/discover" prefetch>
-          <a>Discover</a>
+          Discover
         </ActiveLink>
         <ActiveLink href="/community" prefetch>
-          <a>Community</a>
+          Community
         </ActiveLink>
         <ActiveLink href="/help" prefetch>
-          <a>Help</a>
+          Help
         </ActiveLink>
       </StyledNav>
     </div>

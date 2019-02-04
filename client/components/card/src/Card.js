@@ -2,22 +2,24 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { borderRadius } from 'styled-system';
 import theme from '@client/utils/theme';
-
-import Box from './Box';
+import { Box } from '@client/components';
 
 const boxShadow = (props) => {
   const boxShadows = {
-    sm: {
+    xs: {
       'box-shadow': props.theme.boxShadows[0],
     },
-    md: {
+    sm: {
       'box-shadow': props.theme.boxShadows[1],
     },
-    lg: {
+    md: {
       'box-shadow': props.theme.boxShadows[2],
     },
-    xl: {
+    lg: {
       'box-shadow': props.theme.boxShadows[3],
+    },
+    xl: {
+      'box-shadow': props.theme.boxShadows[4],
     },
   };
   return boxShadows[props.boxShadowSize];
@@ -44,7 +46,8 @@ Card.propTypes = {
 Card.defaultProps = {
   borderColor: 'borderGray',
   borderRadius: 1,
-  borderWidth: 1,
+  borderWidth: 0,
+  boxShadowSize: 'sm',
   theme,
 };
 

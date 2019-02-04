@@ -31,7 +31,7 @@ storiesOf('Positioning', module)
       <Absolute bottom={16} right={16}>
         Absolute positioned over image
       </Absolute>
-      <Image src="https://www.priceline.com/home/public/assets/images/photos/photo-aruba.jpg" />
+      <Image src="https://cdn.dribbble.com/users/452635/screenshots/5945084/133.7..png" />
     </Relative>
   ))
   .add('Positioning an icon', () => (
