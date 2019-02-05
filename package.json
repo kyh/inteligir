@@ -89,6 +89,6 @@
     "nodemon": "1.18.9",
     "prettier": "1.16.3",
     "pretty-quick": "1.10.0",
-    "puppeteer": "1.12.1"
+    "puppeteer": "1.12.2"
   }
 }
