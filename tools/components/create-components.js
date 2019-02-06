@@ -12,7 +12,8 @@
  * |   │── ComponentName.js
  * |   └── ComponentName2.js
  * ├── /stories/
- * │   └── index.stories.js
+ * |   │── ComponentName.stories.js
+ * |   └── ComponentName2.stories.js
  * └── index.js
  *
  */
@@ -21,15 +22,15 @@ const fs = require('fs-extra');
 const task = require('./task');
 
 const componentTemplate = require('./component-template');
-const componentStoriesTemplate = require('./component-stories-template');
+const storyTemplate = require('./component-story-template');
 
 const packageName = process.argv[2];
 
-function getIndexFile(componentNames) {
+function getIndexContent(componentNames) {
   return componentNames
     .map(
       (componentName) =>
-        `export ${componentName} from './src/${componentName}';`,
+        `export { default as ${componentName} } from './src/${componentName}';`,
     )
     .join('\n');
 }
@@ -38,7 +39,7 @@ function initialIsCapital(word) {
   return word[0] !== word[0].toLowerCase();
 }
 
-async function createComponent({ componentName, packageDir }) {
+function create({ componentName, componentPath, template }) {
   if (!componentName) {
     throw new Error(
       'Missing component name argument, use: `npm run create:components [package-name] [ComponentName]`',
@@ -51,10 +52,29 @@ async function createComponent({ componentName, packageDir }) {
     );
   }
 
-  await fs.writeFile(
-    path.join(packageDir, 'src', `${componentName}.js`),
-    componentTemplate({ componentName }),
+  return fs.writeFile(path.join(componentPath), template({ componentName }));
+}
+
+function createComponent({ componentName, packageDir }) {
+  const componentPath = path.join(packageDir, 'src', `${componentName}.js`);
+  return create({
+    componentName,
+    componentPath,
+    template: componentTemplate,
+  });
+}
+
+function createStory({ componentName, packageDir }) {
+  const componentPath = path.join(
+    packageDir,
+    'stories',
+    `${componentName}.stories.js`,
   );
+  return create({
+    componentName,
+    componentPath,
+    template: storyTemplate,
+  });
 }
 
 module.exports = task('create-package-components', async () => {
@@ -63,7 +83,7 @@ module.exports = task('create-package-components', async () => {
 
   if (!packageName) {
     throw new Error(
-      'Missing package name argument, use: `yarn run create-package:components [package-name] [ComponentName]`',
+      'Missing package name argument, use: `npm run create:components [package-name] [ComponentName]`',
     );
   }
 
@@ -72,21 +92,27 @@ module.exports = task('create-package-components', async () => {
   // Check if directory already exist
   const packageDirExistsAlready = await fs.pathExists(packageDir);
 
+  const srcDir = path.join(packageDir, 'src');
+  const storiesDir = path.join(packageDir, 'stories');
+  const indexDir = path.join(packageDir, 'index.js');
+
+  const indexContent = getIndexContent(componentNames);
+
   if (packageDirExistsAlready) {
-    throw new Error(`Directory already exists: ${packageDir}`);
+    console.info(`Package already exists: ${packageDir}`);
+    // Append new components to package index
+    await fs.appendFile(indexDir, indexContent);
+  } else {
+    // Create directory
+    console.info('Package name will be:', packageName);
+    await fs.ensureDir(packageDir);
+    // Create `src` dir in package
+    await fs.ensureDir(srcDir);
+    // Create `stories` dir in package
+    await fs.ensureDir(storiesDir);
+    // Create index in root of package
+    await fs.writeFile(indexDir, indexContent);
   }
-
-  // Create directory
-  await fs.ensureDir(packageDir);
-
-  console.info('Package name will be:', packageName);
-
-  // Create `src` dir in package
-  await fs.ensureDir(path.join(packageDir, 'src'));
-  await fs.writeFile(
-    path.join(packageDir, 'index.js'),
-    getIndexFile(componentNames),
-  );
 
   await Promise.all(
     componentNames.map((componentName) =>
@@ -94,9 +120,12 @@ module.exports = task('create-package-components', async () => {
     ),
   );
 
-  await fs.ensureDir(path.join(packageDir, 'stories'));
-  await fs.writeFile(
-    path.join(packageDir, 'stories', `index.stories.js`),
-    componentStoriesTemplate({ packageName, componentNames }),
+  await Promise.all(
+    componentNames.map((componentName) =>
+      createStory({ componentName, packageDir }),
+    ),
   );
+
+  // TODO: Append new packages to end of index.js in components.
+  console.info(`One last step: add your packages into components/index.js`);
 });
