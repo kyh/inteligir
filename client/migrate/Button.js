@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { width, space } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const size = (props) => {
   switch (props.size) {
@@ -63,7 +63,7 @@ Button.propTypes = {
 };
 
 Button.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 Button.displayName = 'Button';

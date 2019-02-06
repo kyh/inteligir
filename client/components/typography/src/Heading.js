@@ -1,4 +1,4 @@
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Text from './Text';
 
 const Heading = Text.withComponent('h3');
@@ -8,7 +8,7 @@ Heading.displayName = 'Heading';
 Heading.defaultProps = {
   textStyle: 'display4',
   m: 0,
-  theme,
+  theme: defaultTheme,
 };
 
 Heading.h1 = Heading.withComponent('h1');

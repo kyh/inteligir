@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Text from './Text';
 
 const Truncate = styled(Text)`
@@ -9,7 +9,7 @@ const Truncate = styled(Text)`
 `;
 
 Truncate.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 Truncate.displayName = 'Truncate';

@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { borderRadius } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import { Box } from '@client/components';
 
 const boxShadow = (props) => {
@@ -49,14 +49,14 @@ Card.defaultProps = {
   borderWidth: 0,
   boxShadowSize: 'xs',
   bg: 'lightBlack',
-  theme,
+  theme: defaultTheme,
 };
 
 Card.displayName = 'Card';
 
 Card.Header = styled(Box)`
   font-weight: bold;
-  padding: ${theme.space[3]}px;
+  padding: ${({ theme }) => theme.space[3]}px;
 `;
 
 export default Card;
