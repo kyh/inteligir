@@ -36,7 +36,7 @@
     "adorable-avatars": "0.2.2",
     "apollo-boost": "0.1.27",
     "aws-sdk": "2.395.0",
-    "bcrypt": "3.0.3",
+    "bcrypt": "3.0.4",
     "boom": "7.3.0",
     "env-cmd": "8.0.2",
     "express-async-errors": "3.1.1",
