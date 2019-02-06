@@ -1,7 +1,7 @@
 import React from 'react';
 import { Grid, Cell } from 'styled-css-grid';
 
-import theme from '@client/utils/theme';
+import { space } from '@client/utils/theme';
 import { Container, Card } from '@client/components';
 
 const Discover = () => (
@@ -18,7 +18,7 @@ const Discover = () => (
         left: 0,
       }}
     />
-    <Grid columns={10} gap={`${theme.space[4]}px`}>
+    <Grid columns={10} gap={`${space[4]}px`}>
       <Cell width={2}>
         <Card>
           <Card.Header>Browse Categories</Card.Header>

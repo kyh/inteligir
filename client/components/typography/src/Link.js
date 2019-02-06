@@ -3,19 +3,19 @@ import styled from 'styled-components';
 import { color } from 'styled-system';
 import NextLink from 'next/link';
 
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const StyledLink = styled.a`
   ${color};
   text-decoration: none;
   background-color: transparent;
   -webkit-text-decoration-skip: objects;
-  border-bottom: 1px solid ${theme.colors.borderGray};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.borderGray};
   transition: color 0.2s linear, border-color 0.2s linear;
   cursor: pointer;
 
   &:hover {
-    border-bottom-color: ${theme.colors.darkBlue};
+    border-bottom-color: ${({ theme }) => theme.colors.darkBlue};
   }
 `;
 
@@ -26,8 +26,8 @@ StyledLink.propTypes = {
 };
 
 StyledLink.defaultProps = {
+  theme: defaultTheme,
   color: 'blue',
-  theme,
 };
 
 const Link = ({ children, href, ...props }) => (

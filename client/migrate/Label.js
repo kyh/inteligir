@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { space, fontSize, fontWeight, color } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const nowrap = (props) =>
   props.nowrap
@@ -42,7 +42,7 @@ Label.defaultProps = {
   fontSize: '10px',
   fontWeight: 'bold',
   color: 'gray',
-  theme,
+  theme: defaultTheme,
 };
 
 Label.displayName = 'Label';

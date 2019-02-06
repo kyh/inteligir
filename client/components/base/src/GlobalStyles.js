@@ -1,5 +1,5 @@
 import { createGlobalStyle } from 'styled-components';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const GlobalStyles = createGlobalStyle`
 @font-face {
@@ -48,9 +48,9 @@ body {
   margin: 0;
   font-size: 1.6rem;
   line-height: 1.77;
-  font-family: ${theme.font};
-  color: ${theme.colors.text};
-  background-color: ${theme.colors.darkBlack};
+  font-family: ${defaultTheme.font};
+  color: ${defaultTheme.colors.text};
+  background-color: ${defaultTheme.colors.darkBlack};
 }
 
 *,

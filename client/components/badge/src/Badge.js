@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { themeGet, space, color } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const type = (props) => {
   const badgeColors = {
@@ -67,7 +67,7 @@ Badge.propTypes = {
 Badge.defaultProps = {
   px: 2,
   py: 1,
-  theme,
+  theme: defaultTheme,
 };
 
 export default Badge;
