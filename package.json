@@ -40,7 +40,7 @@
     "boom": "7.3.0",
     "env-cmd": "8.0.2",
     "express-async-errors": "3.1.1",
-    "graphql-shield": "5.1.0",
+    "graphql-shield": "5.1.2",
     "graphql-yoga": "1.17.1",
     "helmet": "3.15.0",
     "isomorphic-unfetch": "3.0.0",
