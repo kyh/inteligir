@@ -114,41 +114,41 @@ export const textStyles = {
 };
 
 // Color palette.
-const text = '#f4f6f8';
-const borderGray = '#c0cad5';
+const text = '#b9c3cd';
+const borderGray = '#8493aa';
 
 const white = '#fff';
 
-const lightBlack = '#3d3f58';
-const black = '#313348';
-const darkBlack = '#242537';
+const lightBlack = '#3d3e5a';
+const black = '#31334a';
+const darkBlack = '#252539';
 
 const lightGray = '#f4f6f8';
-const gray = '#4f6f8f';
+const gray = '#8493aa';
 const darkGray = '#364049';
 
-const lightPurple = '#8389E1';
-const purple = '#8389E1';
-const darkPurple = '#484A9F';
+const lightPurple = '#8688ea';
+const purple = '#5e5be3';
+const darkPurple = '#4a47a5';
 
-const lightBlue = '#00ddf8';
-const blue = '#00ddf8';
-const darkBlue = '#15C6E3';
+const lightBlue = '#8cd4fe';
+const blue = '#00bfda';
+const darkBlue = '#397fea';
 
 const lightGreen = '#ecf7ec';
-const green = '#0a0';
+const green = '#53da35';
 const darkGreen = '#060';
 
 const lightRed = '#fbebeb';
-const red = '#c00';
+const red = '#ff0031';
 const darkRed = '#800';
 
 const lightOrange = '#f68013';
-const orange = '#f68013';
+const orange = '#ff8764';
 const darkOrange = '#f06f20';
 
 const lightYellow = '#fedc2a';
-const yellow = '#fff3c0';
+const yellow = '#ffc700';
 const darkYellow = '#fff3c0';
 
 const colors = {
@@ -271,7 +271,7 @@ colorStyles.danger = colorStyles.whiteOnRed;
 export const radii = [0, 2, 6];
 export const radius = '2px';
 
-export const maxContainerWidth = '1280px';
+export const maxContainerWidth = '1350px';
 
 // boxShadows
 export const borderShadowColor = 'rgba(67, 90, 111, 0.3)';

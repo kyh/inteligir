@@ -17,21 +17,6 @@ const StyledLink = styled.a`
   &:hover {
     border-bottom-color: ${theme.colors.darkBlue};
   }
-
-  &:not([href]):not([tabindex]) {
-    color: inherit;
-    text-decoration: none;
-  }
-
-  &:not([href]):not([tabindex]):hover,
-  &:not([href]):not([tabindex]):focus {
-    color: inherit;
-    text-decoration: none;
-  }
-
-  &:not([href]):not([tabindex]):focus {
-    outline: 0;
-  }
 `;
 
 StyledLink.displayName = 'Link';
