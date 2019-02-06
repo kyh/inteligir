@@ -10,6 +10,6 @@ export {
   GlobalStyles,
 } from './base';
 
-export { Absolute, Relative } from './layout';
-export { Text, Link, ActiveLink } from './typography';
+export { Absolute, Relative, Flex, Hide } from './layout';
+export { Text, Link, ActiveLink, Truncate, Heading } from './typography';
 export { Card } from './card';

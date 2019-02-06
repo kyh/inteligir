@@ -1,6 +1,6 @@
-import React from 'react';
 import { storiesOf } from '@storybook/react';
-import { Hide, Flex } from '../index';
+import React from 'react';
+import { Hide, Flex } from '@client/components';
 
 storiesOf('Hide', module).add('Hide', () => (
   <Flex justifyContent="space-between">

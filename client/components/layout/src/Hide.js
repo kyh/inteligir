@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import theme from '@client/utils/theme';
-import Box from './Box';
+import { Box } from '@client/components';
 
 const getMaxWidth = (em) => parseInt(em, 10) - 0.01;
 

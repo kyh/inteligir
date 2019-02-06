@@ -1,13 +1,12 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { withInfo } from '@storybook/addon-info';
-import { Text, Link } from '../../index';
+import { Text } from '@client/components';
 
 storiesOf('Text', module)
   .add(
     'Typography component',
     withInfo({
-      inline: true,
       text:
         'A low-level component for setting font-size, typographic styles, margin, and color',
     })(() => <Text m={3}>Hello</Text>),
@@ -46,16 +45,3 @@ storiesOf('Text', module)
       <Text color="green">Hello Green</Text>
     </div>
   ));
-
-storiesOf('Link', module)
-  .add('Link component', () => (
-    <Link href="https://www.inteligir.com/" target="_blank">
-      Home
-    </Link>
-  ))
-  .add('Link open self', () => (
-    <Link href="https://www.inteligir.com/" target="_self">
-      Open the Home in the same window
-    </Link>
-  ))
-  .add('Color', () => <Link color="darkGray">I'm a different color!</Link>);

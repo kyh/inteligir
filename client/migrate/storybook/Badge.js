@@ -7,7 +7,6 @@ storiesOf('Badge', module)
   .add(
     'Badge component',
     withInfo({
-      inline: true,
       text: 'Use the <Badge /> component to render a primitive badge.',
     })(() => <Badge bg="lightGray">badge</Badge>),
   )

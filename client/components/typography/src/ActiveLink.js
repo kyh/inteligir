@@ -1,6 +1,6 @@
 import React from 'react';
 import { withRouter } from 'next/router';
-import { Link } from '@client/components';
+import Link from './Link';
 
 const ActiveLink = withRouter(({ router, children, href, ...props }) => (
   <Link
