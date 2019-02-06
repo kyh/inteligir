@@ -1,7 +1,7 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { withInfo } from '@storybook/addon-info';
-import { Badge } from '../index';
+import { Badge } from '@client/components';
 
 storiesOf('Badge', module)
   .add(
