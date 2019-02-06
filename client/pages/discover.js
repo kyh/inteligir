@@ -2,8 +2,7 @@ import React from 'react';
 import { Grid, Cell } from 'styled-css-grid';
 
 import theme from '@client/utils/theme';
-import Container from '@client/components/styles/Container';
-import { Card, CardHeader } from '@client/components/styles/Card';
+import { Container, Card } from '@client/components';
 
 const Discover = () => (
   <Container>
@@ -19,10 +18,10 @@ const Discover = () => (
         left: 0,
       }}
     />
-    <Grid columns={10} gap={theme.baseSpacing2}>
+    <Grid columns={10} gap={`${theme.space[4]}px`}>
       <Cell width={2}>
         <Card>
-          <CardHeader>Browse Categories</CardHeader>
+          <Card.Header>Browse Categories</Card.Header>
           <ul>
             <li>Top Sellers</li>
             <li>Recently Updated</li>
