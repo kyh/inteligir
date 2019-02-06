@@ -1,6 +1,6 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
-import { Box, Truncate } from '../index';
+import { Box, Truncate } from '@client/components';
 
 const loripsum = `
 Lorem ipsum dolor sit amet, consectetur adipiscing elit. Quis est, qui non oderit libidinosam, protervam adolescentiam? Sed ego in hoc resisto; Ratio enim nostra consentit, pugnat oratio. Nihil enim hoc differt.

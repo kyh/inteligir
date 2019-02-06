@@ -1,6 +1,6 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
-import { Box, Card } from '../../index';
+import { Box, Card } from '@client/components';
 
 storiesOf('Card', module)
   .add('Box Shadows with default border', () => (

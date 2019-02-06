@@ -1,7 +1,7 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { withInfo } from '@storybook/addon-info';
-import { Box } from '../index';
+import { Box } from '@client/components';
 
 const description =
   'A low-level layout component for setting width, margin, padding, and color';
@@ -9,10 +9,7 @@ const description =
 storiesOf('Box', module)
   .add(
     'Layout component',
-    withInfo({
-      text: description,
-      inline: true,
-    })(() => <Box p={3}>Hello</Box>),
+    withInfo({ text: description })(() => <Box p={3}>Hello</Box>),
   )
   .add('Padding', () => <Box p={3}>Hello</Box>)
   .add('Margin', () => <Box m={3}>Hello</Box>)

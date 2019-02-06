@@ -3,7 +3,7 @@ import React from 'react';
 import styled from 'styled-components';
 import Icon from 'react-icons-kit';
 import { x } from 'react-icons-kit/feather/x';
-import { Absolute, Relative, Card, Image, Text } from '../../index';
+import { Absolute, Relative, Card, Image, Text } from '@client/components';
 
 const TallCard = styled(Card)`
   height: 420px;

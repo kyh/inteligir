@@ -1,7 +1,7 @@
 import React from 'react';
 import { storiesOf } from '@storybook/react';
 import { withInfo } from '@storybook/addon-info';
-import { Heading } from '../index';
+import { Heading } from '@client/components';
 
 const description =
   'A type of the <Text> component' +
@@ -11,10 +11,9 @@ const description =
 storiesOf('Heading', module)
   .add(
     'Heading component',
-    withInfo({
-      inline: true,
-      text: description,
-    })(() => <Heading m={3}>Heading component</Heading>),
+    withInfo({ text: description })(() => (
+      <Heading m={3}>Heading component</Heading>
+    )),
   )
   .add('Using dot-notation with h1-h6', () => (
     <section>
