@@ -3,7 +3,7 @@ import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import Icon from 'react-icons-kit';
 
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Box from './Box';
 
 const Checkbox = (props) => {
@@ -45,7 +45,7 @@ const CheckBoxWrapper = styled(Box)`
 `;
 
 CheckBoxWrapper.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 const StyledInput = styled.input`

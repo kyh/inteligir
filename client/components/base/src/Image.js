@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const Image = styled.img`
   display: block;
@@ -10,7 +10,7 @@ const Image = styled.img`
 Image.displayName = 'Image';
 
 Image.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 export default Image;

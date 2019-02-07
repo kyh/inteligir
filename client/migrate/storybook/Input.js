@@ -7,7 +7,6 @@ storiesOf('Input', module)
   .add(
     'Input component',
     withInfo({
-      inline: true,
       text:
         'Simple styled input component that accepts a color and whether or not to show an error container.',
     })(() => <Input my={3} />),

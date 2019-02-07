@@ -1,7 +1,7 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
 import { width } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const image = (props) =>
   props.image ? { backgroundImage: `url(${props.image})` } : null;
@@ -28,7 +28,7 @@ BackgroundImage.propTypes = {
 };
 
 BackgroundImage.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 BackgroundImage.displayName = 'BackgroundImage';

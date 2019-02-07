@@ -1,6 +1,7 @@
 import React from 'react';
 import { ThemeProvider } from 'styled-components';
 import { configure, addDecorator } from '@storybook/react';
+import { withKnobs } from '@storybook/addon-knobs';
 
 import theme from '../client/utils/theme';
 import { GlobalStyles, Box } from '../client/components';
@@ -13,6 +14,8 @@ addDecorator((story) => (
     </main>
   </ThemeProvider>
 ));
+
+addDecorator(withKnobs);
 
 const req = require.context('../client', true, /[\w\d\s]+\.stories.js$/);
 
