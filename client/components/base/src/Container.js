@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const maxWidth = (props) =>
   props.maxWidth
@@ -19,7 +19,7 @@ Container.propTypes = {
 };
 
 Container.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 Container.displayName = 'Container';

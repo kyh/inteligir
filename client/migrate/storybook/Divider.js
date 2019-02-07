@@ -11,13 +11,7 @@ const ColumnFlex = styled(Flex)`
 `;
 
 storiesOf('Divider', module)
-  .add(
-    'Divider component',
-    withInfo({
-      text: description,
-      inline: true,
-    })(() => <Divider />),
-  )
+  .add('Divider component', withInfo({ text: description })(() => <Divider />))
   .add('Margin', () => <Divider m={3} />)
   .add('Width', () => <Divider p={3} width={1 / 2} />)
   .add('Pixel Width', () => <Divider width={256} />)

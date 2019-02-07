@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Button from './Button';
 
 const OutlineButton = styled(Button)`
@@ -16,7 +16,7 @@ const OutlineButton = styled(Button)`
 `;
 
 OutlineButton.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 OutlineButton.displayName = 'OutlineButton';

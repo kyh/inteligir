@@ -10,7 +10,7 @@ import {
   color,
   themeGet,
 } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 export const caps = (props) =>
   props.caps
@@ -55,7 +55,7 @@ Text.propTypes = {
 };
 
 Text.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 Text.span = Text.withComponent('span');
