@@ -115,7 +115,7 @@ export const textStyles = {
 
 // Color palette.
 const text = '#b9c3cd';
-const borderGray = '#8493aa';
+const borderGray = '#454565';
 
 const white = '#fff';
 
@@ -271,7 +271,7 @@ colorStyles.danger = colorStyles.whiteOnRed;
 export const radii = [0, 2, 6];
 export const radius = '2px';
 
-export const maxContainerWidth = '1350px';
+export const maxContainerWidth = '1400px';
 
 // boxShadows
 export const borderShadowColor = 'rgba(67, 90, 111, 0.3)';

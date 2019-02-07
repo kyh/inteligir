@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
-import { borderRadius } from 'styled-system';
+import { borderRadius, borders, fontSize } from 'styled-system';
 import defaultTheme from '@client/utils/theme';
 import { Box } from '@client/components';
 
@@ -56,7 +56,9 @@ Card.displayName = 'Card';
 
 Card.Header = styled(Box)`
   font-weight: bold;
-  padding: ${({ theme }) => theme.space[3]}px;
+  ${borders};
+  border-color: ${({ theme }) => theme.colors.borderGray};
+  ${fontSize}
 `;
 
 export default Card;

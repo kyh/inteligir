@@ -1,11 +1,16 @@
 import React from 'react';
 import { Grid, Cell } from 'styled-css-grid';
-
-import { space } from '@client/utils/theme';
-import { Container, Card } from '@client/components';
+import {
+  Container,
+  ListCard,
+  List,
+  Card,
+  PromotedCard,
+  Flex,
+} from '@client/components';
 
 const Discover = () => (
-  <Container>
+  <Container p={20}>
     <img
       src="/static/assets/discover.jpg"
       alt=""
@@ -18,22 +23,35 @@ const Discover = () => (
         left: 0,
       }}
     />
-    <Grid columns={10} gap={`${space[4]}px`}>
-      <Cell width={2}>
-        <Card>
-          <Card.Header>Browse Categories</Card.Header>
-          <ul>
-            <li>Top Sellers</li>
-            <li>Recently Updated</li>
-            <li>New Releases</li>
-            <li>Upcoming</li>
-            <li>Specials</li>
-            <li>Virtual Reality</li>
-            <li>Steam Controller Friendly</li>
-          </ul>
+    <Grid
+      columns="250px 1fr"
+      gap="24px"
+      areas={['menu search', 'menu content', 'ad content']}
+    >
+      <Cell area="menu">
+        <ListCard title="Browse Categories">
+          <List.Item>Top Sellers</List.Item>
+          <List.Item>Recently Updated</List.Item>
+          <List.Item>New Releases</List.Item>
+          <List.Item>Upcoming</List.Item>
+          <List.Item>Specials</List.Item>
+          <List.Item>Virtual Reality</List.Item>
+          <List.Item>Steam Controller Friendly</List.Item>
+        </ListCard>
+      </Cell>
+      <Cell area="search">
+        <Card py={3}>
+          <Flex>Search</Flex>
         </Card>
       </Cell>
-      <Cell width={8}>Rest of the content</Cell>
+      <Cell area="ad">
+        <Card py={3}>
+          <Flex>Ad</Flex>
+        </Card>
+      </Cell>
+      <Cell area="content">
+        <PromotedCard />
+      </Cell>
     </Grid>
   </Container>
 );
