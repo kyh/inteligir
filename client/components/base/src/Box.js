@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { space, width, color, textAlign } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const Box = styled.div`
   ${space} ${width} ${color} ${textAlign}
@@ -9,7 +9,7 @@ const Box = styled.div`
 Box.displayName = 'Box';
 
 Box.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 Box.propTypes = {

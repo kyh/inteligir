@@ -4,7 +4,7 @@ import { space, fontSize, themeGet } from 'styled-system';
 import Icon from 'react-icons-kit';
 import { chevronDown } from 'react-icons-kit/feather/chevronDown';
 
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Flex from './Flex';
 
 const ClickableIcon = styled(Icon)`
@@ -29,7 +29,7 @@ const SelectBase = styled.select`
   }
 `;
 SelectBase.defaultProps = {
-  theme,
+  theme: defaultTheme,
   fontSize: 1,
   m: 0,
   pl: 12,

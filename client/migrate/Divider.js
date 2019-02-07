@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { space, width, borderColor } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 const Divider = styled.hr`
   border: 0;
@@ -13,7 +13,7 @@ Divider.displayName = 'Divider';
 
 Divider.defaultProps = {
   borderColor: 'borderGray',
-  theme,
+  theme: defaultTheme,
   ml: 0,
   mr: 0,
 };

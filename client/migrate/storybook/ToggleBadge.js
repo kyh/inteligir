@@ -7,7 +7,6 @@ storiesOf('ToggleBadge', module)
   .add(
     'ToggleBadge component',
     withInfo({
-      inline: true,
       text:
         'Use the <ToggleBadge /> component to render a primitive ToggleBadge.',
     })(() => <ToggleBadge>ToggleBadge</ToggleBadge>),

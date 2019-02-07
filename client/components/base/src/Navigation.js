@@ -18,8 +18,8 @@ Router.onRouteChangeError = () => {
 const StyledHeader = styled.header`
   display: flex;
   justify-content: space-between;
-  padding: ${({ theme }) => theme.baseSpacing2};
-  background: ${({ theme }) => theme.brandBlack1};
+  padding: ${({ theme }) => theme.space[3]}px;
+  background: ${({ theme }) => theme.colors.black};
 
   .left {
     display: flex;
@@ -29,7 +29,7 @@ const StyledHeader = styled.header`
 
   .nav-logo {
     display: flex;
-    margin-right: ${({ theme }) => theme.baseSpacing4};
+    margin-right: ${({ theme }) => theme.space[3]}px;
     border: 0;
 
     .logo {
@@ -42,12 +42,12 @@ const StyledHeader = styled.header`
 const StyledNav = styled.nav`
   a {
     color: #fff;
-    margin-right: ${({ theme }) => theme.baseSpacing4};
+    margin-right: ${({ theme }) => theme.space[3]}px;
     border: 0;
 
     &:hover,
     &.active {
-      color: ${({ theme }) => theme.brandCyanDark};
+      color: ${({ theme }) => theme.colors.blue};
     }
   }
 `;
