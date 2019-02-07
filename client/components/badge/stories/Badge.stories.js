@@ -19,7 +19,7 @@ storiesOf('Badge', module)
       <Badge bg="red">red</Badge>
       <Badge bg="lightRed">lightRed</Badge>
       <Badge bg="orange">orange</Badge>
-      <Badge bg="text" color="white">
+      <Badge bg="text" color="darkBlack">
         text (custom)
       </Badge>
     </div>
@@ -38,7 +38,7 @@ storiesOf('Badge', module)
     </Badge>
   ))
   .add('lightBlue and text (custom)', () => (
-    <Badge bg="lightBlue" color="text">
+    <Badge bg="lightBlue" color="darkBlack">
       lightBlue and text (custom)
     </Badge>
   ));

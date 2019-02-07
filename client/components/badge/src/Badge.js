@@ -30,7 +30,7 @@ const type = (props) => {
     },
     orange: {
       backgroundColor: props.theme.colors.orange,
-      color: props.theme.colors.text,
+      color: props.theme.colors.darkRed,
     },
     gray: {
       backgroundColor: props.theme.colors.gray,
@@ -38,7 +38,7 @@ const type = (props) => {
     },
     lightGray: {
       backgroundColor: props.theme.colors.lightGray,
-      color: props.theme.colors.text,
+      color: props.theme.colors.black,
     },
   };
   return (
@@ -50,7 +50,7 @@ const type = (props) => {
 const Badge = styled.div`
   border-radius: 99999px;
   display: inline-block;
-  font-size: ${(props) => props.theme.fontSizes[0]}px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: ${themeGet('letterSpacings.caps')};
@@ -65,7 +65,7 @@ Badge.propTypes = {
 };
 
 Badge.defaultProps = {
-  px: 2,
+  px: 12,
   py: 1,
   theme: defaultTheme,
 };
