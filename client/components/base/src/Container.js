@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
+import { space } from 'styled-system';
 import defaultTheme from '@client/utils/theme';
 
 const maxWidth = (props) =>
@@ -10,8 +11,8 @@ const maxWidth = (props) =>
 const Container = styled.div`
   margin-left: auto;
   margin-right: auto;
-
   ${maxWidth};
+  ${space};
 `;
 
 Container.propTypes = {
@@ -20,6 +21,7 @@ Container.propTypes = {
 
 Container.defaultProps = {
   theme: defaultTheme,
+  ...space.propTypes,
 };
 
 Container.displayName = 'Container';
