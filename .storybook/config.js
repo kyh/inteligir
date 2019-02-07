@@ -17,7 +17,11 @@ addDecorator((story) => (
 
 addDecorator(withKnobs);
 
-const req = require.context('../client', true, /[\w\d\s]+\.stories.js$/);
+const req = require.context(
+  '../client/components',
+  true,
+  /[\w\d\s]+\.stories.js$/,
+);
 
 const loadStories = () => {
   req.keys().forEach((key) => {

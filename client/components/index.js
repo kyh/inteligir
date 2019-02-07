@@ -7,6 +7,7 @@ export {
   Navigation,
   Page,
   Image,
+  BackgroundImage,
   GlobalStyles,
 } from './base';
 
