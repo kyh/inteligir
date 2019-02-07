@@ -1,5 +1,5 @@
 import styled from 'styled-components';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Button from './Button';
 
 const GreenButton = styled(Button)`
@@ -12,7 +12,7 @@ const GreenButton = styled(Button)`
 `;
 
 GreenButton.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 export default GreenButton;

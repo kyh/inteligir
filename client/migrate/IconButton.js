@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Icon from 'react-icons-kit';
 import Button from './Button';
 
@@ -28,7 +28,7 @@ const IconButton = ({ icon, size, color, ...props }) => (
 IconButton.displayName = 'IconButton';
 
 IconButton.defaultProps = {
-  theme,
+  theme: defaultTheme,
 };
 
 export default IconButton;

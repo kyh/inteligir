@@ -1,6 +1,6 @@
 import React from 'react';
 import Head from 'next/head';
-import theme from '@client/utils/theme';
+import { colors } from '@client/utils/theme';
 
 const TITLE = 'Inteligir';
 const DESCRIPTION = 'Making open source accessible for everyone';
@@ -18,7 +18,7 @@ const Meta = () => (
     <meta name="referrer" content="origin" />
 
     <meta name="application-name" content={TITLE} />
-    <meta name="theme-color" content={theme['brand-black']} />
+    <meta name="theme-color" content={colors.darkblack} />
     <meta name="title" content={TITLE} />
     <meta name="description" content={DESCRIPTION} />
 

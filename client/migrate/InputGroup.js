@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { space, borderColor, themeGet } from 'styled-system';
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 import Box from './Box';
 import Input from './Input';
 
@@ -30,7 +30,7 @@ InputGroup.propTypes = {
 };
 
 InputGroup.defaultProps = {
-  theme,
+  theme: defaultTheme,
   borderColor: 'borderGray',
 };
 

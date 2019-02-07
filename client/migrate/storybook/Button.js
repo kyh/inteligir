@@ -7,7 +7,6 @@ storiesOf('Button', module)
   .add(
     'Button component',
     withInfo({
-      inline: true,
       text:
         'Use the <Button />,  <GreenButton />, <RedButton />,  <OutlineButton/ > components to render a primitive button.',
     })(() => <Button size="large">Button</Button>),

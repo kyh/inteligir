@@ -4,7 +4,7 @@ import { display } from 'styled-system';
 import PropTypes from 'prop-types';
 import Icon from 'react-icons-kit';
 
-import theme from '@client/utils/theme';
+import defaultTheme from '@client/utils/theme';
 
 import Box from './Box';
 import Card from './Card';
@@ -54,7 +54,7 @@ Hug.defaultProps = {
   color: 'white',
   fontSize: 1,
   p: 2,
-  theme,
+  theme: defaultTheme,
 };
 
 Hug.propTypes = {
