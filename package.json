@@ -35,13 +35,13 @@
   "dependencies": {
     "adorable-avatars": "0.2.2",
     "apollo-boost": "0.1.27",
-    "aws-sdk": "2.395.0",
-    "bcrypt": "3.0.3",
+    "aws-sdk": "2.396.0",
+    "bcrypt": "3.0.4",
     "boom": "7.3.0",
     "env-cmd": "8.0.2",
     "express-async-errors": "3.1.1",
-    "graphql-shield": "5.1.0",
-    "graphql-yoga": "1.17.1",
+    "graphql-yoga": "1.17.4",
+    "graphql-shield": "5.1.2",
     "helmet": "3.15.0",
     "isomorphic-unfetch": "3.0.0",
     "jsonwebtoken": "8.4.0",
@@ -91,7 +91,7 @@
     "nodemon": "1.18.9",
     "prettier": "1.16.3",
     "pretty-quick": "1.10.0",
-    "puppeteer": "1.12.1",
+    "puppeteer": "1.12.2",
     "react-test-renderer": "16.8.0"
   }
 }
