@@ -35,7 +35,7 @@
   "dependencies": {
     "adorable-avatars": "0.2.2",
     "apollo-boost": "0.1.27",
-    "aws-sdk": "2.396.0",
+    "aws-sdk": "2.399.0",
     "bcrypt": "3.0.4",
     "boom": "7.3.0",
     "env-cmd": "8.0.2",
