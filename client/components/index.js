@@ -12,7 +12,14 @@ export {
 } from './base';
 
 export { Absolute, Relative, Flex, Hide } from './layout';
-export { Text, Link, ActiveLink, Truncate, Heading } from './typography';
+export {
+  Text,
+  Link,
+  ActiveLink,
+  BlockLink,
+  Truncate,
+  Heading,
+} from './typography';
 export { Card, ListCard, PromotedCard } from './card';
 export { Badge } from './badge';
 export { Tooltip } from './tooltip';
