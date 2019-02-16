@@ -42,7 +42,7 @@
     "express-async-errors": "3.1.1",
     "graphql-yoga": "1.17.4",
     "graphql-shield": "5.1.2",
-    "helmet": "3.15.0",
+    "helmet": "3.15.1",
     "isomorphic-unfetch": "3.0.0",
     "jsonwebtoken": "8.4.0",
     "lodash": "4.17.11",
