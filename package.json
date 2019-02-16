@@ -51,7 +51,7 @@
     "nprogress": "0.2.0",
     "polished": "2.3.3",
     "prisma-binding": "2.3.2",
-    "prisma-client-lib": "1.25.7",
+    "prisma-client-lib": "1.26.2",
     "prop-types": "15.6.2",
     "react": "16.8.0",
     "react-apollo": "2.4.1",
