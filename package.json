@@ -52,7 +52,7 @@
     "prisma-binding": "2.3.3",
     "prisma-client-lib": "1.26.6",
     "prop-types": "15.7.2",
-    "react": "16.8.2",
+    "react": "16.8.3",
     "react-apollo": "2.4.1",
     "react-dom": "16.8.2",
     "react-icons-kit": "^1.2.1",
