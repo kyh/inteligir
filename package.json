@@ -54,7 +54,7 @@
     "prop-types": "15.7.2",
     "react": "16.8.3",
     "react-apollo": "2.4.1",
-    "react-dom": "16.8.2",
+    "react-dom": "16.8.3",
     "react-icons-kit": "^1.2.1",
     "react-transition-group": "2.5.3",
     "styled-components": "4.1.3",
