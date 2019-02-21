@@ -8,10 +8,10 @@ const Truncate = styled(Text)`
   text-overflow: ellipsis;
 `;
 
+Truncate.displayName = 'Truncate';
+
 Truncate.defaultProps = {
   theme: defaultTheme,
 };
-
-Truncate.displayName = 'Truncate';
 
 export default Truncate;

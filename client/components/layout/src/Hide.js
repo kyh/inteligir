@@ -36,6 +36,8 @@ const Hide = styled(Box)`
 )};
 `;
 
+Hide.displayName = 'Hide';
+
 Hide.propTypes = {
   xs: PropTypes.bool,
   sm: PropTypes.bool,
@@ -47,7 +49,5 @@ Hide.propTypes = {
 Hide.defaultProps = {
   theme: defaultTheme,
 };
-
-Hide.displayName = 'Hide';
 
 export default Hide;

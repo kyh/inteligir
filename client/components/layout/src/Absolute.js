@@ -1,6 +1,5 @@
 import styled from 'styled-components';
 import { top, right, bottom, left, zIndex } from 'styled-system';
-
 import { Box } from '@client/components';
 
 const Absolute = styled(Box)`
@@ -9,6 +8,8 @@ const Absolute = styled(Box)`
   ${zIndex}
 `;
 
+Absolute.displayName = 'Absolute';
+
 Absolute.propTypes = {
   ...top.propTypes,
   ...right.propTypes,
@@ -16,7 +17,5 @@ Absolute.propTypes = {
   ...left.propTypes,
   ...zIndex.propTypes,
 };
-
-Absolute.displayName = 'Absolute';
 
 export default Absolute;

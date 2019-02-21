@@ -2,7 +2,7 @@ import { storiesOf } from '@storybook/react';
 import React from 'react';
 import { HeroBackground, FooterBackground, Box } from '@client/components';
 
-storiesOf('Background SVG Images', module)
+storiesOf('Illustrations', module)
   .add('HeroBackground component', () => (
     <Box padding={40}>
       {(() => {

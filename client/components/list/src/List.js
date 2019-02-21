@@ -6,6 +6,7 @@ import {
   textAlign,
   space,
   color,
+  themeGet,
 } from 'styled-system';
 import defaultTheme from '@client/utils/theme';
 
@@ -39,7 +40,10 @@ List.defaultProps = {
 List.ol = List.withComponent('ol');
 
 List.Item = styled.li`
-  padding: ${({ theme }) => theme.space[2]}px ${({ theme }) => theme.space[4]}px;
+  padding-top: ${themeGet('space.2')}px;
+  padding-bottom: ${themeGet('space.2')}px;
+  padding-left: ${themeGet('space.4')}px;
+  padding-right: ${themeGet('space.4')}px;
 `;
 
 export default List;

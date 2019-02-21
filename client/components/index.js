@@ -3,7 +3,6 @@ export * from './layout';
 export * from './typography';
 export * from './card';
 export * from './badge';
-export * from './tooltip';
 export * from './list';
-export * from './images';
+export * from './illustrations';
 export * from './icons';
