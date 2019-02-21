@@ -95,6 +95,7 @@ module.exports = task('create-package-components', async () => {
   const srcDir = path.join(packageDir, 'src');
   const storiesDir = path.join(packageDir, 'stories');
   const indexDir = path.join(packageDir, 'index.js');
+  const rootIndexDir = path.join('client/components', 'index.js');
 
   const indexContent = getIndexContent(componentNames);
 
@@ -112,6 +113,8 @@ module.exports = task('create-package-components', async () => {
     await fs.ensureDir(storiesDir);
     // Create index in root of package
     await fs.writeFile(indexDir, indexContent);
+    // Append new packages to end of index.js
+    await fs.appendFile(rootIndexDir, `export * from './${packageName}';`);
   }
 
   await Promise.all(
@@ -125,7 +128,4 @@ module.exports = task('create-package-components', async () => {
       createStory({ componentName, packageDir }),
     ),
   );
-
-  // TODO: Append new packages to end of index.js in components.
-  console.info(`One last step: add your packages into components/index.js`);
 });
