@@ -65,12 +65,12 @@
     "workbox-webpack-plugin": "3.6.3"
   },
   "devDependencies": {
-    "@storybook/addon-actions": "4.1.12",
-    "@storybook/addon-info": "4.1.12",
-    "@storybook/addon-knobs": "4.1.12",
-    "@storybook/addon-notes": "4.1.12",
-    "@storybook/addon-viewport": "4.1.12",
-    "@storybook/react": "4.1.12",
+    "@storybook/addon-actions": "4.1.13",
+    "@storybook/addon-info": "4.1.13",
+    "@storybook/addon-knobs": "4.1.13",
+    "@storybook/addon-notes": "4.1.13",
+    "@storybook/addon-viewport": "4.1.13",
+    "@storybook/react": "4.1.13",
     "babel-eslint": "10.0.1",
     "babel-plugin-module-resolver": "3.2.0",
     "babel-plugin-styled-components": "1.10.0",
