@@ -27,15 +27,13 @@ export const fontSizes = [12, 14, 16, 20, 24, 32, 40, 56, 72];
 
 export const medium = 500;
 export const bold = 700;
-// alias
-export const regular = medium;
+export const regular = 400;
 
 // styled-system's `fontWeight` function can hook into the `fontWeights` object
 export const fontWeights = {
+  regular,
   medium,
   bold,
-  // alias
-  regular,
 };
 
 export const lineHeights = {

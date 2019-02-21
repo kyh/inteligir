@@ -13,25 +13,25 @@ const StyledFooter = styled.footer`
   font-size: 14px;
   line-height: 20px;
   letter-spacing: 0;
-`;
 
-const StyledFooterInner = styled.div`
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  padding-top: 32px;
-  padding-bottom: 32px;
+  .footer-inner {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    padding-top: 32px;
+    padding-bottom: 32px;
 
-  &::before {
-    content: '';
-    left: 0;
-    width: 100%;
-    display: block;
-    height: 1px;
-    background: rgba(69, 76, 76, 0.5);
-    position: absolute;
-    top: 0;
+    &::before {
+      content: '';
+      left: 0;
+      width: 100%;
+      display: block;
+      height: 1px;
+      background: rgba(69, 76, 76, 0.5);
+      position: absolute;
+      top: 0;
+    }
   }
 
   .footer-copyright,
@@ -77,7 +77,7 @@ const Footer = () => (
   <StyledFooter>
     <FooterBackground />
     <Container maxWidth={1128} px={24}>
-      <StyledFooterInner>
+      <div className="footer-inner">
         <div className="footer-copyright">
           © 2019 Inteligir, all rights reserved
         </div>
@@ -101,7 +101,7 @@ const Footer = () => (
             </a>
           </li>
         </ul>
-      </StyledFooterInner>
+      </div>
     </Container>
   </StyledFooter>
 );

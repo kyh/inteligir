@@ -1,6 +1,5 @@
 import styled from 'styled-components';
 import { top, right, bottom, left, zIndex } from 'styled-system';
-
 import { Box } from '@client/components';
 
 const Relative = styled(Box)`
@@ -9,6 +8,8 @@ const Relative = styled(Box)`
   ${zIndex}
 `;
 
+Relative.displayName = 'Relative';
+
 Relative.propTypes = {
   ...top.propTypes,
   ...right.propTypes,
@@ -16,7 +17,5 @@ Relative.propTypes = {
   ...left.propTypes,
   ...zIndex.propTypes,
 };
-
-Relative.displayName = 'Relative';
 
 export default Relative;

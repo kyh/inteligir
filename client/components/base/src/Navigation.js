@@ -1,5 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
+import { themeGet } from 'styled-system';
 import NProgress from 'nprogress';
 import Router from 'next/router';
 import { Logo, ActiveLink, Link } from '@client/components';
@@ -18,8 +19,8 @@ Router.onRouteChangeError = () => {
 const StyledHeader = styled.header`
   display: flex;
   justify-content: space-between;
-  padding: ${({ theme }) => theme.space[3]}px;
-  background: ${({ theme }) => theme.colors.black};
+  padding: ${themeGet('space.3')}px;
+  background: ${themeGet('colors.black')};
 
   .left {
     display: flex;
@@ -29,7 +30,7 @@ const StyledHeader = styled.header`
 
   .nav-logo {
     display: flex;
-    margin-right: ${({ theme }) => theme.space[3]}px;
+    margin-right: ${themeGet('space.3')}px;
     border: 0;
 
     .logo {
@@ -42,12 +43,12 @@ const StyledHeader = styled.header`
 const StyledNav = styled.nav`
   a {
     color: #fff;
-    margin-right: ${({ theme }) => theme.space[3]}px;
+    margin-right: ${themeGet('space.3')}px;
     border: 0;
 
     &:hover,
     &.active {
-      color: ${({ theme }) => theme.colors.blue};
+      color: ${themeGet('colors.blue')};
     }
   }
 `;

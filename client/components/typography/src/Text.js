@@ -8,7 +8,6 @@ import {
   lineHeight,
   space,
   color,
-  themeGet,
 } from 'styled-system';
 import defaultTheme from '@client/utils/theme';
 
@@ -16,7 +15,7 @@ export const caps = (props) =>
   props.caps
     ? {
         textTransform: 'uppercase',
-        letterSpacing: themeGet('letterSpacings.caps')(props),
+        letterSpacing: props.theme.letterSpacings.caps,
       }
     : null;
 

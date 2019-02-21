@@ -17,9 +17,7 @@ const Flex = styled.div`
   ${flexWrap}
 `;
 
-Flex.defaultProps = {
-  theme: defaultTheme,
-};
+Flex.displayName = 'Flex';
 
 Flex.propTypes = {
   ...space.propTypes,
@@ -31,6 +29,8 @@ Flex.propTypes = {
   ...flexDirection.propTypes,
 };
 
-Flex.displayName = 'Flex';
+Flex.defaultProps = {
+  theme: defaultTheme,
+};
 
 export default Flex;

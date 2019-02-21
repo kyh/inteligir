@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import PropTypes from 'prop-types';
-import { borderRadius, borders, fontSize } from 'styled-system';
+import { borderRadius, fontSize, themeGet } from 'styled-system';
 import defaultTheme from '@client/utils/theme';
 import { Box } from '@client/components';
 
@@ -36,15 +36,16 @@ const Card = styled(Box)`
   ${boxShadow} ${boxBorder} ${borderRadius};
 `;
 
+Card.displayName = 'Card';
+
 Card.propTypes = {
   ...borderRadius.propTypes,
-  boxShadowSize: PropTypes.oneOf(['xs', 'sm', 'md', 'lg', 'xl']),
-  borderColor: PropTypes.string,
   borderWidth: PropTypes.oneOf([0, 1, 2]),
+  boxShadowSize: PropTypes.oneOf(['xs', 'sm', 'md', 'lg', 'xl']),
+  bg: PropTypes.string,
 };
 
 Card.defaultProps = {
-  borderColor: 'borderGray',
   borderRadius: 7,
   borderWidth: 0,
   boxShadowSize: 'xs',
@@ -52,12 +53,9 @@ Card.defaultProps = {
   theme: defaultTheme,
 };
 
-Card.displayName = 'Card';
-
 Card.Header = styled(Box)`
   font-weight: bold;
-  ${borders};
-  border-color: ${({ theme }) => theme.colors.borderGray};
+  border-bottom: 1px solid ${themeGet('colors.borderGray')};
   ${fontSize}
 `;
 

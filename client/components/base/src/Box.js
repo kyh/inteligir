@@ -8,15 +8,15 @@ const Box = styled.div`
 
 Box.displayName = 'Box';
 
-Box.defaultProps = {
-  theme: defaultTheme,
-};
-
 Box.propTypes = {
   ...space.propTypes,
   ...width.propTypes,
   ...color.propTypes,
   ...textAlign.propTypes,
+};
+
+Box.defaultProps = {
+  theme: defaultTheme,
 };
 
 export default Box;

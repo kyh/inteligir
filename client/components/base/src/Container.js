@@ -15,15 +15,15 @@ const Container = styled.div`
   ${space};
 `;
 
+Container.displayName = 'Container';
+
 Container.propTypes = {
   maxWidth: PropTypes.number,
+  ...space.propTypes,
 };
 
 Container.defaultProps = {
   theme: defaultTheme,
-  ...space.propTypes,
 };
-
-Container.displayName = 'Container';
 
 export default Container;
