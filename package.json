@@ -67,7 +67,7 @@
   "devDependencies": {
     "@storybook/addon-actions": "4.1.13",
     "@storybook/addon-info": "4.1.13",
-    "@storybook/addon-knobs": "4.1.12",
+    "@storybook/addon-knobs": "4.1.13",
     "@storybook/addon-notes": "4.1.12",
     "@storybook/addon-viewport": "4.1.12",
     "@storybook/react": "4.1.12",
