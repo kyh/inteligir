@@ -7,22 +7,22 @@ type SuccessMessage {
 type Query {
   randomUsername: String!
   me: User
-  lists(
-    where: ListWhereInput
-    orderBy: ListOrderByInput
+  courses(
+    where: CourseWhereInput
+    orderBy: CourseOrderByInput
     skip: Int
     first: Int
-  ): [List]!
-  list(where: ListWhereUniqueInput!): List
-  listsConnection(where: ListWhereInput): ListConnection!
+  ): [Course]!
+  course(where: CourseWhereUniqueInput!): Course
+  coursesConnection(where: CourseWhereInput): CourseConnection!
 }
 
 type Mutation {
   signup(email: String, username: String!, password: String!): User!
   login(email: String!, username: String, password: String!): User!
   logout: SuccessMessage
-  createList(content: String!): List!
-  deleteList(id: ID!): List
+  createCourse(content: String!): Course!
+  deleteCourse(id: ID!): Course
   # requestReset(email: String!): SuccessMessage
   # resetPassword(resetToken: String!, password: String!, confirmPassword: String!): User!
   # updatePermissions(permissions: [Permission], userId: ID!): User
@@ -32,6 +32,6 @@ type User {
   id: ID!
   username: String!
   email: String
-  lists: [List!]!
+  courses: [Course!]!
   permissions: [Permission!]!
 }

@@ -4,20 +4,20 @@ import gql from 'graphql-tag';
 import PropTypes from 'prop-types';
 import { perPage } from '@client/utils/constants';
 
-const GET_LISTS = gql`
-  query GET_LISTS($skip: Int = 0, $first: Int = ${perPage}) {
-    lists(first: $first, skip: $skip, orderBy: createdAt_ASC) {
+const GET_COURSES = gql`
+  query GET_COURSES($skip: Int = 0, $first: Int = ${perPage}) {
+    courses(first: $first, skip: $skip, orderBy: createdAt_ASC) {
       id
       title
       description
-      imageUrl
+      thumbnail
     }
   }
 `;
 
-const Feed = ({ currentPage, children, ...rest }) => (
+const GetCourses = ({ currentPage, children, ...rest }) => (
   <Query
-    query={GET_LISTS}
+    query={GET_COURSES}
     variables={{
       skip: currentPage * perPage - perPage,
     }}
@@ -27,10 +27,10 @@ const Feed = ({ currentPage, children, ...rest }) => (
   </Query>
 );
 
-Feed.propTypes = {
+GetCourses.propTypes = {
   currentPage: PropTypes.number.isRequired,
   children: PropTypes.func.isRequired,
 };
 
-export default Feed;
-export { GET_LISTS };
+export default GetCourses;
+export { GET_COURSES };
