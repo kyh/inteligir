@@ -1,10 +1,10 @@
 # Evolving the server
 
-Inteligir's backend is built using [GraphQL Yoga](https://github.com/prisma/graphql-yoga) and [NextJS](https://github.com/zeit/next.js). We use a Postgres database with [Prisma](https://github.com/prisma/prisma) bindings to help with the GraphQL interface.
+Inteligir's backend is built using [Express](https://github.com/expressjs/express), [Apollo Server](https://github.com/apollographql/apollo-server) and [NextJS](https://github.com/zeit/next.js). We use a Postgres database with [Prisma](https://github.com/prisma/prisma) bindings to help with the GraphQL interface.
 
 ### Updating the API
 
-If you want to change the GraphQL API, you need to adjust the GraphQL schema in [`../server/db/schema.graphql`](../server/db/schema.graphql) and the respective resolver functions.
+If you want to change the GraphQL API, you need to adjust the GraphQL schema in [`../server/schema/schema.graphql`](../server/schema/schema.graphql) and the respective resolver functions.
 
 <Details><Summary><strong>Adding an operation without updating the datamodel</strong></Summary>
 
@@ -15,7 +15,7 @@ For example, to add a new mutation that updates a user's name, you can extend th
 ```diff
 type Mutation {
   signupUser(email: String!, name: String): User!
-  createDraft(title: String!, content: String, authorEmail: String!): Post!
+  createPost(content: String!, authorEmail: String!): Post!
   deletePost(id: ID!): Post
   publish(id: ID!): Post
 + updateUserName(id: ID!, newName: String!): User
@@ -76,8 +76,7 @@ type Post {
   createdAt: DateTime!
   updatedAt: DateTime!
   published: Boolean! @default(value: "false")
-  title: String!
-  content: String
+  content: String!
   author: User!
 + comments: [Comment!]!
 }
@@ -96,9 +95,9 @@ After having updated the datamodel, you need to deploy the changes:
 npm run deploy:schema
 ```
 
-Note that this also invokes `prisma generate` (because of the `post-deploy` hook in [`prisma.yml`](../prisma/prisma.yml)) which regenerates the Prisma client in [`../server/db/generated/prisma-client`](../server/db/generated/prisma-client).
+Note that this also invokes `prisma generate` (because of the `post-deploy` hook in [`prisma.yml`](../prisma/prisma.yml)) which regenerates the Prisma client in [`../server/schema/generated/prisma-client`](../server/schema/generated/prisma-client).
 
-To now enable users to add comments to posts, you need to add the `Comment` type as well as the corresponding operation to the GraphQL schema in [`../server/db/schema.graphql`](../server/db/schema.graphql):
+To now enable users to add comments to posts, you need to add the `Comment` type as well as the corresponding operation to the GraphQL schema in [`../server/schema/schema.graphql`](../serverschemab/schema.graphql):
 
 ```diff
 type Query {
@@ -107,7 +106,7 @@ type Query {
 
 type Mutation {
   signupUser(email: String!, name: String): User!
-  createDraft(title: String!, content: String, authorEmail: String!): Post!
+  createPost(content: String!!, authorEmail: String!): Post!
   deletePost(id: ID!): Post
   publish(id: ID!): Post
   updateUserName(id: ID!, newName: String!): User
@@ -127,8 +126,7 @@ type Post {
   createdAt: DateTime!
   updatedAt: DateTime!
   published: Boolean!
-  title: String!
-  content: String
+  content: String!
   author: User!
 + comments: [Comment!]!
 }
@@ -148,7 +146,7 @@ const resolvers = {
   // ...
   Mutation: {
     // ...
-+   writeComment(parent, { postId, userId}, context) {
++   writeComment(parent, { postId }, context) {
 +     const userId = getUserId(context)
 +     return context.prisma.createComment({
 +       text,

@@ -1,30 +1,26 @@
-const { getUserId } = require('@server/services/authentication');
+const { forwardTo } = require('prisma-binding');
+const Moniker = require('moniker');
+
+const usernameGenerator = Moniker.generator([
+  Moniker.adjective,
+  Moniker.adjective,
+  Moniker.noun,
+]);
 
 const Query = {
-  me: (parent, args, context) => {
-    const userId = getUserId(context);
-    return context.prisma.user({ id: userId });
+  randomUsername: () => {
+    return usernameGenerator.choose();
   },
-  feed: (parent, args, context) => {
-    return context.prisma.posts({ where: { published: true } });
+  me: (parent, args, context, info) => {
+    if (!context.user) return null;
+    return context.prisma.query.user(
+      { where: { id: context.user.userId } },
+      info,
+    );
   },
-  filterPosts: (parent, { searchString }, context) => {
-    return context.prisma.posts({
-      where: {
-        OR: [
-          {
-            title_contains: searchString,
-          },
-          {
-            content_contains: searchString,
-          },
-        ],
-      },
-    });
-  },
-  post: (parent, { id }, context) => {
-    return context.prisma.post({ id });
-  },
+  lists: forwardTo('prisma'),
+  list: forwardTo('prisma'),
+  listsConnection: forwardTo('prisma'),
 };
 
 module.exports = {

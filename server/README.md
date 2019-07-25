@@ -1,3 +1,3 @@
 # Inteligir Server
 
-> Making open source accessible for everyone
+> Inteligir app server built with Node.js using Express, Apollo, and Next.js

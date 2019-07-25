@@ -1,51 +1,72 @@
+const { UserInputError } = require('apollo-server');
 const { hash, compare } = require('bcrypt');
 const { sign } = require('jsonwebtoken');
-const { getUserId } = require('@server/services/authentication');
 const keys = require('@server/config/keys');
 
 const Mutation = {
-  signup: async (parent, { name, email, password }, context) => {
-    const hashedPassword = await hash(password, 10);
-    const user = await context.prisma.createUser({
-      name,
-      email,
-      password: hashedPassword,
+  signup: async (parent, args, context, info) => {
+    const hashedPassword = await hash(args.password, 10);
+    // Create the user in the database
+    const user = await context.prisma.mutation.createUser(
+      {
+        data: {
+          ...args,
+          password: hashedPassword,
+          permissions: { set: ['USER'] },
+        },
+      },
+      info,
+    );
+    const token = sign({ userId: user.id }, keys.auth.jwtSecret);
+    context.response.cookie('token', token, {
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 365,
     });
-    return {
-      token: sign({ userId: user.id }, keys.jwtSecret),
-      user,
-    };
+    return user;
   },
   login: async (parent, { email, password }, context) => {
-    const user = await context.prisma.user({ email });
+    // 1. Check if there is a user with that email
+    const user = await context.prisma.query.user({ where: { email } });
     if (!user) {
-      throw new Error(`No user found for email: ${email}`);
+      throw new UserInputError(`No user found for email: ${email}`);
     }
+    // 2. Check if their password is correct
     const passwordValid = await compare(password, user.password);
     if (!passwordValid) {
-      throw new Error('Invalid password');
+      throw new UserInputError('Invalid password');
     }
-    return {
-      token: sign({ userId: user.id }, keys.jwtSecret),
-      user,
-    };
-  },
-  createDraft: async (parent, { title, content }, context) => {
-    const userId = getUserId(context);
-    return context.prisma.createPost({
-      title,
-      content,
-      author: { connect: { id: userId } },
+    // 3. Generate the JWT Token
+    const token = sign({ userId: user.id }, keys.auth.jwtSecret);
+    // 4. Set the cookie with the token
+    context.response.cookie('token', token, {
+      httpOnly: true,
+      maxAge: 1000 * 60 * 60 * 24 * 365,
     });
+    // 5. Return the user
+    return user;
   },
-  deletePost: async (parent, { id }, context) => {
-    return context.prisma.deletePost({ id });
+  logout(parent, args, context) {
+    context.response.clearCookie('token');
+    return { message: `We'll miss you!` };
   },
-  publish: async (parent, { id }, context) => {
-    return context.prisma.updatePost({
-      where: { id },
-      data: { published: true },
-    });
+  createList: async (parent, args, context, info) => {
+    const { userId } = context.user;
+    return context.prisma.mutation.createList(
+      {
+        data: {
+          ...args,
+          author: {
+            connect: {
+              id: userId,
+            },
+          },
+        },
+      },
+      info,
+    );
+  },
+  deleteList: async (parent, { id }, context) => {
+    return context.prisma.mutation.deleteList({ where: { id } });
   },
 };
 

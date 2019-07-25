@@ -1,10 +1,7 @@
 language: node_js
 node_js:
-  - '10.15.0'
+  - '10.15.3'
 dist: trusty
-services:
-  - mongodb
-  - redis-server
 cache:
   directories:
     - node_modules
