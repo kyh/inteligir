@@ -10,35 +10,49 @@ If you see a step below that could be improved (or is outdated), please update t
 
 - We recommend using [nvm](https://github.com/creationix/nvm): `nvm use`.
 
-2. Make sure you have a PostgreSQL database available
-
-- Check the version: 10.3, 9.6.8, 9.5.12, 9.4.17, 9.3.22 or newer
-
-3. For [node-gyp](https://github.com/nodejs/node-gyp), make sure you have Python 2 available and configured as the active version. You can use [pyenv](https://github.com/pyenv/pyenv) to manage Python versions.
-
-4. You'll need the Prisma CLI. Please install it via NPM or [using another method](https://www.prisma.io/docs/prisma-cli-and-configuration/using-the-prisma-cli-alx4/#installation):
+2. You'll need the Prisma CLI. Please install it via NPM or [using another method](https://www.prisma.io/docs/prisma-cli-and-configuration/using-the-prisma-cli-alx4/#installation):
 
 ```
 npm install -g prisma
 ```
 
+##### Optional
+
+3. If you're going to be deploying, you'll also need to install the Heroku CLI. Please install it from [here](https://devcenter.heroku.com/articles/heroku-cli#download-and-install).
+
+You'll also need to set up your git remotes:
+```
+heroku git:remote -a ys-development
+git remote rename heroku prod
+
+heroku git:remote -a ys-app
+git remote rename heroku dev
+```
+
 ### Getting Started
 
-Inteligir uses a **GraphQL server** built with [graphql-yoga](https://github.com/prisma/graphql-yoga) & [graphql-shield](https://github.com/maticzav/graphql-shield). The database interface uses [Prisma](https://github.com/prisma/prisma). Frontend is a SSR **React app** via [next.js](https://github.com/zeit/next.js).
+Inteligir uses a **GraphQL server** built with [express](https://github.com/expressjs/express) & [apollo-server](https://github.com/apollographql/apollo-server). The database interface uses [Prisma](https://github.com/prisma/prisma). Frontend is a SSR **React app** via [next.js](https://github.com/zeit/next.js).
 
 #### How to install
 
-We recommend cloning the repository in a folder dedicated to `inteligir` projects.
+We recommend cloning the repository in a folder dedicated to `Inteligir` projects.
 
 ```
-git clone git@github.com:inteligir/inteligir.git inteligir/app
-cd inteligir/app
+git clone git@github.com:/inteligir/inteligir-platform.git ys/app
+cd ys/app
 npm run setup
 ```
 
+If you're going to be deploying, you could run:
+```
+node tools/generate-env
+# This will generate .env.dev and .env.prod environment files
+```
+Note: This will require Heroku access, please reach out to Inteligir repo owners to be added.
+
 ### Building and Running Locally
 
-#### To start a dev web server with Webpack Dev Server:
+#### To start a dev web server:
 
 ```bash
 npm run dev
@@ -69,10 +83,6 @@ npm run deploy
 ```
 
 The deploy script will guide you through the rest of the deployment process.
-
-Release tag names follow [semantic versioning](http://semver.org/) e.g.
-
-- `v1.0.0`
 
 ## Debugging Tips
 

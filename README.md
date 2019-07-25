@@ -1,12 +1,9 @@
-[![Build Status](https://travis-ci.org/inteligir/inteligir-platform.svg?branch=master)](https://travis-ci.org/inteligir/inteligir-platform)
-[![Dependency Status](https://david-dm.org/inteligir/inteligir-platform/status.svg)](https://david-dm.org/inteligir/inteligir-platform)
-[![Greenkeeper badge](https://badges.greenkeeper.io/inteligir/inteligir-platform.svg)](https://greenkeeper.io/)
+[![Dependencies Status](https://david-dm.org/inteligir/inteligir-platform/status.svg)](https://david-dm.org/inteligir/inteligir-platform)
+[![Build Status](https://travis-ci.org/inteligir/inteligir-platform.svg?branch=master)](https://travis-ci.org/inteligir/inteligir-platform) [![Greenkeeper badge](https://badges.greenkeeper.io/inteligir/inteligir-platform.svg)](https://greenkeeper.io/)
 
 # Inteligir
 
-> Making open source accessible for everyone
-
-Two of the most prominent barriers to developers’ involvement in open source are (a) not knowing where to begin and (b) doubting they have the right skills[\*](https://www.digitalocean.com/currents/october-2018/). Inteligir is here to change that.
+> The best of the web in playlists
 
 ## Directory Layout
 
@@ -19,13 +16,11 @@ Two of the most prominent barriers to developers’ involvement in open source a
 │   └── next.config.js           # Next.js SSR configuration
 │── /config                      # Environment configuration
 │── /docs                        # App documentation
-│── /k8s                         # Kubernetes configuration and deployment files
 │── /prisma                      # Prisma datamodel and seed data
 │── /server                      # Node.js server
-│   ├── /api                     # API routes, models, and controllers
 │   ├── /config                  # Server environment variables
-│   ├── /db                      # Prisma generated files and app schema
-│   ├── /middlewares             # Express/Yoga middleware
+│   ├── /schema                  # Prisma generated files and app schema
+│   ├── /middlewares             # Express/Apollo middleware
 │   ├── /resolvers               # GraphQl resolvers
 │   ├── /services                # Server Helper functions/Utilities/Services
 │   └── index.js                 # Server entry point
@@ -42,10 +37,5 @@ Two of the most prominent barriers to developers’ involvement in open source a
 - [Using the GraphQL API](docs/graphql.md)
 - [Updating the client](docs/client.md)
 - [List of supported environment variables](docs/environment_variables.md)
-- [The design process](docs/design.md)
+- [Design System](docs/design.md)
 - [Product Features](docs/product.md)
-
-## Discussion
-
-If you have any questions, ping us on Slack
-(https://itsbananas.slack.com).

@@ -1,3 +1,3 @@
 # Inteligir Web Client
 
-> Making open source accessible for everyone
+> Inteligir web client built with React and Next.js SSR

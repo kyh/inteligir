@@ -1,0 +1,37 @@
+# import * from './generated/prisma.graphql'
+
+type SuccessMessage {
+  message: String
+}
+
+type Query {
+  randomUsername: String!
+  me: User
+  lists(
+    where: ListWhereInput
+    orderBy: ListOrderByInput
+    skip: Int
+    first: Int
+  ): [List]!
+  list(where: ListWhereUniqueInput!): List
+  listsConnection(where: ListWhereInput): ListConnection!
+}
+
+type Mutation {
+  signup(email: String, username: String!, password: String!): User!
+  login(email: String!, username: String, password: String!): User!
+  logout: SuccessMessage
+  createList(content: String!): List!
+  deleteList(id: ID!): List
+  # requestReset(email: String!): SuccessMessage
+  # resetPassword(resetToken: String!, password: String!, confirmPassword: String!): User!
+  # updatePermissions(permissions: [Permission], userId: ID!): User
+}
+
+type User {
+  id: ID!
+  username: String!
+  email: String
+  lists: [List!]!
+  permissions: [Permission!]!
+}

@@ -1,6 +1,6 @@
 # Using the GraphQL API
 
-The schema that specifies the API operations of your GraphQL server is defined in [`../server/db/schema.graphql`](../server/db/schema.graphql). Below are a number of operations that you can send to the API using the [GraphQL Playground](http://localhost:5000/playground).
+The schema that specifies the API operations of your GraphQL server is defined in [`../server/dschemaschema.graphql`](../server/schema/schema.graphql). Below are a number of operations that you can send to the API using the [GraphQL Playground](http://localhost:5000/playground).
 
 Feel free to adjust any operation by adding or removing fields. The GraphQL Playground helps you with its auto-completion and query validation features.
 
@@ -10,7 +10,6 @@ Feel free to adjust any operation by adding or removing fields. The GraphQL Play
 query {
   feed {
     id
-    title
     content
     published
     author {
@@ -30,8 +29,11 @@ You can send the following mutation in the Playground to sign up a new user and 
 
 ```graphql
 mutation {
-  signup(name: "Kai", email: "kai@inteligir.com", password: "graphql") {
-    token
+  createUser(data: {
+    email: "im.kaiyu@gmail.com",
+    password: "graphql"
+  }) {
+    email
   }
 }
 ```
@@ -42,7 +44,7 @@ This mutation will log in an existing user by requesting a new authentication to
 
 ```graphql
 mutation {
-  login(email: "kai@inteligir.com", password: "graphql") {
+  login(username: "im.kaiyu@gmail.com", password: "graphql") {
     token
   }
 }
@@ -88,10 +90,9 @@ You need to be logged in for this query to work, i.e. an authentication token th
 
 ```graphql
 mutation {
-  createDraft(
-    title: "Join the Inteligir Slack"
-    content: "https://slack.inteligir.com"
-    authorEmail: "kai@inteligir.com"
+  createPost(
+    content: "Join our Slack: https://slack.itsbananas.com"
+    authorEmail: "im.kaiyu@gmail.com"
   ) {
     id
     published
@@ -116,8 +117,6 @@ mutation {
 
 #### Search for posts with a specific title or content
 
-You need to be logged in for this query to work, i.e. an authentication token that was retrieved through a `signup` or `login` mutation needs to be added to the `Authorization` header in the GraphQL Playground.
-
 ```graphql
 {
   filterPosts(searchString: "graphql") {
@@ -135,8 +134,6 @@ You need to be logged in for this query to work, i.e. an authentication token th
 ```
 
 #### Retrieve a single post
-
-You need to be logged in for this query to work, i.e. an authentication token that was retrieved through a `signup` or `login` mutation needs to be added to the `Authorization` header in the GraphQL Playground.
 
 ```graphql
 {

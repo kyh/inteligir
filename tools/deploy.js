@@ -23,11 +23,12 @@ function execPromise(command) {
   });
 }
 
-async function beforeDeploy() {
-  return Promise.resolve();
-}
-
-async function afterDeploy() {
+function beforeDeploy(answers) {
+  if (answers.prisma) {
+    return execLog(
+      `npm run deploy:schema -- -e ./config/.env.${answers.location}`,
+    );
+  }
   return Promise.resolve();
 }
 
@@ -35,17 +36,7 @@ function deploy(location, branch) {
   return execLog(`git push -f ${location} ${branch}:master`);
 }
 
-function tagRelease(tag) {
-  return execLog(`git tag ${tag} && git push origin ${tag}`);
-}
-
-function clearCloudFlareCache() {
-  console.log('Clearing CloudFlare cache...');
-  return Promise.resolve();
-}
-
 console.log('Fetching the latest branches and tags...');
-// Before we do anything, fetch the latest branches and tags.
 exec('git fetch origin', () => {
   inquirer
     .prompt([
@@ -63,47 +54,24 @@ exec('git fetch origin', () => {
         default: () => execPromise('git rev-parse --abbrev-ref HEAD'),
         filter: (val) => val.replace(/\n$/, ''),
       },
-      // {
-      //   type: 'input',
-      //   name: 'release',
-      //   message: 'What would you like to tag your release?',
-      //   default: () =>
-      //     execPromise('git describe --tags --abbrev=0 --match node-*').then(
-      //       (stdout) => {
-      //         const latestRelease = stdout.split('.');
-      //         // Increment by 1 minor version.
-      //         return `${latestRelease[0]}.${latestRelease[1]}.${parseInt(
-      //           latestRelease[2],
-      //           10,
-      //         ) + 1}`;
-      //       },
-      //     ),
-      //   when: (answers) => answers.location === DEPLOY_LOCATIONS.prod.value,
-      //   filter: (val) => val.replace(/\n$/, ''),
-      // },
+      {
+        type: 'confirm',
+        name: 'prisma',
+        message: 'Would you like to deploy a new prisma schema?',
+        default: false,
+      },
     ])
     .then(async (answers) => {
-      await beforeDeploy();
+      await beforeDeploy(answers);
 
       if (answers.location === DEPLOY_LOCATIONS.dev.value) {
         console.log('Deploying Inteligir to dev:');
         await deploy(answers.location, answers.branch);
       }
 
-      if (answers.location === DEPLOY_LOCATIONS.staging.value) {
-        console.log('Deploying Inteligir to staging:');
-        await deploy(answers.location, answers.branch);
-      }
-
       if (answers.location === DEPLOY_LOCATIONS.prod.value) {
-        console.log('Deploying Inteligir to prod:');
+        console.log('Deploying Int to prod:');
         await deploy(answers.location, answers.branch);
-        // await tagRelease(answers.release);
-        // if (answers.cache) {
-        //   await clearCloudFlareCache();
-        // }
       }
-
-      await afterDeploy();
     });
 });

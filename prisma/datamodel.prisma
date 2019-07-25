@@ -1,19 +1,36 @@
-type User {
-  id: ID! @unique
-  googleId: String @unique
-  displayName: String
-  email: String! @unique
-  password: String
-  profileImageUrl: String
-  posts: [Post!]!
+enum Permission {
+  ADMIN
+  USER
 }
 
-type Post {
-  id: ID! @unique
-  createdAt: DateTime!
-  updatedAt: DateTime!
-  published: Boolean! @default(value: "false")
+type User {
+  id: ID! @id
+  username: String!
+  password: String!
+  email: String @unique
+  resetToken: String
+  resetTokenExpiry: Float
+  lists: [List!]!
+  permissions: [Permission] @scalarList(strategy: RELATION)
+  updatedAt: DateTime! @updatedAt
+  createdAt: DateTime! @createdAt
+}
+
+type List {
+  id: ID! @id
+  published: Boolean! @default(value: true)
   title: String!
-  content: String
+  description: String!
   author: User!
+  emoji: String
+  imageUrl: String
+  createdAt: DateTime! @createdAt
+  updatedAt: DateTime! @updatedAt
+}
+
+type ListItem {
+  id: ID! @unique
+  link: String!
+  addedBy: User!
+  list: List!
 }
