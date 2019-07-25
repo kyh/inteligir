@@ -3,12 +3,6 @@ enum Permission {
   USER
 }
 
-enum ListItemType {
-  LINK
-  VIDEO
-  POST
-}
-
 type User {
   id: ID! @id
   username: String!
@@ -17,13 +11,13 @@ type User {
   avatar: String
   resetToken: String
   resetTokenExpiry: Float
-  lists: [List!]!
+  courses: [Course!]!
   permissions: [Permission] @scalarList(strategy: RELATION)
   updatedAt: DateTime! @updatedAt
   createdAt: DateTime! @createdAt
 }
 
-type List {
+type Course {
   id: ID! @id
   published: Boolean! @default(value: true)
   title: String!
@@ -35,10 +29,28 @@ type List {
   updatedAt: DateTime! @updatedAt
 }
 
-type ListItem {
+enum LessonType {
+  LINK
+  VIDEO
+  POST
+}
+
+type Lesson {
   id: ID! @unique
-  content: String!
-  addedBy: User!
-  list: List!
-  type: [ListItemType] @scalarList(strategy: RELATION)
+  title: String!
+  link: String
+  content: String
+  author: User!
+  course: Course!
+  type: [LessonType] @scalarList(strategy: RELATION)
+  createdAt: DateTime! @createdAt
+  updatedAt: DateTime! @updatedAt
+}
+
+type CompletedLesson {
+  id: ID! @unique
+  completedBy: User!
+  lesson: Lesson!
+  createdAt: DateTime! @createdAt
+  updatedAt: DateTime! @updatedAt
 }

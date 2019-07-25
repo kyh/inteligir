@@ -49,9 +49,9 @@ const Mutation = {
     context.response.clearCookie('token');
     return { message: `We'll miss you!` };
   },
-  createList: async (parent, args, context, info) => {
+  createCourse: async (parent, args, context, info) => {
     const { userId } = context.user;
-    return context.prisma.mutation.createList(
+    return context.prisma.mutation.createCourse(
       {
         data: {
           ...args,
@@ -65,8 +65,8 @@ const Mutation = {
       info,
     );
   },
-  deleteList: async (parent, { id }, context) => {
-    return context.prisma.mutation.deleteList({ where: { id } });
+  deleteCourse: async (parent, { id }, context) => {
+    return context.prisma.mutation.deleteCourse({ where: { id } });
   },
 };
 
