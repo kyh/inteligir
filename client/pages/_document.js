@@ -3,8 +3,8 @@ import Document, { Head, Main, NextScript } from 'next/document';
 import { ServerStyleSheets } from '@material-ui/styles';
 import flush from 'styled-jsx/server';
 
-const TITLE = 'Inteligir | Endless senseless collaborative book';
-const DESCRIPTION = 'The best of the web in playlists';
+const TITLE = 'Inteligir | Collect and share the knowledge from the web';
+const DESCRIPTION = 'Simple playlists for learning';
 const PREVIEW_IMAGE_URL = '';
 const SITE_URL = 'https://inteligir.com';
 const FB_ID = '';

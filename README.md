@@ -3,7 +3,7 @@
 
 # Inteligir
 
-> The best of the web in playlists
+> Collect and share the knowledge from the web
 
 ## Directory Layout
 
