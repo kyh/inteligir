@@ -21,6 +21,7 @@ npm install -g prisma
 3. If you're going to be deploying, you'll also need to install the Heroku CLI. Please install it from [here](https://devcenter.heroku.com/articles/heroku-cli#download-and-install).
 
 You'll also need to set up your git remotes:
+
 ```
 heroku git:remote -a ys-development
 git remote rename heroku prod
@@ -38,16 +39,18 @@ Inteligir uses a **GraphQL server** built with [express](https://github.com/expr
 We recommend cloning the repository in a folder dedicated to `Inteligir` projects.
 
 ```
-git clone git@github.com:/inteligir/inteligir-platform.git ys/app
+git clone git@github.com:/its-bananas/inteligir.git ys/app
 cd ys/app
 npm run setup
 ```
 
 If you're going to be deploying, you could run:
+
 ```
 node tools/generate-env
 # This will generate .env.dev and .env.prod environment files
 ```
+
 Note: This will require Heroku access, please reach out to Inteligir repo owners to be added.
 
 ### Building and Running Locally

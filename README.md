@@ -1,5 +1,5 @@
-[![Dependencies Status](https://david-dm.org/inteligir/inteligir-platform/status.svg)](https://david-dm.org/inteligir/inteligir-platform)
-[![Build Status](https://travis-ci.org/inteligir/inteligir-platform.svg?branch=master)](https://travis-ci.org/inteligir/inteligir-platform) [![Greenkeeper badge](https://badges.greenkeeper.io/inteligir/inteligir-platform.svg)](https://greenkeeper.io/)
+[![Dependencies Status](https://david-dm.org/its-bananas/inteligir/status.svg)](https://david-dm.org/its-bananas/inteligir)
+[![Build Status](https://travis-ci.org/its-bananas/inteligir.svg?branch=master)](https://travis-ci.org/its-bananas/inteligir) [![Greenkeeper badge](https://badges.greenkeeper.io/its-bananas/inteligir.svg)](https://greenkeeper.io/)
 
 # Inteligir
 
