@@ -3,7 +3,7 @@ import Document, { Head, Main, NextScript } from 'next/document';
 import { ServerStyleSheets } from '@material-ui/styles';
 import flush from 'styled-jsx/server';
 
-const TITLE = 'Inteligir | Collect and share the knowledge from the web';
+const TITLE = 'Inteligir | Share knowledge from the web through playlists';
 const DESCRIPTION = 'Simple playlists for learning';
 const PREVIEW_IMAGE_URL = '';
 const SITE_URL = 'https://inteligir.com';

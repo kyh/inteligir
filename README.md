@@ -3,7 +3,7 @@
 
 # Inteligir
 
-> Collect and share the knowledge from the web
+> Share knowledge from the web through playlists
 
 ## Directory Layout
 
