@@ -18,9 +18,9 @@ const Query = {
       info,
     );
   },
-  lists: forwardTo('prisma'),
-  list: forwardTo('prisma'),
-  listsConnection: forwardTo('prisma'),
+  courses: forwardTo('prisma'),
+  course: forwardTo('prisma'),
+  coursesConnection: forwardTo('prisma'),
 };
 
 module.exports = {

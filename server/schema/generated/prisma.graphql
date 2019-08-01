@@ -1,7 +1,19 @@
-# source: https://us1.prisma.sh/kaiyu-hsu-f70d57/ys-dev/dev
-# timestamp: Wed May 29 2019 23:38:50 GMT-0700 (Pacific Daylight Time)
+# source: https://us1.prisma.sh/kaiyu-hsu-f70d57/inteligir/dev
+# timestamp: Wed Jul 31 2019 21:12:27 GMT-0700 (Pacific Daylight Time)
 
-type AggregatePost {
+type AggregateCompletedLesson {
+  count: Int!
+}
+
+type AggregateCourse {
+  count: Int!
+}
+
+type AggregateEnrolledCourse {
+  count: Int!
+}
+
+type AggregateLesson {
   count: Int!
 }
 
@@ -14,137 +26,361 @@ type BatchPayload {
   count: Long!
 }
 
-scalar DateTime
-
-"""
-The `Long` scalar type represents non-fractional signed whole numeric values.
-Long can represent values between -(2^63) and 2^63 - 1.
-"""
-scalar Long
-
-type Mutation {
-  createUser(data: UserCreateInput!): User!
-  createPost(data: PostCreateInput!): Post!
-  updateUser(data: UserUpdateInput!, where: UserWhereUniqueInput!): User
-  updatePost(data: PostUpdateInput!, where: PostWhereUniqueInput!): Post
-  deleteUser(where: UserWhereUniqueInput!): User
-  deletePost(where: PostWhereUniqueInput!): Post
-  upsertUser(where: UserWhereUniqueInput!, create: UserCreateInput!, update: UserUpdateInput!): User!
-  upsertPost(where: PostWhereUniqueInput!, create: PostCreateInput!, update: PostUpdateInput!): Post!
-  updateManyUsers(data: UserUpdateManyMutationInput!, where: UserWhereInput): BatchPayload!
-  updateManyPosts(data: PostUpdateManyMutationInput!, where: PostWhereInput): BatchPayload!
-  deleteManyUsers(where: UserWhereInput): BatchPayload!
-  deleteManyPosts(where: PostWhereInput): BatchPayload!
-}
-
-enum MutationType {
-  CREATED
-  UPDATED
-  DELETED
-}
-
-"""An object with an ID"""
-interface Node {
-  """The id of the object."""
+type CompletedLesson implements Node {
   id: ID!
-}
-
-"""Information about pagination in a connection."""
-type PageInfo {
-  """When paginating forwards, are there more items?"""
-  hasNextPage: Boolean!
-
-  """When paginating backwards, are there more items?"""
-  hasPreviousPage: Boolean!
-
-  """When paginating backwards, the cursor to continue."""
-  startCursor: String
-
-  """When paginating forwards, the cursor to continue."""
-  endCursor: String
-}
-
-enum Permission {
-  ADMIN
-  USER
-}
-
-type Post implements Node {
-  id: ID!
-  published: Boolean!
-  content: String!
-  author: User!
+  completedBy: User!
+  lesson: Lesson!
   createdAt: DateTime!
   updatedAt: DateTime!
 }
 
 """A connection to a list of items."""
-type PostConnection {
+type CompletedLessonConnection {
   """Information to aid in pagination."""
   pageInfo: PageInfo!
 
   """A list of edges."""
-  edges: [PostEdge]!
-  aggregate: AggregatePost!
+  edges: [CompletedLessonEdge]!
+  aggregate: AggregateCompletedLesson!
 }
 
-input PostCreateInput {
+input CompletedLessonCreateInput {
   id: ID
-  published: Boolean
-  content: String!
-  author: UserCreateOneWithoutPostsInput!
-}
-
-input PostCreateManyWithoutAuthorInput {
-  create: [PostCreateWithoutAuthorInput!]
-  connect: [PostWhereUniqueInput!]
-}
-
-input PostCreateWithoutAuthorInput {
-  id: ID
-  published: Boolean
-  content: String!
+  completedBy: UserCreateOneInput!
+  lesson: LessonCreateOneInput!
 }
 
 """An edge in a connection."""
-type PostEdge {
+type CompletedLessonEdge {
   """The item at the end of the edge."""
-  node: Post!
+  node: CompletedLesson!
 
   """A cursor for use in pagination."""
   cursor: String!
 }
 
-enum PostOrderByInput {
+enum CompletedLessonOrderByInput {
   id_ASC
   id_DESC
-  published_ASC
-  published_DESC
-  content_ASC
-  content_DESC
   createdAt_ASC
   createdAt_DESC
   updatedAt_ASC
   updatedAt_DESC
 }
 
-type PostPreviousValues {
+type CompletedLessonPreviousValues {
   id: ID!
-  published: Boolean!
-  content: String!
   createdAt: DateTime!
   updatedAt: DateTime!
 }
 
-input PostScalarWhereInput {
+type CompletedLessonSubscriptionPayload {
+  mutation: MutationType!
+  node: CompletedLesson
+  updatedFields: [String!]
+  previousValues: CompletedLessonPreviousValues
+}
+
+input CompletedLessonSubscriptionWhereInput {
   """Logical AND on all given filters."""
-  AND: [PostScalarWhereInput!]
+  AND: [CompletedLessonSubscriptionWhereInput!]
 
   """Logical OR on all given filters."""
-  OR: [PostScalarWhereInput!]
+  OR: [CompletedLessonSubscriptionWhereInput!]
 
   """Logical NOT on all given filters combined by AND."""
-  NOT: [PostScalarWhereInput!]
+  NOT: [CompletedLessonSubscriptionWhereInput!]
+
+  """
+  The subscription event gets dispatched when it's listed in mutation_in
+  """
+  mutation_in: [MutationType!]
+
+  """
+  The subscription event gets only dispatched when one of the updated fields names is included in this list
+  """
+  updatedFields_contains: String
+
+  """
+  The subscription event gets only dispatched when all of the field names included in this list have been updated
+  """
+  updatedFields_contains_every: [String!]
+
+  """
+  The subscription event gets only dispatched when some of the field names included in this list have been updated
+  """
+  updatedFields_contains_some: [String!]
+  node: CompletedLessonWhereInput
+}
+
+input CompletedLessonUpdateInput {
+  completedBy: UserUpdateOneRequiredInput
+  lesson: LessonUpdateOneRequiredInput
+}
+
+input CompletedLessonWhereInput {
+  """Logical AND on all given filters."""
+  AND: [CompletedLessonWhereInput!]
+
+  """Logical OR on all given filters."""
+  OR: [CompletedLessonWhereInput!]
+
+  """Logical NOT on all given filters combined by AND."""
+  NOT: [CompletedLessonWhereInput!]
+  id: ID
+
+  """All values that are not equal to given value."""
+  id_not: ID
+
+  """All values that are contained in given list."""
+  id_in: [ID!]
+
+  """All values that are not contained in given list."""
+  id_not_in: [ID!]
+
+  """All values less than the given value."""
+  id_lt: ID
+
+  """All values less than or equal the given value."""
+  id_lte: ID
+
+  """All values greater than the given value."""
+  id_gt: ID
+
+  """All values greater than or equal the given value."""
+  id_gte: ID
+
+  """All values containing the given string."""
+  id_contains: ID
+
+  """All values not containing the given string."""
+  id_not_contains: ID
+
+  """All values starting with the given string."""
+  id_starts_with: ID
+
+  """All values not starting with the given string."""
+  id_not_starts_with: ID
+
+  """All values ending with the given string."""
+  id_ends_with: ID
+
+  """All values not ending with the given string."""
+  id_not_ends_with: ID
+  createdAt: DateTime
+
+  """All values that are not equal to given value."""
+  createdAt_not: DateTime
+
+  """All values that are contained in given list."""
+  createdAt_in: [DateTime!]
+
+  """All values that are not contained in given list."""
+  createdAt_not_in: [DateTime!]
+
+  """All values less than the given value."""
+  createdAt_lt: DateTime
+
+  """All values less than or equal the given value."""
+  createdAt_lte: DateTime
+
+  """All values greater than the given value."""
+  createdAt_gt: DateTime
+
+  """All values greater than or equal the given value."""
+  createdAt_gte: DateTime
+  updatedAt: DateTime
+
+  """All values that are not equal to given value."""
+  updatedAt_not: DateTime
+
+  """All values that are contained in given list."""
+  updatedAt_in: [DateTime!]
+
+  """All values that are not contained in given list."""
+  updatedAt_not_in: [DateTime!]
+
+  """All values less than the given value."""
+  updatedAt_lt: DateTime
+
+  """All values less than or equal the given value."""
+  updatedAt_lte: DateTime
+
+  """All values greater than the given value."""
+  updatedAt_gt: DateTime
+
+  """All values greater than or equal the given value."""
+  updatedAt_gte: DateTime
+  completedBy: UserWhereInput
+  lesson: LessonWhereInput
+}
+
+input CompletedLessonWhereUniqueInput {
+  id: ID
+}
+
+type Course implements Node {
+  id: ID!
+  published: Boolean!
+  title: String!
+  description: String!
+  author: User!
+  emoji: String
+  thumbnail: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""A connection to a list of items."""
+type CourseConnection {
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """A list of edges."""
+  edges: [CourseEdge]!
+  aggregate: AggregateCourse!
+}
+
+input CourseCreateInput {
+  id: ID
+  published: Boolean
+  title: String!
+  description: String!
+  emoji: String
+  thumbnail: String
+  author: UserCreateOneInput!
+}
+
+input CourseCreateOneInput {
+  create: CourseCreateInput
+  connect: CourseWhereUniqueInput
+}
+
+"""An edge in a connection."""
+type CourseEdge {
+  """The item at the end of the edge."""
+  node: Course!
+
+  """A cursor for use in pagination."""
+  cursor: String!
+}
+
+enum CourseOrderByInput {
+  id_ASC
+  id_DESC
+  published_ASC
+  published_DESC
+  title_ASC
+  title_DESC
+  description_ASC
+  description_DESC
+  emoji_ASC
+  emoji_DESC
+  thumbnail_ASC
+  thumbnail_DESC
+  createdAt_ASC
+  createdAt_DESC
+  updatedAt_ASC
+  updatedAt_DESC
+}
+
+type CoursePreviousValues {
+  id: ID!
+  published: Boolean!
+  title: String!
+  description: String!
+  emoji: String
+  thumbnail: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type CourseSubscriptionPayload {
+  mutation: MutationType!
+  node: Course
+  updatedFields: [String!]
+  previousValues: CoursePreviousValues
+}
+
+input CourseSubscriptionWhereInput {
+  """Logical AND on all given filters."""
+  AND: [CourseSubscriptionWhereInput!]
+
+  """Logical OR on all given filters."""
+  OR: [CourseSubscriptionWhereInput!]
+
+  """Logical NOT on all given filters combined by AND."""
+  NOT: [CourseSubscriptionWhereInput!]
+
+  """
+  The subscription event gets dispatched when it's listed in mutation_in
+  """
+  mutation_in: [MutationType!]
+
+  """
+  The subscription event gets only dispatched when one of the updated fields names is included in this list
+  """
+  updatedFields_contains: String
+
+  """
+  The subscription event gets only dispatched when all of the field names included in this list have been updated
+  """
+  updatedFields_contains_every: [String!]
+
+  """
+  The subscription event gets only dispatched when some of the field names included in this list have been updated
+  """
+  updatedFields_contains_some: [String!]
+  node: CourseWhereInput
+}
+
+input CourseUpdateDataInput {
+  published: Boolean
+  title: String
+  description: String
+  emoji: String
+  thumbnail: String
+  author: UserUpdateOneRequiredInput
+}
+
+input CourseUpdateInput {
+  published: Boolean
+  title: String
+  description: String
+  emoji: String
+  thumbnail: String
+  author: UserUpdateOneRequiredInput
+}
+
+input CourseUpdateManyMutationInput {
+  published: Boolean
+  title: String
+  description: String
+  emoji: String
+  thumbnail: String
+}
+
+input CourseUpdateOneRequiredInput {
+  create: CourseCreateInput
+  connect: CourseWhereUniqueInput
+  update: CourseUpdateDataInput
+  upsert: CourseUpsertNestedInput
+}
+
+input CourseUpsertNestedInput {
+  update: CourseUpdateDataInput!
+  create: CourseCreateInput!
+}
+
+input CourseWhereInput {
+  """Logical AND on all given filters."""
+  AND: [CourseWhereInput!]
+
+  """Logical OR on all given filters."""
+  OR: [CourseWhereInput!]
+
+  """Logical NOT on all given filters combined by AND."""
+  NOT: [CourseWhereInput!]
   id: ID
 
   """All values that are not equal to given value."""
@@ -189,46 +425,326 @@ input PostScalarWhereInput {
 
   """All values that are not equal to given value."""
   published_not: Boolean
-  content: String
+  title: String
 
   """All values that are not equal to given value."""
-  content_not: String
+  title_not: String
 
   """All values that are contained in given list."""
-  content_in: [String!]
+  title_in: [String!]
 
   """All values that are not contained in given list."""
-  content_not_in: [String!]
+  title_not_in: [String!]
 
   """All values less than the given value."""
-  content_lt: String
+  title_lt: String
 
   """All values less than or equal the given value."""
-  content_lte: String
+  title_lte: String
 
   """All values greater than the given value."""
-  content_gt: String
+  title_gt: String
 
   """All values greater than or equal the given value."""
-  content_gte: String
+  title_gte: String
 
   """All values containing the given string."""
-  content_contains: String
+  title_contains: String
 
   """All values not containing the given string."""
-  content_not_contains: String
+  title_not_contains: String
 
   """All values starting with the given string."""
-  content_starts_with: String
+  title_starts_with: String
 
   """All values not starting with the given string."""
-  content_not_starts_with: String
+  title_not_starts_with: String
 
   """All values ending with the given string."""
-  content_ends_with: String
+  title_ends_with: String
 
   """All values not ending with the given string."""
-  content_not_ends_with: String
+  title_not_ends_with: String
+  description: String
+
+  """All values that are not equal to given value."""
+  description_not: String
+
+  """All values that are contained in given list."""
+  description_in: [String!]
+
+  """All values that are not contained in given list."""
+  description_not_in: [String!]
+
+  """All values less than the given value."""
+  description_lt: String
+
+  """All values less than or equal the given value."""
+  description_lte: String
+
+  """All values greater than the given value."""
+  description_gt: String
+
+  """All values greater than or equal the given value."""
+  description_gte: String
+
+  """All values containing the given string."""
+  description_contains: String
+
+  """All values not containing the given string."""
+  description_not_contains: String
+
+  """All values starting with the given string."""
+  description_starts_with: String
+
+  """All values not starting with the given string."""
+  description_not_starts_with: String
+
+  """All values ending with the given string."""
+  description_ends_with: String
+
+  """All values not ending with the given string."""
+  description_not_ends_with: String
+  emoji: String
+
+  """All values that are not equal to given value."""
+  emoji_not: String
+
+  """All values that are contained in given list."""
+  emoji_in: [String!]
+
+  """All values that are not contained in given list."""
+  emoji_not_in: [String!]
+
+  """All values less than the given value."""
+  emoji_lt: String
+
+  """All values less than or equal the given value."""
+  emoji_lte: String
+
+  """All values greater than the given value."""
+  emoji_gt: String
+
+  """All values greater than or equal the given value."""
+  emoji_gte: String
+
+  """All values containing the given string."""
+  emoji_contains: String
+
+  """All values not containing the given string."""
+  emoji_not_contains: String
+
+  """All values starting with the given string."""
+  emoji_starts_with: String
+
+  """All values not starting with the given string."""
+  emoji_not_starts_with: String
+
+  """All values ending with the given string."""
+  emoji_ends_with: String
+
+  """All values not ending with the given string."""
+  emoji_not_ends_with: String
+  thumbnail: String
+
+  """All values that are not equal to given value."""
+  thumbnail_not: String
+
+  """All values that are contained in given list."""
+  thumbnail_in: [String!]
+
+  """All values that are not contained in given list."""
+  thumbnail_not_in: [String!]
+
+  """All values less than the given value."""
+  thumbnail_lt: String
+
+  """All values less than or equal the given value."""
+  thumbnail_lte: String
+
+  """All values greater than the given value."""
+  thumbnail_gt: String
+
+  """All values greater than or equal the given value."""
+  thumbnail_gte: String
+
+  """All values containing the given string."""
+  thumbnail_contains: String
+
+  """All values not containing the given string."""
+  thumbnail_not_contains: String
+
+  """All values starting with the given string."""
+  thumbnail_starts_with: String
+
+  """All values not starting with the given string."""
+  thumbnail_not_starts_with: String
+
+  """All values ending with the given string."""
+  thumbnail_ends_with: String
+
+  """All values not ending with the given string."""
+  thumbnail_not_ends_with: String
+  createdAt: DateTime
+
+  """All values that are not equal to given value."""
+  createdAt_not: DateTime
+
+  """All values that are contained in given list."""
+  createdAt_in: [DateTime!]
+
+  """All values that are not contained in given list."""
+  createdAt_not_in: [DateTime!]
+
+  """All values less than the given value."""
+  createdAt_lt: DateTime
+
+  """All values less than or equal the given value."""
+  createdAt_lte: DateTime
+
+  """All values greater than the given value."""
+  createdAt_gt: DateTime
+
+  """All values greater than or equal the given value."""
+  createdAt_gte: DateTime
+  updatedAt: DateTime
+
+  """All values that are not equal to given value."""
+  updatedAt_not: DateTime
+
+  """All values that are contained in given list."""
+  updatedAt_in: [DateTime!]
+
+  """All values that are not contained in given list."""
+  updatedAt_not_in: [DateTime!]
+
+  """All values less than the given value."""
+  updatedAt_lt: DateTime
+
+  """All values less than or equal the given value."""
+  updatedAt_lte: DateTime
+
+  """All values greater than the given value."""
+  updatedAt_gt: DateTime
+
+  """All values greater than or equal the given value."""
+  updatedAt_gte: DateTime
+  author: UserWhereInput
+}
+
+input CourseWhereUniqueInput {
+  id: ID
+}
+
+scalar DateTime
+
+type EnrolledCourse implements Node {
+  id: ID!
+  course: Course!
+  enrollee: User!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""A connection to a list of items."""
+type EnrolledCourseConnection {
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """A list of edges."""
+  edges: [EnrolledCourseEdge]!
+  aggregate: AggregateEnrolledCourse!
+}
+
+input EnrolledCourseCreateInput {
+  id: ID
+  course: CourseCreateOneInput!
+  enrollee: UserCreateOneWithoutEnrolledCoursesInput!
+}
+
+input EnrolledCourseCreateManyWithoutEnrolleeInput {
+  create: [EnrolledCourseCreateWithoutEnrolleeInput!]
+  connect: [EnrolledCourseWhereUniqueInput!]
+}
+
+input EnrolledCourseCreateWithoutEnrolleeInput {
+  id: ID
+  course: CourseCreateOneInput!
+}
+
+"""An edge in a connection."""
+type EnrolledCourseEdge {
+  """The item at the end of the edge."""
+  node: EnrolledCourse!
+
+  """A cursor for use in pagination."""
+  cursor: String!
+}
+
+enum EnrolledCourseOrderByInput {
+  id_ASC
+  id_DESC
+  createdAt_ASC
+  createdAt_DESC
+  updatedAt_ASC
+  updatedAt_DESC
+}
+
+type EnrolledCoursePreviousValues {
+  id: ID!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+input EnrolledCourseScalarWhereInput {
+  """Logical AND on all given filters."""
+  AND: [EnrolledCourseScalarWhereInput!]
+
+  """Logical OR on all given filters."""
+  OR: [EnrolledCourseScalarWhereInput!]
+
+  """Logical NOT on all given filters combined by AND."""
+  NOT: [EnrolledCourseScalarWhereInput!]
+  id: ID
+
+  """All values that are not equal to given value."""
+  id_not: ID
+
+  """All values that are contained in given list."""
+  id_in: [ID!]
+
+  """All values that are not contained in given list."""
+  id_not_in: [ID!]
+
+  """All values less than the given value."""
+  id_lt: ID
+
+  """All values less than or equal the given value."""
+  id_lte: ID
+
+  """All values greater than the given value."""
+  id_gt: ID
+
+  """All values greater than or equal the given value."""
+  id_gte: ID
+
+  """All values containing the given string."""
+  id_contains: ID
+
+  """All values not containing the given string."""
+  id_not_contains: ID
+
+  """All values starting with the given string."""
+  id_starts_with: ID
+
+  """All values not starting with the given string."""
+  id_not_starts_with: ID
+
+  """All values ending with the given string."""
+  id_ends_with: ID
+
+  """All values not ending with the given string."""
+  id_not_ends_with: ID
   createdAt: DateTime
 
   """All values that are not equal to given value."""
@@ -275,22 +791,22 @@ input PostScalarWhereInput {
   updatedAt_gte: DateTime
 }
 
-type PostSubscriptionPayload {
+type EnrolledCourseSubscriptionPayload {
   mutation: MutationType!
-  node: Post
+  node: EnrolledCourse
   updatedFields: [String!]
-  previousValues: PostPreviousValues
+  previousValues: EnrolledCoursePreviousValues
 }
 
-input PostSubscriptionWhereInput {
+input EnrolledCourseSubscriptionWhereInput {
   """Logical AND on all given filters."""
-  AND: [PostSubscriptionWhereInput!]
+  AND: [EnrolledCourseSubscriptionWhereInput!]
 
   """Logical OR on all given filters."""
-  OR: [PostSubscriptionWhereInput!]
+  OR: [EnrolledCourseSubscriptionWhereInput!]
 
   """Logical NOT on all given filters combined by AND."""
-  NOT: [PostSubscriptionWhereInput!]
+  NOT: [EnrolledCourseSubscriptionWhereInput!]
 
   """
   The subscription event gets dispatched when it's listed in mutation_in
@@ -311,67 +827,49 @@ input PostSubscriptionWhereInput {
   The subscription event gets only dispatched when some of the field names included in this list have been updated
   """
   updatedFields_contains_some: [String!]
-  node: PostWhereInput
+  node: EnrolledCourseWhereInput
 }
 
-input PostUpdateInput {
-  published: Boolean
-  content: String
-  author: UserUpdateOneRequiredWithoutPostsInput
+input EnrolledCourseUpdateInput {
+  course: CourseUpdateOneRequiredInput
+  enrollee: UserUpdateOneRequiredWithoutEnrolledCoursesInput
 }
 
-input PostUpdateManyDataInput {
-  published: Boolean
-  content: String
+input EnrolledCourseUpdateManyWithoutEnrolleeInput {
+  create: [EnrolledCourseCreateWithoutEnrolleeInput!]
+  connect: [EnrolledCourseWhereUniqueInput!]
+  set: [EnrolledCourseWhereUniqueInput!]
+  disconnect: [EnrolledCourseWhereUniqueInput!]
+  delete: [EnrolledCourseWhereUniqueInput!]
+  update: [EnrolledCourseUpdateWithWhereUniqueWithoutEnrolleeInput!]
+  deleteMany: [EnrolledCourseScalarWhereInput!]
+  upsert: [EnrolledCourseUpsertWithWhereUniqueWithoutEnrolleeInput!]
 }
 
-input PostUpdateManyMutationInput {
-  published: Boolean
-  content: String
+input EnrolledCourseUpdateWithoutEnrolleeDataInput {
+  course: CourseUpdateOneRequiredInput
 }
 
-input PostUpdateManyWithoutAuthorInput {
-  create: [PostCreateWithoutAuthorInput!]
-  connect: [PostWhereUniqueInput!]
-  set: [PostWhereUniqueInput!]
-  disconnect: [PostWhereUniqueInput!]
-  delete: [PostWhereUniqueInput!]
-  update: [PostUpdateWithWhereUniqueWithoutAuthorInput!]
-  updateMany: [PostUpdateManyWithWhereNestedInput!]
-  deleteMany: [PostScalarWhereInput!]
-  upsert: [PostUpsertWithWhereUniqueWithoutAuthorInput!]
+input EnrolledCourseUpdateWithWhereUniqueWithoutEnrolleeInput {
+  where: EnrolledCourseWhereUniqueInput!
+  data: EnrolledCourseUpdateWithoutEnrolleeDataInput!
 }
 
-input PostUpdateManyWithWhereNestedInput {
-  where: PostScalarWhereInput!
-  data: PostUpdateManyDataInput!
+input EnrolledCourseUpsertWithWhereUniqueWithoutEnrolleeInput {
+  where: EnrolledCourseWhereUniqueInput!
+  update: EnrolledCourseUpdateWithoutEnrolleeDataInput!
+  create: EnrolledCourseCreateWithoutEnrolleeInput!
 }
 
-input PostUpdateWithoutAuthorDataInput {
-  published: Boolean
-  content: String
-}
-
-input PostUpdateWithWhereUniqueWithoutAuthorInput {
-  where: PostWhereUniqueInput!
-  data: PostUpdateWithoutAuthorDataInput!
-}
-
-input PostUpsertWithWhereUniqueWithoutAuthorInput {
-  where: PostWhereUniqueInput!
-  update: PostUpdateWithoutAuthorDataInput!
-  create: PostCreateWithoutAuthorInput!
-}
-
-input PostWhereInput {
+input EnrolledCourseWhereInput {
   """Logical AND on all given filters."""
-  AND: [PostWhereInput!]
+  AND: [EnrolledCourseWhereInput!]
 
   """Logical OR on all given filters."""
-  OR: [PostWhereInput!]
+  OR: [EnrolledCourseWhereInput!]
 
   """Logical NOT on all given filters combined by AND."""
-  NOT: [PostWhereInput!]
+  NOT: [EnrolledCourseWhereInput!]
   id: ID
 
   """All values that are not equal to given value."""
@@ -412,10 +910,348 @@ input PostWhereInput {
 
   """All values not ending with the given string."""
   id_not_ends_with: ID
-  published: Boolean
+  createdAt: DateTime
 
   """All values that are not equal to given value."""
-  published_not: Boolean
+  createdAt_not: DateTime
+
+  """All values that are contained in given list."""
+  createdAt_in: [DateTime!]
+
+  """All values that are not contained in given list."""
+  createdAt_not_in: [DateTime!]
+
+  """All values less than the given value."""
+  createdAt_lt: DateTime
+
+  """All values less than or equal the given value."""
+  createdAt_lte: DateTime
+
+  """All values greater than the given value."""
+  createdAt_gt: DateTime
+
+  """All values greater than or equal the given value."""
+  createdAt_gte: DateTime
+  updatedAt: DateTime
+
+  """All values that are not equal to given value."""
+  updatedAt_not: DateTime
+
+  """All values that are contained in given list."""
+  updatedAt_in: [DateTime!]
+
+  """All values that are not contained in given list."""
+  updatedAt_not_in: [DateTime!]
+
+  """All values less than the given value."""
+  updatedAt_lt: DateTime
+
+  """All values less than or equal the given value."""
+  updatedAt_lte: DateTime
+
+  """All values greater than the given value."""
+  updatedAt_gt: DateTime
+
+  """All values greater than or equal the given value."""
+  updatedAt_gte: DateTime
+  course: CourseWhereInput
+  enrollee: UserWhereInput
+}
+
+input EnrolledCourseWhereUniqueInput {
+  id: ID
+}
+
+type Lesson implements Node {
+  id: ID!
+  title: String!
+  link: String
+  content: String
+  author: User!
+  course: Course!
+  type: [LessonType!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+"""A connection to a list of items."""
+type LessonConnection {
+  """Information to aid in pagination."""
+  pageInfo: PageInfo!
+
+  """A list of edges."""
+  edges: [LessonEdge]!
+  aggregate: AggregateLesson!
+}
+
+input LessonCreateInput {
+  id: ID
+  title: String!
+  link: String
+  content: String
+  type: LessonCreatetypeInput
+  author: UserCreateOneInput!
+  course: CourseCreateOneInput!
+}
+
+input LessonCreateOneInput {
+  create: LessonCreateInput
+  connect: LessonWhereUniqueInput
+}
+
+input LessonCreatetypeInput {
+  set: [LessonType!]
+}
+
+"""An edge in a connection."""
+type LessonEdge {
+  """The item at the end of the edge."""
+  node: Lesson!
+
+  """A cursor for use in pagination."""
+  cursor: String!
+}
+
+enum LessonOrderByInput {
+  id_ASC
+  id_DESC
+  title_ASC
+  title_DESC
+  link_ASC
+  link_DESC
+  content_ASC
+  content_DESC
+  createdAt_ASC
+  createdAt_DESC
+  updatedAt_ASC
+  updatedAt_DESC
+}
+
+type LessonPreviousValues {
+  id: ID!
+  title: String!
+  link: String
+  content: String
+  type: [LessonType!]!
+  createdAt: DateTime!
+  updatedAt: DateTime!
+}
+
+type LessonSubscriptionPayload {
+  mutation: MutationType!
+  node: Lesson
+  updatedFields: [String!]
+  previousValues: LessonPreviousValues
+}
+
+input LessonSubscriptionWhereInput {
+  """Logical AND on all given filters."""
+  AND: [LessonSubscriptionWhereInput!]
+
+  """Logical OR on all given filters."""
+  OR: [LessonSubscriptionWhereInput!]
+
+  """Logical NOT on all given filters combined by AND."""
+  NOT: [LessonSubscriptionWhereInput!]
+
+  """
+  The subscription event gets dispatched when it's listed in mutation_in
+  """
+  mutation_in: [MutationType!]
+
+  """
+  The subscription event gets only dispatched when one of the updated fields names is included in this list
+  """
+  updatedFields_contains: String
+
+  """
+  The subscription event gets only dispatched when all of the field names included in this list have been updated
+  """
+  updatedFields_contains_every: [String!]
+
+  """
+  The subscription event gets only dispatched when some of the field names included in this list have been updated
+  """
+  updatedFields_contains_some: [String!]
+  node: LessonWhereInput
+}
+
+enum LessonType {
+  LINK
+  VIDEO
+  POST
+}
+
+input LessonUpdateDataInput {
+  title: String
+  link: String
+  content: String
+  type: LessonUpdatetypeInput
+  author: UserUpdateOneRequiredInput
+  course: CourseUpdateOneRequiredInput
+}
+
+input LessonUpdateInput {
+  title: String
+  link: String
+  content: String
+  type: LessonUpdatetypeInput
+  author: UserUpdateOneRequiredInput
+  course: CourseUpdateOneRequiredInput
+}
+
+input LessonUpdateManyMutationInput {
+  title: String
+  link: String
+  content: String
+  type: LessonUpdatetypeInput
+}
+
+input LessonUpdateOneRequiredInput {
+  create: LessonCreateInput
+  connect: LessonWhereUniqueInput
+  update: LessonUpdateDataInput
+  upsert: LessonUpsertNestedInput
+}
+
+input LessonUpdatetypeInput {
+  set: [LessonType!]
+}
+
+input LessonUpsertNestedInput {
+  update: LessonUpdateDataInput!
+  create: LessonCreateInput!
+}
+
+input LessonWhereInput {
+  """Logical AND on all given filters."""
+  AND: [LessonWhereInput!]
+
+  """Logical OR on all given filters."""
+  OR: [LessonWhereInput!]
+
+  """Logical NOT on all given filters combined by AND."""
+  NOT: [LessonWhereInput!]
+  id: ID
+
+  """All values that are not equal to given value."""
+  id_not: ID
+
+  """All values that are contained in given list."""
+  id_in: [ID!]
+
+  """All values that are not contained in given list."""
+  id_not_in: [ID!]
+
+  """All values less than the given value."""
+  id_lt: ID
+
+  """All values less than or equal the given value."""
+  id_lte: ID
+
+  """All values greater than the given value."""
+  id_gt: ID
+
+  """All values greater than or equal the given value."""
+  id_gte: ID
+
+  """All values containing the given string."""
+  id_contains: ID
+
+  """All values not containing the given string."""
+  id_not_contains: ID
+
+  """All values starting with the given string."""
+  id_starts_with: ID
+
+  """All values not starting with the given string."""
+  id_not_starts_with: ID
+
+  """All values ending with the given string."""
+  id_ends_with: ID
+
+  """All values not ending with the given string."""
+  id_not_ends_with: ID
+  title: String
+
+  """All values that are not equal to given value."""
+  title_not: String
+
+  """All values that are contained in given list."""
+  title_in: [String!]
+
+  """All values that are not contained in given list."""
+  title_not_in: [String!]
+
+  """All values less than the given value."""
+  title_lt: String
+
+  """All values less than or equal the given value."""
+  title_lte: String
+
+  """All values greater than the given value."""
+  title_gt: String
+
+  """All values greater than or equal the given value."""
+  title_gte: String
+
+  """All values containing the given string."""
+  title_contains: String
+
+  """All values not containing the given string."""
+  title_not_contains: String
+
+  """All values starting with the given string."""
+  title_starts_with: String
+
+  """All values not starting with the given string."""
+  title_not_starts_with: String
+
+  """All values ending with the given string."""
+  title_ends_with: String
+
+  """All values not ending with the given string."""
+  title_not_ends_with: String
+  link: String
+
+  """All values that are not equal to given value."""
+  link_not: String
+
+  """All values that are contained in given list."""
+  link_in: [String!]
+
+  """All values that are not contained in given list."""
+  link_not_in: [String!]
+
+  """All values less than the given value."""
+  link_lt: String
+
+  """All values less than or equal the given value."""
+  link_lte: String
+
+  """All values greater than the given value."""
+  link_gt: String
+
+  """All values greater than or equal the given value."""
+  link_gte: String
+
+  """All values containing the given string."""
+  link_contains: String
+
+  """All values not containing the given string."""
+  link_not_contains: String
+
+  """All values starting with the given string."""
+  link_starts_with: String
+
+  """All values not starting with the given string."""
+  link_not_starts_with: String
+
+  """All values ending with the given string."""
+  link_ends_with: String
+
+  """All values not ending with the given string."""
+  link_not_ends_with: String
   content: String
 
   """All values that are not equal to given value."""
@@ -501,19 +1337,98 @@ input PostWhereInput {
   """All values greater than or equal the given value."""
   updatedAt_gte: DateTime
   author: UserWhereInput
+  course: CourseWhereInput
 }
 
-input PostWhereUniqueInput {
+input LessonWhereUniqueInput {
   id: ID
 }
 
+"""
+The `Long` scalar type represents non-fractional signed whole numeric values.
+Long can represent values between -(2^63) and 2^63 - 1.
+"""
+scalar Long
+
+type Mutation {
+  createEnrolledCourse(data: EnrolledCourseCreateInput!): EnrolledCourse!
+  createCompletedLesson(data: CompletedLessonCreateInput!): CompletedLesson!
+  createUser(data: UserCreateInput!): User!
+  createLesson(data: LessonCreateInput!): Lesson!
+  createCourse(data: CourseCreateInput!): Course!
+  updateEnrolledCourse(data: EnrolledCourseUpdateInput!, where: EnrolledCourseWhereUniqueInput!): EnrolledCourse
+  updateCompletedLesson(data: CompletedLessonUpdateInput!, where: CompletedLessonWhereUniqueInput!): CompletedLesson
+  updateUser(data: UserUpdateInput!, where: UserWhereUniqueInput!): User
+  updateLesson(data: LessonUpdateInput!, where: LessonWhereUniqueInput!): Lesson
+  updateCourse(data: CourseUpdateInput!, where: CourseWhereUniqueInput!): Course
+  deleteEnrolledCourse(where: EnrolledCourseWhereUniqueInput!): EnrolledCourse
+  deleteCompletedLesson(where: CompletedLessonWhereUniqueInput!): CompletedLesson
+  deleteUser(where: UserWhereUniqueInput!): User
+  deleteLesson(where: LessonWhereUniqueInput!): Lesson
+  deleteCourse(where: CourseWhereUniqueInput!): Course
+  upsertEnrolledCourse(where: EnrolledCourseWhereUniqueInput!, create: EnrolledCourseCreateInput!, update: EnrolledCourseUpdateInput!): EnrolledCourse!
+  upsertCompletedLesson(where: CompletedLessonWhereUniqueInput!, create: CompletedLessonCreateInput!, update: CompletedLessonUpdateInput!): CompletedLesson!
+  upsertUser(where: UserWhereUniqueInput!, create: UserCreateInput!, update: UserUpdateInput!): User!
+  upsertLesson(where: LessonWhereUniqueInput!, create: LessonCreateInput!, update: LessonUpdateInput!): Lesson!
+  upsertCourse(where: CourseWhereUniqueInput!, create: CourseCreateInput!, update: CourseUpdateInput!): Course!
+  updateManyUsers(data: UserUpdateManyMutationInput!, where: UserWhereInput): BatchPayload!
+  updateManyLessons(data: LessonUpdateManyMutationInput!, where: LessonWhereInput): BatchPayload!
+  updateManyCourses(data: CourseUpdateManyMutationInput!, where: CourseWhereInput): BatchPayload!
+  deleteManyEnrolledCourses(where: EnrolledCourseWhereInput): BatchPayload!
+  deleteManyCompletedLessons(where: CompletedLessonWhereInput): BatchPayload!
+  deleteManyUsers(where: UserWhereInput): BatchPayload!
+  deleteManyLessons(where: LessonWhereInput): BatchPayload!
+  deleteManyCourses(where: CourseWhereInput): BatchPayload!
+}
+
+enum MutationType {
+  CREATED
+  UPDATED
+  DELETED
+}
+
+"""An object with an ID"""
+interface Node {
+  """The id of the object."""
+  id: ID!
+}
+
+"""Information about pagination in a connection."""
+type PageInfo {
+  """When paginating forwards, are there more items?"""
+  hasNextPage: Boolean!
+
+  """When paginating backwards, are there more items?"""
+  hasPreviousPage: Boolean!
+
+  """When paginating backwards, the cursor to continue."""
+  startCursor: String
+
+  """When paginating forwards, the cursor to continue."""
+  endCursor: String
+}
+
+enum Permission {
+  ADMIN
+  USER
+}
+
 type Query {
+  enrolledCourses(where: EnrolledCourseWhereInput, orderBy: EnrolledCourseOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [EnrolledCourse]!
+  completedLessons(where: CompletedLessonWhereInput, orderBy: CompletedLessonOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [CompletedLesson]!
   users(where: UserWhereInput, orderBy: UserOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [User]!
-  posts(where: PostWhereInput, orderBy: PostOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [Post]!
+  lessons(where: LessonWhereInput, orderBy: LessonOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [Lesson]!
+  courses(where: CourseWhereInput, orderBy: CourseOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [Course]!
+  enrolledCourse(where: EnrolledCourseWhereUniqueInput!): EnrolledCourse
+  completedLesson(where: CompletedLessonWhereUniqueInput!): CompletedLesson
   user(where: UserWhereUniqueInput!): User
-  post(where: PostWhereUniqueInput!): Post
+  lesson(where: LessonWhereUniqueInput!): Lesson
+  course(where: CourseWhereUniqueInput!): Course
+  enrolledCoursesConnection(where: EnrolledCourseWhereInput, orderBy: EnrolledCourseOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): EnrolledCourseConnection!
+  completedLessonsConnection(where: CompletedLessonWhereInput, orderBy: CompletedLessonOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): CompletedLessonConnection!
   usersConnection(where: UserWhereInput, orderBy: UserOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): UserConnection!
-  postsConnection(where: PostWhereInput, orderBy: PostOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): PostConnection!
+  lessonsConnection(where: LessonWhereInput, orderBy: LessonOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): LessonConnection!
+  coursesConnection(where: CourseWhereInput, orderBy: CourseOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): CourseConnection!
 
   """Fetches an object given its ID"""
   node(
@@ -523,8 +1438,11 @@ type Query {
 }
 
 type Subscription {
+  enrolledCourse(where: EnrolledCourseSubscriptionWhereInput): EnrolledCourseSubscriptionPayload
+  completedLesson(where: CompletedLessonSubscriptionWhereInput): CompletedLessonSubscriptionPayload
   user(where: UserSubscriptionWhereInput): UserSubscriptionPayload
-  post(where: PostSubscriptionWhereInput): PostSubscriptionPayload
+  lesson(where: LessonSubscriptionWhereInput): LessonSubscriptionPayload
+  course(where: CourseSubscriptionWhereInput): CourseSubscriptionPayload
 }
 
 type User implements Node {
@@ -532,9 +1450,10 @@ type User implements Node {
   username: String!
   password: String!
   email: String
+  avatar: String
   resetToken: String
   resetTokenExpiry: Float
-  posts(where: PostWhereInput, orderBy: PostOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [Post!]
+  enrolledCourses(where: EnrolledCourseWhereInput, orderBy: EnrolledCourseOrderByInput, skip: Int, after: String, before: String, first: Int, last: Int): [EnrolledCourse!]
   permissions: [Permission!]!
   updatedAt: DateTime!
   createdAt: DateTime!
@@ -555,14 +1474,20 @@ input UserCreateInput {
   username: String!
   password: String!
   email: String
+  avatar: String
   resetToken: String
   resetTokenExpiry: Float
   permissions: UserCreatepermissionsInput
-  posts: PostCreateManyWithoutAuthorInput
+  enrolledCourses: EnrolledCourseCreateManyWithoutEnrolleeInput
 }
 
-input UserCreateOneWithoutPostsInput {
-  create: UserCreateWithoutPostsInput
+input UserCreateOneInput {
+  create: UserCreateInput
+  connect: UserWhereUniqueInput
+}
+
+input UserCreateOneWithoutEnrolledCoursesInput {
+  create: UserCreateWithoutEnrolledCoursesInput
   connect: UserWhereUniqueInput
 }
 
@@ -570,11 +1495,12 @@ input UserCreatepermissionsInput {
   set: [Permission!]
 }
 
-input UserCreateWithoutPostsInput {
+input UserCreateWithoutEnrolledCoursesInput {
   id: ID
   username: String!
   password: String!
   email: String
+  avatar: String
   resetToken: String
   resetTokenExpiry: Float
   permissions: UserCreatepermissionsInput
@@ -598,6 +1524,8 @@ enum UserOrderByInput {
   password_DESC
   email_ASC
   email_DESC
+  avatar_ASC
+  avatar_DESC
   resetToken_ASC
   resetToken_DESC
   resetTokenExpiry_ASC
@@ -613,6 +1541,7 @@ type UserPreviousValues {
   username: String!
   password: String!
   email: String
+  avatar: String
   resetToken: String
   resetTokenExpiry: Float
   permissions: [Permission!]!
@@ -659,48 +1588,74 @@ input UserSubscriptionWhereInput {
   node: UserWhereInput
 }
 
+input UserUpdateDataInput {
+  username: String
+  password: String
+  email: String
+  avatar: String
+  resetToken: String
+  resetTokenExpiry: Float
+  permissions: UserUpdatepermissionsInput
+  enrolledCourses: EnrolledCourseUpdateManyWithoutEnrolleeInput
+}
+
 input UserUpdateInput {
   username: String
   password: String
   email: String
+  avatar: String
   resetToken: String
   resetTokenExpiry: Float
   permissions: UserUpdatepermissionsInput
-  posts: PostUpdateManyWithoutAuthorInput
+  enrolledCourses: EnrolledCourseUpdateManyWithoutEnrolleeInput
 }
 
 input UserUpdateManyMutationInput {
   username: String
   password: String
   email: String
+  avatar: String
   resetToken: String
   resetTokenExpiry: Float
   permissions: UserUpdatepermissionsInput
 }
 
-input UserUpdateOneRequiredWithoutPostsInput {
-  create: UserCreateWithoutPostsInput
+input UserUpdateOneRequiredInput {
+  create: UserCreateInput
   connect: UserWhereUniqueInput
-  update: UserUpdateWithoutPostsDataInput
-  upsert: UserUpsertWithoutPostsInput
+  update: UserUpdateDataInput
+  upsert: UserUpsertNestedInput
+}
+
+input UserUpdateOneRequiredWithoutEnrolledCoursesInput {
+  create: UserCreateWithoutEnrolledCoursesInput
+  connect: UserWhereUniqueInput
+  update: UserUpdateWithoutEnrolledCoursesDataInput
+  upsert: UserUpsertWithoutEnrolledCoursesInput
 }
 
 input UserUpdatepermissionsInput {
   set: [Permission!]
 }
 
-input UserUpdateWithoutPostsDataInput {
+input UserUpdateWithoutEnrolledCoursesDataInput {
   username: String
   password: String
   email: String
+  avatar: String
   resetToken: String
   resetTokenExpiry: Float
   permissions: UserUpdatepermissionsInput
 }
 
-input UserUpsertWithoutPostsInput {
-  update: UserUpdateWithoutPostsDataInput!
-  create: UserCreateWithoutPostsInput!
+input UserUpsertNestedInput {
+  update: UserUpdateDataInput!
+  create: UserCreateInput!
+}
+
+input UserUpsertWithoutEnrolledCoursesInput {
+  update: UserUpdateWithoutEnrolledCoursesDataInput!
+  create: UserCreateWithoutEnrolledCoursesInput!
 }
 
 input UserWhereInput {
@@ -872,6 +1827,46 @@ input UserWhereInput {
 
   """All values not ending with the given string."""
   email_not_ends_with: String
+  avatar: String
+
+  """All values that are not equal to given value."""
+  avatar_not: String
+
+  """All values that are contained in given list."""
+  avatar_in: [String!]
+
+  """All values that are not contained in given list."""
+  avatar_not_in: [String!]
+
+  """All values less than the given value."""
+  avatar_lt: String
+
+  """All values less than or equal the given value."""
+  avatar_lte: String
+
+  """All values greater than the given value."""
+  avatar_gt: String
+
+  """All values greater than or equal the given value."""
+  avatar_gte: String
+
+  """All values containing the given string."""
+  avatar_contains: String
+
+  """All values not containing the given string."""
+  avatar_not_contains: String
+
+  """All values starting with the given string."""
+  avatar_starts_with: String
+
+  """All values not starting with the given string."""
+  avatar_not_starts_with: String
+
+  """All values ending with the given string."""
+  avatar_ends_with: String
+
+  """All values not ending with the given string."""
+  avatar_not_ends_with: String
   resetToken: String
 
   """All values that are not equal to given value."""
@@ -978,9 +1973,9 @@ input UserWhereInput {
 
   """All values greater than or equal the given value."""
   createdAt_gte: DateTime
-  posts_every: PostWhereInput
-  posts_some: PostWhereInput
-  posts_none: PostWhereInput
+  enrolledCourses_every: EnrolledCourseWhereInput
+  enrolledCourses_some: EnrolledCourseWhereInput
+  enrolledCourses_none: EnrolledCourseWhereInput
 }
 
 input UserWhereUniqueInput {

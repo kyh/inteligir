@@ -30,7 +30,7 @@ type Course {
 }
 
 type EnrolledCourse {
-  id: ID! @unique
+  id: ID! @id
   course: Course!
   enrollee: User!
   createdAt: DateTime! @createdAt
@@ -44,7 +44,7 @@ enum LessonType {
 }
 
 type Lesson {
-  id: ID! @unique
+  id: ID! @id
   title: String!
   link: String
   content: String
@@ -56,7 +56,7 @@ type Lesson {
 }
 
 type CompletedLesson {
-  id: ID! @unique
+  id: ID! @id
   completedBy: User!
   lesson: Lesson!
   createdAt: DateTime! @createdAt
