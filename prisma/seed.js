@@ -10,7 +10,7 @@ async function main() {
         password:
           '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42",
         permissions: { set: ['USER'] },
-        lists: {
+        courses: {
           create: [
             {
               title: 'Intro to JavaScript',
