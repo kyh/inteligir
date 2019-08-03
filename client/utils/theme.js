@@ -4,7 +4,7 @@ export default createMuiTheme({
   palette: {
     primary: {
       // light: will be calculated from palette.primary.main,
-      main: '#8389E1',
+      main: '#1865f2',
       // dark: will be calculated from palette.primary.main,
       // contrastText: will be calculated to contrast with palette.primary.main
     },
@@ -23,7 +23,7 @@ export default createMuiTheme({
     black: '#292C36',
     white: '#FFFFFF',
     background: '#f5f8fa',
-    primary: '#8389E1',
+    primary: '#1865f2',
     secondary: '#3B475F',
     backgroundBlue: '#C5EBFF',
     lightBlue: '#2B9DD6',
@@ -46,24 +46,13 @@ export default createMuiTheme({
     Orange: '',
     darkOrange: '',
     // Positioning.
-    maxWidth: 736,
-    borderColor: '#3b475f1a',
+    maxWidth: 1200,
+    borderColor: '#D6D8DA',
     boxShadow: '0 3px 10px rgba(50, 50, 93, .11), 0 1px 2px rgba(0, 0, 0, .08)',
   },
   typography: {
     fontSize: 16,
-    fontFamily: [
-      '-apple-system',
-      'BlinkMacSystemFont',
-      '"Segoe UI"',
-      'Roboto',
-      '"Helvetica Neue"',
-      'Arial',
-      'sans-serif',
-      '"Apple Color Emoji"',
-      '"Segoe UI Emoji"',
-      '"Segoe UI Symbol"',
-    ].join(','),
+    fontFamily: ['"Lato"', '"Helvetica"', '"Corbel"', 'sans-serif'].join(','),
     body1: {
       lineHeight: 1.65,
     },
@@ -108,14 +97,14 @@ export default createMuiTheme({
   overrides: {
     MuiLink: {
       root: {
-        color: '#8389E1',
+        color: '#1865f2',
         textDecoration: 'underline',
         textDecorationColor: '#e0e0e0',
         backgroundColor: 'transparent',
         transition: 'color 0.2s linear, textDecoration 0.2s linear',
         cursor: 'pointer',
         '&:hover': {
-          textDecorationColor: '#8389E1',
+          textDecorationColor: '#1865f2',
         },
       },
     },
