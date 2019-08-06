@@ -22,7 +22,6 @@ Router.onRouteChangeError = () => {
 const styles = (theme) => ({
   container: {
     padding: `0 ${theme.spacing(3)}px`,
-    borderBottom: `1px solid ${theme.brand.borderColor}`,
   },
   nav: {
     display: 'flex',

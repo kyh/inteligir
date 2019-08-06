@@ -1,5 +1,5 @@
 # source: https://us1.prisma.sh/kaiyu-hsu-f70d57/inteligir/dev
-# timestamp: Wed Jul 31 2019 21:12:27 GMT-0700 (Pacific Daylight Time)
+# timestamp: Tue Aug 06 2019 14:09:49 GMT-0700 (Pacific Daylight Time)
 
 type AggregateCompletedLesson {
   count: Int!
@@ -227,8 +227,15 @@ type Course implements Node {
   author: User!
   emoji: String
   thumbnail: String
+  categories: [CourseCategory!]!
   createdAt: DateTime!
   updatedAt: DateTime!
+}
+
+enum CourseCategory {
+  FEATURED
+  NEW
+  HOT
 }
 
 """A connection to a list of items."""
@@ -241,6 +248,10 @@ type CourseConnection {
   aggregate: AggregateCourse!
 }
 
+input CourseCreatecategoriesInput {
+  set: [CourseCategory!]
+}
+
 input CourseCreateInput {
   id: ID
   published: Boolean
@@ -248,6 +259,7 @@ input CourseCreateInput {
   description: String!
   emoji: String
   thumbnail: String
+  categories: CourseCreatecategoriesInput
   author: UserCreateOneInput!
 }
 
@@ -291,6 +303,7 @@ type CoursePreviousValues {
   description: String!
   emoji: String
   thumbnail: String
+  categories: [CourseCategory!]!
   createdAt: DateTime!
   updatedAt: DateTime!
 }
@@ -334,12 +347,17 @@ input CourseSubscriptionWhereInput {
   node: CourseWhereInput
 }
 
+input CourseUpdatecategoriesInput {
+  set: [CourseCategory!]
+}
+
 input CourseUpdateDataInput {
   published: Boolean
   title: String
   description: String
   emoji: String
   thumbnail: String
+  categories: CourseUpdatecategoriesInput
   author: UserUpdateOneRequiredInput
 }
 
@@ -349,6 +367,7 @@ input CourseUpdateInput {
   description: String
   emoji: String
   thumbnail: String
+  categories: CourseUpdatecategoriesInput
   author: UserUpdateOneRequiredInput
 }
 
@@ -358,6 +377,7 @@ input CourseUpdateManyMutationInput {
   description: String
   emoji: String
   thumbnail: String
+  categories: CourseUpdatecategoriesInput
 }
 
 input CourseUpdateOneRequiredInput {

@@ -17,6 +17,12 @@ type User {
   createdAt: DateTime! @createdAt
 }
 
+enum CourseCategory {
+  FEATURED
+  NEW
+  HOT
+}
+
 type Course {
   id: ID! @id
   published: Boolean! @default(value: true)
@@ -25,6 +31,8 @@ type Course {
   author: User!
   emoji: String
   thumbnail: String
+  categories: [CourseCategory] @scalarList(strategy: RELATION)
+  lessons: [Lesson]
   createdAt: DateTime! @createdAt
   updatedAt: DateTime! @updatedAt
 }
