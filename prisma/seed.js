@@ -16,6 +16,7 @@ async function main() {
               title: 'Intro to JavaScript',
               emoji: '💻',
               description: 'Learn the programming language of the web',
+              categories: ['FEATURED'],
             },
           ],
         },
