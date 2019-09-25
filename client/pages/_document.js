@@ -1,6 +1,8 @@
+/* eslint-disable react/jsx-props-no-spreading */
 import React from 'react';
 import Document, { Head, Main, NextScript } from 'next/document';
 import { ServerStyleSheets } from '@material-ui/styles';
+// eslint-disable-next-line import/no-extraneous-dependencies
 import flush from 'styled-jsx/server';
 
 const TITLE = 'Inteligir | Share knowledge from the web through playlists';
@@ -173,10 +175,10 @@ IntDocument.getInitialProps = async (ctx) => {
     ...initialProps,
     // Styles fragment is rendered after the app and page rendering finish.
     styles: (
-      <React.Fragment>
+      <>
         {sheets.getStyleElement()}
         {flush() || null}
-      </React.Fragment>
+      </>
     ),
   };
 };
