@@ -5,7 +5,9 @@ import initApollo from './initApollo';
 
 export default (App) => {
   return class Apollo extends React.Component {
+    // eslint-disable-next-line react/static-property-placement
     static displayName = 'withApollo(App)';
+
     static async getInitialProps(ctx) {
       const { AppTree } = ctx;
 
@@ -21,6 +23,7 @@ export default (App) => {
         try {
           // Run all GraphQL queries
           await getDataFromTree(
+            // eslint-disable-next-line react/jsx-props-no-spreading
             <AppTree {...appProps} apolloClient={apollo} />,
           );
         } catch (error) {
@@ -46,10 +49,12 @@ export default (App) => {
 
     constructor(props) {
       super(props);
+      // eslint-disable-next-line react/prop-types
       this.apolloClient = initApollo(props.apolloState);
     }
 
     render() {
+      // eslint-disable-next-line react/jsx-props-no-spreading
       return <App apolloClient={this.apolloClient} {...this.props} />;
     }
   };
