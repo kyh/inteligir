@@ -2,7 +2,7 @@ import React from 'react';
 import PropTypes from 'prop-types';
 import { withStyles } from '@material-ui/core/styles';
 
-import Navigation from '@client/containers/auth/Navigation';
+import Navigation from '@client/containers/Navigation';
 
 const styles = (theme) => ({});
 

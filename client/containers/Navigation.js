@@ -5,9 +5,6 @@ import { withStyles } from '@material-ui/core/styles';
 import { Search } from '@material-ui/icons';
 import { Logo, Link, InputBase, InputAdornment } from '@components';
 
-import CurrentUser from './CurrentUser';
-import Logout from './Logout';
-
 Router.onRouteChangeStart = () => {
   NProgress.start();
 };
@@ -76,48 +73,35 @@ function Navigation({ classes }) {
   };
 
   return (
-    <CurrentUser>
-      {({ data: { me } }) => (
-        <section className={classes.container}>
-          <nav className={classes.nav}>
-            <div className="nav-section left">
-              <Link href="/courses">Courses</Link>
-              <InputBase
-                className={classes.searchInput}
-                id="search"
-                type="text"
-                placeholder="Search..."
-                value={values.search}
-                onChange={handleChange('search')}
-                endAdornment={
-                  <InputAdornment position="end">
-                    <Search color="action" />
-                  </InputAdornment>
-                }
-              />
-            </div>
-            <div className="nav-section center">
-              <Link href="/">
-                <Logo />
-              </Link>
-            </div>
-            <div className="nav-section right">
-              {!me && (
-                <>
-                  <Link href="/login">Log in</Link>
-                  <Link href="/request_invite">Request an invite</Link>
-                </>
-              )}
-              {me && (
-                <>
-                  <Logout />
-                </>
-              )}
-            </div>
-          </nav>
-        </section>
-      )}
-    </CurrentUser>
+    <section className={classes.container}>
+      <nav className={classes.nav}>
+        <div className="nav-section left">
+          <Link href="/courses">Courses</Link>
+          <InputBase
+            className={classes.searchInput}
+            id="search"
+            type="text"
+            placeholder="Search..."
+            value={values.search}
+            onChange={handleChange('search')}
+            endAdornment={
+              <InputAdornment position="end">
+                <Search color="action" />
+              </InputAdornment>
+            }
+          />
+        </div>
+        <div className="nav-section center">
+          <Link href="/">
+            <Logo />
+          </Link>
+        </div>
+        <div className="nav-section right">
+          <Link href="/login">Log in</Link>
+          <Link href="/request_invite">Request an invite</Link>
+        </div>
+      </nav>
+    </section>
   );
 }
 
