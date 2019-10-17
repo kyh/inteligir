@@ -5,7 +5,7 @@ const rules = {
     return !!context.user;
   }),
   isCourseOwner: rule()(async (parent, { id }, context) => {
-    const author = await context.prisma.course({ id }).author();
+    const author = await context.db.course({ id }).author();
     return context.user.userId === author.id;
   }),
 };

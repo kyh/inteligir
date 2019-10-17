@@ -1,4 +1,3 @@
-const { extractFragmentReplacements } = require('prisma-binding');
 const { Query } = require('./Query');
 const { Mutation } = require('./Mutation');
 
@@ -9,5 +8,4 @@ const resolvers = {
 
 module.exports = {
   resolvers,
-  fragmentReplacements: extractFragmentReplacements(resolvers),
 };

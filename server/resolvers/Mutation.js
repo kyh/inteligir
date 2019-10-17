@@ -7,7 +7,7 @@ const Mutation = {
   signup: async (parent, args, context, info) => {
     const hashedPassword = await hash(args.password, 10);
     // Create the user in the database
-    const user = await context.prisma.mutation.createUser(
+    const user = await context.db.mutation.createUser(
       {
         data: {
           ...args,
@@ -26,7 +26,7 @@ const Mutation = {
   },
   login: async (parent, { email, password }, context) => {
     // 1. Check if there is a user with that email
-    const user = await context.prisma.query.user({ where: { email } });
+    const user = await context.db.query.user({ where: { email } });
     if (!user) {
       throw new UserInputError(`No user found for email: ${email}`);
     }
@@ -51,7 +51,7 @@ const Mutation = {
   },
   createCourse: async (parent, args, context, info) => {
     const { userId } = context.user;
-    return context.prisma.mutation.createCourse(
+    return context.db.mutation.createCourse(
       {
         data: {
           ...args,
@@ -66,7 +66,7 @@ const Mutation = {
     );
   },
   deleteCourse: async (parent, { id }, context) => {
-    return context.prisma.mutation.deleteCourse({ where: { id } });
+    return context.db.mutation.deleteCourse({ where: { id } });
   },
 };
 
