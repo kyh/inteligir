@@ -1,30 +1,27 @@
 require('module-alias/register');
-const prisma = require('@server/services/db');
+
+const { Photon } = require('@generated/photon');
+const photon = new Photon();
 
 async function main() {
-  try {
-    await prisma.mutation.createUser({
-      data: {
-        username: 'kyh',
-        email: 'im.kaiyu@gmail.com',
-        password:
-          '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42",
-        permissions: { set: ['USER'] },
-        courses: {
-          create: [
-            {
-              title: 'Intro to JavaScript',
-              emoji: '💻',
-              description: 'Learn the programming language of the web',
-              categories: ['FEATURED'],
-            },
-          ],
+  const user = await photon.users.create({
+    data: {
+      email: 'alice@prisma.io',
+      name: 'Alice',
+      password: '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42"
+      posts: {
+        create: {
+          title: 'Watch the talks from Prisma Day 2019',
+          content: 'https://www.prisma.io/blog/z11sg6ipb3i1/',
+          published: true,
         },
       },
-    });
-  } catch (e) {
-    console.log(e);
-  }
+    },
+  });
+
+  console.log({ user });
 }
 
-main();
+main().finally(async () => {
+  await photon.disconnect();
+});

@@ -1,6 +1,6 @@
 const { ApolloServer } = require('apollo-server-express');
 const keys = require('@server/config/keys');
-const prisma = require('@server/services/db');
+const db = require('@server/services/db');
 const schema = require('@server/schema');
 const { parseRequest, getUser } = require('@server/util/authentication');
 
@@ -10,7 +10,7 @@ function createApollo() {
     context: ({ req, res }) => {
       const token = parseRequest(req);
       return {
-        prisma,
+        db,
         request: req,
         response: res,
         user: getUser(token),

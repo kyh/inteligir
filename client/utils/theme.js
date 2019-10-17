@@ -4,7 +4,7 @@ export default createMuiTheme({
   palette: {
     primary: {
       // light: will be calculated from palette.primary.main,
-      main: '#1865f2',
+      main: '#1E5EE8',
       // dark: will be calculated from palette.primary.main,
       // contrastText: will be calculated to contrast with palette.primary.main
     },
@@ -22,8 +22,8 @@ export default createMuiTheme({
   brand: {
     black: '#242537',
     white: '#FFFFFF',
-    background: '#f5f8fa',
-    primary: '#1865f2',
+    background: '#FCFBFA',
+    primary: '#1E5EE8',
     secondary: '#3B475F',
     backgroundBlue: '#C5EBFF',
     lightBlue: '#37c5fd',
