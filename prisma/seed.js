@@ -6,13 +6,13 @@ const photon = new Photon();
 async function main() {
   const user = await photon.users.create({
     data: {
-      email: 'alice@prisma.io',
-      name: 'Alice',
+      email: 'kai@inteligir.com',
+      username: 'Alice',
       password: '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42"
-      posts: {
+      courses: {
         create: {
-          title: 'Watch the talks from Prisma Day 2019',
-          content: 'https://www.prisma.io/blog/z11sg6ipb3i1/',
+          title: 'How to contribute to Inteligir',
+          description: 'Step by step guide on how Inteligir was built',
           published: true,
         },
       },
