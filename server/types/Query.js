@@ -2,6 +2,9 @@ const { idArg, queryType, stringArg } = require('nexus');
 
 const Query = queryType({
   definition(t) {
+    t.crud.course();
+    t.crud.courses();
+
     t.field('me', {
       type: 'User',
       resolve: (parent, args, context) => {
