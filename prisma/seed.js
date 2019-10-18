@@ -7,7 +7,7 @@ async function main() {
   const user = await photon.users.create({
     data: {
       email: 'kai@inteligir.com',
-      username: 'Alice',
+      displayName: 'Kai',
       password: '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42"
       courses: {
         create: {

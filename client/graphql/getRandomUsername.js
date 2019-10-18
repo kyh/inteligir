@@ -1,9 +1,9 @@
 import gql from 'graphql-tag';
 
-const GET_RANDOM_USERNAME = gql`
+const GET_RANDOM_DISPLAYNAME = gql`
   {
-    randomUsername
+    randomDisplayName
   }
 `;
 
-export default GET_RANDOM_USERNAME;
+export default GET_RANDOM_DISPLAYNAME;

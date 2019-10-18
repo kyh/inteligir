@@ -18,7 +18,7 @@ type Mutation {
   createPost(content: String!, authorEmail: String!): Post!
   deletePost(id: ID!): Post
   publish(id: ID!): Post
-+ updateUserName(id: ID!, newName: String!): User
++ updateDisplayName(id: ID!, newName: String!): User
 }
 ```
 
@@ -27,7 +27,7 @@ Then add the new resolver to the `Mutation` object in [`../server/resolvers/Muta
 ```diff
 const Mutation = {
   // ...
-+ updateUserName(parent, { id, newName }, context) {
++ updateDisplayName(parent, { id, newName }, context) {
 +   return context.prisma.updateUser({
 +     where: {
 +       id
@@ -44,7 +44,7 @@ You can now send the following mutation to your GraphQL API:
 
 ```graphql
 mutation {
-  updateUserName(
+  updateDisplayName(
     id: "__USER_ID__"
     newName: "John")
   ) {
@@ -109,7 +109,7 @@ type Mutation {
   createPost(content: String!!, authorEmail: String!): Post!
   deletePost(id: ID!): Post
   publish(id: ID!): Post
-  updateUserName(id: ID!, newName: String!): User
+  updateDisplayName(id: ID!, newName: String!): User
 + writeComment(text: String!, postId: ID!): Comment
 }
 
