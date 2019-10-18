@@ -1,10 +1,10 @@
 import gql from 'graphql-tag';
 
 const SIGNUP = gql`
-  mutation Signup($username: String!, $email: String, $password: String!) {
-    signup(username: $username, email: $email, password: $password) {
+  mutation Signup($displayName: String!, $email: String, $password: String!) {
+    signup(displayName: $displayName, email: $email, password: $password) {
       id
-      username
+      displayName
       email
     }
   }

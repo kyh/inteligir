@@ -9,15 +9,15 @@ const Mutation = mutationType({
     t.field('signup', {
       type: 'AuthPayload',
       args: {
-        name: stringArg({ nullable: true }),
+        displayName: stringArg({ nullable: true }),
         email: stringArg(),
         password: stringArg(),
       },
-      resolve: async (parent, { name, email, password }, context) => {
+      resolve: async (parent, { displayName, email, password }, context) => {
         const hashedPassword = await hash(password, 10);
         const user = await context.db.users.create({
           data: {
-            name,
+            displayName,
             email,
             password: hashedPassword,
           },

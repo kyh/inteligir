@@ -44,7 +44,7 @@ This mutation will log in an existing user by requesting a new authentication to
 
 ```graphql
 mutation {
-  login(username: "im.kaiyu@gmail.com", password: "graphql") {
+  login(email: "im.kaiyu@gmail.com", password: "graphql") {
     token
   }
 }
