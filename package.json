@@ -21,19 +21,22 @@
     "dev:prisma": "prisma2 dev",
     "dev:server": "env-cmd -f ./config/.env.local nodemon server/index.js --ext js,graphql",
     "dev:storybook": "start-storybook -p 5010 -s ./client",
-    "prisma:generate": "env-cmd -f ./config/.env.local prisma2 generate",
+    "generate:prisma": "env-cmd -f ./config/.env.local prisma2 generate",
+    "generate:seed": "env-cmd -f ./config/.env.local node ./prisma/seed.js",
+    "generate:components": "node ./tools/components/create-components.js",
     "deploy": "node tools/deploy",
     "deploy:storybook": "storybook-to-ghpages",
     "lint": "eslint --ext .js --env browser,node client/ server/",
     "lint:fix": "eslint --fix --ext .js --env browser,node client/ server",
-    "create:components": "node ./tools/components/create-components.js",
     "test": "echo \"Error: no test specified\" && exit 0",
     "heroku-postbuild": "prisma2 generate"
   },
   "_moduleAliases": {
     "@server": "./server",
     "@client": "./client",
-    "@components": "./client/components"
+    "@components": "./client/components",
+    "@containers": "./client/containers",
+    "@hooks": "./client/hooks"
   },
   "dependencies": {
     "@apollo/react-hooks": "^3.1.3",
