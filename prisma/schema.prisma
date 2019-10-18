@@ -1,6 +1,6 @@
 datasource db {
   provider = "sqlite"
-  url      = "file:dev.db"
+  url      = env("DATABASE_URL")
   default  = true
 }
 
@@ -8,30 +8,27 @@ generator photon {
   provider = "photonjs"
 }
 
-generator nexus_prisma {
-  provider = "nexus-prisma"
-}
-
-enum Permission {
-  ADMIN
+enum Role {
   USER
+  ADMIN
 }
 
 model User {
   id               String           @default(cuid()) @id
   email            String           @unique
   password         String
-  username         String?
+  username         String
   resetToken       String
   resetTokenExpiry Float
   enrolledCourses  EnrolledCourse[]
-  permissions      Permission[]     @scalarList(strategy: RELATION)
+  role             Role             @default(USER)
+  createdAt        DateTime         @default(now())
 }
 
-enum CourseCategory {
-  FEATURED
-  NEW
-  HOT
+model CourseCategory {
+  id      String   @default(cuid()) @id
+  name    String
+  courses Course[]
 }
 
 model Course {
@@ -59,7 +56,7 @@ model EnrolledCourse {
 enum LessonType {
   LINK
   VIDEO
-  POST
+  ARTICLE
 }
 
 model Lesson {
