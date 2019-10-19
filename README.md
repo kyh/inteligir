@@ -19,10 +19,10 @@
 │── /prisma                      # Prisma datamodel and seed data
 │── /server                      # Node.js server
 │   ├── /config                  # Server environment variables
-│   ├── /schema                  # Prisma generated files and app schema
 │   ├── /middlewares             # Express/Apollo middleware
-│   ├── /resolvers               # GraphQl resolvers
+│   ├── /types                   # GraphQl resolvers
 │   ├── /services                # Server Helper functions/Utilities/Services
+│   ├── /web                     # Next.js/Apollo/Express app
 │   └── index.js                 # Server entry point
 │── /tests                       # Test setup files
 │── /tools                       # Setup and deployment scripts
