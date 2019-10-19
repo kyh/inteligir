@@ -13,9 +13,9 @@ require('module-alias/register');
  * This is the entrypoint to the Inteligir backend. See files under `/web`
  * on the creation of each app.
  */
-const createExpress = require('@server/web/create-express');
-const createNext = require('@server/web/create-next');
-const createApollo = require('@server/web/create-apollo');
+const createExpress = require('@server/web/createExpress');
+const createNext = require('@server/web/createNext');
+const createApollo = require('@server/web/createApollo');
 const keys = require('@server/config/keys');
 
 const app = createExpress();
