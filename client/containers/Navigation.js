@@ -98,7 +98,7 @@ function Navigation({ classes }) {
         </div>
         <div className="nav-section right">
           <Link href="/login">Log in</Link>
-          <Link href="/request_invite">Request an invite</Link>
+          <Link href="/signup">Request an invite</Link>
         </div>
       </nav>
     </section>

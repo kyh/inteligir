@@ -151,14 +151,14 @@ export default createMuiTheme({
         '&:active': {
           boxShadow: '0 0 2px 0 rgba(224, 224, 224, 0.4);',
         },
+        '&:hover': {
+          boxShadow: '',
+        },
       },
       containedPrimary: {
         boxShadow: '0 0 10px 0 rgba(131, 137, 225, 0.4);',
         '&:active': {
           boxShadow: '0 0 2px 0 rgba(131, 137, 225, 0.4);',
-        },
-        '&:hover': {
-          backgroundColor: '#6e75da',
         },
       },
       containedSecondary: {
