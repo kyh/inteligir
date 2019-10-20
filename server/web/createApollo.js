@@ -7,6 +7,9 @@ const { parseRequest, getUser } = require('@server/services/authentication');
 function createApollo() {
   const apolloServer = new ApolloServer({
     schema,
+    playground: keys.nodeEnv === 'development',
+    debug: keys.nodeEnv === 'development',
+    cors: { credentials: true },
     context: ({ req, res }) => {
       const token = parseRequest(req);
       return {
@@ -17,9 +20,12 @@ function createApollo() {
         user: getUser(token),
       };
     },
-    playground: keys.nodeEnv === 'development',
-    debug: keys.nodeEnv === 'development',
-    cors: { credentials: true },
+    formatError: (error) => {
+      if (keys.nodeEnv === 'development') {
+        console.log(error);
+      }
+      return error;
+    },
   });
 
   return apolloServer;

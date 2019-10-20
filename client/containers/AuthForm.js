@@ -36,7 +36,8 @@ function AuthForm({ isLoginForm, classes }) {
       .then(() => {
         redirect({}, '/');
       })
-      .catch((error) => {
+      .catch(({ graphQLErrors }) => {
+        const [error] = graphQLErrors;
         setLoginState({
           isLoading: false,
           isErrorOpen: true,
