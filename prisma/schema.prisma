@@ -34,7 +34,7 @@ model CourseCategory {
 
 model Course {
   id          String           @default(cuid()) @id
-  published   Boolean          @default(value: true)
+  published   Boolean          @default(value: false)
   title       String
   description String
   author      User
