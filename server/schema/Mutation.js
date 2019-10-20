@@ -16,11 +16,10 @@ const Mutation = mutationType({
         email: stringArg(),
         password: stringArg(),
       },
-      resolve: async (parent, { displayName, email, password }, context) => {
+      resolve: async (parent, { email, password }, context) => {
         const hashedPassword = await hash(password, 10);
         const user = await context.db.users.create({
           data: {
-            displayName,
             email,
             password: hashedPassword,
           },
@@ -31,7 +30,7 @@ const Mutation = mutationType({
           maxAge: 1000 * 60 * 60 * 24 * 365,
         });
 
-        return user;
+        return { token, user };
       },
     });
 
@@ -64,7 +63,7 @@ const Mutation = mutationType({
           maxAge: 1000 * 60 * 60 * 24 * 365,
         });
         // 5. Return the user
-        return user;
+        return { token, user };
       },
     });
 
