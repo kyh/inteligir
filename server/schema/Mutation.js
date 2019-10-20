@@ -6,8 +6,9 @@ const keys = require('@server/config/keys');
 
 const Mutation = mutationType({
   definition(t) {
-    t.crud.createOneCourse();
-
+    /**
+     * Authentication
+     */
     t.field('signup', {
       type: 'AuthPayload',
       args: {
@@ -67,49 +68,23 @@ const Mutation = mutationType({
       },
     });
 
-    // t.field('createCourse', {
-    //   type: 'Course',
-    //   args: {
-    //     title: stringArg(),
-    //     description: stringArg({ nullable: true }),
-    //   },
-    //   resolve: (parent, { title, description }, context) => {
-    //     const { userId } = context.user;
-    //     return context.db.courses.create({
-    //       data: {
-    //         title,
-    //         description,
-    //         published: false,
-    //         author: { connect: { id: userId } },
-    //       },
-    //     });
-    //   },
-    // });
-
-    // t.field('deleteCourse', {
-    //   type: 'Course',
-    //   nullable: true,
-    //   args: { id: idArg() },
-    //   resolve: (parent, { id }, context) => {
-    //     return context.db.posts.delete({
-    //       where: {
-    //         id,
-    //       },
-    //     });
-    //   },
-    // });
-
-    // t.field('publishCourse', {
-    //   type: 'Course',
-    //   nullable: true,
-    //   args: { id: idArg() },
-    //   resolve: (parent, { id }, context) => {
-    //     return context.db.courses.update({
-    //       where: { id },
-    //       data: { published: true },
-    //     });
-    //   },
-    // });
+    /**
+     * Courses
+     */
+    t.crud.createOneCourse();
+    t.crud.deleteOneCourse();
+    t.crud.updateOneCourse();
+    t.field('publishCourse', {
+      type: 'Course',
+      nullable: true,
+      args: { id: idArg() },
+      resolve: (parent, { id }, context) => {
+        return context.db.courses.update({
+          where: { id },
+          data: { published: true },
+        });
+      },
+    });
   },
 });
 

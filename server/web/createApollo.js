@@ -1,7 +1,7 @@
 const { ApolloServer } = require('apollo-server-express');
 const keys = require('@server/config/keys');
 const db = require('@server/services/db');
-const schema = require('@server/services/schema');
+const schema = require('@server/schema');
 const { parseRequest, getUser } = require('@server/services/authentication');
 
 function createApollo() {
@@ -11,6 +11,7 @@ function createApollo() {
       const token = parseRequest(req);
       return {
         db,
+        photon: db,
         request: req,
         response: res,
         user: getUser(token),
