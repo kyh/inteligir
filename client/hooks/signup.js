@@ -2,11 +2,13 @@ import { useMutation } from '@apollo/react-hooks';
 import gql from 'graphql-tag';
 
 export const SIGNUP = gql`
-  mutation Signup($username: String!, $email: String, $password: String!) {
-    signup(username: $username, email: $email, password: $password) {
-      id
-      username
-      email
+  mutation Signup($email: String, $password: String!) {
+    signup(email: $email, password: $password) {
+      token
+      user {
+        id
+        email
+      }
     }
   }
 `;
