@@ -1,0 +1,13 @@
+{
+  "schemaPath": "prisma/schema.prisma",
+  "extensions": {
+    "endpoints": {
+      "dev": {
+        "url": "http://localhost:5000/graphql",
+        "headers": {
+          "Authorization": "Bearer ${env:AUTH_TOKEN_ENV}"
+        },
+      }
+    }
+  }
+}
