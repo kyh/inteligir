@@ -56,7 +56,18 @@ export default createMuiTheme({
   },
   typography: {
     fontSize: 16,
-    fontFamily: ['"Lato"', '"Helvetica"', '"Corbel"', 'sans-serif'].join(','),
+    fontFamily: [
+      '-apple-system',
+      'BlinkMacSystemFont',
+      '"Segoe UI"',
+      'Roboto',
+      '"Helvetica Neue"',
+      'Arial',
+      'sans-serif',
+      '"Apple Color Emoji"',
+      '"Segoe UI Emoji"',
+      '"Segoe UI Symbol"',
+    ].join(','),
     body1: {
       lineHeight: 1.65,
     },
