@@ -13,3 +13,17 @@ export const GET_CURRENT_USER = gql`
 export function useGetCurrentUser() {
   return useQuery(GET_CURRENT_USER);
 }
+
+export function checkLoggedIn(apolloClient) {
+  return apolloClient
+    .query({
+      query: GET_CURRENT_USER,
+    })
+    .then(({ data }) => {
+      return { user: data.me };
+    })
+    .catch(() => {
+      // Fail gracefully
+      return { user: null };
+    });
+}

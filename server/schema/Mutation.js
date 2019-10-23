@@ -67,6 +67,14 @@ const Mutation = mutationType({
       },
     });
 
+    t.field('logout', {
+      type: 'AuthPayload',
+      resolve: async (parent, args, context) => {
+        context.response.clearCookie('token');
+        return { token: '', user: null };
+      },
+    });
+
     /**
      * Courses
      */

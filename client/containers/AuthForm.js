@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useApolloClient } from '@apollo/react-hooks';
 import useForm from 'react-hook-form';
 import { withStyles } from '@material-ui/core/styles';
 
@@ -24,6 +25,7 @@ function AuthForm({ isLoginForm, classes }) {
     errorMessage: '',
   });
   const [authFunction] = isLoginForm ? useLogin() : useSignup();
+  const client = useApolloClient();
 
   const onSubmit = (data) => {
     setLoginState({
@@ -34,7 +36,11 @@ function AuthForm({ isLoginForm, classes }) {
     const variables = { email: data.email, password: data.password };
     authFunction({ variables })
       .then(() => {
-        redirect({}, '/');
+        // Force a reload of all the current queries now that the user is
+        // logged in
+        return client.cache.reset().then(() => {
+          redirect({}, '/');
+        });
       })
       .catch(({ graphQLErrors }) => {
         const [error] = graphQLErrors;

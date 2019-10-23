@@ -7,7 +7,9 @@ const Query = queryType({
      */
     t.field('me', {
       type: 'User',
+      nullable: true,
       resolve: (parent, args, context) => {
+        if (!context.user) return null;
         return context.db.users.findOne({
           where: {
             id: context.user.userId,

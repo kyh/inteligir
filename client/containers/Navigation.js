@@ -2,7 +2,10 @@ import React from 'react';
 import NProgress from 'nprogress';
 import Router from 'next/router';
 import { withStyles } from '@material-ui/core/styles';
-import { Search } from '@material-ui/icons';
+import { Search, KeyboardArrowDown } from '@material-ui/icons';
+
+import { useGetCurrentUser } from '@hooks/getCurrentUser';
+import { useLogout } from '@hooks/logout';
 import { Logo, Link, InputBase, InputAdornment } from '@components';
 
 Router.onRouteChangeStart = () => {
@@ -24,7 +27,7 @@ const styles = (theme) => ({
     display: 'flex',
     alignItems: 'stretch',
     justifyContent: 'space-between',
-    height: theme.spacing(8),
+    height: theme.spacing(9),
     maxWidth: theme.brand.maxWidth,
     margin: '0 auto',
     '& > .nav-section': {
@@ -72,11 +75,19 @@ function Navigation({ classes }) {
     setValues({ ...values, [prop]: event.target.value });
   };
 
+  const [logout] = useLogout();
+  const { loading, error, data } = useGetCurrentUser();
+  if (loading || error) return null;
+  console.log(data);
+
   return (
     <section className={classes.container}>
       <nav className={classes.nav}>
         <div className="nav-section left">
-          <Link href="/courses">Courses</Link>
+          <Link href="/courses">
+            Browse
+            <KeyboardArrowDown />
+          </Link>
           <InputBase
             className={classes.searchInput}
             id="search"
@@ -97,8 +108,16 @@ function Navigation({ classes }) {
           </Link>
         </div>
         <div className="nav-section right">
-          <Link href="/login">Log in</Link>
-          <Link href="/signup">Request an invite</Link>
+          {data.me ? (
+            <Link href="/" onClick={logout}>
+              Logout
+            </Link>
+          ) : (
+            <>
+              <Link href="/login">Log in</Link>
+              <Link href="/signup">Request an invite</Link>
+            </>
+          )}
         </div>
       </nav>
     </section>
