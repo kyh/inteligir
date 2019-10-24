@@ -1,7 +1,7 @@
 const { objectType } = require('nexus');
 
-const Course = objectType({
-  name: 'Course',
+const Playlist = objectType({
+  name: 'Playlist',
   definition(t) {
     t.model.id();
     t.model.createdAt();
@@ -14,5 +14,5 @@ const Course = objectType({
 });
 
 module.exports = {
-  Course,
+  Playlist,
 };

@@ -76,17 +76,17 @@ const Mutation = mutationType({
     });
 
     /**
-     * Courses
+     * Playlists
      */
-    t.crud.createOneCourse();
-    t.crud.deleteOneCourse();
-    t.crud.updateOneCourse();
-    t.field('publishCourse', {
-      type: 'Course',
+    t.crud.createOnePlaylist();
+    t.crud.deleteOnePlaylist();
+    t.crud.updateOnePlaylist();
+    t.field('publishPlaylist', {
+      type: 'Playlist',
       nullable: true,
       args: { id: idArg() },
       resolve: (parent, { id }, context) => {
-        return context.db.courses.update({
+        return context.db.playlists.update({
           where: { id },
           data: { published: true },
         });

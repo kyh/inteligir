@@ -4,8 +4,8 @@ const rules = {
   isAuthenticatedUser: rule()((parent, args, context) => {
     return !!context.user;
   }),
-  isCourseOwner: rule()(async (parent, { id }, context) => {
-    const author = await context.db.course({ id }).author();
+  isPlaylistOwner: rule()(async (parent, { id }, context) => {
+    const author = await context.db.playlist({ id }).author();
     return context.user.userId === author.id;
   }),
 };
@@ -13,7 +13,7 @@ const rules = {
 module.exports = shield({
   Query: {},
   Mutation: {
-    createCourse: rules.isAuthenticatedUser,
-    deleteCourse: rules.isCourseOwner,
+    createPlaylist: rules.isAuthenticatedUser,
+    deletePlaylist: rules.isPlaylistOwner,
   },
 });
