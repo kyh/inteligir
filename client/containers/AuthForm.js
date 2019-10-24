@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApolloClient } from '@apollo/react-hooks';
 import useForm from 'react-hook-form';
-import { withStyles } from '@material-ui/core/styles';
+import { makeStyles, createStyles } from '@material-ui/core/styles';
 
 import { useLogin } from '@hooks/login';
 import { useSignup } from '@hooks/signup';
@@ -11,11 +11,15 @@ import redirect from '@utils/redirect';
 
 import { TextField, Button, Snackbar } from '@components';
 
-const styles = (theme) => ({
-  field: { marginBottom: theme.spacing(2) },
-});
+const useStyles = makeStyles((theme) =>
+  createStyles({
+    field: { marginBottom: theme.spacing(2) },
+  }),
+);
 
-function AuthForm({ isLoginForm, classes }) {
+function AuthForm({ isLoginForm }) {
+  const classes = useStyles();
+  const client = useApolloClient();
   const { register, errors, handleSubmit } = useForm({
     mode: 'onBlur',
   });
@@ -25,7 +29,6 @@ function AuthForm({ isLoginForm, classes }) {
     errorMessage: '',
   });
   const [authFunction] = isLoginForm ? useLogin() : useSignup();
-  const client = useApolloClient();
 
   const onSubmit = (data) => {
     const variables = { email: data.email, password: data.password };
@@ -92,4 +95,4 @@ function AuthForm({ isLoginForm, classes }) {
   );
 }
 
-export default withStyles(styles)(AuthForm);
+export default AuthForm;
