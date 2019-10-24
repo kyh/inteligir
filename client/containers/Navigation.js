@@ -3,12 +3,13 @@ import NProgress from 'nprogress';
 import Router from 'next/router';
 import { useApolloClient } from '@apollo/react-hooks';
 import { withStyles } from '@material-ui/core/styles';
-import { Search, KeyboardArrowDown } from '@material-ui/icons';
+import { KeyboardArrowDown } from '@material-ui/icons';
 
 import { useGetCurrentUser } from '@hooks/getCurrentUser';
 import { useLogout } from '@hooks/logout';
 
-import { Logo, Link, InputBase, InputAdornment } from '@components';
+import CourseSearchInput from '@containers/CourseSearchInput';
+import { Logo, Link } from '@components';
 
 Router.onRouteChangeStart = () => {
   NProgress.start();
@@ -72,17 +73,10 @@ function Navigation({ classes }) {
   const apolloClient = useApolloClient();
   const [logout] = useLogout();
   const { loading, error, data } = useGetCurrentUser();
-  const [values, setValues] = React.useState({
-    search: '',
-  });
   if (loading || error) return null;
 
-  const handleSearchChange = (prop) => (event) => {
-    setValues({ ...values, [prop]: event.target.value });
-  };
-
   const handleLogout = () => {
-    logout().then(() => apolloClient.cache.reset());
+    logout().then(() => apolloClient.resetStore());
   };
 
   return (
@@ -93,19 +87,7 @@ function Navigation({ classes }) {
             Browse
             <KeyboardArrowDown />
           </Link>
-          <InputBase
-            className={classes.searchInput}
-            id="search"
-            type="text"
-            placeholder="Search..."
-            value={values.search}
-            onChange={handleSearchChange('search')}
-            endAdornment={
-              <InputAdornment position="end">
-                <Search color="action" />
-              </InputAdornment>
-            }
-          />
+          <CourseSearchInput />
         </div>
         <div className="nav-section center">
           <Link href="/">

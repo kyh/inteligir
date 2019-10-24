@@ -28,20 +28,15 @@ function AuthForm({ isLoginForm, classes }) {
   const client = useApolloClient();
 
   const onSubmit = (data) => {
+    const variables = { email: data.email, password: data.password };
     setLoginState({
       isLoading: true,
       isErrorOpen: false,
       errorMessage: '',
     });
-    const variables = { email: data.email, password: data.password };
     authFunction({ variables })
-      .then(() => {
-        // Force a reload of all the current queries now that the user is
-        // logged in
-        return client.cache.reset().then(() => {
-          redirect({}, '/');
-        });
-      })
+      .then(() => client.resetStore())
+      .then(() => redirect({}, '/'))
       .catch(({ graphQLErrors }) => {
         const [error] = graphQLErrors;
         setLoginState({
