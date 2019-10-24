@@ -3,10 +3,10 @@ const { makeSchema } = require('nexus');
 const { nexusPrismaPlugin } = require('nexus-prisma');
 
 const types = {
-  ...require('./AuthPayload'),
-  ...require('./Mutation'),
-  ...require('./Course'),
   ...require('./Query'),
+  ...require('./Mutation'),
+  ...require('./AuthPayload'),
+  ...require('./Playlist'),
   ...require('./User'),
 };
 
