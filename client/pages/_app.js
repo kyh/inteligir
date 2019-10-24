@@ -2,10 +2,6 @@
 import React from 'react';
 import App from 'next/app';
 
-// Connect Apollo
-import { ApolloProvider } from '@apollo/react-hooks';
-import withApolloClient from '@client/utils/withApolloClient';
-
 // Connect UI Theme
 import { ThemeProvider } from '@material-ui/styles';
 import CssBaseline from '@material-ui/core/CssBaseline';
@@ -21,16 +17,14 @@ class IntApp extends App {
   }
 
   render() {
-    const { Component, pageProps, apolloClient } = this.props;
+    const { Component, pageProps } = this.props;
     return (
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <ApolloProvider client={apolloClient}>
-          <Component {...pageProps} />
-        </ApolloProvider>
+        <Component {...pageProps} />
       </ThemeProvider>
     );
   }
 }
 
-export default withApolloClient(IntApp);
+export default IntApp;

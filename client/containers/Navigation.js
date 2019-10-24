@@ -1,11 +1,13 @@
 import React from 'react';
 import NProgress from 'nprogress';
 import Router from 'next/router';
+import { useApolloClient } from '@apollo/react-hooks';
 import { withStyles } from '@material-ui/core/styles';
 import { Search, KeyboardArrowDown } from '@material-ui/icons';
 
 import { useGetCurrentUser } from '@hooks/getCurrentUser';
 import { useLogout } from '@hooks/logout';
+
 import { Logo, Link, InputBase, InputAdornment } from '@components';
 
 Router.onRouteChangeStart = () => {
@@ -67,18 +69,21 @@ const styles = (theme) => ({
 });
 
 function Navigation({ classes }) {
+  const apolloClient = useApolloClient();
+  const [logout] = useLogout();
+  const { loading, error, data } = useGetCurrentUser();
   const [values, setValues] = React.useState({
     search: '',
   });
+  if (loading || error) return null;
 
-  const handleChange = (prop) => (event) => {
+  const handleSearchChange = (prop) => (event) => {
     setValues({ ...values, [prop]: event.target.value });
   };
 
-  const [logout] = useLogout();
-  const { loading, error, data } = useGetCurrentUser();
-  if (loading || error) return null;
-  console.log(data);
+  const handleLogout = () => {
+    logout().then(() => apolloClient.cache.reset());
+  };
 
   return (
     <section className={classes.container}>
@@ -94,7 +99,7 @@ function Navigation({ classes }) {
             type="text"
             placeholder="Search..."
             value={values.search}
-            onChange={handleChange('search')}
+            onChange={handleSearchChange('search')}
             endAdornment={
               <InputAdornment position="end">
                 <Search color="action" />
@@ -109,7 +114,7 @@ function Navigation({ classes }) {
         </div>
         <div className="nav-section right">
           {data.me ? (
-            <Link href="/" onClick={logout}>
+            <Link href="/" onClick={handleLogout}>
               Logout
             </Link>
           ) : (

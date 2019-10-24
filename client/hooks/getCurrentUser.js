@@ -16,14 +16,7 @@ export function useGetCurrentUser() {
 
 export function checkLoggedIn(apolloClient) {
   return apolloClient
-    .query({
-      query: GET_CURRENT_USER,
-    })
-    .then(({ data }) => {
-      return { user: data.me };
-    })
-    .catch(() => {
-      // Fail gracefully
-      return { user: null };
-    });
+    .query({ query: GET_CURRENT_USER })
+    .then(({ data }) => ({ me: data.me }))
+    .catch(() => ({ me: null }));
 }
