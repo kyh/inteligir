@@ -5,10 +5,10 @@ import { useApolloClient } from '@apollo/react-hooks';
 import { withStyles } from '@material-ui/core/styles';
 import { KeyboardArrowDown } from '@material-ui/icons';
 
-import { useGetCurrentUser } from '@hooks/getCurrentUser';
+import { useGetCurrentUser } from '@hooks/currentUser';
 import { useLogout } from '@hooks/logout';
 
-import CourseSearchInput from '@containers/CourseSearchInput';
+import PlaylistSearchInput from '@containers/PlaylistSearchInput';
 import { Logo, Link } from '@components';
 
 Router.onRouteChangeStart = () => {
@@ -83,11 +83,11 @@ function Navigation({ classes }) {
     <section className={classes.container}>
       <nav className={classes.nav}>
         <div className="nav-section left">
-          <Link href="/courses">
+          <Link href="/playlists">
             Browse
             <KeyboardArrowDown />
           </Link>
-          <CourseSearchInput />
+          <PlaylistSearchInput />
         </div>
         <div className="nav-section center">
           <Link href="/">

@@ -14,68 +14,68 @@ enum Role {
 }
 
 model User {
-  id               String           @default(cuid()) @id
-  email            String           @unique
-  password         String
-  displayName      String?
-  googleId         String?          @unique
-  resetToken       String?
-  resetTokenExpiry Float?
-  enrolledCourses  EnrolledCourse[]
-  role             Role             @default(USER)
-  createdAt        DateTime         @default(now())
+  id                String             @default(cuid()) @id
+  email             String             @unique
+  password          String
+  displayName       String?
+  googleId          String?            @unique
+  resetToken        String?
+  resetTokenExpiry  Float?
+  enrolledPlaylists EnrolledPlayList[]
+  role              Role               @default(USER)
+  createdAt         DateTime           @default(now())
 }
 
-model CourseCategory {
-  id      String   @default(cuid()) @id
-  name    String
-  courses Course[]
+model PlaylistCategory {
+  id        String     @default(cuid()) @id
+  name      String
+  playlists Playlist[]
 }
 
-model Course {
-  id          String           @default(cuid()) @id
-  published   Boolean          @default(value: false)
+model Playlist {
+  id          String             @default(cuid()) @id
+  published   Boolean            @default(value: false)
   title       String
   description String
   author      User
   emoji       String?
   thumbnail   String?
-  categories  CourseCategory[]
-  lessons     Lesson[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  categories  PlaylistCategory[]
+  articles    Article[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 }
 
-model EnrolledCourse {
+model EnrolledPlayList {
   id        String   @default(cuid()) @id
-  course    Course
+  playlist  Playlist
   enrollee  User
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
 
-enum LessonType {
+enum ArticleType {
   LINK
   VIDEO
   ARTICLE
 }
 
-model Lesson {
-  id        String       @default(cuid()) @id
+model Article {
+  id        String        @default(cuid()) @id
   title     String
   link      String
   content   String
   author    User
-  course    Course
-  type      LessonType[]
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  playlist  Playlist
+  type      ArticleType[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
 }
 
-model CompletedLesson {
+model CompletedPlaylist {
   id          String   @default(cuid()) @id
   completedBy User
-  lesson      Lesson
+  playlist    Playlist
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
