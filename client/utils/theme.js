@@ -33,7 +33,7 @@ export default createMuiTheme({
     lightGreen: '#1FA67A',
     green: '#12855F',
     darkGreen: '#006647',
-    backgroundRed: '',
+    backgroundRed: '#f9d8eb',
     lightRed: '',
     red: '#d92916',
     darkRed: '',

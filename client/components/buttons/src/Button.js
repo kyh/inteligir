@@ -1,10 +1,10 @@
 import React from 'react';
 import classnames from 'classnames';
-import { withStyles } from '@material-ui/core/styles';
+import { makeStyles } from '@material-ui/core/styles';
 import Button from '@material-ui/core/Button';
 import CircularProgress from '@material-ui/core/CircularProgress';
 
-const styles = {
+const useStyles = makeStyles({
   buttonContent: {
     transition: 'opacity 0.3s ease',
   },
@@ -19,10 +19,10 @@ const styles = {
     marginTop: -10,
     animationDuration: '750ms',
   },
-};
-
-const IntButton = withStyles(styles)(
-  ({ isLoading, children, classes, ...props }) => (
+});
+function IntButton({ isLoading, children, ...props }) {
+  const classes = useStyles();
+  return (
     <Button disabled={isLoading} {...props}>
       <div
         className={classnames(classes.buttonContent, {
@@ -41,7 +41,7 @@ const IntButton = withStyles(styles)(
         />
       )}
     </Button>
-  ),
-);
+  );
+}
 
 export default React.memo(IntButton);

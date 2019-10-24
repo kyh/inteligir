@@ -2,7 +2,7 @@ import React from 'react';
 import NProgress from 'nprogress';
 import Router from 'next/router';
 import { useApolloClient } from '@apollo/react-hooks';
-import { withStyles } from '@material-ui/core/styles';
+import { makeStyles, createStyles } from '@material-ui/core/styles';
 import { KeyboardArrowDown } from '@material-ui/icons';
 
 import { useGetCurrentUser } from '@hooks/currentUser';
@@ -22,62 +22,66 @@ Router.onRouteChangeError = () => {
   NProgress.done();
 };
 
-const styles = (theme) => ({
-  container: {
-    padding: `0 ${theme.spacing(3)}px`,
-  },
-  nav: {
-    display: 'flex',
-    alignItems: 'stretch',
-    justifyContent: 'space-between',
-    height: theme.spacing(9),
-    maxWidth: theme.brand.maxWidth,
-    margin: '0 auto',
-    '& > .nav-section': {
+const useStyles = makeStyles((theme) =>
+  createStyles({
+    container: {
+      padding: `0 ${theme.spacing(3)}px`,
+    },
+    nav: {
       display: 'flex',
-    },
-    '& > .left': {
-      width: '50%',
-      justifyContent: 'flex-start',
-    },
-    '& > .right': {
-      width: '50%',
-      justifyContent: 'flex-end',
-    },
-    '& a, & button': {
-      fontWeight: 700,
-      marginRight: theme.spacing(3),
-      border: 'none',
-      display: 'flex',
-      alignItems: 'center',
-      '&:hover': {
-        color: theme.palette.primary.dark,
+      alignItems: 'stretch',
+      justifyContent: 'space-between',
+      height: theme.spacing(9),
+      maxWidth: theme.brand.maxWidth,
+      margin: '0 auto',
+      '& > .nav-section': {
+        display: 'flex',
       },
-      '&:last-child': {
-        marginRight: 0,
+      '& > .left': {
+        width: '50%',
+        justifyContent: 'flex-start',
+      },
+      '& > .right': {
+        width: '50%',
+        justifyContent: 'flex-end',
+      },
+      '& a, & button': {
+        fontWeight: 700,
+        marginRight: theme.spacing(3),
+        border: 'none',
+        display: 'flex',
+        alignItems: 'center',
+        '&:hover': {
+          color: theme.palette.primary.dark,
+        },
+        '&:last-child': {
+          marginRight: 0,
+        },
       },
     },
-  },
-  searchInput: {
-    fontSize: '16px',
-    background: '#f0f1f2',
-    height: '45px',
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(1),
-    borderRadius: '4px',
-    alignSelf: 'center',
-  },
-});
+    searchInput: {
+      fontSize: '16px',
+      background: '#f0f1f2',
+      height: '45px',
+      paddingLeft: theme.spacing(2),
+      paddingRight: theme.spacing(1),
+      borderRadius: '4px',
+      alignSelf: 'center',
+    },
+  }),
+);
 
-function Navigation({ classes }) {
-  const apolloClient = useApolloClient();
+function Navigation() {
+  const classes = useStyles();
+  const client = useApolloClient();
   const [logout] = useLogout();
   const { loading, error, data } = useGetCurrentUser();
-  if (loading || error) return null;
 
   const handleLogout = () => {
-    logout().then(() => apolloClient.resetStore());
+    logout().then(() => client.resetStore());
   };
+
+  if (loading || error) return null;
 
   return (
     <section className={classes.container}>
@@ -111,4 +115,4 @@ function Navigation({ classes }) {
   );
 }
 
-export default withStyles(styles)(Navigation);
+export default Navigation;
