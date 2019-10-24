@@ -16,7 +16,7 @@ const styles = (theme) => ({
   },
 });
 
-function CourseSearchInput({ classes }) {
+function PlaylistSearchInput({ classes }) {
   const [values, setValues] = React.useState({
     search: '',
   });
@@ -42,4 +42,4 @@ function CourseSearchInput({ classes }) {
   );
 }
 
-export default withStyles(styles)(CourseSearchInput);
+export default withStyles(styles)(PlaylistSearchInput);
