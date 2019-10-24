@@ -1,6 +1,8 @@
 import React from 'react';
 import { withStyles } from '@material-ui/core/styles';
 
+import { withApollo } from '@utils/apollo';
+
 import AuthForm from '@containers/AuthForm';
 import { Logo, Header, Text, Link, Card } from '@components';
 
@@ -102,4 +104,4 @@ function Login(props) {
   );
 }
 
-export default withStyles(styles)(Login);
+export default withStyles(styles)(withApollo(Login));
