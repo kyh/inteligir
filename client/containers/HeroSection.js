@@ -5,13 +5,13 @@ import { Box, Header, Text } from '@components';
 
 const useStyles = makeStyles((theme) => ({
   hero: {
-    backgroundColor: theme.brand.backgroundRed,
+    backgroundColor: (props) => props.backgroundColor,
+    backgroundImage: (props) => `url("${props.backgroundImage}")`,
     padding: '8% 50% 8% 8%',
     borderRadius: theme.spacing(2),
-    backgroundImage: (props) => `url("${props.backgroundImage}")`,
-    backgroundSize: 'contain',
+    backgroundSize: '600px',
     backgroundRepeat: 'no-repeat',
-    backgroundPosition: '100% 20px',
+    backgroundPosition: '100%',
   },
 }));
 
