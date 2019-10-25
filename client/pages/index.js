@@ -56,7 +56,8 @@ function Home() {
           title="The best of the web in playlists."
           description="Almost all the knowledge is already available on the web. All you
               need is someone to guide you to it."
-          backgroundImage="/assets/featured-bg.png"
+          backgroundImage="/assets/hero-bg.svg"
+          backgroundColor="#E8F4F4"
           renderCta={() => (
             <Button
               href="/search"

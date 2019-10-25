@@ -50,22 +50,14 @@ const useStyles = makeStyles((theme) => ({
       border: 'none',
       display: 'flex',
       alignItems: 'center',
+      color: theme.palette.secondary.light,
       '&:hover': {
-        color: theme.palette.primary.dark,
+        color: theme.palette.secondary.dark,
       },
       '&:last-child': {
         marginRight: 0,
       },
     },
-  },
-  searchInput: {
-    fontSize: '16px',
-    background: '#f0f1f2',
-    height: '45px',
-    paddingLeft: theme.spacing(2),
-    paddingRight: theme.spacing(1),
-    borderRadius: '4px',
-    alignSelf: 'center',
   },
 }));
 

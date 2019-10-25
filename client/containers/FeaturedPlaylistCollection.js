@@ -22,11 +22,7 @@ function FeaturedPlaylistCollection({ featuredPlaylist, tabs }) {
 
   const renderPlaylists = (playlist) => {
     return (
-      <ListItem
-        button
-        primaryText={playlist.title}
-        secondaryText="Secondary text"
-      />
+      <ListItem primaryText={playlist.title} secondaryText="Secondary text" />
     );
   };
 
