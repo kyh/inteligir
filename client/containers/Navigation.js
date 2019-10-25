@@ -2,7 +2,7 @@ import React from 'react';
 import NProgress from 'nprogress';
 import Router from 'next/router';
 import { useApolloClient } from '@apollo/react-hooks';
-import { makeStyles, createStyles } from '@material-ui/core/styles';
+import { makeStyles } from '@material-ui/core/styles';
 import { KeyboardArrowDown } from '@material-ui/icons';
 
 import { useGetCurrentUser } from '@hooks/currentUser';
@@ -22,54 +22,52 @@ Router.onRouteChangeError = () => {
   NProgress.done();
 };
 
-const useStyles = makeStyles((theme) =>
-  createStyles({
-    container: {
-      padding: `0 ${theme.spacing(3)}px`,
-    },
-    nav: {
+const useStyles = makeStyles((theme) => ({
+  container: {
+    padding: `0 ${theme.spacing(3)}px`,
+  },
+  nav: {
+    display: 'flex',
+    alignItems: 'stretch',
+    justifyContent: 'space-between',
+    height: theme.spacing(9),
+    maxWidth: theme.brand.maxWidth,
+    margin: '0 auto',
+    '& > .nav-section': {
       display: 'flex',
-      alignItems: 'stretch',
-      justifyContent: 'space-between',
-      height: theme.spacing(9),
-      maxWidth: theme.brand.maxWidth,
-      margin: '0 auto',
-      '& > .nav-section': {
-        display: 'flex',
+    },
+    '& > .left': {
+      width: '50%',
+      justifyContent: 'flex-start',
+    },
+    '& > .right': {
+      width: '50%',
+      justifyContent: 'flex-end',
+    },
+    '& a, & button': {
+      fontWeight: 700,
+      marginRight: theme.spacing(3),
+      border: 'none',
+      display: 'flex',
+      alignItems: 'center',
+      '&:hover': {
+        color: theme.palette.primary.dark,
       },
-      '& > .left': {
-        width: '50%',
-        justifyContent: 'flex-start',
-      },
-      '& > .right': {
-        width: '50%',
-        justifyContent: 'flex-end',
-      },
-      '& a, & button': {
-        fontWeight: 700,
-        marginRight: theme.spacing(3),
-        border: 'none',
-        display: 'flex',
-        alignItems: 'center',
-        '&:hover': {
-          color: theme.palette.primary.dark,
-        },
-        '&:last-child': {
-          marginRight: 0,
-        },
+      '&:last-child': {
+        marginRight: 0,
       },
     },
-    searchInput: {
-      fontSize: '16px',
-      background: '#f0f1f2',
-      height: '45px',
-      paddingLeft: theme.spacing(2),
-      paddingRight: theme.spacing(1),
-      borderRadius: '4px',
-      alignSelf: 'center',
-    },
-  }),
-);
+  },
+  searchInput: {
+    fontSize: '16px',
+    background: '#f0f1f2',
+    height: '45px',
+    paddingLeft: theme.spacing(2),
+    paddingRight: theme.spacing(1),
+    borderRadius: '4px',
+    alignSelf: 'center',
+  },
+}));
 
 function Navigation() {
   const classes = useStyles();
