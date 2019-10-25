@@ -1,24 +1,25 @@
 import React from 'react';
-import { withStyles } from '@material-ui/core/styles';
+import { makeStyles } from '@material-ui/core/styles';
 import ListItem from '@material-ui/core/ListItem';
 import ListItemIcon from '@material-ui/core/ListItemIcon';
 import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction';
 import ListItemText from '@material-ui/core/ListItemText';
 
-const styles = {
+const useStyles = makeStyles({
   icon: {
     margin: 0,
   },
-};
+});
 
 function IntListItem({
-  classes,
   icon,
   primaryText,
   secondaryText,
   secondaryAction,
   ...props
 }) {
+  const classes = useStyles();
+
   return (
     <ListItem {...props}>
       {!!icon && <ListItemIcon className={classes.icon}>{icon}</ListItemIcon>}
@@ -30,4 +31,4 @@ function IntListItem({
   );
 }
 
-export default withStyles(styles)(IntListItem);
+export default IntListItem;

@@ -1,18 +1,21 @@
 import React from 'react';
 import classnames from 'classnames';
+import { makeStyles } from '@material-ui/core/styles';
+
 import CheckCircleIcon from '@material-ui/icons/CheckCircle';
 import ErrorIcon from '@material-ui/icons/Error';
 import InfoIcon from '@material-ui/icons/Info';
 import CloseIcon from '@material-ui/icons/Close';
+import WarningIcon from '@material-ui/icons/Warning';
+
 import green from '@material-ui/core/colors/green';
 import amber from '@material-ui/core/colors/amber';
 import blue from '@material-ui/core/colors/blue';
 import red from '@material-ui/core/colors/red';
+
 import IconButton from '@material-ui/core/IconButton';
 import Snackbar from '@material-ui/core/Snackbar';
 import SnackbarContent from '@material-ui/core/SnackbarContent';
-import WarningIcon from '@material-ui/icons/Warning';
-import { withStyles } from '@material-ui/core/styles';
 
 const variantIcon = {
   success: CheckCircleIcon,
@@ -21,7 +24,7 @@ const variantIcon = {
   info: InfoIcon,
 };
 
-const styles = (theme) => ({
+const useStyles = makeStyles((theme) => ({
   success: {
     backgroundColor: green[600],
   },
@@ -45,10 +48,16 @@ const styles = (theme) => ({
     display: 'flex',
     alignItems: 'center',
   },
-});
+}));
 
-const IntSnackbarContent = withStyles(styles)((props) => {
-  const { classes, className, message, onClose, variant, ...other } = props;
+function IntSnackbarContent({
+  className,
+  message,
+  onClose,
+  variant,
+  ...props
+}) {
+  const classes = useStyles();
   const Icon = variantIcon[variant];
 
   return (
@@ -72,10 +81,10 @@ const IntSnackbarContent = withStyles(styles)((props) => {
           <CloseIcon className={classes.icon} />
         </IconButton>,
       ]}
-      {...other}
+      {...props}
     />
   );
-});
+}
 
 function IntSnackbar({
   open = false,

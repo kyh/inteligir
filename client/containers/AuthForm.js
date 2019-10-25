@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApolloClient } from '@apollo/react-hooks';
 import useForm from 'react-hook-form';
-import { makeStyles, createStyles } from '@material-ui/core/styles';
+import { makeStyles } from '@material-ui/core/styles';
 
 import { useLogin } from '@hooks/login';
 import { useSignup } from '@hooks/signup';
@@ -11,11 +11,9 @@ import redirect from '@utils/redirect';
 
 import { TextField, Button, Snackbar } from '@components';
 
-const useStyles = makeStyles((theme) =>
-  createStyles({
-    field: { marginBottom: theme.spacing(2) },
-  }),
-);
+const useStyles = makeStyles((theme) => ({
+  field: { marginBottom: theme.spacing(2) },
+}));
 
 function AuthForm({ isLoginForm }) {
   const classes = useStyles();

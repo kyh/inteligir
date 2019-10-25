@@ -1,5 +1,5 @@
 import React from 'react';
-import { withStyles } from '@material-ui/core/styles';
+import { makeStyles } from '@material-ui/core/styles';
 import Dialog from '@material-ui/core/Dialog';
 import AppBar from '@material-ui/core/AppBar';
 import Toolbar from '@material-ui/core/Toolbar';
@@ -8,7 +8,7 @@ import Typography from '@material-ui/core/Typography';
 import ArrowBack from '@material-ui/icons/ArrowBack';
 import Grow from '@material-ui/core/Grow';
 
-const styles = {
+const useStyles = makeStyles({
   paper: {
     boxShadow: 'none',
     maxWidth: 736,
@@ -27,21 +27,14 @@ const styles = {
   flex: {
     flex: 1,
   },
-};
+});
 
 const Transition = React.forwardRef((props, ref) => {
   return <Grow {...props} ref={ref} />;
 });
 
-function IntDialog({
-  children,
-  open,
-  onClose,
-  title,
-  toolbarRight,
-  classes,
-  ...props
-}) {
+function IntDialog({ children, open, onClose, title, toolbarRight, ...props }) {
+  const classes = useStyles();
   return (
     <Dialog
       classes={{
@@ -71,4 +64,4 @@ function IntDialog({
   );
 }
 
-export default withStyles(styles)(IntDialog);
+export default IntDialog;
