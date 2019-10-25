@@ -1,12 +1,11 @@
 import React from 'react';
-import { withStyles } from '@material-ui/core/styles';
-
 import { withApollo } from '@utils/apollo';
+import { makeStyles } from '@material-ui/core/styles';
 
 import AuthForm from '@containers/AuthForm';
 import { Logo, Header, Link, Card } from '@components';
 
-const styles = (theme) => ({
+const useStyles = makeStyles((theme) => ({
   page: {
     textAlign: 'center',
     '@media (min-width: 700px)': {
@@ -40,6 +39,9 @@ const styles = (theme) => ({
     },
   },
   logoContainer: {
+    display: 'block',
+    marginBottom: theme.spacing(2),
+    textAlign: 'center',
     '&:hover': {
       borderColor: 'transparent',
     },
@@ -75,17 +77,17 @@ const styles = (theme) => ({
       marginRight: 0,
     },
   },
-});
+}));
 
-function Signup(props) {
-  const { classes } = props;
+function Signup() {
+  const classes = useStyles();
   return (
     <main className={classes.page}>
       <section className={classes.container}>
+        <Link href="/" className={classes.logoContainer}>
+          <Logo />
+        </Link>
         <Card className={classes.card}>
-          <Link href="/" className={classes.logoContainer}>
-            <Logo />
-          </Link>
           <Header className={classes.header}>Create your account</Header>
           <AuthForm />
         </Card>
@@ -102,4 +104,4 @@ function Signup(props) {
   );
 }
 
-export default withStyles(styles)(withApollo(Signup));
+export default withApollo(Signup);
