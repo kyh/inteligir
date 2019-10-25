@@ -1,17 +1,12 @@
 import React from 'react';
 import Typography from '@material-ui/core/Typography';
 
-const Header = ({ children, ...props }) => {
+function Header({ children, ...props }) {
   return (
-    <Typography gutterBottom {...props}>
+    <Typography gutterBottom component="h1" variant="h4" {...props}>
       {children}
     </Typography>
   );
-};
-
-Header.defaultProps = {
-  component: 'h1',
-  variant: 'h2',
-};
+}
 
 export default Header;

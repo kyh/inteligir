@@ -4,7 +4,7 @@ export default createMuiTheme({
   palette: {
     primary: {
       // light: will be calculated from palette.primary.main,
-      main: '#1E5EE8',
+      main: '#1865f2',
       // dark: will be calculated from palette.primary.main,
       // contrastText: will be calculated to contrast with palette.primary.main
     },
@@ -22,13 +22,13 @@ export default createMuiTheme({
   brand: {
     black: '#242537',
     white: '#FFFFFF',
-    background: '#FCFBFA',
-    primary: '#1E5EE8',
+    background: '#F7F5F4',
+    primary: '#1865f2',
     secondary: '#3B475F',
     backgroundBlue: '#C5EBFF',
     lightBlue: '#37c5fd',
     blue: '#1865f2',
-    darkBlue: '#0a2a66',
+    darkBlue: '#172848',
     backgroundGreen: '#D6FCEE',
     lightGreen: '#1FA67A',
     green: '#12855F',
@@ -110,19 +110,6 @@ export default createMuiTheme({
     },
   },
   overrides: {
-    MuiLink: {
-      root: {
-        color: '#1865f2',
-        textDecoration: 'underline',
-        textDecorationColor: '#e0e0e0',
-        backgroundColor: 'transparent',
-        transition: 'color 0.2s linear, textDecoration 0.2s linear',
-        cursor: 'pointer',
-        '&:hover': {
-          textDecorationColor: '#1865f2',
-        },
-      },
-    },
     MuiFormHelperText: {
       contained: {
         margin: '8px 0 0',
@@ -173,29 +160,6 @@ export default createMuiTheme({
         },
       },
       containedSecondary: {
-        boxShadow: '0 0 10px 0 rgba(57, 71, 97, 0.4);',
-        '&:active': {
-          boxShadow: '0 0 2px 0 rgba(57, 71, 97, 0.4);',
-        },
-      },
-    },
-    MuiFab: {
-      root: {
-        boxShadow: 'none',
-        '&:active': {
-          boxShadow: 'none',
-        },
-        '&$focusVisible': {
-          boxShadow: 'none',
-        },
-      },
-      primary: {
-        boxShadow: '0 0 10px 0 rgba(131, 137, 225, 0.4);',
-        '&:active': {
-          boxShadow: '0 0 2px 0 rgba(131, 137, 225, 0.4);',
-        },
-      },
-      secondary: {
         boxShadow: '0 0 10px 0 rgba(57, 71, 97, 0.4);',
         '&:active': {
           boxShadow: '0 0 2px 0 rgba(57, 71, 97, 0.4);',

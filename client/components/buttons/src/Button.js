@@ -20,6 +20,7 @@ const useStyles = makeStyles({
     animationDuration: '750ms',
   },
 });
+
 function IntButton({ isLoading, children, ...props }) {
   const classes = useStyles();
   return (
