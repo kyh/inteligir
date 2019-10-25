@@ -1,22 +1,20 @@
 import React, { useState } from 'react';
-import { makeStyles, createStyles } from '@material-ui/core/styles';
+import { makeStyles } from '@material-ui/core/styles';
 import { Search } from '@material-ui/icons';
 
 import { InputBase, InputAdornment } from '@components';
 
-const useStyles = makeStyles((theme) =>
-  createStyles({
-    searchInput: {
-      fontSize: '16px',
-      background: '#f0f1f2',
-      height: '45px',
-      paddingLeft: theme.spacing(2),
-      paddingRight: theme.spacing(1),
-      borderRadius: '4px',
-      alignSelf: 'center',
-    },
-  }),
-);
+const useStyles = makeStyles((theme) => ({
+  searchInput: {
+    fontSize: '16px',
+    background: '#f0f1f2',
+    height: '45px',
+    paddingLeft: theme.spacing(2),
+    paddingRight: theme.spacing(1),
+    borderRadius: '4px',
+    alignSelf: 'center',
+  },
+}));
 
 function PlaylistSearchInput() {
   const classes = useStyles();

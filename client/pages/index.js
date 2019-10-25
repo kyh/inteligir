@@ -1,48 +1,93 @@
 import React from 'react';
-import { makeStyles, createStyles } from '@material-ui/core/styles';
 import { withApollo } from '@utils/apollo';
 
 import Navigation from '@containers/Navigation';
-import { Header, Text, Link, Button, Box, Container } from '@components';
+import HeroSection from '@containers/HeroSection';
+import FeaturedPlaylistCollection from '@containers/FeaturedPlaylistCollection';
+import PlaylistCollection from '@containers/PlaylistCollection';
+import NewsletterSignup from '@containers/NewsletterSignup';
+import { Link, Button, Box, Container } from '@components';
 
-const useStyles = makeStyles((theme) =>
-  createStyles({
-    hero: {
-      backgroundColor: theme.brand.backgroundRed,
-      padding: '8% 50% 8% 8%',
-      borderRadius: theme.spacing(2),
-      backgroundImage: 'url("/assets/featured-bg.png")',
-      backgroundSize: 'contain',
-      backgroundRepeat: 'no-repeat',
-      backgroundPosition: '100% 20px',
+const playlists = [
+  { title: 'Preparing to fundraise' },
+  { title: 'Finding startup ideas' },
+  { title: 'Apps to survive in China' },
+  { title: 'Hottest startups in Thailand' },
+  { title: 'Open Source Illustrations' },
+];
+
+const featuredPlaylist = {
+  title: 'The Python Planner: Beginner coding for 30 minutes a day',
+};
+
+const popularSection = {
+  title: 'Popular',
+  playlists: [
+    {
+      title: '30 day JavaScript Challenge',
     },
-  }),
-);
+    {
+      title: 'Intro to Graphic Design',
+    },
+  ],
+};
+
+const newSection = {
+  title: 'New & Noteworthy',
+  playlists: [
+    {
+      title: 'Storytelling, the basics for a good story',
+    },
+    {
+      title: 'Computer Science Fundamentals',
+    },
+    {
+      title: 'Starting with Sketch',
+    },
+  ],
+};
 
 function Home() {
-  const classes = useStyles();
   return (
     <main>
       <Navigation />
       <Container>
-        <Box p={2}>
-          <Box className={classes.hero}>
-            <Box mb={3}>
-              <Header>The best of the web in playlists.</Header>
-              <Text>
-                Almost all the knowledge is already available on the web. All
-                you need is someone to guide you to it.
-              </Text>
-            </Box>
+        <HeroSection
+          title="The best of the web in playlists."
+          description="Almost all the knowledge is already available on the web. All you
+              need is someone to guide you to it."
+          backgroundImage="/assets/featured-bg.png"
+          renderCta={() => (
             <Button
               href="/search"
               variant="outlined"
               color="primary"
               component={Link}
             >
-              Start your search
+              Find a great playlist
             </Button>
-          </Box>
+          )}
+        />
+        <FeaturedPlaylistCollection
+          featuredPlaylist={featuredPlaylist}
+          tabs={[popularSection, newSection]}
+        />
+      </Container>
+      <Box mb={4} mt={4}>
+        <NewsletterSignup />
+      </Box>
+      <Container>
+        <Box mb={4}>
+          <PlaylistCollection
+            collectionTitle="Recommended for you"
+            playlists={playlists}
+          />
+        </Box>
+        <Box mb={4}>
+          <PlaylistCollection
+            collectionTitle="Fresh Favorites"
+            playlists={playlists}
+          />
         </Box>
       </Container>
     </main>

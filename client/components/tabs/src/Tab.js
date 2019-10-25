@@ -2,17 +2,17 @@ import React from 'react';
 import Tab from '@material-ui/core/Tab';
 import { makeStyles } from '@material-ui/styles';
 
-const useTabStyles = makeStyles(({ breakpoints }) => ({
+const useTabStyles = makeStyles((theme) => ({
   root: {
     lineHeight: 'inherit',
     minWidth: 0,
     '&:not(:last-child)': {
       marginRight: 24,
-      [breakpoints.up('sm')]: {
+      [theme.breakpoints.up('sm')]: {
         marginRight: 60,
       },
     },
-    [breakpoints.up('md')]: {
+    [theme.breakpoints.up('md')]: {
       minWidth: 0,
     },
   },
@@ -27,8 +27,10 @@ const useTabStyles = makeStyles(({ breakpoints }) => ({
   },
   wrapper: {
     flexDirection: 'row',
-    letterSpacing: '1px',
+    letterSpacing: '0.5px',
     textTransform: 'uppercase',
+    fontSize: theme.typography.overline.fontSize,
+    justifyContent: 'left',
     '& svg, .material-icons': {
       fontSize: 16,
       marginRight: 8,

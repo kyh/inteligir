@@ -82,6 +82,7 @@ export default createMuiTheme({
       fontWeight: 600,
     },
     overline: {
+      color: '#757575',
       fontWeight: 700,
     },
     h1: {
