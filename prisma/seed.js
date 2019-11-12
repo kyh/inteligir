@@ -10,11 +10,13 @@ async function main() {
       displayName: 'Kai',
       password: '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42"
       playlists: {
-        create: {
-          title: 'How to contribute to Inteligir',
-          description: 'Step by step guide on how Inteligir was built',
-          published: true,
-        },
+        create: [
+          {
+            title: 'How to contribute to Inteligir',
+            description: 'Step by step guide on how Inteligir was built',
+            published: true,
+          },
+        ],
       },
     },
   });
