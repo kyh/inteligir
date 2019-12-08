@@ -4,6 +4,10 @@ const { Photon } = require('@generated/photon');
 const photon = new Photon();
 
 async function main() {
+  const categories = await photon.playlistCategories.create({
+    data: [{}],
+  });
+
   const user = await photon.users.create({
     data: {
       email: 'kai@inteligir.com',
@@ -11,6 +15,11 @@ async function main() {
       password: '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42"
       playlists: {
         create: [
+          {
+            title: 'How to contribute to Inteligir',
+            description: 'Step by step guide on how Inteligir was built',
+            published: true,
+          },
           {
             title: 'How to contribute to Inteligir',
             description: 'Step by step guide on how Inteligir was built',
