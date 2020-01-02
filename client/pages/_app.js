@@ -5,7 +5,7 @@ import App from 'next/app';
 // Connect UI Theme
 import { ThemeProvider } from '@material-ui/styles';
 import CssBaseline from '@material-ui/core/CssBaseline';
-import theme from '@client/utils/theme';
+import uiTheme from '@utils/theme';
 
 class IntApp extends App {
   componentDidMount() {
@@ -19,7 +19,7 @@ class IntApp extends App {
   render() {
     const { Component, pageProps } = this.props;
     return (
-      <ThemeProvider theme={theme}>
+      <ThemeProvider theme={uiTheme}>
         <CssBaseline />
         <Component {...pageProps} />
       </ThemeProvider>

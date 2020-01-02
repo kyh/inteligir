@@ -1,32 +1,25 @@
-import React from 'react';
-import { ThemeProvider } from 'styled-components';
-import { configure, addDecorator } from '@storybook/react';
+import { configure, addDecorator, addParameters } from '@storybook/react';
 import { withKnobs } from '@storybook/addon-knobs';
+import { withA11y } from '@storybook/addon-a11y';
+import { storyTheme, withTheme } from './utils';
 
-import theme from '../client/utils/theme';
-import { GlobalStyles, Box } from '../client/components';
+addParameters({
+  options: {
+    theme: storyTheme,
+    isFullscreen: false,
+    panelPosition: 'bottom',
+    isToolshown: true,
+  },
+  docs: {
+    // Styles for MDX
+  },
+});
 
-addDecorator((story) => (
-  <ThemeProvider theme={theme}>
-    <main>
-      <GlobalStyles />
-      <Box p={3}>{story()}</Box>
-    </main>
-  </ThemeProvider>
-));
-
+addDecorator(withTheme);
+addDecorator(withA11y);
 addDecorator(withKnobs);
 
-const req = require.context(
-  '../client/components',
-  true,
-  /[\w\d\s]+\.stories.js$/,
+configure(
+  require.context('../client/components', true, /\.stories\.(js|mdx)$/),
+  module,
 );
-
-const loadStories = () => {
-  req.keys().forEach((key) => {
-    req(key);
-  });
-};
-
-configure(loadStories, module);
