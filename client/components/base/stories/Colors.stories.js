@@ -1,4 +1,3 @@
-import { storiesOf } from '@storybook/react';
 import classnames from 'classnames';
 import { withStyles } from '@material-ui/core/styles';
 import React from 'react';
@@ -36,7 +35,11 @@ const StyledBox = withStyles(styles)(({ classes, ...props }) => {
   return <div className={className} />;
 });
 
-storiesOf('Base|Colors', module).add('Brand colors', () => (
+export default {
+  title: 'Base|Colors',
+};
+
+export const BrandColors = () => (
   <Box>
     <Header>Colors</Header>
     <List dense>
@@ -102,4 +105,8 @@ storiesOf('Base|Colors', module).add('Brand colors', () => (
       />
     </List>
   </Box>
-));
+);
+
+BrandColors.story = {
+  name: 'Brand colors',
+};

@@ -1,12 +1,16 @@
-import { storiesOf } from '@storybook/react';
 import React from 'react';
 import { Snackbar } from '@components';
 
-storiesOf('Components|Feedback|Snackbar', module).add(
-  'Snackbar component',
-  () => (
-    <div>
-      <Snackbar open />
-    </div>
-  ),
+export default {
+  title: 'Components|Feedback|Snackbar',
+};
+
+export const SnackbarComponent = () => (
+  <div>
+    <Snackbar open />
+  </div>
 );
+
+SnackbarComponent.story = {
+  name: 'Snackbar component',
+};

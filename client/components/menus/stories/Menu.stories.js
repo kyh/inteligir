@@ -1,4 +1,3 @@
-import { storiesOf } from '@storybook/react';
 import { State, Store } from '@sambego/storybook-state';
 import React from 'react';
 import { Menu, MenuItem, Button } from '@components';
@@ -8,7 +7,11 @@ const store = new Store({
   anchorEl: null,
 });
 
-storiesOf('Components|Navigation|Menu', module).add('Menu component', () => (
+export default {
+  title: 'Components|Navigation|Menu',
+};
+
+export const MenuComponent = () => (
   <State store={store}>
     <Button
       aria-owns={store.get('anchorEl') ? 'simple-menu' : undefined}
@@ -34,4 +37,8 @@ storiesOf('Components|Navigation|Menu', module).add('Menu component', () => (
       </MenuItem>
     </Menu>
   </State>
-));
+);
+
+MenuComponent.story = {
+  name: 'Menu component',
+};

@@ -1,5 +1,4 @@
 import React from 'react';
-import { storiesOf } from '@storybook/react';
 import { State, Store } from '@sambego/storybook-state';
 import { Button, IconButton, Fab } from '@components';
 import AddIcon from '@material-ui/icons/Add';
@@ -9,7 +8,11 @@ const store = new Store({
   isLoading: false,
 });
 
-storiesOf('Components|Inputs|Buttons', module).add('Button component', () => (
+export default {
+  title: 'Components|Inputs|Buttons',
+};
+
+export const ButtonComponent = () => (
   <div>
     <div>
       <Button variant="contained" style={{ margin: 10 }}>
@@ -21,19 +24,10 @@ storiesOf('Components|Inputs|Buttons', module).add('Button component', () => (
       <Button variant="contained" color="secondary" style={{ margin: 10 }}>
         Secondary
       </Button>
-      <Button
-        variant="contained"
-        color="secondary"
-        disabled
-        style={{ margin: 10 }}
-      >
+      <Button variant="contained" color="secondary" disabled style={{ margin: 10 }}>
         Disabled
       </Button>
-      <Button
-        variant="contained"
-        href="#contained-buttons"
-        style={{ margin: 10 }}
-      >
+      <Button variant="contained" href="#contained-buttons" style={{ margin: 10 }}>
         Link
       </Button>
       <input
@@ -61,72 +55,32 @@ storiesOf('Components|Inputs|Buttons', module).add('Button component', () => (
       </Button>
     </div>
     <div>
-      <Button
-        variant="outlined"
-        size="small"
-        color="primary"
-        style={{ margin: 10 }}
-      >
+      <Button variant="outlined" size="small" color="primary" style={{ margin: 10 }}>
         Small
       </Button>
-      <Button
-        variant="outlined"
-        size="medium"
-        color="primary"
-        style={{ margin: 10 }}
-      >
+      <Button variant="outlined" size="medium" color="primary" style={{ margin: 10 }}>
         Medium
       </Button>
-      <Button
-        variant="outlined"
-        size="large"
-        color="primary"
-        style={{ margin: 10 }}
-      >
+      <Button variant="outlined" size="large" color="primary" style={{ margin: 10 }}>
         Large
       </Button>
     </div>
     <div>
-      <Button
-        variant="contained"
-        size="small"
-        color="primary"
-        style={{ margin: 10 }}
-      >
+      <Button variant="contained" size="small" color="primary" style={{ margin: 10 }}>
         Small
       </Button>
-      <Button
-        variant="contained"
-        size="medium"
-        color="primary"
-        style={{ margin: 10 }}
-      >
+      <Button variant="contained" size="medium" color="primary" style={{ margin: 10 }}>
         Medium
       </Button>
-      <Button
-        variant="contained"
-        size="large"
-        color="primary"
-        style={{ margin: 10 }}
-      >
+      <Button variant="contained" size="large" color="primary" style={{ margin: 10 }}>
         Large
       </Button>
     </div>
     <div>
-      <Fab
-        size="small"
-        color="secondary"
-        aria-label="Add"
-        style={{ margin: 10 }}
-      >
+      <Fab size="small" color="secondary" aria-label="Add" style={{ margin: 10 }}>
         <AddIcon />
       </Fab>
-      <Fab
-        size="medium"
-        color="secondary"
-        aria-label="Add"
-        style={{ margin: 10 }}
-      >
+      <Fab size="medium" color="secondary" aria-label="Add" style={{ margin: 10 }}>
         <AddIcon />
       </Fab>
       <Fab color="secondary" aria-label="Add" style={{ margin: 10 }}>
@@ -134,32 +88,15 @@ storiesOf('Components|Inputs|Buttons', module).add('Button component', () => (
       </Fab>
     </div>
     <div>
-      <Fab
-        variant="extended"
-        size="small"
-        color="primary"
-        aria-label="Add"
-        style={{ margin: 10 }}
-      >
+      <Fab variant="extended" size="small" color="primary" aria-label="Add" style={{ margin: 10 }}>
         <AddIcon />
         Extended
       </Fab>
-      <Fab
-        variant="extended"
-        size="medium"
-        color="primary"
-        aria-label="Add"
-        style={{ margin: 10 }}
-      >
+      <Fab variant="extended" size="medium" color="primary" aria-label="Add" style={{ margin: 10 }}>
         <AddIcon />
         Extended
       </Fab>
-      <Fab
-        variant="extended"
-        color="primary"
-        aria-label="Add"
-        style={{ margin: 10 }}
-      >
+      <Fab variant="extended" color="primary" aria-label="Add" style={{ margin: 10 }}>
         <AddIcon />
         Extended
       </Fab>
@@ -218,4 +155,8 @@ storiesOf('Components|Inputs|Buttons', module).add('Button component', () => (
       </Button>
     </div>
   </div>
-));
+);
+
+ButtonComponent.story = {
+  name: 'Button component',
+};

@@ -1,18 +1,19 @@
-import { storiesOf } from '@storybook/react';
 import React from 'react';
 import { Card, CardContent, Header, Text } from '@components';
 
-storiesOf('Components|Data Display|Cards', module).add(
-  'Simple Card component',
-  () => (
-    <Card>
-      <CardContent>
-        <Header>Cards</Header>
-        <Text>
-          Card components can be used to display a block of information across
-          the app
-        </Text>
-      </CardContent>
-    </Card>
-  ),
+export default {
+  title: 'Components|Data Display|Cards',
+};
+
+export const SimpleCardComponent = () => (
+  <Card>
+    <CardContent>
+      <Header>Cards</Header>
+      <Text>Card components can be used to display a block of information across the app</Text>
+    </CardContent>
+  </Card>
 );
+
+SimpleCardComponent.story = {
+  name: 'Simple Card component',
+};
