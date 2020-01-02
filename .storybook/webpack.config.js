@@ -1,12 +1,9 @@
-const path = require('path');
+module.exports = function({ config }) {
+  config.module.rules.push({
+    test: /\.stories\.jsx?$/,
+    loaders: [require.resolve('@storybook/source-loader')],
+    enforce: 'pre',
+  });
 
-module.exports = {
-  resolve: {
-    alias: {
-      'styled-components': path.join(
-        __dirname,
-        '../node_modules/styled-components',
-      ),
-    },
-  },
+  return config;
 };

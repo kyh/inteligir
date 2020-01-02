@@ -24,10 +24,19 @@ export const ButtonComponent = () => (
       <Button variant="contained" color="secondary" style={{ margin: 10 }}>
         Secondary
       </Button>
-      <Button variant="contained" color="secondary" disabled style={{ margin: 10 }}>
+      <Button
+        variant="contained"
+        color="secondary"
+        disabled
+        style={{ margin: 10 }}
+      >
         Disabled
       </Button>
-      <Button variant="contained" href="#contained-buttons" style={{ margin: 10 }}>
+      <Button
+        variant="contained"
+        href="#contained-buttons"
+        style={{ margin: 10 }}
+      >
         Link
       </Button>
       <input
@@ -55,32 +64,72 @@ export const ButtonComponent = () => (
       </Button>
     </div>
     <div>
-      <Button variant="outlined" size="small" color="primary" style={{ margin: 10 }}>
+      <Button
+        variant="outlined"
+        size="small"
+        color="primary"
+        style={{ margin: 10 }}
+      >
         Small
       </Button>
-      <Button variant="outlined" size="medium" color="primary" style={{ margin: 10 }}>
+      <Button
+        variant="outlined"
+        size="medium"
+        color="primary"
+        style={{ margin: 10 }}
+      >
         Medium
       </Button>
-      <Button variant="outlined" size="large" color="primary" style={{ margin: 10 }}>
+      <Button
+        variant="outlined"
+        size="large"
+        color="primary"
+        style={{ margin: 10 }}
+      >
         Large
       </Button>
     </div>
     <div>
-      <Button variant="contained" size="small" color="primary" style={{ margin: 10 }}>
+      <Button
+        variant="contained"
+        size="small"
+        color="primary"
+        style={{ margin: 10 }}
+      >
         Small
       </Button>
-      <Button variant="contained" size="medium" color="primary" style={{ margin: 10 }}>
+      <Button
+        variant="contained"
+        size="medium"
+        color="primary"
+        style={{ margin: 10 }}
+      >
         Medium
       </Button>
-      <Button variant="contained" size="large" color="primary" style={{ margin: 10 }}>
+      <Button
+        variant="contained"
+        size="large"
+        color="primary"
+        style={{ margin: 10 }}
+      >
         Large
       </Button>
     </div>
     <div>
-      <Fab size="small" color="secondary" aria-label="Add" style={{ margin: 10 }}>
+      <Fab
+        size="small"
+        color="secondary"
+        aria-label="Add"
+        style={{ margin: 10 }}
+      >
         <AddIcon />
       </Fab>
-      <Fab size="medium" color="secondary" aria-label="Add" style={{ margin: 10 }}>
+      <Fab
+        size="medium"
+        color="secondary"
+        aria-label="Add"
+        style={{ margin: 10 }}
+      >
         <AddIcon />
       </Fab>
       <Fab color="secondary" aria-label="Add" style={{ margin: 10 }}>
@@ -88,15 +137,32 @@ export const ButtonComponent = () => (
       </Fab>
     </div>
     <div>
-      <Fab variant="extended" size="small" color="primary" aria-label="Add" style={{ margin: 10 }}>
+      <Fab
+        variant="extended"
+        size="small"
+        color="primary"
+        aria-label="Add"
+        style={{ margin: 10 }}
+      >
         <AddIcon />
         Extended
       </Fab>
-      <Fab variant="extended" size="medium" color="primary" aria-label="Add" style={{ margin: 10 }}>
+      <Fab
+        variant="extended"
+        size="medium"
+        color="primary"
+        aria-label="Add"
+        style={{ margin: 10 }}
+      >
         <AddIcon />
         Extended
       </Fab>
-      <Fab variant="extended" color="primary" aria-label="Add" style={{ margin: 10 }}>
+      <Fab
+        variant="extended"
+        color="primary"
+        aria-label="Add"
+        style={{ margin: 10 }}
+      >
         <AddIcon />
         Extended
       </Fab>

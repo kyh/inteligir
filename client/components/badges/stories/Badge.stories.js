@@ -8,7 +8,12 @@ export default {
 
 export const BadgeComponent = () => (
   <Box>
-    <Box display="flex" justifyContent="space-around" alignItems="center" mb={8}>
+    <Box
+      display="flex"
+      justifyContent="space-around"
+      alignItems="center"
+      mb={8}
+    >
       <Badge badgeContent={4} color="primary">
         <MailIcon />
       </Badge>
