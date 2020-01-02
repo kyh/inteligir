@@ -34,6 +34,6 @@ export const withContainer = (story) => (
     m="auto"
     p={3}
   >
-    {story}
+    {story()}
   </Box>
 );
