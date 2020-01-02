@@ -1,8 +1,11 @@
-import { storiesOf } from '@storybook/react';
 import React from 'react';
 import { Divider, List, ListItem } from '@components';
 
-storiesOf('Components|Divider', module).add('Divider component', () => (
+export default {
+  title: 'Components|Divider',
+};
+
+export const DividerComponent = () => (
   <List component="nav">
     <ListItem button primaryText="Inbox" />
     <Divider />
@@ -11,4 +14,8 @@ storiesOf('Components|Divider', module).add('Divider component', () => (
     <Divider light />
     <ListItem button primaryText="Spam" />
   </List>
-));
+);
+
+DividerComponent.story = {
+  name: 'Divider component',
+};

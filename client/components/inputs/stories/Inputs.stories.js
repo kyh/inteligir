@@ -1,10 +1,9 @@
-import { storiesOf } from '@storybook/react';
 import classnames from 'classnames';
 import React from 'react';
 import { withStyles } from '@material-ui/core/styles';
 import { TextField, MenuItem } from '@components';
 
-const styles = (theme) => ({
+const styles = theme => ({
   container: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -43,7 +42,7 @@ class TextFields extends React.Component {
     currency: 'EUR',
   };
 
-  handleChange = (name) => (event) => {
+  handleChange = name => event => {
     this.setState({ [name]: event.target.value });
   };
 
@@ -201,7 +200,7 @@ class TextFields extends React.Component {
           helperText="Please select your currency"
           margin="normal"
         >
-          {currencies.map((option) => (
+          {currencies.map(option => (
             <MenuItem key={option.value} value={option.value}>
               {option.label}
             </MenuItem>
@@ -223,7 +222,7 @@ class TextFields extends React.Component {
           helperText="Please select your currency"
           margin="normal"
         >
-          {currencies.map((option) => (
+          {currencies.map(option => (
             <option key={option.value} value={option.value}>
               {option.label}
             </option>
@@ -255,8 +254,16 @@ class TextFields extends React.Component {
 
 const StyledTextFields = withStyles(styles)(TextFields);
 
-storiesOf('Components|Inputs|Forms', module).add('TextField component', () => (
+export default {
+  title: 'Components|Inputs|Forms',
+};
+
+export const TextFieldComponent = () => (
   <div>
     <StyledTextFields />
   </div>
-));
+);
+
+TextFieldComponent.story = {
+  name: 'TextField component',
+};
