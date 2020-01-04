@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApolloClient } from '@apollo/react-hooks';
-import useForm from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { makeStyles } from '@material-ui/core/styles';
 
 import { useLogin } from '@hooks/login';
