@@ -1,36 +1,17 @@
 require('module-alias/register');
 
-const { Photon } = require('@generated/photon');
-const photon = new Photon();
+const { Photon } = require('@prisma/photon');
+const seedPlaylistCategories = require('./seed/playlistCategories.seed');
+const seedUsers = require('./seed/users.seed');
+
+const photon = new Photon({
+  debug: true,
+  log: true,
+});
 
 async function main() {
-  const categories = await photon.playlistCategories.create({
-    data: [{}],
-  });
-
-  const user = await photon.users.create({
-    data: {
-      email: 'kai@inteligir.com',
-      displayName: 'Kai',
-      password: '$2b$10$dqyYw5XovLjpmkYNiRDEWuwKaRAvLaG45fnXE5b3KTccKZcRPka2m', // "secret42"
-      playlists: {
-        create: [
-          {
-            title: 'How to contribute to Inteligir',
-            description: 'Step by step guide on how Inteligir was built',
-            published: true,
-          },
-          {
-            title: 'How to contribute to Inteligir',
-            description: 'Step by step guide on how Inteligir was built',
-            published: true,
-          },
-        ],
-      },
-    },
-  });
-
-  console.log({ user });
+  await seedPlaylistCategories(photon);
+  await seedUsers(photon);
 }
 
 main().finally(async () => {
