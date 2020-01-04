@@ -22,7 +22,11 @@ function FeaturedPlaylistCollection({ featuredPlaylist, tabs }) {
 
   const renderPlaylists = (playlist) => {
     return (
-      <ListItem primaryText={playlist.title} secondaryText="Secondary text" />
+      <ListItem
+        key={playlist.title}
+        primaryText={playlist.title}
+        secondaryText="Secondary text"
+      />
     );
   };
 
@@ -39,12 +43,14 @@ function FeaturedPlaylistCollection({ featuredPlaylist, tabs }) {
           variant="fullWidth"
         >
           {tabs.map((tab) => (
-            <Tab label={tab.title} />
+            <Tab label={tab.title} key={tab.title} />
           ))}
         </Tabs>
         <SwipeableViews index={currentTabIndex} onChangeIndex={handleTabChange}>
           {tabs.map((tab) => (
-            <List dense>{tab.playlists.map(renderPlaylists)}</List>
+            <List key={tab.title} dense>
+              {tab.playlists.map(renderPlaylists)}
+            </List>
           ))}
         </SwipeableViews>
       </Grid>
