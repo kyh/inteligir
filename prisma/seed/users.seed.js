@@ -1,4 +1,7 @@
-async function seed(photon) {
+async function seed(
+  photon,
+  { popularCategory, featuredCategory, newCategory },
+) {
   const user1 = await photon.users.create({
     data: {
       email: 'kai@inteligir.com',
@@ -14,18 +17,38 @@ async function seed(photon) {
           {
             title: 'The Python Planner: Beginner coding for 30 minutes a day',
             published: true,
+            categories: {
+              connect: {
+                id: featuredCategory.id,
+              },
+            },
           },
           {
             title: '30 day JavaScript Challenge',
             published: true,
+            categories: {
+              connect: {
+                id: popularCategory.id,
+              },
+            },
           },
           {
             title: 'Computer Science Fundamentals',
             published: true,
+            categories: {
+              connect: {
+                id: newCategory.id,
+              },
+            },
           },
           {
             title: 'Starting with Sketch',
             published: true,
+            categories: {
+              connect: {
+                id: newCategory.id,
+              },
+            },
           },
           { title: 'Hottest startups in Thailand', published: true },
           { title: 'Open Source Illustrations', published: true },
@@ -44,10 +67,20 @@ async function seed(photon) {
           {
             title: 'Intro to Graphic Design',
             published: true,
+            categories: {
+              connect: {
+                id: popularCategory.id,
+              },
+            },
           },
           {
             title: 'Storytelling, the basics for a good story',
             published: true,
+            categories: {
+              connect: {
+                id: newCategory.id,
+              },
+            },
           },
           { title: 'Preparing to fundraise', published: true },
           { title: 'Finding startup ideas', published: true },

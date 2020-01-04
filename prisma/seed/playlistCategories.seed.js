@@ -3,6 +3,7 @@ async function seed(photon) {
     data: {
       name: 'Popular',
       description: 'Top ranked amongst friends',
+      createdByRole: 'ADMIN',
     },
   });
 
@@ -10,6 +11,7 @@ async function seed(photon) {
     data: {
       name: 'Featured',
       description: 'Hand picked playlists for you',
+      createdByRole: 'ADMIN',
     },
   });
 
@@ -17,6 +19,7 @@ async function seed(photon) {
     data: {
       name: 'New & Noteworthy',
       description: 'Started from the bottom now we here',
+      createdByRole: 'ADMIN',
     },
   });
 

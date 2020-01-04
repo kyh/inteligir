@@ -10,8 +10,8 @@ const photon = new Photon({
 });
 
 async function main() {
-  await seedPlaylistCategories(photon);
-  await seedUsers(photon);
+  const playlistCategories = await seedPlaylistCategories(photon);
+  await seedUsers(photon, playlistCategories);
 }
 
 main().finally(async () => {

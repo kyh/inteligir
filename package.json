@@ -25,7 +25,7 @@
     "generate:prisma": "env-cmd -e local prisma2 generate",
     "generate:seed": "env-cmd -e local node ./prisma/seed.js",
     "generate:components": "node ./tools/components/create-components.js",
-    "migrate:save": "env-cmd -e local prisma2 lift save",
+    "migrate:save": "prisma2 lift save",
     "migrate:up": "prisma2 lift up",
     "deploy": "node tools/deploy",
     "deploy:storybook": "storybook-to-ghpages",
