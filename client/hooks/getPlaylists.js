@@ -10,6 +10,6 @@ export const GET_PLAYLISTS = gql`
   }
 `;
 
-export function useGetPlaylists() {
-  return useQuery(GET_PLAYLISTS);
+export function useGetPlaylists(options) {
+  return useQuery(GET_PLAYLISTS, options);
 }

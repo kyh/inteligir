@@ -22,7 +22,7 @@ const Query = queryType({
      * Playlists
      */
     t.crud.playlist();
-    t.crud.playlists();
+    t.crud.playlists({ filtering: true });
   },
 });
 
