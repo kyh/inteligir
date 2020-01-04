@@ -8,14 +8,6 @@ import PlaylistCollection from '@containers/PlaylistCollection';
 import NewsletterSignup from '@containers/NewsletterSignup';
 import { Link, Button, Box, Container } from '@components';
 
-const playlists = [
-  { title: 'Preparing to fundraise' },
-  { title: 'Finding startup ideas' },
-  { title: 'Apps to survive in China' },
-  { title: 'Hottest startups in Thailand' },
-  { title: 'Open Source Illustrations' },
-];
-
 const featuredPlaylist = {
   title: 'The Python Planner: Beginner coding for 30 minutes a day',
 };
@@ -46,6 +38,14 @@ const newSection = {
     },
   ],
 };
+
+const playlists = [
+  { title: 'Preparing to fundraise' },
+  { title: 'Finding startup ideas' },
+  { title: 'Apps to survive in China' },
+  { title: 'Hottest startups in Thailand' },
+  { title: 'Open Source Illustrations' },
+];
 
 function Home() {
   return (
