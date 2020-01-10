@@ -1,5 +1,5 @@
 {
-  "schemaPath": "prisma/schema.prisma",
+  "schemaPath": "server/schema/generated/schema.graphql",
   "extensions": {
     "endpoints": {
       "dev": {

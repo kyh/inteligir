@@ -1,87 +1,72 @@
 /* eslint-disable jsx-a11y/anchor-has-content */
-import React from 'react';
-import PropTypes from 'prop-types';
+import * as React from 'react';
 import classnames from 'classnames';
-import { withRouter } from 'next/router';
-import NextLink from 'next/link';
-import MuiLink from '@material-ui/core/Link';
+import { useRouter } from 'next/router';
+import NextLink, { LinkProps as NextLinkProps } from 'next/link';
+import MuiLink, { LinkProps as MuiLinkProps } from '@material-ui/core/Link';
 
-const NextComposed = React.forwardRef(function NextComposed(props, ref) {
-  const { as, href, prefetch, ...other } = props;
+type NextComposedProps = Omit<React.AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> &
+  NextLinkProps;
+
+const NextComposed = React.forwardRef<HTMLAnchorElement, NextComposedProps>((props, ref) => {
+  const { as, href, replace, scroll, passHref, shallow, prefetch, ...other } = props;
 
   return (
-    <NextLink href={href} prefetch={prefetch} as={as}>
+    <NextLink
+      href={href}
+      prefetch={prefetch}
+      as={as}
+      replace={replace}
+      scroll={scroll}
+      shallow={shallow}
+      passHref={passHref}
+    >
       <a ref={ref} {...other} />
     </NextLink>
   );
 });
 
-NextComposed.propTypes = {
-  as: PropTypes.string,
-  href: PropTypes.string,
-  prefetch: PropTypes.bool,
-};
+interface LinkPropsBase {
+  activeClassName?: string;
+  innerRef?: React.Ref<HTMLAnchorElement>;
+  naked?: boolean;
+}
+
+export type LinkProps = LinkPropsBase & NextComposedProps & Omit<MuiLinkProps, 'href'>;
 
 // A styled version of the Next.js Link component:
 // https://nextjs.org/docs/#with-link
-function Link(props) {
+function Link(props: LinkProps) {
   const {
+    href,
+    activeClassName = 'active',
     className: classNameProps,
-    activeClassName,
-    router,
     innerRef,
     naked,
-    href,
     ...other
   } = props;
 
+  const router = useRouter();
+  const pathname = typeof href === 'string' ? href : href.pathname;
   const className = classnames(classNameProps, {
-    [activeClassName]: router.pathname === href && activeClassName,
+    [activeClassName]: router.pathname === pathname && activeClassName,
   });
 
   if (naked) {
-    return (
-      <NextComposed
-        className={className}
-        ref={innerRef}
-        href={href}
-        {...other}
-      />
-    );
+    return <NextComposed className={className} ref={innerRef} href={href} {...other} />;
   }
 
   return (
     <MuiLink
-      underline="none"
       component={NextComposed}
       className={className}
       ref={innerRef}
-      href={href}
+      href={href as string}
       {...other}
     />
   );
 }
 
-Link.propTypes = {
-  activeClassName: PropTypes.string,
-  as: PropTypes.string,
-  className: PropTypes.string,
-  href: PropTypes.string,
-  innerRef: PropTypes.oneOfType([PropTypes.func, PropTypes.object]),
-  naked: PropTypes.bool,
-  onClick: PropTypes.func,
-  prefetch: PropTypes.bool,
-  router: PropTypes.shape({
-    pathname: PropTypes.string.isRequired,
-  }).isRequired,
-};
-
-Link.defaultProps = {
-  activeClassName: 'active',
-};
-
-const RouterLink = withRouter(Link);
-
-export default React.forwardRef((props, ref) => (
-  <RouterLink {...props} innerRef={ref} />
+export default React.forwardRef<HTMLAnchorElement, LinkProps>((props, ref) => (
+  <Link {...props} innerRef={ref} />
 ));
