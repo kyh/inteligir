@@ -1,4 +1,4 @@
-module.exports = {
+export const keys = {
   nodeEnv: process.env.NODE_ENV,
   port: process.env.PORT,
   auth: {
@@ -16,4 +16,4 @@ module.exports = {
     key: process.env.AWS_ACCESS_KEY_ID,
     secret: process.env.AWS_SECRET_ACCESS_KEY,
   },
-};
+}

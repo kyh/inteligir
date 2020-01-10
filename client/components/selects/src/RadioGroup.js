@@ -1,5 +1,4 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import { withStyles } from '@material-ui/core/styles';
 import Radio from '@material-ui/core/Radio';
 import RadioGroup from '@material-ui/core/RadioGroup';
@@ -50,10 +49,5 @@ function RadioButtonsGroup({
     </FormControl>
   );
 }
-
-RadioButtonsGroup.propTypes = {
-  classes: PropTypes.object.isRequired,
-  // TODO: Add props.
-};
 
 export default withStyles(styles)(RadioButtonsGroup);

@@ -50,11 +50,13 @@ function stableSort(array, cmp) {
     if (order !== 0) return order;
     return a[1] - b[1];
   });
-  return stabilizedThis.map(el => el[0]);
+  return stabilizedThis.map((el) => el[0]);
 }
 
 function getSorting(order, orderBy) {
-  return order === 'desc' ? (a, b) => desc(a, b, orderBy) : (a, b) => -desc(a, b, orderBy);
+  return order === 'desc'
+    ? (a, b) => desc(a, b, orderBy)
+    : (a, b) => -desc(a, b, orderBy);
 }
 
 const rows2 = [
@@ -71,12 +73,18 @@ const rows2 = [
 ];
 
 class EnhancedTableHead extends React.Component {
-  createSortHandler = property => event => {
+  createSortHandler = (property) => (event) => {
     this.props.onRequestSort(event, property);
   };
 
   render() {
-    const { onSelectAllClick, order, orderBy, numSelected, rowCount } = this.props;
+    const {
+      onSelectAllClick,
+      order,
+      orderBy,
+      numSelected,
+      rowCount,
+    } = this.props;
 
     return (
       <TableHead>
@@ -89,7 +97,7 @@ class EnhancedTableHead extends React.Component {
             />
           </TableCell>
           {rows2.map(
-            row => (
+            (row) => (
               <TableCell
                 key={row.id}
                 align={row.numeric ? 'right' : 'left'}
@@ -111,7 +119,7 @@ class EnhancedTableHead extends React.Component {
                 </Tooltip>
               </TableCell>
             ),
-            this
+            this,
           )}
         </TableRow>
       </TableHead>
@@ -119,8 +127,7 @@ class EnhancedTableHead extends React.Component {
   }
 }
 
-const EnhancedTableToolbar = props => {
-  // eslint-disable-next-line react/prop-types
+const EnhancedTableToolbar = (props) => {
   const { numSelected, classes } = props;
 
   return (
@@ -160,7 +167,7 @@ const EnhancedTableToolbar = props => {
   );
 };
 
-const IntEnhancedTableToolbar = withStyles(theme => ({
+const IntEnhancedTableToolbar = withStyles((theme) => ({
   root: {
     paddingRight: theme.spacing(1),
   },
@@ -221,9 +228,9 @@ class EnhancedTable extends React.Component {
     this.setState({ order, orderBy });
   };
 
-  handleSelectAllClick = event => {
+  handleSelectAllClick = (event) => {
     if (event.target.checked) {
-      this.setState(state => ({ selected: state.data.map(n => n.id) }));
+      this.setState((state) => ({ selected: state.data.map((n) => n.id) }));
       return;
     }
     this.setState({ selected: [] });
@@ -243,7 +250,7 @@ class EnhancedTable extends React.Component {
     } else if (selectedIndex > 0) {
       newSelected = newSelected.concat(
         selected.slice(0, selectedIndex),
-        selected.slice(selectedIndex + 1)
+        selected.slice(selectedIndex + 1),
       );
     }
 
@@ -254,16 +261,17 @@ class EnhancedTable extends React.Component {
     this.setState({ page });
   };
 
-  handleChangeRowsPerPage = event => {
+  handleChangeRowsPerPage = (event) => {
     this.setState({ rowsPerPage: event.target.value });
   };
 
-  isSelected = id => this.state.selected.indexOf(id) !== -1;
+  isSelected = (id) => this.state.selected.indexOf(id) !== -1;
 
   render() {
     const { classes } = this.props;
     const { data, order, orderBy, selected, rowsPerPage, page } = this.state;
-    const emptyRows = rowsPerPage - Math.min(rowsPerPage, data.length - page * rowsPerPage);
+    const emptyRows =
+      rowsPerPage - Math.min(rowsPerPage, data.length - page * rowsPerPage);
 
     return (
       <div className={classes.root}>
@@ -281,12 +289,12 @@ class EnhancedTable extends React.Component {
             <TableBody>
               {stableSort(data, getSorting(order, orderBy))
                 .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                .map(n => {
+                .map((n) => {
                   const isSelected = this.isSelected(n.id);
                   return (
                     <TableRow
                       hover
-                      onClick={event => this.handleClick(event, n.id)}
+                      onClick={(event) => this.handleClick(event, n.id)}
                       role="checkbox"
                       aria-checked={isSelected}
                       tabIndex={-1}
@@ -334,7 +342,7 @@ class EnhancedTable extends React.Component {
   }
 }
 
-const IntEnhancedTable = withStyles(theme => ({
+const IntEnhancedTable = withStyles((theme) => ({
   root: {
     width: '100%',
     marginTop: theme.spacing(3),
@@ -364,7 +372,7 @@ export const BasicTableComponent = () => (
         </TableRow>
       </TableHead>
       <TableBody>
-        {rows1.map(row => (
+        {rows1.map((row) => (
           <TableRow key={row.id}>
             <TableCell component="th" scope="row">
               {row.name}

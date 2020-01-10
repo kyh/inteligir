@@ -1,5 +1,4 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import cookie from 'cookie';
 import Head from 'next/head';
 import { ApolloClient } from 'apollo-client';
@@ -39,14 +38,6 @@ export function withApollo(PageComponent, { ssr = true } = {}) {
 
     // Set correct display name for devtools
     WithApollo.displayName = `withApollo(${displayName})`;
-
-    // Add some prop types
-    WithApollo.propTypes = {
-      // Used for getDataFromTree rendering
-      apolloClient: PropTypes.object,
-      // Used for client/server rendering
-      apolloState: PropTypes.object,
-    };
   }
 
   if (ssr || PageComponent.getInitialProps) {

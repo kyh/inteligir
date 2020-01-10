@@ -1,6 +1,8 @@
-async function seed(
-  photon,
-  { popularCategory, featuredCategory, newCategory },
+import { Photon } from '@prisma/photon'
+
+export async function seed(
+  photon: Photon,
+  { popularCategory, featuredCategory, newCategory }: any,
 ) {
   const user1 = await photon.users.create({
     data: {
@@ -55,7 +57,7 @@ async function seed(
         ],
       },
     },
-  });
+  })
 
   const user2 = await photon.users.create({
     data: {
@@ -88,9 +90,7 @@ async function seed(
         ],
       },
     },
-  });
+  })
 
-  return [user1, user2];
+  return [user1, user2]
 }
-
-module.exports = seed;

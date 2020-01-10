@@ -1,6 +1,6 @@
-const { queryType } = require('nexus');
+const { queryType } = require('nexus')
 
-const Query = queryType({
+export const Query = queryType({
   definition(t) {
     /**
      * Authentication.
@@ -9,23 +9,19 @@ const Query = queryType({
       type: 'User',
       nullable: true,
       resolve: (parent, args, context) => {
-        if (!context.user) return null;
-        return context.db.users.findOne({
+        if (!context.user) return null
+        return context.photon.users.findOne({
           where: {
             id: context.user.userId,
           },
-        });
+        })
       },
-    });
+    })
 
     /**
      * Playlists
      */
-    t.crud.playlist();
-    t.crud.playlists({ filtering: true });
+    t.crud.playlist()
+    t.crud.playlists({ filtering: true })
   },
-});
-
-module.exports = {
-  Query,
-};
+})

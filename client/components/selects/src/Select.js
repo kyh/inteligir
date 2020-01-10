@@ -1,5 +1,4 @@
 import React from 'react';
-import PropTypes from 'prop-types';
 import { withStyles } from '@material-ui/core/styles';
 import Select from '@material-ui/core/Select';
 import InputLabel from '@material-ui/core/InputLabel';
@@ -22,10 +21,5 @@ function SelectGroup({ classes, label, helperText, children, ...props }) {
     </FormControl>
   );
 }
-
-SelectGroup.propTypes = {
-  classes: PropTypes.object.isRequired,
-  // TODO: Add props.
-};
 
 export default withStyles(styles)(SelectGroup);
