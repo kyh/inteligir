@@ -1,28 +1,19 @@
-import React from 'react';
-import { create } from '@storybook/theming';
+import React from 'react'
 
-import { ThemeProvider } from '@material-ui/styles';
-import CssBaseline from '@material-ui/core/CssBaseline';
+import { ThemeProvider } from '@material-ui/styles'
+import CssBaseline from '@material-ui/core/CssBaseline'
 
-import uiTheme, { theme } from '@utils/theme';
-import { Box } from '@components';
-
-export const storyTheme = create({
-  base: 'light',
-  brandTitle: 'Inteligir Design System',
-  brandUrl: 'https://github.com/its-bananas/inteligir',
-  colorPrimary: theme.brand.primary,
-  colorSecondary: theme.brand.secondary,
-});
+import theme from '@utils/theme'
+import { Box } from '@components'
 
 export const withTheme = (story) => (
-  <ThemeProvider theme={uiTheme}>
+  <ThemeProvider theme={theme}>
     <main>
       <CssBaseline />
       {story()}
     </main>
   </ThemeProvider>
-);
+)
 
 export const withContainer = (story) => (
   <Box
@@ -36,4 +27,4 @@ export const withContainer = (story) => (
   >
     {story()}
   </Box>
-);
+)
