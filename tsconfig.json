@@ -1,36 +1,35 @@
 {
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules"],
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
       "@server/*": ["server/*"],
       "@client/*": ["client/*"],
-      "@components/*": ["client/components/*"],
-      "@containers/*": ["client/containers/*"],
-      "@hooks/*": ["client/hooks/*"],
       "@utils/*": ["client/utils/*"],
+      "@components": ["client/components/index"],
       "@storyUtils": [".storybook/utils"]
     },
-    "outDir": "dist",
-    "allowJs": true,
-    "allowSyntheticDefaultImports": true,
-    "jsx": "react",
-    "lib": ["dom", "esnext"],
+    "target": "esnext",
     "module": "esnext",
+    "jsx": "preserve",
+    "lib": ["dom", "es2017"],
     "moduleResolution": "node",
+    "strict": true,
+    "allowJs": true,
     "noEmit": true,
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "preserveConstEnums": true,
+    "noImplicitAny": true,
+    "noImplicitThis": true,
+    "strictNullChecks": true,
+    "isolatedModules": true,
     "removeComments": false,
-    "skipLibCheck": true,
+    "preserveConstEnums": true,
     "sourceMap": true,
-    "strict": true,
-    "target": "esnext",
     "forceConsistentCasingInFileNames": true,
-    "esModuleInterop": true,
-    "resolveJsonModule": true,
-    "isolatedModules": true
-  }
+    "resolveJsonModule": true
+  },
+  "exclude": ["dist", ".next", "next.config.js"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"]
 }

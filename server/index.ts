@@ -1,4 +1,3 @@
-import 'module-alias/register'
 /**
  * Inteligir web server is built using 3 main libraries:
  * Express: Node http server.
@@ -31,8 +30,8 @@ nextApp.prepare().then(() => {
     return nextApp.render(req, res, '/list', { id: req.params.id })
   })
 
-  app.get('*', (req, res, nxt) => {
-    return handle(req, res, nxt)
+  app.get('*', (req, res) => {
+    return handle(req, res)
   })
 
   app.listen({ port: keys.port }, () => {

@@ -6,15 +6,15 @@ import { keys } from '@server/config/keys'
  * header or `token` Cookie.
  * @param {Request} request
  */
-export function parseRequest(request) {
-  const { authorization } = request.headers
+export function parseRequest(req: any) {
+  const { authorization } = req.headers
   if (authorization) {
     return authorization && authorization.split(' ')[1]
   }
-  return request.cookies.token
+  return req.cookies.token
 }
 
-export function getUser(token) {
+export function getUser(token: string) {
   if (token) {
     const user = verify(token, keys.auth.jwtSecret)
     return user
