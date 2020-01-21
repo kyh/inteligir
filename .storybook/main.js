@@ -1,7 +1,7 @@
-const path = require('path')
-
-const JS_BUNDLE_PATH = path.resolve(__dirname, '../client')
-const TS_CONFIG_PATH = path.resolve(__dirname, '../tsconfig.json')
+const { resolve } = require('path')
+const resolveTsconfigPathsToAlias = require('../tools/resolveTsConfig')
+const JS_BUNDLE_PATH = resolve(__dirname, '../client')
+const TS_CONFIG_PATH = resolve(__dirname, '../tsconfig.json')
 
 module.exports = {
   stories: [`${JS_BUNDLE_PATH}/components/**/*.stories.tsx`],
@@ -30,4 +30,20 @@ module.exports = {
       },
     },
   ],
+  webpackFinal: async (config) => {
+    // `configType` has a value of 'DEVELOPMENT' or 'PRODUCTION'
+    // You can change the configuration based on that.
+    // 'PRODUCTION' is used when building the static version of storybook.
+
+    // Make whatever fine-grained changes you need
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      ...resolveTsconfigPathsToAlias({
+        webpackConfigBasePath: resolve(__dirname, '../'),
+      }),
+    }
+
+    // Return the altered config
+    return config
+  },
 }

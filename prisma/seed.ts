@@ -1,4 +1,4 @@
-import 'module-alias/register'
+import 'tsconfig-paths/register'
 import { Photon } from '@prisma/photon'
 import { seed as seedPlaylistCategories } from './seed/playlistCategories.seed'
 import { seed as seedUsers } from './seed/users.seed'

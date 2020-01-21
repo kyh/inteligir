@@ -3,7 +3,7 @@ import { applyMiddleware } from 'graphql-middleware'
 import { keys } from '@server/config/keys'
 import { createContext } from '@server/services/context'
 import { formatApolloError } from '@server/services/error'
-import { schema as baseSchema } from '@server/services/schema'
+import { schema as baseSchema } from '@server/schema'
 
 // Middlewares.
 import { permissions } from '@server/middlewares/permissions'

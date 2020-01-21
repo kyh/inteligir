@@ -21,7 +21,7 @@ export const withContainer = (story) => (
     flexDirection="column"
     justifyContent="center"
     alignItems="center"
-    maxWidth={theme.brand.maxWidth}
+    maxWidth={1200}
     m="auto"
     p={3}
   >
