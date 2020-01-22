@@ -1224,8 +1224,8 @@ export interface NexusGenEnums {
 export interface NexusGenRootTypes {
   AuthPayload: {
     // root type
-    token: string // String!
-    user: NexusGenRootTypes['User'] // User!
+    token?: string | null // String
+    user?: NexusGenRootTypes['User'] | null // User
   }
   Mutation: {}
   Playlist: photon.Playlist
@@ -1364,8 +1364,8 @@ export interface NexusGenAllTypes extends NexusGenRootTypes {
 export interface NexusGenFieldTypes {
   AuthPayload: {
     // field return type
-    token: string // String!
-    user: NexusGenRootTypes['User'] // User!
+    token: string | null // String
+    user: NexusGenRootTypes['User'] | null // User
   }
   Mutation: {
     // field return type
@@ -1413,18 +1413,18 @@ export interface NexusGenArgTypes {
     }
     login: {
       // args
-      email?: string | null // String
-      password?: string | null // String
+      email: string // String!
+      password: string // String!
     }
     publishPlaylist: {
       // args
-      id?: string | null // ID
+      id: string // ID!
     }
     signup: {
       // args
       displayName?: string | null // String
-      email?: string | null // String
-      password?: string | null // String
+      email: string // String!
+      password: string // String!
     }
     updateOnePlaylist: {
       // args

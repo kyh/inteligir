@@ -13,15 +13,15 @@ export const Mutation = mutationType({
       type: 'AuthPayload',
       args: {
         displayName: stringArg({ nullable: true }),
-        email: stringArg(),
-        password: stringArg(),
+        email: stringArg({ nullable: false }),
+        password: stringArg({ nullable: false }),
       },
       resolve: async (_parent, { email, password, displayName }, context) => {
         const hashedPassword = await hash(password, 10)
         const user = await context.photon.users.create({
           data: {
-            email,
             displayName,
+            email,
             password: hashedPassword,
           },
         })
@@ -38,8 +38,8 @@ export const Mutation = mutationType({
     t.field('login', {
       type: 'AuthPayload',
       args: {
-        email: stringArg(),
-        password: stringArg(),
+        email: stringArg({ nullable: false }),
+        password: stringArg({ nullable: false }),
       },
       resolve: async (_parent, { email, password }, context) => {
         // 1. Check if there is a user with that email
@@ -85,7 +85,7 @@ export const Mutation = mutationType({
     t.field('publishPlaylist', {
       type: 'Playlist',
       nullable: true,
-      args: { id: idArg() },
+      args: { id: idArg({ nullable: false }) },
       resolve: (_parent, { id }, context) => {
         return context.photon.playlists.update({
           where: { id },
