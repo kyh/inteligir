@@ -156,8 +156,8 @@ input ArticleWhereUniqueInput {
 }
 
 type AuthPayload {
-  token: String!
-  user: User!
+  token: String
+  user: User
 }
 
 input BooleanFilter {
@@ -426,10 +426,10 @@ input EnrolledPlayListWhereUniqueInput {
 type Mutation {
   createOnePlaylist(data: PlaylistCreateInput!): Playlist!
   deleteOnePlaylist(where: PlaylistWhereUniqueInput!): Playlist
-  login(email: String, password: String): AuthPayload!
+  login(email: String!, password: String!): AuthPayload!
   logout: AuthPayload!
-  publishPlaylist(id: ID): Playlist
-  signup(displayName: String, email: String, password: String): AuthPayload!
+  publishPlaylist(id: ID!): Playlist
+  signup(displayName: String, email: String!, password: String!): AuthPayload!
   updateOnePlaylist(
     data: PlaylistUpdateInput!
     where: PlaylistWhereUniqueInput!
