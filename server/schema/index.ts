@@ -11,7 +11,7 @@ export const schema = makeSchema({
     typegen: path.join(__dirname, '/generated/nexus.ts'),
   },
   typegenAutoConfig: {
-    contextType: 'PrismaClient.PrismaClient',
+    contextType: 'Context.Context',
     sources: [
       {
         source: '@prisma/client',

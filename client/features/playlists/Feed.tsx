@@ -1,8 +1,8 @@
 import React from 'react'
-import { useNewsQuery } from './playlists.graphql'
+import { usePlaylistsQuery } from './playlists.graphql'
 
 export const Feed = () => {
-  const { data } = useNewsQuery()
+  const { data } = usePlaylistsQuery()
   console.log(data)
   return <section>Feed</section>
 }
