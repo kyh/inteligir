@@ -5,6 +5,7 @@
       "@server/*": ["server/*"],
       "@client/*": ["client/*"],
       "@utils/*": ["client/utils/*"],
+      "@features/*": ["client/features/*"],
       "@components": ["client/components/index"],
       "@storyUtils": [".storybook/utils"]
     },
