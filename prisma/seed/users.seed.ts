@@ -1,10 +1,10 @@
-import { Photon } from '@prisma/photon'
+import { PrismaClient } from '@prisma/client'
 
 export async function seed(
-  photon: Photon,
+  prisma: PrismaClient,
   { popularCategory, featuredCategory, newCategory }: any,
 ) {
-  const user1 = await photon.users.create({
+  const user1 = await prisma.users.create({
     data: {
       email: 'kai@inteligir.com',
       displayName: 'Kai',
@@ -59,7 +59,7 @@ export async function seed(
     },
   })
 
-  const user2 = await photon.users.create({
+  const user2 = await prisma.users.create({
     data: {
       email: 'cathy@inteligir.com',
       displayName: 'Cathy',

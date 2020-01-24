@@ -41,7 +41,7 @@ migration 20200104023835-init..20200104033722-add-role
 +  url      = env("DATABASE_URL")
    default  = true
  }
- generator photon {
+ generator client {
 @@ -26,12 +26,13 @@
    createdAt         DateTime           @default(now())
  }
@@ -59,5 +59,3 @@ migration 20200104023835-init..20200104033722-add-role
  model Playlist {
    id          String             @default(cuid()) @id
 ```
-
-

@@ -1,7 +1,7 @@
-import { Photon } from '@prisma/photon'
+import { PrismaClient } from '@prisma/client'
 
-export async function seed(photon: Photon) {
-  const popularCategory = await photon.playlistCategories.create({
+export async function seed(prisma: PrismaClient) {
+  const popularCategory = await prisma.playlistCategories.create({
     data: {
       name: 'Popular',
       description: 'Top ranked amongst friends',
@@ -9,7 +9,7 @@ export async function seed(photon: Photon) {
     },
   })
 
-  const featuredCategory = await photon.playlistCategories.create({
+  const featuredCategory = await prisma.playlistCategories.create({
     data: {
       name: 'Featured',
       description: 'Hand picked playlists for you',
@@ -17,7 +17,7 @@ export async function seed(photon: Photon) {
     },
   })
 
-  const newCategory = await photon.playlistCategories.create({
+  const newCategory = await prisma.playlistCategories.create({
     data: {
       name: 'New & Noteworthy',
       description: 'Started from the bottom now we here',

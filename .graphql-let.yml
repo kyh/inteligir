@@ -1,6 +1,6 @@
-generateDir: __generated__
-schema: '**/*.graphqls'
-documents: '**/*.graphql'
+generateDir: client/__generated__
+schema: 'server/schema/generated/schema.graphqls'
+documents: 'client/**/*.graphql'
 plugins:
   - typescript
   - typescript-operations

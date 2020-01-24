@@ -8,6 +8,7 @@
       "@components": ["client/components/index"],
       "@storyUtils": [".storybook/utils"]
     },
+    "typeRoots": ["node_modules/@types", "client/__generated__/types"],
     "target": "esnext",
     "module": "esnext",
     "jsx": "preserve",

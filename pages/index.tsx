@@ -1,7 +1,7 @@
 import React from 'react'
 import { withApollo } from '@utils/apollo'
 
-function Home() {
+const Home = () => {
   return <main>Hello world</main>
 }
 

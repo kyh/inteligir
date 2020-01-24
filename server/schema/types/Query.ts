@@ -10,7 +10,7 @@ export const Query = queryType({
       nullable: true,
       resolve: (_parent, _args, context) => {
         if (!context.user) return null
-        return context.photon.users.findOne({
+        return context.prisma.users.findOne({
           where: {
             id: context.user.userId,
           },
