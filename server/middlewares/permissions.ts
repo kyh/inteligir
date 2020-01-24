@@ -5,7 +5,7 @@ import { rule, shield } from 'graphql-shield'
 //     return !!context.user
 //   }),
 //   isPlaylistOwner: rule()(async (_parent, { id }, context) => {
-//     const author = await context.photon.playlist({ id }).author()
+//     const author = await context.prisma.playlist({ id }).author()
 //     return context.user.userId === author.id
 //   }),
 // }

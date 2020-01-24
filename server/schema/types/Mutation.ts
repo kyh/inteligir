@@ -18,7 +18,7 @@ export const Mutation = mutationType({
       },
       resolve: async (_parent, { email, password, displayName }, context) => {
         const hashedPassword = await hash(password, 10)
-        const user = await context.photon.users.create({
+        const user = await context.prisma.users.create({
           data: {
             displayName,
             email,
@@ -43,7 +43,7 @@ export const Mutation = mutationType({
       },
       resolve: async (_parent, { email, password }, context) => {
         // 1. Check if there is a user with that email
-        const user = await context.photon.users.findOne({
+        const user = await context.prisma.users.findOne({
           where: {
             email,
           },
@@ -87,7 +87,7 @@ export const Mutation = mutationType({
       nullable: true,
       args: { id: idArg({ nullable: false }) },
       resolve: (_parent, { id }, context) => {
-        return context.photon.playlists.update({
+        return context.prisma.playlists.update({
           where: { id },
           data: { published: true },
         })
