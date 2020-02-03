@@ -3,8 +3,10 @@ import { useApolloClient } from '@apollo/react-hooks'
 import { useForm } from 'react-hook-form'
 import { makeStyles } from '@material-ui/core/styles'
 
-import { useLogin } from '@hooks/login'
-import { useSignup } from '@hooks/signup'
+import {
+  useLoginMutation,
+  useSignupMutation,
+} from '@features/auth/auth.graphql'
 
 import { emailValidation } from '@utils/validation'
 import redirect from '@utils/redirect'
@@ -15,7 +17,7 @@ const useStyles = makeStyles((theme) => ({
   field: { marginBottom: theme.spacing(2) },
 }))
 
-function AuthForm({ isLoginForm }) {
+function AuthForm({ isLoginForm = false }) {
   const classes = useStyles()
   const client = useApolloClient()
   const { register, errors, handleSubmit } = useForm({
@@ -26,7 +28,7 @@ function AuthForm({ isLoginForm }) {
     isErrorOpen: false,
     errorMessage: '',
   })
-  const [authFunction] = isLoginForm ? useLogin() : useSignup()
+  const [authFunction] = isLoginForm ? useLoginMutation() : useSignupMutation()
 
   const onSubmit = (data) => {
     const variables = { email: data.email, password: data.password }
@@ -54,7 +56,13 @@ function AuthForm({ isLoginForm }) {
         open={loginState.isErrorOpen}
         variant="error"
         message={loginState.errorMessage}
-        onClose={() => setLoginState({ isErrorOpen: false, errorMessage: '' })}
+        onClose={() =>
+          setLoginState({
+            isErrorOpen: false,
+            errorMessage: '',
+            isLoading: false,
+          })
+        }
       />
       <form onSubmit={handleSubmit(onSubmit)}>
         <TextField
@@ -76,7 +84,7 @@ function AuthForm({ isLoginForm }) {
           error={!!errors.password}
           inputRef={register({ required: true })}
         />
-        <footer className={classes.footer}>
+        <footer>
           <Button
             type="submit"
             variant="contained"

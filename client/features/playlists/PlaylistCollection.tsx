@@ -8,7 +8,7 @@ const useStyles = makeStyles(() => ({
   playlistCollection: {},
 }))
 
-function PlaylistCollection({ collectionTitle, playlists }) {
+function PlaylistCollection({ collectionTitle = '', playlists }) {
   const classes = useStyles()
 
   return (

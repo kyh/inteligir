@@ -5,10 +5,12 @@ import { useApolloClient } from '@apollo/react-hooks'
 import { makeStyles } from '@material-ui/core/styles'
 import { KeyboardArrowDown } from '@material-ui/icons'
 
-import { useGetCurrentUser } from '@hooks/currentUser'
-import { useLogout } from '@hooks/logout'
+import {
+  useCurrentUserQuery,
+  useLogoutMutation,
+} from '@features/auth/auth.graphql'
 
-import PlaylistSearchInput from '@containers/PlaylistSearchInput'
+import PlaylistSearchInput from '@features/playlists/PlaylistSearchInput'
 import { Logo, Link } from '@components'
 
 Router.onRouteChangeStart = () => {
@@ -64,8 +66,8 @@ const useStyles = makeStyles((theme) => ({
 function Navigation() {
   const classes = useStyles()
   const client = useApolloClient()
-  const [logout] = useLogout()
-  const { loading, error, data } = useGetCurrentUser()
+  const [logout] = useLogoutMutation()
+  const { loading, error, data } = useCurrentUserQuery()
 
   const handleLogout = () => {
     logout().then(() => client.resetStore())
