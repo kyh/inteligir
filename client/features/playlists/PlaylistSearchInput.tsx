@@ -22,7 +22,7 @@ function PlaylistSearchInput() {
     search: '',
   })
 
-  const handleSearchChange = (prop) => (event) => {
+  const handleSearchChange = (prop: string) => (event: any) => {
     setValues({ ...values, [prop]: event.target.value })
   }
 

@@ -1,11 +1,11 @@
 import React from 'react'
 import { withApollo } from '@utils/apollo'
 
-import Navigation from '@containers/Navigation'
-import HeroSection from '@containers/HeroSection'
-import FeaturedPlaylistCollection from '@containers/FeaturedPlaylistCollection'
-import PlaylistCollection from '@containers/PlaylistCollection'
-import NewsletterSignup from '@containers/NewsletterSignup'
+import Navigation from '@features/app/Navigation'
+import HeroSection from '@features/home/HeroSection'
+import FeaturedPlaylistCollection from '@features/playlists/FeaturedPlaylistCollection'
+import PlaylistCollection from '@features/playlists/PlaylistCollection'
+import NewsletterSignup from '@features/newsletter/NewsletterSignup'
 import { Link, Button, Box, Container } from '@components'
 
 const featuredPlaylist = {

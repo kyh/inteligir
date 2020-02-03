@@ -2,7 +2,7 @@ import React from 'react'
 import { withApollo } from '@utils/apollo'
 import { makeStyles } from '@material-ui/core/styles'
 
-import AuthForm from '@containers/AuthForm'
+import AuthForm from '@features/auth/AuthForm'
 import { Logo, Header, Text, Link, Card } from '@components'
 
 const useStyles = makeStyles((theme) => ({

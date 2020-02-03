@@ -21,7 +21,7 @@ const useStyles = makeStyles({
   },
 })
 
-function IntButton({ isLoading, children, ...props }) {
+function IntButton({ isLoading = false, children = '', ...props }) {
   const classes = useStyles()
   return (
     <Button disabled={isLoading} {...props}>
