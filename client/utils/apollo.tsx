@@ -1,39 +1,38 @@
+import { NextPage, NextPageContext } from 'next'
 import React from 'react'
-import cookie from 'cookie'
-import fetch from 'isomorphic-unfetch'
 import Head from 'next/head'
-import { NextPage } from 'next'
-
 import { ApolloProvider } from '@apollo/react-hooks'
 import { ApolloClient } from 'apollo-client'
 import { InMemoryCache, NormalizedCacheObject } from 'apollo-cache-inmemory'
-import { HttpLink } from 'apollo-link-http'
-import { createPersistedQueryLink } from 'apollo-link-persisted-queries'
 
-let apolloClient: ApolloClient<NormalizedCacheObject> | null = null
+type TApolloClient = ApolloClient<NormalizedCacheObject>
+
+type InitialProps = {
+  apolloClient: TApolloClient
+  apolloState: any
+} & Record<string, any>
+
+type WithApolloPageContext = {
+  apolloClient: TApolloClient
+} & NextPageContext
+
+let globalApolloClient: TApolloClient
 
 /**
  * Creates and provides the apolloContext
  * to a next.js PageTree. Use it by wrapping
  * your PageComponent via HOC pattern.
  */
-export function withApollo<PageProps>(
-  PageComponent: NextPage<PageProps>,
-  { ssr = true } = {},
-) {
-  type ApolloPageProps = PageProps & {
-    apolloClient?: ApolloClient<NormalizedCacheObject> | null
-    apolloState?: NormalizedCacheObject
-  }
-  const WithApollo: NextPage<ApolloPageProps> = ({
+export function withApollo(PageComponent: NextPage, { ssr = true } = {}) {
+  const WithApollo = ({
     apolloClient,
     apolloState,
     ...pageProps
-  }) => {
-    const client = apolloClient || initApolloClient(apolloState, { getToken })
+  }: InitialProps) => {
+    const client = apolloClient || initApolloClient(apolloState)
     return (
       <ApolloProvider client={client}>
-        <PageComponent {...((pageProps as any) as PageProps)} />
+        <PageComponent {...pageProps} />
       </ApolloProvider>
     )
   }
@@ -51,20 +50,15 @@ export function withApollo<PageProps>(
   }
 
   if (ssr || PageComponent.getInitialProps) {
-    WithApollo.getInitialProps = async (ctx) => {
+    WithApollo.getInitialProps = async (ctx: WithApolloPageContext) => {
       const { AppTree } = ctx
 
       // Initialize ApolloClient, add it to the ctx object so
       // we can use it in `PageComponent.getInitialProp`.
-      const apolloClient = (ctx.apolloClient = initApolloClient(
-        {},
-        {
-          getToken: () => getToken(ctx.req),
-        },
-      ))
+      const apolloClient = (ctx.apolloClient = initApolloClient())
 
       // Run wrapped getInitialProps methods
-      let pageProps = {} as PageProps
+      let pageProps = {}
       if (PageComponent.getInitialProps) {
         pageProps = await PageComponent.getInitialProps(ctx)
       }
@@ -119,56 +113,52 @@ export function withApollo<PageProps>(
 /**
  * Always creates a new apollo client on the server
  * Creates or reuses apollo client in the browser.
+ * @param  {Object} initialState
  */
-function initApolloClient(
-  initialState?: NormalizedCacheObject,
-  { getToken }: any,
-) {
+function initApolloClient(initialState?: any) {
   // Make sure to create a new client for every server-side request so that data
   // isn't shared between connections (which would be bad)
   if (typeof window === 'undefined') {
-    return createApolloClient(initialState, cookie)
+    return createApolloClient(initialState)
   }
 
   // Reuse client on the client-side
-  if (!apolloClient) {
-    apolloClient = createApolloClient(initialState)
+  if (!globalApolloClient) {
+    globalApolloClient = createApolloClient(initialState)
   }
 
-  return apolloClient
+  return globalApolloClient
 }
 
 /**
  * Creates and configures the ApolloClient
+ * @param  {Object} [initialState={}]
  */
-function createApolloClient(
-  initialState: NormalizedCacheObject = {},
-  cookie?: string,
-): ApolloClient<NormalizedCacheObject> {
-  const headers = cookie ? { cookie } : undefined
-  const link = createPersistedQueryLink().concat(
-    new HttpLink({
-      uri: process.env.API_URL + '/graphql', // Server URL (must be absolute)
-      credentials: 'include', // Additional fetch() options like `credentials` or `headers`
-      headers,
-      fetch,
-      useGETForQueries: true,
-    }),
-  )
+function createApolloClient(initialState = {}) {
+  const ssrMode = typeof window === 'undefined'
+  const cache = new InMemoryCache().restore(initialState)
+  const link = createIsomorphLink()
+  const connectToDevTools = true
+
   // Check out https://github.com/zeit/next.js/pull/4611 if you want to use the AWSAppSyncClient
   return new ApolloClient({
-    ssrMode: typeof window === 'undefined', // Disables forceFetch on the server (so queries are only run once)
+    ssrMode,
+    cache,
     link,
-    cache: new InMemoryCache().restore(initialState),
-    connectToDevTools: true,
+    connectToDevTools,
   })
 }
 
-/**
- * Get the user token from cookie
- * @param {Object} req
- */
-export function getToken(req: any) {
-  const cookies = cookie.parse(req ? req.headers.cookie || '' : document.cookie)
-  return cookies.token
+function createIsomorphLink() {
+  // if (typeof window === 'undefined') {
+  //   const { SchemaLink } = require('apollo-link-schema')
+  //   const schema = require('@server/schema')
+  //   return new SchemaLink({ schema })
+  // } else {
+  const { HttpLink } = require('apollo-link-http')
+  return new HttpLink({
+    uri: `${process.env.API_URL}/graphql`,
+    credentials: 'same-origin',
+  })
+  // }
 }
