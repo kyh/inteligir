@@ -6,8 +6,7 @@
       "@client/*": ["client/*"],
       "@utils/*": ["client/utils/*"],
       "@features/*": ["client/features/*"],
-      "@components": ["client/components/index"],
-      "@storyUtils": [".storybook/utils"]
+      "@components": ["client/components/index"]
     },
     "typeRoots": ["node_modules/@types", "client/__generated__/types"],
     "target": "esnext",
