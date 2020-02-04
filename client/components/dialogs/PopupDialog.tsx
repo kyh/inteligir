@@ -3,16 +3,17 @@ import Dialog from '@material-ui/core/Dialog'
 import DialogTitle from '@material-ui/core/DialogTitle'
 
 function IntPopupDialog({
-  children,
-  open,
-  onClose,
-  title,
-  rightButton,
-  classes,
-  ...props
+  children = '',
+  open = false,
+  onClose = (
+    _event: any,
+    _reason?: boolean | 'backdropClick' | 'escapeKeyDown',
+  ) => {},
+  title = '',
+  ...rest
 }) {
   return (
-    <Dialog open={open} onClose={onClose} {...props}>
+    <Dialog open={open} onClose={onClose} {...rest}>
       {title && <DialogTitle>{title}</DialogTitle>}
       {children}
     </Dialog>

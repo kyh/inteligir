@@ -8,12 +8,14 @@ import DialogTitle from '@material-ui/core/DialogTitle'
 import { Button } from '@components'
 
 function IntAlertDialog({
-  open,
-  onClose,
-  title,
-  content,
-  renderActions,
-  ...props
+  open = false,
+  onClose = (
+    _event: any,
+    _reason?: boolean | 'backdropClick' | 'escapeKeyDown',
+  ) => {},
+  title = '',
+  content = '',
+  ...rest
 }) {
   return (
     <Dialog
@@ -21,7 +23,7 @@ function IntAlertDialog({
       onClose={onClose}
       aria-labelledby="alert-dialog-title"
       aria-describedby="alert-dialog-description"
-      {...props}
+      {...rest}
     >
       {title && <DialogTitle id="alert-dialog-title">{title}</DialogTitle>}
       <DialogContent>
@@ -30,10 +32,14 @@ function IntAlertDialog({
         </DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button onClick={(e) => onClose(e, false)} color="secondary">
+        <Button onClick={(e: any) => onClose(e, false)} color="secondary">
           Disagree
         </Button>
-        <Button onClick={(e) => onClose(e, true)} color="primary" autoFocus>
+        <Button
+          onClick={(e: any) => onClose(e, true)}
+          color="primary"
+          autoFocus
+        >
           Agree
         </Button>
       </DialogActions>

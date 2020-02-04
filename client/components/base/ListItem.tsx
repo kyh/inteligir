@@ -1,28 +1,16 @@
 import React from 'react'
-import { makeStyles } from '@material-ui/core/styles'
 import ListItem from '@material-ui/core/ListItem'
-import ListItemIcon from '@material-ui/core/ListItemIcon'
 import ListItemSecondaryAction from '@material-ui/core/ListItemSecondaryAction'
 import ListItemText from '@material-ui/core/ListItemText'
 
-const useStyles = makeStyles({
-  icon: {
-    margin: 0,
-  },
-})
-
 function IntListItem({
-  icon,
-  primaryText,
-  secondaryText,
-  secondaryAction,
-  ...props
+  primaryText = '',
+  secondaryText = '',
+  secondaryAction = '',
+  ...rest
 }) {
-  const classes = useStyles()
-
   return (
-    <ListItem {...props}>
-      {!!icon && <ListItemIcon className={classes.icon}>{icon}</ListItemIcon>}
+    <ListItem {...rest}>
       <ListItemText primary={primaryText} secondary={secondaryText || null} />
       {!!secondaryAction && (
         <ListItemSecondaryAction>{secondaryAction}</ListItemSecondaryAction>

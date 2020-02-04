@@ -55,8 +55,8 @@ function IntSnackbarContent({
   message,
   onClose,
   variant,
-  ...props
-}) {
+  ...rest
+}: any) {
   const classes = useStyles()
   const Icon = variantIcon[variant]
 
@@ -75,13 +75,12 @@ function IntSnackbarContent({
           key="close"
           aria-label="Close"
           color="inherit"
-          className={classes.close}
           onClick={onClose}
         >
           <CloseIcon className={classes.icon} />
         </IconButton>,
       ]}
-      {...props}
+      {...rest}
     />
   )
 }
