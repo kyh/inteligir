@@ -21,7 +21,7 @@ const NextComposed = React.forwardRef<HTMLAnchorElement, NextComposedProps>(
       passHref,
       shallow,
       prefetch,
-      ...other
+      ...rest
     } = props
 
     return (
@@ -34,7 +34,7 @@ const NextComposed = React.forwardRef<HTMLAnchorElement, NextComposedProps>(
         shallow={shallow}
         passHref={passHref}
       >
-        <a ref={ref} {...other} />
+        <a ref={ref} {...rest} />
       </NextLink>
     )
   },
@@ -59,7 +59,7 @@ function Link(props: LinkProps) {
     className: classNameProps,
     innerRef,
     naked,
-    ...other
+    ...rest
   } = props
 
   const router = useRouter()
@@ -74,7 +74,7 @@ function Link(props: LinkProps) {
         className={className}
         ref={innerRef}
         href={href}
-        {...other}
+        {...rest}
       />
     )
   }
@@ -85,7 +85,7 @@ function Link(props: LinkProps) {
       className={className}
       ref={innerRef}
       href={href as string}
-      {...other}
+      {...rest}
     />
   )
 }

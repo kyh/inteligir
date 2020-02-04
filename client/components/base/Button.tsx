@@ -21,10 +21,10 @@ const useStyles = makeStyles({
   },
 })
 
-function IntButton({ isLoading = false, children = '', ...props }) {
+function IntButton({ isLoading = false, children = '', ...rest }) {
   const classes = useStyles()
   return (
-    <Button disabled={isLoading} {...props}>
+    <Button disabled={isLoading} {...rest}>
       <div
         className={classnames(classes.buttonContent, {
           [classes.loading]: isLoading,
