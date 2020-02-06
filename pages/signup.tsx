@@ -1,5 +1,5 @@
 import React from 'react'
-import { withApollo } from '@utils/apollo'
+import { withApollo } from '@utils/with-apollo'
 import { makeStyles } from '@material-ui/core/styles'
 
 import AuthForm from '@features/auth/AuthForm'

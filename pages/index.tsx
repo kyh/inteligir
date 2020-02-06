@@ -1,98 +1,23 @@
-import React from 'react'
-import { withApollo } from '@utils/apollo'
+import { withApollo } from '@utils/with-apollo'
+import Link from 'next/link'
+import { useCurrentUserQuery } from '@features/auth/auth.graphql'
 
-import Navigation from '@features/app/Navigation'
-import HeroSection from '@features/home/HeroSection'
-import FeaturedPlaylistCollection from '@features/playlists/FeaturedPlaylistCollection'
-import PlaylistCollection from '@features/playlists/PlaylistCollection'
-import NewsletterSignup from '@features/newsletter/NewsletterSignup'
-import { Link, Button, Box, Container } from '@components'
+const Index = () => {
+  const { data } = useCurrentUserQuery()
 
-const featuredPlaylist = {
-  title: 'The Python Planner: Beginner coding for 30 minutes a day',
+  if (data) {
+    return (
+      <div>
+        You're signed in as {data?.me?.email}
+        <Link href="/about">
+          <a>static</a>
+        </Link>{' '}
+        page.
+      </div>
+    )
+  }
+
+  return <div>...</div>
 }
 
-const popularSection = {
-  title: 'Popular',
-  playlists: [
-    {
-      title: '30 day JavaScript Challenge',
-    },
-    {
-      title: 'Intro to Graphic Design',
-    },
-  ],
-}
-
-const newSection = {
-  title: 'New & Noteworthy',
-  playlists: [
-    {
-      title: 'Storytelling, the basics for a good story',
-    },
-    {
-      title: 'Computer Science Fundamentals',
-    },
-    {
-      title: 'Starting with Sketch',
-    },
-  ],
-}
-
-const playlists = [
-  { title: 'Preparing to fundraise' },
-  { title: 'Finding startup ideas' },
-  { title: 'Apps to survive in China' },
-  { title: 'Hottest startups in Thailand' },
-  { title: 'Open Source Illustrations' },
-]
-
-function Home() {
-  return (
-    <main>
-      <Navigation />
-      <Container>
-        <HeroSection
-          title="The best of the web in playlists."
-          description="Almost all the knowledge is already available on the web. All you
-              need is someone to guide you to it."
-          backgroundImage="/assets/hero-bg.svg"
-          backgroundColor="#E8F4F4"
-          renderCta={() => (
-            <Button
-              href="/search"
-              variant="outlined"
-              color="primary"
-              component={Link}
-            >
-              Find a great playlist
-            </Button>
-          )}
-        />
-        <FeaturedPlaylistCollection
-          featuredPlaylist={featuredPlaylist}
-          tabs={[popularSection, newSection]}
-        />
-      </Container>
-      <Box mb={4} mt={4}>
-        <NewsletterSignup />
-      </Box>
-      <Container>
-        <Box mb={4}>
-          <PlaylistCollection
-            collectionTitle="Recommended for you"
-            playlists={playlists}
-          />
-        </Box>
-        <Box mb={4}>
-          <PlaylistCollection
-            collectionTitle="Fresh Favorites"
-            playlists={playlists}
-          />
-        </Box>
-      </Container>
-    </main>
-  )
-}
-
-export default withApollo(Home)
+export default withApollo(Index)
