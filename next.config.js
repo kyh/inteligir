@@ -1,13 +1,5 @@
-const webpack = require('webpack')
-const withOffline = require('next-offline')
-const TsconfigPathsPlugin = require('tsconfig-paths-webpack-plugin')
-
-const ENV = ['API_URL', 'APP_URL']
-
-const nextConfig = {
+module.exports = {
   webpack(config, options) {
-    config.plugins.push(new webpack.EnvironmentPlugin(ENV))
-
     config.module.rules.push({
       test: /\.graphql$/,
       exclude: /node_modules/,
@@ -20,10 +12,6 @@ const nextConfig = {
       loader: 'graphql-tag/loader',
     })
 
-    config.resolve.plugins.push(new TsconfigPathsPlugin())
-
     return config
   },
 }
-
-module.exports = withOffline(nextConfig)

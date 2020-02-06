@@ -1,7 +1,0 @@
-generateDir: client/__generated__
-schema: 'server/schema/generated/schema.graphqls'
-documents: 'client/**/*.graphql'
-plugins:
-  - typescript
-  - typescript-operations
-  - typescript-react-apollo

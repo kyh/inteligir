@@ -137,28 +137,25 @@ function initApolloClient(initialState?: any) {
 function createApolloClient(initialState = {}) {
   const ssrMode = typeof window === 'undefined'
   const cache = new InMemoryCache().restore(initialState)
-  const link = createIsomorphLink()
-  const connectToDevTools = true
 
   // Check out https://github.com/zeit/next.js/pull/4611 if you want to use the AWSAppSyncClient
   return new ApolloClient({
     ssrMode,
+    link: createIsomorphLink(),
     cache,
-    link,
-    connectToDevTools,
   })
 }
 
 function createIsomorphLink() {
-  // if (typeof window === 'undefined') {
-  //   const { SchemaLink } = require('apollo-link-schema')
-  //   const schema = require('@server/schema')
-  //   return new SchemaLink({ schema })
-  // } else {
-  const { HttpLink } = require('apollo-link-http')
-  return new HttpLink({
-    uri: `${process.env.API_URL}/graphql`,
-    credentials: 'same-origin',
-  })
-  // }
+  if (typeof window === 'undefined') {
+    const { SchemaLink } = require('apollo-link-schema')
+    const { schema } = require('@server/schema')
+    return new SchemaLink({ schema })
+  } else {
+    const { HttpLink } = require('apollo-link-http')
+    return new HttpLink({
+      uri: '/api/graphql',
+      credentials: 'same-origin',
+    })
+  }
 }
