@@ -2,7 +2,7 @@ import React from 'react'
 import Dialog from '@material-ui/core/Dialog'
 import DialogTitle from '@material-ui/core/DialogTitle'
 
-function IntPopupDialog({
+const IntPopupDialog = ({
   children = '',
   open = false,
   onClose = (
@@ -11,7 +11,7 @@ function IntPopupDialog({
   ) => {},
   title = '',
   ...rest
-}) {
+}) => {
   return (
     <Dialog open={open} onClose={onClose} {...rest}>
       {title && <DialogTitle>{title}</DialogTitle>}

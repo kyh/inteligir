@@ -13,15 +13,18 @@ import {
 import PlaylistSearchInput from '@features/playlists/PlaylistSearchInput'
 import { Logo, Link } from '@components'
 
-Router.onRouteChangeStart = () => {
-  NProgress.start()
-}
-Router.onRouteChangeComplete = () => {
-  NProgress.done()
-}
+if (typeof window !== 'undefined') {
+  Router.events.on('routeChangeStart', () => {
+    NProgress.start()
+  })
 
-Router.onRouteChangeError = () => {
-  NProgress.done()
+  Router.events.on('routeChangeComplete', () => {
+    NProgress.done()
+  })
+
+  Router.events.on('routeChangeError', () => {
+    NProgress.done()
+  })
 }
 
 const useStyles = makeStyles((theme) => ({
@@ -63,7 +66,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-function Navigation() {
+const Navigation = () => {
   const classes = useStyles()
   const client = useApolloClient()
   const [logout] = useLogoutMutation()
@@ -73,7 +76,7 @@ function Navigation() {
     logout().then(() => client.resetStore())
   }
 
-  if (loading || error) return null
+  if (!data || loading || error) return null
 
   return (
     <section className={classes.container}>

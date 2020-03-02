@@ -17,7 +17,7 @@ const useStyles = makeStyles((theme) => ({
   field: { marginBottom: theme.spacing(2) },
 }))
 
-function AuthForm({ isLoginForm = false }) {
+const AuthForm = ({ isLoginForm = false }) => {
   const classes = useStyles()
   const client = useApolloClient()
   const { register, errors, handleSubmit } = useForm({
@@ -30,24 +30,25 @@ function AuthForm({ isLoginForm = false }) {
   })
   const [authFunction] = isLoginForm ? useLoginMutation() : useSignupMutation()
 
-  const onSubmit = (data) => {
+  const onSubmit = async (data: any) => {
     const variables = { email: data.email, password: data.password }
     setLoginState({
       isLoading: true,
       isErrorOpen: false,
       errorMessage: '',
     })
-    authFunction({ variables })
-      .then(() => client.resetStore())
-      .then(() => redirect({}, '/'))
-      .catch(({ graphQLErrors }) => {
-        const [error] = graphQLErrors
-        setLoginState({
-          isLoading: false,
-          isErrorOpen: true,
-          errorMessage: error.message,
-        })
+    try {
+      await authFunction({ variables })
+      client.resetStore()
+      redirect({}, '/')
+    } catch ({ graphQLErrors }) {
+      const [error] = graphQLErrors
+      setLoginState({
+        isLoading: false,
+        isErrorOpen: true,
+        errorMessage: error.message,
       })
+    }
   }
 
   return (

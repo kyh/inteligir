@@ -18,7 +18,7 @@ const useStyles = makeStyles(() => ({
   },
 }))
 
-function PlaylistCard({ playlist, ...props }) {
+const PlaylistCard = ({ playlist, ...props }: any) => {
   const classes = useStyles(props)
 
   return (

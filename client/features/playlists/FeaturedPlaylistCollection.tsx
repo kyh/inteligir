@@ -11,16 +11,16 @@ const useStyles = makeStyles(() => ({
   tabsSection: {},
 }))
 
-function FeaturedPlaylistCollection({ featuredPlaylist, tabs }) {
+const FeaturedPlaylistCollection = ({ featuredPlaylist, tabs }: any) => {
   const classes = useStyles()
   const [currentTabIndex, setTabIndex] = useState(0)
 
-  const handleTabChange = (event, index) => {
+  const handleTabChange = (event: any, index: number) => {
     if (typeof event === 'number') return setTabIndex(event)
     return setTabIndex(index)
   }
 
-  const renderPlaylists = (playlist) => {
+  const renderPlaylists = (playlist: any) => {
     return (
       <ListItem
         key={playlist.title}
@@ -42,12 +42,12 @@ function FeaturedPlaylistCollection({ featuredPlaylist, tabs }) {
           onChange={handleTabChange}
           variant="fullWidth"
         >
-          {tabs.map((tab) => (
+          {tabs.map((tab: any) => (
             <Tab label={tab.title} key={tab.title} />
           ))}
         </Tabs>
         <SwipeableViews index={currentTabIndex} onChangeIndex={handleTabChange}>
-          {tabs.map((tab) => (
+          {tabs.map((tab: any) => (
             <List key={tab.title} dense>
               {tab.playlists.map(renderPlaylists)}
             </List>

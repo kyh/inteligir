@@ -29,11 +29,27 @@ const useStyles = makeStyles({
   },
 })
 
-const Transition = React.forwardRef((props, ref) => {
-  return <Grow {...props} ref={ref} />
-})
+const Transition: React.ForwardRefExoticComponent<any> = React.forwardRef(
+  (props, ref) => {
+    return <Grow {...props} ref={ref} />
+  },
+)
 
-function IntDialog({ children, open, onClose, title, toolbarRight, ...props }) {
+type Props = {
+  open: boolean
+  onClose?: () => void
+  title?: string
+  toolbarRight?: React.ReactNode
+}
+
+const IntDialog: React.FC<Props> = ({
+  children,
+  open,
+  onClose,
+  title,
+  toolbarRight,
+  ...props
+}) => {
   const classes = useStyles()
   return (
     <Dialog

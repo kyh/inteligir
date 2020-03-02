@@ -14,7 +14,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-function NewsletterSignup() {
+const NewsletterSignup = () => {
   const classes = useStyles()
 
   return (

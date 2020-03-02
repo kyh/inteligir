@@ -7,7 +7,7 @@ import DialogTitle from '@material-ui/core/DialogTitle'
 
 import { Button } from '@components'
 
-function IntAlertDialog({
+const IntAlertDialog = ({
   open = false,
   onClose = (
     _event: any,
@@ -16,7 +16,7 @@ function IntAlertDialog({
   title = '',
   content = '',
   ...rest
-}) {
+}) => {
   return (
     <Dialog
       open={open}

@@ -16,7 +16,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-function PlaylistSearchInput() {
+const PlaylistSearchInput = () => {
   const classes = useStyles()
   const [values, setValues] = useState({
     search: '',
