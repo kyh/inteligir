@@ -50,13 +50,13 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-function IntSnackbarContent({
+const IntSnackbarContent = ({
   className,
   message,
   onClose,
   variant,
   ...rest
-}: any) {
+}: any) => {
   const classes = useStyles()
   const Icon = variantIcon[variant]
 
@@ -85,12 +85,12 @@ function IntSnackbarContent({
   )
 }
 
-function IntSnackbar({
+const IntSnackbar = ({
   open = false,
   onClose = () => {},
   variant = 'success',
   message = 'This is a success message!',
-}) {
+}) => {
   return (
     <Snackbar
       anchorOrigin={{

@@ -8,7 +8,7 @@ const useStyles = makeStyles(() => ({
   playlistCollection: {},
 }))
 
-function PlaylistCollection({ collectionTitle = '', playlists }) {
+const PlaylistCollection = ({ collectionTitle = '', playlists }: any) => {
   const classes = useStyles()
 
   return (
@@ -17,7 +17,7 @@ function PlaylistCollection({ collectionTitle = '', playlists }) {
         <Header variant="overline">{collectionTitle}</Header>
       </Box>
       <Grid className={classes.playlistCollection} container spacing={3}>
-        {playlists.map((playlist) => (
+        {playlists.map((playlist: any) => (
           <Grid key={playlist.title} item>
             <PlaylistCard playlist={playlist} height={300} width={200} />
           </Grid>

@@ -38,7 +38,7 @@ const useTabStyles = makeStyles((theme) => ({
   },
 }))
 
-function IntTab({ children, ...props }) {
+const IntTab = ({ children = '', ...props }) => {
   const classes = useTabStyles()
   return (
     <Tab classes={classes} {...props}>

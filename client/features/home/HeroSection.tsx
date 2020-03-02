@@ -15,7 +15,7 @@ const useStyles = makeStyles((theme) => ({
   },
 }))
 
-function HeroSection({ title, description, renderCta, ...props }: any) {
+const HeroSection = ({ title, description, renderCta, ...props }: any) => {
   const classes = useStyles(props)
 
   return (
