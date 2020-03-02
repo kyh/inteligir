@@ -1,5 +1,5 @@
 import { mutationType, stringArg, idArg } from 'nexus'
-import { UserInputError } from 'apollo-server'
+import { UserInputError } from 'apollo-server-micro'
 import { hash, compare } from 'bcrypt'
 import { sign } from 'jsonwebtoken'
 import { keys } from '@server/config/keys'
