@@ -1,11 +1,11 @@
 datasource db {
   provider = "sqlite"
-  url = "***"
+  url      = "***"
   default  = true
 }
 
-generator photon {
-  provider = "photonjs"
+generator client {
+  provider = "prisma-client-js"
 }
 
 enum Role {

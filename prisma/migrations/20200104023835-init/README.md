@@ -96,8 +96,8 @@ migration ..20200104023835-init
 +  default  = true
 +}
 +
-+generator photon {
-+  provider = "photonjs"
++generator client {
++  provider = "prisma-client-js"
 +}
 +
 +enum Role {
@@ -173,5 +173,3 @@ migration ..20200104023835-init
 +  updatedAt   DateTime @updatedAt
 +}
 ```
-
-
