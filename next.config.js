@@ -1,5 +1,12 @@
+const resolveTsPathsAlias = require('./resolve-ts-paths-alias')
+
 module.exports = {
   webpack(config, options) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      ...resolveTsPathsAlias(),
+    }
+
     config.module.rules.push({
       test: /\.graphql$/,
       exclude: /node_modules/,
