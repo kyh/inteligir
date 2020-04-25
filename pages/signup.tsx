@@ -1,111 +1,91 @@
-import React from 'react'
-import { withApollo } from '@utils/with-apollo'
-import { makeStyles } from '@material-ui/core/styles'
+import React, { useState } from "react";
+import Layout from "../components/Layout";
+import Router from "next/router";
+import { withApollo } from "../apollo/client";
+import gql from "graphql-tag";
+import { useMutation } from "@apollo/react-hooks";
 
-import AuthForm from '@features/auth/AuthForm'
-import { Logo, Header, Link, Card } from '@components'
+const SignupMutation = gql`
+  mutation SignupMutation($name: String, $email: String!) {
+    signupUser(name: $name, email: $email) {
+      id
+      name
+      email
+    }
+  }
+`;
 
-const useStyles = makeStyles((theme) => ({
-  page: {
-    textAlign: 'center',
-    '@media (min-width: 700px)': {
-      textAlign: 'left',
-      display: 'flex',
-      height: '100vh',
-      justifyContent: 'center',
-      alignItems: 'center',
-      backgroundColor: theme.brand.background,
-      padding: 0,
-    },
-  },
-  container: {
-    maxWidth: 700,
-    margin: 'auto',
-    '& a': {
-      borderColor: 'transparent',
-    },
-  },
-  card: {
-    padding: theme.spacing(2),
-    boxShadow: 'none',
-    '@media (min-width: 700px)': {
-      boxShadow: theme.brand.boxShadow,
-      borderRadius: 8,
-      padding: '40px 350px 40px 40px',
-      backgroundImage: 'url("/assets/reading.svg")',
-      backgroundSize: '80%',
-      backgroundRepeat: 'no-repeat',
-      backgroundPosition: '200% 20px',
-    },
-  },
-  logoContainer: {
-    display: 'block',
-    textAlign: 'center',
-    marginBottom: theme.spacing(2),
-    marginTop: theme.spacing(2),
-    '@media (min-width: 700px)': {
-      marginTop: 0,
-    },
-    '&:hover': {
-      borderColor: 'transparent',
-    },
-    '& .logo': {
-      width: 80,
-      marginBottom: theme.spacing(1),
-    },
-  },
-  header: {
-    fontSize: '1.6rem',
-    marginBottom: theme.spacing(2),
-    '@media (min-width: 700px)': {
-      marginBottom: theme.spacing(4),
-    },
-  },
-  moreContainer: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    padding: `0 ${theme.spacing(2)}px`,
-    '& a': {
-      fontSize: '0.9rem',
-      color: theme.palette.secondary.main,
-    },
-    '@media (min-width: 700px)': {
-      padding: `${theme.spacing(2)}px 0`,
-    },
-  },
-  moreRight: {
-    '& a': {
-      marginRight: theme.spacing(2),
-    },
-    '& a:last-child': {
-      marginRight: 0,
-    },
-  },
-}))
+function Signup(props) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
 
-function Signup() {
-  const classes = useStyles()
+  const [signup] = useMutation(SignupMutation);
+
   return (
-    <main className={classes.page}>
-      <section className={classes.container}>
-        <Link href="/" className={classes.logoContainer}>
-          <Logo />
-        </Link>
-        <Card className={classes.card}>
-          <Header className={classes.header}>Create your account</Header>
-          <AuthForm />
-        </Card>
-        <div className={classes.moreContainer}>
-          <Link href="/login">Log in instead</Link>
-          <div className={classes.moreRight}>
-            <Link href="/about">About</Link>
-            <Link href="/privacy">Privacy</Link>
-            <Link href="/terms">Terms</Link>
-          </div>
-        </div>
-      </section>
-    </main>
-  )
+    <Layout>
+      <div>
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            console.log("submit", name, email);
+
+            await signup({
+              variables: {
+                name: name,
+                email: email,
+              },
+            });
+            Router.push("/");
+          }}
+        >
+          <h1>Signup user</h1>
+          <input
+            autoFocus
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Name"
+            type="text"
+            value={name}
+          />
+          <input
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="Email address)"
+            type="text"
+            value={email}
+          />
+          <input disabled={!name || !email} type="submit" value="Signup" />
+          <a className="back" href="#" onClick={() => Router.push("/")}>
+            or Cancel
+          </a>
+        </form>
+      </div>
+      <style jsx>{`
+        .page {
+          background: white;
+          padding: 3rem;
+          display: flex;
+          justify-content: center;
+        }
+
+        input[type="text"] {
+          width: 100%;
+          padding: 0.5rem;
+          margin: 0.5rem 0;
+          border-radius: 0.25rem;
+          border: 0.125rem solid rgba(0, 0, 0, 0.2);
+        }
+
+        input[type="submit"] {
+          background: #ececec;
+          border: 0;
+          padding: 1rem 2rem;
+        }
+
+        .back {
+          margin-left: 1rem;
+        }
+      `}</style>
+    </Layout>
+  );
 }
 
-export default withApollo(Signup)
+export default withApollo(Signup);

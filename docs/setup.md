@@ -2,7 +2,7 @@
 
 ### Foreword
 
-If you see a step below that could be improved (or is outdated), please update the instructions. We rarely go through this process ourselves, so your fresh pair of eyes and your recent experience with it, makes you the best candidate to improve them for other users. Thank you!
+If you see a step below that could be improved (or is outdated), please update the instructions. I rarely go through this process myself, so your fresh pair of eyes and your recent experience with it, makes you the best candidate to improve them for other users. Thank you!
 
 ### Prerequisite
 
@@ -10,61 +10,33 @@ If you see a step below that could be improved (or is outdated), please update t
 
 - We recommend using [nvm](https://github.com/creationix/nvm): `nvm use`.
 
-2. You'll need the Prisma CLI. Please install it via NPM or [using another method](https://www.prisma.io/docs/prisma-cli-and-configuration/using-the-prisma-cli-alx4/#installation):
-
-```
-npm install -g prisma
-```
-
-##### Optional
-
-3. If you're going to be deploying, you'll also need to install the Heroku CLI. Please install it from [here](https://devcenter.heroku.com/articles/heroku-cli#download-and-install).
-
-You'll also need to set up your git remotes:
-
-```
-heroku git:remote -a ys-development
-git remote rename heroku prod
-
-heroku git:remote -a ys-app
-git remote rename heroku dev
-```
+2. You'll need the [Postgres](https://www.postgresql.org/):
 
 ### Getting Started
 
-Inteligir uses a **GraphQL server** built with [express](https://github.com/expressjs/express) & [apollo-server](https://github.com/apollographql/apollo-server). The database interface uses [Prisma](https://github.com/prisma/prisma). Frontend is a SSR **React app** via [next.js](https://github.com/zeit/next.js).
+Inteligir is written in TypeScript with [Next.js](https://nextjs.org/)\*\* using [React](https://reactjs.org/), [Apollo Client](https://www.apollographql.com/docs/react/) (frontend), [GraphQL Nexus](https://nexus.js.org/) and [Prisma Client](https://github.com/prisma/prisma2/blob/master/docs/prisma-client-js/api.md) (backend).
 
 #### How to install
 
 We recommend cloning the repository in a folder dedicated to `Inteligir` projects.
 
 ```
-git clone git@github.com:/its-bananas/inteligir.git ys/app
+git clone git@github.com:/tehkaiyu/inteligir.git ys/app
 cd ys/app
-npm run setup
+npm install
 ```
 
-If you're going to be deploying, you could run:
-
-```
-node tools/generate-env
-# This will generate .env.dev and .env.prod environment files
-```
-
-Note: This will require Heroku access, please reach out to Inteligir repo owners to be added.
+Note that this also generates Prisma Client JS into `node_modules/@prisma/client` via a `postinstall` hook of the `@prisma/client` package from your `package.json`.
 
 ### Building and Running Locally
 
 #### To start a dev web server:
 
-```bash
+```
 npm run dev
 ```
 
-This will do two things:
-
-1.  Start the Webpack Dev Server that serves assets in the client directory (it will refresh the page on any changes)
-2.  Start a nodemon server for the server directory which will watch all server files and restart the server on changes
+The app is now running, navigate to [`http://localhost:3000/`](http://localhost:3000/) in your browser to explore its UI.
 
 #### To build a production version of the app:
 
@@ -81,11 +53,7 @@ To deploy to staging or production, you need to be a core member of the Inteligi
 
 #### To deploy to development or production:
 
-```bash
-npm run deploy
-```
-
-The deploy script will guide you through the rest of the deployment process.
+Deployments happens automatically when a pull request gets merged into master
 
 ## Debugging Tips
 
@@ -105,4 +73,4 @@ npm run debug
 
 ## Style Guide
 
-JavaScript - this project follows the [Airbnb Style Guide](https://github.com/airbnb/javascript) along with [Prettier](https://prettier.io/) formatting.
+This project uses [Prettier](https://prettier.io/) formatting.

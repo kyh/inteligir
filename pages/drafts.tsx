@@ -4,9 +4,9 @@ import { withApollo } from "../apollo/client";
 import gql from "graphql-tag";
 import { useQuery } from "@apollo/react-hooks";
 
-const FeedQuery = gql`
-  query FeedQuery {
-    feed {
+const DraftsQuery = gql`
+  query DraftsQuery {
+    drafts {
       id
       title
       content
@@ -23,7 +23,7 @@ const Post = ({ post }) => (
   <Link href="/p/[id]" as={`/p/${post.id}`}>
     <a>
       <h2>{post.title}</h2>
-      <small>By {post.author.name}</small>
+      <small>By {post.author ? post.author.name : "Unknown Author"}</small>
       <p>{post.content}</p>
       <style jsx>{`
         a {
@@ -37,8 +37,8 @@ const Post = ({ post }) => (
   </Link>
 );
 
-const Blog = () => {
-  const { loading, error, data } = useQuery(FeedQuery);
+const Drafts = () => {
+  const { loading, error, data } = useQuery(DraftsQuery);
 
   if (loading) {
     return <div>Loading ...</div>;
@@ -50,9 +50,9 @@ const Blog = () => {
   return (
     <Layout>
       <div className="page">
-        <h1>My Blog</h1>
+        <h1>Drafts</h1>
         <main>
-          {data.feed.map((post) => (
+          {data.drafts.map((post) => (
             <div className="post">
               <Post key={post.id} post={post} />
             </div>
@@ -77,4 +77,4 @@ const Blog = () => {
   );
 };
 
-export default withApollo(Blog);
+export default withApollo(Drafts);
