@@ -1,24 +1,89 @@
-generator client {
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator prisma_client {
   provider = "prisma-client-js"
 }
 
-datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+enum Role {
+  USER
+  ADMIN
 }
 
 model User {
-  email String  @unique
-  id    Int     @default(autoincrement()) @id
-  name  String?
-  posts Post[]
+  id                String             @default(cuid()) @id
+  email             String             @unique
+  password          String
+  displayName       String?
+  googleId          String?            @unique
+  resetToken        String?
+  resetTokenExpiry  Float?
+  enrolledPlaylists EnrolledPlayList[]
+  role              Role               @default(USER)
+  createdAt         DateTime           @default(now())
 }
 
-model Post {
-  authorId  Int?
-  content   String?
-  id        Int     @default(autoincrement()) @id
-  published Boolean @default(false)
-  title     String
-  author    User?   @relation(fields: [authorId], references: [id])
+model PlaylistCategory {
+  id            String     @default(cuid()) @id
+  name          String
+  description   String?
+  createdByRole Role       @default(USER)
+  playlists     Playlist[] @relation(references: [id])
+}
+
+model Playlist {
+  id          String             @default(cuid()) @id
+  published   Boolean            @default(false)
+  title       String
+  description String?
+  authorId    String
+  author      User               @relation(fields: [authorId], references: [id])
+  emoji       String?
+  thumbnail   String?
+  categories  PlaylistCategory[] @relation(references: [id])
+  articles    Article[]
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+}
+
+model EnrolledPlayList {
+  id         String   @default(cuid()) @id
+  enrolleeId String
+  playlistId String
+  playlist   Playlist @relation(fields: [playlistId], references: [id])
+  enrollee   User     @relation(fields: [enrolleeId], references: [id])
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+enum ArticleType {
+  LINK
+  VIDEO
+  POST
+}
+
+model Article {
+  id          String      @default(cuid()) @id
+  title       String
+  link        String?
+  description String
+  authorId    String
+  playlistId  String
+  playlist    Playlist    @relation(fields: [playlistId], references: [id])
+  author      User        @relation(fields: [authorId], references: [id])
+  type        ArticleType
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model CompletedPlaylist {
+  id          String   @default(cuid()) @id
+  userId      String
+  playlistId  String
+  completedBy User     @relation(fields: [userId], references: [id])
+  playlist    Playlist @relation(fields: [playlistId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

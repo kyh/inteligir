@@ -1,6 +1,6 @@
 import Layout from "../components/Layout";
 import Link from "next/link";
-import { withApollo } from "../apollo/client";
+import { withApollo } from "../server/schema/client";
 import gql from "graphql-tag";
 import { useQuery } from "@apollo/react-hooks";
 
