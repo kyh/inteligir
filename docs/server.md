@@ -1,209 +1,183 @@
-# Evolving the server
+# Evolving the Server
 
-Inteligir's backend is built using [Express](https://github.com/expressjs/express), [Apollo Server](https://github.com/apollographql/apollo-server) and [NextJS](https://github.com/zeit/next.js). We use a Postgres database with [Prisma](https://github.com/prisma/prisma) bindings to help with the GraphQL interface.
+Evolving the application typically requires five subsequent steps:
 
-### Updating the API
+1. Migrating the database schema using SQL
+1. Updating your Prisma schema by introspecting the database with `prisma introspect`
+1. Generating Prisma Client to match the new database schema with `prisma generate`
+1. Using the updated Prisma Client in your application code and extending the GraphQL API
+1. Building new UI features in React
 
-If you want to change the GraphQL API, you need to adjust the GraphQL schema in [`../server/schema/schema.graphql`](../server/schema/schema.graphql) and the respective resolver functions.
+For the following example scenario, assume you want to add a "profile" feature to the app where users can create a profile and write a short bio about themselves.
 
-<Details><Summary><strong>Adding an operation without updating the datamodel</strong></Summary>
+### 1. Change your database schema using SQL
 
-To add new operation that can be based on the current [datamodel](../prisma/datamodel.prisma), you first need to add the operation to the GraphQL schema's `Query` or `Mutation` type and then add the corresponding resolver function.
+The first step would be to add a new table, e.g. called `Profile`, to the database. In SQLite, you can do so by running the following SQL statement:
 
-For example, to add a new mutation that updates a user's name, you can extend the `Mutation` type as follows:
+```sql
+CREATE TABLE "Profile" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "bio" TEXT,
+  "user" TEXT NOT NULL UNIQUE REFERENCES "User"(id) ON DELETE SET NULL
+);
+```
+
+To run the SQL statement against the database, you can use the `sqlite3` CLI in your terminal, e.g.:
+
+```bash
+sqlite3 dev.db \
+'CREATE TABLE "Profile" (
+  "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+  "bio" TEXT,
+  "user" TEXT NOT NULL UNIQUE REFERENCES "User"(id) ON DELETE SET NULL
+);'
+```
+
+Note that we're adding a unique constraint to the foreign key on `user`, this means we're expressing a 1:1 relationship between `User` and `Profile`, i.e.: "one user has one profile".
+
+While your database now is already aware of the new table, you're not yet able to perform any operations against it using Prisma Client. The next two steps will update the Prisma Client API to include operations against the new `Profile` table.
+
+### 2. Introspect your database
+
+The Prisma schema is the foundation for the generated Prisma Client API. Therefore, you first need to make sure the new `Profile` table is represented in it as well. The easiest way to do so is by introspecting your database:
+
+```
+npx prisma introspect
+```
+
+> **Note**: You're using [npx](https://github.com/npm/npx) to run Prisma 2 CLI that's listed as a development dependency in [`package.json`](./package.json). Alternatively, you can install the CLI globally using `npm install -g @prisma/cli`. When using Yarn, you can run: `yarn prisma dev`.
+
+The `introspect` command updates your `schema.prisma` file. It now includes the `Profile` model and its 1:1 relation to `User`:
+
+```prisma
+model Post {
+  author    User?
+  content   String?
+  id        Int     @id
+  published Boolean @default(false)
+  title     String
+}
+
+model User {
+  email   String   @unique
+  id      Int      @id
+  name    String?
+  post    Post[]
+  profile Profile?
+}
+
+model Profile {
+  bio  String?
+  id   Int     @id
+  user User
+}
+```
+
+### 3. Generate Prisma Client
+
+With the updated Prisma schema, you can now also update the Prisma Client API with the following command:
+
+```
+npx prisma generate
+```
+
+This command updated the Prisma Client API in `node_modules/@prisma/client`.
+
+### 4. Use the updated Prisma Client in your application code
+
+You can now use your `PrismaClient` instance to perform operations against the new `Profile` table. Those operations can be used to implement queries and mutations in the GraphQL API.
+
+#### Option A: Expose `Profile` operations via `nexus-prisma`
+
+With the `nexus-prisma` package, you can expose the new `Profile` model in the API like so:
 
 ```diff
-type Mutation {
-  signupUser(email: String!, name: String): User!
-  createPost(content: String!, authorEmail: String!): Post!
-  deletePost(id: ID!): Post
-  publish(id: ID!): Post
-+ updateDisplayName(id: ID!, newName: String!): User
-}
-```
+// ... as before
 
-Then add the new resolver to the `Mutation` object in [`../server/resolvers/Mutation.js`](../server/resolvers/Mutation.js):
-
-```diff
-const Mutation = {
-  // ...
-+ updateDisplayName(parent, { id, newName }, context) {
-+   return context.prisma.updateUser({
-+     where: {
-+       id
-+     },
-+     data: {
-+       name: newName
-+     }
-+   })
-+ }
-}
-```
-
-You can now send the following mutation to your GraphQL API:
-
-```graphql
-mutation {
-  updateDisplayName(
-    id: "__USER_ID__"
-    newName: "John")
-  ) {
-    id
-    name
-  }
-}
-```
-
-</Details>
-
-<Details><Summary><strong>Adding an operation and updating the datamodel</strong></Summary>
-
-Some new API features can't be covered with the existing datamodel. For example, you might want to add _comment_ feature to the API, so that users can leave comments on posts.
-
-For that, you first need to adjust the Prisma datamodel in [`../prisma/datamodel.prisma`](../prisma/datamodel.prisma):
-
-```diff
-type User {
-  id: ID! @unique
-  email: String! @unique
-  name: String
-  posts: [Post!]!
-+ comments: [Comment!]!
-}
-
-type Post {
-  id: ID! @unique
-  createdAt: DateTime!
-  updatedAt: DateTime!
-  published: Boolean! @default(value: "false")
-  content: String!
-  author: User!
-+ comments: [Comment!]!
-}
-
-+ type Comment {
-+   id: ID! @unique
-+   text: String!
-+   writtenBy: User!
-+   post: Post!
-+ }
-```
-
-After having updated the datamodel, you need to deploy the changes:
-
-```
-npm run deploy:schema
-```
-
-Note that this also invokes `prisma generate` (because of the `post-deploy` hook in [`prisma.yml`](../prisma/prisma.yml)) which regenerates the Prisma client in [`../server/schema/generated/prisma-client`](../server/schema/generated/prisma-client).
-
-To now enable users to add comments to posts, you need to add the `Comment` type as well as the corresponding operation to the GraphQL schema in [`../server/schema/schema.graphql`](../serverschemab/schema.graphql):
-
-```diff
-type Query {
-  # ... as before
-}
-
-type Mutation {
-  signupUser(email: String!, name: String): User!
-  createPost(content: String!!, authorEmail: String!): Post!
-  deletePost(id: ID!): Post
-  publish(id: ID!): Post
-  updateDisplayName(id: ID!, newName: String!): User
-+ writeComment(text: String!, postId: ID!): Comment
-}
-
-type User {
-  id: ID!
-  email: String!
-  name: String
-  posts: [Post!]!
-+ comments: [Comment!]!
-}
-
-type Post {
-  id: ID!
-  createdAt: DateTime!
-  updatedAt: DateTime!
-  published: Boolean!
-  content: String!
-  author: User!
-+ comments: [Comment!]!
-}
-
-+ type Comment {
-+   id: ID!
-+   text: String!
-+   writtenBy: User!
-+   post: Post!
-+ }
-```
-
-Next, you need to implement the resolver for the new operation in [`../server/resolvers/Mutation.js`](../server/resolvers/Mutation.js):
-
-```diff
-const resolvers = {
-  // ...
-  Mutation: {
-    // ...
-+   writeComment(parent, { postId }, context) {
-+     const userId = getUserId(context)
-+     return context.prisma.createComment({
-+       text,
-+       post: {
-+         connect: { id: postId }
-+       },
-+       writtenBy: {
-+         connect: { id: userId }
-+       }
-+     })
-+   }
-  }
-}
-```
-
-Finally, because `Comment` has a relation to `Post` and `User`, you need to update the type resolvers as well so that the relation can be properly resolved (learn more about why this is necessary in [this](https://www.prisma.io/blog/graphql-server-basics-the-schema-ac5e2950214e/) blog article):
-
-```diff
-const resolvers = {
-  // ...
-  User: {
-    // ...
-+   comments: ({ id }, args, context) {
-+     return context.prisma.user({ id }).comments()
-+   }
+const User = objectType({
+  name: 'User',
+  definition(t) {
+    t.model.id()
+    t.model.name()
+    t.model.email()
+    t.model.posts({
+      pagination: false,
+    })
++   t.model.profile()
   },
-  Post: {
-    // ...
-+   comments: ({ id }, args, context) {
-+     return context.prisma.post({ id }).comments()
-+   }
+})
+
+// ... as before
+
++const Profile = objectType({
++  name: 'Profile',
++  definition(t) {
++    t.model.id()
++    t.model.bio()
++    t.model.user()
++  },
++})
+
+// ... as before
+
+export const schema = makeSchema({
++  types: [Query, Mutation, Post, User, Profile],
+  // ... as before
+}
+```
+
+#### Option B: Use the `PrismaClient` instance directly
+
+As the Prisma Client API was updated, you can now also invoke "raw" operations via `prisma.profile` directly.
+
+##### Create a new profile for an existing user
+
+```ts
+const profile = await prisma.profile.create({
+  data: {
+    bio: "Hello World",
+    user: {
+      connect: { email: "alice@prisma.io" },
+    },
   },
-+ Comment: {
-+   writtenBy: ({ id }, args, context) {
-+     return context.prisma.comment({ id }).writtenBy()
-+   },
-+   post: ({ id }, args, context) {
-+     return context.prisma.comment({ id }).post()
-+   },
-+ }
-}
+});
 ```
 
-You can now send the following mutation to your GraphQL API. Note that this mutation only works if you're authenticated through a valid token in the `Authorization` header.
+##### Create a new user with a new profile
 
-```graphql
-mutation {
-  writeComment(postId: "__POST_ID__", text: "I like turtles 🐢") {
-    id
-    name
-  }
-}
+```ts
+const user = await prisma.user.create({
+  data: {
+    email: "john@prisma.io",
+    name: "John",
+    profile: {
+      create: {
+        bio: "Hello World",
+      },
+    },
+  },
+});
 ```
 
-</Details>
+##### Update the profile of an existing user
+
+```ts
+const userWithUpdatedProfile = await prisma.user.update({
+  where: { email: "alice@prisma.io" },
+  data: {
+    profile: {
+      update: {
+        bio: "Hello Friends",
+      },
+    },
+  },
+});
+```
 
 ## Next steps
 
-- [Explore the Prisma client API](https://www.prisma.io/client/client-javascript)
-- [Learn more about the GraphQL schema](https://www.prisma.io/blog/graphql-server-basics-the-schema-ac5e2950214e/)
+- Read the holistic, step-by-step [Prisma Framework tutorial](https://github.com/prisma/prisma2/blob/master/docs/tutorial.md)
+- Check out the [Prisma Framework docs](https://github.com/prisma/prisma2) (e.g. for [data modeling](https://github.com/prisma/prisma2/blob/master/docs/data-modeling.md), [relations](https://github.com/prisma/prisma2/blob/master/docs/relations.md) or the [Prisma Client API](https://github.com/prisma/prisma2/tree/master/docs/prisma-client-js/api.md))
+- Share your feedback in the [`prisma2-preview`](https://prisma.slack.com/messages/CKQTGR6T0/) channel on the [Prisma Slack](https://slack.prisma.io/)
+- Create issues and ask questions on [GitHub](https://github.com/prisma/prisma2/)
+- Track Prisma 2's progress on [`isprisma2ready.com`](https://isprisma2ready.com)

@@ -1,7 +1,7 @@
 # Enviroment Variables
 
 | Environment Variable    | Config Name(name on the `config` file) | Description                                   |
-|-------------------------|----------------------------------------|-----------------------------------------------|
+| ----------------------- | -------------------------------------- | --------------------------------------------- |
 | NODE_ENV                | .nodeEnv                               | Node Environment variable                     |
 | JWT_SECRET              | .auth.jwtSecret                        | JWT secret                                    |
 | PRISMA_ENDPOINT         | .db.prismaEndpoint                     | Prisma url endpoint                           |

@@ -1,5 +1,5 @@
-[![Dependencies Status](https://david-dm.org/its-bananas/inteligir/status.svg)](https://david-dm.org/its-bananas/inteligir)
-[![Build Status](https://travis-ci.org/its-bananas/inteligir.svg?branch=master)](https://travis-ci.org/its-bananas/inteligir) [![Greenkeeper badge](https://badges.greenkeeper.io/its-bananas/inteligir.svg)](https://greenkeeper.io/)
+[![Dependencies Status](https://david-dm.org/tehkaiyu/inteligir/status.svg)](https://david-dm.org/tehkaiyu/inteligir)
+[![Build Status](https://travis-ci.org/tehkaiyu/inteligir.svg?branch=master)](https://travis-ci.org/tehkaiyu/inteligir) [![Greenkeeper badge](https://badges.greenkeeper.io/tehkaiyu/inteligir.svg)](https://greenkeeper.io/)
 
 # Inteligir
 
@@ -8,25 +8,14 @@
 ## Directory Layout
 
 ```
-├── /client                      # ReactJS client, which contains most of our UI
-│   ├── /components              # React components, reusable across all pages
-│   ├── /pages                   # App route definitions
-│   ├── /static                  # Static assets
-│   └── /utils                   # Client side helper functions/Utilities/Services
-│   └── next.config.js           # Next.js SSR configuration
-│── /config                      # Environment configuration
+├── /components                  # React components, reusable across all pages
+│── /apollo                      # Client side apollo configuration
+│── /pages                       # App routes
+│   └── /api                     # Graphql API
 │── /docs                        # App documentation
 │── /prisma                      # Prisma datamodel and seed data
-│── /server                      # Node.js server
-│   ├── /config                  # Server environment variables
-│   ├── /middlewares             # Express/Apollo middleware
-│   ├── /types                   # GraphQl resolvers
-│   ├── /services                # Server Helper functions/Utilities/Services
-│   ├── /web                     # Next.js/Apollo/Express app
-│   └── index.js                 # Server entry point
 │── /tests                       # Test setup files
-│── /tools                       # Setup and deployment scripts
-└── /worker                      # JavaScript worker modules
+└── /worker                      # Internal worker modules
 ```
 
 ## Want to contribute?
