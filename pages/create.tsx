@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import fetch from "isomorphic-unfetch";
 import Layout from "../components/Layout";
 import Router from "next/router";
-import { withApollo } from "../apollo/client";
+import { withApollo } from "../server/schema/client";
 import gql from "graphql-tag";
 import { useMutation } from "@apollo/react-hooks";
 
