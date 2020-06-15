@@ -20,16 +20,22 @@
 
 #### Setting up for development
 
+1. Install dependencies
+
+   ```
+   npm i
+   ```
+
 1. Start a postgres database
 
    ```
-   db:start
+   npm run db:start
    ```
 
 1. Initialize your db schema
 
    ```
-   db:migrate
+   npm run db:migrate
    ```
 
 1. Source development environment variables (we use [direnv](https://direnv.net/))
