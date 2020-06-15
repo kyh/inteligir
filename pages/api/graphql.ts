@@ -1,5 +1,9 @@
-import { use } from 'nexus'
-import { prisma } from 'nexus-plugin-prisma'
+if (process.env.NODE_ENV === 'development') require('nexus').default.reset()
 
-// Enables the Prisma plugin
-use(prisma())
+const app = require('nexus').default
+
+require('../../graphql/schema')
+
+app.assemble()
+
+export default app.server.handlers.graphql

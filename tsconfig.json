@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "rootDir": ".",
     "baseUrl": ".",
     "paths": {
       "@components/*": ["components/*"],
@@ -8,20 +7,21 @@
       "@prisma/*": ["prisma/*"],
       "@server/*": ["server/*"]
     },
-    "module": "esnext",
-    "target": "ES2019",
+    "target": "es2015",
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
     "forceConsistentCasingInFileNames": true,
-    "noEmit": true,
     "esModuleInterop": true,
+    "module": "esnext",
     "moduleResolution": "node",
     "resolveJsonModule": true,
+    "jsx": "preserve",
+    "rootDir": ".",
     "isolatedModules": true,
-    "jsx": "preserve"
+    "noEmit": true
   },
   "exclude": ["node_modules"],
-  "include": [".", "next-env.d.ts", "**/*.ts", "**/*.tsx"]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", "."]
 }

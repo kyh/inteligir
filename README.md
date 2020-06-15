@@ -3,7 +3,7 @@
 
 # Inteligir
 
-> Share knowledge from the web through playlists
+> The data share platform
 
 ## Directory Layout
 
@@ -17,6 +17,48 @@
 │── /tests                       # Test setup files
 └── /worker                      # Internal worker modules
 ```
+
+#### Setting up for development
+
+1. Start a postgres database
+
+   ```
+   db:start
+   ```
+
+1. Initialize your db schema
+
+   ```
+   db:migrate
+   ```
+
+1. Source development environment variables (we use [direnv](https://direnv.net/))
+
+   ```
+   direnv
+   ```
+
+1. Start nextjs dev mode
+
+   ```
+   npm run dev
+   ```
+
+1. In another terminal start Nexus reflection to benefit from the type safety that Nexus can give you.
+
+   ```
+   npm run nexus:reflection
+   ```
+
+#### Migrations
+
+1. When you are running Nexus' dev mode then Nexus will take care of migrating your development databse
+
+1. To migrate the production database
+
+   ```
+   npm run db:migrate
+   ```
 
 ## Want to contribute?
 
