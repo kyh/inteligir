@@ -1,0 +1,24 @@
+import { Meta, Story, Preview, Props } from "@storybook/addon-docs/blocks";
+import { Button } from "./index";
+
+<Meta title="Button" />
+
+Here's some _markdown_!
+
+# Preview
+
+<Preview>
+  <Story name="Default">
+    <Button variant="contained">Default</Button>
+  </Story>
+  <Story name="Primary">
+    <Button variant="contained" color="primary">Primary</Button>
+  </Story>
+  <Story name="Secondary">
+    <Button variant="contained" color="secondary">Secondary</Button>
+  </Story>
+</Preview>
+
+# Props
+
+<Props of={Button} />
