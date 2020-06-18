@@ -1,6 +1,7 @@
 const path = require('path')
 
 module.exports = {
+  stories: ['../components/**/*.stories.mdx'],
   addons: [
     {
       name: '@storybook/preset-typescript',
@@ -8,17 +9,14 @@ module.exports = {
         include: [path.resolve(__dirname, '../components')],
       },
     },
-  ],
-  stories: ['../components/**/*.stories.mdx'],
-  addons: [
-    '@storybook/addon-essentials',
-    '@storybook/addon-storysource',
-    '@storybook/addon-a11y',
     {
       name: '@storybook/addon-docs',
       options: {
         configureJSX: true,
       },
     },
+    '@storybook/addon-essentials',
+    '@storybook/addon-storysource',
+    '@storybook/addon-a11y',
   ],
 }
