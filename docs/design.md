@@ -1,1 +1,0 @@
-# Inteligir Design System
