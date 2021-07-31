@@ -1,4 +1,5 @@
 import NextDocument, { Html, Head, Main, NextScript } from "next/document";
+import { ColorModeScript } from "@chakra-ui/react";
 
 const NAME = "Inteligir";
 const TITLE = "Inteligir";
@@ -38,6 +39,7 @@ export default class Document extends NextDocument {
           <link rel="icon" href="/logo192.png" />
         </Head>
         <body>
+          <ColorModeScript />
           <Main />
           <NextScript />
         </body>
