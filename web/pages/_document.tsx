@@ -8,7 +8,6 @@ export default class Document extends NextDocument {
         <Head>
           <meta name="referrer" content="origin" />
           <meta name="application-name" content="Inteligir" />
-          <meta name="theme-color" content="#111827" />
           <meta name="robots" content="index, follow" />
           <meta property="fb:app_id" content="{FB_ID}" />
 
@@ -36,12 +35,12 @@ export default class Document extends NextDocument {
             color="#111827"
           />
           <link rel="shortcut icon" href="/favicon/favicon.ico" />
-          <meta name="msapplication-TileColor" content="#00aba9" />
+          <meta name="msapplication-TileColor" content="#111827" />
           <meta
             name="msapplication-config"
             content="/favicon/browserconfig.xml"
           />
-          <meta name="theme-color" content="#ffffff" />
+          <meta name="theme-color" content="#111827" />
         </Head>
         <body>
           <ColorModeScript />
