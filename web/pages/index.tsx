@@ -1,16 +1,14 @@
-import Head from "next/head";
+import { SEO } from "components/SEO";
 import { Center, Container, Heading, Text } from "@chakra-ui/react";
 
 export const HomePage = () => {
   return (
     <>
-      <Head>
-        <title>Inteligir</title>
-      </Head>
+      <SEO />
       <Center h="100vh">
         <Container textAlign="center">
           <Heading mb="2">Coming Soon</Heading>
-          <Text>Your bite-sized micro lesson portal</Text>
+          <Text>Bite-sized learning</Text>
         </Container>
       </Center>
     </>
