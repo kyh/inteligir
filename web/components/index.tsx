@@ -3,3 +3,4 @@ export { Text } from "./Text";
 export { Heading } from "./Heading";
 export { Page } from "./Page";
 export { Container } from "./Container";
+export { Button } from "./Button";
