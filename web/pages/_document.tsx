@@ -1,7 +1,29 @@
 import NextDocument, { Html, Head, Main, NextScript } from "next/document";
-import { ColorModeScript } from "@chakra-ui/react";
+import type { DocumentContext } from "next/document";
+import { getCssString } from "styles/stitches";
 
 export default class Document extends NextDocument {
+  static async getInitialProps(ctx: DocumentContext) {
+    try {
+      const initialProps = await NextDocument.getInitialProps(ctx);
+
+      return {
+        ...initialProps,
+        styles: (
+          <>
+            {initialProps.styles}
+            {/* Stitches CSS for SSR */}
+            <style
+              id="stitches"
+              dangerouslySetInnerHTML={{ __html: getCssString() }}
+            />
+          </>
+        ),
+      };
+    } finally {
+    }
+  }
+
   render() {
     return (
       <Html lang="en">
@@ -41,9 +63,87 @@ export default class Document extends NextDocument {
             content="/favicon/browserconfig.xml"
           />
           <meta name="theme-color" content="#111827" />
+
+          <link
+            rel="preload"
+            href="/fonts/subset-HelveticaNowText-It.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+          <link
+            rel="preload"
+            href="/fonts/subset-HelveticaNowText-It.woff"
+            as="font"
+            type="font/woff"
+            crossOrigin="anonymous"
+          />
+          <link
+            rel="preload"
+            href="/fonts/subset-HelveticaNowText-Regular.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+          <link
+            rel="preload"
+            href="/fonts/subset-HelveticaNowText-Regular.woff"
+            as="font"
+            type="font/woff"
+            crossOrigin="anonymous"
+          />
+          <link
+            rel="preload"
+            href="/fonts/subset-HelveticaNowText-Bold.woff2"
+            as="font"
+            type="font/woff2"
+            crossOrigin="anonymous"
+          />
+          <link
+            rel="preload"
+            href="/fonts/subset-HelveticaNowText-Bold.woff"
+            as="font"
+            type="font/woff"
+            crossOrigin="anonymous"
+          />
+          <style
+            dangerouslySetInnerHTML={{
+              __html: `
+@font-face {
+  font-family: "HelveticaNow";
+  src: url(/fonts/subset-HelveticaNowText-It.woff2)
+      format("woff2"),
+    url(/fonts/subset-HelveticaNowText-It.woff) format("woff");
+  font-weight: 400;
+  font-style: italic;
+  font-display: fallback;
+}
+
+@font-face {
+  font-family: "HelveticaNow";
+  src: url(/fonts/subset-HelveticaNowText-Regular.woff2)
+      format("woff2"),
+    url(/fonts/subset-HelveticaNowText-Regular.woff)
+      format("woff");
+  font-weight: 400;
+  font-style: normal;
+  font-display: fallback;
+}
+
+@font-face {
+  font-family: "HelveticaNow";
+  src: url(/fonts/subset-HelveticaNowText-Bold.woff2)
+      format("woff2"),
+    url(/fonts/subset-HelveticaNowText-Bold.woff) format("woff");
+  font-weight: 700;
+  font-style: normal;
+  font-display: fallback;
+}
+`,
+            }}
+          />
         </Head>
         <body>
-          <ColorModeScript />
           <Main />
           <NextScript />
         </body>
