@@ -1,6 +1,8 @@
 export { SEO } from "./SEO";
+export { Container } from "./Container";
+export { Logo } from "./Logo";
+
 export { Text } from "./Text";
 export { Heading } from "./Heading";
-export { Page } from "./Page";
-export { Container } from "./Container";
+
 export { Button } from "./Button";

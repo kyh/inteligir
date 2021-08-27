@@ -1,11 +1,15 @@
-import { SEO, Page, Container, Heading, Text } from "components";
+import { tw } from "util/styles";
+import { SEO, Heading, Text } from "components";
+
+const Page = tw("main", "flex h-screen");
+const Container = tw("section", "m-auto text-center");
 
 export const HomePage = () => {
   return (
     <>
       <SEO />
       <Page>
-        <Container tw="text-center m-auto">
+        <Container>
           <Heading>Coming Soon</Heading>
           <Text>Bite-sized learning</Text>
         </Container>

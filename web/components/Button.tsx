@@ -1,48 +1,74 @@
-import { forwardRef, ReactNode } from "react";
-import tw, { styled } from "twin.macro";
+import { createElement, forwardRef } from "react";
+import { cx, Modify, ComponentProps, Ref } from "util/styles";
 
-interface Props {
-  children?: ReactNode;
-  size?: keyof typeof variants["size"];
-  variant?: keyof typeof variants["variant"];
-  shape?: keyof typeof variants["shape"];
-}
+type Props = Modify<
+  ComponentProps,
+  {
+    variant?: keyof typeof variants["variant"];
+    align?: keyof typeof variants["align"];
+    size?: keyof typeof variants["size"];
+    shape?: keyof typeof variants["shape"];
+    full?: boolean;
+  }
+>;
 
-type Ref = ReactNode | HTMLElement | string;
-
-const base = tw`text-gray-900 bg-transparent inline-flex items-center border border-transparent rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800 transition-all`;
+const base =
+  "text-gray-900 bg-transparent inline-flex items-center border border-transparent transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800";
 
 const variants = {
-  size: {
-    xs: tw`px-2.5 py-1.5 text-xs`,
-    sm: tw`px-3 py-2 text-sm`,
-    md: tw`px-4 py-2 text-sm`,
-    lg: tw`px-4 py-2 text-base`,
-    xl: tw`px-6 py-3 text-base`,
-  },
   variant: {
-    primary: tw`text-white bg-gray-900 hover:bg-gray-800`,
-    secondary: tw`bg-gray-100 hover:bg-gray-200`,
-    outline: tw`hover:bg-gray-50 border-gray-600`,
-    ghost: tw`hover:bg-gray-50`,
-    link: tw`hover:underline p-0`,
+    primary: "text-white bg-gray-900 shadow-sm hover:bg-black",
+    secondary: "bg-gray-100 shadow-sm hover:bg-gray-200",
+    outline: "shadow-sm border-gray-600 hover:bg-gray-100",
+    ghost: "hover:bg-gray-100",
+    link: "hover:underline p-0",
+  },
+  align: {
+    start: "justify-start",
+    center: "justify-center",
+    end: "justify-end",
+  },
+  size: {
+    sq: "p-1",
+    xs: "px-2.5 py-1.5 text-xs",
+    sm: "px-3 py-2 text-sm",
+    md: "px-4 py-2 text-sm",
+    lg: "px-4 py-2 text-base",
+    xl: "px-6 py-3 text-base",
   },
   shape: {
-    default: tw`rounded`,
-    rounded: tw`rounded-full`,
+    default: "rounded",
+    rounded: "rounded-full",
+  },
+  full: {
+    true: "w-full",
+    false: "",
   },
 };
 
-const StyledButton = styled.button({
-  ...base,
-  variants,
-  defaultVariants: {
-    size: "md",
-    variant: "primary",
-    shape: "default",
+export const Button = forwardRef<Ref, Props>(function Button(
+  {
+    as = "button",
+    variant = "primary",
+    align = "center",
+    size = "md",
+    shape = "default",
+    full = false,
+    className = "",
+    children,
+    ...rest
   },
-});
+  ref
+) {
+  const cxn = cx(
+    base,
+    variants.variant[variant],
+    variants.align[align],
+    variants.size[size],
+    variants.shape[shape],
+    variants.full[full ? "true" : "false"],
+    className
+  );
 
-export const Button = forwardRef<Ref, Props>(function Button({ ...rest }, ref) {
-  return <StyledButton ref={ref} {...rest} />;
+  return createElement(as, { ref, className: cxn, ...rest }, children);
 });
