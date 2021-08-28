@@ -4,7 +4,7 @@ import { tw, cx } from "util/styles";
 import { FiSearch, FiBell } from "react-icons/fi";
 import { Button } from "components";
 
-export const TopbarHeader = tw.header`flex items-center bg-white relative z-10 h-[93px] border-b border-b-gray-400`;
+export const TopbarHeader = tw.header`flex flex-shrink-0 items-center bg-white relative z-10 h-20 border-b border-b-gray-400`;
 
 const user = {
   name: "Chelsea Hagon",
