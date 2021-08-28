@@ -1,8 +1,8 @@
 import { tw } from "util/styles";
 import { SEO, Heading, Text } from "components";
 
-const Page = tw("main", "flex h-screen");
-const Container = tw("section", "m-auto text-center");
+const Page = tw.main`flex h-screen`;
+const Container = tw.section`m-auto text-center`;
 
 export const HomePage = () => {
   return (

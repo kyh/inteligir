@@ -1,5 +1,5 @@
 import { createElement, forwardRef } from "react";
-import { cx, Modify, ComponentProps, Ref } from "util/styles";
+import { twc, cx, Modify, ComponentProps, Ref } from "util/styles";
 
 type Props = Modify<
   ComponentProps,
@@ -12,37 +12,36 @@ type Props = Modify<
   }
 >;
 
-const base =
-  "text-gray-900 bg-transparent inline-flex items-center border border-transparent transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800";
+const base = twc`text-gray-900 bg-transparent inline-flex items-center border border-transparent transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800`;
 
 const variants = {
   variant: {
-    primary: "text-white bg-gray-900 shadow-sm hover:bg-black",
-    secondary: "bg-gray-100 shadow-sm hover:bg-gray-200",
-    outline: "shadow-sm border-gray-600 hover:bg-gray-100",
-    ghost: "hover:bg-gray-100",
-    link: "hover:underline p-0",
+    primary: twc`text-white bg-gray-900 shadow-sm hover:bg-black`,
+    secondary: twc`bg-gray-100 shadow-sm hover:bg-gray-200`,
+    outline: twc`shadow-sm border-gray-600 hover:bg-gray-100`,
+    ghost: twc`hover:bg-gray-100`,
+    link: twc`hover:underline p-0`,
   },
   align: {
-    start: "justify-start",
-    center: "justify-center",
-    end: "justify-end",
+    start: twc`justify-start`,
+    center: twc`justify-center`,
+    end: twc`justify-end`,
   },
   size: {
-    sq: "p-1",
-    xs: "px-2.5 py-1.5 text-xs",
-    sm: "px-3 py-2 text-sm",
-    md: "px-4 py-2 text-sm",
-    lg: "px-4 py-2 text-base",
-    xl: "px-6 py-3 text-base",
+    sq: twc`p-1`,
+    xs: twc`px-2.5 py-1.5 text-xs`,
+    sm: twc`px-3 py-2 text-sm`,
+    md: twc`px-4 py-2 text-sm`,
+    lg: twc`px-4 py-2 text-base`,
+    xl: twc`px-6 py-3 text-base`,
   },
   shape: {
-    default: "rounded",
-    rounded: "rounded-full",
+    default: twc`rounded`,
+    rounded: twc`rounded-full`,
   },
   full: {
-    true: "w-full",
-    false: "",
+    true: twc`w-full`,
+    false: twc``,
   },
 };
 
