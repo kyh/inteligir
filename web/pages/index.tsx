@@ -10,7 +10,7 @@ export const HomePage = () => {
       <SEO />
       <Page>
         <Container>
-          <Heading>Coming Soon</Heading>
+          <Heading className="mb-2">Coming Soon</Heading>
           <Text>Bite-sized learning</Text>
         </Container>
       </Page>
