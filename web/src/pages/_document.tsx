@@ -1,4 +1,5 @@
 import NextDocument, { Html, Head, Main, NextScript } from "next/document";
+import { GA_TRACKING_ID } from "util/analytics";
 
 export default class Document extends NextDocument {
   render() {
@@ -86,37 +87,53 @@ export default class Document extends NextDocument {
           <style
             dangerouslySetInnerHTML={{
               __html: `
-@font-face {
-  font-family: "HelveticaNow";
-  src: url(/fonts/subset-HelveticaNowText-It.woff2)
-      format("woff2"),
-    url(/fonts/subset-HelveticaNowText-It.woff) format("woff");
-  font-weight: 400;
-  font-style: italic;
-  font-display: fallback;
-}
+                @font-face {
+                  font-family: "HelveticaNow";
+                  src: url(/fonts/subset-HelveticaNowText-It.woff2)
+                      format("woff2"),
+                    url(/fonts/subset-HelveticaNowText-It.woff) format("woff");
+                  font-weight: 400;
+                  font-style: italic;
+                  font-display: fallback;
+                }
 
-@font-face {
-  font-family: "HelveticaNow";
-  src: url(/fonts/subset-HelveticaNowText-Regular.woff2)
-      format("woff2"),
-    url(/fonts/subset-HelveticaNowText-Regular.woff)
-      format("woff");
-  font-weight: 400;
-  font-style: normal;
-  font-display: fallback;
-}
+                @font-face {
+                  font-family: "HelveticaNow";
+                  src: url(/fonts/subset-HelveticaNowText-Regular.woff2)
+                      format("woff2"),
+                    url(/fonts/subset-HelveticaNowText-Regular.woff)
+                      format("woff");
+                  font-weight: 400;
+                  font-style: normal;
+                  font-display: fallback;
+                }
 
-@font-face {
-  font-family: "HelveticaNow";
-  src: url(/fonts/subset-HelveticaNowText-Bold.woff2)
-      format("woff2"),
-    url(/fonts/subset-HelveticaNowText-Bold.woff) format("woff");
-  font-weight: 700;
-  font-style: normal;
-  font-display: fallback;
-}
-`,
+                @font-face {
+                  font-family: "HelveticaNow";
+                  src: url(/fonts/subset-HelveticaNowText-Bold.woff2)
+                      format("woff2"),
+                    url(/fonts/subset-HelveticaNowText-Bold.woff) format("woff");
+                  font-weight: 700;
+                  font-style: normal;
+                  font-display: fallback;
+                }
+              `,
+            }}
+          />
+          <script
+            async
+            src={`https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`}
+          />
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                window.dataLayer = window.dataLayer || [];
+                function gtag(){dataLayer.push(arguments);}
+                gtag('js', new Date());
+                gtag('config', '${GA_TRACKING_ID}', {
+                  page_path: window.location.pathname,
+                });
+              `,
             }}
           />
         </Head>
