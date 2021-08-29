@@ -1,3 +1,0 @@
-import { tw } from "util/styles";
-
-export const Container = tw.section`relative min-h-screen max-w-3xl mx-auto sm:px-2 lg:max-w-screen-xl lg:px-4 lg:flex`;
