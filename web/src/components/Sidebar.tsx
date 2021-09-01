@@ -36,7 +36,17 @@ export const SidebarNav = () => {
         New Lesson
       </Button>
       <footer className="py-4 mt-auto text-xs border-t border-t-gray-400">
-        <div className="mb-1">©2021, Kyh Inc.</div>
+        <div className="mb-1">
+          ©{new Date().getFullYear()}, Made with{" "}
+          <a
+            className="hover:underline"
+            href="https://github.com/kyh/inteligir"
+            target="_blank"
+            rel="noreferrer"
+          >
+            💻
+          </a>
+        </div>
         <div>
           {footerNavigation.map((item) => (
             <a
