@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 import { useState } from "react";
 import Spinner from "../components/Spinner";
 import { Renderer, Tester } from "../interfaces";

@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, Component } from "react";
 import { StoryProps, GlobalCtx } from "../interfaces";
 import GlobalContext from "../context/Global";
 
@@ -16,7 +16,7 @@ const Story = (props: StoryProps) => {
   };
 
   const getStoryContent = () => {
-    let InnerContent = props.story.content;
+    let InnerContent = props.story.content as unknown as typeof Component;
     let config = { width, height, loader, header, storyStyles };
     return (
       <InnerContent

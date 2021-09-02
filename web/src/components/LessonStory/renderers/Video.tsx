@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/rules-of-hooks */
 import { useState, useRef, useEffect } from "react";
 import Spinner from "../components/Spinner";
 import { Renderer, Tester } from "../interfaces";
@@ -41,16 +42,18 @@ export const renderer: Renderer = ({
   };
 
   const videoLoaded = () => {
-    messageHandler("UPDATE_VIDEO_DURATION", { duration: vid.current.duration });
+    messageHandler("UPDATE_VIDEO_DURATION", {
+      duration: vid.current?.duration,
+    });
     setLoaded(true);
     vid.current
-      .play()
+      ?.play()
       .then(() => {
         action("play");
       })
       .catch(() => {
         setMuted(true);
-        vid.current.play().finally(() => {
+        vid.current?.play().finally(() => {
           action("play");
         });
       });
