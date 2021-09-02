@@ -40,7 +40,7 @@
     "firebase": "^9.0.1",
     "firebase-admin": "^9.4.2",
     "framer-motion": "^4.1.17",
-    "next": "^11.1.0",
+    "next": "^11.1.1",
     "query-string": "^7.0.0",
     "raw-body": "^2.4.1",
     "react": "^17.0.2",
