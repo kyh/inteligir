@@ -77,7 +77,7 @@ export const useQuery = (query: Query | "") => {
   // Gives us previous query object if query is the same, ensuring
   // we don't trigger useEffect on every render due to query technically
   // being a new object reference on every render.
-  const queryCached = useMemoCompare(query, (prevQuery: Query) => {
+  const queryCached = useMemoCompare(query, (prevQuery) => {
     // Use built-in Firestore isEqual method to determine if "equal"
     return prevQuery && query && queryEqual(query, prevQuery);
   });
@@ -113,7 +113,10 @@ export const useQuery = (query: Query | "") => {
   return { ...state, dispatch };
 };
 
-const useMemoCompare = <T>(next: T, compare: (prev: T, next: T) => boolean) => {
+const useMemoCompare = <T>(
+  next: T,
+  compare: (prev: T, next: T) => T | boolean
+) => {
   // Ref for storing previous value
   const previousRef = useRef(next);
   const previous = previousRef.current;
