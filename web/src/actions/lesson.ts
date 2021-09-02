@@ -1,18 +1,28 @@
 import {
-  firebase,
+  auth,
   firestore,
   useQuery,
   prepareDocForCreate,
   prepareDocForUpdate,
 } from "util/db";
 import { useUserBlocks } from "actions/user";
+import {
+  collection,
+  query,
+  orderBy,
+  where,
+  doc,
+  addDoc,
+  updateDoc,
+  deleteDoc,
+} from "firebase/firestore";
 
 export const useLessons = () => {
-  const currentUser = firebase.auth().currentUser;
+  const currentUser = auth.currentUser;
   const uid = currentUser && currentUser.uid;
 
   const lessonsQuery = useQuery(
-    firestore.collection("lessons").orderBy("createdAt", "desc")
+    query(collection(firestore, "lessons"), orderBy("createdAt", "desc"))
   );
 
   const { status: userBlockStatus, dataMap } = useUserBlocks(uid || "");
@@ -33,54 +43,46 @@ export const useLessons = () => {
 };
 
 export const useLesson = (lessonId = "") => {
-  return useQuery(lessonId && firestore.collection("lessons").doc(lessonId));
+  return useQuery(
+    lessonId && query(collection(doc(firestore, lessonId), "lessons"))
+  );
 };
 
 export const createLesson = (lesson: any) => {
-  lesson._likeCount = 0;
-  lesson._flagged = false;
-  return firestore
-    .collection("lessons")
-    .add(prepareDocForCreate(lesson))
-    .catch((error) => {
-      alert(`Whoops, couldn't create the lesson: ${error.message}`);
-    });
+  return addDoc(
+    collection(firestore, "lessons"),
+    prepareDocForCreate({ ...lesson, _likeCount: 0, _flagged: false })
+  );
 };
 
 export const updateLesson = (lessonId = "", lesson: any) => {
-  return firestore
-    .collection("lessons")
-    .doc(lessonId)
-    .update(prepareDocForUpdate(lesson))
-    .catch((error) => {
-      alert(`Whoops, couldn't edit the lesson: ${error.message}`);
-    });
+  return updateDoc(
+    doc(collection(firestore, "lessons"), lessonId),
+    prepareDocForUpdate(lesson)
+  );
 };
 
 export const deleteLesson = (lessonId = "") => {
-  return firestore
-    .collection("lessons")
-    .doc(lessonId)
-    .delete()
-    .catch((error) => {
-      alert(`Whoops, couldn't delete the lesson: ${error.message}`);
-    });
+  return deleteDoc(doc(collection(firestore, "lessons"), lessonId));
 };
 
 // Flagging a Lesson
 export const flagLesson = (lessonId = "") => {
-  const flag = prepareDocForCreate({ lessonId });
-  return firestore.collection("lessonFlags").add(flag);
+  return addDoc(
+    collection(firestore, "lessons"),
+    prepareDocForCreate({ lessonId })
+  );
 };
 
 export const unflagLesson = (flagId = "") => {
-  return firestore.collection("lessonFlags").doc(flagId).delete();
+  return deleteDoc(doc(collection(firestore, "lessonFlags"), flagId));
 };
 
 // Liking a Lesson
 export const useLessonLikes = (uid = "") => {
   const lessonLikesQuery = useQuery(
-    uid && firestore.collection("lessonLikes").where("createdBy", "==", uid)
+    uid &&
+      query(collection(firestore, "lessonLikes"), where("createdBy", "==", uid))
   );
 
   const dataMap = lessonLikesQuery.data
@@ -97,10 +99,12 @@ export const useLessonLikes = (uid = "") => {
 };
 
 export const likeLesson = (lessonId = "") => {
-  const like = prepareDocForCreate({ lessonId });
-  return firestore.collection("lessonLikes").add(like);
+  return addDoc(
+    collection(firestore, "lessonLikes"),
+    prepareDocForCreate({ lessonId })
+  );
 };
 
-export const unlikeLesson = (likeId = "") => {
-  return firestore.collection("lessonLikes").doc(likeId).delete();
+export const unlikeLesson = (flagId = "") => {
+  return deleteDoc(doc(collection(firestore, "lessonLikes"), flagId));
 };

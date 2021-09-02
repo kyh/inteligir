@@ -1,21 +1,28 @@
 import { useReducer, useEffect, useRef } from "react";
-import { firebase, firestore } from "util/firebase";
+import {
+  serverTimestamp,
+  queryEqual,
+  onSnapshot,
+  Query,
+} from "firebase/firestore";
 
-export { firebase, firestore };
+import { firebase, auth, firestore } from "util/firebase";
+
+export { firebase, auth, firestore };
 
 export const prepareDocForCreate = (doc: any) => {
-  const currentUser = firebase.auth().currentUser;
+  const currentUser = auth.currentUser;
   doc.createdBy = currentUser ? currentUser.uid : null;
   doc.createdByDisplayName = currentUser ? currentUser.displayName : null;
-  doc.createdAt = firebase.firestore.Timestamp.now();
+  doc.createdAt = serverTimestamp();
 
   return doc;
 };
 
 export const prepareDocForUpdate = (doc: any) => {
-  const currentUser = firebase.auth().currentUser;
+  const currentUser = auth.currentUser;
   doc.updatedBy = currentUser ? currentUser.uid : null;
-  doc.updatedAt = firebase.firestore.Timestamp.now();
+  doc.updatedAt = serverTimestamp();
 
   // don't save the id as part of the document
   delete doc.id;
@@ -53,7 +60,7 @@ const reducer = (state: any, action: any) => {
   }
 };
 
-export const useQuery = (query: any) => {
+export const useQuery = (query: Query | "") => {
   // Our initial state
   // Start with an "idle" status if query is falsy, as that means hook consumer is
   // waiting on required data before creating the query object.
@@ -70,9 +77,9 @@ export const useQuery = (query: any) => {
   // Gives us previous query object if query is the same, ensuring
   // we don't trigger useEffect on every render due to query technically
   // being a new object reference on every render.
-  const queryCached = useMemoCompare(query, (prevQuery: any) => {
+  const queryCached = useMemoCompare(query, (prevQuery: Query) => {
     // Use built-in Firestore isEqual method to determine if "equal"
-    return prevQuery && query && query.isEqual(prevQuery);
+    return prevQuery && query && queryEqual(query, prevQuery);
   });
 
   useEffect(() => {
@@ -87,12 +94,13 @@ export const useQuery = (query: any) => {
 
     // Subscribe to query with onSnapshot
     // Will unsubscribe on cleanup since this returns an unsubscribe function
-    return queryCached.onSnapshot(
-      (response: any) => {
+    return onSnapshot(
+      queryCached,
+      (response) => {
         // Get data for collection or doc
-        const data = response.docs
-          ? getCollectionData(response)
-          : getDocData(response);
+        const data = response.docs.map((d) => {
+          d.exists() === true ? { id: d.id, ...d.data() } : null;
+        });
 
         dispatch({ type: "success", payload: data });
       },
@@ -105,13 +113,9 @@ export const useQuery = (query: any) => {
   return { ...state, dispatch };
 };
 
-const getDocData = (doc: any) =>
-  doc.exists === true ? { id: doc.id, ...doc.data() } : null;
-const getCollectionData = (collection: any) => collection.docs.map(getDocData);
-
-const useMemoCompare = (next: any, compare: any) => {
+const useMemoCompare = <T>(next: T, compare: (prev: T, next: T) => boolean) => {
   // Ref for storing previous value
-  const previousRef = useRef();
+  const previousRef = useRef(next);
   const previous = previousRef.current;
 
   // Pass previous and next value to compare function
