@@ -9,7 +9,27 @@ import {
 } from "react";
 import router from "next/router";
 import queryString from "query-string";
-import { firebase, firestore, useQuery } from "util/db";
+import {
+  sendEmailVerification,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInAnonymously,
+  signInWithPopup,
+  checkActionCode,
+  applyActionCode,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  TwitterAuthProvider,
+  GithubAuthProvider,
+  sendPasswordResetEmail as fbSendPasswordResetEmail,
+  confirmPasswordReset as fbConfirmPasswordReset,
+  updateEmail as fbUpdateEmail,
+  updatePassword as fbUpdatePassword,
+  updateProfile as fbUpdateProfile,
+  UserCredential,
+} from "firebase/auth";
+import { collection, query, doc, setDoc } from "firebase/firestore";
+import { auth, firestore, useQuery } from "util/db";
 import { getFriendlyPlanId } from "util/prices";
 
 // Whether to merge extra user data from database into auth.user
@@ -20,14 +40,11 @@ const EMAIL_VERIFICATION = false;
 const ANALYTICS_IDENTIFY = false;
 
 export const useUser = (uid = "") => {
-  return useQuery(uid && firestore.collection("users").doc(uid));
+  return useQuery(uid && query(collection(doc(firestore, uid), "users")));
 };
 
 export const upsertUser = (uid = "", data = {}) => {
-  return firestore
-    .collection("users")
-    .doc(uid)
-    .set({ ...data, uid }, { merge: true });
+  return setDoc(doc(firestore, uid), { ...data, uid }, { merge: true });
 };
 
 type ContextProps = {
@@ -36,11 +53,14 @@ type ContextProps = {
     username: string,
     email: string,
     password: string
-  ) => Promise<void> | undefined;
-  signin: (email: string, password: string) => Promise<void> | undefined;
+  ) => Promise<UserCredential> | undefined;
+  signin: (
+    email: string,
+    password: string
+  ) => Promise<UserCredential> | undefined;
   signinWithProvider: (
     _name: "google" | "facebook"
-  ) => Promise<void> | undefined;
+  ) => Promise<UserCredential> | undefined;
   signout: () => Promise<void> | undefined;
   sendPasswordResetEmail: (_email: string) => Promise<void> | undefined;
   confirmPasswordReset: (
@@ -92,7 +112,7 @@ const useAuthProvider = () => {
 
       // Send email verification if enabled
       if (EMAIL_VERIFICATION) {
-        firebase.auth().currentUser?.sendEmailVerification();
+        sendEmailVerification(auth.currentUser!);
       }
     }
 
@@ -102,27 +122,21 @@ const useAuthProvider = () => {
   };
 
   const getCurrentUserClaim = async () => {
-    const currentUser = firebase.auth().currentUser;
+    const currentUser = auth.currentUser;
     await currentUser?.getIdToken(true);
     return currentUser?.getIdTokenResult();
   };
 
   const signup = (email = "", password = "") => {
-    return firebase
-      .auth()
-      .createUserWithEmailAndPassword(email, password)
-      .then(handleAuth);
+    return createUserWithEmailAndPassword(auth, email, password);
   };
 
   const signin = (email = "", password = "") => {
-    return firebase
-      .auth()
-      .signInWithEmailAndPassword(email, password)
-      .then(handleAuth);
+    return signInWithEmailAndPassword(auth, email, password);
   };
 
   const signinWithProvider = (name = "") => {
-    if (!name) return firebase.auth().signInAnonymously().then(handleAuth);
+    if (!name) return signInAnonymously(auth).then(handleAuth);
     // Get provider data by name ("password", "google", etc)
     const providerData = allProviders.find((p) => p.name === name);
     if (!providerData || !providerData.providerMethod) return;
@@ -133,36 +147,33 @@ const useAuthProvider = () => {
       provider.setCustomParameters(providerData.parameters);
     }
 
-    return firebase.auth().signInWithPopup(provider).then(handleAuth);
+    return signInWithPopup(auth, provider).then(handleAuth);
   };
 
   const signout = () => {
-    return firebase.auth().signOut();
+    return auth.signOut();
   };
 
   const sendPasswordResetEmail = (email = "") => {
-    return firebase.auth().sendPasswordResetEmail(email);
+    return fbSendPasswordResetEmail(auth, email);
   };
 
   const confirmPasswordReset = (password = "", code = "") => {
     // Get code from query string object
     const resetCode = code || getFromQueryString("oobCode") || "";
 
-    return firebase.auth().confirmPasswordReset(resetCode, password);
+    return fbConfirmPasswordReset(auth, resetCode, password);
   };
 
   const updateEmail = (email = "") => {
-    return firebase
-      .auth()
-      .currentUser?.updateEmail(email)
-      .then(() => {
-        // Update user in state (since onAuthStateChanged doesn't get called)
-        setUser(firebase.auth().currentUser);
-      });
+    return fbUpdateEmail(auth.currentUser!, email).then(() => {
+      // Update user in state (since onAuthStateChanged doesn't get called)
+      setUser(auth.currentUser);
+    });
   };
 
   const updatePassword = (password = "") => {
-    return firebase.auth().currentUser?.updatePassword(password);
+    return fbUpdatePassword(auth.currentUser!, password);
   };
 
   // Update auth user and persist to database (including any custom values in data)
@@ -172,7 +183,7 @@ const useAuthProvider = () => {
 
     // Update auth email
     if (email) {
-      await firebase.auth().currentUser?.updateEmail(email);
+      await fbUpdateEmail(auth.currentUser!, email);
     }
 
     // Update auth profile fields
@@ -180,19 +191,19 @@ const useAuthProvider = () => {
       let fields: Record<string, string> = {};
       if (displayName) fields.displayName = displayName;
       if (picture) fields.photoURL = picture;
-      await firebase.auth().currentUser?.updateProfile(fields);
+      await fbUpdateProfile(auth.currentUser!, fields);
     }
 
     // Persist all data to the database
-    await upsertUser(firebase.auth().currentUser?.uid, data);
+    await upsertUser(auth.currentUser?.uid, data);
 
     // Update user in state
-    setUser(firebase.auth().currentUser);
+    setUser(auth.currentUser);
   };
 
   useEffect(() => {
     // Subscribe to user on mount
-    const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         setUser(user);
       } else {
@@ -328,18 +339,16 @@ export const requireAuth = (
 // Handle Firebase email link for reverting to original email
 export const handleRecoverEmail = (code = "") => {
   let originalEmail: string | null | undefined;
-  return firebase
-    .auth()
-    .checkActionCode(code)
+  return checkActionCode(auth, code)
     .then((info) => {
       originalEmail = info.data.email;
       // Revert to original email by applying action code
-      return firebase.auth().applyActionCode(code);
+      return applyActionCode(auth, code);
     })
     .then(() => {
       // Send password reset email so user can change their pass if they
       // think someone else has access to their account.
-      return firebase.auth().sendPasswordResetEmail(originalEmail || "");
+      return fbSendPasswordResetEmail(auth, originalEmail || "");
     })
     .then(() => {
       // Return original email so it can be displayed by calling component
@@ -349,7 +358,7 @@ export const handleRecoverEmail = (code = "") => {
 
 // Handle Firebase email link for verifying email
 export const handleVerifyEmail = (code = "") => {
-  return firebase.auth().applyActionCode(code);
+  return applyActionCode(auth, code);
 };
 
 const allProviders = [
@@ -360,12 +369,12 @@ const allProviders = [
   {
     id: "google.com",
     name: "google",
-    providerMethod: firebase.auth.GoogleAuthProvider,
+    providerMethod: GoogleAuthProvider,
   },
   {
     id: "facebook.com",
     name: "facebook",
-    providerMethod: firebase.auth.FacebookAuthProvider,
+    providerMethod: FacebookAuthProvider,
     parameters: {
       // Tell fb to show popup size UI instead of full website
       display: "popup",
@@ -374,12 +383,12 @@ const allProviders = [
   {
     id: "twitter.com",
     name: "twitter",
-    providerMethod: firebase.auth.TwitterAuthProvider,
+    providerMethod: TwitterAuthProvider,
   },
   {
     id: "github.com",
     name: "github",
-    providerMethod: firebase.auth.GithubAuthProvider,
+    providerMethod: GithubAuthProvider,
   },
 ];
 
@@ -395,7 +404,7 @@ const useIdentifyUser = (user: any) => {
 // This is used to ensure auth is ready before any writing to the db can happen
 const waitForFirebase = () => {
   return new Promise((resolve) => {
-    const unsubscribe = firebase.auth().onAuthStateChanged((user) => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         resolve(user); // Resolve promise when we have a user
         unsubscribe(); // Prevent from firing again

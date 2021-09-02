@@ -37,7 +37,7 @@
     "@react-hook/hotkey": "^3.1.0",
     "@stripe/stripe-js": "^1.12.1",
     "date-fns": "^2.18.0",
-    "firebase": "^8.7.1",
+    "firebase": "^9.0.1",
     "firebase-admin": "^9.4.2",
     "framer-motion": "^4.1.17",
     "next": "^11.1.0",
