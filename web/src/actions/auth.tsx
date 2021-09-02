@@ -5,6 +5,7 @@ import {
   useContext,
   createContext,
   ReactNode,
+  ComponentType,
 } from "react";
 import router from "next/router";
 import queryString from "query-string";
@@ -287,11 +288,14 @@ const usePrepareUser = (user: any) => {
   }, [user, userDbQuery]);
 };
 
-const getDisplayName = (Component: any) =>
+const getDisplayName = (Component: ComponentType) =>
   Component.displayName || Component.name || "Component";
 
 // A Higher Order Component for requiring authentication
-export const requireAuth = (Component: any, redirectBack: boolean) => {
+export const requireAuth = (
+  Component: ComponentType,
+  redirectBack: boolean
+) => {
   const WithAuth = (props: any) => {
     // Get authenticated user
     const auth = useAuth();
@@ -317,7 +321,6 @@ export const requireAuth = (Component: any, redirectBack: boolean) => {
   };
 
   WithAuth.displayName = `WithAuth(${getDisplayName(Component)})`;
-  WithAuth.Layout = Component.Layout;
 
   return WithAuth;
 };
