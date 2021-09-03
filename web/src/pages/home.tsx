@@ -3,7 +3,7 @@ import { SEO, MainLayout, Card, List, Heading, Button } from "components";
 import { cx } from "util/styles";
 import { lessons } from "data/lessons";
 import { comments } from "data/comments";
-import Stories, { WithSeeMore } from "components/LessonStory";
+import Stories from "components/LessonStory";
 
 const Story1 = () => (
   <div style={contentStyle}>
