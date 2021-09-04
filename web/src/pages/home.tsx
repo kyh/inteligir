@@ -89,7 +89,6 @@ const Aside = () => {
     <section aria-labelledby="comments-section" className="my-6 overflow-auto">
       <Heading
         id="comments-section"
-        as="h2"
         className="sticky top-0 pb-2 mb-0 text-lg bg-gradient-to-b from-white"
       >
         Comments
@@ -132,7 +131,7 @@ export const HomePage = () => {
       <MainLayout title={<Heading>Home</Heading>} aside={<Aside />}>
         <ul role="list">
           {lessons.map((lesson) => (
-            <Card as="li" key={lesson.id}>
+            <Card key={lesson.id}>
               <header className="flex space-x-3">
                 <div className="flex-shrink-0">
                   <img
@@ -161,8 +160,8 @@ export const HomePage = () => {
                 </div>
                 <div className="flex self-center flex-shrink-0">
                   <Button
-                    variant="outline"
-                    size="xs"
+                    $variant="outline"
+                    $size="xs"
                     className={cx(lesson.following && "opacity-50")}
                   >
                     {lesson.following ? "Following" : "Follow"}

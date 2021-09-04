@@ -18,21 +18,20 @@ export const SidebarNav = () => {
     <section className="flex flex-col h-full">
       <nav className="flex flex-col py-6">
         {navigation.map((item) => (
-          <Button
-            key={item.name}
-            as="a"
-            href={item.href}
-            variant="ghost"
-            align="start"
-            shape="rounded"
-            className="my-1 -ml-4"
-          >
-            <item.icon aria-hidden="true" className="w-5 h-5 mr-4" />
-            <span className="truncate">{item.name}</span>
-          </Button>
+          <a key={item.name} href={item.href}>
+            <Button
+              $variant="ghost"
+              $align="start"
+              $shape="rounded"
+              className="my-1 -ml-4"
+            >
+              <item.icon aria-hidden="true" className="w-5 h-5 mr-4" />
+              <span className="truncate">{item.name}</span>
+            </Button>
+          </a>
         ))}
       </nav>
-      <Button shape="rounded" full>
+      <Button $shape="rounded" $full>
         New Lesson
       </Button>
       <footer className="py-4 mt-auto text-xs border-t border-t-gray-400">
