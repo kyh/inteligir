@@ -19,11 +19,11 @@ export const MainLayout = ({ title, children, aside }: Props) => {
           {title}
         </div>
         <div className="hidden xl:flex items-center flex-none border-b border-b-gray-400 w-[300px] space-x-4 justify-end">
-          <Button shape="rounded" variant="ghost" size="sq">
+          <Button $shape="rounded" $variant="ghost" $size="sq">
             <span className="sr-only">Search</span>
             <FiSearch className="w-6 h-6" aria-hidden="true" />
           </Button>
-          <Button shape="rounded" variant="ghost" size="sq">
+          <Button $shape="rounded" $variant="ghost" $size="sq">
             <span className="sr-only">View notifications</span>
             <FiBell className="w-6 h-6" aria-hidden="true" />
           </Button>
