@@ -10,18 +10,26 @@ import { firebase, auth, firestore } from "util/firebase";
 
 export { firebase, auth, firestore };
 
+const extractUserData = () => {
+  const user = auth.currentUser;
+  if (!user) return null;
+  return {
+    uid: user.uid,
+    email: user.email,
+    displayName: user.displayName,
+    photoURL: user.photoURL,
+  };
+};
+
 export const prepareDocForCreate = (doc: any) => {
-  const currentUser = auth.currentUser;
-  doc.createdBy = currentUser ? currentUser.uid : null;
-  doc.createdByDisplayName = currentUser ? currentUser.displayName : null;
+  doc.createdBy = extractUserData();
   doc.createdAt = serverTimestamp();
 
   return doc;
 };
 
 export const prepareDocForUpdate = (doc: any) => {
-  const currentUser = auth.currentUser;
-  doc.updatedBy = currentUser ? currentUser.uid : null;
+  doc.updatedBy = extractUserData();
   doc.updatedAt = serverTimestamp();
 
   // don't save the id as part of the document
