@@ -6,6 +6,7 @@ import {
   prepareDocForUpdate,
 } from "util/db";
 import { useUserBlocks } from "actions/user";
+import { UserInfo } from "firebase/auth";
 import {
   collection,
   query,
@@ -16,6 +17,19 @@ import {
   updateDoc,
   deleteDoc,
 } from "firebase/firestore";
+
+export type Lesson = {
+  id: string;
+  _likeCount: number;
+  _commentCount: number;
+  _viewCount: number;
+  _flagged: boolean;
+  following: boolean;
+  createdBy: Partial<UserInfo>;
+  createdAt: string;
+  hashtags: string[];
+  stories: any[];
+};
 
 export const useLessons = () => {
   const currentUser = auth.currentUser;
@@ -48,14 +62,20 @@ export const useLesson = (lessonId = "") => {
   );
 };
 
-export const createLesson = (lesson: any) => {
+export const createLesson = (lesson: Partial<Lesson>) => {
   return addDoc(
     collection(firestore, "lessons"),
-    prepareDocForCreate({ ...lesson, _likeCount: 0, _flagged: false })
+    prepareDocForCreate({
+      ...lesson,
+      _likeCount: 0,
+      _commentCount: 0,
+      _viewCount: 0,
+      _flagged: false,
+    })
   );
 };
 
-export const updateLesson = (lessonId = "", lesson: any) => {
+export const updateLesson = (lessonId = "", lesson: Partial<Lesson>) => {
   return updateDoc(
     doc(collection(firestore, "lessons"), lessonId),
     prepareDocForUpdate(lesson)
@@ -69,7 +89,7 @@ export const deleteLesson = (lessonId = "") => {
 // Flagging a Lesson
 export const flagLesson = (lessonId = "") => {
   return addDoc(
-    collection(firestore, "lessons"),
+    collection(firestore, "lessonFlags"),
     prepareDocForCreate({ lessonId })
   );
 };
