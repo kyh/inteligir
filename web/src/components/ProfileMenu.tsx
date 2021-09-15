@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import { Menu, Transition } from "@headlessui/react";
-import { cx } from "util/styles";
+import { classnames } from "tailwindcss-classnames";
 
 const user = {
   name: "Chelsea Hagon",
@@ -37,10 +37,14 @@ export const ProfileMenu = () => {
               {({ active }) => (
                 <a
                   href={item.href}
-                  className={cx(
-                    "block py-2 px-4 text-sm text-gray-700",
-                    active && "bg-gray-100"
-                  )}
+                  className={classnames({
+                    block: true,
+                    "py-2": true,
+                    "px-4": true,
+                    "text-sm": true,
+                    "text-gray-700": true,
+                    "bg-gray-100": active,
+                  })}
                 >
                   {item.name}
                 </a>

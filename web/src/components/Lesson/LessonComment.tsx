@@ -11,8 +11,8 @@ export const LessonComment = ({ comment }: Props) => {
       <div className="flex-shrink-0">
         <img
           className="w-8 h-8 rounded-full"
-          src={comment.createdBy.photoURL}
-          alt={comment.createdBy.displayName}
+          src={comment.createdBy.photoURL || ""}
+          alt={comment.createdBy.displayName || ""}
         />
       </div>
       <div className="flex-1 min-w-0">
