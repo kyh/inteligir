@@ -10,11 +10,11 @@ type Props = {
 
 const variants = {
   variant: {
-    primary: `text-white bg-gray-900 shadow-sm hover:bg-black`,
-    secondary: `bg-gray-100 shadow-sm hover:bg-gray-200`,
-    outline: `shadow-sm border-gray-600 hover:bg-gray-100`,
-    ghost: `hover:bg-gray-100`,
-    link: `hover:underline p-0`,
+    primary: `text-white bg-gray-900 border-transparent shadow-sm hover:bg-black`,
+    secondary: `text-gray-900 bg-gray-100 border-transparent shadow-sm hover:bg-gray-200`,
+    outline: `text-gray-900 bg-transparent border-gray-600 shadow-sm hover:bg-gray-100`,
+    ghost: `text-gray-900 bg-transparent border-transparent hover:bg-gray-100`,
+    link: `text-gray-900 bg-transparent border-transparent hover:underline p-0`,
   },
   align: {
     start: `justify-start`,
@@ -36,7 +36,7 @@ const variants = {
 };
 
 export const Button = tw.button<Props>`
-  text-gray-900 bg-transparent inline-flex items-center border border-transparent transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800
+  inline-flex items-center border transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800
   ${(props) => variants["variant"][props.$variant || "primary"]}
   ${(props) => variants["align"][props.$align || "center"]}
   ${(props) => variants["size"][props.$size || "md"]}

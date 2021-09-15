@@ -27,6 +27,7 @@ import {
   updatePassword as fbUpdatePassword,
   updateProfile as fbUpdateProfile,
   UserCredential,
+  UserInfo,
 } from "firebase/auth";
 import { collection, query, doc, setDoc } from "firebase/firestore";
 import { auth, firestore, useQuery } from "util/db";
@@ -48,7 +49,7 @@ export const upsertUser = (uid = "", data = {}) => {
 };
 
 type ContextProps = {
-  user: Object | undefined;
+  user: UserInfo | null | undefined | false;
   signup: (
     username: string,
     email: string,
@@ -91,7 +92,7 @@ export const useAuth = () => {
 
 const useAuthProvider = () => {
   // Store auth user object
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<false | null | UserInfo>(null);
 
   // Format final user object and merge extra data from database
   const finalUser = usePrepareUser(user);

@@ -1,178 +1,212 @@
-export const lessons = [
+import { Lesson } from "actions/lesson";
+
+export const lessons: Lesson[] = [
   {
     id: "81614",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2700,
+    _flagged: false,
     following: false,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
   {
     id: "81615",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2.7,
+    _flagged: false,
     following: true,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
   {
     id: "81616",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2.7,
+    _flagged: false,
     following: false,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
   {
     id: "81617",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2.7,
+    _flagged: false,
     following: false,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
   {
     id: "81618",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2.7,
+    _flagged: false,
     following: false,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
   {
     id: "81619",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2.7,
+    _flagged: false,
     following: false,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
   {
     id: "81620",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2.7,
+    _flagged: false,
     following: false,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
   {
     id: "81621",
-    likes: "29",
-    replies: "11",
-    views: "2.7k",
+    _likeCount: 29,
+    _commentCount: 11,
+    _viewCount: 2.7,
+    _flagged: false,
     following: false,
-    author: {
-      name: "Dries Vincent",
-      imageUrl:
+    createdBy: {
+      displayName: "Dries Vincent",
+      photoURL:
         "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80",
-      href: "#",
     },
-    date: "December 9 at 11:43 AM",
-    datetime: "2020-12-09T11:43:00",
+    createdAt: "December 9 at 11:43 AM",
     hashtags: ["javascript", "typescript"],
-    href: "#",
-    title: "What would you have done differently if you ran Jurassic Park?",
-    body: `
-      <p>Jurassic Park was an incredible idea and a magnificent feat of engineering, but poor protocols and a disregard for human safety killed what could have otherwise been one of the best businesses of our generation.</p>
-      <p>Ultimately, I think that if you wanted to run the park successfully and keep visitors safe, the most important thing to prioritize would be&hellip;</p>
-    `,
+    stories: [
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+      {
+        url: "https://picsum.photos/1080/1920",
+      },
+    ],
   },
 ];

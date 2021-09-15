@@ -27,3 +27,4 @@ firebase-debug.log*
 
 # IDE files
 .idea/
+*.log
