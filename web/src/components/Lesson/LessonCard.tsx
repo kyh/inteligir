@@ -9,12 +9,13 @@ import Stories from "./LessonStory";
 
 type Props = {
   lesson: Lesson;
+  currentLessonId?: Lesson["id"];
   onShow?: (lesson: Lesson) => void;
 };
 
-export const LessonCard = ({ lesson, onShow }: Props) => {
-  const ref: any = useRef<HTMLDivElement>();
-  const onScreen: boolean = useOnScreen<HTMLDivElement>(ref, "-300px");
+export const LessonCard = ({ currentLessonId, lesson, onShow }: Props) => {
+  const ref = useRef<HTMLDivElement>();
+  const [onScreen] = useOnScreen(ref, "-300px");
 
   useEffect(() => {
     if (onScreen && onShow) {
@@ -23,7 +24,12 @@ export const LessonCard = ({ lesson, onShow }: Props) => {
   }, [onScreen]);
 
   return (
-    <Card ref={ref}>
+    <Card
+      ref={ref}
+      className={classnames({
+        "opacity-50": currentLessonId !== lesson.id,
+      })}
+    >
       <header className="flex space-x-3">
         <div className="flex-shrink-0">
           <img
@@ -61,8 +67,10 @@ export const LessonCard = ({ lesson, onShow }: Props) => {
       <div className="my-3">
         <Stories
           stories={lesson.stories}
-          isPaused={!onScreen}
-          currentIndex={onScreen ? 0 : lesson.stories.length}
+          isPaused={currentLessonId === lesson.id}
+          currentIndex={
+            currentLessonId === lesson.id ? 0 : lesson.stories.length
+          }
         />
       </div>
       <div className="flex justify-between space-x-8">

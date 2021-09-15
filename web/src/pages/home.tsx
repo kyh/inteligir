@@ -36,6 +36,7 @@ const Aside = ({
 };
 
 export const HomePage = () => {
+  const [currentLessonId, setCurrentLessonId] = useState<string>();
   const [lessonsLoading, setLessonsLoading] = useState(true);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [commentsLoading, setCommentsLoading] = useState(true);
@@ -45,12 +46,17 @@ export const HomePage = () => {
     setLessonsLoading(true);
     setTimeout(() => {
       setLessons(lessonData);
+      setCurrentLessonId(lessonData[0].id);
       setLessonsLoading(false);
     }, 100);
   };
 
-  const loadComments = (lesson: Lesson) => {
-    console.log("load comments for lesson:", lesson);
+  const onLessonShow = (lesson: Lesson) => {
+    setCurrentLessonId(lesson.id);
+  };
+
+  const loadComments = (lessonId: string) => {
+    console.log("load comments for lesson:", lessonId);
     setCommentsLoading(true);
     setTimeout(() => {
       setComments(commentData);
@@ -61,6 +67,12 @@ export const HomePage = () => {
   useEffect(() => {
     loadLessons();
   }, []);
+
+  useEffect(() => {
+    if (currentLessonId) {
+      loadComments(currentLessonId);
+    }
+  }, [currentLessonId]);
 
   return (
     <>
@@ -77,7 +89,8 @@ export const HomePage = () => {
               <LessonCard
                 key={lesson.id}
                 lesson={lesson}
-                onShow={loadComments}
+                onShow={onLessonShow}
+                currentLessonId={currentLessonId}
               />
             ))}
           </ul>

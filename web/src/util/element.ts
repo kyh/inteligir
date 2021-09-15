@@ -1,11 +1,18 @@
-import { MutableRefObject, useEffect, useState } from "react";
+import {
+  MutableRefObject,
+  Dispatch,
+  SetStateAction,
+  useEffect,
+  useState,
+} from "react";
 
-export const useOnScreen = <T extends Element>(
+export const useOnScreen = <T extends Element | undefined>(
   ref: MutableRefObject<T>,
   rootMargin: string = "0px"
-): boolean => {
+): [boolean, Dispatch<SetStateAction<boolean>>] => {
   // State and setter for storing whether element is visible
-  const [isIntersecting, setIntersecting] = useState<boolean>(false);
+  const [isIntersecting, setIntersecting] = useState(false);
+
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -20,8 +27,9 @@ export const useOnScreen = <T extends Element>(
       observer.observe(ref.current);
     }
     return () => {
-      observer.unobserve(ref.current);
+      observer.unobserve(ref.current as Element);
     };
-  }, []); // Empty array ensures that effect is only run on mount and unmount
-  return isIntersecting;
+  }, []);
+
+  return [isIntersecting, setIntersecting];
 };
