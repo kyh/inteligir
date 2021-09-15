@@ -1,17 +1,29 @@
-import { cx } from "util/styles";
+import { useEffect, useRef } from "react";
+import { classnames } from "tailwindcss-classnames";
 import { FiThumbsUp, FiMessageCircle, FiEye, FiShare } from "react-icons/fi";
 import { Lesson } from "actions/lesson";
+import { useOnScreen } from "util/element";
 import { Card } from "../Card";
 import { Button } from "../Button";
 import Stories from "./LessonStory";
 
 type Props = {
   lesson: Lesson;
+  onShow?: (lesson: Lesson) => void;
 };
 
-export const LessonCard = ({ lesson }: Props) => {
+export const LessonCard = ({ lesson, onShow }: Props) => {
+  const ref: any = useRef<HTMLDivElement>();
+  const onScreen: boolean = useOnScreen<HTMLDivElement>(ref, "-300px");
+
+  useEffect(() => {
+    if (onScreen && onShow) {
+      onShow(lesson);
+    }
+  }, [onScreen]);
+
   return (
-    <Card>
+    <Card ref={ref}>
       <header className="flex space-x-3">
         <div className="flex-shrink-0">
           <img
@@ -38,14 +50,20 @@ export const LessonCard = ({ lesson }: Props) => {
           <Button
             $variant="outline"
             $size="xs"
-            className={cx(lesson.following && "opacity-50")}
+            className={classnames({
+              "opacity-50": lesson.following,
+            })}
           >
             {lesson.following ? "Following" : "Follow"}
           </Button>
         </div>
       </header>
       <div className="my-3">
-        <Stories stories={lesson.stories} isPaused />
+        <Stories
+          stories={lesson.stories}
+          isPaused={!onScreen}
+          currentIndex={onScreen ? 0 : lesson.stories.length}
+        />
       </div>
       <div className="flex justify-between space-x-8">
         <div className="flex space-x-6">

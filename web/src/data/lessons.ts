@@ -17,13 +17,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
@@ -43,13 +43,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
@@ -69,13 +69,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
@@ -95,13 +95,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
@@ -121,13 +121,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
@@ -147,13 +147,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
@@ -173,13 +173,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
@@ -199,13 +199,13 @@ export const lessons: Lesson[] = [
     hashtags: ["javascript", "typescript"],
     stories: [
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
       {
-        url: "https://picsum.photos/1080/1920",
+        url: `https://picsum.photos/1080/1920?${Math.random()}`,
       },
     ],
   },
