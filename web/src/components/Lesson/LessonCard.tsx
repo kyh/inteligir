@@ -15,7 +15,7 @@ type Props = {
 
 export const LessonCard = ({ currentLessonId, lesson, onShow }: Props) => {
   const ref = useRef<HTMLDivElement>();
-  const [onScreen] = useOnScreen(ref, "-300px");
+  const [onScreen] = useOnScreen(ref, "-338px");
 
   useEffect(() => {
     if (onScreen && onShow) {
