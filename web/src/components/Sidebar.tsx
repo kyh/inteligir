@@ -1,16 +1,17 @@
-import { Button } from "components";
+import NextLink from "next/link";
+import { ButtonLink } from "components";
 import { FiHome, FiCompass, FiBookmark } from "react-icons/fi";
 
 const navigation = [
-  { name: "Home", href: "#", icon: FiHome, current: true },
-  { name: "Explore", href: "#", icon: FiCompass, current: false },
-  { name: "Bookmark", href: "#", icon: FiBookmark, current: false },
+  { name: "Home", href: "/home", icon: FiHome, current: true },
+  { name: "Explore", href: "/explore", icon: FiCompass, current: false },
+  { name: "Bookmark", href: "/bookmark", icon: FiBookmark, current: false },
 ];
 
 const footerNavigation = [
-  { name: "About", href: "#" },
-  { name: "Privacy", href: "#" },
-  { name: "Terms", href: "#" },
+  { name: "About", href: "/about" },
+  { name: "Privacy", href: "/privacy" },
+  { name: "Terms", href: "/terms" },
 ];
 
 export const SidebarNav = () => {
@@ -18,17 +19,26 @@ export const SidebarNav = () => {
     <section className="flex flex-col h-full">
       <nav className="flex flex-col py-6">
         {navigation.map((item) => (
-          <a key={item.name} href={item.href} className="my-1 -mx-4">
-            <Button $variant="ghost" $align="start" $shape="rounded" $full>
-              <item.icon aria-hidden="true" className="w-5 h-5 mr-4" />
-              <span className="truncate">{item.name}</span>
-            </Button>
-          </a>
+          <div className="my-1 -mx-4" key={item.name}>
+            <NextLink href={item.href}>
+              <ButtonLink
+                $variant="ghost"
+                $align="start"
+                $shape="rounded"
+                $full
+              >
+                <item.icon aria-hidden="true" className="w-5 h-5 mr-4" />
+                <span className="truncate">{item.name}</span>
+              </ButtonLink>
+            </NextLink>
+          </div>
         ))}
       </nav>
-      <Button $shape="rounded" $full>
-        New Lesson
-      </Button>
+      <NextLink href="/lesson/new">
+        <ButtonLink $shape="rounded" $full>
+          New Lesson
+        </ButtonLink>
+      </NextLink>
       <footer className="py-4 mt-auto text-xs border-t border-t-gray-400">
         <div className="mb-1">
           ©{new Date().getFullYear()}, Made with{" "}
@@ -43,13 +53,9 @@ export const SidebarNav = () => {
         </div>
         <div>
           {footerNavigation.map((item) => (
-            <a
-              className="inline-block mr-1 hover:underline"
-              key={item.name}
-              href={item.href}
-            >
-              {item.name}
-            </a>
+            <NextLink key={item.name} href={item.href}>
+              <a className="inline-block mr-1 hover:underline">{item.name}</a>
+            </NextLink>
           ))}
         </div>
       </footer>

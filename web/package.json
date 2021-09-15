@@ -47,7 +47,8 @@
     "react-dom": "^17.0.2",
     "react-icons": "^4.2.0",
     "stripe": "^8.133.0",
-    "tailwind-styled-components": "^2.0.3"
+    "tailwind-styled-components": "^2.0.3",
+    "tailwindcss-classnames": "^2.2.3"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.3.3",

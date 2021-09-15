@@ -8,6 +8,9 @@ type Props = {
   $full?: boolean;
 };
 
+const base =
+  "inline-flex items-center border transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800 cursor-pointer";
+
 const variants = {
   variant: {
     primary: `text-white bg-gray-900 border-transparent shadow-sm hover:bg-black`,
@@ -35,11 +38,19 @@ const variants = {
   },
 };
 
+const buttonStyles = (props: Props) => {
+  const variant = variants["variant"][props.$variant || "primary"];
+  const align = variants["align"][props.$align || "center"];
+  const size = variants["size"][props.$size || "md"];
+  const shape = variants["shape"][props.$shape || "default"];
+  const full = props.$full ? "w-full" : "";
+  return `${base} ${variant} ${align} ${size} ${shape} ${full}`;
+};
+
 export const Button = tw.button<Props>`
-  inline-flex items-center border transition focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-gray-800
-  ${(props) => variants["variant"][props.$variant || "primary"]}
-  ${(props) => variants["align"][props.$align || "center"]}
-  ${(props) => variants["size"][props.$size || "md"]}
-  ${(props) => variants["shape"][props.$shape || "default"]}
-  ${(props) => (props.$full ? `w-full` : ``)}
+  ${buttonStyles}
+`;
+
+export const ButtonLink = tw.a<Props>`
+  ${buttonStyles}
 `;
