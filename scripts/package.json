@@ -6,7 +6,8 @@
   "types": "./dist/main.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "scrape:twittrgems": "ts-node src/twittrgems"
+    "scrape:twitter-gems": "ts-node src/twitter-gems",
+    "scrape:twitter-bookmarks": "ts-node src/twitter-bookmarks"
   },
   "dependencies": {
     "axios": "^0.21.4",
