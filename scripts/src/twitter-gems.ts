@@ -2,7 +2,6 @@ require("dotenv").config();
 
 import axios, { Method } from "axios";
 import URL from "url-parse";
-// import { getTweet } from "./twitter";
 
 const GEM_TOKEN = process.env.TWITTRGEM_TOKEN;
 
