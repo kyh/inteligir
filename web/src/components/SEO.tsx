@@ -1,12 +1,14 @@
 import Head from "next/head";
 
-const url = "https://inteligir.com";
-const ogImage = `${url}/favicon/featured.png`;
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME;
+const APP_DESCRIPTION = process.env.NEXT_PUBLIC_APP_DESCRIPTION;
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL;
+const OG_IMAGE_URL = `${APP_URL}/favicon/featured.png`;
 
 export const SEO = ({
   title = "",
-  siteTitle = "Inteligir",
-  description = "Bite-sized learning",
+  siteTitle = APP_NAME,
+  description = APP_DESCRIPTION,
 }) => {
   const finalTitle = title ? `${title} | ${siteTitle}` : siteTitle;
   return (
@@ -19,8 +21,8 @@ export const SEO = ({
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:site_name" content={siteTitle} />
-      <meta property="og:url" content={url} />
-      <meta property="og:image" content={ogImage} />
+      <meta property="og:url" content={APP_URL} />
+      <meta property="og:image" content={OG_IMAGE_URL} />
       <meta property="og:image:width" content="1200" />
       <meta property="og:image:height" content="628" />
       <meta property="og:locale" content="en_US" />
@@ -30,8 +32,8 @@ export const SEO = ({
       <meta property="twitter:title" content={title} />
       <meta property="twitter:description" content={description} />
       <meta name="twitter:site" content={siteTitle} />
-      <meta name="twitter:url" content={url} />
-      <meta name="twitter:image" content={ogImage} />
+      <meta name="twitter:url" content={APP_URL} />
+      <meta name="twitter:image" content={OG_IMAGE_URL} />
     </Head>
   );
 };
