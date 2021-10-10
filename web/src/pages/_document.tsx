@@ -1,5 +1,5 @@
 import NextDocument, { Html, Head, Main, NextScript } from "next/document";
-import { GA_TRACKING_ID } from "util/analytics";
+const APP_NAME = process.env.NEXT_PUBLIC_APP_NAME;
 
 export default class Document extends NextDocument {
   render() {
@@ -7,7 +7,7 @@ export default class Document extends NextDocument {
       <Html lang="en">
         <Head>
           <meta name="referrer" content="origin" />
-          <meta name="application-name" content="Inteligir" />
+          <meta name="application-name" content={APP_NAME} />
           <meta name="robots" content="index, follow" />
           <meta property="fb:app_id" content="{FB_ID}" />
 
@@ -41,23 +41,6 @@ export default class Document extends NextDocument {
             content="/favicon/browserconfig.xml"
           />
           <meta name="theme-color" content="#111827" />
-
-          <script
-            async
-            src={`https://www.googletagmanager.com/gtag/js?id=${GA_TRACKING_ID}`}
-          />
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
-                window.dataLayer = window.dataLayer || [];
-                function gtag(){dataLayer.push(arguments);}
-                gtag('js', new Date());
-                gtag('config', '${GA_TRACKING_ID}', {
-                  page_path: window.location.pathname,
-                });
-              `,
-            }}
-          />
         </Head>
         <body>
           <Main />

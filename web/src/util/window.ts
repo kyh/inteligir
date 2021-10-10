@@ -1,21 +1,22 @@
+import { isSSR } from "./common";
+
 const mockLocation = {
-  origin: "https://inteligir.gg",
-  href: "https://inteligir.gg",
+  origin: process.env.NEXT_PUBLIC_APP_URL,
+  href: process.env.NEXT_PUBLIC_APP_URL,
   protocol: "https:",
-  host: "inteligir.gg",
-  hostname: "inteligir.gg",
+  host: "",
+  hostname: "",
   port: "",
   pathname: "",
   search: "",
   hash: "",
 };
 
-export const location =
-  typeof window !== "undefined" ? window.location : mockLocation;
+export const location = isSSR() ? window.location : mockLocation;
 
 export const localStorage = {
   getItem: (key: string) => {
-    if (typeof window !== "undefined" && window.localStorage) {
+    if (!isSSR() && window.localStorage) {
       const value = window.localStorage.getItem(key);
       try {
         return value ? JSON.parse(value) : null;
@@ -25,12 +26,12 @@ export const localStorage = {
     }
   },
   setItem: (key: string, value: any) => {
-    if (typeof window !== "undefined" && window.localStorage) {
+    if (!isSSR() && window.localStorage) {
       return window.localStorage.setItem(key, JSON.stringify(value));
     }
   },
   removeItem: (key: string) => {
-    if (typeof window !== "undefined" && window.localStorage) {
+    if (!isSSR() && window.localStorage) {
       return window.localStorage.removeItem(key);
     }
   },

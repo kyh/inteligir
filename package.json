@@ -1,13 +1,11 @@
 {
   "name": "inteligir",
   "workspaces": [
-    "web",
-    "firebase"
+    "web"
   ],
   "scripts": {
-    "dev": "concurrently --kill-others \"npm run dev:firebase\" \"npm run dev:web\"",
+    "dev": "concurrently --kill-others \"npm run dev:web\"",
     "dev:web": "npm run dev --workspace=web",
-    "dev:firebase": "npm run dev --workspace=firebase",
     "postinstall": "husky install"
   },
   "devDependencies": {
