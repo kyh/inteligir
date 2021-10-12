@@ -1,9 +1,9 @@
 import { PriceType, SubscriptionStatus } from "@prisma/client";
 import Stripe from "stripe";
-
 import { timestampToDate } from "util/common";
 import { createApiHandler } from "server/createApiHandler";
 import { stripe } from "server/stripe";
+import { prisma } from "server/prisma";
 
 // Stripe requires the raw body to construct the event.
 export const config = {
@@ -36,7 +36,7 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
 handler.post(async (req, res) => {
   const buf = await buffer(req);
-  const sig = req.headers["stripe-signature"];
+  const sig = req.headers["stripe-signature"]!;
   let event;
 
   try {
