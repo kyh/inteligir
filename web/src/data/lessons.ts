@@ -1,4 +1,14 @@
-import { Lesson } from "actions/lesson";
+export type Lesson = {
+  id: string;
+  _likeCount: number;
+  _commentCount: number;
+  _viewCount: number;
+  following: boolean;
+  createdBy: any;
+  createdAt: string;
+  hashtags: string[];
+  stories: any[];
+};
 
 export const lessons: Lesson[] = [
   {
@@ -6,7 +16,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2700,
-    _flagged: false,
     following: false,
     createdBy: {
       displayName: "Dries Vincent",
@@ -32,7 +41,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2.7,
-    _flagged: false,
     following: true,
     createdBy: {
       displayName: "Dries Vincent",
@@ -58,7 +66,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2.7,
-    _flagged: false,
     following: false,
     createdBy: {
       displayName: "Dries Vincent",
@@ -84,7 +91,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2.7,
-    _flagged: false,
     following: false,
     createdBy: {
       displayName: "Dries Vincent",
@@ -110,7 +116,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2.7,
-    _flagged: false,
     following: false,
     createdBy: {
       displayName: "Dries Vincent",
@@ -136,7 +141,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2.7,
-    _flagged: false,
     following: false,
     createdBy: {
       displayName: "Dries Vincent",
@@ -162,7 +166,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2.7,
-    _flagged: false,
     following: false,
     createdBy: {
       displayName: "Dries Vincent",
@@ -188,7 +191,6 @@ export const lessons: Lesson[] = [
     _likeCount: 29,
     _commentCount: 11,
     _viewCount: 2.7,
-    _flagged: false,
     following: false,
     createdBy: {
       displayName: "Dries Vincent",

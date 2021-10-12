@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { classnames } from "tailwindcss-classnames";
 import { FiThumbsUp, FiMessageCircle, FiEye, FiShare } from "react-icons/fi";
-import { Lesson } from "actions/lesson";
+import { Lesson } from "data/lessons";
 import { useOnScreen } from "util/element";
 import { Card } from "../Card";
 import { Button } from "../Button";
