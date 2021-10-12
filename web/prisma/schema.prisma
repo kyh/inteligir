@@ -19,9 +19,11 @@ model User {
   createdAt     DateTime      @default(now()) @map("created_at")
   updatedAt     DateTime      @default(now()) @map("updated_at")
   accounts      Account[]
-  customer      Customer?
   sessions      Session[]
+  customer      Customer?
   subscription  Subscription?
+  lessons       Lesson[]
+  comments      Comment[]
 
   @@map("users")
 }
@@ -159,12 +161,15 @@ enum PriceInterval {
 }
 
 model Lesson {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   title     String
   slug      String
   stories   Story[]
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @default(now()) @map("updated_at")
+  comments  Comment[]
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String    @map("user_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @default(now()) @map("updated_at")
 
   @@map("lessons")
 }
@@ -186,4 +191,17 @@ enum StoryType {
   image
   video
   audio
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  content   String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  lessonId  String   @map("lesson_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @map("updated_at")
+
+  @@map("comments")
 }
