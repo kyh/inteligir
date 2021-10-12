@@ -1,4 +1,5 @@
 import { createAuthApiHandler } from "server/createApiHandler";
+import { prisma } from "server/prisma";
 
 const handler = createAuthApiHandler();
 
