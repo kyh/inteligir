@@ -1,4 +1,11 @@
-import { Comment } from "actions/comment";
+export type Comment = {
+  id: string;
+  content: string;
+  _likeCount: number;
+  _flagged: boolean;
+  createdBy: any;
+  createdAt: string;
+};
 
 export const comments: Comment[] = [
   {
