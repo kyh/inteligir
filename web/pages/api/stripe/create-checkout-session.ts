@@ -1,4 +1,4 @@
-import { createAuthApiHandler } from "@server/createApiHandler";
+import { createAuthApiHandler } from "@server/handler";
 import { stripe, getCustomerId } from "@server/stripe";
 import { NEXTAUTH_URL } from "@server/config";
 
