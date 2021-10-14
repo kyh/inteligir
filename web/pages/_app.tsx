@@ -3,8 +3,8 @@ import type { NextPage } from "next";
 import Router from "next/router";
 import { useEffect } from "react";
 import { SessionProvider } from "next-auth/react";
-import { ProgressBar } from "components";
-import { initAnalytics, logPageView, logEvent } from "util/analytics";
+import { ProgressBar } from "@components";
+import { initAnalytics, logPageView, logEvent } from "@util/analytics";
 
 import "tailwindcss/tailwind.css";
 

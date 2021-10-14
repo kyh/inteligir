@@ -1,8 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import nc, { ErrorHandler } from "next-connect";
-
-import { authMiddleware } from "server/middlewares";
-import { AppNextApiRequest } from "server/config";
+import { authMiddleware } from "@server/middlewares";
+import { AppNextApiRequest } from "@server/config";
 
 export const onError: ErrorHandler<NextApiRequest, NextApiResponse> = (
   err,

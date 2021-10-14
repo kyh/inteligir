@@ -2,7 +2,7 @@ import { NextApiResponse } from "next";
 import { getSession } from "next-auth/react";
 import { Middleware } from "next-connect";
 
-import { AppNextApiRequest } from "server/config";
+import { AppNextApiRequest } from "@server/config";
 
 export const authMiddleware: Middleware<AppNextApiRequest, NextApiResponse> =
   async (req, res, next) => {
