@@ -7,4 +7,4 @@ export interface AppNextApiRequest extends NextApiRequest {
   };
 }
 
-export const NEXTAUTH_URL = process.env.NEXTAUTH_URL || "";
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "";

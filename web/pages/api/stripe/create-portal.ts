@@ -1,6 +1,6 @@
 import { createAuthApiHandler } from "@server/handler";
 import { stripe, getCustomerId } from "@server/stripe";
-import { NEXTAUTH_URL } from "@server/config";
+import { APP_URL } from "@server/config";
 
 const handler = createAuthApiHandler();
 
@@ -11,7 +11,7 @@ handler.post(async (req, res) => {
 
   const { url } = await stripe.billingPortal.sessions.create({
     customer: customerId,
-    return_url: `${NEXTAUTH_URL}/account`,
+    return_url: `${APP_URL}/account`,
   });
 
   return res.status(200).json({ url });

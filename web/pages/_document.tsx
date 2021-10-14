@@ -10,6 +10,10 @@ export default class Document extends NextDocument {
           <meta name="application-name" content={APP_NAME} />
           <meta name="robots" content="index, follow" />
           <meta property="fb:app_id" content="{FB_ID}" />
+          <meta
+            name="google-site-verification"
+            content="uEX7VBn7i9-3Lnxpzs-DfP2ezAc3TxmYg-puP0NGq6k"
+          />
 
           <link
             rel="apple-touch-icon"

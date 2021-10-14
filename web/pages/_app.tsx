@@ -2,8 +2,9 @@ import type { AppProps, NextWebVitalsMetric } from "next/app";
 import type { NextPage } from "next";
 import Router from "next/router";
 import { useEffect } from "react";
-import { SessionProvider } from "next-auth/react";
+import { QueryClientProvider } from "react-query";
 import { ProgressBar } from "@components";
+import { queryClient } from "@util/query";
 import { initAnalytics, logPageView, logEvent } from "@util/analytics";
 
 import "tailwindcss/tailwind.css";
@@ -38,15 +39,15 @@ export const reportWebVitals = ({
   });
 };
 
-const MyApp = ({ Component, pageProps: { session, ...otherProps } }: Props) => {
+const MyApp = ({ Component, pageProps }: Props) => {
   useEffect(() => {
     initAnalytics();
   }, []);
 
   return (
-    <SessionProvider session={session}>
-      <Component {...otherProps} />
-    </SessionProvider>
+    <QueryClientProvider client={queryClient}>
+      <Component {...pageProps} />
+    </QueryClientProvider>
   );
 };
 

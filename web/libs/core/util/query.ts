@@ -1,25 +1,8 @@
-import { ReactNode } from "react";
-import {
-  QueryClient,
-  QueryClientProvider as QueryClientProviderBase,
-} from "react-query";
+import { QueryClient } from "react-query";
 import fetch from "cross-fetch";
 
 // For interacting with the React Query cache
 export const queryClient = new QueryClient();
-
-type Props = {
-  children: ReactNode;
-};
-
-// React Query context provider that wraps our app
-export const QueryClientProvider = (props: Props) => {
-  return (
-    <QueryClientProviderBase client={queryClient}>
-      {props.children}
-    </QueryClientProviderBase>
-  );
-};
 
 const rootPath = process.env.NEXT_PUBLIC_API_URL;
 
@@ -78,6 +61,18 @@ export const fetcher = {
     const options = {
       ...defaultOptions,
       method: "PUT",
+      body,
+      ...additionalOptions,
+    };
+
+    return fetch(path, options).then(handleResponse);
+  },
+  patch: (subpath = "", data = {}, additionalOptions = {}) => {
+    const path = getPath(subpath);
+    const body = JSON.stringify(data);
+    const options = {
+      ...defaultOptions,
+      method: "PATCH",
       body,
       ...additionalOptions,
     };
