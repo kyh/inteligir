@@ -1,20 +1,20 @@
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { NextApiHandler } from "next";
 import NextAuth, { NextAuthOptions } from "next-auth";
-// import EmailProvider from "next-auth/providers/email";
+import EmailProvider from "next-auth/providers/email";
 // import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@server/prisma";
 
 const options: NextAuthOptions = {
   providers: [
-    // EmailProvider({
-    //   server: process.env.SMTP_SERVER,
-    //   from: process.env.SMTP_FROM,
-    // }),
+    EmailProvider({
+      server: process.env.SMTP_SERVER,
+      from: process.env.SMTP_FROM,
+    }),
     // GoogleProvider({
     //   clientId: process.env.GOOGLE_CLIENT_ID,
-    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET
+    //   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     // }),
     CredentialsProvider({
       // The name to display on the sign in form (e.g. 'Sign in with...')
