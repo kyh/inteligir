@@ -3,7 +3,7 @@ import Link from "next/link";
 import { HiExclamation } from "react-icons/hi";
 import { Subscription } from "@prisma/client";
 import { getSession } from "next-auth/react";
-import { prisma } from "server/prisma";
+import { prisma } from "@server/prisma";
 
 type Props = {
   subscription: Subscription | null;

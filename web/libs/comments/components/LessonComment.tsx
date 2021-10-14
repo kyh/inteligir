@@ -1,5 +1,5 @@
 import { FiMessageCircle } from "react-icons/fi";
-import { Comment } from "data/comments";
+import { Comment } from "@libs/comments/data/comments";
 
 type Props = {
   comment: Comment;
