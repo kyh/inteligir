@@ -1,6 +1,6 @@
-import { createAuthApiHandler } from "server/createApiHandler";
-import { stripe, getCustomerId } from "server/stripe";
-import { NEXTAUTH_URL } from "server/config";
+import { createAuthApiHandler } from "@server/createApiHandler";
+import { stripe, getCustomerId } from "@server/stripe";
+import { NEXTAUTH_URL } from "@server/config";
 
 const handler = createAuthApiHandler();
 

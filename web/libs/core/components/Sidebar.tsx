@@ -1,6 +1,6 @@
 import NextLink from "next/link";
-import { ButtonLink } from "components";
 import { FiHome, FiCompass, FiBookmark } from "react-icons/fi";
+import { ButtonLink } from "@components";
 
 const navigation = [
   { name: "Home", href: "/home", icon: FiHome, current: true },
