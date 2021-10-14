@@ -3,7 +3,7 @@ version: '2'
 services:
   postgres:
     container_name: dev_postgres_container
-    image: postgres:12.4
+    image: postgres:latest
     ports:
       - 5666:5432
     environment:
