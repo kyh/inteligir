@@ -1,6 +1,6 @@
 import { ReactNode } from "react";
-import { Container, Logo, SidebarNav, ProfileMenu, Button } from "components";
 import { FiSearch, FiBell } from "react-icons/fi";
+import { Container, Logo, SidebarNav, ProfileMenu, Button } from "@components";
 
 type Props = {
   title: ReactNode;
