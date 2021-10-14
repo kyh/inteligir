@@ -1,9 +1,9 @@
 import { PriceType, SubscriptionStatus } from "@prisma/client";
 import Stripe from "stripe";
-import { timestampToDate } from "@util/common";
-import { createApiHandler } from "@server/createApiHandler";
+import { createApiHandler } from "@server/handler";
 import { stripe } from "@server/stripe";
 import { prisma } from "@server/prisma";
+import { timestampToDate } from "@util/common";
 
 // Stripe requires the raw body to construct the event.
 export const config = {
