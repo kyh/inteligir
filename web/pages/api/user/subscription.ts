@@ -1,4 +1,4 @@
-import { createAuthApiHandler } from "@server/createApiHandler";
+import { createAuthApiHandler } from "@server/handler";
 import { prisma } from "@server/prisma";
 
 const handler = createAuthApiHandler();
