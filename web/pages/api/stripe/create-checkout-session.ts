@@ -1,6 +1,6 @@
 import { createAuthApiHandler } from "@server/handler";
 import { stripe, getCustomerId } from "@server/stripe";
-import { NEXTAUTH_URL } from "@server/config";
+import { APP_URL } from "@server/config";
 
 const handler = createAuthApiHandler();
 
@@ -32,8 +32,8 @@ handler.post(async (req, res) => {
       trial_from_plan: true,
       metadata: {},
     },
-    success_url: `${NEXTAUTH_URL}/account`,
-    cancel_url: `${NEXTAUTH_URL}/`,
+    success_url: `${APP_URL}/account`,
+    cancel_url: `${APP_URL}/`,
   });
 
   return res.status(200).json({ sessionId: checkoutSession.id });
