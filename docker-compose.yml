@@ -1,8 +1,8 @@
-version: '2'
+version: "3.8"
 
 services:
   postgres:
-    container_name: dev_postgres_container
+    container_name: dev_inteligir_postgres_container
     image: postgres:latest
     ports:
       - 5666:5432
@@ -15,8 +15,8 @@ services:
       - ./db:/var/lib/postgresql/data/
 
   maildev:
-    container_name: dev_maildev_container
+    container_name: dev_inteligir_maildev_container
     image: djfarrelly/maildev
     ports:
-      - '1080:80'
-      - '1025:25'
+      - "1080:80"
+      - "1025:25"
