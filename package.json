@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "concurrently --kill-others \"npm run dev:web\"",
     "dev:web": "npm run dev --workspace=web",
+    "docker:start": "docker-compose up -d",
+    "docker:stop": "docker-compose down",
     "postinstall": "husky install"
   },
   "devDependencies": {
