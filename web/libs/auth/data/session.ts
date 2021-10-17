@@ -1,10 +1,9 @@
-import { Session } from "next-auth";
 import { useQuery } from "react-query";
 import { useRouter } from "next/router";
 import { fetcher } from "@util/query";
 
 export const fetchSession = async () => {
-  const session: Session = await fetcher.get("/api/auth/session");
+  const session = await fetcher.get("/api/auth/session");
   if (Object.keys(session).length) {
     return session;
   }
@@ -13,7 +12,7 @@ export const fetchSession = async () => {
 
 export const useSession = ({
   required = false,
-  redirectTo = "/api/auth/signin?error=SessionExpired",
+  redirectTo = "/auth/login?error=SessionExpired",
   queryConfig = {} as any,
 } = {}) => {
   const router = useRouter();

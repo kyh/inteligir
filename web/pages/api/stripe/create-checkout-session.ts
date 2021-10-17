@@ -32,7 +32,7 @@ handler.post(async (req, res) => {
       trial_from_plan: true,
       metadata: {},
     },
-    success_url: `${APP_URL}/account`,
+    success_url: `${APP_URL}/profile`,
     cancel_url: `${APP_URL}/`,
   });
 

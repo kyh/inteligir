@@ -11,109 +11,144 @@ datasource db {
 }
 
 model Account {
-  id                 String  @id @default(cuid())
-  userId             String
-  type               String
-  provider           String
-  providerAccountId  String
-  refresh_token      String?
-  access_token       String?
-  expires_at         Int?
-  token_type         String?
-  scope              String?
-  id_token           String?
-  session_state      String?
-  oauth_token_secret String?
-  oauth_token        String?
+  id                String  @id @default(cuid())
+  type              String
+  provider          String
+  providerAccountId String
+  refreshToken      String?
+  accessToken       String?
+  expiresAt         Int?
+  tokenType         String?
+  scope             String?
+  idToken           String?
+  sessionState      String?
+  oauthTokenSecret  String?
+  oauthToken        String?
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
 }
 
 model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  sessionToken String    @unique
+  expiresAt    DateTime?
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model User {
-  id            String        @id @default(cuid())
-  name          String?
-  email         String?       @unique
+  id            String    @id @default(cuid())
+  email         String?   @unique
   emailVerified DateTime?
+  name          String?
   image         String?
-  accounts      Account[]
-  sessions      Session[]
-  customer      Customer?
-  subscription  Subscription?
-  lessons       Lesson[]
-  comments      Comment[]
+  passwordHash  String?
+
+  customer     Customer?
+  subscription Subscription?
+
+  role     UserRole  @default(USER)
+  accounts Account[]
+  tokens   Token[]
+  sessions Session[]
+
+  lessons  Lesson[]
+  comments Comment[]
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+enum UserRole {
+  USER
+  ADMIN
+}
 
-  @@unique([identifier, token])
+model Token {
+  id          String    @id @default(cuid())
+  hashedToken String
+  type        TokenType
+  expiresAt   DateTime
+  sentTo      String
+
+  user   User   @relation(fields: [userId], references: [id])
+  userId String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([hashedToken, type])
+}
+
+enum TokenType {
+  VERIFY_PASSWORD
+  RESET_PASSWORD
 }
 
 model Customer {
-  id        String   @id @default(cuid())
-  userId    String   @unique
+  id     String @id @default(cuid())
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String @unique
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  active      Boolean  @default(false)
+  id          String  @id @default(cuid())
+  active      Boolean @default(false)
   name        String
   description String?
   image       String?
   metadata    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now())
   prices      Price[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }
 
 model Price {
-  id                String         @id @default(cuid())
-  productId         String
-  active            Boolean        @default(false)
-  currency          String
-  interval          PriceInterval?
-  unit_amount       Int?
-  interval_count    Int?
-  trial_period_days Int?
-  type              PriceType?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @default(now())
-  product           Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
-  subscriptions     Subscription[]
+  id              String         @id @default(cuid())
+  active          Boolean        @default(false)
+  currency        String
+  interval        PriceInterval?
+  unitAmount      Int?
+  intervalCount   Int?
+  trialPeriodDays Int?
+  type            PriceType?
+
+  productId     String
+  product       Product        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  subscriptions Subscription[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }
 
 model Subscription {
-  id                   String             @id @default(cuid())
-  userId               String             @unique
-  priceId              String
-  status               SubscriptionStatus
-  start_date           DateTime?
-  ended_at             DateTime?
-  trial_end            DateTime?
-  trial_start          DateTime?
-  cancel_at            DateTime?
-  cancel_at_period_end Boolean?
-  canceled_at          DateTime?
-  metadata             Json?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @default(now())
-  price                Price              @relation(fields: [priceId], references: [id])
-  user                 User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                String             @id @default(cuid())
+  priceId           String
+  status            SubscriptionStatus
+  startDate         DateTime?
+  endedAt           DateTime?
+  trialEnd          DateTime?
+  trialStart        DateTime?
+  cancelAt          DateTime?
+  cancelAtPeriodEnd Boolean?
+  canceledAt        DateTime?
+  metadata          Json?
+
+  price Price @relation(fields: [priceId], references: [id])
+
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }
 
 enum PriceType {
@@ -139,25 +174,29 @@ enum PriceInterval {
 }
 
 model Lesson {
-  id        String    @id @default(cuid())
-  title     String
-  slug      String
-  stories   Story[]
-  comments  Comment[]
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now())
+  id       String    @id @default(cuid())
+  title    String
+  slug     String
+  stories  Story[]
+  comments Comment[]
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }
 
 model Story {
-  id        String    @id @default(cuid())
-  type      StoryType
-  content   Json
-  lesson    Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  lessonId  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @default(now())
+  id      String    @id @default(cuid())
+  type    StoryType
+  content Json
+
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }
 
 enum StoryType {
@@ -168,12 +207,15 @@ enum StoryType {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
-  userId    String
-  content   String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lesson    Lesson   @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  lessonId  String
+  id      String @id @default(cuid())
+  content String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  lessonId String
+  lesson   Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 }
