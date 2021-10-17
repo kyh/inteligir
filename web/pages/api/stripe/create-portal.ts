@@ -11,7 +11,7 @@ handler.post(async (req, res) => {
 
   const { url } = await stripe.billingPortal.sessions.create({
     customer: customerId,
-    return_url: `${APP_URL}/account`,
+    return_url: `${APP_URL}/profile`,
   });
 
   return res.status(200).json({ url });
