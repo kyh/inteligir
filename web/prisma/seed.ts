@@ -48,8 +48,8 @@ async function main() {
           type: each.type,
           unitAmount: each.unit_amount,
           interval: each.recurring?.interval,
-          interval_count: each.recurring?.interval_count,
-          trial_period_days: each.recurring?.trial_period_days,
+          intervalCount: each.recurring?.interval_count,
+          trialPeriodDays: each.recurring?.trial_period_days,
           product: {
             connect: {
               id: each.product as string,
@@ -62,8 +62,8 @@ async function main() {
           type: each.type,
           unitAmount: each.unit_amount,
           interval: each.recurring?.interval,
-          interval_count: each.recurring?.interval_count,
-          trial_period_days: each.recurring?.trial_period_days,
+          intervalCount: each.recurring?.interval_count,
+          trialPeriodDays: each.recurring?.trial_period_days,
         },
       })
     )
