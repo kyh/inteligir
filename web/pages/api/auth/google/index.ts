@@ -2,8 +2,6 @@ import { createAuthApiHandler, passport } from "@server/handler";
 
 const handler = createAuthApiHandler();
 
-handler.post(passport.authenticate("local"), async (req, res) => {
-  res.json(req.user);
-});
+handler.get(passport.authenticate("google", { scope: ["profile"] }));
 
 export default handler;

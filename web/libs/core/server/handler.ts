@@ -1,7 +1,14 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import nc, { ErrorHandler } from "next-connect";
-import { authMiddleware } from "@server/middlewares";
-import { AppNextApiRequest } from "@server/config";
+import { AppRequest, AppResponse } from "@server/config";
+import {
+  sessionMiddleware,
+  configurePassport,
+} from "@libs/auth/server/authMiddlewares";
+import {
+  serializeUserId,
+  deserializeUser,
+} from "@libs/users/server/userService";
 
 export const onError: ErrorHandler<NextApiRequest, NextApiResponse> = (
   err,
@@ -18,7 +25,12 @@ export const createApiHandler = () =>
     onError,
   });
 
+export const passport = configurePassport(serializeUserId, deserializeUser);
+
 export const createAuthApiHandler = () =>
-  nc<AppNextApiRequest, NextApiResponse>({
+  nc<AppRequest, AppResponse>({
     onError,
-  }).use(authMiddleware);
+  })
+    .use(sessionMiddleware())
+    .use(passport.initialize())
+    .use(passport.session());

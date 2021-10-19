@@ -1,7 +1,6 @@
-import { hash } from "bcrypt";
 import { prisma } from "@server/prisma";
-
-const saltRounds = 10;
+import { createPasswordHash } from "@libs/auth/server/authService";
+import { Prisma, User } from "@prisma/client";
 
 const defaultSelect = {
   id: true,
@@ -14,44 +13,95 @@ const defaultSelect = {
   createdAt: true,
 };
 
+type CreateUserInput = {
+  email?: string;
+  name?: string;
+  image?: string;
+  password?: string;
+  account?: {
+    type: string;
+    provider: string;
+    providerAccountId: string;
+    accessToken: string;
+    refreshToken: string;
+  };
+};
+
 export const createUser = async ({
   email,
+  name,
+  image,
   password,
-}: {
-  email: string;
-  password: string;
-}) => {
-  const passwordHash = await hash(password, saltRounds);
+  account,
+}: CreateUserInput) => {
+  const data: Prisma.UserCreateInput = { email, name, image };
+
+  if (password) {
+    data.passwordHash = await createPasswordHash(password);
+  }
+
+  if (account) {
+    data.accounts = {
+      create: [
+        {
+          type: account.type,
+          provider: account.provider,
+          providerAccountId: account.providerAccountId,
+          accessToken: account.accessToken,
+          refreshToken: account.refreshToken,
+        },
+      ],
+    };
+  }
 
   return prisma.user.create({
-    data: { email, passwordHash },
+    data,
     select: defaultSelect,
   });
+};
+
+type GetUserInput = {
+  id?: string;
+  email?: string;
+};
+
+export const getUser = async ({ email, id }: GetUserInput) => {
+  const where = email ? { email } : { id };
+
+  return prisma.user.findUnique({
+    where,
+    select: defaultSelect,
+  });
+};
+
+export const getUserPasswordHash = async ({ email, id }: GetUserInput) => {
+  const where = email ? { email } : { id };
+  const user = await prisma.user.findUnique({ where });
+
+  if (user) {
+    return {
+      user: { ...user, passwordHash: null },
+      passwordHash: user.passwordHash,
+    };
+  }
+
+  return { user: null, passwordHash: null };
+};
+
+type PassportCallback = (err: any, user?: any) => void;
+
+export const serializeUserId = (user: User, callback: PassportCallback) => {
+  callback(null, user.id);
+};
+
+export const deserializeUser = async (
+  id: User["id"],
+  callback: PassportCallback
+) => {
+  const user = await getUser({ id });
+  callback(null, user);
 };
 
 export const getUsers = async () => {
   return prisma.user.findMany({ select: defaultSelect });
-};
-
-export const getUser = async (email: string) => {
-  return prisma.user.findUnique({
-    where: { email },
-    select: defaultSelect,
-  });
-};
-
-export const getUserPasswordHash = async (email: string) => {
-  const user = await prisma.user.findUnique({
-    where: { email },
-  });
-  const passwordHash = user.passwordHash;
-  delete user.passwordHash;
-  return { user, passwordHash };
-};
-
-export const getUserById = async (id: string) => {
-  return prisma.user.findUnique({
-    where: { id },
-    select: defaultSelect,
-  });
 };
