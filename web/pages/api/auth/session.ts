@@ -1,18 +1,9 @@
-import { createApiHandler } from "@server/handler";
-import { getLoginSession } from "@libs/auth/server/authService";
-import { findUser } from "@libs/users/server/userService";
+import { createAuthApiHandler } from "@server/handler";
 
-const handler = createApiHandler();
+const handler = createAuthApiHandler();
 
-handler.post(async (req, res) => {
-  try {
-    const session = await getLoginSession(req.body);
-    const user = (session && (await findUser(session))) ?? null;
-    res.status(200).json(user);
-  } catch (error) {
-    console.error(error);
-    res.status(400).end(error.message);
-  }
+handler.get(async (req, res) => {
+  res.json(req.user);
 });
 
 export default handler;

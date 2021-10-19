@@ -1,12 +1,10 @@
-import { createApiHandler } from "@server/handler";
-import { removeTokenCookie } from "@libs/auth/server/cookieService";
+import { createAuthApiHandler } from "@server/handler";
 
-const handler = createApiHandler();
+const handler = createAuthApiHandler();
 
-handler.post(async (_req, res) => {
-  removeTokenCookie(res);
-  res.writeHead(302, { Location: "/" });
-  return res.status(200).end();
+handler.post(async (req, res) => {
+  req.logout();
+  res.status(204).end();
 });
 
 export default handler;

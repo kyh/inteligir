@@ -49,13 +49,14 @@ model User {
   emailVerified DateTime?
   name          String?
   image         String?
-  passwordHash  String?
+
+  accounts     Account[]
+  passwordHash String?
 
   customer     Customer?
   subscription Subscription?
 
   role     UserRole  @default(USER)
-  accounts Account[]
   tokens   Token[]
   sessions Session[]
 

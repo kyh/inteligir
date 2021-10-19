@@ -1,20 +1,22 @@
-import Local from "passport-local";
-import { findUser, validatePassword } from "@libs/users/server/userService";
+import { Strategy } from "passport-local";
+import { getUserPasswordHash } from "@libs/users/server/userService";
+import { validatePassword } from "@libs/auth/server/authService";
 
-export const localStrategy = new Local.Strategy(function (
-  email,
-  password,
-  done
-) {
-  findUser({ email })
-    .then((user) => {
-      if (user && validatePassword(user, password)) {
-        done(null, user);
-      } else {
-        done(new Error("Invalid email and password combination"));
+export const localStrategy = new Strategy(
+  { usernameField: "email" },
+  async (email, password, done) => {
+    try {
+      const { user, passwordHash } = await getUserPasswordHash({ email });
+      if (
+        !user ||
+        !passwordHash ||
+        (passwordHash && !validatePassword(passwordHash, password))
+      ) {
+        return done(null, false);
       }
-    })
-    .catch((error) => {
-      done(error);
-    });
-});
+      return done(null, user);
+    } catch (error) {
+      done(error, null);
+    }
+  }
+);
