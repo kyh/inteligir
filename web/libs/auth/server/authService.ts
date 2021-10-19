@@ -1,30 +1,40 @@
-import { NextApiRequest, NextApiResponse } from "next";
 import Iron from "@hapi/iron";
-import { MAX_AGE, setTokenCookie, getTokenCookie } from "./cookieService";
+import { hash, compare } from "bcrypt";
 
-const TOKEN_SECRET = process.env.TOKEN_SECRET || "secret";
+const SALT_ROUNDS = 10;
 
-export const setLoginSession = async (res: NextApiResponse, session) => {
+export const createLoginSession = async (
+  session: any,
+  secret: Iron.Password
+) => {
   const createdAt = Date.now();
-  // Create a session object with a max age that we can validate later
-  const obj = { ...session, createdAt, maxAge: MAX_AGE };
-  const token = await Iron.seal(obj, TOKEN_SECRET, Iron.defaults);
+  const obj = { ...session, createdAt };
+  const token = await Iron.seal(obj, secret, Iron.defaults);
 
-  setTokenCookie(res, token);
+  return token;
 };
 
-export const getLoginSession = async (req: NextApiRequest) => {
-  const token = getTokenCookie(req);
-
-  if (!token) return;
-
-  const session = await Iron.unseal(token, TOKEN_SECRET, Iron.defaults);
+export const getLoginSession = async (token: string, secret: Iron.Password) => {
+  const session = await Iron.unseal(token, secret, Iron.defaults);
   const expiresAt = session.createdAt + session.maxAge * 1000;
 
   // Validate the expiration date of the session
-  if (Date.now() > expiresAt) {
+  if (session.maxAge && Date.now() > expiresAt) {
     throw new Error("Session expired");
   }
 
   return session;
+};
+
+export const createPasswordHash = async (password: string) => {
+  const passwordHash = await hash(password, SALT_ROUNDS);
+  return passwordHash;
+};
+
+export const validatePassword = async (
+  passwordHash: string,
+  password: string
+) => {
+  const isMatchingPassword = await compare(password, passwordHash);
+  return isMatchingPassword;
 };
