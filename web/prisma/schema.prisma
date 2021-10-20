@@ -31,18 +31,6 @@ model Account {
   @@unique([provider, providerAccountId])
 }
 
-model Session {
-  id           String    @id @default(cuid())
-  sessionToken String    @unique
-  expiresAt    DateTime?
-
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
 model User {
   id            String    @id @default(cuid())
   email         String?   @unique
@@ -56,12 +44,14 @@ model User {
   customer     Customer?
   subscription Subscription?
 
-  role     UserRole  @default(USER)
-  tokens   Token[]
-  sessions Session[]
+  role   UserRole @default(USER)
+  tokens Token[]
 
   lessons  Lesson[]
   comments Comment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now())
 }
 
 enum UserRole {
@@ -73,19 +63,20 @@ model Token {
   id          String    @id @default(cuid())
   hashedToken String
   type        TokenType
-  expiresAt   DateTime
-  sentTo      String
+  expiresAt   DateTime?
+  sentTo      String?
 
   user   User   @relation(fields: [userId], references: [id])
   userId String
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@unique([hashedToken, type])
 }
 
 enum TokenType {
+  REFRESH_TOKEN
   VERIFY_PASSWORD
   RESET_PASSWORD
 }
