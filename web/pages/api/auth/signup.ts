@@ -1,16 +1,15 @@
-import { createHandler } from "@server/handler";
-import { createUser } from "@libs/users/server/userService";
+import { createHandler, passport } from "@server/handler";
+import { handleTokenRequest } from "@libs/auth/server/authService";
 
 const handler = createHandler();
 
-handler.post(async (req, res) => {
-  try {
-    const user = await createUser(req.body);
-    res.status(200).json(user);
-  } catch (error: any) {
-    console.error(error);
-    res.status(500).end(error.message);
+handler.post(
+  passport.authenticate("signup", { session: false }),
+  async (req, res) => {
+    if (!req.user) return res.redirect("/signup");
+    handleTokenRequest(req.user, res);
+    res.status(200).json(req.user);
   }
-});
+);
 
 export default handler;

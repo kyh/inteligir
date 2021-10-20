@@ -1,16 +1,16 @@
 import passport from "passport";
-import { localStrategy } from "@libs/auth/server/strategy/local";
+import {
+  signupStrategy,
+  loginStrategy,
+} from "@libs/auth/server/strategy/local";
 import { googleStrategy } from "@libs/auth/server/strategy/google";
+import { jwtStrategy } from "@libs/auth/server/strategy/jwt";
 
-export const configurePassport = (
-  serializeUserCb: any,
-  deserializeUserCb: any
-) => {
-  passport.serializeUser(serializeUserCb);
-  passport.deserializeUser(deserializeUserCb);
-
-  passport.use(localStrategy);
+export const configurePassport = () => {
+  passport.use("signup", signupStrategy);
+  passport.use("login", loginStrategy);
   passport.use(googleStrategy);
+  passport.use(jwtStrategy);
 
   return passport;
 };

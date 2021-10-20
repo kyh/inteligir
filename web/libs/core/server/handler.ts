@@ -1,18 +1,27 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { error } from "next/dist/build/output/log";
 import nc from "next-connect";
+import { trustProxyMiddleware } from "@libs/core/server/middlewares/trustProxy";
+import {
+  cookieMiddleware,
+  CookieSerializeOptions,
+} from "@libs/core/server/middlewares/cookie";
 import { configurePassport } from "@libs/auth/server/middlewares/passport";
-import { sessionMiddleware } from "@libs/auth/server/middlewares/session";
-import { trustProxyMiddleware } from "@libs/auth/server/middlewares/trustProxy";
-import { serializeUser, deserializeUser } from "@libs/users/server/userService";
 
 export type AppRequest = NextApiRequest & Express.Request;
 
-export type AppResponse = NextApiResponse & Express.Response;
+export type AppResponse = NextApiResponse &
+  Express.Response & {
+    cookie(
+      name: string,
+      value: unknown,
+      options?: CookieSerializeOptions
+    ): void;
+  };
 
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "";
 
-export const passport = configurePassport(serializeUser, deserializeUser);
+export const passport = configurePassport();
 
 export const createHandler = () =>
   nc<AppRequest, AppResponse>({
@@ -20,8 +29,9 @@ export const createHandler = () =>
       error(err);
       res.status(500).end(err.toString());
     },
+    onNoMatch: (_, res) => {
+      res.status(404).end("Page is not found");
+    },
   })
     .use(process.env.VERCEL ? trustProxyMiddleware : (_, __, next) => next())
-    .use(sessionMiddleware)
-    .use(passport.initialize())
-    .use(passport.session());
+    .use(cookieMiddleware);

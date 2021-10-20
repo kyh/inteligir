@@ -4,7 +4,7 @@ import { stripe, getCustomerId } from "@libs/payments/server/paymentsService";
 const handler = createHandler();
 
 handler.post(async (req, res) => {
-  const userId = req.session?.userId!;
+  const userId = req.user?.id;
 
   const customerId = await getCustomerId(userId);
 

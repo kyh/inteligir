@@ -2,11 +2,10 @@ import { createHandler, passport } from "@server/handler";
 
 const handler = createHandler();
 
-handler.post(
+handler.get(
   passport.authenticate("jwt", { session: false }),
   async (req, res) => {
-    req.logout();
-    res.redirect("/");
+    res.status(200).json(req.user);
   }
 );
 

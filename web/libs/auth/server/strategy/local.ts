@@ -1,10 +1,25 @@
 import { Strategy } from "passport-local";
-import { getUserPasswordHash } from "@libs/users/server/userService";
+import {
+  createUser,
+  getUserPasswordHash,
+} from "@libs/users/server/userService";
 import { validatePassword } from "@libs/auth/server/authService";
 
-export const localStrategy = new Strategy(
-  { usernameField: "email" },
-  async (email, password, done) => {
+export const signupStrategy = new Strategy(
+  { usernameField: "email", passReqToCallback: true },
+  async (_req, email, password, done) => {
+    try {
+      const user = await createUser({ email, password });
+      return done(null, user);
+    } catch (error) {
+      done(error);
+    }
+  }
+);
+
+export const loginStrategy = new Strategy(
+  { usernameField: "email", passReqToCallback: true },
+  async (_req, email, password, done) => {
     try {
       const { user, passwordHash } = await getUserPasswordHash({ email });
       if (
@@ -12,11 +27,11 @@ export const localStrategy = new Strategy(
         !passwordHash ||
         (passwordHash && !validatePassword(passwordHash, password))
       ) {
-        return done("Incorrect Username / Password");
+        return done(null, false);
       }
       return done(null, user);
     } catch (error) {
-      done(error, null);
+      done(error);
     }
   }
 );

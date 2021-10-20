@@ -4,7 +4,7 @@ import { prisma } from "@server/prisma";
 const handler = createHandler();
 
 handler.get(async (req, res) => {
-  const userId = req.session?.userId!;
+  const userId = req.user?.id;
 
   const subscription = await prisma.subscription?.findFirst({
     where: {
