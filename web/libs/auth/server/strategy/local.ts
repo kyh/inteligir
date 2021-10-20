@@ -12,7 +12,7 @@ export const localStrategy = new Strategy(
         !passwordHash ||
         (passwordHash && !validatePassword(passwordHash, password))
       ) {
-        return done(null, false);
+        return done("Incorrect Username / Password");
       }
       return done(null, user);
     } catch (error) {

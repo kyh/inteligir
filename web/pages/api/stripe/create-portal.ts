@@ -1,8 +1,7 @@
-import { createAuthApiHandler } from "@server/handler";
-import { stripe, getCustomerId } from "@server/stripe";
-import { APP_URL } from "@server/config";
+import { createHandler, APP_URL } from "@server/handler";
+import { stripe, getCustomerId } from "@libs/payments/server/paymentsService";
 
-const handler = createAuthApiHandler();
+const handler = createHandler();
 
 handler.post(async (req, res) => {
   const userId = req.session?.userId!;

@@ -1,30 +1,8 @@
-import Iron from "@hapi/iron";
+import { User } from "@prisma/client";
+import { sign } from "jsonwebtoken";
 import { hash, compare } from "bcrypt";
 
 const SALT_ROUNDS = 10;
-
-export const createLoginSession = async (
-  session: any,
-  secret: Iron.Password
-) => {
-  const createdAt = Date.now();
-  const obj = { ...session, createdAt };
-  const token = await Iron.seal(obj, secret, Iron.defaults);
-
-  return token;
-};
-
-export const getLoginSession = async (token: string, secret: Iron.Password) => {
-  const session = await Iron.unseal(token, secret, Iron.defaults);
-  const expiresAt = session.createdAt + session.maxAge * 1000;
-
-  // Validate the expiration date of the session
-  if (session.maxAge && Date.now() > expiresAt) {
-    throw new Error("Session expired");
-  }
-
-  return session;
-};
 
 export const createPasswordHash = async (password: string) => {
   const passwordHash = await hash(password, SALT_ROUNDS);
@@ -37,4 +15,19 @@ export const validatePassword = async (
 ) => {
   const isMatchingPassword = await compare(password, passwordHash);
   return isMatchingPassword;
+};
+
+const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "a-secret";
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "r-secret";
+
+export const createAccessToken = (user: Partial<User>) => {
+  return sign({ ...user }, ACCESS_TOKEN_SECRET, {
+    expiresIn: "15m",
+  });
+};
+
+export const createRefreshToken = (user: Partial<User>) => {
+  return sign({ ...user }, REFRESH_TOKEN_SECRET, {
+    expiresIn: "7d",
+  });
 };

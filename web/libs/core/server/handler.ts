@@ -1,36 +1,27 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import nc, { ErrorHandler } from "next-connect";
-import { AppRequest, AppResponse } from "@server/config";
-import {
-  sessionMiddleware,
-  configurePassport,
-} from "@libs/auth/server/authMiddlewares";
-import {
-  serializeUserId,
-  deserializeUser,
-} from "@libs/users/server/userService";
+import { error } from "next/dist/build/output/log";
+import nc from "next-connect";
+import { configurePassport } from "@libs/auth/server/middlewares/passport";
+import { sessionMiddleware } from "@libs/auth/server/middlewares/session";
+import { trustProxyMiddleware } from "@libs/auth/server/middlewares/trustProxy";
+import { serializeUser, deserializeUser } from "@libs/users/server/userService";
 
-export const onError: ErrorHandler<NextApiRequest, NextApiResponse> = (
-  err,
-  req,
-  res,
-  next
-) => {
-  console.error(err);
-  res.status(500).end(err.toString());
-};
+export type AppRequest = NextApiRequest & Express.Request;
 
-export const createApiHandler = () =>
-  nc<NextApiRequest, NextApiResponse>({
-    onError,
-  });
+export type AppResponse = NextApiResponse & Express.Response;
 
-export const passport = configurePassport(serializeUserId, deserializeUser);
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "";
 
-export const createAuthApiHandler = () =>
+export const passport = configurePassport(serializeUser, deserializeUser);
+
+export const createHandler = () =>
   nc<AppRequest, AppResponse>({
-    onError,
+    onError: (err, _, res) => {
+      error(err);
+      res.status(500).end(err.toString());
+    },
   })
-    .use(sessionMiddleware())
+    .use(process.env.VERCEL ? trustProxyMiddleware : (_, __, next) => next())
+    .use(sessionMiddleware)
     .use(passport.initialize())
     .use(passport.session());

@@ -1,9 +1,9 @@
-import { createAuthApiHandler } from "@server/handler";
+import { createHandler } from "@server/handler";
 
-const handler = createAuthApiHandler();
+const handler = createHandler();
 
 handler.get(async (req, res) => {
-  res.json(req.user);
+  res.status(200).json(req.user);
 });
 
 export default handler;
