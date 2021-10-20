@@ -1,6 +1,6 @@
-import { createAuthApiHandler, passport } from "@server/handler";
+import { createHandler, passport } from "@server/handler";
 
-const handler = createAuthApiHandler();
+const handler = createHandler();
 
 handler.get(passport.authenticate("google", { scope: ["profile"] }));
 

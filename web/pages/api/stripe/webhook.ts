@@ -1,8 +1,8 @@
 import { PriceType, SubscriptionStatus } from "@prisma/client";
 import Stripe from "stripe";
-import { createApiHandler } from "@server/handler";
-import { stripe } from "@server/stripe";
+import { createHandler } from "@server/handler";
 import { prisma } from "@server/prisma";
+import { stripe } from "@libs/payments/server/paymentsService";
 import { timestampToDate } from "@util/common";
 
 // Stripe requires the raw body to construct the event.
@@ -30,7 +30,7 @@ const relevantEvents = new Set([
   "customer.subscription.deleted",
 ]);
 
-const handler = createApiHandler();
+const handler = createHandler();
 
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 

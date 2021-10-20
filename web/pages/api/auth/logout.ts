@@ -1,6 +1,6 @@
-import { createAuthApiHandler } from "@server/handler";
+import { createHandler } from "@server/handler";
 
-const handler = createAuthApiHandler();
+const handler = createHandler();
 
 handler.post(async (req, res) => {
   req.logout();
