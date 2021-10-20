@@ -88,17 +88,16 @@ export const getUserPasswordHash = async ({ email, id }: GetUserInput) => {
   return { user: null, passwordHash: null };
 };
 
-type PassportCallback = (err: any, user?: any) => void;
+type PassportCallback = (err: any, user?: User) => void;
 
-export const serializeUserId = (user: User, callback: PassportCallback) => {
-  callback(null, user.id);
+export const serializeUser = (user: User, callback: PassportCallback) => {
+  callback(null, user);
 };
 
 export const deserializeUser = async (
-  id: User["id"],
+  user: User,
   callback: PassportCallback
 ) => {
-  const user = await getUser({ id });
   callback(null, user);
 };
 

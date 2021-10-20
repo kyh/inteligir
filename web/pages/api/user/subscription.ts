@@ -1,7 +1,7 @@
-import { createAuthApiHandler } from "@server/handler";
+import { createHandler } from "@server/handler";
 import { prisma } from "@server/prisma";
 
-const handler = createAuthApiHandler();
+const handler = createHandler();
 
 handler.get(async (req, res) => {
   const userId = req.session?.userId!;

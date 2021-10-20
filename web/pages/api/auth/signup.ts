@@ -1,7 +1,7 @@
-import { createAuthApiHandler } from "@server/handler";
+import { createHandler } from "@server/handler";
 import { createUser } from "@libs/users/server/userService";
 
-const handler = createAuthApiHandler();
+const handler = createHandler();
 
 handler.post(async (req, res) => {
   try {
