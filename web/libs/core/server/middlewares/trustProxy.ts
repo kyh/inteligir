@@ -1,7 +1,7 @@
 /**
  * This trustProxyMiddleware replicates Express' app.set("trust proxy", true) to make auth work on Vercel. (inspired by blitz-js/blitz#966)
  */
-export const trustProxyMiddleware = function (req: any, _: any, next: any) {
+export const trustProxyMiddleware = (req: any, _: any, next: any) => {
   req.protocol = getProtocol(req);
   next();
 };

@@ -1,6 +1,12 @@
 import { User } from "@prisma/client";
 import { sign } from "jsonwebtoken";
 import { hash, compare } from "bcrypt";
+import {
+  ACCESS_TOKEN_COOKIE_NAME,
+  ACCESS_TOKEN_SECRET,
+  REFRESH_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_SECRET,
+} from "./strategy/jwt";
 
 const SALT_ROUNDS = 10;
 
@@ -17,17 +23,30 @@ export const validatePassword = async (
   return isMatchingPassword;
 };
 
-const ACCESS_TOKEN_SECRET = process.env.ACCESS_TOKEN_SECRET || "a-secret";
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || "r-secret";
-
-export const createAccessToken = (user: Partial<User>) => {
-  return sign({ ...user }, ACCESS_TOKEN_SECRET, {
-    expiresIn: "15m",
-  });
-};
-
-export const createRefreshToken = (user: Partial<User>) => {
-  return sign({ ...user }, REFRESH_TOKEN_SECRET, {
+export const createTokens = (user: Partial<User>) => {
+  const accessToken = sign({ user }, ACCESS_TOKEN_SECRET, {
     expiresIn: "7d",
   });
+
+  const refreshToken = sign({ user }, REFRESH_TOKEN_SECRET, {
+    expiresIn: "90d",
+  });
+
+  return { accessToken, refreshToken };
+};
+
+export const cookieOptions = {
+  httpOnly: true,
+  sameSite: "lax" as "lax",
+  maxAge: 24 * 60 * 60 * 1000 * 90,
+  secure: process.env.NODE_ENV !== "development" && !process.env.INSECURE_AUTH,
+  signed: process.env.NODE_ENV !== "development" && !process.env.INSECURE_AUTH,
+};
+
+export { ACCESS_TOKEN_COOKIE_NAME, REFRESH_TOKEN_COOKIE_NAME };
+
+export const handleTokenRequest = async (user: Partial<User>, res: any) => {
+  const { accessToken, refreshToken } = await createTokens(user);
+  res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, cookieOptions);
+  res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, cookieOptions);
 };

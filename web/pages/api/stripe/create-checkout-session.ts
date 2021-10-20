@@ -10,7 +10,7 @@ handler.post(async (req, res) => {
     throw new Error("Missing parameter price");
   }
 
-  const userId = req.session?.userId!;
+  const userId = req.user?.id;
 
   const customerId = await getCustomerId(userId);
 
