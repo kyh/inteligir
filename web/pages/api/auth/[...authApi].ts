@@ -1,5 +1,8 @@
 import { createHandler, passport } from "@server/handler";
-import { handleTokenRequest } from "@libs/auth/server/authService";
+import {
+  handleTokenRequest,
+  handleTokenDestroy,
+} from "@libs/auth/server/authService";
 import { authRoutes } from "@libs/auth/server/authConfig";
 
 const handler = createHandler({ attachParams: true });
@@ -25,6 +28,7 @@ handler
     authRoutes.logout,
     passport.authenticate("jwt", { session: false }),
     async (req, res) => {
+      handleTokenDestroy(res);
       req.logout();
       res.redirect("/");
     }
