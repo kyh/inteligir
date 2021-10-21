@@ -19,7 +19,6 @@ type CreateUserInput = {
   image?: string;
   password?: string;
   account?: {
-    type: string;
     provider: string;
     providerAccountId: string;
     accessToken: string;
@@ -44,7 +43,6 @@ export const createUser = async ({
     data.accounts = {
       create: [
         {
-          type: account.type,
           provider: account.provider,
           providerAccountId: account.providerAccountId,
           accessToken: account.accessToken,
