@@ -1,7 +1,7 @@
 import session from "express-session";
 import redis from "redis";
 import connectRedis from "connect-redis";
-import { COOKIE_SECRET, cookieOptions } from "../config";
+import { COOKIE_SECRET, cookieOptions } from "../authConfig";
 
 const RedisStore = connectRedis(session);
 const redisClient = redis.createClient();
