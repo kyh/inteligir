@@ -4,7 +4,7 @@ import fetch from "cross-fetch";
 // For interacting with the React Query cache
 export const queryClient = new QueryClient();
 
-const rootPath = process.env.NEXT_PUBLIC_API_URL;
+export const rootPath = process.env.NEXT_PUBLIC_API_URL || "";
 
 const defaultOptions = {
   headers: {

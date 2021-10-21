@@ -4,10 +4,10 @@ import { hash, compare } from "bcrypt";
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   ACCESS_TOKEN_SECRET,
-  REFRESH_TOKEN_COOKIE_NAME,
+  // REFRESH_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_SECRET,
   cookieOptions,
-} from "./config";
+} from "./authConfig";
 
 const SALT_ROUNDS = 10;
 
@@ -36,8 +36,8 @@ export const createTokens = (user: Partial<User>) => {
   return { accessToken, refreshToken };
 };
 
-export const handleTokenRequest = async (user: Partial<User>, res: any) => {
-  const { accessToken, refreshToken } = await createTokens(user);
+export const handleTokenRequest = (user: Partial<User>, res: any) => {
+  const { accessToken } = createTokens(user);
   res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, cookieOptions);
-  res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, cookieOptions);
+  // res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, cookieOptions);
 };
