@@ -6,7 +6,8 @@ import {
   ACCESS_TOKEN_SECRET,
   REFRESH_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_SECRET,
-} from "./strategy/jwt";
+  cookieOptions,
+} from "./config";
 
 const SALT_ROUNDS = 10;
 
@@ -34,16 +35,6 @@ export const createTokens = (user: Partial<User>) => {
 
   return { accessToken, refreshToken };
 };
-
-export const cookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as "lax",
-  maxAge: 24 * 60 * 60 * 1000 * 90,
-  secure: process.env.NODE_ENV !== "development" && !process.env.INSECURE_AUTH,
-  signed: process.env.NODE_ENV !== "development" && !process.env.INSECURE_AUTH,
-};
-
-export { ACCESS_TOKEN_COOKIE_NAME, REFRESH_TOKEN_COOKIE_NAME };
 
 export const handleTokenRequest = async (user: Partial<User>, res: any) => {
   const { accessToken, refreshToken } = await createTokens(user);
