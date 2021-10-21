@@ -28,3 +28,13 @@ export const authRoutes = {
   facebookCallback: "/api/auth/facebook/callback",
   refresh: "/api/auth/refresh_token",
 };
+
+type AuthRoutes = typeof authRoutes;
+
+export const clientAuthRoutes = Object.keys(authRoutes).reduce((map, key) => {
+  map[key as keyof AuthRoutes] = authRoutes[key as keyof AuthRoutes].replace(
+    "/api",
+    ""
+  );
+  return map;
+}, {} as AuthRoutes);

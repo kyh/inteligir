@@ -11,11 +11,6 @@ export const jwtStrategy = new Strategy(
   },
   (payload, done) => {
     if (!payload) return done(null, false);
-
-    if (Date.now() > payload.expires) {
-      return done("Token Expired");
-    }
-
-    return done(null, payload);
+    return done(null, payload.user);
   }
 );

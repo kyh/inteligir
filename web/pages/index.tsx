@@ -1,13 +1,13 @@
 import tw from "tailwind-styled-components";
 import { SEO, Heading, Text } from "@components";
-import { useCurrentUser } from "@libs/auth/data/useCurrentUser";
+import { useCurrentUser } from "@libs/auth/data/authHooks";
 
 const Page = tw.main`flex h-screen`;
 const Container = tw.section`m-auto text-center`;
 
 export const HomePage = () => {
-  const [user, isLoading] = useCurrentUser();
-  console.log(isLoading, user);
+  const { isLoggedIn, user } = useCurrentUser();
+  console.log(isLoggedIn, user);
   return (
     <>
       <SEO />
