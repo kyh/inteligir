@@ -1,12 +1,5 @@
 import { Strategy, ExtractJwt } from "passport-jwt";
-
-export const ACCESS_TOKEN_COOKIE_NAME = "access_token";
-export const ACCESS_TOKEN_SECRET =
-  process.env.ACCESS_TOKEN_SECRET || "a-secret";
-
-export const REFRESH_TOKEN_COOKIE_NAME = "refresh_token";
-export const REFRESH_TOKEN_SECRET =
-  process.env.REFRESH_TOKEN_SECRET || "r-secret";
+import { ACCESS_TOKEN_COOKIE_NAME, ACCESS_TOKEN_SECRET } from "../config";
 
 export const jwtStrategy = new Strategy(
   {
