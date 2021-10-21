@@ -4,8 +4,6 @@ import { hash, compare } from "bcrypt";
 import {
   ACCESS_TOKEN_COOKIE_NAME,
   ACCESS_TOKEN_SECRET,
-  // REFRESH_TOKEN_COOKIE_NAME,
-  REFRESH_TOKEN_SECRET,
   cookieOptions,
 } from "./authConfig";
 
@@ -29,15 +27,14 @@ export const createTokens = (user: Partial<User>) => {
     expiresIn: "7d",
   });
 
-  const refreshToken = sign({ user }, REFRESH_TOKEN_SECRET, {
-    expiresIn: "90d",
-  });
-
-  return { accessToken, refreshToken };
+  return { accessToken };
 };
 
 export const handleTokenRequest = (user: Partial<User>, res: any) => {
   const { accessToken } = createTokens(user);
   res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, cookieOptions);
-  // res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, cookieOptions);
+};
+
+export const handleTokenDestroy = (res: any) => {
+  res.cookie(ACCESS_TOKEN_COOKIE_NAME, "", cookieOptions);
 };
