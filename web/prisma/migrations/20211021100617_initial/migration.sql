@@ -1,4 +1,10 @@
 -- CreateEnum
+CREATE TYPE "UserRole" AS ENUM ('USER', 'ADMIN');
+
+-- CreateEnum
+CREATE TYPE "TokenType" AS ENUM ('REFRESH_TOKEN', 'VERIFY_PASSWORD', 'RESET_PASSWORD');
+
+-- CreateEnum
 CREATE TYPE "PriceType" AS ENUM ('recurring', 'one_time');
 
 -- CreateEnum
@@ -13,49 +19,43 @@ CREATE TYPE "StoryType" AS ENUM ('text', 'image', 'video', 'audio');
 -- CreateTable
 CREATE TABLE "Account" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "type" TEXT NOT NULL,
     "provider" TEXT NOT NULL,
     "providerAccountId" TEXT NOT NULL,
-    "refresh_token" TEXT,
-    "access_token" TEXT,
-    "expires_at" INTEGER,
-    "token_type" TEXT,
-    "scope" TEXT,
-    "id_token" TEXT,
-    "session_state" TEXT,
-    "oauth_token_secret" TEXT,
-    "oauth_token" TEXT,
+    "refreshToken" TEXT,
+    "accessToken" TEXT,
+    "expiresAt" INTEGER,
+    "userId" TEXT NOT NULL,
 
     CONSTRAINT "Account_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Session" (
-    "id" TEXT NOT NULL,
-    "sessionToken" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
-    "expires" TIMESTAMP(3) NOT NULL,
-
-    CONSTRAINT "Session_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
-    "name" TEXT,
     "email" TEXT,
     "emailVerified" TIMESTAMP(3),
+    "name" TEXT,
     "image" TEXT,
+    "passwordHash" TEXT,
+    "role" "UserRole" NOT NULL DEFAULT E'USER',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "VerificationToken" (
-    "identifier" TEXT NOT NULL,
-    "token" TEXT NOT NULL,
-    "expires" TIMESTAMP(3) NOT NULL
+CREATE TABLE "Token" (
+    "id" TEXT NOT NULL,
+    "hashedToken" TEXT NOT NULL,
+    "type" "TokenType" NOT NULL,
+    "expiresAt" TIMESTAMP(3),
+    "sentTo" TEXT,
+    "userId" TEXT NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "Token_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -85,14 +85,14 @@ CREATE TABLE "Product" (
 -- CreateTable
 CREATE TABLE "Price" (
     "id" TEXT NOT NULL,
-    "productId" TEXT NOT NULL,
     "active" BOOLEAN NOT NULL DEFAULT false,
     "currency" TEXT NOT NULL,
     "interval" "PriceInterval",
-    "unit_amount" INTEGER,
-    "interval_count" INTEGER,
-    "trial_period_days" INTEGER,
+    "unitAmount" INTEGER,
+    "intervalCount" INTEGER,
+    "trialPeriodDays" INTEGER,
     "type" "PriceType",
+    "productId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -102,17 +102,17 @@ CREATE TABLE "Price" (
 -- CreateTable
 CREATE TABLE "Subscription" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
     "priceId" TEXT NOT NULL,
     "status" "SubscriptionStatus" NOT NULL,
-    "start_date" TIMESTAMP(3),
-    "ended_at" TIMESTAMP(3),
-    "trial_end" TIMESTAMP(3),
-    "trial_start" TIMESTAMP(3),
-    "cancel_at" TIMESTAMP(3),
-    "cancel_at_period_end" BOOLEAN,
-    "canceled_at" TIMESTAMP(3),
+    "startDate" TIMESTAMP(3),
+    "endedAt" TIMESTAMP(3),
+    "trialEnd" TIMESTAMP(3),
+    "trialStart" TIMESTAMP(3),
+    "cancelAt" TIMESTAMP(3),
+    "cancelAtPeriodEnd" BOOLEAN,
+    "canceledAt" TIMESTAMP(3),
     "metadata" JSONB,
+    "userId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -146,8 +146,8 @@ CREATE TABLE "Story" (
 -- CreateTable
 CREATE TABLE "Comment" (
     "id" TEXT NOT NULL,
-    "userId" TEXT NOT NULL,
     "content" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
     "lessonId" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -159,16 +159,10 @@ CREATE TABLE "Comment" (
 CREATE UNIQUE INDEX "Account_provider_providerAccountId_key" ON "Account"("provider", "providerAccountId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Session_sessionToken_key" ON "Session"("sessionToken");
-
--- CreateIndex
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "VerificationToken_token_key" ON "VerificationToken"("token");
-
--- CreateIndex
-CREATE UNIQUE INDEX "VerificationToken_identifier_token_key" ON "VerificationToken"("identifier", "token");
+CREATE UNIQUE INDEX "Token_hashedToken_type_key" ON "Token"("hashedToken", "type");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "Customer_userId_key" ON "Customer"("userId");
@@ -180,7 +174,7 @@ CREATE UNIQUE INDEX "Subscription_userId_key" ON "Subscription"("userId");
 ALTER TABLE "Account" ADD CONSTRAINT "Account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Session" ADD CONSTRAINT "Session_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Token" ADD CONSTRAINT "Token_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Customer" ADD CONSTRAINT "Customer_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;

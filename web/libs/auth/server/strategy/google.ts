@@ -22,7 +22,6 @@ export const googleStrategy = new Strategy(
         email: profile.emails ? profile.emails[0].value : "",
         image: profile.photos ? profile.photos[0].value : "",
         account: {
-          type: "google",
           provider: profile.provider,
           providerAccountId: profile.id,
           accessToken,

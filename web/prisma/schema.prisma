@@ -12,18 +12,11 @@ datasource db {
 
 model Account {
   id                String  @id @default(cuid())
-  type              String
   provider          String
   providerAccountId String
   refreshToken      String?
   accessToken       String?
   expiresAt         Int?
-  tokenType         String?
-  scope             String?
-  idToken           String?
-  sessionState      String?
-  oauthTokenSecret  String?
-  oauthToken        String?
 
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
