@@ -1,5 +1,5 @@
 import { Strategy, ExtractJwt } from "passport-jwt";
-import { ACCESS_TOKEN_COOKIE_NAME, ACCESS_TOKEN_SECRET } from "../config";
+import { ACCESS_TOKEN_COOKIE_NAME, ACCESS_TOKEN_SECRET } from "../authConfig";
 
 export const jwtStrategy = new Strategy(
   {

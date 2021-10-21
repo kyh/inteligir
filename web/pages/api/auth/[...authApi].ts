@@ -1,27 +1,28 @@
 import { createHandler, passport } from "@server/handler";
 import { handleTokenRequest } from "@libs/auth/server/authService";
+import { authRoutes } from "@libs/auth/server/authConfig";
 
 const handler = createHandler({ attachParams: true });
 
 handler
   .post(
-    "/api/auth/login",
+    authRoutes.login,
     passport.authenticate("login", { session: false }),
     async (req, res) => {
-      await handleTokenRequest(req.user!, res);
+      handleTokenRequest(req.user!, res);
       res.status(200).json(req.user);
     }
   )
   .post(
-    "/api/auth/signup",
+    authRoutes.signup,
     passport.authenticate("signup", { session: false }),
     async (req, res) => {
-      await handleTokenRequest(req.user!, res);
+      handleTokenRequest(req.user!, res);
       res.status(200).json(req.user);
     }
   )
   .post(
-    "/api/auth/logout",
+    authRoutes.logout,
     passport.authenticate("jwt", { session: false }),
     async (req, res) => {
       req.logout();
@@ -29,27 +30,27 @@ handler
     }
   )
   .get(
-    "/api/auth/current_user",
+    authRoutes.current,
     passport.authenticate("jwt", { session: false }),
     async (req, res) => {
       res.status(200).json(req.user);
     }
   )
   .get(
-    "/api/auth/google",
+    authRoutes.google,
     passport.authenticate("google", {
       scope: ["profile", "email"],
       session: false,
     })
   )
   .get(
-    "/api/auth/google/callback",
+    authRoutes.googleCallback,
     passport.authenticate("google", {
       failureRedirect: "/login",
       session: false,
     }),
     async (req, res) => {
-      await handleTokenRequest(req.user!, res);
+      handleTokenRequest(req.user!, res);
       res.redirect("/");
     }
   );
