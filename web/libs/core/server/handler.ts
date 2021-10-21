@@ -23,7 +23,7 @@ export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "";
 
 export const passport = configurePassport();
 
-export const createHandler = () =>
+export const createHandler = (options = {}) =>
   nc<AppRequest, AppResponse>({
     onError: (err, _, res) => {
       error(err);
@@ -32,6 +32,8 @@ export const createHandler = () =>
     onNoMatch: (_, res) => {
       res.status(404).end("Page is not found");
     },
+    ...options,
   })
     .use(process.env.VERCEL ? trustProxyMiddleware : (_, __, next) => next())
-    .use(cookieMiddleware);
+    .use(cookieMiddleware)
+    .use(passport.initialize());
