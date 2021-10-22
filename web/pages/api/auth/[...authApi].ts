@@ -9,35 +9,36 @@ const handler = createHandler({ attachParams: true });
 
 handler
   .post(
-    authRoutes.login,
-    passport.authenticate("login", { session: false }),
-    async (req, res) => {
-      handleTokenRequest(req.user!, res);
-      res.status(200).json(req.user);
-    }
-  )
-  .post(
     authRoutes.signup,
     passport.authenticate("signup", { session: false }),
     async (req, res) => {
-      handleTokenRequest(req.user!, res);
-      res.status(200).json(req.user);
+      const accessToken = handleTokenRequest(req.user!, res);
+      res.status(200).json({ user: req.user, accessToken });
+    }
+  )
+  .post(
+    authRoutes.login,
+    passport.authenticate("login", { session: false }),
+    async (req, res) => {
+      const accessToken = handleTokenRequest(req.user!, res);
+      res.status(200).json({ user: req.user, accessToken });
+    }
+  )
+  .post(
+    authRoutes.refresh,
+    passport.authenticate("refreshToken", { session: false }),
+    async (req, res) => {
+      const accessToken = handleTokenRequest(req.user!, res);
+      res.status(200).json({ user: req.user, accessToken });
     }
   )
   .post(
     authRoutes.logout,
-    passport.authenticate("jwt", { session: false }),
+    passport.authenticate("refreshToken", { session: false }),
     async (req, res) => {
       handleTokenDestroy(res);
       req.logout();
-      res.redirect("/");
-    }
-  )
-  .get(
-    authRoutes.current,
-    passport.authenticate("jwt", { session: false }),
-    async (req, res) => {
-      res.status(200).json(req.user);
+      res.status(200).json({ user: null, accessToken: null });
     }
   )
   .get(

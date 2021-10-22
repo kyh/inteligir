@@ -2,8 +2,10 @@ import { User } from "@prisma/client";
 import { sign } from "jsonwebtoken";
 import { hash, compare } from "bcrypt";
 import {
-  ACCESS_TOKEN_COOKIE_NAME,
   ACCESS_TOKEN_SECRET,
+  ACCESS_TOKEN_TIMEOUT,
+  REFRESH_TOKEN_COOKIE_NAME,
+  REFRESH_TOKEN_SECRET,
   cookieOptions,
 } from "./authConfig";
 
@@ -24,17 +26,22 @@ export const validatePassword = async (
 
 export const createTokens = (user: Partial<User>) => {
   const accessToken = sign({ user }, ACCESS_TOKEN_SECRET, {
-    expiresIn: "7d",
+    expiresIn: ACCESS_TOKEN_TIMEOUT,
   });
 
-  return { accessToken };
+  const refreshToken = sign({ user }, REFRESH_TOKEN_SECRET, {
+    expiresIn: "90d",
+  });
+
+  return { accessToken, refreshToken };
 };
 
 export const handleTokenRequest = (user: Partial<User>, res: any) => {
-  const { accessToken } = createTokens(user);
-  res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, cookieOptions);
+  const { accessToken, refreshToken } = createTokens(user);
+  res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, cookieOptions);
+  return accessToken;
 };
 
 export const handleTokenDestroy = (res: any) => {
-  res.cookie(ACCESS_TOKEN_COOKIE_NAME, "", cookieOptions);
+  res.cookie(REFRESH_TOKEN_COOKIE_NAME, "", cookieOptions);
 };
