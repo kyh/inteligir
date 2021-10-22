@@ -3,14 +3,18 @@ import {
   signupStrategy,
   loginStrategy,
 } from "@libs/auth/server/strategy/local";
+import {
+  accessTokenStrategy,
+  refreshTokenStrategy,
+} from "@libs/auth/server/strategy/jwt";
 import { googleStrategy } from "@libs/auth/server/strategy/google";
-import { jwtStrategy } from "@libs/auth/server/strategy/jwt";
 
 export const configurePassport = () => {
   passport.use("signup", signupStrategy);
   passport.use("login", loginStrategy);
+  passport.use("accessToken", accessTokenStrategy);
+  passport.use("refreshToken", refreshTokenStrategy);
   passport.use(googleStrategy);
-  passport.use(jwtStrategy);
 
   return passport;
 };
