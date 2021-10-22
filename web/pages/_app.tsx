@@ -3,7 +3,9 @@ import type { NextPage } from "next";
 import Router from "next/router";
 import { useEffect } from "react";
 import { QueryClientProvider } from "react-query";
+import { ReactQueryDevtools } from "react-query/devtools";
 import { ProgressBar } from "@components";
+import { AuthProvider } from "@libs/auth/data/AuthProvider";
 import { queryClient } from "@util/query";
 import { initAnalytics, logPageView, logEvent } from "@util/analytics";
 
@@ -46,7 +48,10 @@ const MyApp = ({ Component, pageProps }: Props) => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <Component {...pageProps} />
+      <AuthProvider>
+        <Component {...pageProps} />
+      </AuthProvider>
+      <ReactQueryDevtools />
     </QueryClientProvider>
   );
 };

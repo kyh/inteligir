@@ -1,12 +1,10 @@
-export const ACCESS_TOKEN_COOKIE_NAME = "access_token";
+export const ACCESS_TOKEN_TIMEOUT = 60000 * 5; // 5 mins
 export const ACCESS_TOKEN_SECRET =
   process.env.ACCESS_TOKEN_SECRET || "a-secret";
 
 export const REFRESH_TOKEN_COOKIE_NAME = "refresh_token";
 export const REFRESH_TOKEN_SECRET =
   process.env.REFRESH_TOKEN_SECRET || "r-secret";
-
-export const COOKIE_SECRET = process.env.COOKIE_SECRET || "c-secret";
 
 export const cookieOptions = {
   path: "/",
@@ -21,7 +19,6 @@ export const authRoutes = {
   signup: "/api/auth/signup",
   login: "/api/auth/login",
   logout: "/api/auth/logout",
-  current: "/api/auth/current_user",
   google: "/api/auth/google",
   googleCallback: "/api/auth/google/callback",
   facebook: "/api/auth/facebook",

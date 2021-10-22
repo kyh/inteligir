@@ -13,7 +13,6 @@ export const googleStrategy = new Strategy(
       provider: profile.provider,
       providerAccountId: profile.id,
     });
-
     if (account) {
       done(null, account.user);
     } else {

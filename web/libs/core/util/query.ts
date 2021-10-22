@@ -6,28 +6,30 @@ export const queryClient = new QueryClient();
 
 export const rootPath = process.env.NEXT_PUBLIC_API_URL || "";
 
-const defaultOptions = {
-  headers: {
-    "Content-Type": "application/json",
-  },
-  mode: "cors" as RequestMode,
-  credentials: "include" as RequestCredentials,
-  includeCredentials: true,
+const getDefaultOptions = () => {
+  const defaultOptions = {
+    headers: {
+      "Content-Type": "application/json",
+    } as Record<string, string>,
+    mode: "cors" as RequestMode,
+    credentials: "include" as RequestCredentials,
+    includeCredentials: true,
+  };
+  const session = queryClient.getQueryData<{ accessToken: string }>("session");
+  if (session && session.accessToken) {
+    defaultOptions.headers["Authorization"] = `Bearer ${session.accessToken}`;
+  }
+  return defaultOptions;
 };
 
 const handleResponse = (response: Response) => {
   return response.json().then((json) => {
-    // if (json.status === "error") {
-    //   // Automatically signout user if accessToken is no longer valid
-    //   if (json.code === "auth/invalid-user-token") {
-    //     console.log("Invalid user token, signing out");
-    //   }
-
-    //   throw new Error(json.message);
-    // } else {
-    //   return json.data;
-    // }
-    return json;
+    if (response.status >= 400) {
+      // TODO: automatically signout user if session is no longer valid
+      throw new Error(json.message);
+    } else {
+      return json;
+    }
   });
 };
 
@@ -39,7 +41,11 @@ export const fetcher = {
   get: (subpath = "", data = {}, additionalOptions = {}) => {
     const params = new URLSearchParams(data).toString();
     const path = getPath(`${subpath}${params ? `?${params}` : ""}`);
-    const options = { ...defaultOptions, method: "GET", ...additionalOptions };
+    const options = {
+      ...getDefaultOptions(),
+      method: "GET",
+      ...additionalOptions,
+    };
 
     return fetch(path, options).then(handleResponse);
   },
@@ -47,7 +53,7 @@ export const fetcher = {
     const path = getPath(subpath);
     const body = JSON.stringify(data);
     const options = {
-      ...defaultOptions,
+      ...getDefaultOptions(),
       method: "POST",
       body,
       ...additionalOptions,
@@ -59,7 +65,7 @@ export const fetcher = {
     const path = getPath(subpath);
     const body = JSON.stringify(data);
     const options = {
-      ...defaultOptions,
+      ...getDefaultOptions(),
       method: "PUT",
       body,
       ...additionalOptions,
@@ -71,7 +77,7 @@ export const fetcher = {
     const path = getPath(subpath);
     const body = JSON.stringify(data);
     const options = {
-      ...defaultOptions,
+      ...getDefaultOptions(),
       method: "PATCH",
       body,
       ...additionalOptions,
@@ -83,7 +89,7 @@ export const fetcher = {
     const path = getPath(subpath);
     const body = JSON.stringify(data);
     const options = {
-      ...defaultOptions,
+      ...getDefaultOptions(),
       method: "DELETE",
       body,
       ...additionalOptions,

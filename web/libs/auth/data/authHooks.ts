@@ -1,18 +1,26 @@
+import { useState } from "react";
 import { useQueryClient, useQuery, useMutation } from "react-query";
 import { fetcher } from "@util/query";
-import { clientAuthRoutes } from "@libs/auth/server/authConfig";
+import {
+  clientAuthRoutes,
+  ACCESS_TOKEN_TIMEOUT,
+} from "@libs/auth/server/authConfig";
 
 // We should subset this to only interface we need.
 import { User as PrismaUser } from "@prisma/client";
-export type User = Pick<PrismaUser, "id" | "email" | "role">;
+export type User = Pick<PrismaUser, "id" | "email" | "name" | "image" | "role">;
+export type Session = { accessToken: string; user: User };
 
-type AuthInput = { email: string; password: string };
+export type AuthInput = { email: string; password: string };
+
+const sessionKey = "session";
+const defaultSessionTimeout = ACCESS_TOKEN_TIMEOUT - 1000;
 
 const useHandleAuth = (shouldInvalidate = false) => {
   const queryClient = useQueryClient();
 
-  const handleAuth = (user: User) => {
-    queryClient.setQueryData("currentUser", user);
+  const handleAuth = ({ accessToken, user }: Session) => {
+    queryClient.setQueryData(sessionKey, { user, accessToken });
     if (shouldInvalidate) {
       queryClient.invalidateQueries();
     }
@@ -21,20 +29,22 @@ const useHandleAuth = (shouldInvalidate = false) => {
   return handleAuth;
 };
 
-export const useCurrentUser = () => {
-  const query = useQuery<User>(
-    "currentUser",
-    () => fetcher.get(clientAuthRoutes.current),
+export const useSession = () => {
+  const [refetchInterval, setRefetchInterval] = useState(defaultSessionTimeout);
+  return useQuery<Session>(
+    sessionKey,
+    () => fetcher.post(clientAuthRoutes.refresh),
     {
+      onError: () => setRefetchInterval(0),
+      refetchInterval: refetchInterval,
+      refetchIntervalInBackground: refetchInterval ? true : false,
+      refetchOnMount: refetchInterval ? true : false,
+      refetchOnReconnect: refetchInterval ? true : false,
+      refetchOnWindowFocus: refetchInterval ? true : false,
       retry: false,
+      retryOnMount: false,
     }
   );
-
-  return {
-    isLoggedIn: query.data ? !!query.data.id : false,
-    user: query.data && query.data.id ? query.data : null,
-    ...query,
-  };
 };
 
 export const useLogin = () => {
