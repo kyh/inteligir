@@ -1,7 +1,9 @@
 import { createHandler, passport } from "@server/handler";
 import {
-  handleTokenRequest,
-  handleTokenDestroy,
+  createAccessToken,
+  createRefreshToken,
+  attachRefreshToken,
+  destroyRefreshToken,
 } from "@libs/auth/server/authService";
 import { authRoutes } from "@libs/auth/server/authConfig";
 
@@ -12,7 +14,10 @@ handler
     authRoutes.signup,
     passport.authenticate("signup", { session: false }),
     async (req, res) => {
-      const accessToken = handleTokenRequest(req.user!, res);
+      const accessToken = createAccessToken(req.user!);
+      const refreshToken = createRefreshToken(req.user!);
+
+      attachRefreshToken(refreshToken, refreshToken);
       res.status(200).json({ user: req.user, accessToken });
     }
   )
@@ -20,7 +25,10 @@ handler
     authRoutes.login,
     passport.authenticate("login", { session: false }),
     async (req, res) => {
-      const accessToken = handleTokenRequest(req.user!, res);
+      const accessToken = createAccessToken(req.user!);
+      const refreshToken = createRefreshToken(req.user!);
+
+      attachRefreshToken(refreshToken, refreshToken);
       res.status(200).json({ user: req.user, accessToken });
     }
   )
@@ -28,7 +36,7 @@ handler
     authRoutes.refresh,
     passport.authenticate("refreshToken", { session: false }),
     async (req, res) => {
-      const accessToken = handleTokenRequest(req.user!, res);
+      const accessToken = createAccessToken(req.user!);
       res.status(200).json({ user: req.user, accessToken });
     }
   )
@@ -36,7 +44,7 @@ handler
     authRoutes.logout,
     passport.authenticate("refreshToken", { session: false }),
     async (req, res) => {
-      handleTokenDestroy(res);
+      destroyRefreshToken(res);
       req.logout();
       res.status(200).json({ user: null, accessToken: null });
     }
@@ -55,7 +63,9 @@ handler
       session: false,
     }),
     async (req, res) => {
-      handleTokenRequest(req.user!, res);
+      const refreshToken = createRefreshToken(req.user!);
+
+      attachRefreshToken(refreshToken, refreshToken);
       res.redirect("/");
     }
   );

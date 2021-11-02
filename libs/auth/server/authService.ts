@@ -24,24 +24,25 @@ export const validatePassword = async (
   return isMatchingPassword;
 };
 
-export const createTokens = (user: Partial<User>) => {
+export const createAccessToken = (user: Partial<User>) => {
   const accessToken = sign({ user }, ACCESS_TOKEN_SECRET, {
     expiresIn: ACCESS_TOKEN_TIMEOUT,
   });
-
-  const refreshToken = sign({ user }, REFRESH_TOKEN_SECRET, {
-    expiresIn: "90d",
-  });
-
-  return { accessToken, refreshToken };
-};
-
-export const handleTokenRequest = (user: Partial<User>, res: any) => {
-  const { accessToken, refreshToken } = createTokens(user);
-  res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, cookieOptions);
   return accessToken;
 };
 
-export const handleTokenDestroy = (res: any) => {
+export const createRefreshToken = (user: Partial<User>) => {
+  const refreshToken = sign({ user }, REFRESH_TOKEN_SECRET, {
+    expiresIn: "90d",
+  });
+  // Save refresh token to db
+  return refreshToken;
+};
+
+export const attachRefreshToken = (refreshToken: string, res: any) => {
+  res.cookie(REFRESH_TOKEN_COOKIE_NAME, refreshToken, cookieOptions);
+};
+
+export const destroyRefreshToken = (res: any) => {
   res.cookie(REFRESH_TOKEN_COOKIE_NAME, "", cookieOptions);
 };
