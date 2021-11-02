@@ -1,5 +1,5 @@
 import { prisma } from "@server/prisma";
-import { createPasswordHash } from "@libs/auth/server/authService";
+import { createPasswordHash } from "@lib/auth/server/authService";
 import { Prisma, User } from "@prisma/client";
 
 const defaultSelect = {

@@ -1,12 +1,12 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { error } from "next/dist/build/output/log";
 import nc from "next-connect";
-import { trustProxyMiddleware } from "@libs/core/server/middlewares/trustProxy";
+import { trustProxyMiddleware } from "@server/middlewares/trustProxy";
 import {
   cookieMiddleware,
   CookieSerializeOptions,
-} from "@libs/core/server/middlewares/cookie";
-import { configurePassport } from "@libs/auth/server/middlewares/passport";
+} from "@server/middlewares/cookie";
+import { configurePassport } from "@lib/auth/server/middlewares/passport";
 
 export type AppRequest = NextApiRequest & Express.Request;
 

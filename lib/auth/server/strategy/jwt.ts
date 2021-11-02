@@ -1,9 +1,5 @@
 import { Strategy, ExtractJwt } from "passport-jwt";
 import {
-  createUser,
-  getUserPasswordHash,
-} from "@libs/users/server/userService";
-import {
   ACCESS_TOKEN_SECRET,
   REFRESH_TOKEN_COOKIE_NAME,
   REFRESH_TOKEN_SECRET,
