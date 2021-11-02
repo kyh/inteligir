@@ -5,7 +5,7 @@ import { useEffect } from "react";
 import { QueryClientProvider } from "react-query";
 import { ReactQueryDevtools } from "react-query/devtools";
 import { ProgressBar } from "@components";
-import { AuthProvider } from "@libs/auth/data/AuthProvider";
+import { AuthProvider } from "@lib/auth/data/AuthProvider";
 import { queryClient } from "@util/query";
 import { initAnalytics, logPageView, logEvent } from "@util/analytics";
 

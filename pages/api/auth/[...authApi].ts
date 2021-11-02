@@ -4,8 +4,8 @@ import {
   createRefreshToken,
   attachRefreshToken,
   destroyRefreshToken,
-} from "@libs/auth/server/authService";
-import { authRoutes } from "@libs/auth/server/authConfig";
+} from "@lib/auth/server/authService";
+import { authRoutes } from "@lib/auth/server/authConfig";
 
 const handler = createHandler({ attachParams: true });
 

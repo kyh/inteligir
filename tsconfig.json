@@ -15,10 +15,10 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "paths": {
-      "@components": ["libs/core/components/index.tsx"],
-      "@server/*": ["libs/core/server/*"],
-      "@util/*": ["libs/core/util/*"],
-      "@libs/*": ["libs/*"]
+      "@components": ["lib/core/components/index.tsx"],
+      "@server/*": ["lib/core/server/*"],
+      "@util/*": ["lib/core/util/*"],
+      "@lib/*": ["lib/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx"],
