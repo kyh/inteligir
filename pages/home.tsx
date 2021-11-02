@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { SEO, MainLayout, List, Heading } from "@components";
-import { lessons as lessonData, Lesson } from "@libs/lessons/data/lessons";
-import { LessonCard } from "@libs/lessons/components/LessonCard";
-import { comments as commentData, Comment } from "@libs/comments/data/comments";
-import { LessonComment } from "@libs/comments/components/LessonComment";
+import { lessons as lessonData, Lesson } from "@lib/lessons/data/lessons";
+import { LessonCard } from "@lib/lessons/components/LessonCard";
+import { comments as commentData, Comment } from "@lib/comments/data/comments";
+import { LessonComment } from "@lib/comments/components/LessonComment";
 
 const Aside = ({
   loading,

@@ -3,7 +3,7 @@ import { classnames } from "tailwindcss-classnames";
 import { FiThumbsUp, FiMessageCircle, FiEye, FiShare } from "react-icons/fi";
 import { Card, Button } from "@components";
 import { useOnScreen } from "@util/element";
-import { Lesson } from "@libs/lessons/data/lessons";
+import { Lesson } from "@lib/lessons/data/lessons";
 
 import Stories from "./LessonStory";
 

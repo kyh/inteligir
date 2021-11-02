@@ -2,7 +2,7 @@ import { PriceType, SubscriptionStatus } from "@prisma/client";
 import Stripe from "stripe";
 import { createHandler } from "@server/handler";
 import { prisma } from "@server/prisma";
-import { stripe } from "@libs/payments/server/paymentsService";
+import { stripe } from "@lib/payments/server/paymentsService";
 import { timestampToDate } from "@util/common";
 
 // Stripe requires the raw body to construct the event.

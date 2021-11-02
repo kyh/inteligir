@@ -4,7 +4,7 @@ import { fetcher } from "@util/query";
 import {
   clientAuthRoutes,
   ACCESS_TOKEN_TIMEOUT,
-} from "@libs/auth/server/authConfig";
+} from "@lib/auth/server/authConfig";
 
 // We should subset this to only interface we need.
 import { User as PrismaUser } from "@prisma/client";

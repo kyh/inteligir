@@ -1,5 +1,5 @@
 import { useContext, createContext, ReactNode } from "react";
-import { User, useSession } from "@libs/auth/data/authHooks";
+import { User, useSession } from "@lib/auth/data/authHooks";
 
 const AuthContext = createContext<{ user?: User; accessToken?: string }>({
   user: undefined,

@@ -1,5 +1,5 @@
 import { createHandler, APP_URL } from "@server/handler";
-import { stripe, getCustomerId } from "@libs/payments/server/paymentsService";
+import { stripe, getCustomerId } from "@lib/payments/server/paymentsService";
 
 const handler = createHandler();
 
