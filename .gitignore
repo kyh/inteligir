@@ -3,6 +3,7 @@
 /.pnp
 .pnp.js
 db
+redis
 generated
 schema.gql
 uploads

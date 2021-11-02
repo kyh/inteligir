@@ -9,8 +9,9 @@ const defaultSelect = {
   name: true,
   image: true,
   role: true,
-  updatedAt: true,
-  createdAt: true,
+  updatedAt: false,
+  createdAt: false,
+  passwordHash: false,
 };
 
 type CreateUserInput = {

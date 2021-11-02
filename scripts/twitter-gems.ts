@@ -1,6 +1,4 @@
-require("dotenv").config();
-
-import axios, { Method } from "axios";
+import fetch from "cross-fetch";
 import URL from "url-parse";
 
 const GEM_TOKEN = process.env.TWITTRGEM_TOKEN;
@@ -21,7 +19,7 @@ type Gem = {
 
 const getRawGems = async (page = 1) => {
   const config = {
-    method: "GET" as Method,
+    method: "GET",
     url: "https://upksilll-web.herokuapp.com/posts",
     params: {
       pageNo: page,
@@ -31,7 +29,7 @@ const getRawGems = async (page = 1) => {
     },
   };
 
-  const response = await axios(config);
+  const response = await fetch(config);
 
   return response.data as { data: Gem[]; pageNo: number; totalPages: number };
 };
@@ -51,11 +49,11 @@ type SavedGem = {
 
 const getSavedGems = async () => {
   const config = {
-    method: "GET" as Method,
+    method: "GET",
     url: "https://v1.nocodeapi.com/kaiyu/google_sheets/pCKJEbKOzytqoCjN?tabId=Sheet1",
   };
 
-  const response = await axios(config);
+  const response = await fetch(config);
 
   return response.data.data.reduce(
     (map: Record<string, SavedGem>, savedGem: SavedGem) => {
@@ -68,7 +66,7 @@ const getSavedGems = async () => {
 
 const insertGems = async (gems: Gem[]) => {
   const config = {
-    method: "POST" as Method,
+    method: "POST",
     url: "https://v1.nocodeapi.com/kaiyu/google_sheets/pCKJEbKOzytqoCjN?tabId=Sheet1",
     data: gems.map((g) => [
       g._id,
@@ -78,7 +76,7 @@ const insertGems = async (gems: Gem[]) => {
     ]),
   };
 
-  const response = await axios(config);
+  const response = await fetch(config);
   return response.data;
 };
 
