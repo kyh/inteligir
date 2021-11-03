@@ -19,8 +19,8 @@
     "stripe:dev": "stripe listen --forward-to  http://localhost:3000/api/stripe/webhook",
     "docker:start": "docker-compose up -d",
     "docker:stop": "docker-compose down",
-    "scripts:twitter-gems": "dotenv -e .env.local -- ts-node scripts/twitter-gems",
-    "scripts:twitter-bookmarks": "dotenv -e .env.local -- ts-node scripts/twitter-bookmarks",
+    "scripts:twitter-gems": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\"}' dotenv -e .env.local -- ts-node scripts/twitter-gems",
+    "scripts:twitter-tweet": "TS_NODE_COMPILER_OPTIONS='{\"module\":\"commonjs\"}' dotenv -e .env.local -- ts-node scripts/twitter-tweet",
     "postinstall": "husky install"
   },
   "prisma": {
@@ -74,6 +74,7 @@
     "uuid": "^8.3.2"
   },
   "devDependencies": {
+    "@founding/fx": "*",
     "url-parse": "^1.5.3",
     "@types/url-parse": "^1.4.4",
     "@tailwindcss/forms": "^0.3.3",
