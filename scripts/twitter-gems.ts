@@ -1,4 +1,4 @@
-import fetch from "cross-fetch";
+import { fetcher } from "./util";
 import URL from "url-parse";
 
 const GEM_TOKEN = process.env.TWITTRGEM_TOKEN;
@@ -18,9 +18,8 @@ type Gem = {
 };
 
 const getRawGems = async (page = 1) => {
+  const path = "https://upksilll-web.herokuapp.com/posts";
   const config = {
-    method: "GET",
-    url: "https://upksilll-web.herokuapp.com/posts",
     params: {
       pageNo: page,
     },
@@ -29,9 +28,9 @@ const getRawGems = async (page = 1) => {
     },
   };
 
-  const response = await fetch(config);
+  const response = await fetcher.get(path, {}, config);
 
-  return response.data as { data: Gem[]; pageNo: number; totalPages: number };
+  return response as { data: Gem[]; pageNo: number; totalPages: number };
 };
 
 const extractTweetId = (gem: Gem) => {
@@ -48,14 +47,12 @@ type SavedGem = {
 };
 
 const getSavedGems = async () => {
-  const config = {
-    method: "GET",
-    url: "https://v1.nocodeapi.com/kaiyu/google_sheets/pCKJEbKOzytqoCjN?tabId=Sheet1",
-  };
+  const path =
+    "https://v1.nocodeapi.com/kaiyu/google_sheets/pCKJEbKOzytqoCjN?tabId=Sheet1";
 
-  const response = await fetch(config);
+  const response = await fetcher.get(path);
 
-  return response.data.data.reduce(
+  return response.data.reduce(
     (map: Record<string, SavedGem>, savedGem: SavedGem) => {
       map[savedGem.gem_id] = savedGem;
       return map;
@@ -65,24 +62,24 @@ const getSavedGems = async () => {
 };
 
 const insertGems = async (gems: Gem[]) => {
-  const config = {
-    method: "POST",
-    url: "https://v1.nocodeapi.com/kaiyu/google_sheets/pCKJEbKOzytqoCjN?tabId=Sheet1",
-    data: gems.map((g) => [
-      g._id,
-      extractTweetId(g),
-      g.link,
-      JSON.stringify(g.category),
-    ]),
-  };
+  const path =
+    "https://v1.nocodeapi.com/kaiyu/google_sheets/pCKJEbKOzytqoCjN?tabId=Sheet1";
+  const data = gems.map((g) => [
+    g._id,
+    extractTweetId(g),
+    g.link,
+    JSON.stringify(g.category),
+  ]);
 
-  const response = await fetch(config);
-  return response.data;
+  const response = await fetcher.post(path, data);
+
+  return response;
 };
 
 const main = async () => {
+  console.log("getting saved gems...");
   const savedMap = await getSavedGems();
-  console.log("saved gems:", Object.keys(savedMap));
+  console.log(`we have ${Object.keys(savedMap).length} saved gems`);
   let pageNo = 1;
   let totalPages = 100;
 
@@ -96,8 +93,23 @@ const main = async () => {
         console.log("already saved:", gem._id);
       } else {
         console.log("saving gem:", gem);
-        const response = await insertGems([gem]);
-        console.log("response:", response);
+        try {
+          const response = await insertGems([gem]);
+          console.log("response:", response);
+        } catch (error) {
+          console.log("error:", error);
+
+          // try a second time after a while
+          setTimeout(async () => {
+            console.log("retying saving gem:", gem);
+            try {
+              const response = await insertGems([gem]);
+              console.log("response:", response);
+            } catch (error) {
+              console.log("error on retry:", error);
+            }
+          }, 500);
+        }
       }
     }
 
