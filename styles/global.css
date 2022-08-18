@@ -40,13 +40,3 @@
     transform: rotate(360deg);
   }
 }
-
-@layer base {
-  a {
-    @apply hover:underline;
-  }
-
-  body {
-    @apply text-slate-900;
-  }
-}
