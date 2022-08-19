@@ -1,4 +1,4 @@
-import {
+import type {
   Post as PrismaPost,
   PostContent as PrismaPostContent,
 } from "@prisma/client";
