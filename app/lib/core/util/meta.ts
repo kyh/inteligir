@@ -1,4 +1,4 @@
-const url = "https://yourssincerely.org";
+const url = "https://inteligir.com";
 const ogImage = `${url}/favicon/featured.png`;
 
 export const createMeta = ({
