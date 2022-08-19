@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { ReactNode } from "react";
 import { FiSearch, FiBell } from "react-icons/fi";
 import { Logo } from "~/components/Logo";
 import { Container } from "~/components/Container";

@@ -1,4 +1,5 @@
-import { json, LoaderArgs } from "@remix-run/node";
+import type { LoaderArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
 import { isAuthenticated } from "~/lib/auth/server/authenticator.server";
 import {
@@ -6,7 +7,7 @@ import {
   comments as commentsData,
 } from "~/lib/post/data/data";
 import { Comment } from "~/lib/post/ui/Comment";
-import { Post } from "~/lib/post/data/postSchema";
+import type { Post } from "~/lib/post/data/postSchema";
 import { useInfiniteScroll } from "~/components/InfiniteScroll";
 import { MainLayout } from "~/components/Page";
 import { Heading } from "~/components/Text";
