@@ -44,7 +44,7 @@ const Page = () => {
     >
       <List>
         {posts.map((post) => (
-          <li className="py-3 border-b">
+          <li className="py-4">
             <Carousel>
               {post.content.map((postContent) => (
                 <img className="rounded" src={postContent.data} />
