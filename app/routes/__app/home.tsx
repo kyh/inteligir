@@ -1,0 +1,88 @@
+import { json, LoaderArgs } from "@remix-run/node";
+import { useLoaderData } from "@remix-run/react";
+import { isAuthenticated } from "~/lib/auth/server/authenticator.server";
+import {
+  posts as postsData,
+  comments as commentsData,
+} from "~/lib/post/data/data";
+import { Comment } from "~/lib/post/ui/Comment";
+import { Post } from "~/lib/post/data/postSchema";
+import { useInfiniteScroll } from "~/components/InfiniteScroll";
+import { MainLayout } from "~/components/Page";
+import { Heading } from "~/components/Text";
+import { List } from "~/components/List";
+import { Carousel } from "~/components/Carousel";
+
+export const loader = async ({ request }: LoaderArgs) => {
+  const user = await isAuthenticated(request);
+  const url = new URL(request.url);
+  const cursor = url.searchParams.get("c");
+
+  return json({
+    postList: postsData,
+    user,
+  });
+};
+
+const Page = () => {
+  const { postList } = useLoaderData<typeof loader>();
+  const {
+    fetcher,
+    loadMore,
+    hasNextPage,
+    ref,
+    data: posts,
+  } = useInfiniteScroll({
+    initialData: postList,
+    fetcherResultKey: "postList",
+  });
+
+  return (
+    <MainLayout
+      title={<Heading>Home</Heading>}
+      aside={<Aside comments={commentsData} loading={false} />}
+    >
+      <List>
+        {posts.map((post) => (
+          <li className="py-3 border-b">
+            <Carousel>
+              {post.content.map((postContent) => (
+                <img className="rounded" src={postContent.data} />
+              ))}
+            </Carousel>
+          </li>
+        ))}
+      </List>
+    </MainLayout>
+  );
+};
+
+const Aside = ({
+  loading,
+  comments,
+}: {
+  loading: boolean;
+  comments: Post[];
+}) => {
+  return (
+    <section aria-labelledby="comments-section" className="my-6 overflow-auto">
+      <Heading
+        id="comments-section"
+        className="sticky top-0 pb-2 mb-0 text-lg bg-gradient-to-b from-white"
+      >
+        Comments
+      </Heading>
+      {loading ? (
+        <div>Loading...</div>
+      ) : (
+        <List>
+          {comments.map((comment) => (
+            <Comment key={comment.id} comment={comment} />
+          ))}
+        </List>
+      )}
+    </section>
+  );
+};
+
+export default Page;
