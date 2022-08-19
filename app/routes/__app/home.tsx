@@ -6,11 +6,12 @@ import {
   comments as commentsData,
 } from "~/lib/post/data/data";
 import { Comment } from "~/lib/post/ui/Comment";
+import { Post } from "~/lib/post/data/postSchema";
+import { useInfiniteScroll } from "~/components/InfiniteScroll";
 import { MainLayout } from "~/components/Page";
 import { Heading } from "~/components/Text";
 import { List } from "~/components/List";
-import { useInfiniteScroll } from "~/components/InfiniteScroll";
-import { Post } from "~/lib/post/data/postSchema";
+import { Carousel } from "~/components/Carousel";
 
 export const loader = async ({ request }: LoaderArgs) => {
   const user = await isAuthenticated(request);
@@ -41,11 +42,17 @@ const Page = () => {
       title={<Heading>Home</Heading>}
       aside={<Aside comments={commentsData} loading={false} />}
     >
-      <ul role="list">
+      <List>
         {posts.map((post) => (
-          <li key={post.id}>{post.id}</li>
+          <li className="py-3 border-b">
+            <Carousel>
+              {post.content.map((postContent) => (
+                <img className="rounded" src={postContent.data} />
+              ))}
+            </Carousel>
+          </li>
         ))}
-      </ul>
+      </List>
     </MainLayout>
   );
 };
@@ -68,7 +75,7 @@ const Aside = ({
       {loading ? (
         <div>Loading...</div>
       ) : (
-        <List role="list">
+        <List>
           {comments.map((comment) => (
             <Comment key={comment.id} comment={comment} />
           ))}
