@@ -17,10 +17,11 @@
     "dev:remix": "remix dev",
     "start": "remix-serve build",
     "prisma:generate": "dotenv -- prisma generate",
-    "prisma:migrate": "dotenv -- prisma db push",
+    "prisma:migrate": "dotenv -- prisma migrate dev",
     "prisma:reset": "dotenv -- prisma migrate reset",
     "prisma:seed": "dotenv -- prisma db seed",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "prisma:deploy": "prisma migrate deploy"
   },
   "dependencies": {
     "@headlessui/react": "^1.4.2",
