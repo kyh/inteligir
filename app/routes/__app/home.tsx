@@ -1,7 +1,6 @@
 import type { LoaderArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData } from "@remix-run/react";
-import { isAuthenticated } from "~/lib/auth/server/authenticator.server";
 import {
   posts as postsData,
   comments as commentsData,
@@ -15,13 +14,11 @@ import { List } from "~/components/List";
 import { Carousel } from "~/components/Carousel";
 
 export const loader = async ({ request }: LoaderArgs) => {
-  const user = await isAuthenticated(request);
   const url = new URL(request.url);
   const cursor = url.searchParams.get("c");
 
   return json({
     postList: postsData,
-    user,
   });
 };
 
@@ -45,10 +42,15 @@ const Page = () => {
     >
       <List>
         {posts.map((post) => (
-          <li className="py-4">
+          <li className="py-4" key={post.id}>
             <Carousel>
               {post.content.map((postContent) => (
-                <img className="rounded" src={postContent.data} />
+                <img
+                  key={postContent.id}
+                  className="rounded"
+                  src={postContent.data}
+                  alt=""
+                />
               ))}
             </Carousel>
           </li>

@@ -7,53 +7,13 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Account {
-  id                String  @id @default(cuid())
-  provider          String
-  providerAccountId String
-  refreshToken      String?
-  accessToken       String?
-  expiresAt         Int?
-  userId            String
-  user              User    @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
-  @@unique([provider, providerAccountId])
-  @@index([userId])
-}
-
-model User {
-  id            String    @id @default(cuid())
-  username      String?
-  email         String?   @unique
-  emailVerified DateTime?
-  displayName   String?
-  displayImage  String?
-  role          UserRole  @default(USER)
-  accounts      Account[]
-  passwordHash  String?
-  tokens        Token[]
-  posts         Post[]
-  likes         Like[]
-  flags         Flag[]
-  blockedBy     Block[]   @relation("blocking")
-  blocking      Block[]   @relation("blocker")
-  createdAt     DateTime  @default(now())
-}
-
-model Token {
-  id        String    @id @default(cuid())
-  token     String
-  type      TokenType
-  expiresAt DateTime?
-  sentTo    String?
-  usedAt    DateTime?
-  userId    String
-  user      User      @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-
-  @@unique([token, type])
-  @@index([userId])
+model Profile {
+  id           String   @id @default(cuid())
+  username     String?
+  email        String?  @unique
+  displayName  String?
+  displayImage String?
+  createdAt    DateTime @default(now())
 }
 
 model Post {
@@ -68,9 +28,7 @@ model Post {
   parent   Post?   @relation("comments", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   parentId String?
 
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-
+  userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -86,10 +44,10 @@ model PostContent {
 }
 
 model Like {
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  postId String
+  post   Post   @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -100,12 +58,12 @@ model Like {
 }
 
 model Flag {
-  comment   String?
-  resolved  Boolean  @default(false)
-  postId    String
-  post      Post     @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  comment  String?
+  resolved Boolean @default(false)
+  postId   String
+  post     Post    @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -115,25 +73,12 @@ model Flag {
 }
 
 model Block {
-  blockerId  String
-  blocker    User   @relation("blocker", fields: [blockerId], references: [id], onUpdate: NoAction)
-  blockingId String
-  blocking   User   @relation("blocking", fields: [blockingId], references: [id], onUpdate: NoAction)
+  blockerId  String @unique
+  blockingId String @unique
 
   @@id([blockerId, blockingId])
   @@index([blockerId])
   @@index([blockingId])
-}
-
-enum UserRole {
-  USER
-  ADMIN
-}
-
-enum TokenType {
-  REFRESH_TOKEN
-  VERIFY_EMAIL
-  RESET_PASSWORD
 }
 
 enum PostType {
