@@ -1,5 +1,5 @@
 import { FiMessageCircle } from "react-icons/fi";
-import { Post } from "~/lib/post/data/postSchema";
+import type { Post } from "~/lib/post/data/postSchema";
 
 type Props = {
   comment: Post;

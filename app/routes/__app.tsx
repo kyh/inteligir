@@ -1,4 +1,5 @@
-import { json, LoaderArgs } from "@remix-run/node";
+import type { LoaderArgs } from "@remix-run/node";
+import { json } from "@remix-run/node";
 import { Outlet } from "@remix-run/react";
 import { getFlash } from "~/lib/core/server/session.server";
 import { ToastProvider } from "~/components/Toaster";

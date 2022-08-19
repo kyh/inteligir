@@ -1,4 +1,4 @@
-import { Post } from "./postSchema";
+import type { Post } from "./postSchema";
 
 export const posts: Post[] = [
   {
