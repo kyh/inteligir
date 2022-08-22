@@ -25,51 +25,43 @@ model Post {
   likes    Like[]
   flags    Flag[]
   comments Post[]  @relation("comments")
-  parent   Post?   @relation("comments", fields: [parentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  parent   Post?   @relation("comments", fields: [parentId], references: [id])
   parentId String?
 
   userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  @@index([id, userId])
-  @@index([userId])
 }
 
 model PostContent {
   id     String @id @default(cuid())
   postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  post   Post   @relation(fields: [postId], references: [id])
   data   String @db.Text
 }
 
 model Like {
   postId String
-  post   Post   @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  post   Post   @relation(fields: [postId], references: [id])
 
   userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@id([postId, userId])
-  @@index([postId, userId])
-  @@index([postId])
-  @@index([userId])
 }
 
 model Flag {
   comment  String?
   resolved Boolean @default(false)
   postId   String
-  post     Post    @relation(fields: [postId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  post     Post    @relation(fields: [postId], references: [id])
 
   userId    String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@id([postId, userId])
-  @@index([postId, userId])
-  @@index([postId])
 }
 
 model Block {
@@ -77,8 +69,6 @@ model Block {
   blockingId String @unique
 
   @@id([blockerId, blockingId])
-  @@index([blockerId])
-  @@index([blockingId])
 }
 
 enum PostType {
