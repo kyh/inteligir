@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import Trans from "~/core/ui/Trans";
+
 
 import Button from "~/core/ui/Button";
 import Modal from "~/core/ui/Modal";
@@ -8,7 +8,7 @@ import type MembershipRole from "~/lib/organizations/types/membership-role";
 import useUpdateMemberRequest from "~/lib/organizations/hooks/use-update-member-role";
 import MembershipRoleSelector from "~/app/(app)/settings/organization/components/MembershipRoleSelector";
 
-const Heading = <Trans i18nKey="organization:updateMemberRoleModalHeading" />;
+const Heading = Update Member's Role;
 
 const UpdateMemberRoleModal: React.FCC<{
   isOpen: boolean;
@@ -41,7 +41,7 @@ const UpdateMemberRoleModal: React.FCC<{
             loading={isMutating}
             onClick={onRoleUpdated}
           >
-            <Trans i18nKey="organization:updateRoleSubmitLabel" />
+            Update Role
           </Button>
         </div>
       </div>

@@ -6,7 +6,7 @@ import type Organization from "~/lib/organizations/types/organization";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 
 import If from "~/core/ui/If";
-import Trans from "~/core/ui/Trans";
+
 import Alert from "~/core/ui/Alert";
 
 import PricingTable from "~/components/PricingTable";
@@ -34,7 +34,7 @@ const PlanSelectionForm: React.FCC<{
                   stripePriceId={props.stripePriceId}
                   recommended={props.recommended}
                 >
-                  <Trans i18nKey="subscriptions:checkout" defaults="Checkout" />
+                  Checkout
                 </CheckoutRedirectButton>
               );
             }}
@@ -43,11 +43,12 @@ const PlanSelectionForm: React.FCC<{
           <If condition={customerId}>
             <div className="flex flex-col space-y-2">
               <BillingPortalRedirectButton customerId={customerId as string}>
-                <Trans i18nKey="subscription:manageBilling" />
+                Go to Customer Portal
               </BillingPortalRedirectButton>
 
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                <Trans i18nKey="subscription:manageBillingDescription" />
+                Visit your Customer Portal to manage your subscription and
+                billing.
               </span>
             </div>
           </If>
@@ -63,10 +64,10 @@ function NoPermissionsAlert() {
   return (
     <Alert type="warn">
       <Alert.Heading>
-        <Trans i18nKey="subscription:noPermissionsAlertHeading" />
+        You don't have permissions to change the billing
       </Alert.Heading>
-
-      <Trans i18nKey="subscription:noPermissionsAlertBody" />
+      Please contact your organization owner to change the billing settings for
+      your organization.
     </Alert>
   );
 }

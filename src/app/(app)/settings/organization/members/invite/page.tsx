@@ -2,7 +2,7 @@ import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
 
 import SettingsTile from "~/app/(app)/settings/components/SettingsTile";
 import InviteMembersForm from "~/app/(app)/settings/organization/components/InviteMembersForm";
-import Trans from "~/core/ui/Trans";
+
 import Button from "~/core/ui/Button";
 
 export const metadata = {
@@ -10,22 +10,18 @@ export const metadata = {
 };
 
 const OrganizationMembersInvitePage = () => {
-  return (
-    <>
-      <SettingsTile
-        heading={<Trans i18nKey="organization:inviteMembersPageHeading" />}
-        subHeading={
-          <Trans i18nKey="organization:inviteMembersPageSubheading" />
-        }
-      >
-        <InviteMembersForm />
-      </SettingsTile>
+  return <>
+    <SettingsTile
+      heading={Invite Members}
+      subHeading={Invite members to your organization}
+    >
+      <InviteMembersForm />
+    </SettingsTile>
 
-      <div className="mt-4">
-        <GoBackToMembersButton />
-      </div>
-    </>
-  );
+    <div className="mt-4">
+      <GoBackToMembersButton />
+    </div>
+  </>;
 };
 
 export default OrganizationMembersInvitePage;
@@ -41,7 +37,7 @@ function GoBackToMembersButton() {
         <ArrowLeftIcon className="h-3" />
 
         <span>
-          <Trans i18nKey="organization:goBackToMembersPage" />
+          Go back to members
         </span>
       </span>
     </Button>

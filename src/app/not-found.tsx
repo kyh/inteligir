@@ -1,20 +1,13 @@
 import Button from "~/core/ui/Button";
 import Heading from "~/core/ui/Heading";
-import Trans from "~/core/ui/Trans";
-
 import SiteHeader from "~/app/(site)/components/SiteHeader";
-
 import configuration from "~/configuration";
-import initializeServerI18n from "~/i18n/i18n.server";
-import getLanguageCookie from "~/i18n/get-language-cookie";
 
 export const metadata = {
   title: `Page not found - ${configuration.site.name}`,
 };
 
 const NotFoundPage = async () => {
-  await initializeServerI18n(getLanguageCookie());
-
   return (
     <main>
       <SiteHeader />
@@ -36,24 +29,19 @@ const NotFoundPage = async () => {
             <div className="flex flex-col space-y-4 pl-8">
               <div className="flex flex-col space-y-2">
                 <div>
-                  <Heading type={1}>
-                    <Trans i18nKey="common:pageNotFound" />
-                  </Heading>
+                  <Heading type={1}>Oops. Page not Found.</Heading>
                 </div>
 
                 <p className="text-gray-500 dark:text-gray-300">
-                  <Trans i18nKey="common:pageNotFoundSubHeading" />
+                  Apologies, the page you were looking for was not found
                 </p>
               </div>
 
               <div className="flex space-x-4">
                 <Button color="secondary" href="/">
-                  <Trans i18nKey="common:contactUs" />
+                  Contact Us
                 </Button>
-
-                <Button href="/">
-                  <Trans i18nKey="common:backToHomePage" />
-                </Button>
+                <Button href="/">Back to Home Page</Button>
               </div>
             </div>
           </div>

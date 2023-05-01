@@ -15,7 +15,6 @@ import OrganizationContext from "~/lib/contexts/organization";
 import CsrfTokenContext from "~/lib/contexts/csrf";
 import SidebarContext from "~/lib/contexts/sidebar";
 import UserSessionContext from "~/core/session/contexts/user-session";
-import I18nProvider from "~/i18n/I18nProvider";
 
 import { setCookie } from "~/core/generic/cookies";
 import AuthChangeListener from "~/app/(app)/components/AuthChangeListener";
@@ -75,22 +74,16 @@ const RouteShell: React.FCC<{
     <UserSessionContext.Provider value={{ userSession, setUserSession }}>
       <OrganizationContext.Provider value={{ organization, setOrganization }}>
         <CsrfTokenContext.Provider value={data.csrfToken}>
-          <I18nProvider lang={data.language}>
-            <AuthChangeListener
-              accessToken={data.accessToken}
-              whenSignedOut="/"
-            >
-              <main>
-                <Toaster />
-
-                <RouteShellWithSidebar
-                  collapsed={data.ui.sidebarState === "collapsed"}
-                >
-                  {children}
-                </RouteShellWithSidebar>
-              </main>
-            </AuthChangeListener>
-          </I18nProvider>
+          <AuthChangeListener accessToken={data.accessToken} whenSignedOut="/">
+            <main>
+              <Toaster />
+              <RouteShellWithSidebar
+                collapsed={data.ui.sidebarState === "collapsed"}
+              >
+                {children}
+              </RouteShellWithSidebar>
+            </main>
+          </AuthChangeListener>
         </CsrfTokenContext.Provider>
       </OrganizationContext.Provider>
     </UserSessionContext.Provider>

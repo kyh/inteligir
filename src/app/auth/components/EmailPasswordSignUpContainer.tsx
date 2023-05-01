@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Trans from "~/core/ui/Trans";
 
 import AuthErrorMessage from "./AuthErrorMessage";
 import useSignUpWithEmailAndPasswordMutation from "~/core/hooks/use-sign-up-with-email-password";
@@ -68,12 +67,11 @@ const EmailPasswordSignUpContainer: React.FCC<{
     <>
       <If condition={showVerifyEmailAlert}>
         <Alert type="success">
-          <Alert.Heading>
-            <Trans i18nKey="auth:emailConfirmationAlertHeading" />
-          </Alert.Heading>
+          <Alert.Heading>We sent you a confirmation email.</Alert.Heading>
 
           <p data-cy="email-confirmation-alert">
-            <Trans i18nKey="auth:emailConfirmationAlertBody" />
+            Welcome! Please check your email and click the link to verify your
+            account.
           </p>
         </Alert>
       </If>

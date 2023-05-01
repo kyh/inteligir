@@ -1,7 +1,6 @@
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
 
 import Alert from "~/core/ui/Alert";
-import Trans from "~/core/ui/Trans";
 
 function SubscriptionStatusAlert(
   props: React.PropsWithChildren<{
@@ -61,13 +60,9 @@ function SubscriptionStatusAlert(
 
   return (
     <Alert type={type}>
-      <Alert.Heading>
-        <Trans i18nKey={heading} />
-      </Alert.Heading>
+      <Alert.Heading>{heading}</Alert.Heading>
 
-      <span className="block">
-        <Trans i18nKey={message} values={props.values} />
-      </span>
+      <span className="block">{message}</span>
     </Alert>
   );
 }

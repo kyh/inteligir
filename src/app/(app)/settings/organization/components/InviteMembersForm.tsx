@@ -1,6 +1,5 @@
 "use client";
 
-import { useTranslation } from "react-i18next";
 import { Fragment } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 
@@ -18,12 +17,10 @@ import IconButton from "~/core/ui/IconButton";
 
 import MembershipRoleSelector from "./MembershipRoleSelector";
 import useUserSession from "~/core/hooks/use-user-session";
-import Trans from "~/core/ui/Trans";
 
 type InviteModel = ReturnType<typeof memberFactory>;
 
 const InviteMembersForm = () => {
-  const { t } = useTranslation("organization");
   const user = useUserSession();
   const inviteMembers = useInviteMembers();
   const submitting = inviteMembers.isMutating;
@@ -68,13 +65,13 @@ const InviteMembersForm = () => {
               const invalid = getFormValidator(watchFieldArray)(value, index);
 
               if (invalid) {
-                return t<string>(`duplicateInviteEmailError`);
+                return "You have already entered this email address";
               }
 
               const isSameAsCurrentUserEmail = user?.auth?.user.email === value;
 
               if (isSameAsCurrentUserEmail) {
-                return t<string>(`invitingOwnAccountError`);
+                return "You cannot invite yourself";
               }
 
               return true;
@@ -114,7 +111,7 @@ const InviteMembersForm = () => {
                       <TooltipTrigger asChild>
                         <IconButton
                           data-cy="remove-invite-button"
-                          label={t<string>("removeInviteButtonLabel")}
+                          label="Remove invite"
                           onClick={() => {
                             remove(index);
                             clearErrors(emailInputName);
@@ -123,10 +120,7 @@ const InviteMembersForm = () => {
                           <XMarkIcon className="h-4 lg:h-5" />
                         </IconButton>
                       </TooltipTrigger>
-
-                      <TooltipContent>
-                        {t("removeInviteButtonLabel")}
-                      </TooltipContent>
+                      <TooltipContent>Remove invite</TooltipContent>
                     </Tooltip>
                   </div>
                 </If>
@@ -146,9 +140,7 @@ const InviteMembersForm = () => {
             <span className="flex items-center space-x-2">
               <PlusCircleIcon className="h-5" />
 
-              <span>
-                <Trans i18nKey="organization:addAnotherMemberButtonLabel" />
-              </span>
+              <span>Add another one</span>
             </span>
           </Button>
         </div>
@@ -161,11 +153,7 @@ const InviteMembersForm = () => {
           data-cy="send-invites-button"
           type="submit"
         >
-          {submitting ? (
-            <Trans i18nKey="organization:inviteMembersLoading" />
-          ) : (
-            <Trans i18nKey="organization:inviteMembersSubmitLabel" />
-          )}
+          {submitting ? "Inviting members..." : "Send Invites"}
         </Button>
       </div>
     </form>

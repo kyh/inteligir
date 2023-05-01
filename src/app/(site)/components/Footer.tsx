@@ -1,7 +1,6 @@
 import Link from "next/link";
 
 import Container from "~/core/ui/Container";
-import LogoImage from "~/core/ui/Logo/LogoImage";
 import configuration from "~/configuration";
 import Heading from "~/core/ui/Heading";
 import NewsletterSignup from "~/app/(site)/components/NewsletterSignup";

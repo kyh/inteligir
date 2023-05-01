@@ -5,7 +5,6 @@ import { cva } from "cva";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
 import If from "~/core/ui/If";
-import Trans from "~/core/ui/Trans";
 
 import NAVIGATION_CONFIG from "~/navigation.config";
 import isRouteActive from "~/core/generic/is-route-active";
@@ -24,7 +23,7 @@ function AppSidebarNavigation({
   return (
     <div className="flex flex-col space-y-1.5">
       {NAVIGATION_CONFIG.items.map((item) => {
-        const Label = <Trans i18nKey={item.label} defaults={item.label} />;
+        const Label = item.label;
         const active = isRouteActive(item.path, path, 3);
 
         const className = getSidebarItemClassBuilder()({

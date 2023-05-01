@@ -1,5 +1,4 @@
 import { FormEventHandler, useCallback } from "react";
-import { useTranslation } from "react-i18next";
 import toaster from "react-hot-toast";
 
 import Modal from "~/core/ui/Modal";
@@ -8,15 +7,11 @@ import Button from "~/core/ui/Button";
 
 import useCreateOrganization from "~/lib/organizations/hooks/use-create-organization";
 import useUserId from "~/core/hooks/use-user-id";
-import Trans from "~/core/ui/Trans";
-
-const Heading = <Trans i18nKey="organization:createOrganizationModalHeading" />;
 
 const CreateOrganizationModal: React.FC<{
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => unknown;
 }> = ({ isOpen, setIsOpen }) => {
-  const { t } = useTranslation();
   const userId = useUserId();
   const createOrganizationMutation = useCreateOrganization(userId);
 
@@ -31,24 +26,23 @@ const CreateOrganizationModal: React.FC<{
       const promise = createOrganizationMutation.trigger(organization);
 
       await toaster.promise(promise, {
-        success: t<string>("organization:createOrganizationSuccess"),
-        error: t<string>("organization:createOrganizationError"),
-        loading: t<string>("organization:createOrganizationLoading"),
+        success: "Organization created successfully",
+        error: "Organization not created. Please try again.",
+        loading: "Creating organization...",
       });
 
       setIsOpen(false);
     },
-    [createOrganizationMutation, setIsOpen, t]
+    [createOrganizationMutation, setIsOpen]
   );
 
   return (
-    <Modal isOpen={isOpen} setIsOpen={setIsOpen} heading={Heading}>
+    <Modal isOpen={isOpen} setIsOpen={setIsOpen} heading="Create Organization">
       <form onSubmit={onSubmit}>
         <div className="flex flex-col space-y-6">
           <TextField>
             <TextField.Label>
-              <Trans i18nKey="organization:organizationNameLabel" />
-
+              Organization Name
               <TextField.Input
                 data-cy="create-organization-name-input"
                 name="name"
@@ -67,7 +61,7 @@ const CreateOrganizationModal: React.FC<{
               variant="flat"
               loading={createOrganizationMutation.isMutating}
             >
-              <Trans i18nKey="organization:createOrganizationSubmitLabel" />
+              Create Organization
             </Button>
           </div>
         </div>

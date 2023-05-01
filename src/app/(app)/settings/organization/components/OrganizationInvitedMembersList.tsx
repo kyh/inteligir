@@ -1,6 +1,5 @@
 "use client";
 
-import Trans from "~/core/ui/Trans";
 import { canDeleteInvites } from "~/lib/organizations/permissions";
 
 import RoleBadge from "./RoleBadge";
@@ -13,11 +12,7 @@ const OrganizationInvitedMembersList: React.FCC<{
   invitedMembers: Membership[];
 }> = ({ invitedMembers }) => {
   if (!invitedMembers?.length) {
-    return (
-      <p className="text-sm">
-        <Trans i18nKey="organization:noPendingInvites" />
-      </p>
-    );
+    return <p className="text-sm">No pending invites found</p>;
   }
 
   return (

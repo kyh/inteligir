@@ -1,12 +1,12 @@
 import { useCallback } from "react";
 
-import Trans from "~/core/ui/Trans";
+
 import Button from "~/core/ui/Button";
 import Modal from "~/core/ui/Modal";
 
 import useRemoveMember from "~/lib/organizations/hooks/use-remove-member-mutation";
 
-const Heading = <Trans i18nKey="organization:removeMemberModalHeading" />;
+const Heading = You are removing this user;
 
 const RemoveOrganizationMemberModal: React.FCC<{
   isOpen: boolean;
@@ -25,7 +25,7 @@ const RemoveOrganizationMemberModal: React.FCC<{
     <Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
       <div className="flex flex-col space-y-6">
         <p className="text-sm">
-          <Trans i18nKey="common:modalConfirmationQuestion" />
+          Are you sure you want to continue?
         </p>
 
         <div className="flex justify-end space-x-2">
@@ -37,7 +37,7 @@ const RemoveOrganizationMemberModal: React.FCC<{
             color="danger"
             onClick={onMemberRemoved}
           >
-            <Trans i18nKey="organization:removeMemberSubmitLabel" />
+            Remove User from Organization
           </Button>
         </div>
       </div>

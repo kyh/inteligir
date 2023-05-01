@@ -2,7 +2,6 @@
 
 import Button from "~/core/ui/Button";
 import Heading from "~/core/ui/Heading";
-import Trans from "~/core/ui/Trans";
 
 import SiteHeader from "~/app/(site)/components/SiteHeader";
 import configuration from "~/configuration";
@@ -28,24 +27,21 @@ const ErrorPage = () => {
             <div className="flex flex-col space-y-4 pl-8">
               <div className="flex flex-col space-y-2">
                 <div>
-                  <Heading type={1}>
-                    <Trans i18nKey="common:genericError" />
-                  </Heading>
+                  <Heading type={1}>Oooops. An error occurred</Heading>
                 </div>
 
                 <p className="text-gray-500 dark:text-gray-300">
-                  <Trans i18nKey="common:genericErrorSubHeading" />
+                  Apologies, an error occurred while processing your request.
+                  Please contact us if the issue persists.
                 </p>
               </div>
 
               <div className="flex space-x-4">
                 <Button color="secondary" href="/">
-                  <Trans i18nKey="common:contactUs" />
+                  Contact Us
                 </Button>
 
-                <Button href="/">
-                  <Trans i18nKey="common:backToHomePage" />
-                </Button>
+                <Button href="/">Back to Home Page</Button>
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@ import { use } from "react";
 
 import type { User } from "@supabase/gotrue-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import Trans from "~/core/ui/Trans";
+
 
 import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
 
@@ -33,28 +33,26 @@ export const metadata = {
 const OrganizationMembersPage = () => {
   const data = use(loadMembers());
 
-  return (
-    <>
-      <div className="flex flex-1 flex-col space-y-6">
-        <SettingsTile
-          heading={<Trans i18nKey="organization:membersTabLabel" />}
-          subHeading={<Trans i18nKey="organization:membersTabSubheading" />}
-          actions={<InviteMembersLinkButton />}
-        >
-          <OrganizationMembersList members={data.members} />
-        </SettingsTile>
+  return <>
+    <div className="flex flex-1 flex-col space-y-6">
+      <SettingsTile
+        heading={Members}
+        subHeading={Manage and Invite members}
+        actions={<InviteMembersLinkButton />}
+      >
+        <OrganizationMembersList members={data.members} />
+      </SettingsTile>
 
-        <SettingsTile
-          heading={<Trans i18nKey="organization:pendingInvitesHeading" />}
-          subHeading={<Trans i18nKey="organization:pendingInvitesSubheading" />}
-        >
-          <OrganizationInvitedMembersList
-            invitedMembers={data.invitedMembers || []}
-          />
-        </SettingsTile>
-      </div>
-    </>
-  );
+      <SettingsTile
+        heading={Pending Invites}
+        subHeading={Manage invites not yet accepted}
+      >
+        <OrganizationInvitedMembersList
+          invitedMembers={data.invitedMembers || []}
+        />
+      </SettingsTile>
+    </div>
+  </>;
 };
 
 export default OrganizationMembersPage;

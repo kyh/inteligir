@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import Trans from "~/core/ui/Trans";
+
 import Link from "next/link";
 
 import {
@@ -76,9 +76,7 @@ const ProfileDropdown: React.FCC<{
             href={configuration.paths.appHome}
           >
             <Squares2X2Icon className="h-5" />
-            <span>
-              <Trans i18nKey="common:dashboardTabLabel" />
-            </span>
+            <span>Dashboard</span>
           </Link>
         </DropdownMenuItem>
 
@@ -88,9 +86,7 @@ const ProfileDropdown: React.FCC<{
             href="/settings/profile"
           >
             <Cog8ToothIcon className="h-5" />
-            <span>
-              <Trans i18nKey="common:settingsTabLabel" />
-            </span>
+            <span>Settings</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
@@ -102,9 +98,7 @@ const ProfileDropdown: React.FCC<{
           <span className="flex w-full items-center space-x-2">
             <ArrowLeftOnRectangleIcon className="h-5" />
 
-            <span>
-              <Trans i18nKey="auth:signOut" />
-            </span>
+            <span>Sign out</span>
           </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
@@ -126,9 +120,7 @@ function ThemeSelectorSubMenu() {
           <Wrapper>
             <PaintBrushIcon className="h-5" />
 
-            <span>
-              <Trans i18nKey="common:theme" />
-            </span>
+            <span>Theme</span>
           </Wrapper>
         </DropdownMenuSubTrigger>
 
@@ -140,9 +132,7 @@ function ThemeSelectorSubMenu() {
             <Wrapper>
               <SunIcon className="h-4" />
 
-              <span>
-                <Trans i18nKey="common:lightTheme" />
-              </span>
+              <span>Light</span>
             </Wrapper>
           </DropdownMenuItem>
 
@@ -153,9 +143,7 @@ function ThemeSelectorSubMenu() {
             <Wrapper>
               <MoonIcon className="h-4" />
 
-              <span>
-                <Trans i18nKey="common:darkTheme" />
-              </span>
+              <span>Dark</span>
             </Wrapper>
           </DropdownMenuItem>
 
@@ -166,9 +154,7 @@ function ThemeSelectorSubMenu() {
             <Wrapper>
               <ComputerDesktopIcon className="h-4" />
 
-              <span>
-                <Trans i18nKey="common:systemTheme" />
-              </span>
+              <span>System</span>
             </Wrapper>
           </DropdownMenuItem>
         </DropdownMenuSubContent>
