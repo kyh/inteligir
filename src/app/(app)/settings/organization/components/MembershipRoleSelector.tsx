@@ -1,5 +1,3 @@
-import Trans from "~/core/ui/Trans";
-
 import {
   Select,
   SelectItem,
@@ -43,9 +41,7 @@ const MembershipRoleSelector: React.FCC<{
                 data-cy={`role-item-${role.value}`}
                 value={role.value.toString()}
               >
-                <span className="text-sm">
-                  <Trans i18nKey={role.label} />
-                </span>
+                <span className="text-sm">{role.label}</span>
               </SelectItem>
             </IfHasPermissions>
           );

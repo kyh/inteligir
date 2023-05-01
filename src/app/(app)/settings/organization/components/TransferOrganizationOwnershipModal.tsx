@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import Trans from "~/core/ui/Trans";
+
 
 import useTransferOrganizationOwnership from "~/lib/organizations/hooks/use-transfer-organization-ownership";
 
@@ -7,7 +7,7 @@ import Button from "~/core/ui/Button";
 import Modal from "~/core/ui/Modal";
 import If from "~/core/ui/If";
 
-const ModalHeading = <Trans i18nKey="organization:transferOwnership" />;
+const ModalHeading = Transfer Ownership;
 
 const TransferOrganizationOwnershipModal: React.FC<{
   isOpen: boolean;
@@ -27,17 +27,11 @@ const TransferOrganizationOwnershipModal: React.FC<{
     <Modal heading={ModalHeading} isOpen={isOpen} setIsOpen={setIsOpen}>
       <div className="flex flex-col space-y-6 text-sm">
         <p>
-          <Trans
-            i18nKey="organization:transferOwnershipDisclaimer"
-            values={{
-              member: targetDisplayName,
-            }}
-            components={{ b: <b /> }}
-          />
+          You are transferring ownership of the selected organization to <b>{{ member }}</b>. Your new role will be <b>$t(common:roles.admin.label)</b>.
         </p>
 
         <p>
-          <Trans i18nKey="common:modalConfirmationQuestion" />
+          Are you sure you want to continue?
         </p>
 
         <div className="flex justify-end space-x-2">
@@ -52,9 +46,9 @@ const TransferOrganizationOwnershipModal: React.FC<{
           >
             <If
               condition={isMutating}
-              fallback={<Trans i18nKey="organization:transferOwnership" />}
+              fallback={Transfer Ownership}
             >
-              <Trans i18nKey="organization:transferringOwnership" />
+              Transferring ownership...
             </If>
           </Button>
         </div>

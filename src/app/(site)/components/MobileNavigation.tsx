@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Trans from "~/core/ui/Trans";
+
 import Bars3Icon from "@heroicons/react/24/outline/Bars3Icon";
 
 import {
@@ -20,10 +20,7 @@ const MobileNavigation: React.FC = () => {
           className="flex h-full w-full items-center space-x-4"
         >
           <item.Icon className="h-6" />
-
-          <span>
-            <Trans i18nKey={item.label} defaults={item.label} />
-          </span>
+          <span>{item.label}</span>
         </Link>
       </DropdownMenuItem>
     );

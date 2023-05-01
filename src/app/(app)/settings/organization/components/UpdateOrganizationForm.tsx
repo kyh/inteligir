@@ -2,7 +2,6 @@
 
 import { useCallback, useContext, useEffect } from "react";
 import toast from "react-hot-toast";
-import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -13,7 +12,6 @@ import Button from "~/core/ui/Button";
 import TextField from "~/core/ui/TextField";
 import ImageUploadInput from "~/core/ui/ImageUploadInput";
 import Label from "~/core/ui/Label";
-import Trans from "~/core/ui/Trans";
 
 import useSupabase from "~/core/hooks/use-supabase";
 import type Organization from "~/lib/organizations/types/organization";
@@ -23,7 +21,6 @@ const UpdateOrganizationForm = () => {
 
   const { organization, setOrganization } = useContext(OrganizationContext);
   const updateOrganizationMutation = useUpdateOrganizationMutation();
-  const { t } = useTranslation("organization");
 
   const currentOrganizationName = organization?.name ?? "";
   const currentLogoUrl = organization?.logoURL || null;
@@ -40,8 +37,7 @@ const UpdateOrganizationForm = () => {
       const organizationId = organization?.id;
 
       if (!organizationId) {
-        const errorMessage = t<string>(`updateOrganizationErrorMessage`);
-
+        const errorMessage = "Organization not found";
         return toast.error(errorMessage);
       }
 
@@ -57,8 +53,7 @@ const UpdateOrganizationForm = () => {
           logo: logoFile,
           organizationId,
         }).catch(() => {
-          toast.error(t<string>(`updateLogoErrorMessage`));
-
+          toast.error("Logo not uploaded. Please try again.");
           return null;
         });
       }
@@ -80,9 +75,9 @@ const UpdateOrganizationForm = () => {
       const promise = updateOrganizationMutation.trigger(organizationData);
 
       await toast.promise(promise, {
-        loading: t<string>(`updateOrganizationLoadingMessage`),
-        success: t<string>(`updateOrganizationSuccessMessage`),
-        error: t<string>(`updateOrganizationErrorMessage`),
+        loading: "Updating organization...",
+        success: "Organization updated successfully",
+        error: "Organization not updated. Please try again.",
       });
 
       setOrganization({
@@ -96,7 +91,6 @@ const UpdateOrganizationForm = () => {
       client,
       currentLogoUrl,
       updateOrganizationMutation,
-      t,
       setOrganization,
     ]
   );
@@ -124,8 +118,7 @@ const UpdateOrganizationForm = () => {
       <div className="flex flex-col space-y-4">
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="organization:organizationNameInputLabel" />
-
+            Organization Name
             <TextField.Input
               {...nameControl}
               data-cy="organization-name-input"
@@ -136,15 +129,14 @@ const UpdateOrganizationForm = () => {
         </TextField>
 
         <Label>
-          <Trans i18nKey="organization:organizationLogoInputLabel" />
-
+          Organization Logo
           <ImageUploadInput
             {...logoControl}
             multiple={false}
             image={currentLogoUrl}
             onClear={() => setValue("logoURL", "")}
           >
-            <Trans i18nKey="common:imageInputLabel" />
+            Click here to upload an image
           </ImageUploadInput>
         </Label>
 
@@ -154,7 +146,7 @@ const UpdateOrganizationForm = () => {
             data-cy="update-organization-submit-button"
             loading={updateOrganizationMutation.isMutating}
           >
-            <Trans i18nKey="organization:updateOrganizationSubmitLabel" />
+            Update Organization
           </Button>
         </div>
       </div>

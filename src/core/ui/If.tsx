@@ -9,7 +9,7 @@ function If<Value = unknown>({
 }: React.PropsWithoutRef<{
   condition: Condition<Value>;
   children: React.ReactNode | ((value: Value) => React.ReactNode);
-  fallback?: JSX.Element;
+  fallback?: React.ReactNode;
 }>) {
   return useMemo(() => {
     if (condition) {

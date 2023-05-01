@@ -1,13 +1,9 @@
 import React from "react";
 import { Cog8ToothIcon } from "@heroicons/react/24/outline";
-
 import NavigationMenu from "~/core/ui/Navigation/NavigationMenu";
 import NavigationItem from "~/core/ui/Navigation/NavigationItem";
 import AppHeader from "~/app/(app)/components/AppHeader";
 import AppContainer from "~/app/(app)/components/AppContainer";
-import Trans from "~/core/ui/Trans";
-import getLanguageCookie from "~/i18n/get-language-cookie";
-import initializeServerI18n from "~/i18n/i18n.server";
 
 const links = [
   {
@@ -25,17 +21,13 @@ const links = [
 ];
 
 async function SettingsLayout({ children }: React.PropsWithChildren) {
-  await initializeServerI18n(getLanguageCookie());
-
   return (
     <>
       <AppHeader>
         <span className="flex space-x-2">
           <Cog8ToothIcon className="w-6" />
 
-          <span>
-            <Trans i18nKey="common:settingsTabLabel" />
-          </span>
+          <span>Settings</span>
         </span>
       </AppHeader>
 

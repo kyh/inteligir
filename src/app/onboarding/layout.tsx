@@ -1,16 +1,12 @@
 import { use } from "react";
 import { redirect } from "next/navigation";
-
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import requireSession from "~/lib/user/require-session";
 import { getUserDataById } from "~/lib/server/queries";
 import getCurrentOrganization from "~/lib/server/organizations/get-current-organization";
 import OnboardingIllustration from "~/app/onboarding/components/OnboardingIllustration";
-
 import { Logo } from "~/components/Logo";
 import Link from "next/link";
-import getLanguageCookie from "~/i18n/get-language-cookie";
-import initializeServerI18n from "~/i18n/i18n.server";
 
 function OnboardingLayout({ children }: React.PropsWithChildren) {
   const data = use(loadData());
@@ -25,7 +21,7 @@ function OnboardingLayout({ children }: React.PropsWithChildren) {
         <div className="flex h-screen w-full flex-1 flex-col items-center justify-center lg:w-6/12">
           <div className="absolute top-24 hidden lg:flex">
             <Link href="/onboarding">
-            <Logo />
+              <Logo />
             </Link>
           </div>
 
@@ -55,8 +51,6 @@ async function loadData() {
 
     const user = sessionResult.user;
     const userData = await getUserDataById(client, user.id);
-
-    await initializeServerI18n(getLanguageCookie());
 
     // if we cannot find the user's Database record
     // the user should go to the onboarding flow

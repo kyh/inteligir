@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import clsx from "clsx";
-import Trans from "~/core/ui/Trans";
+
 import { Transition } from "@headlessui/react";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 
@@ -215,10 +215,7 @@ function FeaturesList(
       {props.features.map((feature) => {
         return (
           <ListItem key={feature}>
-            <Trans
-              i18nKey={`common:plans.features.${feature}`}
-              defaults={feature}
-            />
+            {feature}
           </ListItem>
         );
       })}
@@ -270,7 +267,7 @@ function PlansSwitcher(
             className={className}
             onClick={() => props.setPlan(plan)}
           >
-            <Trans i18nKey={`common:plans.${plan}`} defaults={plan} />
+            {plan}
           </Button>
         );
       })}
@@ -300,7 +297,7 @@ function DefaultCheckoutButton(
         href={linkHref}
         color={props.recommended ? "custom" : "secondary"}
       >
-        <Trans i18nKey={label} defaults={label} />
+        {label}
       </Button>
     </div>
   );

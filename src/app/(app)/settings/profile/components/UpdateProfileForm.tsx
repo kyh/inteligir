@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from "react";
-import { useTranslation } from "react-i18next";
 import toaster from "react-hot-toast";
 import { useForm } from "react-hook-form";
 import useMutation from "swr/mutation";
@@ -14,7 +13,6 @@ import Button from "~/core/ui/Button";
 import TextField from "~/core/ui/TextField";
 import ImageUploadInput from "~/core/ui/ImageUploadInput";
 import If from "~/core/ui/If";
-import Trans from "~/core/ui/Trans";
 
 import Modal from "~/core/ui/Modal";
 import useSupabase from "~/core/hooks/use-supabase";
@@ -32,10 +30,8 @@ function UpdateProfileForm({
   onUpdateProfileData: (user: Partial<UserData>) => void;
   onUpdateAuthData: (data: Partial<User>) => void;
 }) {
-  const updateProfileMutation = useUpdateProfileMutation();
-
   const client = useSupabase();
-  const { t } = useTranslation();
+  const updateProfileMutation = useUpdateProfileMutation();
 
   const currentPhotoURL = session.data?.photoUrl ?? "";
   const currentDisplayName = session?.data?.displayName ?? "";
@@ -91,9 +87,9 @@ function UpdateProfileForm({
     });
 
     return toaster.promise(promise, {
-      success: t<string>(`profile:updateProfileSuccess`),
-      error: t<string>(`profile:updateProfileError`),
-      loading: t<string>(`profile:updateProfileLoading`),
+      loading: "Updating profile...",
+      success: "Profile updated successfully",
+      error: "Error updating profile",
     });
   };
 
@@ -121,8 +117,7 @@ function UpdateProfileForm({
         <div className="flex flex-col space-y-4">
           <TextField>
             <TextField.Label>
-              <Trans i18nKey="profile:displayNameLabel" />
-
+              Your Name
               <TextField.Input
                 {...displayNameControl}
                 data-cy="profile-display-name"
@@ -134,23 +129,21 @@ function UpdateProfileForm({
 
           <TextField>
             <TextField.Label>
-              <Trans i18nKey="profile:profilePictureLabel" />
-
+              Your Photo
               <ImageUploadInput
                 {...photoURLControl}
                 multiple={false}
                 onClear={onAvatarCleared}
                 image={currentPhotoURL}
               >
-                <Trans i18nKey="common:imageInputLabel" />
+                Click here to upload an image
               </ImageUploadInput>
             </TextField.Label>
           </TextField>
 
           <TextField>
             <TextField.Label>
-              <Trans i18nKey="profile:emailLabel" />
-
+              Email Address
               <TextField.Input disabled value={email} />
             </TextField.Label>
 
@@ -163,7 +156,7 @@ function UpdateProfileForm({
                   href={configuration.paths.settings.email}
                 >
                   <span className="text-xs font-normal">
-                    <Trans i18nKey="profile:updateEmailSubmitLabel" />
+                    Update Email Address
                   </span>
                 </Button>
               </div>
@@ -177,9 +170,7 @@ function UpdateProfileForm({
                   size="small"
                   href={configuration.paths.settings.authentication}
                 >
-                  <span className="text-xs font-normal">
-                    <Trans i18nKey="profile:addEmailAddress" />
-                  </span>
+                  <span className="text-xs font-normal">Add Email address</span>
                 </Button>
               </div>
             </If>
@@ -187,8 +178,7 @@ function UpdateProfileForm({
 
           <TextField>
             <TextField.Label>
-              <Trans i18nKey="profile:phoneNumberLabel" />
-
+              Phone Number
               <TextField.Input disabled value={currentPhoneNumber} />
             </TextField.Label>
 
@@ -213,7 +203,7 @@ function UpdateProfileForm({
               className="w-full md:w-auto"
               loading={updateProfileMutation.isMutating}
             >
-              <Trans i18nKey="profile:updateProfileSubmitLabel" />
+              Update Profile
             </Button>
           </div>
         </div>
@@ -268,7 +258,6 @@ function RemovePhoneNumberButton({
   onSuccess: () => void;
 }>) {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const { t } = useTranslation();
   const unlinkProfileNumberMutation = useUnlinkProfilePhone();
 
   const onUnlinkPhoneNumber = useCallback(() => {
@@ -278,11 +267,11 @@ function RemovePhoneNumberButton({
     });
 
     return toaster.promise(promise, {
-      loading: t<string>(`profile:unlinkActionLoading`),
-      success: t<string>(`profile:unlinkActionSuccess`),
-      error: t<string>(`profile:unlinkActionError`),
+      loading: "Unlinking phone number...",
+      success: "Phone number unlinked successfully",
+      error: "Error unlinking phone number",
     });
-  }, [unlinkProfileNumberMutation, t, onSuccess]);
+  }, [unlinkProfileNumberMutation, onSuccess]);
 
   return (
     <>
@@ -292,35 +281,23 @@ function RemovePhoneNumberButton({
         size="small"
         onClick={() => setIsModalOpen(true)}
       >
-        <span className="text-xs font-normal">
-          <Trans i18nKey="profile:removePhoneNumber" />
-        </span>
+        <span className="text-xs font-normal"></span>
       </Button>
 
       <Modal
-        heading={<Trans i18nKey="profile:removePhoneNumber" />}
+        heading="Unlink Phone Number"
         isOpen={isModalOpen}
         setIsOpen={setIsModalOpen}
       >
         <div className="flex flex-col space-y-3">
-          <div>
-            <Trans i18nKey="profile:confirmRemovePhoneNumberDescription" />
-          </div>
-
-          <div>
-            <Trans i18nKey="common:modalConfirmationQuestion" />
-          </div>
-
+          <div>Are you sure you want to continue?</div>
           <AuthErrorMessage error={unlinkProfileNumberMutation.error} />
-
           <Button
             block
             loading={unlinkProfileNumberMutation.isMutating}
             color="danger"
             onClick={onUnlinkPhoneNumber}
-          >
-            <Trans i18nKey="profile:confirmRemovePhoneNumber" />
-          </Button>
+          ></Button>
         </div>
       </Modal>
     </>

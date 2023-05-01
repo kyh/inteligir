@@ -4,7 +4,6 @@ import { useCallback, useEffect } from "react";
 import type { User } from "@supabase/gotrue-js";
 
 import toast from "react-hot-toast";
-import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
@@ -13,10 +12,8 @@ import Button from "~/core/ui/Button";
 import TextField from "~/core/ui/TextField";
 import Alert from "~/core/ui/Alert";
 import If from "~/core/ui/If";
-import Trans from "~/core/ui/Trans";
 
 const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
-  const { t } = useTranslation();
   const updateUserMutation = useUpdateUserMutation();
 
   const { register, handleSubmit, reset, getValues, formState } = useForm({
@@ -34,12 +31,11 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
     required: true,
     minLength: {
       value: 6,
-      message: t<string>(`auth:passwordLengthError`),
+      message: "Password must be at least 6 characters long",
     },
     validate: (value) => {
-      // current password cannot be the same as the current one
       if (value === getValues("currentPassword")) {
-        return t<string>(`profile:passwordNotChanged`);
+        return "New password cannot be the same as the current one";
       }
     },
   });
@@ -49,12 +45,11 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
     required: true,
     minLength: {
       value: 6,
-      message: t<string>(`profile:passwordLengthError`),
+      message: "Password must be at least 6 characters long",
     },
     validate: (value) => {
-      // new password and repeat new password must match
       if (value !== getValues("newPassword")) {
-        return t<string>(`profile:passwordNotMatching`);
+        return "Passwords do not match";
       }
     },
   });
@@ -64,12 +59,12 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
       const promise = updateUserMutation.trigger({ password });
 
       return await toast.promise(promise, {
-        success: t<string>(`profile:updatePasswordSuccess`),
-        error: t<string>(`profile:updatePasswordError`),
-        loading: t<string>(`profile:updatePasswordLoading`),
+        success: "Password updated successfully",
+        error: "An error occurred",
+        loading: "Updating password...",
       });
     },
-    [updateUserMutation, t]
+    [updateUserMutation]
   );
 
   const updatePasswordCallback = useCallback(
@@ -79,7 +74,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
       // if the user does not have an email assigned, it's possible they
       // don't have an email/password factor linked, and the UI is out of sync
       if (!email) {
-        return Promise.reject(t(`profile:cannotUpdatePassword`));
+        return Promise.reject("User does not have an email assigned");
       }
 
       try {
@@ -88,7 +83,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
         return Promise.reject(e);
       }
     },
-    [updatePasswordFromCredential, t]
+    [updatePasswordFromCredential]
   );
 
   const onSubmit = useCallback(
@@ -114,25 +109,21 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
       <div className="flex flex-col space-y-4">
         <If condition={data}>
           <Alert type="success">
-            <Alert.Heading>
-              <Trans i18nKey="profile:updatePasswordSuccess" />
-            </Alert.Heading>
-
-            <Trans i18nKey="profile:updatePasswordSuccessMessage" />
+            <Alert.Heading>Password update request successful</Alert.Heading>
+            We sent you an email to confirm your new password. Please check your
+            inbox and click on the link to confirm your new password.
           </Alert>
         </If>
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="profile:newPassword" />
-
+            New Password
             <TextField.Input
               data-cy="new-password"
               required
               type="password"
               {...newPasswordControl}
             />
-
             <TextField.Error
               data-cy="new-password-error"
               error={errors.newPassword?.message}
@@ -142,15 +133,13 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="profile:repeatPassword" />
-
+            Repeat New Password
             <TextField.Input
               data-cy="repeat-new-password"
               required
               type="password"
               {...repeatPasswordControl}
             />
-
             <TextField.Error
               data-cy="repeat-password-error"
               error={errors.repeatPassword?.message}
@@ -160,7 +149,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
         <div>
           <Button className="w-full md:w-auto" loading={isMutating}>
-            <Trans i18nKey="profile:updatePasswordSubmitLabel" />
+            Update Password
           </Button>
         </div>
       </div>

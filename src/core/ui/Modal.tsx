@@ -6,7 +6,6 @@ import { Close as DialogPrimitiveClose } from "@radix-ui/react-dialog";
 import IconButton from "~/core/ui/IconButton";
 import If from "~/core/ui/If";
 import Button from "~/core/ui/Button";
-import Trans from "~/core/ui/Trans";
 
 import { Dialog, DialogContent, DialogTitle } from "~/core/ui/Dialog";
 
@@ -93,7 +92,7 @@ function CancelButton<Props extends React.ButtonHTMLAttributes<unknown>>(
       color="transparent"
       {...props}
     >
-      <Trans i18nKey="common:cancel" />
+      Cancel
     </Button>
   );
 }

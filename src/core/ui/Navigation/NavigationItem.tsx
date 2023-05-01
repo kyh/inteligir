@@ -4,7 +4,6 @@ import Link from "next/link";
 import clsx from "clsx";
 import { usePathname } from "next/navigation";
 
-import Trans from "~/core/ui/Trans";
 import isRouteActive from "~/core/generic/is-route-active";
 
 interface LinkModel {
@@ -35,7 +34,7 @@ const NavigationMenuItem: React.FCC<{
       aria-disabled={disabled}
       href={disabled ? "" : link.path}
     >
-      <Trans i18nKey={label}>{label}</Trans>
+      {label}
     </Link>
   );
 };

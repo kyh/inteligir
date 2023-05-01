@@ -1,6 +1,6 @@
 import SettingsTile from "~/app/(app)/settings/components/SettingsTile";
 import UpdateOrganizationForm from "./components/UpdateOrganizationForm";
-import Trans from "~/core/ui/Trans";
+
 
 export const metadata = {
   title: "Organization Details",
@@ -9,8 +9,8 @@ export const metadata = {
 const OrganizationSettingsPage = () => {
   return (
     <SettingsTile
-      heading={<Trans i18nKey="organization:generalTabLabel" />}
-      subHeading={<Trans i18nKey="organization:generalTabLabelSubheading" />}
+      heading={General}
+      subHeading={Manage your Organization}
     >
       <UpdateOrganizationForm />
     </SettingsTile>

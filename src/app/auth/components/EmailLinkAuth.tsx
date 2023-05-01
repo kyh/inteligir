@@ -3,8 +3,6 @@
 import type { FormEventHandler } from "react";
 import { useCallback } from "react";
 import toast from "react-hot-toast";
-import { useTranslation } from "react-i18next";
-import Trans from "~/core/ui/Trans";
 
 import TextField from "~/core/ui/TextField";
 import Button from "~/core/ui/Button";
@@ -14,7 +12,6 @@ import useSignInWithOtp from "~/core/hooks/use-sign-in-with-otp";
 import configuration from "~/configuration";
 
 const EmailLinkAuth: React.FC = () => {
-  const { t } = useTranslation();
   const signInWithOtpMutation = useSignInWithOtp();
 
   const onSubmit: FormEventHandler<HTMLFormElement> = useCallback(
@@ -36,18 +33,19 @@ const EmailLinkAuth: React.FC = () => {
       });
 
       await toast.promise(promise, {
-        loading: t<string>("auth:sendingEmailLink"),
-        success: t<string>(`auth:sendLinkSuccessToast`),
-        error: t<string>(`auth:errors.link`),
+        loading: "Sending Email Link...",
+        success: "Email Link Sent!",
+        error:
+          "An error occurred while sending the email link. Please try again.",
       });
     },
-    [signInWithOtpMutation, t]
+    [signInWithOtpMutation]
   );
 
   if (signInWithOtpMutation.data) {
     return (
       <Alert type="success">
-        <Trans i18nKey="auth:sendLinkSuccess" />
+        We sent you a link to your email! Follow the link to sign in.
       </Alert>
     );
   }
@@ -57,8 +55,7 @@ const EmailLinkAuth: React.FC = () => {
       <div className="flex flex-col space-y-4">
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="common:emailAddress" />
-
+            Email Address
             <TextField.Input
               data-cy="email-input"
               required
@@ -68,20 +65,19 @@ const EmailLinkAuth: React.FC = () => {
             />
           </TextField.Label>
         </TextField>
-
         <Button loading={signInWithOtpMutation.isMutating}>
           <If
             condition={signInWithOtpMutation.isMutating}
-            fallback={<Trans i18nKey="auth:sendEmailLink" />}
+            fallback="Send Email Link"
           >
-            <Trans i18nKey="auth:sendingEmailLink" />
+            Sending Email Link...
           </If>
         </Button>
       </div>
-
       <If condition={signInWithOtpMutation.error}>
         <Alert type="error">
-          <Trans i18nKey="auth:errors.link" />
+          Sorry, we encountered an error while sending your link. Please try
+          again.
         </Alert>
       </If>
     </form>
