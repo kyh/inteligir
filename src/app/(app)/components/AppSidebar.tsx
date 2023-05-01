@@ -1,6 +1,5 @@
 import React, { useContext } from "react";
 
-import Trans from "~/core/ui/Trans";
 import clsx from "clsx";
 import { cva } from "cva";
 
@@ -89,9 +88,7 @@ function CollapsibleButton(
           </IconButton>
         </TooltipTrigger>
 
-        <TooltipContent>
-          <Trans i18nKey="common:expandSidebar" />
-        </TooltipContent>
+        <TooltipContent>Expand Sidebar</TooltipContent>
       </Tooltip>
     );
   }
@@ -108,9 +105,7 @@ function CollapsibleButton(
       >
         <ArrowLeftCircleIcon className="h-6" />
 
-        <span>
-          <Trans i18nKey="common:collapseSidebar" />
-        </span>
+        <span>Collapse Sidebar</span>
       </button>
     </div>
   );

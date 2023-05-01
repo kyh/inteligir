@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-import Trans from "~/core/ui/Trans";
 
 import Modal from "~/core/ui/Modal";
 import ReauthenticationForm from "~/app/auth/components/ReauthenticationForm";
@@ -14,15 +13,13 @@ const ReauthenticationModal: React.FC<{
 
   return (
     <Modal
-      heading={<Trans i18nKey="auth:reauthenticate" />}
+      heading={Reauthenticate}
       isOpen={isOpen}
       setIsOpen={setIsOpen}
       closeButton={false}
     >
       <div className="my-4">
-        <p>
-          <Trans i18nKey="auth:reauthenticateDescription" />
-        </p>
+        <p>For security reasons, we need you to re-authenticate</p>
       </div>
 
       <ReauthenticationForm onSuccess={onSuccess} />

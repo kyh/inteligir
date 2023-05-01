@@ -1,6 +1,5 @@
 "use client";
 
-import Trans from "~/core/ui/Trans";
 import type { User } from "@supabase/gotrue-js";
 import { useMemo } from "react";
 
@@ -71,9 +70,7 @@ function OrganizationMembersList({
                 <div className="block truncate text-sm">{displayName}</div>
 
                 <If condition={isCurrentUser}>
-                  <Badge size="small">
-                    <Trans i18nKey="organization:youBadgeLabel" />
-                  </Badge>
+                  <Badge size="small">You</Badge>
                 </If>
               </div>
 

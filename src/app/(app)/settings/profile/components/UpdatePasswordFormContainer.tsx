@@ -2,7 +2,7 @@
 
 import Alert from "~/core/ui/Alert";
 import If from "~/core/ui/If";
-import Trans from "~/core/ui/Trans";
+
 import useUser from "~/core/hooks/use-user";
 
 import UpdatePasswordForm from "~/app/(app)/settings/profile/components/UpdatePasswordForm";
@@ -32,8 +32,8 @@ export default UpdatePasswordFormContainer;
 
 function WarnCannotUpdatePasswordAlert() {
   return (
-    <Alert type="warn">
-      <Trans i18nKey="profile:cannotUpdatePassword" />
-    </Alert>
+    (<Alert type="warn">
+      You cannot update your password because your account is not linked to any.
+    </Alert>)
   );
 }

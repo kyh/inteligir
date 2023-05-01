@@ -1,4 +1,4 @@
-import Trans from "~/core/ui/Trans";
+
 
 import SettingsTile from "~/app/(app)/settings/components/SettingsTile";
 import Plans from "~/app/(app)/settings/subscription/components/Plans";
@@ -11,8 +11,8 @@ export const metadata = {
 const SubscriptionSettingsPage = () => {
   return (
     <SettingsTile
-      heading={<Trans i18nKey="common:subscriptionSettingsTabLabel" />}
-      subHeading={<Trans i18nKey="subscription:subscriptionTabSubheading" />}
+      heading={Subscription}
+      subHeading={Manage your Subscription and Billing}
     >
       <div className="flex flex-col space-y-4">
         <PlansStatusAlertContainer />

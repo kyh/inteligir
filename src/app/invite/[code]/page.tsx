@@ -7,7 +7,7 @@ import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-next
 
 import If from "~/core/ui/If";
 import Heading from "~/core/ui/Heading";
-import Trans from "~/core/ui/Trans";
+
 
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
@@ -37,42 +37,29 @@ const InvitePage = ({ params }: Context) => {
 
   const organization = data.membership.organization;
 
-  return (
-    <>
-      <Heading type={4}>
-        <Trans
-          i18nKey="auth:joinOrganizationHeading"
-          values={{
-            organization: organization.name,
-          }}
-        />
-      </Heading>
+  return <>
+    <Heading type={4}>
+      Join {{organization}}
+    </Heading>
 
-      <div>
-        <p className="text-center">
-          <Trans
-            i18nKey="auth:joinOrganizationSubHeading"
-            values={{
-              organization: organization.name,
-            }}
-            components={{ b: <b /> }}
-          />
-        </p>
+    <div>
+      <p className="text-center">
+        You were invited to join <b>{{organization}}</Bold>
+      </p>
 
-        <p className="text-center">
-          <If condition={!data.session}>
-            <Trans i18nKey="auth:signUpToAcceptInvite" />
-          </If>
-        </p>
-      </div>
-
-      <InviteCsrfTokenProvider csrfToken={data.csrfToken}>
-        <If condition={data.session} fallback={<NewUserInviteForm />}>
-          {(session) => <ExistingUserInviteForm session={session} />}
+      <p className="text-center">
+        <If condition={!data.session}>
+          Please sign in/up to accept the invite
         </If>
-      </InviteCsrfTokenProvider>
-    </>
-  );
+      </p>
+    </div>
+
+    <InviteCsrfTokenProvider csrfToken={data.csrfToken}>
+      <If condition={data.session} fallback={<NewUserInviteForm />}>
+        {(session) => <ExistingUserInviteForm session={session} />}
+      </If>
+    </InviteCsrfTokenProvider>
+  </>;
 };
 
 export default InvitePage;

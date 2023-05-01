@@ -3,7 +3,7 @@
 import useUser from "~/core/hooks/use-user";
 import If from "~/core/ui/If";
 import Alert from "~/core/ui/Alert";
-import Trans from "~/core/ui/Trans";
+
 
 import UpdateEmailForm from "~/app/(app)/settings/profile/components/UpdateEmailForm";
 
@@ -29,8 +29,8 @@ export default UpdateEmailFormContainer;
 
 function WarnCannotUpdateEmailAlert() {
   return (
-    <Alert type="warn">
-      <Trans i18nKey="profile:cannotUpdateEmail" />
-    </Alert>
+    (<Alert type="warn">
+      You cannot update your email because your account is not linked to any.
+    </Alert>)
   );
 }

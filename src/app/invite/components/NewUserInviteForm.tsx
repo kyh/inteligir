@@ -11,7 +11,7 @@ import EmailPasswordSignUpContainer from "~/app/auth/components/EmailPasswordSig
 
 import If from "~/core/ui/If";
 import Button from "~/core/ui/Button";
-import Trans from "~/core/ui/Trans";
+
 import Alert from "~/core/ui/Alert";
 
 import configuration from "~/configuration";
@@ -46,67 +46,64 @@ function NewUserInviteForm() {
 
   if (acceptInvite.data?.verifyEmail) {
     return (
-      <Alert type="success">
+      (<Alert type="success">
         <Alert.Heading>
-          <Trans i18nKey="auth:emailConfirmationAlertHeading" />
+          We sent you a confirmation email.
         </Alert.Heading>
-
-        <Trans i18nKey="auth:emailConfirmationAlertBody" />
-      </Alert>
+        Welcome! Please check your email and click the link to verify your account.
+      </Alert>)
     );
   }
 
-  return (
-    <>
-      <If condition={acceptInvite.isMutating}>
-        <PageLoadingIndicator fullPage>
-          Accepting invite. Please wait...
-        </PageLoadingIndicator>
+  return <>
+    <If condition={acceptInvite.isMutating}>
+      <PageLoadingIndicator fullPage>
+        Accepting invite. Please wait...
+      </PageLoadingIndicator>
+    </If>
+
+    <OAuthProviders returnUrl={oAuthReturnUrl} />
+
+    <If condition={configuration.auth.providers.emailPassword}>
+      <If condition={mode === Mode.SignUp}>
+        <div className="flex w-full flex-col items-center space-y-4">
+          <EmailPasswordSignUpContainer onSubmit={onInviteAccepted} />
+
+          <Button
+            block
+            color="transparent"
+            size="small"
+            onClick={() => setMode(Mode.SignIn)}
+          >
+            I already have an account, I want to sign in instead
+          </Button>
+        </div>
       </If>
 
-      <OAuthProviders returnUrl={oAuthReturnUrl} />
+      <If condition={mode === Mode.SignIn}>
+        <div className="flex w-full flex-col items-center space-y-4">
+          <EmailPasswordSignInContainer onSignIn={onInviteAccepted} />
 
-      <If condition={configuration.auth.providers.emailPassword}>
-        <If condition={mode === Mode.SignUp}>
-          <div className="flex w-full flex-col items-center space-y-4">
-            <EmailPasswordSignUpContainer onSubmit={onInviteAccepted} />
-
-            <Button
-              block
-              color="transparent"
-              size="small"
-              onClick={() => setMode(Mode.SignIn)}
-            >
-              <Trans i18nKey="auth:alreadyHaveAccountStatement" />
-            </Button>
-          </div>
-        </If>
-
-        <If condition={mode === Mode.SignIn}>
-          <div className="flex w-full flex-col items-center space-y-4">
-            <EmailPasswordSignInContainer onSignIn={onInviteAccepted} />
-
-            <Button
-              block
-              color="transparent"
-              size="small"
-              onClick={() => setMode(Mode.SignUp)}
-            >
-              <Trans i18nKey="auth:doNotHaveAccountStatement" />
-            </Button>
-          </div>
-        </If>
+          <Button
+            block
+            color="transparent"
+            size="small"
+            onClick={() => setMode(Mode.SignUp)}
+          >
+            I do not have an account, I want to sign up instead
+          </Button>
+        </div>
       </If>
+    </If>
 
-      <If condition={configuration.auth.providers.phoneNumber}>
-        <PhoneNumberSignInContainer onSignIn={onInviteAccepted} />
-      </If>
+    <If condition={configuration.auth.providers.phoneNumber}>
+      <PhoneNumberSignInContainer onSignIn={onInviteAccepted} />
+    </If>
 
-      <If condition={configuration.auth.providers.emailLink}>
-        <EmailLinkAuth />
-      </If>
-    </>
-  );
+    <If condition={configuration.auth.providers.emailLink}>
+      <EmailLinkAuth />
+    </If>
+  </>;
 }
 
 export default NewUserInviteForm;

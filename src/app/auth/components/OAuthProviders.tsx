@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback } from "react";
-import Trans from "~/core/ui/Trans";
 
 import AuthProviderButton from "~/core/ui/AuthProviderButton";
 import If from "~/core/ui/If";
@@ -77,12 +76,7 @@ const OAuthProviders: React.FCC<{
                   );
                 }}
               >
-                <Trans
-                  i18nKey="auth:signInWithProvider"
-                  values={{
-                    provider: getProviderName(provider),
-                  }}
-                />
+                Sign in with {provider}
               </AuthProviderButton>
             );
           })}

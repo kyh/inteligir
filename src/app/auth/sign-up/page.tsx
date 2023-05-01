@@ -1,6 +1,5 @@
 import Link from "next/link";
 
-import Trans from "~/core/ui/Trans";
 import Heading from "~/core/ui/Heading";
 
 import configuration from "~/configuration";
@@ -17,9 +16,7 @@ function SignUpPage() {
     <>
       <div>
         <Heading type={6}>
-          <span className="font-medium">
-            <Trans i18nKey="auth:signUpHeading" />
-          </span>
+          <span className="font-medium">Create an account</span>
         </Heading>
       </div>
 
@@ -27,15 +24,13 @@ function SignUpPage() {
 
       <div className="flex justify-center text-xs">
         <p className="flex space-x-1">
-          <span>
-            <Trans i18nKey="auth:alreadyHaveAnAccount" />
-          </span>
+          <span>Already have an account?</span>
 
           <Link
             className="text-primary-800 hover:underline dark:text-primary-500"
             href={SIGN_IN_PATH}
           >
-            <Trans i18nKey="auth:signIn" />
+            Sign In
           </Link>
         </p>
       </div>

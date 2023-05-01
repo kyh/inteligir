@@ -1,29 +1,5 @@
 import "./globals.css";
-
-import { cookies } from "next/headers";
-
-import initializeServerI18n from "~/i18n/i18n.server";
-import { I18N_COOKIE_NAME } from "~/i18n/i18n.settings";
-
 import configuration from "~/configuration";
-
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const i18n = await initializeServerI18n(getLanguageCookie());
-
-  return (
-    <html lang={i18n.language} className="dark">
-      <body>{children}</body>
-    </html>
-  );
-}
-
-function getLanguageCookie() {
-  return cookies().get(I18N_COOKIE_NAME)?.value;
-}
 
 export const metadata = {
   title: configuration.site.name,
@@ -50,3 +26,17 @@ export const metadata = {
     },
   },
 };
+
+export default async function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en" className="dark">
+      <body className="bg-black-700 bg-gradient-to-br from-gray-900 to-black-700 text-base text-gray-100 antialiased">
+        {children}
+      </body>
+    </html>
+  );
+}

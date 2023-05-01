@@ -1,6 +1,5 @@
 import { RadioGroup as HeadlessRadioGroup } from "@headlessui/react";
 import clsx from "clsx";
-import Trans from "~/core/ui/Trans";
 
 import If from "~/core/ui/If";
 
@@ -78,7 +77,7 @@ function RadioOption<Item extends RadioItemModel>({
                     }
                   )}
                 >
-                  <Trans i18nKey={item.label} defaults={item.label} />
+                  {item.label}
                 </HeadlessRadioGroup.Label>
 
                 <If condition={item.description}>
@@ -89,10 +88,7 @@ function RadioOption<Item extends RadioItemModel>({
                       "text-gray-500 dark:text-gray-400": !checked,
                     })}
                   >
-                    <Trans
-                      i18nKey={item.description}
-                      defaults={item.description}
-                    />
+                    {item.description}
                   </HeadlessRadioGroup.Description>
                 </If>
               </div>

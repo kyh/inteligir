@@ -3,9 +3,6 @@
 import type { FormEventHandler } from "react";
 import { useCallback } from "react";
 import toaster from "react-hot-toast";
-import Trans from "~/core/ui/Trans";
-import { useTranslation } from "react-i18next";
-
 import If from "~/core/ui/If";
 import TextField from "~/core/ui/TextField";
 import Button from "~/core/ui/Button";
@@ -16,7 +13,6 @@ const PhoneNumberCredentialForm: React.FC<{
   onSuccess: (phoneNumber: string) => void;
   action: string;
 }> = ({ onSuccess, action }) => {
-  const { t } = useTranslation();
   const updateUserMutation = useUpdateUserMutation();
 
   const onLinkPhoneNumberSubmit: FormEventHandler<HTMLFormElement> =
@@ -30,22 +26,21 @@ const PhoneNumberCredentialForm: React.FC<{
         const promise = updateUserMutation.trigger({ phone });
 
         await toaster.promise(promise, {
-          loading: t<string>(`profile:verifyPhoneNumberLoading`),
-          success: t<string>(`profile:verifyPhoneNumberSuccess`),
-          error: t<string>(`profile:verifyPhoneNumberError`),
+          loading: "Linking phone number...",
+          success: "Phone number linked successfully",
+          error: "Error linking phone number",
         });
 
         onSuccess(phone);
       },
-      [onSuccess, t, updateUserMutation]
+      [onSuccess, updateUserMutation]
     );
 
   return (
     <form className="w-full" onSubmit={onLinkPhoneNumberSubmit}>
       <div className="flex flex-col space-y-2">
         <TextField.Label>
-          <Trans i18nKey="profile:phoneNumberLabel" />
-
+          Phone Number
           <TextField.Input
             required
             pattern="^\\+?[1-9]\\d{1,14}$"
@@ -57,13 +52,8 @@ const PhoneNumberCredentialForm: React.FC<{
         </TextField.Label>
 
         <Button size="large" block type="submit">
-          <If condition={action === "link"}>
-            <Trans i18nKey="profile:verifyPhoneNumberSubmitLabel" />
-          </If>
-
-          <If condition={action === "signIn"}>
-            <Trans i18nKey="auth:signInWithPhoneNumber" />
-          </If>
+          <If condition={action === "link"}>Link Phone Number</If>
+          <If condition={action === "signIn"}>Sign in with Phone Number</If>
         </Button>
       </div>
     </form>

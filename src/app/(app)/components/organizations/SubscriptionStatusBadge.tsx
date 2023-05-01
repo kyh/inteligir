@@ -1,4 +1,3 @@
-import Trans from "~/core/ui/Trans";
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
 import { Tooltip, TooltipTrigger, TooltipContent } from "~/core/ui/Tooltip";
 import Badge from "~/core/ui/Badge";
@@ -68,13 +67,11 @@ function SubscriptionStatusBadge({
     <Tooltip>
       <TooltipTrigger>
         <Badge size="small" color={type}>
-          <Trans i18nKey={label} />
+          {label}
         </Badge>
       </TooltipTrigger>
 
-      <TooltipContent>
-        <Trans i18nKey={description} values={getDates(subscription)} />
-      </TooltipContent>
+      <TooltipContent>{description}</TooltipContent>
     </Tooltip>
   );
 }

@@ -18,7 +18,7 @@ import {
 } from "~/core/ui/Select";
 
 import If from "~/core/ui/If";
-import Trans from "~/core/ui/Trans";
+
 import useRefresh from "~/core/hooks/use-refresh";
 
 import UserSessionContext from "~/core/session/contexts/user-session";
@@ -113,9 +113,7 @@ const OrganizationsSelector = () => {
               >
                 <PlusCircleIcon className="h-5" />
 
-                <span>
-                  <Trans i18nKey="organization:createOrganizationDropdownLabel" />
-                </span>
+                <span>New organization</span>
               </span>
             </SelectAction>
           </SelectGroup>
