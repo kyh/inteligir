@@ -1,0 +1,237 @@
+/* Start purging... */
+@tailwind components;
+
+@layer components {
+  /* Global Link Style */
+  a {
+    @apply outline-2 outline-primary-200 active:outline-none;
+  }
+
+  /* NavigationMenu.tsx */
+  .NavigationMenu {
+    @apply flex flex-1 flex-wrap items-center space-x-1 dark:text-gray-300 lg:space-x-2.5;
+  }
+
+  .NavigationMenu.VerticalNavigationMenu {
+    @apply flex flex-row items-start justify-between space-x-2
+        lg:flex-col lg:justify-start lg:space-x-0 lg:space-y-1;
+  }
+
+  /* NavigationItem.tsx */
+  .NavigationItem {
+    @apply flex items-center justify-center
+        rounded-md p-1 text-sm font-medium leading-loose
+        text-gray-600 outline-primary-200 transition-colors dark:outline-primary-500/70 lg:px-2.5;
+  }
+
+  .NavigationItemActive {
+    @apply text-primary-500 dark:text-white;
+  }
+
+  .PillNavigationMenu .NavigationItemActive {
+    @apply bg-gray-50 text-current text-gray-600 dark:bg-black-300 dark:text-white;
+  }
+
+  .PillNavigationMenu .NavigationItemNotActive {
+    @apply text-gray-500 hover:bg-gray-50 active:bg-gray-100 dark:text-gray-300 dark:hover:bg-black-400 dark:active:bg-black-300;
+  }
+
+  .SecondaryNavigationMenu .NavigationItemActive {
+    @apply bg-transparent;
+  }
+
+  .BorderedNavigationMenu {
+    @apply border-b border-gray-100 py-2 dark:border-black-200;
+  }
+
+  .BorderedNavigationMenu .NavigationItem {
+    @apply relative top-[1px] h-10 border-transparent text-gray-500 dark:text-gray-300;
+  }
+
+  .BorderedNavigationMenu .NavigationItemActive {
+    @apply top-[0.55rem] rounded-none border-b-[0.2rem] border-primary-500 bg-transparent pb-[1.05rem] text-current dark:text-white;
+  }
+
+  .BorderedNavigationMenu .NavigationItemNotActive {
+    @apply hover:bg-gray-50 hover:text-current active:bg-gray-100 dark:hover:bg-black-400 dark:active:bg-black-300;
+  }
+
+  .NavigationItemNotActive {
+    @apply text-gray-600 hover:text-current active:text-current
+        dark:text-gray-300 dark:hover:text-white;
+  }
+
+  .NavigationItem[aria-disabled="true"] {
+    @apply cursor-not-allowed bg-transparent text-gray-300 dark:text-gray-600;
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:active,
+  input:-webkit-autofill:focus {
+    @apply border-none shadow-[inset_0_0_0_1000] shadow-white;
+  }
+
+  .TabsList {
+    @apply flex grid grid-cols-3 gap-1 px-1 py-1 dark:bg-black-500;
+  }
+
+  /* Tab.tsx */
+  .Tab {
+    @apply NavigationItem flex flex-1 justify-center;
+  }
+
+  .Tab:not(.TabSelected) {
+    @apply cursor-pointer hover:bg-gray-50
+        dark:bg-black-500 dark:hover:bg-black-400 dark:active:bg-black-300;
+  }
+
+  .TabSelected,
+  button.TabSelected {
+    @apply NavigationItemActive dark:text-gray-100;
+  }
+
+  /* Documentation */
+  .DocumentationSidebarContainer {
+    @apply sticky inset-0 mt-6 hidden h-screen overflow-y-auto md:flex;
+  }
+
+  .DocumentationSidebarItem {
+    @apply flex w-full flex-1 rounded-md
+        px-2 py-1.5 text-sm text-gray-500 transition-colors
+        duration-300 hover:text-current active:bg-gray-100 dark:text-gray-400 dark:active:bg-black-400;
+  }
+
+  .DocumentationSidebarItemContainer:last-child {
+    @apply pb-24;
+  }
+
+  .DocumentationSidebarItemSelected {
+    @apply bg-primary-500/5 font-semibold text-current dark:text-primary-500;
+  }
+
+  .DocumentationSidebarItemNotSelected {
+    @apply border-l-gray-50 font-medium
+        hover:border-l-primary-400 dark:border-l-black-400 dark:hover:text-white;
+  }
+
+  .Toggle {
+    @apply h-6 w-12 cursor-pointer appearance-none
+        rounded-xl bg-gray-600 duration-300 ease-in-out dark:bg-gray-300;
+
+    transition: all 0.25s ease-in-out;
+    box-shadow: calc(1.5rem * -1) 0 0 2px #efefef inset, 0 0 0 2px #efefef inset;
+  }
+
+  .dark .Toggle {
+    box-shadow: calc(1.5rem * -1) 0 0 2px #525252 inset, 0 0 0 2px #525252 inset;
+  }
+
+  .Toggle:hover {
+    box-shadow: calc(1.5rem * -1) 0 0 2px #ddd inset, 0 0 0 2px #ddd inset;
+  }
+
+  .dark .Toggle:hover {
+    box-shadow: calc(1.5rem * -1) 0 0 2px #666 inset, 0 0 0 2px #666 inset;
+  }
+
+  .Toggle:focus-visible {
+    @apply outline outline-primary-500;
+
+    outline-offset: 2px;
+  }
+
+  .Toggle:checked {
+    @apply border-primary-400 border-opacity-100
+        bg-primary-500 bg-opacity-100;
+
+    box-shadow: 1.5rem 0 0 2px #eee inset, 0 0 0 2px #eee inset;
+  }
+
+  .dark .Toggle:checked {
+    box-shadow: 1.5rem 0 0 2px #444 inset, 0 0 0 2px #444 inset;
+  }
+
+  .Stepper {
+    @apply flex flex-col justify-between space-y-2 rounded-md px-2 py-1
+        shadow-sm dark:border-black-400 dark:bg-black-400 lg:space-x-2 lg:space-y-0;
+  }
+
+  .StepperDivider {
+    @apply flex h-[2px] flex-1 items-center justify-center bg-gray-300 transition-colors last:hidden dark:bg-black-200;
+  }
+
+  .StepperStepSelected + .StepperDivider,
+  .StepperStep.CompletedStep + .StepperDivider {
+    @apply bg-primary-500 text-primary-contrast;
+  }
+
+  .StepperStep:not(.StepperStepSelected):not(.CompletedStep):hover
+    + .StepperDivider {
+    @apply bg-primary-500/40;
+  }
+
+  .StepperStepCircle {
+    @apply flex h-[35px] w-[35px] items-center justify-center
+        rounded-full bg-gray-200 font-bold shadow shadow-none
+        transition-colors duration-150 dark:bg-black-200;
+  }
+
+  .StepperStep.StepperStepSelected {
+    @apply text-gray-600 dark:text-white;
+  }
+
+  .StepperStepSelected .StepperStepCircle {
+    @apply bg-primary-500 text-white;
+  }
+
+  .StepperStep {
+    @apply flex cursor-default items-center space-x-4 p-2
+        text-gray-600 outline-none transition-colors dark:text-gray-400;
+  }
+
+  .StepperStep.StepperStepActionable.StepperStepClickable:not(
+      .StepperStepSelected
+    ):not([disabled]):hover {
+    @apply cursor-pointer text-gray-600 dark:text-primary-contrast;
+  }
+
+  .StepperStep.StepperStepActionable.StepperStepClickable:not(
+      .StepperStepSelected
+    ):not([disabled]):hover
+    .StepperStepCircle {
+    @apply bg-primary-500 text-primary-contrast;
+  }
+
+  .StepperStep:not(.StepperStepSelected):disabled,
+  .StepperStep:not(.Actionable):not(.StepperStepSelected) {
+    @apply text-gray-400 dark:text-gray-500;
+  }
+
+  .Table {
+    @apply w-full table-fixed border-collapse border-spacing-0 rounded-lg bg-white p-1 dark:bg-black-500;
+  }
+
+  .Table thead {
+    @apply sticky top-0 m-0 bg-white dark:bg-black-500;
+  }
+
+  .Table th {
+    @apply border-b border-gray-200 py-4 text-left text-xs
+        font-bold uppercase text-gray-600 dark:border-black-300 dark:text-gray-400;
+  }
+
+  .Table tr {
+    @apply border-b border-gray-100 dark:border-black-400;
+  }
+
+  .Table tr:last-child {
+    @apply border-transparent;
+  }
+
+  .Table td {
+    @apply py-2.5 text-sm;
+  }
+}
+
+/* Stop purging. */
