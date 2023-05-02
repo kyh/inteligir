@@ -1,19 +1,40 @@
-/* Add here you favorite fonts */
-@import "./components.css";
+:root {
+  --shiki-color-text: theme("colors.white");
+  --shiki-token-constant: theme("colors.emerald.300");
+  --shiki-token-string: theme("colors.emerald.300");
+  --shiki-token-comment: theme("colors.gray.500");
+  --shiki-token-keyword: theme("colors.sky.300");
+  --shiki-token-parameter: theme("colors.pink.300");
+  --shiki-token-function: theme("colors.violet.300");
+  --shiki-token-string-expression: theme("colors.emerald.300");
+  --shiki-token-punctuation: theme("colors.gray.200");
+  --primary-glow: radial-gradient(rgba(16, 185, 129, 0.4), rgba(1, 65, 255, 0));
+}
 
 @tailwind base;
-
-/* Start purging... */
+@tailwind components;
 @tailwind utilities;
-/* Stop purging. */
 
 body {
   text-rendering: geometricPrecision;
   font-feature-settings: "rlig" 1, "calt" 1, "ss01" 1;
-
-  @apply bg-white text-gray-800 antialiased dark:bg-black-600 dark:text-gray-300;
 }
 
-.hero-image-shadow {
-  box-shadow: 0 0 800px 0 var(--tw-shadow-color);
+.site-container {
+  display: grid;
+  grid-template-columns: 1fr min(theme("maxWidth.5xl"), 100%) 1fr;
+}
+
+.site-container > * {
+  grid-column: 2;
+}
+
+.full-bleed {
+  width: 100%;
+  grid-column: 1 / 4;
+}
+
+.bg-gradient-ball {
+  filter: blur(45px);
+  background: var(--primary-glow);
 }

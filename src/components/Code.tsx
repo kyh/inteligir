@@ -1,7 +1,7 @@
 import { Children } from "react";
 import clsx from "clsx";
 import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
-import { useToast } from "~/components/Toaster";
+import toaster from "react-hot-toast";
 
 type Props = {
   children?: React.ReactNode;
@@ -10,8 +10,6 @@ type Props = {
 };
 
 export const Code = ({ children, className, copy = true }: Props) => {
-  const { toast } = useToast();
-
   const copyToClipboard = () => {
     let copiedText = "";
     if (!children) return;
@@ -23,7 +21,7 @@ export const Code = ({ children, className, copy = true }: Props) => {
       copiedText = children.toString();
     }
     navigator.clipboard.writeText(copiedText);
-    toast("Copied to clipboard");
+    toaster("Copied to clipboard");
   };
 
   return (
