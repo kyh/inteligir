@@ -1,4 +1,4 @@
-import { Link } from "@remix-run/react";
+import Link from "next/link";
 import { classed } from "@tw-classed/react";
 
 export const NavLink = classed(Link, {

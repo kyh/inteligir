@@ -1,6 +1,6 @@
 import Button from "~/core/ui/Button";
 import Heading from "~/core/ui/Heading";
-import SiteHeader from "~/app/(site)/components/SiteHeader";
+import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 import configuration from "~/configuration";
 
 export const metadata = {
@@ -10,8 +10,7 @@ export const metadata = {
 const NotFoundPage = async () => {
   return (
     <main>
-      <SiteHeader />
-
+      <TopNavigation />
       <div className="m-auto flex min-h-[50vh] w-full items-center justify-center">
         <div className="flex flex-col space-y-8">
           <div className="flex space-x-8 divide-x divide-gray-100">
