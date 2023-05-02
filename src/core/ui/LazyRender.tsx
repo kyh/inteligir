@@ -3,7 +3,6 @@ import { createRef, useLayoutEffect, useMemo, useState } from "react";
 /**
  * @description Render a component lazily based on the IntersectionObserver
  * configuration provided.
- * Full documentation at: https://inteligir.dev/docs/components-utilities#lazyrender
  * @param children
  * @param threshold
  * @param rootMargin

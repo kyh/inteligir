@@ -4,7 +4,7 @@ import Head from "next/head";
 import configuration from "~/configuration";
 import Button from "~/core/ui/Button";
 import Heading from "~/core/ui/Heading";
-import SiteHeader from "~/app/(site)/components/SiteHeader";
+import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 
 const InternalServerErrorPage = () => {
   return (
@@ -12,7 +12,7 @@ const InternalServerErrorPage = () => {
       <Head>
         <title key="title">{`An error occurred - ${configuration.site.name}`}</title>
       </Head>
-      <SiteHeader />
+      <TopNavigation />
       <div className="m-auto flex min-h-[50vh] w-full items-center justify-center">
         <div className="flex flex-col space-y-8">
           <div className="flex space-x-8 divide-x divide-gray-100">

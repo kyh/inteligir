@@ -3,7 +3,7 @@ import "../app/globals.css";
 import Head from "next/head";
 import Button from "~/core/ui/Button";
 import Heading from "~/core/ui/Heading";
-import SiteHeader from "~/app/(site)/components/SiteHeader";
+import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 import configuration from "~/configuration";
 
 const NotFoundPage = () => {
@@ -12,7 +12,7 @@ const NotFoundPage = () => {
       <Head>
         <title key="title">{`Page not found - ${configuration.site.name}`}</title>
       </Head>
-      <SiteHeader />
+      <TopNavigation />
       <div className="m-auto flex min-h-[50vh] w-full items-center justify-center">
         <div className="flex flex-col space-y-8">
           <div className="flex space-x-8 divide-x divide-gray-100">
