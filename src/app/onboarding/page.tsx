@@ -1,5 +1,5 @@
-import { headers } from "next/headers";
 import { use } from "react";
+import { headers } from "next/headers";
 import OnboardingContainer from "./components/OnboardingContainer";
 
 export const metadata = {

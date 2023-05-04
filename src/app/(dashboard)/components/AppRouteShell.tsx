@@ -12,9 +12,9 @@ import OrganizationContext from "~/lib/contexts/organization";
 import SidebarContext from "~/lib/contexts/sidebar";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import Organization from "~/lib/organizations/types/organization";
-import AppSidebar from "~/app/(dashboard)/components/AppSidebar";
-import AuthChangeListener from "~/app/(dashboard)/components/AuthChangeListener";
-import Toaster from "~/app/(dashboard)/components/Toaster";
+import AppSidebar from "./AppSidebar";
+import AuthChangeListener from "./AuthChangeListener";
+import Toaster from "./Toaster";
 
 interface Data {
   accessToken: Maybe<string>;

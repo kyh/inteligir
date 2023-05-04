@@ -2,16 +2,12 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-
-import If from "~/core/ui/If";
-
-import OAuthProviders from "~/app/auth/components/OAuthProviders";
-
-import EmailPasswordSignInContainer from "~/app/auth/components/EmailPasswordSignInContainer";
-import PhoneNumberSignInContainer from "~/app/auth/components/PhoneNumberSignInContainer";
-import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
-
 import configuration from "~/configuration";
+import If from "~/core/ui/If";
+import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
+import EmailPasswordSignInContainer from "~/app/auth/components/EmailPasswordSignInContainer";
+import OAuthProviders from "~/app/auth/components/OAuthProviders";
+import PhoneNumberSignInContainer from "~/app/auth/components/PhoneNumberSignInContainer";
 
 function SignInMethodsContainer() {
   const router = useRouter();

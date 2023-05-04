@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import { forwardRef, Fragment, useState } from "react";
-import { PageNavigation } from "./PageNavigation";
+import { Fragment, forwardRef, useState } from "react";
 import { Transition } from "@headlessui/react";
 import { SmallPrint } from "~/app/(marketing)/components/FooterNavigation";
+import { PageNavigation } from "./PageNavigation";
 
 function CheckIcon(props: React.SVGProps<SVGSVGElement>) {
   return (

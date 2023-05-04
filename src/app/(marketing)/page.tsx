@@ -1,10 +1,10 @@
+import { About } from "./components/About";
+import { GetStarted } from "./components/GetStarted";
 import { Hero } from "./components/Hero";
 import { PrimaryButton } from "./components/HomeButton";
-import { About } from "./components/About";
+import { Review } from "./components/Review";
 import { Steps } from "./components/Steps";
 import { Try } from "./components/Try";
-import { Review } from "./components/Review";
-import { GetStarted } from "./components/GetStarted";
 
 export default function Home() {
   return (

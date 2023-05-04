@@ -1,11 +1,10 @@
 "use client";
 
-import { Line, ResponsiveContainer, LineChart, XAxis } from "recharts";
 import { useMemo } from "react";
-
-import Tile from "~/core/ui/Tile";
-import Heading from "~/core/ui/Heading";
+import { Line, LineChart, ResponsiveContainer, XAxis } from "recharts";
 import useUserSession from "~/core/hooks/use-user-session";
+import Heading from "~/core/ui/Heading";
+import Tile from "~/core/ui/Tile";
 
 export default function DashboardDemo() {
   const mrr = useMemo(() => generateDemoData(), []);

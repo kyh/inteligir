@@ -1,11 +1,9 @@
 "use client";
 
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
-
-import Button from "~/core/ui/Button";
-import useCsrfToken from "~/core/hooks/use-csrf-token";
-
 import configuration from "~/configuration";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
+import Button from "~/core/ui/Button";
 
 const BILLING_PORTAL_REDIRECT_ENDPOINT = configuration.paths.api.billingPortal;
 

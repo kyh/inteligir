@@ -1,10 +1,9 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
-
-import useSupabase from "~/core/hooks/use-supabase";
+import { useRouter, useSearchParams } from "next/navigation";
 import configuration from "~/configuration";
+import useSupabase from "~/core/hooks/use-supabase";
 
 function AuthLinkRedirect() {
   const params = useSearchParams();

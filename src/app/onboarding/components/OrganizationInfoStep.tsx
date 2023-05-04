@@ -1,14 +1,12 @@
 "use client";
 
-import type { FormEvent } from "react";
-import { useCallback } from "react";
+import { useCallback, type FormEvent } from "react";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
-
-import Heading from "~/core/ui/Heading";
-import Button from "~/core/ui/Button";
-import TextField from "~/core/ui/TextField";
-import SubHeading from "~/core/ui/SubHeading";
 import useUserSession from "~/core/hooks/use-user-session";
+import Button from "~/core/ui/Button";
+import Heading from "~/core/ui/Heading";
+import SubHeading from "~/core/ui/SubHeading";
+import TextField from "~/core/ui/TextField";
 
 export interface OrganizationInfoStepData {
   organization: string;

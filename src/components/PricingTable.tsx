@@ -1,16 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import clsx from "clsx";
-
 import { Transition } from "@headlessui/react";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
-
-import Heading from "~/core/ui/Heading";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-
+import clsx from "clsx";
 import configuration from "~/configuration";
+import Button from "~/core/ui/Button";
+import Heading from "~/core/ui/Heading";
+import If from "~/core/ui/If";
 
 interface CheckoutButtonProps {
   readonly stripePriceId?: string;
@@ -213,11 +210,7 @@ function FeaturesList(
   return (
     <ul className="flex flex-col space-y-3">
       {props.features.map((feature) => {
-        return (
-          <ListItem key={feature}>
-            {feature}
-          </ListItem>
-        );
+        return <ListItem key={feature}>{feature}</ListItem>;
       })}
     </ul>
   );

@@ -1,7 +1,7 @@
+import configuration from "~/configuration";
 import Button from "~/core/ui/Button";
 import Heading from "~/core/ui/Heading";
 import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
-import configuration from "~/configuration";
 
 export const metadata = {
   title: `Page not found - ${configuration.site.name}`,

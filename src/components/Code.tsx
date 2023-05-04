@@ -1,6 +1,6 @@
 import { Children } from "react";
-import clsx from "clsx";
 import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import clsx from "clsx";
 import toaster from "react-hot-toast";
 
 type Props = {
@@ -28,7 +28,7 @@ export const Code = ({ children, className, copy = true }: Props) => {
     <pre
       className={clsx(
         `inline-flex items-center rounded border border-white/10 bg-gray-900 p-3 font-mono text-sm shadow transition`,
-        copy && "hover:cursor-pointer hover:bg-black",
+        copy && "hover:bg-black hover:cursor-pointer",
         className
       )}
       onClick={copy ? copyToClipboard : undefined}

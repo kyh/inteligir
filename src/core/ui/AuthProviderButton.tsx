@@ -1,5 +1,5 @@
-import Button from "./Button";
 import AuthProviderLogo from "~/core/ui/AuthProviderLogo";
+import Button from "./Button";
 
 const AuthProviderButton: React.FCC<{
   providerId: string;

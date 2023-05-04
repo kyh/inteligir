@@ -1,7 +1,7 @@
 "use client";
 
-import TopLoadingBarIndicator from "~/components/TopLoadingBarIndicator";
 import PageLoadingIndicator from "~/core/ui/PageLoadingIndicator";
+import TopLoadingBarIndicator from "~/components/TopLoadingBarIndicator";
 
 function GlobalLoadingIndicator() {
   return (

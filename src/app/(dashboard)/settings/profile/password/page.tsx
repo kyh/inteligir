@@ -1,5 +1,5 @@
-import UpdatePasswordFormContainer from "~/app/(dashboard)/settings/profile/components/UpdatePasswordFormContainer";
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
+import UpdatePasswordFormContainer from "~/app/(dashboard)/settings/profile/components/UpdatePasswordFormContainer";
 
 export const metadata = {
   title: "Update Password",

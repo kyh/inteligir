@@ -1,7 +1,5 @@
-import type { FormEventHandler } from "react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, type FormEventHandler } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-
 import TextField from "~/core/ui/TextField";
 
 const DIGITS = 6;

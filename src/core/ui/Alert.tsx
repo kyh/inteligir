@@ -1,21 +1,18 @@
 "use client";
 
-import { useState, useMemo, createContext, useContext } from "react";
-
+import { createContext, useContext, useMemo, useState } from "react";
 import {
-  XMarkIcon,
   CheckCircleIcon,
   ExclamationCircleIcon,
-  ShieldExclamationIcon,
   InformationCircleIcon,
+  ShieldExclamationIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
-
+import clsx from "clsx";
 import { cva } from "cva";
-
+import Heading from "~/core/ui/Heading";
 import IconButton from "~/core/ui/IconButton";
 import If from "~/core/ui/If";
-import Heading from "~/core/ui/Heading";
-import clsx from "clsx";
 
 type AlertType = "success" | "error" | "warn" | "info";
 

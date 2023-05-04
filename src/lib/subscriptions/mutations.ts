@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Stripe } from "stripe";
-
 import { SUBSCRIPTIONS_TABLE } from "~/lib/db-tables";
 import type { Database } from "../../database.types";
 

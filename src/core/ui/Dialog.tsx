@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
+import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import clsx from "clsx";
-import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;

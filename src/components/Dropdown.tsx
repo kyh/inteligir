@@ -1,7 +1,7 @@
 import { Fragment } from "react";
-import clsx from "clsx";
 import { Listbox, Transition } from "@headlessui/react";
 import { CheckIcon } from "@heroicons/react/24/solid";
+import clsx from "clsx";
 import { Button } from "~/components/Button";
 
 type Props<T> = {
@@ -30,7 +30,7 @@ export const Dropdown = <T extends { name: string }>({
           leaveFrom="opacity-100"
           leaveTo="opacity-0"
         >
-          <Listbox.Options className="absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-black-700 py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+          <Listbox.Options className="ring-black absolute mt-1 max-h-60 w-full overflow-auto rounded-md bg-black-700 py-1 text-base shadow-lg ring-1 ring-opacity-5 focus:outline-none sm:text-sm">
             {list.map((item, index) => (
               <Listbox.Option
                 key={index}

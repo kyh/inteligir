@@ -1,9 +1,7 @@
 import * as Sentry from "@sentry/node";
-
 // Importing @sentry/tracing patches the global hub for tracing to work
 // Fore more info: https://docs.sentry.io/platforms/node/
 import "@sentry/tracing";
-
 import configuration from "~/configuration";
 import isBrowser from "~/core/generic/is-browser";
 

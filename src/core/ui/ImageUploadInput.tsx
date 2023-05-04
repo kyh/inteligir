@@ -1,20 +1,18 @@
 "use client";
 
-import type { FormEvent, MouseEventHandler } from "react";
-
 import React, {
   forwardRef,
   useCallback,
   useEffect,
   useRef,
   useState,
+  type FormEvent,
+  type MouseEventHandler,
 } from "react";
-
 import { CloudArrowUpIcon, XMarkIcon } from "@heroicons/react/24/outline";
-
-import Label from "~/core/ui/Label";
-import If from "~/core/ui/If";
 import IconButton from "~/core/ui/IconButton";
+import If from "~/core/ui/If";
+import Label from "~/core/ui/Label";
 
 type Props = Omit<React.InputHTMLAttributes<unknown>, "value"> & {
   image?: string | null;

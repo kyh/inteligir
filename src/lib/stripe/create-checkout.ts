@@ -1,5 +1,5 @@
-import type { Stripe } from "stripe";
 import { URL } from "url";
+import type { Stripe } from "stripe";
 import getStripeInstance from "~/core/stripe/get-stripe";
 
 interface CreateCheckoutParams {

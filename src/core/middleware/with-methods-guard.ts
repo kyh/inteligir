@@ -1,5 +1,5 @@
-import { throwMethodNotAllowedException } from "~/core/http-exceptions";
 import { NextApiRequest } from "next";
+import { throwMethodNotAllowedException } from "~/core/http-exceptions";
 
 /**
  * @description guard an API endpoint against unsupported methods

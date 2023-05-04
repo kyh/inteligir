@@ -1,5 +1,5 @@
-import OAuthProviders from "~/app/auth/components/OAuthProviders";
 import EmailPasswordSignInContainer from "~/app/auth/components/EmailPasswordSignInContainer";
+import OAuthProviders from "~/app/auth/components/OAuthProviders";
 
 const ReauthenticationForm: React.FC<{
   onSuccess: EmptyCallback;

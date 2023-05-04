@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { navigation } from "./SideNavigation";
+import { usePathname } from "next/navigation";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
 import { Button } from "~/components/Button";
-import { usePathname } from "next/navigation";
+import { navigation } from "./SideNavigation";
 
 function PageLink({
   label,
@@ -40,9 +40,7 @@ function PageLink({
 export function PageNavigation() {
   const pathName = usePathname();
   const allPages = navigation.flatMap((group) => group.links);
-  const currentPageIndex = allPages.findIndex(
-    (page) => page.href === pathName
-  )
+  const currentPageIndex = allPages.findIndex((page) => page.href === pathName);
 
   if (currentPageIndex === -1) {
     return null;

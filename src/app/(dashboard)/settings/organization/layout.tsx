@@ -1,5 +1,5 @@
-import OrganizationSettingsTabs from "~/app/(dashboard)/settings/organization/components/OrganizationSettingsTabs";
 import SettingsContentContainer from "~/app/(dashboard)/settings/components/SettingsContentContainer";
+import OrganizationSettingsTabs from "~/app/(dashboard)/settings/organization/components/OrganizationSettingsTabs";
 
 async function OrganizationSettingsLayout({
   children,

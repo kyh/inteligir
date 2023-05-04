@@ -1,15 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-
-import AuthErrorMessage from "./AuthErrorMessage";
-import useSignUpWithEmailAndPasswordMutation from "~/core/hooks/use-sign-up-with-email-password";
-import If from "~/core/ui/If";
-import Alert from "~/core/ui/Alert";
-
-import EmailPasswordSignUpForm from "~/app/auth/components/EmailPasswordSignUpForm";
-
 import configuration from "~/configuration";
+import useSignUpWithEmailAndPasswordMutation from "~/core/hooks/use-sign-up-with-email-password";
+import Alert from "~/core/ui/Alert";
+import If from "~/core/ui/If";
+import EmailPasswordSignUpForm from "~/app/auth/components/EmailPasswordSignUpForm";
+import AuthErrorMessage from "./AuthErrorMessage";
 
 const requireEmailConfirmation = configuration.auth.requireEmailConfirmation;
 

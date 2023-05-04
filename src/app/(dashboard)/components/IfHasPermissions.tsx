@@ -1,7 +1,7 @@
 "use client";
 
-import type MembershipRole from "~/lib/organizations/types/membership-role";
 import useCurrentUserRole from "~/lib/organizations/hooks/use-current-user-role";
+import type MembershipRole from "~/lib/organizations/types/membership-role";
 
 /**
  * @name IfHasPermissions

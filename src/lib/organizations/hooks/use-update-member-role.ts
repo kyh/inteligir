@@ -1,9 +1,8 @@
 import useSWRMutation from "swr/mutation";
-
-import type MembershipRole from "../types/membership-role";
 import configuration from "~/configuration";
 import useApiRequest from "~/core/hooks/use-api";
 import useRefresh from "~/core/hooks/use-refresh";
+import type MembershipRole from "../types/membership-role";
 
 interface Params {
   role: MembershipRole;

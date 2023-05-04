@@ -1,10 +1,9 @@
 "use client";
 
 import * as React from "react";
+import ChevronRightIcon from "@heroicons/react/24/outline/ChevronRightIcon";
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
 import clsx from "clsx";
-
-import ChevronRightIcon from "@heroicons/react/24/outline/ChevronRightIcon";
 
 const DropdownMenu = DropdownMenuPrimitive.Root;
 

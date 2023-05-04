@@ -1,5 +1,5 @@
-import { Tab as HeadlessTab } from "@headlessui/react";
 import Link from "next/link";
+import { Tab as HeadlessTab } from "@headlessui/react";
 
 const Tab: React.FCC<{
   href?: string;

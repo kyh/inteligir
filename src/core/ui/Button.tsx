@@ -1,12 +1,11 @@
 "use client";
 
+import React, { forwardRef } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { cva } from "cva";
-
 import If from "~/core/ui/If";
 import Spinner from "~/core/ui/Spinner";
-import React, { forwardRef } from "react";
 
 type Color = "primary" | "secondary" | "transparent" | "danger" | "custom";
 type Size = "normal" | "small" | "large" | "custom";

@@ -1,12 +1,11 @@
 "use client";
 
 import { canDeleteInvites } from "~/lib/organizations/permissions";
-
-import RoleBadge from "./RoleBadge";
-import DeleteInviteButton from "./DeleteInviteButton";
 import type Membership from "~/lib/organizations/types/membership";
 import ProfileAvatar from "~/components/ProfileAvatar";
 import IfHasPermissions from "~/app/(dashboard)/components/IfHasPermissions";
+import DeleteInviteButton from "./DeleteInviteButton";
+import RoleBadge from "./RoleBadge";
 
 const OrganizationInvitedMembersList: React.FCC<{
   invitedMembers: Membership[];

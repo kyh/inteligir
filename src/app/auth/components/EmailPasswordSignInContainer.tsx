@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback } from "react";
-
 import useSignInWithEmailPassword from "~/core/hooks/use-sign-in-with-email-password";
 import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 import EmailPasswordSignInForm from "~/app/auth/components/EmailPasswordSignInForm";

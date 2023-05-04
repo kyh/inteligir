@@ -1,5 +1,5 @@
-import useSWR from "swr";
 import { useRouter } from "next/navigation";
+import useSWR from "swr";
 import useSupabase from "~/core/hooks/use-supabase";
 
 /**

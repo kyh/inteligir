@@ -1,5 +1,4 @@
 import { useCallback } from "react";
-
 import Modal from "~/core/ui/Modal";
 import ReauthenticationForm from "~/app/auth/components/ReauthenticationForm";
 
