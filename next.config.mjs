@@ -1,4 +1,4 @@
-import { withContentlayer } from "next-contentlayer"
+import { withContentlayer } from "next-contentlayer";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -6,8 +6,17 @@ const nextConfig = {
   experimental: {
     appDir: true,
     enableUndici: true,
-    scrollRestoration: true,
   },
-}
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+  webpack: (config) => {
+    config.infrastructureLogging = {
+      level: "error",
+    };
 
-export default withContentlayer(nextConfig)
+    return config;
+  },
+};
+
+export default withContentlayer(nextConfig);

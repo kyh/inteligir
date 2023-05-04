@@ -1,3 +1,5 @@
+"use client";
+
 import { createRef, useLayoutEffect, useMemo, useState } from "react";
 
 /**

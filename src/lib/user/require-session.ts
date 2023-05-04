@@ -1,6 +1,7 @@
+import { redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import verifyRequiresMfa from "~/core/session/utils/check-requires-mfa";
 import configuration from "~/configuration";
+import verifyRequiresMfa from "~/core/session/utils/check-requires-mfa";
 
 /**
  * @name requireSession
@@ -11,7 +12,7 @@ async function requireSession(client: SupabaseClient) {
   const { data, error } = await client.auth.getSession();
 
   if (!data.session || error) {
-    return redirectTo(configuration.paths.signIn);
+    throw redirect(configuration.paths.signIn);
   }
 
   const requiresMfa = await verifyRequiresMfa(client);
@@ -19,17 +20,10 @@ async function requireSession(client: SupabaseClient) {
   // If the user requires multi-factor authentication,
   // redirect them to the page where they can verify their identity.
   if (requiresMfa) {
-    return redirectTo(configuration.paths.signInMfa);
+    throw redirect(configuration.paths.signInMfa);
   }
 
   return data.session;
 }
 
 export default requireSession;
-
-function redirectTo(destination: string) {
-  return {
-    redirect: true,
-    destination,
-  };
-}

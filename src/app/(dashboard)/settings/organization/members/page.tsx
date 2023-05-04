@@ -1,29 +1,23 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
 import { use } from "react";
-
+import { redirect } from "next/navigation";
 import type { User } from "@supabase/gotrue-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
-
+import configuration from "~/configuration";
+import type UserData from "~/core/session/types/user-data";
+import getSupabaseServerClient from "~/core/supabase/server-client";
 import {
   getFirstOrganizationByUserId,
   getMembersAuthMetadata,
   getOrganizationInvitedMembers,
   getOrganizationMembers,
 } from "~/lib/organizations/database/queries";
-
-import configuration from "~/configuration";
-import getSupabaseServerClient from "~/core/supabase/server-client";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
-import type UserData from "~/core/session/types/user-data";
-
+import getCurrentOrganization from "~/lib/server/organizations/get-current-organization";
 import requireSession from "~/lib/user/require-session";
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
-import OrganizationMembersList from "~/app/(dashboard)/settings/organization/components/OrganizationMembersList";
-import OrganizationInvitedMembersList from "~/app/(dashboard)/settings/organization/components/OrganizationInvitedMembersList";
 import InviteMembersLinkButton from "~/app/(dashboard)/settings/organization/components/InviteMembersLinkButton";
+import OrganizationInvitedMembersList from "~/app/(dashboard)/settings/organization/components/OrganizationInvitedMembersList";
+import OrganizationMembersList from "~/app/(dashboard)/settings/organization/components/OrganizationMembersList";
 
 export const metadata = {
   title: "Members",
@@ -104,27 +98,17 @@ async function loadMembers() {
     admin: true,
   });
 
-  let organizationId: number | undefined = Number(
-    await parseOrganizationIdCookie(cookies())
-  );
+  const session = await requireSession(client);
 
-  const sessionResult = await requireSession(client);
+  const organizationResponse = await getCurrentOrganization({
+    userId: session.user.id,
+  });
 
-  if ("redirect" in sessionResult) {
-    return redirect(sessionResult.destination);
-  }
-
-  if (Number.isNaN(organizationId)) {
-    const userId = sessionResult.user.id;
-
-    organizationId = await getFirstOrganizationByUserId(client, userId).then(
-      (result) => result?.data?.organization.id
-    );
-  }
-
-  if (!organizationId) {
+  if (!organizationResponse) {
     throw redirect(configuration.paths.appHome);
   }
+
+  const organizationId = organizationResponse.organization.id;
 
   const [members, invitedMembers] = await Promise.all([
     fetchOrganizationMembers(client, organizationId).catch(() => []),

@@ -1,7 +1,6 @@
 import Hero from "~/core/ui/Hero";
 import Container from "~/core/ui/Container";
 import SubHeading from "~/core/ui/SubHeading";
-import FaqItem from "~/app/(marketing)/components-old/FaqItem";
 
 export const metadata = {
   title: "FAQ",
@@ -68,7 +67,7 @@ const FAQPage = () => {
           <div className="m-auto flex w-full max-w-xl items-center justify-center">
             <div className="flex w-full flex-col">
               {DATA.map((item, index) => {
-                return <FaqItem key={index} item={item} />;
+                return <div key={index}>{item.question}</div>;
               })}
             </div>
           </div>

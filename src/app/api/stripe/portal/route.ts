@@ -1,27 +1,20 @@
-import { z } from "zod";
 import { join } from "path";
-
 import { headers } from "next/headers";
-import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
-
+import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
+import { z } from "zod";
+import configuration from "~/configuration";
 import getApiRefererPath from "~/core/generic/get-api-referer-path";
 import HttpStatusCode from "~/core/generic/http-status-code.enum";
-
+import { throwNotFoundException } from "~/core/http-exceptions";
+import getLogger from "~/core/logger";
+import getSupabaseServerClient from "~/core/supabase/server-client";
+import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
+import { getOrganizationByCustomerId } from "~/lib/organizations/database/queries";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 import createBillingPortalSession from "~/lib/stripe/create-billing-portal-session";
 import requireSession from "~/lib/user/require-session";
-
-import getLogger from "~/core/logger";
-import { throwNotFoundException } from "~/core/http-exceptions";
-import getSupabaseServerClient from "~/core/supabase/server-client";
-
-import { getOrganizationByCustomerId } from "~/lib/organizations/database/queries";
-import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
-
-import configuration from "~/configuration";
 
 export async function POST(request: Request) {
   const body = Object.fromEntries(await request.formData());
@@ -38,13 +31,8 @@ export async function POST(request: Request) {
 
   const client = getSupabaseServerClient();
   const logger = getLogger();
-  const sessionResult = await requireSession(client);
-
-  if ("redirect" in sessionResult) {
-    return redirect(sessionResult.destination);
-  }
-
-  const userId = sessionResult.user.id;
+  const session = await requireSession(client);
+  const userId = session.user.id;
 
   // get permissions to see if the user can access the portal
   const canAccess = await getUserCanAccessCustomerPortal(client, {

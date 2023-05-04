@@ -1,4 +1,4 @@
-import { useLayoutEffect } from "react";
+import { useEffect } from "react";
 import initializeBrowserSentry from "~/core/sentry/initialize-browser-sentry";
 
 /**
@@ -8,7 +8,7 @@ import initializeBrowserSentry from "~/core/sentry/initialize-browser-sentry";
  * by default) so it will only get loaded for the application pages
  */
 function useSentry() {
-  useLayoutEffect(() => {
+  useEffect(() => {
     void initializeBrowserSentry();
   }, []);
 }

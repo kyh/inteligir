@@ -1,4 +1,4 @@
-"use client"
+"use client";
 
 import {
   createContext,
@@ -112,7 +112,7 @@ function useVisibleSections(sectionStore: StoreApi<SectionStore>) {
   }, [setVisibleSections, sections]);
 }
 
-const SectionStoreContext = createContext();
+const SectionStoreContext = createContext(null);
 
 const useIsomorphicLayoutEffect =
   typeof document === "undefined" ? useEffect : useLayoutEffect;

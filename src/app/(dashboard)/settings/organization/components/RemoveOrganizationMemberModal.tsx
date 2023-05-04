@@ -1,12 +1,7 @@
 import { useCallback } from "react";
-
-
 import Button from "~/core/ui/Button";
 import Modal from "~/core/ui/Modal";
-
 import useRemoveMember from "~/lib/organizations/hooks/use-remove-member-mutation";
-
-const Heading = You are removing this user;
 
 const RemoveOrganizationMemberModal: React.FCC<{
   isOpen: boolean;
@@ -22,11 +17,13 @@ const RemoveOrganizationMemberModal: React.FCC<{
   }, [trigger, membershipId, setIsOpen]);
 
   return (
-    <Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
+    <Modal
+      heading={"You are removing this user"}
+      isOpen={isOpen}
+      setIsOpen={setIsOpen}
+    >
       <div className="flex flex-col space-y-6">
-        <p className="text-sm">
-          Are you sure you want to continue?
-        </p>
+        <p className="text-sm">Are you sure you want to continue?</p>
 
         <div className="flex justify-end space-x-2">
           <Modal.CancelButton onClick={() => setIsOpen(false)} />

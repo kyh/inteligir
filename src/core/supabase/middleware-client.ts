@@ -1,17 +1,17 @@
-import type { NextApiRequest, NextApiResponse } from "next";
-import { createServerSupabaseClient } from "@supabase/auth-helpers-nextjs";
+import { NextRequest, NextResponse } from "next/server";
+import { createMiddlewareSupabaseClient } from "@supabase/auth-helpers-nextjs";
 import invariant from "tiny-invariant";
 import type { Database } from "~/database.types";
 
 /**
- * Get a Supabase client for use in the legacy API routes
+ * Get a Supabase client for use in the Middleware.
  * @param req
  * @param res
  * @param params
  */
-function getSupabaseAPIClient(
-  req: NextApiRequest,
-  res: NextApiResponse,
+function getSupabaseMiddlewareClient(
+  req: NextRequest,
+  res: NextResponse,
   params = {
     admin: false,
   }
@@ -19,6 +19,7 @@ function getSupabaseAPIClient(
   const env = process.env;
 
   invariant(env.NEXT_PUBLIC_SUPABASE_URL, `Supabase URL not provided`);
+
   invariant(
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     `Supabase Anon Key not provided`
@@ -29,8 +30,11 @@ function getSupabaseAPIClient(
 
     invariant(serviceRoleKey, `Supabase Service Role Key not provided`);
 
-    return createServerSupabaseClient<Database>(
-      { req, res },
+    return createMiddlewareSupabaseClient<Database>(
+      {
+        req,
+        res,
+      },
       {
         supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
         supabaseKey: serviceRoleKey,
@@ -38,8 +42,11 @@ function getSupabaseAPIClient(
     );
   }
 
-  return createServerSupabaseClient<Database>(
-    { req, res },
+  return createMiddlewareSupabaseClient<Database>(
+    {
+      req,
+      res,
+    },
     {
       supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
       supabaseKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
@@ -47,4 +54,4 @@ function getSupabaseAPIClient(
   );
 }
 
-export default getSupabaseAPIClient;
+export default getSupabaseMiddlewareClient;

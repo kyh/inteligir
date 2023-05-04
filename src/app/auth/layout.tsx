@@ -1,17 +1,13 @@
 import { use } from "react";
-import { redirect } from "next/navigation";
-
 import loadAuthPageData from "~/lib/server/loaders/load-auth-page-data";
 import AuthPageShell from "~/app/auth/components/AuthPageShell";
+
+export const dynamic = "force-dynamic";
 
 function AuthLayout({ children }: React.PropsWithChildren) {
   const data = use(loadAuthPageData());
 
-  if ("redirect" in data && data.destination) {
-    return redirect(data.destination);
-  }
-
-  return <AuthPageShell language={data.language}>{children}</AuthPageShell>;
+  return <AuthPageShell>{children}</AuthPageShell>;
 }
 
 export default AuthLayout;

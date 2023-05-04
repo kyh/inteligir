@@ -1,18 +1,14 @@
-import type { FormEventHandler } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type FormEventHandler } from "react";
 import useMutation from "swr/mutation";
-
+import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
+import useSignOut from "~/core/hooks/use-sign-out";
 import useSupabase from "~/core/hooks/use-supabase";
-import Spinner from "~/core/ui/Spinner";
 import Alert from "~/core/ui/Alert";
 import Button from "~/core/ui/Button";
-import useSignOut from "~/core/hooks/use-sign-out";
 import Heading from "~/core/ui/Heading";
 import If from "~/core/ui/If";
-
-
+import Spinner from "~/core/ui/Spinner";
 import VerificationCodeInput from "./VerificationCodeInput";
-import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
 
 function MultiFactorChallengeContainer({
   onSuccess,
@@ -68,7 +64,9 @@ function MultiFactorChallengeContainer({
         </div>
 
         <Button loading={mutation.isMutating} disabled={!verifyCode}>
-          {mutation.isMutating ? Verifying code... : Submit Verification Code}
+          {mutation.isMutating
+            ? "Verifying code..."
+            : "Submit Verification Code"}
         </Button>
       </div>
     </form>
@@ -148,9 +146,7 @@ function FactorsListContainer({
       <div className="flex flex-col items-center space-y-4 py-8">
         <Spinner />
 
-        <div>
-          Loading factors...
-        </div>
+        <div>Loading factors...</div>
       </div>
     );
   }
@@ -158,9 +154,7 @@ function FactorsListContainer({
   if (error) {
     return (
       <div className="w-full">
-        <Alert type="error">
-          Error loading factors list
-        </Alert>
+        <Alert type="error">Error loading factors list</Alert>
       </div>
     );
   }
@@ -170,9 +164,7 @@ function FactorsListContainer({
   return (
     <div className="flex flex-col space-y-4">
       <div>
-        <Heading type={6}>
-          Choose a factor to verify your identity
-        </Heading>
+        <Heading type={6}>Choose a factor to verify your identity</Heading>
       </div>
 
       {verifiedFactors.map((factor) => (
