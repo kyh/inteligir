@@ -1,21 +1,17 @@
 import React, { useContext } from "react";
-
+import Link from "next/link";
+import {
+  ArrowLeftCircleIcon,
+  ArrowRightCircleIcon,
+} from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { cva } from "cva";
-
-import {
-  ArrowRightCircleIcon,
-  ArrowLeftCircleIcon,
-} from "@heroicons/react/24/outline";
-
-import { Logo } from "~/components/Logo";
-import IconButton from "~/core/ui/IconButton";
-import { TooltipContent, Tooltip, TooltipTrigger } from "~/core/ui/Tooltip";
-
 import configuration from "~/configuration";
+import IconButton from "~/core/ui/IconButton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
 import SidebarContext from "~/lib/contexts/sidebar";
+import { Logo } from "~/components/Logo";
 import AppSidebarNavigation from "./AppSidebarNavigation";
-import Link from "next/link";
 
 const AppSidebar: React.FC = () => {
   const { collapsed, setCollapsed } = useContext(SidebarContext);

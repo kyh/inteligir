@@ -1,5 +1,5 @@
-import { Dialog, Transition } from "@headlessui/react";
 import { Fragment, useState } from "react";
+import { Dialog, Transition } from "@headlessui/react";
 
 type UseModalProps = {
   defaultOpen?: boolean;
@@ -40,7 +40,7 @@ export const Modal = ({ isOpen, closeModal, children }: Props) => {
         </Transition.Child>
 
         <div className="fixed inset-0 overflow-y-auto">
-          <div className="flex justify-center py-10 px-4 text-center">
+          <div className="flex justify-center px-4 py-10 text-center">
             <Transition.Child
               as={Fragment}
               enter="ease-out duration-300"
@@ -50,7 +50,7 @@ export const Modal = ({ isOpen, closeModal, children }: Props) => {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <Dialog.Panel className="w-full max-w-xl transform overflow-hidden rounded-2xl bg-black-700 p-6 text-left shadow-xl transition-all text-slate-300 text-sm">
+              <Dialog.Panel className="w-full max-w-xl transform overflow-hidden rounded-2xl bg-black-700 p-6 text-left text-sm text-slate-300 shadow-xl transition-all">
                 {children}
               </Dialog.Panel>
             </Transition.Child>

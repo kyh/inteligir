@@ -1,7 +1,6 @@
 import Link from "next/link";
-
-import Heading from "~/core/ui/Heading";
 import configuration from "~/configuration";
+import Heading from "~/core/ui/Heading";
 import SignInMethodsContainer from "~/app/auth/components/SignInMethodsContainer";
 
 const SIGN_UP_PATH = configuration.paths.signUp;

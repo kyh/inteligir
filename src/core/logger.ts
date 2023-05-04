@@ -1,5 +1,4 @@
-import type { Logger } from "pino";
-import pino from "pino";
+import pino, { type Logger } from "pino";
 
 let logger: Logger;
 

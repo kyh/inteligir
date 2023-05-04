@@ -2,7 +2,6 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-
 import configuration from "~/configuration";
 import MultiFactorChallengeContainer from "~/app/auth/components/MultiFactorChallengeContainer";
 

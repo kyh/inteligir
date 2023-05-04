@@ -1,16 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useCallback } from "react";
-
-import If from "~/core/ui/If";
-
-import EmailPasswordSignUpContainer from "~/app/auth/components/EmailPasswordSignUpContainer";
-import PhoneNumberSignInContainer from "~/app/auth/components/PhoneNumberSignInContainer";
-import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
-import OAuthProviders from "~/app/auth/components/OAuthProviders";
-
+import { useRouter } from "next/navigation";
 import configuration from "~/configuration";
+import If from "~/core/ui/If";
+import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
+import EmailPasswordSignUpContainer from "~/app/auth/components/EmailPasswordSignUpContainer";
+import OAuthProviders from "~/app/auth/components/OAuthProviders";
+import PhoneNumberSignInContainer from "~/app/auth/components/PhoneNumberSignInContainer";
 
 function SignUpMethodsContainer() {
   const router = useRouter();

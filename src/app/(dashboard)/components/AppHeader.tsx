@@ -1,17 +1,14 @@
 "use client";
 
 import React from "react";
-
 import useSignOut from "~/core/hooks/use-sign-out";
 import useUserSession from "~/core/hooks/use-user-session";
-import ProfileDropdown from "~/components/ProfileDropdown";
-import MobileNavigation from "~/components/MobileNavigation";
-
 import Heading from "~/core/ui/Heading";
-import AppContainer from "./AppContainer";
-
-import OrganizationsSelector from "~/app/(dashboard)/components/organizations/OrganizationsSelector";
+import MobileNavigation from "~/components/MobileNavigation";
+import ProfileDropdown from "~/components/ProfileDropdown";
 import HeaderSubscriptionStatusBadge from "~/app/(dashboard)/components/organizations/HeaderSubscriptionStatusBadge";
+import OrganizationsSelector from "~/app/(dashboard)/components/organizations/OrganizationsSelector";
+import AppContainer from "./AppContainer";
 
 const AppHeader: React.FCC<{
   Icon?: JSX.Element;

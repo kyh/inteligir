@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import clsx from "clsx";
 import { usePathname } from "next/navigation";
-
+import clsx from "clsx";
 import isRouteActive from "~/core/generic/is-route-active";
 
 interface LinkModel {

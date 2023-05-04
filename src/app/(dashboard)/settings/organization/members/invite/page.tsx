@@ -1,9 +1,7 @@
 import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
-
+import Button from "~/core/ui/Button";
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
 import InviteMembersForm from "~/app/(dashboard)/settings/organization/components/InviteMembersForm";
-
-import Button from "~/core/ui/Button";
 
 export const metadata = {
   title: "Invite Members",

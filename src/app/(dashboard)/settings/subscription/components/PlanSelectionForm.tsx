@@ -1,18 +1,14 @@
 "use client";
 
 import React from "react";
-
-import type Organization from "~/lib/organizations/types/organization";
-import { canChangeBilling } from "~/lib/organizations/permissions";
-
-import If from "~/core/ui/If";
-
 import Alert from "~/core/ui/Alert";
-
+import If from "~/core/ui/If";
+import { canChangeBilling } from "~/lib/organizations/permissions";
+import type Organization from "~/lib/organizations/types/organization";
 import PricingTable from "~/components/PricingTable";
 import IfHasPermissions from "~/app/(dashboard)/components/IfHasPermissions";
-import CheckoutRedirectButton from "~/app/(dashboard)/settings/subscription/components/CheckoutRedirectButton";
 import BillingPortalRedirectButton from "~/app/(dashboard)/settings/subscription/components/BillingRedirectButton";
+import CheckoutRedirectButton from "~/app/(dashboard)/settings/subscription/components/CheckoutRedirectButton";
 
 const PlanSelectionForm: React.FCC<{
   organization: WithId<Organization>;

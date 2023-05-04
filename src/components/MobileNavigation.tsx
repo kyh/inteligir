@@ -2,14 +2,12 @@
 
 import Link from "next/link";
 import Bars3Icon from "@heroicons/react/24/outline/Bars3Icon";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "~/core/ui/Dropdown";
-
 import NAVIGATION_CONFIG from "../navigation.config";
 
 const MobileNavigation: React.FC = () => {

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import csrf from "edge-csrf";
-
-import HttpStatusCode from "~/core/generic/http-status-code.enum";
 import configuration from "~/configuration";
+import HttpStatusCode from "~/core/generic/http-status-code.enum";
 
 const CSRF_TOKEN_HEADER = "X-CSRF-Token";
 const CSRF_SECRET_COOKIE = "csrfSecret";

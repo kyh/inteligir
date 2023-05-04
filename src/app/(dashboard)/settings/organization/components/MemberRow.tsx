@@ -1,9 +1,7 @@
 import MinusIcon from "@heroicons/react/24/outline/MinusIcon";
-
-import type MembershipRole from "~/lib/organizations/types/membership-role";
 import Button from "~/core/ui/Button";
 import TextField from "~/core/ui/TextField";
-
+import type MembershipRole from "~/lib/organizations/types/membership-role";
 import MembershipRoleSelector from "./MembershipRoleSelector";
 
 interface Member {

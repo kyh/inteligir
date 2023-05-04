@@ -1,5 +1,5 @@
-import useApiRequest from "~/core/hooks/use-api";
 import useSWRMutation from "swr/mutation";
+import useApiRequest from "~/core/hooks/use-api";
 
 function useAcceptInvite() {
   const fetcher = useApiRequest<

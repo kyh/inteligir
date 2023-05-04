@@ -1,8 +1,8 @@
 "use client";
 
 import React from "react";
-import clsx from "clsx";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
+import clsx from "clsx";
 
 const Tooltip = ({ delayDuration = 0, ...props }) => (
   <TooltipPrimitive.Provider delayDuration={delayDuration}>

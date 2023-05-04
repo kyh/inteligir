@@ -1,13 +1,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
 import { cva } from "cva";
-
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
-import If from "~/core/ui/If";
-
 import NAVIGATION_CONFIG from "~/navigation.config";
 import isRouteActive from "~/core/generic/is-route-active";
+import If from "~/core/ui/If";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
 
 function AppSidebarNavigation({
   collapsed,

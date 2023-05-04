@@ -1,8 +1,6 @@
-import useSWRMutation from "swr/mutation";
 import { useRouter } from "next/navigation";
-
+import useSWRMutation from "swr/mutation";
 import useApiRequest from "~/core/hooks/use-api";
-
 import type MembershipRole from "../types/membership-role";
 
 interface Invite {

@@ -1,5 +1,4 @@
 import useSWRMutation from "swr/mutation";
-
 import configuration from "~/configuration";
 import useApiRequest from "~/core/hooks/use-api";
 

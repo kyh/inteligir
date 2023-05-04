@@ -1,5 +1,5 @@
-import Hero from "~/core/ui/Hero";
 import Container from "~/core/ui/Container";
+import Hero from "~/core/ui/Hero";
 import SubHeading from "~/core/ui/SubHeading";
 
 export const metadata = {

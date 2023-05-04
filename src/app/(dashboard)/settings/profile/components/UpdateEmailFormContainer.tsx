@@ -1,9 +1,8 @@
 "use client";
 
 import useUser from "~/core/hooks/use-user";
-import If from "~/core/ui/If";
 import Alert from "~/core/ui/Alert";
-
+import If from "~/core/ui/If";
 import UpdateEmailForm from "~/app/(dashboard)/settings/profile/components/UpdateEmailForm";
 
 function UpdateEmailFormContainer() {

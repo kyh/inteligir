@@ -1,16 +1,14 @@
-import Image from "next/image";
-
 import React, { useCallback, useEffect, useState } from "react";
+import Image from "next/image";
 import toaster from "react-hot-toast";
-import useSupabase from "~/core/hooks/use-supabase";
 import useMutation from "swr/mutation";
-import Button from "~/core/ui/Button";
-import Alert from "~/core/ui/Alert";
-import TextField from "~/core/ui/TextField";
-import Modal from "~/core/ui/Modal";
-import If from "~/core/ui/If";
-
+import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
+import Alert from "~/core/ui/Alert";
+import Button from "~/core/ui/Button";
+import If from "~/core/ui/If";
+import Modal from "~/core/ui/Modal";
+import TextField from "~/core/ui/TextField";
 import VerificationCodeInput from "~/app/auth/components/VerificationCodeInput";
 
 function MultiFactorAuthSetupModal(

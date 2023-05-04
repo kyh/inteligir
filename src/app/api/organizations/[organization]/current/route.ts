@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-
-import { getOrganizationById } from "~/lib/organizations/database/queries";
-import getSupabaseServerClient from "~/core/supabase/server-client";
-import { createOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
 import { throwInternalServerErrorException } from "~/core/http-exceptions";
+import getSupabaseServerClient from "~/core/supabase/server-client";
+import { getOrganizationById } from "~/lib/organizations/database/queries";
+import { createOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
 
 type Params = {
   params: {

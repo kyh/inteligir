@@ -1,12 +1,10 @@
 import { FormEventHandler, useCallback } from "react";
 import toaster from "react-hot-toast";
-
+import useUserId from "~/core/hooks/use-user-id";
+import Button from "~/core/ui/Button";
 import Modal from "~/core/ui/Modal";
 import TextField from "~/core/ui/TextField";
-import Button from "~/core/ui/Button";
-
 import useCreateOrganization from "~/lib/organizations/hooks/use-create-organization";
-import useUserId from "~/core/hooks/use-user-id";
 
 const CreateOrganizationModal: React.FC<{
   isOpen: boolean;

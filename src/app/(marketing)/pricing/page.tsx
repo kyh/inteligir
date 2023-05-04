@@ -1,7 +1,7 @@
 import Container from "~/core/ui/Container";
-import PricingTable from "~/components/PricingTable";
 import Hero from "~/core/ui/Hero";
 import SubHeading from "~/core/ui/SubHeading";
+import PricingTable from "~/components/PricingTable";
 
 export const metadata = {
   title: "Pricing",

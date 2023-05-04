@@ -1,6 +1,5 @@
 import { cloneElement } from "react";
-import { classed } from "@tw-classed/react";
-import type { VariantProps } from "@tw-classed/react";
+import { classed, type VariantProps } from "@tw-classed/react";
 import clsx from "clsx";
 
 const BaseFormField = classed.div({

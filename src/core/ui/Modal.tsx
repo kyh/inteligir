@@ -2,12 +2,10 @@ import { Fragment } from "react";
 import { Transition } from "@headlessui/react";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import { Close as DialogPrimitiveClose } from "@radix-ui/react-dialog";
-
+import Button from "~/core/ui/Button";
+import { Dialog, DialogContent, DialogTitle } from "~/core/ui/Dialog";
 import IconButton from "~/core/ui/IconButton";
 import If from "~/core/ui/If";
-import Button from "~/core/ui/Button";
-
-import { Dialog, DialogContent, DialogTitle } from "~/core/ui/Dialog";
 
 const Modal: React.FC<
   React.PropsWithChildren<{

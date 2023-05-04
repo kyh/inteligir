@@ -1,39 +1,34 @@
 import { useMemo } from "react";
-
 import Link from "next/link";
-
 import {
+  ArrowLeftOnRectangleIcon,
   ChevronDownIcon,
   Cog8ToothIcon,
-  ArrowLeftOnRectangleIcon,
-  Squares2X2Icon,
-  PaintBrushIcon,
-  SunIcon,
   ComputerDesktopIcon,
   MoonIcon,
+  PaintBrushIcon,
+  Squares2X2Icon,
+  SunIcon,
 } from "@heroicons/react/24/outline";
-
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuTrigger,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from "~/core/ui/Dropdown";
-
 import configuration from "~/configuration";
-import ProfileAvatar from "~/components/ProfileAvatar";
 import type UserSession from "~/core/session/types/user-session";
-
 import {
-  setTheme,
   DARK_THEME_CLASSNAME,
   LIGHT_THEME_CLASSNAME,
   SYSTEM_THEME_CLASSNAME,
+  setTheme,
 } from "~/core/theming";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "~/core/ui/Dropdown";
+import ProfileAvatar from "~/components/ProfileAvatar";
 
 const ProfileDropdown: React.FCC<{
   userSession: Maybe<UserSession>;

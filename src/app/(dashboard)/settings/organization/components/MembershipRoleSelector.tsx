@@ -1,14 +1,13 @@
 import {
   Select,
-  SelectItem,
   SelectContent,
+  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "~/core/ui/Select";
-
-import type MembershipRole from "~/lib/organizations/types/membership-role";
-import roles from "~/lib/organizations/roles";
 import { canInviteUser } from "~/lib/organizations/permissions";
+import roles from "~/lib/organizations/roles";
+import type MembershipRole from "~/lib/organizations/types/membership-role";
 import IfHasPermissions from "~/app/(dashboard)/components/IfHasPermissions";
 
 const MembershipRoleSelector: React.FCC<{

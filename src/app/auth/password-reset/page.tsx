@@ -1,8 +1,6 @@
 import Link from "next/link";
-
 import configuration from "~/configuration";
 import Heading from "~/core/ui/Heading";
-
 import PasswordResetContainer from "~/app/auth/components/PasswordResetContainer";
 
 export const metadata = {

@@ -1,8 +1,7 @@
 import { cva } from "cva";
-
-import MembershipRole from "~/lib/organizations/types/membership-role";
 import Badge from "~/core/ui/Badge";
 import roles from "~/lib/organizations/roles";
+import MembershipRole from "~/lib/organizations/types/membership-role";
 
 const roleClassNameBuilder = cva("font-medium", {
   variants: {

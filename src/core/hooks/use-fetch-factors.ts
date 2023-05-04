@@ -1,5 +1,4 @@
 import useQuery from "swr";
-
 import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
 

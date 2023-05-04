@@ -1,6 +1,6 @@
 import { useContext, useEffect } from "react";
-import UserSessionContext from "~/core/session/contexts/user-session";
 import useSupabase from "~/core/hooks/use-supabase";
+import UserSessionContext from "~/core/session/contexts/user-session";
 
 function useAuthStateChangeListener() {
   const client = useSupabase();

@@ -1,13 +1,11 @@
 "use client";
 
-import type { FormEventHandler } from "react";
-import { useCallback } from "react";
+import { useCallback, type FormEventHandler } from "react";
 import toaster from "react-hot-toast";
+import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
+import Button from "~/core/ui/Button";
 import If from "~/core/ui/If";
 import TextField from "~/core/ui/TextField";
-import Button from "~/core/ui/Button";
-
-import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
 
 const PhoneNumberCredentialForm: React.FC<{
   onSuccess: (phoneNumber: string) => void;

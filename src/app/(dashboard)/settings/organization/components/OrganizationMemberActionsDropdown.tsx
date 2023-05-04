@@ -4,15 +4,13 @@ import {
   UserCircleIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger,
   DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "~/core/ui/Dropdown";
-
 import IconButton from "~/core/ui/IconButton";
 import If from "~/core/ui/If";
 
