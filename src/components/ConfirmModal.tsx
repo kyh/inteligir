@@ -1,8 +1,7 @@
-import type { Props as ModalProps } from "~/components/Modal";
 import { Dialog } from "@headlessui/react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { Modal } from "~/components/Modal";
 import { Button } from "~/components/Button";
+import { Modal, type Props as ModalProps } from "~/components/Modal";
 
 type Props = {
   title: React.ReactNode;
@@ -19,7 +18,7 @@ export const ConfirmModal = ({ children, title, message, ...rest }: Props) => {
             aria-hidden="true"
           />
         </div>
-        <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+        <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
           <Dialog.Title as="h3" className="text-lg font-medium leading-6">
             {title}
           </Dialog.Title>

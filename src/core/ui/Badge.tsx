@@ -1,5 +1,5 @@
-import { cva } from "cva";
 import clsx from "clsx";
+import { cva } from "cva";
 
 type Color = `normal` | "success" | "warn" | "error" | "info" | "custom";
 type Size = `normal` | `small`;

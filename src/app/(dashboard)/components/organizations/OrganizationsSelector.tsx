@@ -1,31 +1,26 @@
 import { useCallback, useContext, useState, useTransition } from "react";
 import { PlusCircleIcon } from "@heroicons/react/24/outline";
 import { SelectArrow } from "@radix-ui/react-select";
-
-import type Organization from "~/lib/organizations/types/organization";
-import useUserOrganizationsQuery from "~/lib/organizations/hooks/use-user-organizations-query";
-
+import useRefresh from "~/core/hooks/use-refresh";
+import UserSessionContext from "~/core/session/contexts/user-session";
+import If from "~/core/ui/If";
 import {
   Select,
-  SelectItem,
-  SelectContent,
-  SelectTrigger,
-  SelectSeparator,
-  SelectGroup,
   SelectAction,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
   SelectLabel,
+  SelectSeparator,
+  SelectTrigger,
   SelectValue,
 } from "~/core/ui/Select";
-
-import If from "~/core/ui/If";
-
-import useRefresh from "~/core/hooks/use-refresh";
-
-import UserSessionContext from "~/core/session/contexts/user-session";
-import CreateOrganizationModal from "./CreateOrganizationModal";
-import type MembershipRole from "~/lib/organizations/types/membership-role";
 import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
 import useSetCurrentOrganization from "~/lib/organizations/hooks/use-set-current-organization";
+import useUserOrganizationsQuery from "~/lib/organizations/hooks/use-user-organizations-query";
+import type MembershipRole from "~/lib/organizations/types/membership-role";
+import type Organization from "~/lib/organizations/types/organization";
+import CreateOrganizationModal from "./CreateOrganizationModal";
 
 const OrganizationsSelector = () => {
   const [isOrganizationModalOpen, setIsOrganizationModalOpen] = useState(false);

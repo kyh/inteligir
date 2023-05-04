@@ -1,24 +1,21 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import useMutation from "swr/mutation";
-import { Factor } from "@supabase/gotrue-js";
 import { XMarkIcon } from "@heroicons/react/24/outline";
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
-
-import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
-import Spinner from "~/core/ui/Spinner";
-import Alert from "~/core/ui/Alert";
-import If from "~/core/ui/If";
-import Button from "~/core/ui/Button";
+import { Factor } from "@supabase/gotrue-js";
 import toaster from "react-hot-toast";
-import Modal from "~/core/ui/Modal";
-import Badge from "~/core/ui/Badge";
-import IconButton from "~/core/ui/IconButton";
-
+import useMutation from "swr/mutation";
+import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
 import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
-
+import Alert from "~/core/ui/Alert";
+import Badge from "~/core/ui/Badge";
+import Button from "~/core/ui/Button";
+import IconButton from "~/core/ui/IconButton";
+import If from "~/core/ui/If";
+import Modal from "~/core/ui/Modal";
+import Spinner from "~/core/ui/Spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
 import MultiFactorAuthSetupModal from "~/app/(dashboard)/settings/profile/components/MultiFactorAuthSetupModal";
 

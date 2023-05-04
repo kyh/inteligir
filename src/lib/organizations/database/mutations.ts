@@ -1,12 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-
+import type { Database } from "~/database.types";
 import {
   ORGANIZATIONS_SUBSCRIPTIONS_TABLE,
   ORGANIZATIONS_TABLE,
 } from "~/lib/db-tables";
-
 import type Organization from "~/lib/organizations/types/organization";
-import type { Database } from "~/database.types";
 
 type OrganizationRow = Database["public"]["Tables"]["organizations"]["Row"];
 

@@ -1,5 +1,5 @@
-import type UserData from "~/core/session/types/user-data";
 import type { Session } from "@supabase/gotrue-js";
+import type UserData from "~/core/session/types/user-data";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 
 /**

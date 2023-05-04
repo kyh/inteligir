@@ -1,7 +1,7 @@
 import useSWRMutation from "swr/mutation";
+import configuration from "~/configuration";
 import useApiRequest from "~/core/hooks/use-api";
 import useRefresh from "~/core/hooks/use-refresh";
-import configuration from "~/configuration";
 
 /*
  * @name useRemoveMember

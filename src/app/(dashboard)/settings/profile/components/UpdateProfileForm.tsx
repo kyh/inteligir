@@ -1,24 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import toaster from "react-hot-toast";
-import { useForm } from "react-hook-form";
-import useMutation from "swr/mutation";
-
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/gotrue-js";
-
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { useForm } from "react-hook-form";
+import toaster from "react-hot-toast";
+import useMutation from "swr/mutation";
 import configuration from "~/configuration";
-import useUpdateProfileMutation from "~/lib/user/hooks/use-update-profile";
-
-import Button from "~/core/ui/Button";
-import TextField from "~/core/ui/TextField";
-import ImageUploadInput from "~/core/ui/ImageUploadInput";
-import If from "~/core/ui/If";
-
-import Modal from "~/core/ui/Modal";
 import useSupabase from "~/core/hooks/use-supabase";
-
-import type UserSession from "~/core/session/types/user-session";
 import type UserData from "~/core/session/types/user-data";
+import type UserSession from "~/core/session/types/user-session";
+import Button from "~/core/ui/Button";
+import If from "~/core/ui/If";
+import ImageUploadInput from "~/core/ui/ImageUploadInput";
+import Modal from "~/core/ui/Modal";
+import TextField from "~/core/ui/TextField";
+import useUpdateProfileMutation from "~/lib/user/hooks/use-update-profile";
 import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function UpdateProfileForm({

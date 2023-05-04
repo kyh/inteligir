@@ -1,22 +1,18 @@
 "use client";
 
 import { Fragment } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
-
 import PlusCircleIcon from "@heroicons/react/24/outline/PlusCircleIcon";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
-
-import MembershipRole from "~/lib/organizations/types/membership-role";
-import useInviteMembers from "~/lib/organizations/hooks/use-invite-members-mutation";
-
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
-import If from "~/core/ui/If";
-import TextField from "~/core/ui/TextField";
+import { useFieldArray, useForm } from "react-hook-form";
+import useUserSession from "~/core/hooks/use-user-session";
 import Button from "~/core/ui/Button";
 import IconButton from "~/core/ui/IconButton";
-
+import If from "~/core/ui/If";
+import TextField from "~/core/ui/TextField";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
+import useInviteMembers from "~/lib/organizations/hooks/use-invite-members-mutation";
+import MembershipRole from "~/lib/organizations/types/membership-role";
 import MembershipRoleSelector from "./MembershipRoleSelector";
-import useUserSession from "~/core/hooks/use-user-session";
 
 type InviteModel = ReturnType<typeof memberFactory>;
 

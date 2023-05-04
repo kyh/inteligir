@@ -2,9 +2,8 @@
 
 import { useCallback, useContext } from "react";
 import type { User } from "@supabase/gotrue-js";
-
-import UserSessionContext from "~/core/session/contexts/user-session";
 import useUserSession from "~/core/hooks/use-user-session";
+import UserSessionContext from "~/core/session/contexts/user-session";
 import UserData from "~/core/session/types/user-data";
 import UpdateProfileForm from "~/app/(dashboard)/settings/profile/components/UpdateProfileForm";
 

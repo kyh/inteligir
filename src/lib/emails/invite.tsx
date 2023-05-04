@@ -1,14 +1,13 @@
-import { render } from "@react-email/render";
-import { Html } from "@react-email/html";
-import { Head } from "@react-email/head";
-import { Preview } from "@react-email/preview";
 import { Body } from "@react-email/body";
-import { Section } from "@react-email/section";
 import { Column } from "@react-email/column";
+import { Head } from "@react-email/head";
+import { Html } from "@react-email/html";
+import { Preview } from "@react-email/preview";
+import { render } from "@react-email/render";
+import { Section } from "@react-email/section";
 import { Text } from "@react-email/text";
-
-import EmailNavbar from "~/components/emails/EmailNavbar";
 import CallToActionButton from "~/components/emails/CallToActionButton";
+import EmailNavbar from "~/components/emails/EmailNavbar";
 
 interface Props {
   organizationName: string;

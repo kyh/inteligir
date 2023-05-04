@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { nanoid } from "nanoid";
-
 import { MEMBERSHIPS_TABLE } from "~/lib/db-tables";
 import type Membership from "~/lib/organizations/types/membership";
 import type { Database } from "../../database.types";

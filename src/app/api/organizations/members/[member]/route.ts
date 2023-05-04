@@ -1,16 +1,13 @@
-import { z } from "zod";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-
-import MembershipRole from "~/lib/organizations/types/membership-role";
-
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import getLogger from "~/core/logger";
+import getSupabaseServerClient from "~/core/supabase/server-client";
 import {
   deleteMembershipById,
   updateMembershipById,
 } from "~/lib/memberships/mutations";
-
-import getSupabaseServerClient from "~/core/supabase/server-client";
-import getLogger from "~/core/logger";
+import MembershipRole from "~/lib/organizations/types/membership-role";
 
 type Params = { params: { member: string } };
 

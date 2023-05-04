@@ -1,11 +1,10 @@
 "use client";
 
 import React, { forwardRef } from "react";
-import clsx from "clsx";
 import { Transition } from "@headlessui/react";
-
-import Label from "./Label";
+import clsx from "clsx";
 import If from "~/core/ui/If";
+import Label from "./Label";
 
 type Props = React.InputHTMLAttributes<unknown>;
 

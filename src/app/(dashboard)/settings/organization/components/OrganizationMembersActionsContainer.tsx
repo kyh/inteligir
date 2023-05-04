@@ -1,15 +1,12 @@
 import { useState } from "react";
 import type { User } from "@supabase/gotrue-js";
-
-import MembershipRole from "~/lib/organizations/types/membership-role";
 import type UserData from "~/core/session/types/user-data";
 import If from "~/core/ui/If";
-
+import MembershipRole from "~/lib/organizations/types/membership-role";
+import TransferOrganizationOwnershipModal from "~/app/(dashboard)/settings/organization/components/TransferOrganizationOwnershipModal";
 import OrganizationMemberActionsDropdown from "./OrganizationMemberActionsDropdown";
 import RemoveOrganizationMemberModal from "./RemoveOrganizationMemberModal";
 import UpdateMemberRoleModal from "./UpdateMemberRoleModal";
-
-import TransferOrganizationOwnershipModal from "~/app/(dashboard)/settings/organization/components/TransferOrganizationOwnershipModal";
 
 const OrganizationMembersActionsContainer: React.FCC<{
   targetMember: {

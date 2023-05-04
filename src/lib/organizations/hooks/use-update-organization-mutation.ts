@@ -1,8 +1,8 @@
 import useSWRMutation from "swr/mutation";
-import type Organization from "~/lib/organizations/types/organization";
 import useSupabase from "~/core/hooks/use-supabase";
-import { updateOrganization } from "~/lib/organizations/database/mutations";
 import useUserId from "~/core/hooks/use-user-id";
+import { updateOrganization } from "~/lib/organizations/database/mutations";
+import type Organization from "~/lib/organizations/types/organization";
 
 /**
  * @name useUpdateOrganizationMutation

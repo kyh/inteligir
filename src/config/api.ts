@@ -9,5 +9,5 @@ export const apiConfig = {
       members: `/api/organizations/members`,
       member: `/api/organizations/members/[member]`,
     },
-  }
+  },
 };

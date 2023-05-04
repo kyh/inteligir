@@ -1,4 +1,4 @@
-import { ChevronUpIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
+import { ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/24/outline";
 
 function SelectorIcon(
   props: React.PropsWithChildren<{

@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
-
 import isBrowser from "~/core/generic/is-browser";
 import useSupabase from "~/core/hooks/use-supabase";
 

@@ -1,10 +1,9 @@
 import "../app/globals.css";
-
 import Head from "next/head";
+import configuration from "~/configuration";
 import Button from "~/core/ui/Button";
 import Heading from "~/core/ui/Heading";
 import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
-import configuration from "~/configuration";
 
 const NotFoundPage = () => {
   return (

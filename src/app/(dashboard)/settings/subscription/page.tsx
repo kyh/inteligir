@@ -1,6 +1,6 @@
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
-import Plans from "~/app/(dashboard)/settings/subscription/components/Plans";
 import PlansStatusAlertContainer from "~/app/(dashboard)/settings/subscription/components/PlanStatusAlertContainer";
+import Plans from "~/app/(dashboard)/settings/subscription/components/Plans";
 
 export const metadata = {
   title: "Subscription",

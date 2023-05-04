@@ -27,4 +27,4 @@ export const dashboardConfig = {
       icon: "settings",
     },
   ],
-}
+};

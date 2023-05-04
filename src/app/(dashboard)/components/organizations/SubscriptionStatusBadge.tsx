@@ -1,6 +1,6 @@
-import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
-import { Tooltip, TooltipTrigger, TooltipContent } from "~/core/ui/Tooltip";
 import Badge from "~/core/ui/Badge";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
+import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
 
 function SubscriptionStatusBadge({
   subscription,

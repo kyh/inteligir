@@ -1,4 +1,4 @@
-import { Avatar, AvatarImage, AvatarFallback } from "~/core/ui/Avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "~/core/ui/Avatar";
 
 export const Review = () => {
   return (
@@ -14,11 +14,9 @@ export const Review = () => {
           Lorem ipsum dolor sit amet consectetur adipisicing elit. Illum
           reiciendis maiores impedit sequi laudantium neque vitae commodi earum.
         </p>
-        <Avatar
-          className="mx-auto mt-10"
-        >
+        <Avatar className="mx-auto mt-10">
           <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
-      <AvatarFallback>CN</AvatarFallback>
+          <AvatarFallback>CN</AvatarFallback>
         </Avatar>
         <p className="mt-1 font-semibold">John Boggs</p>
         <p className="whitespace-nowrap text-sm text-gray-400">

@@ -1,16 +1,13 @@
 "use client";
 
 import { FormEvent, useCallback } from "react";
-
-import useResetPassword from "~/core/hooks/use-reset-password";
-import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
-
-import If from "~/core/ui/If";
-import Alert from "~/core/ui/Alert";
-import TextField from "~/core/ui/TextField";
-import Button from "~/core/ui/Button";
-
 import configuration from "~/configuration";
+import useResetPassword from "~/core/hooks/use-reset-password";
+import Alert from "~/core/ui/Alert";
+import Button from "~/core/ui/Button";
+import If from "~/core/ui/If";
+import TextField from "~/core/ui/TextField";
+import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function PasswordResetContainer() {
   const resetPasswordMutation = useResetPassword();

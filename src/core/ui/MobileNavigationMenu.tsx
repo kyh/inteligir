@@ -1,15 +1,12 @@
+import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-import { useMemo } from "react";
-
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
-
 import {
+  DropdownMenu,
+  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenu,
 } from "~/core/ui/Dropdown";
 
 const MobileNavigationDropdown: React.FC<{

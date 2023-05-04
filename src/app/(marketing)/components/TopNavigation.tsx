@@ -1,16 +1,16 @@
 "use client";
 
-import Link from "next/link";
-import { useScroll } from "framer-motion";
-import { Logo } from "~/components/Logo";
-import { NavLink } from "~/components/NavLink";
-import clsx from "clsx";
 import { useEffect, useState } from "react";
-import If from "~/core/ui/If";
-import ProfileDropdown from "~/components/ProfileDropdown";
+import Link from "next/link";
+import clsx from "clsx";
+import { useScroll } from "framer-motion";
+import configuration from "~/configuration";
 import useSignOut from "~/core/hooks/use-sign-out";
 import useUserSession from "~/core/hooks/use-user-session";
-import configuration from "~/configuration";
+import If from "~/core/ui/If";
+import { Logo } from "~/components/Logo";
+import { NavLink } from "~/components/NavLink";
+import ProfileDropdown from "~/components/ProfileDropdown";
 
 const baseContainerClassName = "sticky top-0 z-40 w-full bg-transparent";
 

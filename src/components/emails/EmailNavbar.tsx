@@ -1,7 +1,6 @@
-import { Section } from "@react-email/section";
 import { Column } from "@react-email/column";
+import { Section } from "@react-email/section";
 import { Text } from "@react-email/text";
-
 import configuration from "~/configuration";
 
 function EmailNavbar(

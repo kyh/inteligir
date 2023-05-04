@@ -1,7 +1,7 @@
+import { CheckIcon } from "@heroicons/react/24/solid";
 import clsx from "clsx";
 import { HighlightCard } from "~/components/Card";
 import { SectionTitle } from "./SectionTitle";
-import { CheckIcon } from "@heroicons/react/24/solid";
 
 const AboutCard = ({
   className,

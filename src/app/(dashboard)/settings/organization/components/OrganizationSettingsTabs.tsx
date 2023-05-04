@@ -1,6 +1,6 @@
+import MobileNavigationDropdown from "~/core/ui/MobileNavigationDropdown";
 import NavigationItem from "~/core/ui/Navigation/NavigationItem";
 import NavigationMenu from "~/core/ui/Navigation/NavigationMenu";
-import MobileNavigationDropdown from "~/core/ui/MobileNavigationDropdown";
 
 const links = {
   General: {

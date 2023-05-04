@@ -1,19 +1,16 @@
 "use client";
 
 import { useCallback, useContext, useEffect } from "react";
-import toast from "react-hot-toast";
-import { useForm } from "react-hook-form";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-import OrganizationContext from "~/lib/contexts/organization";
-import useUpdateOrganizationMutation from "~/lib/organizations/hooks/use-update-organization-mutation";
-
+import { useForm } from "react-hook-form";
+import toast from "react-hot-toast";
+import useSupabase from "~/core/hooks/use-supabase";
 import Button from "~/core/ui/Button";
-import TextField from "~/core/ui/TextField";
 import ImageUploadInput from "~/core/ui/ImageUploadInput";
 import Label from "~/core/ui/Label";
-
-import useSupabase from "~/core/hooks/use-supabase";
+import TextField from "~/core/ui/TextField";
+import OrganizationContext from "~/lib/contexts/organization";
+import useUpdateOrganizationMutation from "~/lib/organizations/hooks/use-update-organization-mutation";
 import type Organization from "~/lib/organizations/types/organization";
 
 const UpdateOrganizationForm = () => {

@@ -1,10 +1,9 @@
 "use client";
 
 import { useState } from "react";
-
-import { TopNavigation } from "./TopNavigation";
 import UserSessionContext from "~/core/session/contexts/user-session";
 import UserSession from "~/core/session/types/user-session";
+import { TopNavigation } from "./TopNavigation";
 
 type Data = {
   role: UserSession["role"];

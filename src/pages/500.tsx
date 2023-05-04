@@ -1,5 +1,4 @@
 import "../app/globals.css";
-
 import Head from "next/head";
 import configuration from "~/configuration";
 import Button from "~/core/ui/Button";

@@ -1,7 +1,7 @@
 import * as React from "react";
+import { CheckCircleIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import clsx from "clsx";
-import { ChevronDownIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
