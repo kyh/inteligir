@@ -1,35 +1,25 @@
 import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
 import { redirect } from "next/navigation";
-
+import { NextResponse } from "next/server";
 import { z } from "zod";
-
-import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
-import getSupabaseServerClient from "~/core/supabase/server-client";
-import requireSession from "~/lib/user/require-session";
-
 import {
   throwForbiddenException,
   throwInternalServerErrorException,
 } from "~/core/http-exceptions";
-
 import getLogger from "~/core/logger";
-
-import inviteMembers from "~/lib/server/organizations/invite-members";
+import getSupabaseServerClient from "~/core/supabase/server-client";
 import MembershipRole from "~/lib/organizations/types/membership-role";
+import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
+import inviteMembers from "~/lib/server/organizations/invite-members";
+import requireSession from "~/lib/user/require-session";
 
 export async function POST(request: Request) {
   const invites = await getBodySchema().parseAsync(await request.json());
 
   const organizationId = Number(await parseOrganizationIdCookie(cookies()));
   const client = getSupabaseServerClient();
-  const sessionResult = await requireSession(client);
-
-  if ("redirect" in sessionResult) {
-    return redirect(sessionResult.destination);
-  }
-
-  const inviterId = sessionResult.user.id;
+  const session = await requireSession(client);
+  const inviterId = session.user.id;
 
   // throw an error when we cannot retrieve the inviter's id or the organization id
   if (!inviterId || !organizationId) {

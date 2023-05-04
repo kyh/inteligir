@@ -1,11 +1,9 @@
-import dynamic from "next/dynamic";
-
+import loadDynamic from "next/dynamic";
 import { Squares2X2Icon } from "@heroicons/react/24/outline";
-
-import AppHeader from "~/app/(dashboard)/components/AppHeader";
 import AppContainer from "~/app/(dashboard)/components/AppContainer";
+import AppHeader from "~/app/(dashboard)/components/AppHeader";
 
-const DashboardDemo = dynamic(
+const DashboardDemo = loadDynamic(
   () => import("~/app/(dashboard)/dashboard/DashboardDemo"),
   {
     ssr: false,

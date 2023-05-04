@@ -1,22 +1,17 @@
 import { use } from "react";
-import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
-
-import invariant from "tiny-invariant";
+import { notFound, redirect } from "next/navigation";
 import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
-
-import If from "~/core/ui/If";
-import Heading from "~/core/ui/Heading";
-
-
+import invariant from "tiny-invariant";
+import { Database } from "~/database.types";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-
+import Heading from "~/core/ui/Heading";
+import If from "~/core/ui/If";
 import { getMembershipByInviteCode } from "~/lib/memberships/queries";
-import ExistingUserInviteForm from "~/app/invite/components/ExistingUserInviteForm";
-import NewUserInviteForm from "~/app/invite/components/NewUserInviteForm";
-import InviteCsrfTokenProvider from "~/app/invite/components/InviteCsrfTokenProvider";
-import { Database } from "~/database.types";
+import ExistingUserInviteForm from "../components/ExistingUserInviteForm";
+import InviteCsrfTokenProvider from "../components/InviteCsrfTokenProvider";
+import NewUserInviteForm from "../components/NewUserInviteForm";
 
 interface Context {
   params: {
@@ -37,29 +32,29 @@ const InvitePage = ({ params }: Context) => {
 
   const organization = data.membership.organization;
 
-  return <>
-    <Heading type={4}>
-      Join {{organization}}
-    </Heading>
+  return (
+    <>
+      <Heading type={4}>Join {organization.name}</Heading>
 
-    <div>
-      <p className="text-center">
-        You were invited to join <b>{{organization}}</Bold>
-      </p>
+      <div>
+        <p className="text-center">
+          You were invited to join <b>{organization.name}</b>
+        </p>
 
-      <p className="text-center">
-        <If condition={!data.session}>
-          Please sign in/up to accept the invite
+        <p className="text-center">
+          <If condition={!data.session}>
+            Please sign in/up to accept the invite
+          </If>
+        </p>
+      </div>
+
+      <InviteCsrfTokenProvider csrfToken={data.csrfToken}>
+        <If condition={data.session} fallback={<NewUserInviteForm />}>
+          {(session) => <ExistingUserInviteForm session={session} />}
         </If>
-      </p>
-    </div>
-
-    <InviteCsrfTokenProvider csrfToken={data.csrfToken}>
-      <If condition={data.session} fallback={<NewUserInviteForm />}>
-        {(session) => <ExistingUserInviteForm session={session} />}
-      </If>
-    </InviteCsrfTokenProvider>
-  </>;
+      </InviteCsrfTokenProvider>
+    </>
+  );
 };
 
 export default InvitePage;

@@ -1,7 +1,6 @@
-import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import { Button } from "~/components/Button";
-import { Heading } from "~/app/(docs)/components/Heading";
 import logoGo from "~/app/(docs)/images/logos/go.svg";
 import logoNode from "~/app/(docs)/images/logos/node.svg";
 import logoPhp from "~/app/(docs)/images/logos/php.svg";
@@ -49,9 +48,7 @@ const libraries = [
 export function Libraries() {
   return (
     <div className="my-16 xl:max-w-none">
-      <Heading level={2} id="official-libraries">
-        Official libraries
-      </Heading>
+      <h2 id="official-libraries">Official libraries</h2>
       <div className="not-prose mt-4 grid grid-cols-1 gap-x-6 gap-y-10 border-t border-white/10 border-white/10 pt-10 sm:grid-cols-2 xl:max-w-none xl:grid-cols-3">
         {libraries.map((library) => (
           <div key={library.name} className="flex flex-row-reverse gap-6">

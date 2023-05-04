@@ -1,21 +1,17 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-
 import { z } from "zod";
-
 import {
   throwBadRequestException,
   throwForbiddenException,
   throwInternalServerErrorException,
 } from "~/core/http-exceptions";
-
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
-import requireSession from "~/lib/user/require-session";
-import { getUserDataById } from "~/lib/server/queries";
 import { transferOwnership } from "~/lib/memberships/mutations";
-import { redirect } from "next/navigation";
+import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
+import { getUserDataById } from "~/lib/server/queries";
+import requireSession from "~/lib/user/require-session";
 
 export async function PUT(req: Request) {
   const result = await getBodySchema().safeParseAsync(await req.json());
@@ -31,13 +27,9 @@ export async function PUT(req: Request) {
   const organizationId = Number(await parseOrganizationIdCookie(cookies()));
 
   const targetUserMembershipId = result.data.membershipId;
-  const sessionResult = await requireSession(client);
+  const session = await requireSession(client);
 
-  if ("redirect" in sessionResult) {
-    return redirect(sessionResult.destination);
-  }
-
-  const currentUserId = sessionResult.user.id;
+  const currentUserId = session.user.id;
   const currentUser = await getUserDataById(client, currentUserId);
 
   logger.info(

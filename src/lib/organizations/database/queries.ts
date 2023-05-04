@@ -1,12 +1,12 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/gotrue-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "~/database.types";
+import type UserData from "~/core/session/types/user-data";
 import { MEMBERSHIPS_TABLE, ORGANIZATIONS_TABLE } from "~/lib/db-tables";
 import type Membership from "~/lib/organizations/types/membership";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import type Organization from "~/lib/organizations/types/organization";
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
-import type { Database } from "../../../database.types";
-import type UserData from "~/core/session/types/user-data";
 
 type Client = SupabaseClient<Database>;
 

@@ -1,12 +1,11 @@
 import Link from "next/link";
 import {
-  DocumentIcon,
-  UsersIcon,
-  PhoneIcon,
   ChartBarIcon,
+  DocumentIcon,
+  PhoneIcon,
+  UsersIcon,
 } from "@heroicons/react/24/outline";
 import { HighlightCard } from "~/components/Card";
-import { Heading } from "~/app/(docs)/components/Heading";
 
 const resources = [
   {
@@ -94,9 +93,7 @@ function Resource({ resource }: { resource: (typeof resources)[number] }) {
 export function Resources() {
   return (
     <div className="my-16 xl:max-w-none">
-      <Heading level={2} id="resources">
-        Resources
-      </Heading>
+      <h2 id="resources">Resources</h2>
       <div className="not-prose mt-4 grid grid-cols-1 gap-8 border-t border-white/10 pt-10 sm:grid-cols-2 xl:grid-cols-4">
         {resources.map((resource) => (
           <Resource key={resource.href} resource={resource} />

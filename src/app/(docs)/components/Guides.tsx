@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { Button } from "~/components/Button";
-import { Heading } from "~/app/(docs)/components/Heading";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
+import { Button } from "~/components/Button";
 
 const guides = [
   {
@@ -31,9 +30,7 @@ const guides = [
 export function Guides() {
   return (
     <div className="my-16 xl:max-w-none">
-      <Heading level={2} id="guides">
-        Guides
-      </Heading>
+      <h2 id="guides">Guides</h2>
       <div className="not-prose mt-4 grid grid-cols-1 gap-8 border-t border-white/10 border-white/10 pt-10 sm:grid-cols-2 xl:grid-cols-4">
         {guides.map((guide) => (
           <div key={guide.href}>

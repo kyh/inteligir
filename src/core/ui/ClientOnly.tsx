@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
-import { Suspense, useEffect, useState } from "react";
+"use client";
+
+import { Suspense, useEffect, useState, type ReactNode } from "react";
 
 function ClientOnly({ children }: { children: ReactNode }) {
   let [mounted, setMounted] = useState(false);

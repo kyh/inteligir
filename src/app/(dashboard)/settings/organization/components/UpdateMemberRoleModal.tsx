@@ -1,14 +1,9 @@
 import { useCallback, useState } from "react";
-
-
 import Button from "~/core/ui/Button";
 import Modal from "~/core/ui/Modal";
-
-import type MembershipRole from "~/lib/organizations/types/membership-role";
 import useUpdateMemberRequest from "~/lib/organizations/hooks/use-update-member-role";
+import type MembershipRole from "~/lib/organizations/types/membership-role";
 import MembershipRoleSelector from "~/app/(dashboard)/settings/organization/components/MembershipRoleSelector";
-
-const Heading = Update Member's Role;
 
 const UpdateMemberRoleModal: React.FCC<{
   isOpen: boolean;
@@ -28,7 +23,11 @@ const UpdateMemberRoleModal: React.FCC<{
   }, [role, trigger, setIsOpen]);
 
   return (
-    <Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
+    <Modal
+      heading={"Update Member's Role"}
+      isOpen={isOpen}
+      setIsOpen={setIsOpen}
+    >
       <div className="flex flex-col space-y-6">
         <MembershipRoleSelector value={role} onChange={setRole} />
 

@@ -1,13 +1,16 @@
 import {
-  createBrowserSupabaseClient,
   SupabaseClient,
+  createBrowserSupabaseClient,
 } from "@supabase/auth-helpers-nextjs";
-
 import invariant from "tiny-invariant";
 import type { Database } from "~/database.types";
 
 let client: SupabaseClient;
 
+/**
+ * @name getSupabaseBrowserClient
+ * @description Get a Supabase client for use in the Browser
+ */
 function getSupabaseBrowserClient() {
   if (client) {
     return client;

@@ -1,16 +1,12 @@
 import React, { useMemo } from "react";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
-
-import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
-
+import configuration from "~/configuration";
 import Heading from "~/core/ui/Heading";
 import If from "~/core/ui/If";
-
+import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
 import PricingTable from "~/components/PricingTable";
 import SubscriptionStatusBadge from "~/app/(dashboard)/components/organizations/SubscriptionStatusBadge";
 import SubscriptionStatusAlert from "~/app/(dashboard)/settings/subscription/components/SubscriptionStatusAlert";
-
-import configuration from "~/configuration";
 
 const SubscriptionCard: React.FC<{
   subscription: OrganizationSubscription;
@@ -87,7 +83,8 @@ function RenewStatusDescription(
         <XCircleIcon className="h-5 text-yellow-700" />
 
         <span>
-          Your subscription is scheduled to be canceled on {{ endDate }}.
+          Your subscription is scheduled to be canceled on {props.dates.endDate}
+          .
         </span>
       </If>
 
@@ -95,7 +92,7 @@ function RenewStatusDescription(
         <CheckCircleIcon className="h-5 text-green-700" />
 
         <span>
-          Your subscription is scheduled to be renewed on {{ endDate }}
+          Your subscription is scheduled to be renewed on {props.dates.endDate}
         </span>
       </If>
     </span>
