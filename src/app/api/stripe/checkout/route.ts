@@ -1,21 +1,19 @@
-import { z } from "zod";
 import { join } from "path";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
-import { cookies, headers } from "next/headers";
-
-import getLogger from "~/core/logger";
-import HttpStatusCode from "~/core/generic/http-status-code.enum";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { z } from "zod";
+import configuration from "~/configuration";
 import getApiRefererPath from "~/core/generic/get-api-referer-path";
-
-import createStripeCheckout from "~/lib/stripe/create-checkout";
+import HttpStatusCode from "~/core/generic/http-status-code.enum";
+import getLogger from "~/core/logger";
+import getSupabaseServerClient from "~/core/supabase/server-client";
+import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
-import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
+import createStripeCheckout from "~/lib/stripe/create-checkout";
 import requireSession from "~/lib/user/require-session";
-import getSupabaseServerClient from "~/core/supabase/server-client";
-import configuration from "~/configuration";
 
 export async function POST(request: Request) {
   const logger = getLogger();
@@ -42,13 +40,9 @@ export async function POST(request: Request) {
   const client = getSupabaseServerClient();
 
   // require the user to be logged in
-  const sessionResult = await requireSession(client);
+  const session = await requireSession(client);
 
-  if ("redirect" in sessionResult) {
-    return redirect(sessionResult.destination);
-  }
-
-  const userId = sessionResult.user.id;
+  const userId = session.user.id;
 
   const currentOrganizationId = Number(
     await parseOrganizationIdCookie(cookies())

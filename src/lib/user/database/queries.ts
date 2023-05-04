@@ -1,5 +1,5 @@
-import type UserData from "~/core/session/types/user-data";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type UserData from "~/core/session/types/user-data";
 
 /**
  * @name getUserById

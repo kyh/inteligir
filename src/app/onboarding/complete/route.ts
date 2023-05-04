@@ -1,29 +1,22 @@
-import { z } from "zod";
 import { redirect } from "next/navigation";
-
-import getLogger from "~/core/logger";
-import requireSession from "~/lib/user/require-session";
-import completeOnboarding from "~/lib/server/onboarding/complete-onboarding";
-
+import { z } from "zod";
+import configuration from "~/configuration";
 import {
   throwBadRequestException,
   throwInternalServerErrorException,
 } from "~/core/http-exceptions";
-
+import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import configuration from "~/configuration";
+import completeOnboarding from "~/lib/server/onboarding/complete-onboarding";
+import requireSession from "~/lib/user/require-session";
 
 export async function POST(req: Request) {
   const logger = getLogger();
 
-  const client = await getSupabaseServerClient();
-  const sessionResult = await requireSession(client);
+  const client = getSupabaseServerClient();
+  const session = await requireSession(client);
+  const userId = session.user.id;
 
-  if ("redirect" in sessionResult) {
-    return redirect(sessionResult.destination);
-  }
-
-  const userId = sessionResult.user.id;
   const body = await req.json();
   const parsedBody = await getBodySchema().safeParseAsync(body);
 

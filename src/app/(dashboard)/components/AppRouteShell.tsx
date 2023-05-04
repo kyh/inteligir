@@ -2,26 +2,23 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Session } from "@supabase/supabase-js";
-
-import useCollapsible from "~/core/hooks/use-sidebar-state";
-import AppSidebar from "~/app/(dashboard)/components/AppSidebar";
-import Toaster from "~/app/(dashboard)/components/Toaster";
-import MembershipRole from "~/lib/organizations/types/membership-role";
-import UserData from "~/core/session/types/user-data";
-import Organization from "~/lib/organizations/types/organization";
-import UserSession from "~/core/session/types/user-session";
-
-import OrganizationContext from "~/lib/contexts/organization";
-import CsrfTokenContext from "~/lib/contexts/csrf";
-import SidebarContext from "~/lib/contexts/sidebar";
-import UserSessionContext from "~/core/session/contexts/user-session";
-
 import { setCookie } from "~/core/generic/cookies";
+import useCollapsible from "~/core/hooks/use-sidebar-state";
+import UserSessionContext from "~/core/session/contexts/user-session";
+import UserData from "~/core/session/types/user-data";
+import UserSession from "~/core/session/types/user-session";
+import CsrfTokenContext from "~/lib/contexts/csrf";
+import OrganizationContext from "~/lib/contexts/organization";
+import SidebarContext from "~/lib/contexts/sidebar";
+import MembershipRole from "~/lib/organizations/types/membership-role";
+import Organization from "~/lib/organizations/types/organization";
+import AppSidebar from "~/app/(dashboard)/components/AppSidebar";
 import AuthChangeListener from "~/app/(dashboard)/components/AuthChangeListener";
+import Toaster from "~/app/(dashboard)/components/Toaster";
 
 interface Data {
   accessToken: Maybe<string>;
-  language: string;
+  language?: string;
   csrfToken: string | null;
   session: Session;
   user: UserData;
