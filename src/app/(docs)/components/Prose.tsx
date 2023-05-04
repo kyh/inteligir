@@ -11,5 +11,10 @@ export function Prose({
   className,
   ...props
 }: ProseProps) {
-  return <Component className={clsx(className, "prose")} {...props} />;
+  return (
+    <Component
+      className={clsx(className, "prose dark:prose-invert")}
+      {...props}
+    />
+  );
 }
