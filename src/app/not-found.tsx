@@ -1,6 +1,7 @@
+import Link from "next/link";
 import configuration from "~/configuration";
-import Button from "~/core/ui/Button";
-import Heading from "~/core/ui/Heading";
+import Button from "~/components/Button";
+import Heading from "~/components/Heading";
 import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 
 export const metadata = {
@@ -37,10 +38,12 @@ const NotFoundPage = async () => {
               </div>
 
               <div className="flex space-x-4">
-                <Button color="secondary" href="/">
+                <Button as={Link} href="/">
                   Contact Us
                 </Button>
-                <Button href="/">Back to Home Page</Button>
+                <Button as={Link} href="/">
+                  Back to Home Page
+                </Button>
               </div>
             </div>
           </div>

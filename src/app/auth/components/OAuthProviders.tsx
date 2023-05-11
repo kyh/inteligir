@@ -3,9 +3,9 @@
 import { useCallback } from "react";
 import configuration from "~/configuration";
 import useSignInWithProvider from "~/core/hooks/use-sign-in-with-provider";
-import AuthProviderButton from "~/core/ui/AuthProviderButton";
-import If from "~/core/ui/If";
-import PageLoadingIndicator from "~/core/ui/PageLoadingIndicator";
+import AuthProviderButton from "~/components/AuthProviderButton";
+import If from "~/components/If";
+import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 import AuthErrorMessage from "./AuthErrorMessage";
 
 const OAUTH_PROVIDERS = configuration.auth.providers.oAuth;

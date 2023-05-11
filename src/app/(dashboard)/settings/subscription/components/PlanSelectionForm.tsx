@@ -1,10 +1,10 @@
 "use client";
 
 import React from "react";
-import Alert from "~/core/ui/Alert";
-import If from "~/core/ui/If";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 import type Organization from "~/lib/organizations/types/organization";
+import Alert from "~/components/Alert";
+import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";
 import IfHasPermissions from "~/app/(dashboard)/components/IfHasPermissions";
 import BillingPortalRedirectButton from "~/app/(dashboard)/settings/subscription/components/BillingRedirectButton";

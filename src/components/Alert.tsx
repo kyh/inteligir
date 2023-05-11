@@ -10,9 +10,9 @@ import {
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import { cva } from "cva";
-import Heading from "~/core/ui/Heading";
-import IconButton from "~/core/ui/IconButton";
-import If from "~/core/ui/If";
+import Heading from "~/components/Heading";
+import IconButton from "~/components/IconButton";
+import If from "~/components/If";
 
 type AlertType = "success" | "error" | "warn" | "info";
 

@@ -4,10 +4,10 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import configuration from "~/configuration";
 import isBrowser from "~/core/generic/is-browser";
-import Alert from "~/core/ui/Alert";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import PageLoadingIndicator from "~/core/ui/PageLoadingIndicator";
+import Alert from "~/components/Alert";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
 import EmailPasswordSignInContainer from "~/app/auth/components/EmailPasswordSignInContainer";
 import EmailPasswordSignUpContainer from "~/app/auth/components/EmailPasswordSignUpContainer";
@@ -64,13 +64,7 @@ function NewUserInviteForm() {
         <If condition={mode === Mode.SignUp}>
           <div className="flex w-full flex-col items-center space-y-4">
             <EmailPasswordSignUpContainer onSubmit={onInviteAccepted} />
-
-            <Button
-              block
-              color="transparent"
-              size="small"
-              onClick={() => setMode(Mode.SignIn)}
-            >
+            <Button onClick={() => setMode(Mode.SignIn)}>
               I already have an account, I want to sign in instead
             </Button>
           </div>
@@ -79,13 +73,7 @@ function NewUserInviteForm() {
         <If condition={mode === Mode.SignIn}>
           <div className="flex w-full flex-col items-center space-y-4">
             <EmailPasswordSignInContainer onSignIn={onInviteAccepted} />
-
-            <Button
-              block
-              color="transparent"
-              size="small"
-              onClick={() => setMode(Mode.SignUp)}
-            >
+            <Button onClick={() => setMode(Mode.SignUp)}>
               I do not have an account, I want to sign up instead
             </Button>
           </div>

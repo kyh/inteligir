@@ -10,9 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "~/core/ui/Dropdown";
-import IconButton from "~/core/ui/IconButton";
-import If from "~/core/ui/If";
+} from "~/components/Dropdown";
+import IconButton from "~/components/IconButton";
+import If from "~/components/If";
 
 const OrganizationMemberActionsDropdown: React.FCC<{
   onRemoveSelected: EmptyCallback;

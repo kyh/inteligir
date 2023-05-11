@@ -1,7 +1,7 @@
 "use client";
 
 import React, { forwardRef, useCallback, useState } from "react";
-import If from "~/core/ui/If";
+import If from "~/components/If";
 
 type Props = React.InputHTMLAttributes<unknown>;
 

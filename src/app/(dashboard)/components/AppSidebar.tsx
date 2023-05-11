@@ -5,23 +5,18 @@ import {
   ArrowRightCircleIcon,
 } from "@heroicons/react/24/outline";
 import clsx from "clsx";
-import { cva } from "cva";
 import configuration from "~/configuration";
-import IconButton from "~/core/ui/IconButton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
 import SidebarContext from "~/lib/contexts/sidebar";
+import IconButton from "~/components/IconButton";
 import { Logo } from "~/components/Logo";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 import AppSidebarNavigation from "./AppSidebarNavigation";
 
 const AppSidebar: React.FC = () => {
   const { collapsed, setCollapsed } = useContext(SidebarContext);
 
-  const className = getClassNameBuilder()({
-    collapsed,
-  });
-
   return (
-    <div className={className}>
+    <div className="relative flex h-screen w-2/12 max-w-xs flex-row justify-center border-r border-gray-100 py-4 dark:border-black-300 dark:bg-black-600 sm:min-w-[12rem] lg:flex lg:min-w-[17rem]">
       <div className="flex w-full flex-col space-y-7 px-4">
         <AppSidebarHeader collapsed={collapsed} />
         <AppSidebarNavigation collapsed={collapsed} />
@@ -108,19 +103,3 @@ function CollapsibleButton(
 }
 
 export default AppSidebar;
-
-function getClassNameBuilder() {
-  return cva(
-    [
-      "relative flex hidden h-screen flex-row justify-center border-r border-gray-100 py-4 dark:border-black-300 dark:bg-black-600 lg:flex",
-    ],
-    {
-      variants: {
-        collapsed: {
-          true: `w-[5rem]`,
-          false: `w-2/12 max-w-xs sm:min-w-[12rem] lg:min-w-[17rem]`,
-        },
-      },
-    }
-  );
-}

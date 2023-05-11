@@ -1,4 +1,4 @@
-import Spinner from "~/core/ui/Spinner";
+import Spinner from "~/components/Spinner";
 
 const LoadingMembersSpinner: React.FCC = ({ children }) => {
   return (

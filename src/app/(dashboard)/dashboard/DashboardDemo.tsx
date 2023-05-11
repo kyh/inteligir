@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import { Line, LineChart, ResponsiveContainer, XAxis } from "recharts";
 import useUserSession from "~/core/hooks/use-user-session";
-import Heading from "~/core/ui/Heading";
-import Tile from "~/core/ui/Tile";
+import Heading from "~/components/Heading";
+import Tile from "~/components/Tile";
 
 export default function DashboardDemo() {
   const mrr = useMemo(() => generateDemoData(), []);

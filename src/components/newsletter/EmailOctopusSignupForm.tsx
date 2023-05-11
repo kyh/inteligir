@@ -1,6 +1,6 @@
 import { FormEventHandler, useCallback, useState } from "react";
-import Button from "~/core/ui/Button";
-import TextField from "~/core/ui/TextField";
+import Button from "~/components/Button";
+import TextField from "~/components/TextField";
 
 const EmailOctopusSignupForm: React.FC<
   React.PropsWithChildren<{
@@ -48,12 +48,12 @@ const EmailOctopusSignupForm: React.FC<
         action={action}
         method="POST"
         target="_blank"
-        className="space-around flex w-full flex-grow justify-center"
+        className="flex w-full grow justify-center"
         onSubmit={onSubmit}
       >
         <TextField.Input
           type="email"
-          className="w-full !rounded-br-none !rounded-tr-none border-r-transparent py-1 text-sm hover:border-r-transparent md:w-80 md:text-base"
+          className="w-full !rounded-r-none border-r-transparent py-1 text-sm hover:border-r-transparent md:w-80 md:text-base"
           name={name}
           aria-label="Your email address"
           placeholder="your@email.com"
@@ -63,8 +63,7 @@ const EmailOctopusSignupForm: React.FC<
             setValue((e.currentTarget as HTMLInputElement).value)
           }
         />
-
-        <Button className="rounded-bl-none rounded-tl-none text-sm md:text-base">
+        <Button className="rounded-l-none text-sm md:text-base">
           {children}
         </Button>
       </form>

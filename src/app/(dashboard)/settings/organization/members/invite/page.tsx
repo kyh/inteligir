@@ -1,5 +1,6 @@
+import Link from "next/link";
 import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
-import Button from "~/core/ui/Button";
+import Button from "~/components/Button";
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
 import InviteMembersForm from "~/app/(dashboard)/settings/organization/components/InviteMembersForm";
 
@@ -29,15 +30,11 @@ export default OrganizationMembersInvitePage;
 function GoBackToMembersButton() {
   return (
     <Button
-      size="small"
-      color="transparent"
+      as={Link}
       href="/settings/organization/members"
+      startIcon={<ArrowLeftIcon className="h-3" />}
     >
-      <span className="flex items-center space-x-1">
-        <ArrowLeftIcon className="h-3" />
-
-        <span>Go back to members</span>
-      </span>
+      Go back to members
     </Button>
   );
 }

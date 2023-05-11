@@ -5,13 +5,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import useSupabase from "~/core/hooks/use-supabase";
-import Button from "~/core/ui/Button";
-import ImageUploadInput from "~/core/ui/ImageUploadInput";
-import Label from "~/core/ui/Label";
-import TextField from "~/core/ui/TextField";
 import OrganizationContext from "~/lib/contexts/organization";
 import useUpdateOrganizationMutation from "~/lib/organizations/hooks/use-update-organization-mutation";
 import type Organization from "~/lib/organizations/types/organization";
+import Button from "~/components/Button";
+import ImageUploadInput from "~/components/ImageUploadInput";
+import Label from "~/components/Label";
+import TextField from "~/components/TextField";
 
 const UpdateOrganizationForm = () => {
   const client = useSupabase();

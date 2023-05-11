@@ -2,26 +2,26 @@
 
 import React, { useMemo } from "react";
 import useUser from "~/core/hooks/use-user";
-import MobileNavigationDropdown from "~/core/ui/MobileNavigationDropdown";
-import NavigationItem from "~/core/ui/Navigation/NavigationItem";
-import NavigationMenu from "~/core/ui/Navigation/NavigationMenu";
+import MobileNavigationDropdown from "~/components/MobileNavigationDropdown";
+import NavigationItem from "~/components/NavigationItem";
+import NavigationMenu from "~/components/NavigationMenu";
 
 const links = {
   General: {
     path: "/settings/profile",
-    label: "profile:generalTab",
+    label: "General",
   },
   Authentication: {
     path: "/settings/profile/authentication",
-    label: "profile:authenticationTab",
+    label: "Authentication",
   },
   Email: {
     path: "/settings/profile/email",
-    label: "profile:emailTab",
+    label: "Email",
   },
   Password: {
     path: "/settings/profile/password",
-    label: "profile:passwordTab",
+    label: "Password",
   },
 };
 

@@ -3,11 +3,11 @@ import useMutation from "swr/mutation";
 import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
 import useSignOut from "~/core/hooks/use-sign-out";
 import useSupabase from "~/core/hooks/use-supabase";
-import Alert from "~/core/ui/Alert";
-import Button from "~/core/ui/Button";
-import Heading from "~/core/ui/Heading";
-import If from "~/core/ui/If";
-import Spinner from "~/core/ui/Spinner";
+import Alert from "~/components/Alert";
+import Button from "~/components/Button";
+import Heading from "~/components/Heading";
+import If from "~/components/If";
+import Spinner from "~/components/Spinner";
 import VerificationCodeInput from "./VerificationCodeInput";
 
 function MultiFactorChallengeContainer({
@@ -170,7 +170,6 @@ function FactorsListContainer({
       {verifiedFactors.map((factor) => (
         <div key={factor.id}>
           <Button
-            block
             variant="outline"
             className="border-gray-50"
             onClick={() => onSelect(factor.id)}

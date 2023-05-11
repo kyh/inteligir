@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useForm } from "react-hook-form";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import TextField from "~/core/ui/TextField";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import TextField from "~/components/TextField";
 
 const EmailPasswordSignInForm: React.FCC<{
   onSubmit: (params: { email: string; password: string }) => unknown;

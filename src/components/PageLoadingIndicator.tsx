@@ -1,8 +1,8 @@
 import type { PropsWithChildren } from "react";
 import clsx from "clsx";
-import If from "~/core/ui/If";
-import Spinner from "~/core/ui/Spinner";
+import If from "~/components/If";
 import { Logo } from "~/components/Logo";
+import Spinner from "~/components/Spinner";
 
 export default function PageLoadingIndicator({
   children,

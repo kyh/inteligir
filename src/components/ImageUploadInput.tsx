@@ -10,9 +10,9 @@ import React, {
   type MouseEventHandler,
 } from "react";
 import { CloudArrowUpIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import IconButton from "~/core/ui/IconButton";
-import If from "~/core/ui/If";
-import Label from "~/core/ui/Label";
+import IconButton from "~/components/IconButton";
+import If from "~/components/If";
+import Label from "~/components/Label";
 
 type Props = Omit<React.InputHTMLAttributes<unknown>, "value"> & {
   image?: string | null;

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { UserPlusIcon } from "@heroicons/react/24/outline";
-import Button from "~/core/ui/Button";
 import useUserCanInviteUsers from "~/lib/organizations/hooks/use-user-can-invite-users";
+import Button from "~/components/Button";
 
 function InviteMembersLinkButton() {
   const canInviteUsers = useUserCanInviteUsers();
@@ -13,7 +14,7 @@ function InviteMembersLinkButton() {
 
   return (
     <Button
-      size="small"
+      as={Link}
       className="w-full lg:w-auto"
       data-cy="invite-form-link"
       type="button"

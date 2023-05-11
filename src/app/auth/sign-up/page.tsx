@@ -1,6 +1,6 @@
 import Link from "next/link";
 import configuration from "~/configuration";
-import Heading from "~/core/ui/Heading";
+import Heading from "~/components/Heading";
 import SignUpMethodsContainer from "~/app/auth/components/SignUpMethodsContainer";
 
 const SIGN_IN_PATH = configuration.paths.signIn;

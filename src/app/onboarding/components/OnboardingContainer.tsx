@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import If from "~/core/ui/If";
 import CsrfTokenContext from "~/lib/contexts/csrf";
+import If from "~/components/If";
 import CompleteOnboardingStep from "./CompleteOnboardingStep";
 import OrganizationInfoStep, {
   OrganizationInfoStepData,

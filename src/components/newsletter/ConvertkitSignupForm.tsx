@@ -1,7 +1,7 @@
 "use client";
 
-import Button from "~/core/ui/Button";
-import TextField from "~/core/ui/TextField";
+import Button from "~/components/Button";
+import TextField from "~/components/TextField";
 
 const ConvertkitSignupForm: React.FCC<{
   formId: string;

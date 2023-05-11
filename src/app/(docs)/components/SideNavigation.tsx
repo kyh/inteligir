@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import clsx from "clsx";
 import { AnimatePresence, motion, useIsPresent } from "framer-motion";
 import { remToPx } from "~/lib/utils/remToPx";
-import { Button } from "~/components/Button";
+import Button from "~/components/Button";
 import { Tag } from "~/components/Tag";
 import { useIsInsideMobileNavigation } from "~/app/(docs)/components/MobileNavigation";
 import { useSectionStore } from "~/app/(docs)/components/SectionProvider";

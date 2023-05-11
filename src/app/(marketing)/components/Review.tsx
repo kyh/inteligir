@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage } from "~/core/ui/Avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "~/components/Avatar";
 
 export const Review = () => {
   return (
