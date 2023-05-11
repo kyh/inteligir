@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
-import { Button } from "~/components/Button";
+import Button from "~/components/Button";
 import logoGo from "~/app/(docs)/images/logos/go.svg";
 import logoNode from "~/app/(docs)/images/logos/node.svg";
 import logoPhp from "~/app/(docs)/images/logos/php.svg";

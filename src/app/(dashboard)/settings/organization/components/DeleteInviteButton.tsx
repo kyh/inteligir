@@ -2,11 +2,11 @@
 
 import { useCallback, useState } from "react";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
-import Button from "~/core/ui/Button";
-import IconButton from "~/core/ui/IconButton";
-import If from "~/core/ui/If";
-import Modal from "~/core/ui/Modal";
 import useRemoveMemberMutation from "~/lib/organizations/hooks/use-remove-member-mutation";
+import Button from "~/components/Button";
+import IconButton from "~/components/IconButton";
+import If from "~/components/If";
+import Modal from "~/components/Modal";
 
 const DeleteInviteButton: React.FCC<{
   membershipId: number;
@@ -49,8 +49,6 @@ const DeleteInviteButton: React.FCC<{
 
               <Button
                 data-cy="confirm-delete-invite-button"
-                color="danger"
-                variant="flat"
                 onClick={onInviteDeleteRequested}
               >
                 Delete Invite

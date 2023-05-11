@@ -6,7 +6,7 @@ import clsx from "clsx";
 import configuration from "~/configuration";
 import isBrowser from "~/core/generic/is-browser";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
-import Button from "~/core/ui/Button";
+import Button from "~/components/Button";
 
 const CHECKOUT_SESSION_API_ENDPOINT = configuration.paths.api.checkout;
 
@@ -28,20 +28,15 @@ const CheckoutRedirectButton: React.FCC<{
         organizationId={props.organizationId}
         priceId={props.stripePriceId}
       />
-
       <Button
-        block
         className={clsx({
           "bg-primary-contrast text-gray-800": props.recommended,
         })}
         color={props.recommended ? "custom" : "secondary"}
         disabled={props.disabled}
+        endIcon={<ArrowRightIcon className="h-5" />}
       >
-        <span className="flex items-center space-x-2">
-          <span>{children}</span>
-
-          <ArrowRightIcon className="h-5" />
-        </span>
+        {children}
       </Button>
     </form>
   );

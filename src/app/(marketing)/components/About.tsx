@@ -67,26 +67,26 @@ export const About = () => {
   return (
     <section className="px-5 pt-20 sm:pt-24">
       <SectionTitle as="h2">
-        Focus on your features without worrying about your APIs
+        You bring the knowledge base and we&apos;ll handle everything else.
       </SectionTitle>
       <AboutCard
         className="mt-14"
-        title="Monitor every single API call"
+        title="Plug 'n Play"
         description={
           <AboutCardDescriptionList
             points={[
-              "Full observability into your API request/responses",
-              "Track your server side and client side caches",
-              "A clear and concise cache management dashboard",
+              "Connect your knowledge base",
+              "Train your custom model",
+              "Smart presets with flexible configurations",
             ]}
           />
         }
         imageSrc="/assets/images/monitor.png"
-        imageAlt="Monitor every single API call"
+        imageAlt="Set up in less than 2 minutes"
       />
       <div className="mt-8 flex flex-col gap-8 lg:flex-row">
         <AboutCard
-          title="Speed up all your APIs"
+          title="Ultra relevant results"
           description={
             <AboutCardDescriptionList
               points={[
@@ -101,29 +101,30 @@ export const About = () => {
           inline
         />
         <AboutCard
-          title="Improve reliability"
+          title="Private and secure by default"
           description={
             <AboutCardDescriptionList
               points={[
-                "Recover from temporary problems by serving cached data while we revalidate with automatic background retries",
-                "Protect against traffic spikes and downtime",
+                "Built in permission and access control",
+                "End to end encryption",
+                "",
               ]}
             />
           }
           imageSrc="/assets/images/secure.png"
-          imageAlt="Always online"
+          imageAlt="Privacy and Security by default"
           inline
         />
       </div>
       <AboutCard
         className="mt-8"
-        title="Open source with a one click self host option"
+        title="Code or no code"
         description={
           <AboutCardDescriptionList
             points={[
-              "Self-host your own Putcache instances",
-              "Get the same benefits for your own internal APIs and third-party APIs",
-              "Never see CORS errors again",
+              "One click self host option",
+              "Compose our service with yours -- bring your own interface/model/database",
+              "",
             ]}
           />
         }

@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import Button from "~/core/ui/Button";
-import Modal from "~/core/ui/Modal";
 import useRemoveMember from "~/lib/organizations/hooks/use-remove-member-mutation";
+import Button from "~/components/Button";
+import Modal from "~/components/Modal";
 
 const RemoveOrganizationMemberModal: React.FCC<{
   isOpen: boolean;
@@ -28,12 +28,7 @@ const RemoveOrganizationMemberModal: React.FCC<{
         <div className="flex justify-end space-x-2">
           <Modal.CancelButton onClick={() => setIsOpen(false)} />
 
-          <Button
-            data-cy="confirm-remove-member"
-            variant="flat"
-            color="danger"
-            onClick={onMemberRemoved}
-          >
+          <Button data-cy="confirm-remove-member" onClick={onMemberRemoved}>
             Remove User from Organization
           </Button>
         </div>

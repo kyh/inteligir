@@ -8,14 +8,14 @@ import useMutation from "swr/mutation";
 import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
 import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
-import Alert from "~/core/ui/Alert";
-import Badge from "~/core/ui/Badge";
-import Button from "~/core/ui/Button";
-import IconButton from "~/core/ui/IconButton";
-import If from "~/core/ui/If";
-import Modal from "~/core/ui/Modal";
-import Spinner from "~/core/ui/Spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
+import Alert from "~/components/Alert";
+import Badge from "~/components/Badge";
+import Button from "~/components/Button";
+import IconButton from "~/components/IconButton";
+import If from "~/components/If";
+import Modal from "~/components/Modal";
+import Spinner from "~/components/Spinner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
 import MultiFactorAuthSetupModal from "~/app/(dashboard)/settings/profile/components/MultiFactorAuthSetupModal";
 
@@ -170,7 +170,6 @@ function ConfirmUnenrollFactorModal(
           <Button
             loading={unEnroll.isMutating}
             color="danger"
-            variant="flat"
             onClick={() => onUnenrollRequested(props.factorId)}
           >
             Yes, unenroll factor

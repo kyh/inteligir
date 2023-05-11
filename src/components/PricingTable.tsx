@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Transition } from "@headlessui/react";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import clsx from "clsx";
 import configuration from "~/configuration";
-import Button from "~/core/ui/Button";
-import Heading from "~/core/ui/Heading";
-import If from "~/core/ui/If";
+import Button from "~/components/Button";
+import Heading from "~/components/Heading";
+import If from "~/components/If";
 
 interface CheckoutButtonProps {
   readonly stripePriceId?: string;
@@ -282,11 +283,11 @@ function DefaultCheckoutButton(
   return (
     <div className="bottom-0 left-0 w-full p-0">
       <Button
+        as={Link}
         className={clsx({
           ["bg-primary-contrast hover:bg-primary-contrast/90" +
           " font-bold text-gray-900"]: props.recommended,
         })}
-        block
         href={linkHref}
         color={props.recommended ? "custom" : "secondary"}
       >

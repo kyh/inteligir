@@ -2,7 +2,7 @@ import { forwardRef } from "react";
 import Link from "next/link";
 import clsx from "clsx";
 import { motion } from "framer-motion";
-import { Button } from "~/components/Button";
+import Button from "~/components/Button";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
 import {

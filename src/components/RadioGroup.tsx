@@ -1,6 +1,6 @@
 import { RadioGroup as HeadlessRadioGroup } from "@headlessui/react";
 import clsx from "clsx";
-import If from "~/core/ui/If";
+import If from "~/components/If";
 
 export interface RadioItemModel {
   label: string;

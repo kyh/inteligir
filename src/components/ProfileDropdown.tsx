@@ -27,7 +27,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "~/core/ui/Dropdown";
+} from "~/components/Dropdown";
 import ProfileAvatar from "~/components/ProfileAvatar";
 
 const ProfileDropdown: React.FCC<{

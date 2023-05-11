@@ -1,8 +1,8 @@
 "use client";
 
 import useUser from "~/core/hooks/use-user";
-import Alert from "~/core/ui/Alert";
-import If from "~/core/ui/If";
+import Alert from "~/components/Alert";
+import If from "~/components/If";
 import UpdatePasswordForm from "~/app/(dashboard)/settings/profile/components/UpdatePasswordForm";
 
 function UpdatePasswordFormContainer() {

@@ -2,7 +2,7 @@
 
 import { Fragment } from "react";
 import { Tab } from "@headlessui/react";
-import { Button } from "~/components/Button";
+import Button from "~/components/Button";
 import { SectionTitle } from "./SectionTitle";
 
 export const Steps = () => {

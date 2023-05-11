@@ -1,4 +1,8 @@
 import "server-only";
+import {
+  getURLFromRedirectError,
+  isRedirectError,
+} from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
 import configuration from "~/configuration";
 import verifyRequiresMfa from "~/core/session/utils/check-requires-mfa";
@@ -30,6 +34,12 @@ const loadAuthPageData = async () => {
 
     return {};
   } catch (e) {
+    if (isRedirectError(e)) {
+      return redirect(getURLFromRedirectError(e));
+    }
+
+    console.error(e);
+
     return {};
   }
 };

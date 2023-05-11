@@ -1,4 +1,5 @@
 import { use } from "react";
+import { isNotFoundError } from "next/dist/client/components/not-found";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
@@ -6,9 +7,9 @@ import invariant from "tiny-invariant";
 import { Database } from "~/database.types";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import Heading from "~/core/ui/Heading";
-import If from "~/core/ui/If";
 import { getMembershipByInviteCode } from "~/lib/memberships/queries";
+import Heading from "~/components/Heading";
+import If from "~/components/If";
 import ExistingUserInviteForm from "../components/ExistingUserInviteForm";
 import InviteCsrfTokenProvider from "../components/InviteCsrfTokenProvider";
 import NewUserInviteForm from "../components/NewUserInviteForm";
@@ -25,11 +26,6 @@ export const metadata = {
 
 const InvitePage = ({ params }: Context) => {
   const data = use(loadInviteData(params.code));
-
-  if ("redirect" in data) {
-    return redirect(data.destination);
-  }
-
   const organization = data.membership.organization;
 
   return (
@@ -108,20 +104,16 @@ async function loadInviteData(code: string) {
       code,
     };
   } catch (error) {
+    if (isNotFoundError(error)) {
+      return notFound();
+    }
     logger.error(
       error,
       `Error encountered while fetching invite. Redirecting to home page...`
     );
 
-    return redirectTo("/");
+    return redirect("/");
   }
-}
-
-function redirectTo(destination: string) {
-  return {
-    redirect: true,
-    destination: destination,
-  };
 }
 
 /**

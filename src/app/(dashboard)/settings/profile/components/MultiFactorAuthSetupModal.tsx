@@ -4,11 +4,11 @@ import toaster from "react-hot-toast";
 import useMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
-import Alert from "~/core/ui/Alert";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import Modal from "~/core/ui/Modal";
-import TextField from "~/core/ui/TextField";
+import Alert from "~/components/Alert";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import Modal from "~/components/Modal";
+import TextField from "~/components/TextField";
 import VerificationCodeInput from "~/app/auth/components/VerificationCodeInput";
 
 function MultiFactorAuthSetupModal(
@@ -131,7 +131,6 @@ function MultiFactorAuthSetupForm({
               <Button
                 disabled={!verificationCode}
                 loading={state.loading}
-                variant="flat"
                 type="submit"
               >
                 {state.loading ? "" : "Enable Factor"}
@@ -262,9 +261,7 @@ function FactorNameForm(
         <div className="flex justify-end space-x-2">
           <Modal.CancelButton onClick={props.onCancel} />
 
-          <Button variant="flat" type="submit">
-            Set factor name
-          </Button>
+          <Button type="submit">Set factor name</Button>
         </div>
       </div>
     </form>

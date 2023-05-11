@@ -1,7 +1,9 @@
-import { classed } from "@tw-classed/react";
+import { cloneElement } from "react";
+import { ComponentProps, classed, deriveClassed } from "@tw-classed/react";
+import Spinner from "~/components/Spinner";
 
-export const Button = classed("button", {
-  base: "inline-flex items-center border shadow-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40",
+const BaseButton = classed("button", {
+  base: "inline-flex items-center border shadow-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 flex space-x-1 justify-center",
   variants: {
     variant: {
       normal:
@@ -24,6 +26,12 @@ export const Button = classed("button", {
     selected: {
       true: "bg-emerald-400/10 border-emerald-400/20",
     },
+    loading: {
+      true: "",
+    },
+    iconOnly: {
+      true: "",
+    },
   },
   defaultVariants: {
     variant: "normal",
@@ -31,3 +39,67 @@ export const Button = classed("button", {
     shape: "normal",
   },
 });
+
+const renderIcon = (
+  icon: ButtonProps["startIcon"],
+  iconClassName: ButtonProps["iconClassName"],
+  iconSize: ButtonProps["iconSize"]
+) => {
+  const iconProps = { width: iconSize || 24, height: iconSize || 24 };
+
+  return cloneElement(icon as React.ReactElement, {
+    style: { flexShrink: 0 },
+    className: iconClassName,
+    ...iconProps,
+  });
+};
+
+export type ButtonProps = ComponentProps<typeof BaseButton> & {
+  contentClassName?: string;
+  iconClassName?: string;
+  startIcon?: string | React.ReactNode;
+  endIcon?: string | React.ReactNode;
+  iconSize?: number;
+  href?: string;
+};
+
+const Button = deriveClassed<typeof BaseButton, ButtonProps>(
+  (
+    {
+      children,
+      startIcon,
+      endIcon,
+      iconSize,
+      contentClassName,
+      iconClassName,
+      disabled,
+      ...props
+    },
+    ref
+  ) => {
+    const hasIcon = !!startIcon || !!endIcon;
+    const hasContent = !!children;
+
+    return (
+      <BaseButton
+        disabled={disabled || !!props.loading}
+        iconOnly={hasIcon && !hasContent}
+        ref={ref}
+        {...props}
+      >
+        {!!props.loading && (
+          <span className="">
+            <Spinner className="mx-auto fill-white" />
+          </span>
+        )}
+        {startIcon && (
+          <span>{renderIcon(startIcon, iconClassName, iconSize)}</span>
+        )}
+        <span>{children}</span>
+        {endIcon && <span>{renderIcon(endIcon, iconClassName, iconSize)}</span>}
+      </BaseButton>
+    );
+  }
+);
+
+export default Button;

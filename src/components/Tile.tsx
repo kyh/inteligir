@@ -4,7 +4,7 @@ import {
   ArrowSmallUpIcon,
   Bars2Icon,
 } from "@heroicons/react/24/outline";
-import Heading from "~/core/ui/Heading";
+import Heading from "~/components/Heading";
 
 const Tile: React.FCC & {
   Header: typeof TileHeader;

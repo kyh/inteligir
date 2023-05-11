@@ -7,7 +7,7 @@ import { useScroll } from "framer-motion";
 import configuration from "~/configuration";
 import useSignOut from "~/core/hooks/use-sign-out";
 import useUserSession from "~/core/hooks/use-user-session";
-import If from "~/core/ui/If";
+import If from "~/components/If";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
 import ProfileDropdown from "~/components/ProfileDropdown";

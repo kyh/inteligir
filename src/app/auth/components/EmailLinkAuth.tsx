@@ -4,10 +4,10 @@ import { useCallback, type FormEventHandler } from "react";
 import toast from "react-hot-toast";
 import configuration from "~/configuration";
 import useSignInWithOtp from "~/core/hooks/use-sign-in-with-otp";
-import Alert from "~/core/ui/Alert";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import TextField from "~/core/ui/TextField";
+import Alert from "~/components/Alert";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import TextField from "~/components/TextField";
 
 const EmailLinkAuth: React.FC = () => {
   const signInWithOtpMutation = useSignInWithOtp();

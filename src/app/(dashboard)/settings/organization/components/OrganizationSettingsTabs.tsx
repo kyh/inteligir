@@ -1,15 +1,15 @@
-import MobileNavigationDropdown from "~/core/ui/MobileNavigationDropdown";
-import NavigationItem from "~/core/ui/Navigation/NavigationItem";
-import NavigationMenu from "~/core/ui/Navigation/NavigationMenu";
+import MobileNavigationDropdown from "~/components/MobileNavigationDropdown";
+import NavigationItem from "~/components/NavigationItem";
+import NavigationMenu from "~/components/NavigationMenu";
 
 const links = {
   General: {
     path: "/settings/organization",
-    label: "organization:generalTabLabel",
+    label: "General Settings",
   },
   Members: {
     path: "/settings/organization/members",
-    label: "organization:membersTabLabel",
+    label: "Members",
   },
 };
 

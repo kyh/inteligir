@@ -3,9 +3,9 @@
 import { useCallback, type FormEventHandler } from "react";
 import toaster from "react-hot-toast";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import TextField from "~/core/ui/TextField";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import TextField from "~/components/TextField";
 
 const PhoneNumberCredentialForm: React.FC<{
   onSuccess: (phoneNumber: string) => void;
@@ -49,7 +49,7 @@ const PhoneNumberCredentialForm: React.FC<{
           />
         </TextField.Label>
 
-        <Button size="large" block type="submit">
+        <Button type="submit">
           <If condition={action === "link"}>Link Phone Number</If>
           <If condition={action === "signIn"}>Sign in with Phone Number</If>
         </Button>

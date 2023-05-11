@@ -5,10 +5,10 @@ import type { User } from "@supabase/gotrue-js";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
-import Alert from "~/core/ui/Alert";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import TextField from "~/core/ui/TextField";
+import Alert from "~/components/Alert";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import TextField from "~/components/TextField";
 
 const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
   const updateUserMutation = useUpdateUserMutation();

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import useSWRMutation from "swr/mutation";
 import useApiRequest from "~/core/hooks/use-api";
 import useCsrfTokenHeader from "~/core/hooks/use-csrf-token-header";
-import Spinner from "~/core/ui/Spinner";
+import Spinner from "~/components/Spinner";
 
 interface CompleteOnboardingStepData {
   organization: string;
