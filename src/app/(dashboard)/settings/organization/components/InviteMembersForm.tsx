@@ -5,13 +5,13 @@ import PlusCircleIcon from "@heroicons/react/24/outline/PlusCircleIcon";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import { useFieldArray, useForm } from "react-hook-form";
 import useUserSession from "~/core/hooks/use-user-session";
-import Button from "~/core/ui/Button";
-import IconButton from "~/core/ui/IconButton";
-import If from "~/core/ui/If";
-import TextField from "~/core/ui/TextField";
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/Tooltip";
 import useInviteMembers from "~/lib/organizations/hooks/use-invite-members-mutation";
 import MembershipRole from "~/lib/organizations/types/membership-role";
+import Button from "~/components/Button";
+import IconButton from "~/components/IconButton";
+import If from "~/components/If";
+import TextField from "~/components/TextField";
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 import MembershipRoleSelector from "./MembershipRoleSelector";
 
 type InviteModel = ReturnType<typeof memberFactory>;
@@ -129,8 +129,6 @@ const InviteMembersForm = () => {
           <Button
             data-cy="append-new-invite-button"
             type="button"
-            color="transparent"
-            size="small"
             onClick={() => append(memberFactory())}
           >
             <span className="flex items-center space-x-2">

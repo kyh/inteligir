@@ -1,5 +1,5 @@
 import { AuthError } from "@supabase/gotrue-js";
-import Alert from "~/core/ui/Alert";
+import Alert from "~/components/Alert";
 
 /**
  * @name AuthErrorMessage

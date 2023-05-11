@@ -6,7 +6,7 @@ import type { Session } from "@supabase/auth-helpers-nextjs";
 import configuration from "~/configuration";
 import useRefresh from "~/core/hooks/use-refresh";
 import useSignOut from "~/core/hooks/use-sign-out";
-import Button from "~/core/ui/Button";
+import Button from "~/components/Button";
 import useAcceptInvite from "~/app/invite/use-accept-invite";
 
 function ExistingUserInviteForm(
@@ -39,7 +39,6 @@ function ExistingUserInviteForm(
         </p>
 
         <Button
-          block
           onClick={onInviteAccepted}
           data-cy="accept-invite-submit-button"
           type="submit"
@@ -54,14 +53,7 @@ function ExistingUserInviteForm(
                 Want to accept the invite with a different account?
               </span>
             </p>
-
-            <Button
-              block
-              color="transparent"
-              size="small"
-              onClick={onSignOut}
-              type="button"
-            >
+            <Button onClick={onSignOut} type="button">
               Sign out
             </Button>
           </div>

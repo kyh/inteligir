@@ -1,8 +1,8 @@
 import { useCallback, useState } from "react";
-import Button from "~/core/ui/Button";
-import Modal from "~/core/ui/Modal";
 import useUpdateMemberRequest from "~/lib/organizations/hooks/use-update-member-role";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
+import Button from "~/components/Button";
+import Modal from "~/components/Modal";
 import MembershipRoleSelector from "~/app/(dashboard)/settings/organization/components/MembershipRoleSelector";
 
 const UpdateMemberRoleModal: React.FCC<{
@@ -36,7 +36,6 @@ const UpdateMemberRoleModal: React.FCC<{
 
           <Button
             data-cy="confirm-update-member-role"
-            variant="flat"
             loading={isMutating}
             onClick={onRoleUpdated}
           >

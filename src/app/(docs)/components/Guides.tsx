@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
-import { Button } from "~/components/Button";
+import Button from "~/components/Button";
 
 const guides = [
   {

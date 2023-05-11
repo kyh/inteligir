@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import type { User } from "@supabase/gotrue-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useForm } from "react-hook-form";
@@ -8,12 +9,12 @@ import configuration from "~/configuration";
 import useSupabase from "~/core/hooks/use-supabase";
 import type UserData from "~/core/session/types/user-data";
 import type UserSession from "~/core/session/types/user-session";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import ImageUploadInput from "~/core/ui/ImageUploadInput";
-import Modal from "~/core/ui/Modal";
-import TextField from "~/core/ui/TextField";
 import useUpdateProfileMutation from "~/lib/user/hooks/use-update-profile";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import ImageUploadInput from "~/components/ImageUploadInput";
+import Modal from "~/components/Modal";
+import TextField from "~/components/TextField";
 import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function UpdateProfileForm({
@@ -144,12 +145,7 @@ function UpdateProfileForm({
 
             <If condition={email}>
               <div>
-                <Button
-                  type="button"
-                  color="transparent"
-                  size="small"
-                  href={configuration.paths.settings.email}
-                >
+                <Button as={Link} href={configuration.paths.settings.email}>
                   <span className="text-xs font-normal">
                     Update Email Address
                   </span>
@@ -160,9 +156,7 @@ function UpdateProfileForm({
             <If condition={!email}>
               <div>
                 <Button
-                  type="button"
-                  color="transparent"
-                  size="small"
+                  as={Link}
                   href={configuration.paths.settings.authentication}
                 >
                   <span className="text-xs font-normal">Add Email address</span>
@@ -270,13 +264,8 @@ function RemovePhoneNumberButton({
 
   return (
     <>
-      <Button
-        type="button"
-        color="transparent"
-        size="small"
-        onClick={() => setIsModalOpen(true)}
-      >
-        <span className="text-xs font-normal"></span>
+      <Button type="button" onClick={() => setIsModalOpen(true)}>
+        <span className="text-xs font-normal">Unlink Phone</span>
       </Button>
 
       <Modal
@@ -288,11 +277,11 @@ function RemovePhoneNumberButton({
           <div>Are you sure you want to continue?</div>
           <AuthErrorMessage error={unlinkProfileNumberMutation.error} />
           <Button
-            block
             loading={unlinkProfileNumberMutation.isMutating}
-            color="danger"
             onClick={onUnlinkPhoneNumber}
-          ></Button>
+          >
+            Unlink Phone
+          </Button>
         </div>
       </Modal>
     </>

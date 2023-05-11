@@ -1,16 +1,13 @@
-"use client";
-
 import { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDownIcon } from "@heroicons/react/24/outline";
-import Button from "~/core/ui/Button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "~/core/ui/Dropdown";
+} from "~/components/Dropdown";
 
 const MobileNavigationDropdown: React.FC<{
   links: Array<{
@@ -20,31 +17,38 @@ const MobileNavigationDropdown: React.FC<{
 }> = ({ links }) => {
   const path = usePathname();
 
+  const items = useMemo(
+    function MenuItems() {
+      return Object.values(links).map((link) => {
+        return (
+          <DropdownMenuItem key={link.path}>
+            <Link className="flex h-full w-full items-center" href={link.path}>
+              {link.label}
+            </Link>
+          </DropdownMenuItem>
+        );
+      });
+    },
+    [links]
+  );
+
   const currentPathName = useMemo(() => {
     return Object.values(links).find((link) => link.path === path)?.label;
   }, [links, path]);
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button color="secondary" block>
-          <span className="flex w-full items-center justify-between space-x-2">
+      <DropdownMenuTrigger className="w-full">
+        <div className="Button w-full justify-start ring-2 ring-gray-100 dark:ring-black-300">
+          <span className="ButtonNormal flex w-full items-center justify-between space-x-2">
             <span>{currentPathName}</span>
 
             <ChevronDownIcon className="h-5" />
           </span>
-        </Button>
+        </div>
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent>
-        {Object.values(links).map((link) => {
-          return (
-            <DropdownMenuItem key={link.path}>
-              <Link href={link.path}>{link.label}</Link>
-            </DropdownMenuItem>
-          );
-        })}
-      </DropdownMenuContent>
+      <DropdownMenuContent>{items}</DropdownMenuContent>
     </DropdownMenu>
   );
 };

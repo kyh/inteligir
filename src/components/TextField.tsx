@@ -3,17 +3,12 @@
 import React, { forwardRef } from "react";
 import { Transition } from "@headlessui/react";
 import clsx from "clsx";
-import If from "~/core/ui/If";
 import Label from "./Label";
 
 type Props = React.InputHTMLAttributes<unknown>;
 
 const Hint: React.FC<React.PropsWithChildren> = ({ children }) => {
-  return (
-    <span className="text-xs\n block pl-1        font-normal leading-tight text-gray-500 dark:text-gray-400">
-      {children}
-    </span>
-  );
+  return <span className="text-sm text-gray-500">{children}</span>;
 };
 
 const Input = forwardRef<React.ElementRef<"input">, Props>(
@@ -22,35 +17,14 @@ const Input = forwardRef<React.ElementRef<"input">, Props>(
     ref
   ) {
     return (
-      <div
+      <input
+        {...props}
         className={clsx(
-          `active-within:ring-2 relative flex h-10 w-full items-center
-        rounded-md border border-gray-200 bg-white font-medium text-gray-800
-        shadow-sm ring-primary-200 ring-offset-1 transition-all focus-within:ring-2
-        hover:border-gray-300 hover:bg-gray-50 
-        dark:border-black-200 dark:bg-black-400
-        dark:text-gray-200 dark:focus-within:ring-primary-500/70 dark:focus-within:ring-offset-black-500
-        dark:hover:border-black-100 dark:focus:bg-black-400 lg:text-sm`,
-          className,
-          {
-            [`cursor-not-allowed bg-gray-100 hover:bg-gray-100 dark:bg-black-400`]:
-              props.disabled,
-          }
+          "block w-full rounded-md border-0 bg-white/5 py-1.5 text-white shadow-sm ring-1 ring-inset ring-white/10 transition focus:ring-2 focus:ring-inset focus:ring-primary-500 sm:text-sm sm:leading-6",
+          className
         )}
-      >
-        <If condition={children}>
-          <span className="flex pl-2.5">{children}</span>
-        </If>
-
-        <input
-          {...props}
-          className={clsx(
-            `h-10 flex-1 rounded-md bg-transparent px-3 py-2 outline-none disabled:cursor-not-allowed disabled:opacity-30`,
-            className
-          )}
-          ref={ref}
-        />
-      </div>
+        ref={ref}
+      />
     );
   }
 );

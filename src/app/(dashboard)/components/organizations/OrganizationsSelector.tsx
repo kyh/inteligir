@@ -3,7 +3,12 @@ import { PlusCircleIcon } from "@heroicons/react/24/outline";
 import { SelectArrow } from "@radix-ui/react-select";
 import useRefresh from "~/core/hooks/use-refresh";
 import UserSessionContext from "~/core/session/contexts/user-session";
-import If from "~/core/ui/If";
+import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
+import useSetCurrentOrganization from "~/lib/organizations/hooks/use-set-current-organization";
+import useUserOrganizationsQuery from "~/lib/organizations/hooks/use-user-organizations-query";
+import type MembershipRole from "~/lib/organizations/types/membership-role";
+import type Organization from "~/lib/organizations/types/organization";
+import If from "~/components/If";
 import {
   Select,
   SelectAction,
@@ -14,12 +19,7 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from "~/core/ui/Select";
-import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
-import useSetCurrentOrganization from "~/lib/organizations/hooks/use-set-current-organization";
-import useUserOrganizationsQuery from "~/lib/organizations/hooks/use-user-organizations-query";
-import type MembershipRole from "~/lib/organizations/types/membership-role";
-import type Organization from "~/lib/organizations/types/organization";
+} from "~/components/Select";
 import CreateOrganizationModal from "./CreateOrganizationModal";
 
 const OrganizationsSelector = () => {

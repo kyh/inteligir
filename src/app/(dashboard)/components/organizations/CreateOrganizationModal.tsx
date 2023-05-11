@@ -1,10 +1,10 @@
 import { FormEventHandler, useCallback } from "react";
 import toaster from "react-hot-toast";
 import useUserId from "~/core/hooks/use-user-id";
-import Button from "~/core/ui/Button";
-import Modal from "~/core/ui/Modal";
-import TextField from "~/core/ui/TextField";
 import useCreateOrganization from "~/lib/organizations/hooks/use-create-organization";
+import Button from "~/components/Button";
+import Modal from "~/components/Modal";
+import TextField from "~/components/TextField";
 
 const CreateOrganizationModal: React.FC<{
   isOpen: boolean;
@@ -56,7 +56,6 @@ const CreateOrganizationModal: React.FC<{
 
             <Button
               data-cy="confirm-create-organization-button"
-              variant="flat"
               loading={createOrganizationMutation.isMutating}
             >
               Create Organization

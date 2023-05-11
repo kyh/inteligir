@@ -1,7 +1,7 @@
 import MinusIcon from "@heroicons/react/24/outline/MinusIcon";
-import Button from "~/core/ui/Button";
-import TextField from "~/core/ui/TextField";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
+import Button from "~/components/Button";
+import TextField from "~/components/TextField";
 import MembershipRoleSelector from "./MembershipRoleSelector";
 
 interface Member {
@@ -27,11 +27,7 @@ const MemberRow: React.FCC<{
       </div>
 
       <div className="w-1/12">
-        <Button
-          size="small"
-          color="transparent"
-          onClick={() => memberRemoved(member)}
-        >
+        <Button color="transparent" onClick={() => memberRemoved(member)}>
           <MinusIcon className="h-5" />
         </Button>
       </div>

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import Modal from "~/core/ui/Modal";
+import Modal from "~/components/Modal";
 import ReauthenticationForm from "~/app/auth/components/ReauthenticationForm";
 
 const ReauthenticationModal: React.FC<{

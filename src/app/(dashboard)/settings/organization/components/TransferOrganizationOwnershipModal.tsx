@@ -1,8 +1,8 @@
 import { useCallback } from "react";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import Modal from "~/core/ui/Modal";
 import useTransferOrganizationOwnership from "~/lib/organizations/hooks/use-transfer-organization-ownership";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import Modal from "~/components/Modal";
 
 const TransferOrganizationOwnershipModal: React.FC<{
   isOpen: boolean;
@@ -33,8 +33,6 @@ const TransferOrganizationOwnershipModal: React.FC<{
 
           <Button
             data-cy="confirm-transfer-ownership-button"
-            color="danger"
-            variant="flat"
             onClick={onConfirmTransferOwnership}
             loading={isMutating}
           >

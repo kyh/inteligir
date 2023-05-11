@@ -7,7 +7,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "~/core/ui/Dropdown";
+} from "~/components/Dropdown";
 import NAVIGATION_CONFIG from "../navigation.config";
 
 const MobileNavigation: React.FC = () => {

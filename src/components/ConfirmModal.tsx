@@ -1,7 +1,7 @@
 import { Dialog } from "@headlessui/react";
 import { ExclamationTriangleIcon } from "@heroicons/react/24/outline";
-import { Button } from "~/components/Button";
-import { Modal, type Props as ModalProps } from "~/components/Modal";
+import Button from "~/components/Button";
+import { Modal, type Props as ModalProps } from "~/components/Modal2";
 
 type Props = {
   title: React.ReactNode;

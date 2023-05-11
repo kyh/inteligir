@@ -1,4 +1,4 @@
-import PageLoadingIndicator from "~/core/ui/PageLoadingIndicator";
+import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 import AuthLinkRedirect from "~/app/auth/components/AuthLinkRedirect";
 
 function AuthLinkPage() {

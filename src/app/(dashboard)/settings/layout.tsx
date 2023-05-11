@@ -1,22 +1,22 @@
 import React from "react";
 import { Cog8ToothIcon } from "@heroicons/react/24/outline";
-import NavigationItem from "~/core/ui/Navigation/NavigationItem";
-import NavigationMenu from "~/core/ui/Navigation/NavigationMenu";
+import NavigationItem from "~/components/NavigationItem";
+import NavigationMenu from "~/components/NavigationMenu";
 import AppContainer from "~/app/(dashboard)/components/AppContainer";
 import AppHeader from "~/app/(dashboard)/components/AppHeader";
 
 const links = [
   {
     path: "/settings/profile",
-    label: "common:profileSettingsTabLabel",
+    label: "Profile",
   },
   {
     path: "/settings/organization",
-    label: "common:organizationSettingsTabLabel",
+    label: "Organization",
   },
   {
     path: "/settings/subscription",
-    label: "common:subscriptionSettingsTabLabel",
+    label: "Subscription",
   },
 ];
 

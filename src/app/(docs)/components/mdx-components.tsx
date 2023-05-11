@@ -1,7 +1,7 @@
 import Image from "next/image";
 import clsx from "clsx";
 import { useMDXComponent } from "next-contentlayer/hooks";
-import { Button } from "~/components/Button";
+import Button from "~/components/Button";
 
 function InfoIcon(props: any) {
   return (

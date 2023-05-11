@@ -1,6 +1,6 @@
-import Container from "~/core/ui/Container";
-import Hero from "~/core/ui/Hero";
-import SubHeading from "~/core/ui/SubHeading";
+import Container from "~/components/Container";
+import Hero from "~/components/Hero";
+import SubHeading from "~/components/SubHeading";
 
 export const metadata = {
   title: "FAQ",

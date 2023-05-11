@@ -10,11 +10,7 @@ export const metadata = {
 };
 
 function VerifyPage() {
-  const data = use(loadData());
-
-  if ("redirect" in data && data.destination) {
-    return redirect(data.destination);
-  }
+  use(loadData());
 
   return <VerifyFormContainer />;
 }
@@ -29,8 +25,5 @@ async function loadData() {
     return {};
   }
 
-  return {
-    redirect: true,
-    destination: configuration.paths.signIn,
-  };
+  return redirect(configuration.paths.signIn);
 }

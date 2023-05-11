@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import configuration from "~/configuration";
-import Heading from "~/core/ui/Heading";
-import If from "~/core/ui/If";
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
+import Heading from "~/components/Heading";
+import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";
 import SubscriptionStatusBadge from "~/app/(dashboard)/components/organizations/SubscriptionStatusBadge";
 import SubscriptionStatusAlert from "~/app/(dashboard)/settings/subscription/components/SubscriptionStatusAlert";

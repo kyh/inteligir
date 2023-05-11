@@ -3,10 +3,10 @@
 import { FormEvent, useCallback } from "react";
 import configuration from "~/configuration";
 import useResetPassword from "~/core/hooks/use-reset-password";
-import Alert from "~/core/ui/Alert";
-import Button from "~/core/ui/Button";
-import If from "~/core/ui/If";
-import TextField from "~/core/ui/TextField";
+import Alert from "~/components/Alert";
+import Button from "~/components/Button";
+import If from "~/components/If";
+import TextField from "~/components/TextField";
 import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function PasswordResetContainer() {
@@ -51,7 +51,6 @@ function PasswordResetContainer() {
                   reset your password.
                 </p>
               </div>
-
               <div>
                 <TextField.Label>
                   Email Address
@@ -63,14 +62,8 @@ function PasswordResetContainer() {
                   />
                 </TextField.Label>
               </div>
-
               <AuthErrorMessage error={error} />
-
-              <Button
-                loading={resetPasswordMutation.isMutating}
-                type="submit"
-                block
-              >
+              <Button loading={resetPasswordMutation.isMutating} type="submit">
                 Reset Password
               </Button>
             </div>
