@@ -6,7 +6,7 @@ import useResetPassword from "~/core/hooks/use-reset-password";
 import Alert from "~/components/Alert";
 import Button from "~/components/Button";
 import If from "~/components/If";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function PasswordResetContainer() {
@@ -46,7 +46,7 @@ function PasswordResetContainer() {
           >
             <div className="flex-col space-y-4">
               <div>
-                <p className="text-sm text-gray-700 dark:text-gray-400">
+                <p className="text-sm text-zinc-700 dark:text-zinc-400">
                   Enter your email address below. You will receive a link to
                   reset your password.
                 </p>

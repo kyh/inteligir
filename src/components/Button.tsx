@@ -11,7 +11,7 @@ const BaseButton = classed("button", {
       primary:
         "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-300",
       outline:
-        "text-gray-400 border-white/20 hover:bg-white/5 hover:text-white",
+        "text-zinc-400 border-white/20 hover:bg-white/5 hover:text-white",
       text: "text-emerald-500 hover:text-emerald-300 shadow-none border-0",
     },
     size: {

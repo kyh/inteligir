@@ -8,7 +8,7 @@ import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
 import Alert from "~/components/Alert";
 import Button from "~/components/Button";
 import If from "~/components/If";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 
 const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
   const updateUserMutation = useUpdateUserMutation();

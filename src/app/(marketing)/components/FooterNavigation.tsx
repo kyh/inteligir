@@ -1,7 +1,7 @@
 import configuration from "~/configuration";
+import ConvertkitSignupForm from "~/components/ConvertkitSignupForm";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
-import ConvertkitSignupForm from "~/components/newsletter/ConvertkitSignupForm";
 
 export const FooterNavigation = () => {
   return (
@@ -11,7 +11,7 @@ export const FooterNavigation = () => {
           <Logo />
           <div className="flex justify-between gap-10">
             <ul>
-              <p className="mb-2 text-xs font-semibold text-gray-100">
+              <p className="mb-2 text-xs font-semibold text-zinc-100">
                 Resources
               </p>
               <li>
@@ -22,7 +22,7 @@ export const FooterNavigation = () => {
               </li>
             </ul>
             <ul>
-              <p className="mb-2 text-xs font-semibold text-gray-100">
+              <p className="mb-2 text-xs font-semibold text-zinc-100">
                 Company
               </p>
               <li>
@@ -36,7 +36,7 @@ export const FooterNavigation = () => {
               </li>
             </ul>
             <ul>
-              <p className="mb-2 text-xs font-semibold text-gray-100">
+              <p className="mb-2 text-xs font-semibold text-zinc-100">
                 Support
               </p>
               <li>
@@ -114,7 +114,7 @@ function SocialLink({
 export const SmallPrint = () => {
   return (
     <div className="flex flex-col items-center justify-between gap-5 border-t border-white/10 pt-8 sm:flex-row">
-      <p className="text-xs text-gray-400">
+      <p className="text-xs text-zinc-400">
         &copy; Copyright {new Date().getFullYear()}. All rights reserved.
       </p>
       <div className="flex gap-4">

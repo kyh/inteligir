@@ -79,7 +79,7 @@ const DropdownMenuContent = React.forwardRef<
           " overflow-hidden border border-transparent border-t-gray-50" +
           " bg-white p-1 shadow-xl dark:border-black-200 dark:bg-black-300" +
           " dark:shadow-[0_0_40px_0] dark:shadow-primary-600/10" +
-          " dark:text-gray-300 lg:rounded-md",
+          " dark:text-zinc-300 lg:rounded-md",
         className
       )}
       {...props}
@@ -124,7 +124,7 @@ const DropdownMenuLabel = React.forwardRef<
   <DropdownMenuPrimitive.Label
     ref={ref}
     className={clsx(
-      "px-2 py-1.5 text-sm font-semibold text-gray-500 dark:text-gray-400",
+      "px-2 py-1.5 text-sm font-semibold text-zinc-500 dark:text-zinc-400",
       inset && "pl-8",
       className
     )}

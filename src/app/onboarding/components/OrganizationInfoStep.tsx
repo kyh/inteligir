@@ -6,7 +6,7 @@ import useUserSession from "~/core/hooks/use-user-session";
 import Button from "~/components/Button";
 import Heading from "~/components/Heading";
 import SubHeading from "~/components/SubHeading";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 
 export interface OrganizationInfoStepData {
   organization: string;

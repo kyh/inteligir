@@ -49,7 +49,7 @@ function ExistingUserInviteForm(
         <div>
           <div className="flex flex-col space-y-2">
             <p className="text-center">
-              <span className="text-center text-sm text-gray-700 dark:text-gray-300">
+              <span className="text-center text-sm text-zinc-700 dark:text-zinc-300">
                 Want to accept the invite with a different account?
               </span>
             </p>

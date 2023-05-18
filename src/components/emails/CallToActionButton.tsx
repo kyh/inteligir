@@ -1,7 +1,7 @@
 import { Button } from "@react-email/button";
 
 // update this with your brand's primary color
-const PRIMARY_COLOR = `#3b82f6`;
+const PRIMARY_COLOR = `#10b981`;
 
 function CallToActionButton(
   props: React.PropsWithChildren<{

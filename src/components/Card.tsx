@@ -37,7 +37,7 @@ const Pattern = ({
   mouseY: MotionValue<any>;
   gridProps?: Omit<GridPatternProps, "width" | "height">;
 }) => {
-  const maskImage = useMotionTemplate`radial-gradient(180px at ${mouseX}px ${mouseY}px, white, transparent)`;
+  const maskImage = useMotionTemplate`radial-gradient(1000px at ${mouseX}px ${mouseY}px, rgba(255,255,255,.5), transparent 40%)`;
   const style = { maskImage, WebkitMaskImage: maskImage };
 
   return (

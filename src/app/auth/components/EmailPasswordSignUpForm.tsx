@@ -1,7 +1,7 @@
 import { useForm } from "react-hook-form";
 import Button from "~/components/Button";
 import If from "~/components/If";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 
 const EmailPasswordSignUpForm: React.FCC<{
   onSubmit: (params: {
@@ -60,8 +60,12 @@ const EmailPasswordSignUpForm: React.FCC<{
               type="email"
               placeholder="your@email.com"
             />
+            <If condition={errors.email}>
+              <TextField.Hint color="error">
+                {errors.email?.message}
+              </TextField.Hint>
+            </If>
           </TextField.Label>
-          <TextField.Error error={errors.email?.message} />
         </TextField>
 
         <TextField>
@@ -75,10 +79,11 @@ const EmailPasswordSignUpForm: React.FCC<{
               placeholder=""
             />
             <TextField.Hint>Ensure it's at least 6 characters</TextField.Hint>
-            <TextField.Error
-              data-cy="password-error"
-              error={errors.password?.message}
-            />
+            <If condition={errors.password}>
+              <TextField.Hint color="error">
+                {errors.password?.message}
+              </TextField.Hint>
+            </If>
           </TextField.Label>
         </TextField>
 
@@ -93,10 +98,11 @@ const EmailPasswordSignUpForm: React.FCC<{
               placeholder=""
             />
             <TextField.Hint>Type your password again</TextField.Hint>
-            <TextField.Error
-              data-cy="repeat-password-error"
-              error={errors.repeatPassword?.message}
-            />
+            <If condition={errors.repeatPassword}>
+              <TextField.Hint color="error">
+                {errors.repeatPassword?.message}
+              </TextField.Hint>
+            </If>
           </TextField.Label>
         </TextField>
 

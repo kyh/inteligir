@@ -1,7 +1,7 @@
 import { cva } from "cva";
 import roles from "~/lib/organizations/roles";
 import MembershipRole from "~/lib/organizations/types/membership-role";
-import Badge from "~/components/Badge";
+import { Badge } from "~/components/Badge";
 
 const roleClassNameBuilder = cva("font-medium", {
   variants: {
@@ -21,7 +21,7 @@ const RoleBadge: React.FCC<{
   const className = roleClassNameBuilder({ role });
 
   return (
-    <Badge color="custom" size="small" className={className}>
+    <Badge color="custom" className={className}>
       <span data-cy="member-role-badge">{data?.label}</span>
     </Badge>
   );

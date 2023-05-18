@@ -7,7 +7,7 @@ export const PrimaryButton = ({
   <div className="group relative text-xs">
     <div className="absolute inset-0 animate-tilt rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 opacity-75 blur transition duration-1000 group-hover:opacity-100 group-hover:duration-200" />
     <button
-      className="relative flex items-center rounded-full bg-black-700 bg-gradient-to-t from-gray-900 px-7 py-2.5 text-emerald-400 transition duration-300 group-hover:text-gray-100"
+      className="relative flex items-center rounded-full bg-black-700 bg-gradient-to-t from-gray-900 px-7 py-2.5 text-emerald-400 transition duration-300 group-hover:text-zinc-100"
       {...props}
     >
       {children}
@@ -25,7 +25,7 @@ export const SecondaryButton = ({
     className="group relative mt-5 inline-flex h-12 w-52 items-center overflow-hidden rounded-full shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
     {...props}
   >
-    <span className="absolute inset-px z-10 grid place-items-center rounded-full bg-black-700 bg-gradient-to-t from-gray-900 text-xs font-medium text-emerald-400 transition duration-200 hover:text-gray-100">
+    <span className="absolute inset-px z-10 grid place-items-center rounded-full bg-black-700 bg-gradient-to-t from-gray-900 text-xs font-medium text-emerald-400 transition duration-200 hover:text-zinc-100">
       {children}
     </span>
     <span

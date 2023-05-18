@@ -9,7 +9,7 @@ function SiteLayout({ children }: React.PropsWithChildren) {
 
   return (
     <AuthChangeListener accessToken={data.accessToken}>
-      <SiteHeaderSessionProvider data={data} />
+      <SiteHeaderSessionProvider data={data.session} />
       {children}
       <FooterNavigation />
     </AuthChangeListener>

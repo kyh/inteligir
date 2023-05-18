@@ -85,7 +85,7 @@ function Resource({ resource }: { resource: (typeof resources)[number] }) {
           {resource.name}
         </Link>
       </h3>
-      <p className="mt-1 text-sm text-gray-400">{resource.description}</p>
+      <p className="mt-1 text-sm text-zinc-400">{resource.description}</p>
     </HighlightCard>
   );
 }
