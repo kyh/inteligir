@@ -169,7 +169,7 @@ function UserGreetings() {
     <div>
       <Heading type={4}>Welcome Back, {userDisplayName}</Heading>
 
-      <p className="text-gray-500 dark:text-gray-400">
+      <p className="text-zinc-500 dark:text-zinc-400">
         <span>Here&apos;s what is happening in your SaaS</span>
       </p>
     </div>

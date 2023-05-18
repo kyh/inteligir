@@ -48,7 +48,7 @@ const PopoverItem = forwardRef<
     >
       <span
         className={clsx(
-          `truncate text-sm font-medium text-gray-700 hover:text-black-500 dark:text-gray-300 dark:hover:text-white`
+          `truncate text-sm font-medium text-zinc-700 hover:text-black-500 dark:text-zinc-300 dark:hover:text-white`
         )}
       >
         {children}

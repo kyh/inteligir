@@ -24,7 +24,7 @@ function FeedbackButton(props: React.ComponentProps<"button">) {
   return (
     <button
       type="submit"
-      className="px-3 text-sm font-medium text-gray-600 transition hover:bg-gray-900/2.5 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-white"
+      className="px-3 text-sm font-medium text-zinc-600 transition hover:bg-gray-900/2.5 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
       {...props}
     />
   );
@@ -40,7 +40,7 @@ const FeedbackForm = forwardRef(function FeedbackForm(
       onSubmit={onSubmit}
       className="absolute inset-0 flex items-center justify-center gap-6 md:justify-start"
     >
-      <p className="text-sm text-gray-600 dark:text-gray-400">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Was this page helpful?
       </p>
       <div className="group grid h-8 grid-cols-[1fr,1px,1fr] overflow-hidden rounded-full border border-gray-900/10 dark:border-white/10">

@@ -10,8 +10,7 @@ import useUpdateOrganizationMutation from "~/lib/organizations/hooks/use-update-
 import type Organization from "~/lib/organizations/types/organization";
 import Button from "~/components/Button";
 import ImageUploadInput from "~/components/ImageUploadInput";
-import Label from "~/components/Label";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 
 const UpdateOrganizationForm = () => {
   const client = useSupabase();
@@ -125,7 +124,7 @@ const UpdateOrganizationForm = () => {
           </TextField.Label>
         </TextField>
 
-        <Label>
+        <TextField.Label>
           Organization Logo
           <ImageUploadInput
             {...logoControl}
@@ -135,7 +134,7 @@ const UpdateOrganizationForm = () => {
           >
             Click here to upload an image
           </ImageUploadInput>
-        </Label>
+        </TextField.Label>
 
         <div>
           <Button

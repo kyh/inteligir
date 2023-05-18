@@ -32,7 +32,7 @@ const NotFoundPage = async () => {
                   <Heading type={1}>Oops. Page not Found.</Heading>
                 </div>
 
-                <p className="text-gray-500 dark:text-gray-300">
+                <p className="text-zinc-500 dark:text-zinc-300">
                   Apologies, the page you were looking for was not found
                 </p>
               </div>

@@ -23,9 +23,11 @@ async function loadUserData() {
 
     return {
       accessToken,
-      auth: data.session,
-      data: userData || undefined,
-      role: undefined,
+      session: {
+        auth: data.session,
+        data: userData || undefined,
+        role: undefined,
+      },
     };
   } catch (e) {
     return emptyUserData();
@@ -35,9 +37,7 @@ async function loadUserData() {
 async function emptyUserData() {
   return {
     accessToken: undefined,
-    auth: undefined,
-    data: undefined,
-    role: undefined,
+    session: undefined,
   };
 }
 

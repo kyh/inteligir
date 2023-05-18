@@ -23,7 +23,7 @@ const AboutPage = () => {
           <div
             className={
               "m-auto flex w-full max-w-xl flex-col items-center space-y-8" +
-              " justify-center text-gray-600 dark:text-gray-400"
+              " justify-center text-zinc-600 dark:text-zinc-400"
             }
           >
             <div>

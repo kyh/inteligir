@@ -1,5 +1,5 @@
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
-import Badge from "~/components/Badge";
+import { Badge } from "~/components/Badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 
 function SubscriptionStatusBadge({
@@ -66,9 +66,7 @@ function SubscriptionStatusBadge({
   return (
     <Tooltip>
       <TooltipTrigger>
-        <Badge size="small" color={type}>
-          {label}
-        </Badge>
+        <Badge color={type}>{label}</Badge>
       </TooltipTrigger>
 
       <TooltipContent>{description}</TooltipContent>

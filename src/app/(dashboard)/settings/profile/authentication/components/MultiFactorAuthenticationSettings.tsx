@@ -9,7 +9,7 @@ import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
 import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
 import Alert from "~/components/Alert";
-import Badge from "~/components/Badge";
+import { Badge } from "~/components/Badge";
 import Button from "~/components/Button";
 import IconButton from "~/components/IconButton";
 import If from "~/components/If";
@@ -157,8 +157,8 @@ function ConfirmUnenrollFactorModal(
     >
       <div className="flex flex-col space-y-4">
         <div className="text-sm">
-          You're about to unenroll this factor. You will not be able to use it
-          to login to your account.
+          You&apos;re about to unenroll this factor. You will not be able to use
+          it to login to your account.
         </div>
 
         <div className="flex flex-row justify-end space-x-2">
@@ -206,14 +206,13 @@ function FactorsTable({
             </td>
 
             <td>
-              <Badge size="small" className="inline-flex uppercase">
+              <Badge className="inline-flex uppercase">
                 {factor.factor_type}
               </Badge>
             </td>
 
             <td>
               <Badge
-                size="small"
                 className="inline-flex capitalize"
                 color={factor.status === "verified" ? "success" : "normal"}
               >

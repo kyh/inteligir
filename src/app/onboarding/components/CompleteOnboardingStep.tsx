@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import useSWRMutation from "swr/mutation";
+import configuration from "~/configuration";
 import useApiRequest from "~/core/hooks/use-api";
 import useCsrfTokenHeader from "~/core/hooks/use-csrf-token-header";
 import Spinner from "~/components/Spinner";
@@ -13,6 +15,7 @@ interface CompleteOnboardingStepData {
 const CompleteOnboardingStep: React.FC<{
   data: CompleteOnboardingStepData;
 }> = ({ data }) => {
+  const router = useRouter();
   const { trigger } = useCompleteOnboardingRequest();
   const submitted = useRef(false);
 
@@ -25,10 +28,11 @@ const CompleteOnboardingStep: React.FC<{
 
     try {
       await trigger(data);
+      router.push(configuration.paths.appHome);
     } catch (e) {
       submitted.current = false;
     }
-  }, [data, trigger]);
+  }, [data, trigger, router]);
 
   useEffect(() => {
     void callRequestCallback();

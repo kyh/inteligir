@@ -1,9 +1,16 @@
-import { Badge } from "~/components/Badge2";
+import { Badge } from "~/components/Badge";
 import { HeroPattern } from "~/components/HeroPattern";
 import { HeroBackgroundImage } from "./HeroBackgroundImage";
 import { SectionTitle } from "./SectionTitle";
 
-export const Hero = ({ children }: { children: React.ReactNode }) => {
+type Props = {
+  title: React.ReactNode;
+  subtitle: React.ReactNode;
+  description: React.ReactNode;
+  action: React.ReactNode;
+};
+
+export const Hero = ({ title, subtitle, description, action }: Props) => {
   return (
     <>
       <HeroPattern />
@@ -13,15 +20,14 @@ export const Hero = ({ children }: { children: React.ReactNode }) => {
         </div>
         <SectionTitle>
           <span className="block bg-gradient-to-b from-emerald-300 to-green-600 bg-clip-text text-transparent">
-            Personalized AI assistant
+            {title}
           </span>
-          <span>built for teams</span>
+          <span>{subtitle}</span>
         </SectionTitle>
-        <p className="mx-auto mt-6 max-w-lg text-gray-400">
-          A collaborative, privacy-first, and hyper-relevant AI engine that fits
-          effortlessly into your workflow
+        <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
+          {description}
         </p>
-        {children}
+        <div className="mt-8 grid items-start justify-center">{action}</div>
       </section>
       <div className="full-bleed relative min-h-[30vh]">
         <video

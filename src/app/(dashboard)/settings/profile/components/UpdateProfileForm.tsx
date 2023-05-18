@@ -14,7 +14,7 @@ import Button from "~/components/Button";
 import If from "~/components/If";
 import ImageUploadInput from "~/components/ImageUploadInput";
 import Modal from "~/components/Modal";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function UpdateProfileForm({

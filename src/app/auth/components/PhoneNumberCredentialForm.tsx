@@ -5,7 +5,7 @@ import toaster from "react-hot-toast";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
 import Button from "~/components/Button";
 import If from "~/components/If";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 
 const PhoneNumberCredentialForm: React.FC<{
   onSuccess: (phoneNumber: string) => void;

@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
 import {
@@ -93,6 +94,13 @@ const getFirstOrganization = cache(async (userId: string) => {
 
     return error ? null : data;
   } catch (e) {
+    getLogger().error(
+      {
+        userId,
+      },
+      `Failed to fetch first organization: ${e}`
+    );
+
     return null;
   }
 });

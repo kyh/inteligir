@@ -8,7 +8,7 @@ export const GetStarted = () => {
         <h2 className="mx-auto max-w-xl text-3xl font-semibold leading-none sm:text-4xl">
           Get started today
         </h2>
-        <p className="mt-2 text-sm text-gray-400 sm:text-base">
+        <p className="mt-2 text-sm text-zinc-400 sm:text-base">
           Speed up your applications in less than 5 minutes.
         </p>
         <SecondaryButton>Request Early Access</SecondaryButton>

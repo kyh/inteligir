@@ -83,8 +83,8 @@ function RadioOption<Item extends RadioItemModel>({
                   <HeadlessRadioGroup.Description
                     as="span"
                     className={clsx(`inline text-sm`, {
-                      "text-primary-800 dark:text-gray-300": checked,
-                      "text-gray-500 dark:text-gray-400": !checked,
+                      "text-primary-800 dark:text-zinc-300": checked,
+                      "text-zinc-500 dark:text-zinc-400": !checked,
                     })}
                   >
                     {item.description}

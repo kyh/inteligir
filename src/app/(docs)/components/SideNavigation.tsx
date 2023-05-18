@@ -27,7 +27,7 @@ function TopLevelNavItem({
     <li className="md:hidden">
       <Link
         href={href}
-        className="block py-1 text-sm text-gray-400 transition hover:text-white"
+        className="block py-1 text-sm text-zinc-400 transition hover:text-white"
       >
         {children}
       </Link>
@@ -56,8 +56,8 @@ function NavLink({
         "flex justify-between gap-2 py-1 pr-3 text-sm transition",
         isAnchorLink ? "pl-7" : "pl-4",
         active
-          ? "text-gray-900 dark:text-white"
-          : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+          ? "text-zinc-900 dark:text-white"
+          : "text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-white"
       )}
     >
       <span className="truncate">{children}</span>

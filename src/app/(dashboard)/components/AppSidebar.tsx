@@ -54,7 +54,7 @@ function AppSidebarFooterMenu(
         "flex justify-center px-2": props.collapsed,
       })}
     >
-      <div className="flex items-center space-x-2 text-sm text-gray-500 hover:text-gray-800 dark:text-gray-300 dark:hover:text-white">
+      <div className="flex items-center space-x-2 text-sm text-zinc-500 hover:text-zinc-800 dark:text-zinc-300 dark:hover:text-white">
         <CollapsibleButton
           collapsed={props.collapsed}
           onClick={props.setCollapsed}
