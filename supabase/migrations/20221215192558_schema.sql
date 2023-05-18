@@ -16,7 +16,7 @@ create type model_type as ENUM (
   'gpt-4'
 );
 
-create type workspace_role as ENUM (
+create type project_role as ENUM (
   'owner',
   'admin',
   'member'
@@ -76,7 +76,7 @@ create table organizations_subscriptions (
 create table organizations_plans_thresholds (
   organization_id bigint not null references public.organizations (id) on delete cascade,
   remaining_tokens int not null,
-  max_workspaces int not null,
+  max_projects int not null,
   max_members int not null,
   primary key (organization_id)
 );
@@ -92,7 +92,7 @@ create table memberships (
   unique (user_id, organization_id)
 );
 
-create table workspaces (
+create table projects (
   id bigint generated always as identity primary key,
   organization_id bigint not null references public.organizations on delete
   cascade,
@@ -101,11 +101,11 @@ create table workspaces (
   updated_at timestamptz not null default now ()
 );
 
-create table workspaces_memberships (
-  workspace_id bigint not null references public.workspaces on delete cascade,
+create table projects_memberships (
+  project_id bigint not null references public.projects on delete cascade,
   membership_id bigint not null references public.memberships on delete cascade,
-  role workspace_role not null,
-  primary key (workspace_id, membership_id)
+  role project_role not null,
+  primary key (project_id, membership_id)
 );
 
 create table models (
@@ -127,7 +127,7 @@ create table models (
 create table chats (
   id bigint generated always as identity primary key,
   name text not null,
-  workspace_id bigint not null references public.workspaces on delete cascade,
+  project_id bigint not null references public.projects on delete cascade,
   model_id bigint not null references public.models,
   created_at timestamptz not null default now (),
   updated_at timestamptz not null default now ()
@@ -143,7 +143,7 @@ create table messages (
 
 create table sources (
   id bigint generated always as identity primary key,
-  workspace_id bigint not null references public.workspaces on delete cascade,
+  project_id bigint not null references public.projects on delete cascade,
   type source_type not null,
   data jsonb,
   created_at timestamptz not null default now (),
@@ -153,7 +153,7 @@ create table sources (
 create table domains (
   id bigint generated always as identity primary key,
   url text not null unique,
-  workspace_id bigint not null references public.workspaces on delete cascade,
+  project_id bigint not null references public.projects on delete cascade,
   created_at timestamptz not null default now (),
   updated_at timestamptz not null default now ()
 );
@@ -161,7 +161,7 @@ create table domains (
 create table tokens (
   id bigint generated always as identity primary key,
   url text not null unique,
-  workspace_id bigint not null references public.workspaces on delete cascade,
+  project_id bigint not null references public.projects on delete cascade,
   created_at timestamptz not null default now (),
   updated_at timestamptz not null default now ()
 );
@@ -172,7 +172,7 @@ create table files (
   meta jsonb,
   checksum text,
   source_id bigint references public.sources on delete cascade not null,
-  workspace_id bigint not null references public.workspaces on delete cascade,
+  project_id bigint not null references public.projects on delete cascade,
   created_at timestamptz not null default now (),
   updated_at timestamptz not null default now ()
 );
@@ -199,9 +199,9 @@ alter table subscriptions enable row level security;
 
 alter table organizations_subscriptions enable row level security;
 
-alter table workspaces enable row level security;
+alter table projects enable row level security;
 
-alter table workspaces_memberships enable row level security;
+alter table projects_memberships enable row level security;
 
 alter table chats enable row level security;
 
@@ -212,7 +212,7 @@ alter table models enable row level security;
 alter table organizations_plans_thresholds enable row level security;
 
 create or replace function create_new_organization (org_name text, user_id
-uuid, create_user bool default true, tokens int default 0, max_workspaces int default 1, max_members int default 2)
+uuid, create_user bool default true, tokens int default 0, max_projects int default 1, max_members int default 2)
   returns bigint
   language PLPGSQL
   security definer
@@ -226,8 +226,8 @@ begin
     id into organization;
 
   insert into organizations_plans_thresholds (organization_id,
-  remaining_tokens, max_workspaces, max_members)
-    values (organization, tokens, max_workspaces, max_members);
+  remaining_tokens, max_projects, max_members)
+    values (organization, tokens, max_projects, max_members);
 
   if create_user then
     insert into users (id, onboarded)
@@ -283,22 +283,22 @@ create or replace function get_organizations_for_authenticated_user ()
     user_id = auth.uid ()
 $$;
 
-create or replace function get_workspaces_for_authenticated_user ()
+create or replace function get_projects_for_authenticated_user ()
   returns setof bigint
   language SQL
   security definer
   set search_path = PUBLIC stable
   as $$
   select
-    workspace_id
+    project_id
   from
-    workspaces_memberships
-  JOIN memberships ON memberships.id = workspaces_memberships.membership_id
+    projects_memberships
+  JOIN memberships ON memberships.id = projects_memberships.membership_id
   where
     memberships.user_id = auth.uid ()
 $$;
 
-create or replace function is_workspace_owner (id bigint) returns boolean
+create or replace function is_project_owner (id bigint) returns boolean
   language SQL
   security definer
   set search_path = PUBLIC stable
@@ -307,16 +307,16 @@ create or replace function is_workspace_owner (id bigint) returns boolean
   select
     1
   from
-    workspaces_memberships
-  JOIN memberships ON memberships.id = workspaces_memberships.membership_id
+    projects_memberships
+  JOIN memberships ON memberships.id = projects_memberships.membership_id
   where
     memberships.user_id = auth.uid ()
-    and workspaces_memberships.workspace_id = id
-    and workspaces_memberships.role = 'owner'
+    and projects_memberships.project_id = id
+    and projects_memberships.role = 'owner'
   )
 $$;
 
-create or replace function can_create_workspace (org_id bigint) returns boolean
+create or replace function can_create_project (org_id bigint) returns boolean
     language SQL
     security definer
     set search_path = PUBLIC stable
@@ -331,8 +331,8 @@ create or replace function can_create_workspace (org_id bigint) returns boolean
         where
             memberships.user_id = auth.uid ()
             and organizations_plans_thresholds.organization_id = org_id
-            and organizations_plans_thresholds.max_workspaces >
-            (select count(*) from workspaces where organization_id = org_id)
+            and organizations_plans_thresholds.max_projects >
+            (select count(*) from projects where organization_id = org_id)
     )
 $$;
 
@@ -357,8 +357,8 @@ create or replace function can_invite_member (org_id bigint) returns boolean
     )
 $$;
 
-create or replace function create_new_workspace (
-    workspace_name text,
+create or replace function create_new_project (
+    project_name text,
     user_uuid uuid,
     organization bigint
 )
@@ -367,25 +367,25 @@ create or replace function create_new_workspace (
   security definer
   as $$
 declare
-  workspace bigint;
+  project bigint;
   membership bigint;
 begin
-  if not can_create_workspace(organization) then
-    raise exception 'cannot create workspace';
+  if not can_create_project(organization) then
+    raise exception 'cannot create project';
   end if;
 
   select id into membership from memberships where memberships.user_id =
   user_uuid and memberships.organization_id = organization;
 
-  insert into workspaces ("name", "organization_id")
-    values (workspace_name, organization)
+  insert into projects ("name", "organization_id")
+    values (project_name, organization)
   returning
-    id into workspace;
+    id into project;
 
-  insert into workspaces_memberships (membership_id, workspace_id, role)
-    values (membership, workspace, 'owner');
+  insert into projects_memberships (membership_id, project_id, role)
+    values (membership, project, 'owner');
 
-  return workspace;
+  return project;
 end;
 $$;
 
@@ -613,14 +613,14 @@ create policy "Avatars can be read and written only by the user that owns the
       and (replace(storage.filename (name), concat('.', storage.extension (name)), '')::uuid) = auth.uid ());
 
 create policy "Chats can be read and written by users that belong to the
-  workspace" on chats
+  project" on chats
   for all
-    using (workspace_id in (
+    using (project_id in (
       select
-        get_workspaces_for_authenticated_user ()))
-      with check (workspace_id in (
+        get_projects_for_authenticated_user ()))
+      with check (project_id in (
         select
-          get_workspaces_for_authenticated_user ()));
+          get_projects_for_authenticated_user ()));
 
 create policy "Models can be read and written by users that belong to the
   organization" on models
@@ -633,7 +633,7 @@ create policy "Models can be read and written by users that belong to the
           get_organizations_for_authenticated_user ()));
 
 create policy "Messages can be read and written by users that belong to the
-workspace" on messages
+project" on messages
   for all
     using (chat_id in (
       select
@@ -641,48 +641,48 @@ workspace" on messages
       from
         chats
       where
-        workspace_id in (
+        project_id in (
           select
-            get_workspaces_for_authenticated_user ())))
+            get_projects_for_authenticated_user ())))
       with check (chat_id in (
         select
           id
         from
           chats
         where
-          workspace_id in (
+          project_id in (
             select
-              get_workspaces_for_authenticated_user ())));
+              get_projects_for_authenticated_user ())));
 
 create policy "Workspaces can be read by users that belong to the
-  workspace" on workspaces
+  project" on projects
   for select
     using (id in (
       select
-        get_workspaces_for_authenticated_user ()));
+        get_projects_for_authenticated_user ()));
 
 create policy "Workspaces can be updated by users that belong to the
-  workspace" on workspaces
+  project" on projects
   for update
     using (id in (
       select
-        get_workspaces_for_authenticated_user ()))
+        get_projects_for_authenticated_user ()))
       with check (id in (
         select
-          get_workspaces_for_authenticated_user ()));
+          get_projects_for_authenticated_user ()));
 
-create policy "Workspaces can be deleted only by their owners" on workspaces
+create policy "Workspaces can be deleted only by their owners" on projects
   for delete
       using (
-        is_workspace_owner (id)
+        is_project_owner (id)
       );
 
 create policy "Workspaces memberships can be read by users that
-belong to the Workspace" on workspaces_memberships
+belong to the Workspace" on projects_memberships
 for select
-  using (workspace_id in (
+  using (project_id in (
     select
-      get_workspaces_for_authenticated_user ()));
+      get_projects_for_authenticated_user ()));
 
 create policy "Organization members can read the thresholds belong to their
 organization" on organizations_plans_thresholds

@@ -27,7 +27,7 @@ const ErrorPage = () => {
                 <div>
                   <Heading type={1}>Oooops. An error occurred</Heading>
                 </div>
-                <p className="text-gray-500 dark:text-gray-300">
+                <p className="text-zinc-500 dark:text-zinc-300">
                   Apologies, an error occurred while processing your request.
                   Please contact us if the issue persists.
                 </p>

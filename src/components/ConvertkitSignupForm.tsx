@@ -1,7 +1,7 @@
 "use client";
 
 import Button from "~/components/Button";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 
 const ConvertkitSignupForm: React.FCC<{
   formId: string;
@@ -13,11 +13,10 @@ const ConvertkitSignupForm: React.FCC<{
       action={action}
       method="POST"
       target="_blank"
-      className="flex w-full flex-col justify-center space-y-2 lg:flex-row lg:space-x-1.5 lg:space-y-0"
+      className="flex w-full flex-col justify-center space-y-2 text-xs lg:flex-row lg:space-x-1.5 lg:space-y-0"
     >
       <TextField.Input
         type="email"
-        className="w-full 2xl:w-60"
         name="email_address"
         aria-label="Your email address"
         placeholder="your@email.com"

@@ -40,7 +40,7 @@ const SubscriptionCard: React.FC<{
         </div>
 
         <Heading type={6}>
-          <span className="text-gray-500 dark:text-gray-400">
+          <span className="text-zinc-500 dark:text-zinc-400">
             {details.product.description}
           </span>
         </Heading>
@@ -50,7 +50,7 @@ const SubscriptionCard: React.FC<{
         <span className="flex items-end">
           <PricingTable.Price>{details.plan.price}</PricingTable.Price>
 
-          <span className="lowercase text-gray-500 dark:text-gray-400">
+          <span className="lowercase text-zinc-500 dark:text-zinc-400">
             /{details.plan.name}
           </span>
         </span>

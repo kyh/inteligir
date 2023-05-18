@@ -42,7 +42,7 @@ const PlanSelectionForm: React.FCC<{
                 Go to Customer Portal
               </BillingPortalRedirectButton>
 
-              <span className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="text-xs text-zinc-500 dark:text-zinc-400">
                 Visit your Customer Portal to manage your subscription and
                 billing.
               </span>

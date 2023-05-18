@@ -58,7 +58,7 @@ export default AppSidebarNavigation;
 function getSidebarItemClassBuilder() {
   return cva(
     [
-      `flex w-full items-center rounded-md border-transparent text-sm font-medium text-gray-600 transition-colors duration-300`,
+      `flex w-full items-center rounded-md border-transparent text-sm font-medium text-zinc-600 transition-colors duration-300`,
     ],
     {
       variants: {
@@ -68,7 +68,7 @@ function getSidebarItemClassBuilder() {
         },
         active: {
           true: `bg-primary-50 font-medium text-current dark:bg-primary-300/10 dark:text-primary-contrast`,
-          false: `text-gray-600 ring-transparent hover:bg-gray-50 active:bg-gray-200 dark:bg-black-600 dark:text-gray-300 dark:hover:bg-black-400 dark:hover:text-white dark:active:bg-black-300 dark:active:bg-black-300`,
+          false: `text-zinc-600 ring-transparent hover:bg-gray-50 active:bg-gray-200 dark:bg-black-600 dark:text-zinc-300 dark:hover:bg-black-400 dark:hover:text-white dark:active:bg-black-300 dark:active:bg-black-300`,
         },
       },
       compoundVariants: [
@@ -85,7 +85,7 @@ function getSidebarItemClassBuilder() {
         {
           collapsed: true,
           active: false,
-          className: `text-gray-600 dark:text-primary-contrast`,
+          className: `text-zinc-600 dark:text-primary-contrast`,
         },
       ],
     }

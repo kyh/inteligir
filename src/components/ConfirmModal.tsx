@@ -23,7 +23,7 @@ export const ConfirmModal = ({ children, title, message, ...rest }: Props) => {
             {title}
           </Dialog.Title>
           <div className="mt-2">
-            <p className="text-sm text-gray-500">{message}</p>
+            <p className="text-sm text-zinc-500">{message}</p>
           </div>
         </div>
       </div>

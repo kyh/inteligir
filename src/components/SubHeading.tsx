@@ -6,7 +6,7 @@ const SubHeading: React.FCC<{
   return (
     <h2
       className={clsx(
-        `font-heading text-lg font-normal text-gray-500 dark:text-gray-400`,
+        `font-heading text-lg font-normal text-zinc-500 dark:text-zinc-400`,
         className
       )}
     >

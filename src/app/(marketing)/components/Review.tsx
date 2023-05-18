@@ -10,16 +10,16 @@ export const Review = () => {
           alt="Twilio logo"
           className="mx-auto mb-8 w-[100px]"
         />
-        <p className="text-xl font-semibold leading-tight text-gray-100">
+        <p className="text-xl font-semibold leading-tight text-zinc-100">
           Lorem ipsum dolor sit amet consectetur adipisicing elit. Illum
           reiciendis maiores impedit sequi laudantium neque vitae commodi earum.
         </p>
         <Avatar className="mx-auto mt-10">
-          <AvatarImage src="https://github.com/shadcn.png" alt="@shadcn" />
+          <AvatarImage src="https://github.com/kyh.png" alt="@kyh" />
           <AvatarFallback>CN</AvatarFallback>
         </Avatar>
         <p className="mt-1 font-semibold">John Boggs</p>
-        <p className="whitespace-nowrap text-sm text-gray-400">
+        <p className="whitespace-nowrap text-sm text-zinc-400">
           Principal Software Engineer
         </p>
       </div>

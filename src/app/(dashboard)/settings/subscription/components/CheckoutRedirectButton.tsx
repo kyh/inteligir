@@ -30,7 +30,7 @@ const CheckoutRedirectButton: React.FCC<{
       />
       <Button
         className={clsx({
-          "bg-primary-contrast text-gray-800": props.recommended,
+          "bg-primary-contrast text-zinc-800": props.recommended,
         })}
         color={props.recommended ? "custom" : "secondary"}
         disabled={props.disabled}

@@ -7,7 +7,7 @@ import useSignInWithOtp from "~/core/hooks/use-sign-in-with-otp";
 import Alert from "~/components/Alert";
 import Button from "~/components/Button";
 import If from "~/components/If";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 
 const EmailLinkAuth: React.FC = () => {
   const signInWithOtpMutation = useSignInWithOtp();

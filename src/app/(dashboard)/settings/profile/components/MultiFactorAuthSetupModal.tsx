@@ -8,7 +8,7 @@ import Alert from "~/components/Alert";
 import Button from "~/components/Button";
 import If from "~/components/If";
 import Modal from "~/components/Modal";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 import VerificationCodeInput from "~/app/auth/components/VerificationCodeInput";
 
 function MultiFactorAuthSetupModal(

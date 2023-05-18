@@ -12,7 +12,7 @@ import React, {
 import { CloudArrowUpIcon, XMarkIcon } from "@heroicons/react/24/outline";
 import IconButton from "~/components/IconButton";
 import If from "~/components/If";
-import Label from "~/components/Label";
+import { TextField } from "~/components/TextField";
 
 type Props = Omit<React.InputHTMLAttributes<unknown>, "value"> & {
   image?: string | null;
@@ -110,7 +110,7 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
         <div className="flex items-center space-x-4">
           <div className="flex">
             <If condition={!state.image}>
-              <CloudArrowUpIcon className="h-5 text-gray-500 dark:text-black-100" />
+              <CloudArrowUpIcon className="h-5 text-zinc-500 dark:text-black-100" />
             </If>
 
             <If condition={state.image}>
@@ -131,9 +131,9 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
 
           <If condition={!state.image}>
             <div className="flex flex-auto">
-              <Label as="span" className="cursor-pointer text-xs">
+              <TextField.Label as="span" className="cursor-pointer text-xs">
                 {children}
-              </Label>
+              </TextField.Label>
             </div>
           </If>
 
@@ -142,14 +142,17 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
               <If
                 condition={state.fileName}
                 fallback={
-                  <Label as="span" className="cursor-pointer truncate text-xs">
+                  <TextField.Label
+                    as="span"
+                    className="cursor-pointer truncate text-xs"
+                  >
                     {children}
-                  </Label>
+                  </TextField.Label>
                 }
               >
-                <Label as="span" className="truncate text-xs">
+                <TextField.Label as="span" className="truncate text-xs">
                   {state.fileName}
-                </Label>
+                </TextField.Label>
               </If>
             </div>
           </If>

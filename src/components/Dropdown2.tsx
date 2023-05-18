@@ -37,7 +37,7 @@ export const Dropdown = <T extends { name: string }>({
                 className={({ active }) =>
                   clsx(
                     "relative cursor-default select-none py-2 pl-10 pr-4",
-                    active ? "bg-emerald-900 text-emerald-300" : "text-gray-50"
+                    active ? "bg-emerald-900 text-emerald-300" : "text-zinc-50"
                   )
                 }
                 value={item}

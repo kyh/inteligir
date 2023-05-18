@@ -22,7 +22,7 @@ function SignUpMethodsContainer() {
 
       <If condition={configuration.auth.providers.emailPassword}>
         <div>
-          <span className="text-xs text-gray-400">or continue with email</span>
+          <span className="text-xs text-zinc-400">or continue with email</span>
         </div>
 
         <EmailPasswordSignUpContainer onSignUp={onSignUp} />

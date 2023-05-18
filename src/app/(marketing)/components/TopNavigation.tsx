@@ -52,7 +52,19 @@ export const TopNavigation = () => {
             </li>
           </ul>
         </nav>
-        <If condition={userSession?.auth} fallback={<AuthButtons />}>
+        <If
+          condition={userSession?.auth}
+          fallback={
+            <div className="space-x-2">
+              <Link
+                className="text-sm text-white"
+                href={configuration.paths.signIn}
+              >
+                Sign In
+              </Link>
+            </div>
+          }
+        >
           <ProfileDropdown
             userSession={userSession}
             signOutRequested={signOut}
@@ -62,13 +74,3 @@ export const TopNavigation = () => {
     </div>
   );
 };
-
-function AuthButtons() {
-  return (
-    <div className="space-x-2">
-      <Link className="text-sm text-white" href={configuration.paths.signIn}>
-        Sign In
-      </Link>
-    </div>
-  );
-}

@@ -55,7 +55,7 @@ const ProfileDropdown: React.FCC<{
       >
         <DropdownMenuItem className="!h-10 rounded-none" clickable={false}>
           <div className="flex flex-col justify-start truncate text-left text-xs">
-            <div className="text-gray-500">Signed in as</div>
+            <div className="text-zinc-500">Signed in as</div>
 
             <div>
               <span className="block truncate">{signedInAsLabel}</span>

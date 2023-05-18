@@ -17,7 +17,7 @@ const SettingsTile: React.FCC<{
               </Heading>
 
               <If condition={subHeading}>
-                <p className="text-gray-500 dark:text-gray-400">{subHeading}</p>
+                <p className="text-zinc-500 dark:text-zinc-400">{subHeading}</p>
               </If>
             </div>
           </If>

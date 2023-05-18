@@ -15,7 +15,6 @@ function EmailNavbar(
       <Column>
         <Text style={{ textAlign: "center" }}>
           {/* Add your logo here */}
-
           {productName}
         </Text>
       </Column>

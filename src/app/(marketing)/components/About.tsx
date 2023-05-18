@@ -38,7 +38,7 @@ const AboutCard = ({
       >
         <div className="flex flex-col gap-2 lg:gap-5">
           <h3 className="text-xl font-semibold sm:text-2xl">{title}</h3>
-          <div className="text-sm text-gray-300 sm:text-base">
+          <div className="text-sm text-zinc-300 sm:text-base">
             {description}
           </div>
         </div>
@@ -107,7 +107,7 @@ export const About = () => {
               points={[
                 "Built in permission and access control",
                 "End to end encryption",
-                "",
+                "Compose our service with yours -- bring your own interface/model/database",
               ]}
             />
           }
@@ -118,7 +118,7 @@ export const About = () => {
       </div>
       <AboutCard
         className="mt-8"
-        title="Code or no code"
+        title="We'll go where you go"
         description={
           <AboutCardDescriptionList
             points={[

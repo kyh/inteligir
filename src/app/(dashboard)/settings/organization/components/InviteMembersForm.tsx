@@ -10,7 +10,7 @@ import MembershipRole from "~/lib/organizations/types/membership-role";
 import Button from "~/components/Button";
 import IconButton from "~/components/IconButton";
 import If from "~/components/If";
-import TextField from "~/components/TextField";
+import { TextField } from "~/components/TextField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 import MembershipRoleSelector from "./MembershipRoleSelector";
 

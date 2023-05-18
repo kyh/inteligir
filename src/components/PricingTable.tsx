@@ -131,8 +131,8 @@ function PricingItem(
             <span
               className={clsx(`rounded-md px-2 py-1 text-xs font-medium`, {
                 ["bg-primary-700 text-primary-contrast"]: recommended,
-                ["bg-gray-50 text-gray-500 dark:bg-black-300" +
-                " dark:text-gray-300"]: !recommended,
+                ["bg-gray-50 text-zinc-500 dark:bg-black-300" +
+                " dark:text-zinc-300"]: !recommended,
               })}
             >
               {props.product.badge}
@@ -143,7 +143,7 @@ function PricingItem(
         <span
           className={clsx("text-sm font-medium", {
             "text-primary-contrast": recommended,
-            "text-gray-400": !recommended,
+            "text-zinc-400": !recommended,
           })}
         >
           {props.product.description}
@@ -166,8 +166,8 @@ function PricingItem(
           <If condition={props.plan.name}>
             <span
               className={clsx(`text-lg lowercase`, {
-                "text-gray-100": recommended,
-                "text-gray-400 dark:text-gray-400": !recommended,
+                "text-zinc-100": recommended,
+                "text-zinc-400 dark:text-zinc-400": !recommended,
               })}
             >
               <span>/</span>
@@ -286,7 +286,7 @@ function DefaultCheckoutButton(
         as={Link}
         className={clsx({
           ["bg-primary-contrast hover:bg-primary-contrast/90" +
-          " font-bold text-gray-900"]: props.recommended,
+          " font-bold text-zinc-900"]: props.recommended,
         })}
         href={linkHref}
         color={props.recommended ? "custom" : "secondary"}

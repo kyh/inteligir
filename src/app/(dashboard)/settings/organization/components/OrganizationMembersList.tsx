@@ -6,7 +6,7 @@ import useUserId from "~/core/hooks/use-user-id";
 import type UserData from "~/core/session/types/user-data";
 import { canUpdateUser } from "~/lib/organizations/permissions";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
-import Badge from "~/components/Badge";
+import { Badge } from "~/components/Badge";
 import If from "~/components/If";
 import ProfileAvatar from "~/components/ProfileAvatar";
 import OrganizationMembersActionsContainer from "./OrganizationMembersActionsContainer";
@@ -68,7 +68,7 @@ function OrganizationMembersList({
                 <div className="block truncate text-sm">{displayName}</div>
 
                 <If condition={isCurrentUser}>
-                  <Badge size="small">You</Badge>
+                  <Badge>You</Badge>
                 </If>
               </div>
 

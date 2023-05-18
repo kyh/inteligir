@@ -12,7 +12,7 @@ export const Tag = classed("span", {
       sky: "ring-sky-400/30 bg-sky-400/10 text-sky-400",
       amber: "ring-amber-400/30 bg-amber-400/10 text-amber-400",
       rose: "ring-rose-400/30 bg-rose-400/10 text-rose-400",
-      gray: "ring-gray-400/30 bg-gray-400/10 text-gray-400",
+      gray: "ring-gray-400/30 bg-gray-400/10 text-zinc-400",
     },
   },
   defaultVariants: {
