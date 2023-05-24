@@ -10,7 +10,7 @@ import useSupabase from "~/core/hooks/use-supabase";
 import type UserData from "~/core/session/types/user-data";
 import type UserSession from "~/core/session/types/user-session";
 import useUpdateProfileMutation from "~/lib/user/hooks/use-update-profile";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import ImageUploadInput from "~/components/ImageUploadInput";
 import Modal from "~/components/Modal";

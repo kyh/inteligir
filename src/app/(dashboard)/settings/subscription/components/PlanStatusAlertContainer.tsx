@@ -2,7 +2,7 @@
 
 import React from "react";
 import { ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
-import Alert from "~/components/Alert";
+import { Alert } from "~/components/Alert";
 import If from "~/components/If";
 
 enum SubscriptionStatusQueryParams {
@@ -31,21 +31,19 @@ function PlansStatusAlert({
   switch (status) {
     case SubscriptionStatusQueryParams.Cancel:
       return (
-        <Alert type="warn" useCloseButton={true}>
+        <Alert type="warn" showClose>
           <Alert.Heading>The checkout was canceled</Alert.Heading>
-
           <p>
-            The checkout was canceled. Please contact us if you're experiencing
-            any issues.
+            The checkout was canceled. Please contact us if you&apos;re
+            experiencing any issues.
           </p>
         </Alert>
       );
 
     case SubscriptionStatusQueryParams.Error:
       return (
-        <Alert type="error" useCloseButton={true}>
+        <Alert type="error" showClose>
           <Alert.Heading>Sorry, something went wrong</Alert.Heading>
-
           <p>
             We encountered an unknown error while processing your payment.
             Please try again or contact support.
@@ -55,9 +53,8 @@ function PlansStatusAlert({
 
     case SubscriptionStatusQueryParams.Success:
       return (
-        <Alert type="success" useCloseButton={true}>
+        <Alert type="success" showClose>
           <Alert.Heading>Checkout successfully completed</Alert.Heading>
-
           <p>Yay, your payment went through!</p>
         </Alert>
       );

@@ -3,7 +3,7 @@
 import { useCallback, type FormEventHandler } from "react";
 import toaster from "react-hot-toast";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 

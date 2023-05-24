@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { UserPlusIcon } from "@heroicons/react/24/outline";
 import useUserCanInviteUsers from "~/lib/organizations/hooks/use-user-can-invite-users";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 
 function InviteMembersLinkButton() {
   const canInviteUsers = useUserCanInviteUsers();

@@ -1,9 +1,14 @@
 "use client";
 
 import { useCallback } from "react";
+import Image from "next/image";
+import {
+  AtSymbolIcon,
+  DevicePhoneMobileIcon,
+} from "@heroicons/react/24/outline";
 import configuration from "~/configuration";
 import useSignInWithProvider from "~/core/hooks/use-sign-in-with-provider";
-import AuthProviderButton from "~/components/AuthProviderButton";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 import AuthErrorMessage from "./AuthErrorMessage";
@@ -84,6 +89,67 @@ const OAuthProviders: React.FCC<{
     </>
   );
 };
+
+const AuthProviderButton: React.FCC<{
+  providerId: string;
+  onClick: () => unknown;
+}> = ({ children, providerId, onClick }) => {
+  return (
+    <Button
+      className="relative w-full"
+      data-cy="auth-provider-button"
+      onClick={onClick}
+      data-provider={providerId}
+    >
+      <span className="absolute left-3 flex items-center justify-start">
+        <AuthProviderLogo providerId={providerId} />
+      </span>
+      <span className="flex w-full flex-1 items-center">
+        <span className="flex w-full items-center justify-center">
+          <span className="text-current">{children}</span>
+        </span>
+      </span>
+    </Button>
+  );
+};
+
+const DEFAULT_IMAGE_SIZE = 22;
+
+const AuthProviderLogo: React.FC<{
+  providerId: string;
+  width?: number;
+  height?: number;
+}> = ({ providerId, width, height }) => {
+  const image = getOAuthProviderLogos()[providerId];
+
+  if (typeof image === `string`) {
+    return (
+      <Image
+        decoding="async"
+        loading="lazy"
+        src={image}
+        alt={`${providerId} logo`}
+        width={width ?? DEFAULT_IMAGE_SIZE}
+        height={height ?? DEFAULT_IMAGE_SIZE}
+      />
+    );
+  }
+
+  return <>{image}</>;
+};
+
+function getOAuthProviderLogos(): Record<string, string | JSX.Element> {
+  return {
+    email: <AtSymbolIcon className="h-7" />,
+    phone: <DevicePhoneMobileIcon className="h-7" />,
+    google: "/assets/images/google.webp",
+    facebook: "/assets/images/facebook.webp",
+    twitter: "/assets/images/twitter.webp",
+    github: "/assets/images/github.webp",
+    microsoft: "/assets/images/microsoft.webp",
+    apple: "/assets/images/apple.webp",
+  };
+}
 
 function getProviderName(providerId: string) {
   const capitalize = (value: string) =>

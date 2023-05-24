@@ -1,5 +1,5 @@
-const Container: React.FCC = ({ children }) => {
-  return <div className="container mx-auto px-5">{children}</div>;
-};
+import { classed } from "@tw-classed/react";
 
-export default Container;
+export const Container = classed("section", {
+  base: "container mx-auto px-5",
+});

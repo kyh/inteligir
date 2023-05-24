@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import configuration from "~/configuration";
 import useSignUpWithEmailAndPasswordMutation from "~/core/hooks/use-sign-up-with-email-password";
-import Alert from "~/components/Alert";
+import { Alert } from "~/components/Alert";
 import If from "~/components/If";
 import EmailPasswordSignUpForm from "~/app/auth/components/EmailPasswordSignUpForm";
 import AuthErrorMessage from "./AuthErrorMessage";

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import useTransferOrganizationOwnership from "~/lib/organizations/hooks/use-transfer-organization-ownership";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import Modal from "~/components/Modal";
 

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import SettingsTile from "~/app/(dashboard)/settings/components/SettingsTile";
 import InviteMembersForm from "~/app/(dashboard)/settings/organization/components/InviteMembersForm";
 
