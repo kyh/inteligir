@@ -3,7 +3,7 @@
 import { useCallback, type FormEvent } from "react";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import useUserSession from "~/core/hooks/use-user-session";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import Heading from "~/components/Heading";
 import SubHeading from "~/components/SubHeading";
 import { TextField } from "~/components/TextField";

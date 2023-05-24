@@ -3,7 +3,7 @@
 import React from "react";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 import type Organization from "~/lib/organizations/types/organization";
-import Alert from "~/components/Alert";
+import { Alert } from "~/components/Alert";
 import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";
 import IfHasPermissions from "~/app/(dashboard)/components/IfHasPermissions";

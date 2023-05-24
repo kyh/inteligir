@@ -8,7 +8,7 @@ import useSupabase from "~/core/hooks/use-supabase";
 import OrganizationContext from "~/lib/contexts/organization";
 import useUpdateOrganizationMutation from "~/lib/organizations/hooks/use-update-organization-mutation";
 import type Organization from "~/lib/organizations/types/organization";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import ImageUploadInput from "~/components/ImageUploadInput";
 import { TextField } from "~/components/TextField";
 

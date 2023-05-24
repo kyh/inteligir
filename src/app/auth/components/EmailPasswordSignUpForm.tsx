@@ -1,5 +1,5 @@
 import { useForm } from "react-hook-form";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 
@@ -78,7 +78,9 @@ const EmailPasswordSignUpForm: React.FCC<{
               type="password"
               placeholder=""
             />
-            <TextField.Hint>Ensure it's at least 6 characters</TextField.Hint>
+            <TextField.Hint>
+              Ensure it&apos;s at least 6 characters
+            </TextField.Hint>
             <If condition={errors.password}>
               <TextField.Hint color="error">
                 {errors.password?.message}

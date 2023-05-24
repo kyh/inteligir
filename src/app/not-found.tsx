@@ -1,6 +1,6 @@
 import Link from "next/link";
 import configuration from "~/configuration";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import Heading from "~/components/Heading";
 import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 

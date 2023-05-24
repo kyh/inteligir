@@ -1,4 +1,4 @@
-import Container from "~/components/Container";
+import { Container } from "~/components/Container";
 import Hero from "~/components/Hero";
 import SubHeading from "~/components/SubHeading";
 
@@ -56,14 +56,12 @@ const FAQPage = () => {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
       />
-
       <Container>
         <div className="flex flex-col space-y-8">
           <div className="flex flex-col items-center">
             <Hero>FAQ</Hero>
             <SubHeading>Frequently Asked Questions</SubHeading>
           </div>
-
           <div className="m-auto flex w-full max-w-xl items-center justify-center">
             <div className="flex w-full flex-col">
               {DATA.map((item, index) => {

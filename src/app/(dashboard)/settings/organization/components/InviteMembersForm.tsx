@@ -7,7 +7,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import useUserSession from "~/core/hooks/use-user-session";
 import useInviteMembers from "~/lib/organizations/hooks/use-invite-members-mutation";
 import MembershipRole from "~/lib/organizations/types/membership-role";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import IconButton from "~/components/IconButton";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";

@@ -1,4 +1,4 @@
-import Container from "~/components/Container";
+import { Container } from "~/components/Container";
 import Hero from "~/components/Hero";
 import PricingTable from "~/components/PricingTable";
 import SubHeading from "~/components/SubHeading";
@@ -15,7 +15,6 @@ function PricingPage() {
           <Hero>Pricing</Hero>
           <SubHeading>Fair pricing for your customers</SubHeading>
         </div>
-
         <PricingTable />
       </div>
     </Container>

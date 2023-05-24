@@ -5,8 +5,8 @@ import type { User } from "@supabase/gotrue-js";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
-import Alert from "~/components/Alert";
-import Button from "~/components/Button";
+import { Alert } from "~/components/Alert";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 

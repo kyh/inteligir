@@ -6,7 +6,7 @@ import type { Session } from "@supabase/auth-helpers-nextjs";
 import configuration from "~/configuration";
 import useRefresh from "~/core/hooks/use-refresh";
 import useSignOut from "~/core/hooks/use-sign-out";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import useAcceptInvite from "~/app/invite/use-accept-invite";
 
 function ExistingUserInviteForm(

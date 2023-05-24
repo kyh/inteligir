@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import { Transition } from "@headlessui/react";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import { Close as DialogPrimitiveClose } from "@radix-ui/react-dialog";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/Dialog";
 import IconButton from "~/components/IconButton";
 import If from "~/components/If";
