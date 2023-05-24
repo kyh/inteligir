@@ -4,8 +4,8 @@ import toaster from "react-hot-toast";
 import useMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
-import Alert from "~/components/Alert";
-import Button from "~/components/Button";
+import { Alert } from "~/components/Alert";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
@@ -193,7 +193,7 @@ function FactorQrCode({
     return (
       <div className="flex w-full flex-col space-y-2">
         <Alert type="error">
-          Sorry, we weren't able to generate the QR code
+          Sorry, we weren&apos;t able to generate the QR code
         </Alert>
 
         <Modal.CancelButton onClick={onCancel} />

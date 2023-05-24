@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import useRemoveMemberMutation from "~/lib/organizations/hooks/use-remove-member-mutation";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import IconButton from "~/components/IconButton";
 import If from "~/components/If";
 import Modal from "~/components/Modal";

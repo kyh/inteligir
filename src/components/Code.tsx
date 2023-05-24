@@ -3,13 +3,13 @@ import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
 import clsx from "clsx";
 import toaster from "react-hot-toast";
 
-type Props = {
+type CodeProps = {
   children?: React.ReactNode;
   className?: string;
   copy?: boolean;
 };
 
-export const Code = ({ children, className, copy = true }: Props) => {
+export const Code = ({ children, className, copy = true }: CodeProps) => {
   const copyToClipboard = () => {
     let copiedText = "";
     if (!children) return;
@@ -28,7 +28,7 @@ export const Code = ({ children, className, copy = true }: Props) => {
     <pre
       className={clsx(
         `inline-flex items-center rounded border border-white/10 bg-gray-900 p-3 font-mono text-sm shadow transition`,
-        copy && "hover:bg-black hover:cursor-pointer",
+        copy && "hover:cursor-pointer hover:bg-black-700",
         className
       )}
       onClick={copy ? copyToClipboard : undefined}

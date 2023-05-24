@@ -55,7 +55,6 @@ const renderIcon = (
 };
 
 export type ButtonProps = ComponentProps<typeof BaseButton> & {
-  contentClassName?: string;
   iconClassName?: string;
   startIcon?: string | React.ReactNode;
   endIcon?: string | React.ReactNode;
@@ -63,14 +62,13 @@ export type ButtonProps = ComponentProps<typeof BaseButton> & {
   href?: string;
 };
 
-const Button = deriveClassed<typeof BaseButton, ButtonProps>(
+export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
   (
     {
       children,
       startIcon,
       endIcon,
       iconSize,
-      contentClassName,
       iconClassName,
       disabled,
       ...props
@@ -87,19 +85,11 @@ const Button = deriveClassed<typeof BaseButton, ButtonProps>(
         ref={ref}
         {...props}
       >
-        {!!props.loading && (
-          <span className="">
-            <Spinner className="mx-auto fill-white" />
-          </span>
-        )}
-        {startIcon && (
-          <span>{renderIcon(startIcon, iconClassName, iconSize)}</span>
-        )}
-        <span>{children}</span>
-        {endIcon && <span>{renderIcon(endIcon, iconClassName, iconSize)}</span>}
+        {!!props.loading && <Spinner className="mx-auto fill-white" />}
+        {startIcon && renderIcon(startIcon, iconClassName, iconSize)}
+        {children}
+        {endIcon && renderIcon(endIcon, iconClassName, iconSize)}
       </BaseButton>
     );
   }
 );
-
-export default Button;

@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import useRemoveMember from "~/lib/organizations/hooks/use-remove-member-mutation";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import Modal from "~/components/Modal";
 
 const RemoveOrganizationMemberModal: React.FCC<{

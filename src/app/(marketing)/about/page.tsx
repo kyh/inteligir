@@ -1,4 +1,4 @@
-import Container from "~/components/Container";
+import { Container } from "~/components/Container";
 import Hero from "~/components/Hero";
 import SubHeading from "~/components/SubHeading";
 
@@ -13,7 +13,6 @@ const AboutPage = () => {
         <div className="flex flex-col space-y-14">
           <div className="flex flex-col items-center">
             <Hero>About us</Hero>
-
             <SubHeading>
               We are a team of passionate developers and designers who love to
               build great products.

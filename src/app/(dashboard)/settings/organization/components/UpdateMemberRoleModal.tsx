@@ -1,7 +1,7 @@
 import { useCallback, useState } from "react";
 import useUpdateMemberRequest from "~/lib/organizations/hooks/use-update-member-role";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import Modal from "~/components/Modal";
 import MembershipRoleSelector from "~/app/(dashboard)/settings/organization/components/MembershipRoleSelector";
 

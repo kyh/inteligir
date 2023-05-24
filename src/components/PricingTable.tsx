@@ -6,7 +6,7 @@ import { Transition } from "@headlessui/react";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import clsx from "clsx";
 import configuration from "~/configuration";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import Heading from "~/components/Heading";
 import If from "~/components/If";
 

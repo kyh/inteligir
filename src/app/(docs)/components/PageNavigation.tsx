@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import { navigation } from "./SideNavigation";
 
 function PageLink({

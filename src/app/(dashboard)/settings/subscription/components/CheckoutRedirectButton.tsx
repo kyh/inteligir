@@ -6,7 +6,7 @@ import clsx from "clsx";
 import configuration from "~/configuration";
 import isBrowser from "~/core/generic/is-browser";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 
 const CHECKOUT_SESSION_API_ENDPOINT = configuration.paths.api.checkout;
 

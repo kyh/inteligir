@@ -2,7 +2,7 @@ import { FormEventHandler, useCallback } from "react";
 import toaster from "react-hot-toast";
 import useUserId from "~/core/hooks/use-user-id";
 import useCreateOrganization from "~/lib/organizations/hooks/use-create-organization";
-import Button from "~/components/Button";
+import { Button } from "~/components/Button";
 import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
 

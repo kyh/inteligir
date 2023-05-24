@@ -1,7 +1,8 @@
 import configuration from "~/configuration";
-import ConvertkitSignupForm from "~/components/ConvertkitSignupForm";
+import { Button } from "~/components/Button";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
+import { TextField } from "~/components/TextField";
 
 export const FooterNavigation = () => {
   return (
@@ -129,5 +130,30 @@ export const SmallPrint = () => {
         </SocialLink>
       </div>
     </div>
+  );
+};
+
+const ConvertkitSignupForm: React.FCC<{
+  formId: string;
+}> = ({ formId, children }) => {
+  const action = `https://app.convertkit.com/forms/${formId}/subscriptions`;
+
+  return (
+    <form
+      action={action}
+      method="POST"
+      target="_blank"
+      className="flex w-full flex-col justify-center space-y-2 text-xs lg:flex-row lg:space-x-1.5 lg:space-y-0"
+    >
+      <TextField.Input
+        type="email"
+        name="email_address"
+        aria-label="Your email address"
+        placeholder="your@email.com"
+        required
+      />
+
+      <Button>{children}</Button>
+    </form>
   );
 };
