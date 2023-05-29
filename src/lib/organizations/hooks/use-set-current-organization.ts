@@ -1,5 +1,5 @@
-import useSWRMutation from "swr/mutation";
 import configuration from "~/configuration";
+import useSWRMutation from "swr/mutation";
 import useApiRequest from "~/core/hooks/use-api";
 
 function useSetCurrentOrganization() {
