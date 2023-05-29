@@ -1,11 +1,11 @@
 import {
-  SupabaseClient,
   createBrowserSupabaseClient,
+  SupabaseClient,
 } from "@supabase/auth-helpers-nextjs";
-import invariant from "tiny-invariant";
 import type { Database } from "~/database.types";
+import invariant from "tiny-invariant";
 
-let client: SupabaseClient;
+let client: SupabaseClient<Database>;
 
 /**
  * @name getSupabaseBrowserClient

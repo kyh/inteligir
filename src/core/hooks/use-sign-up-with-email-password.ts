@@ -1,5 +1,5 @@
-import useSWRMutation from "swr/mutation";
 import configuration from "~/configuration";
+import useSWRMutation from "swr/mutation";
 import useSupabase from "./use-supabase";
 
 interface Credentials {

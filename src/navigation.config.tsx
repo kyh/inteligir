@@ -4,16 +4,16 @@ import configuration from "~/configuration";
 const NAVIGATION_CONFIG = {
   items: [
     {
-      label: "common:dashboardTabLabel",
+      label: "Dashboard",
       path: configuration.paths.appHome,
-      Icon: ({ className }: { className: string }) => {
+      Icon: ({ className }: { className?: string }) => {
         return <Squares2X2Icon className={className} />;
       },
     },
     {
-      label: "common:settingsTabLabel",
+      label: "Settings",
       path: "/settings",
-      Icon: ({ className }: { className: string }) => {
+      Icon: ({ className }: { className?: string }) => {
         return <Cog8ToothIcon className={className} />;
       },
     },

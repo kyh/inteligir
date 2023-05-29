@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import configuration from "~/configuration";
 import clsx from "clsx";
 import { useScroll } from "framer-motion";
-import configuration from "~/configuration";
 import useSignOut from "~/core/hooks/use-sign-out";
 import useUserSession from "~/core/hooks/use-user-session";
 import If from "~/components/If";

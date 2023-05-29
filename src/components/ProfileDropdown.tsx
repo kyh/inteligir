@@ -15,8 +15,8 @@ import type UserSession from "~/core/session/types/user-session";
 import {
   DARK_THEME_CLASSNAME,
   LIGHT_THEME_CLASSNAME,
-  SYSTEM_THEME_CLASSNAME,
   setTheme,
+  SYSTEM_THEME_CLASSNAME,
 } from "~/core/theming";
 import {
   DropdownMenu,

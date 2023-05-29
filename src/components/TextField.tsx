@@ -5,11 +5,11 @@ const BaseTextField = classed("div", {
 });
 
 const BaseLabel = classed("label", {
-  base: "w-full text-sm font-medium text-zinc-500 dark:text-zinc-400 [&>*]:mt-[0.35rem]",
+  base: "w-full text-sm font-medium text-zinc-400 flex flex-col gap-1",
 });
 
 const BaseInput = classed("input", {
-  base: "block w-full rounded-md border-0 bg-white/5 py-1.5 text-white shadow-sm ring-1 ring-inset ring-white/10 transition focus:ring-1 focus:ring-inset focus:ring-primary-500",
+  base: "block w-full rounded-md border-0 bg-transparent py-1.5 text-white shadow-sm ring-1 ring-inset ring-white/10 transition focus:ring-1 focus:ring-inset focus:ring-primary-500",
   variants: {
     size: {
       none: "px-0 py-0",
