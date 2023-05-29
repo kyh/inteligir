@@ -14,8 +14,8 @@ async function OnboardingLayout({ children }: React.PropsWithChildren) {
   await initializeOnboardingRoute();
 
   return (
-    <div className={"flex flex-1 flex-col dark:bg-black-500"}>
-      <div className={"flex divide-x divide-gray-100 dark:divide-black-300"}>
+    <div className={"flex flex-1 flex-col dark:bg-zinc-500"}>
+      <div className={"flex divide-x divide-zinc-100 dark:divide-zinc-300"}>
         <div
           className={
             "flex h-screen w-full flex-1 flex-col items-center justify-center lg:w-6/12"
@@ -30,7 +30,7 @@ async function OnboardingLayout({ children }: React.PropsWithChildren) {
 
         <div
           className={
-            "hidden w-6/12 flex-1 items-center justify-center bg-gray-50 dark:bg-black-400 lg:flex"
+            "hidden w-6/12 flex-1 items-center justify-center bg-zinc-50 dark:bg-zinc-400 lg:flex"
           }
         >
           <div>

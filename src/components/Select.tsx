@@ -16,10 +16,10 @@ const SelectTrigger = React.forwardRef<
     className={clsx(
       `flex h-10 w-full items-center justify-between space-x-2.5
         rounded-md border bg-transparent px-2.5 py-1.5 ring-offset-1 transition-all
-        duration-300 placeholder:text-zinc-400 hover:bg-gray-50
-        focus:outline-none focus:ring-2 focus:ring-primary-200 disabled:cursor-not-allowed
-        disabled:opacity-50 dark:border-black-200 dark:bg-black-400
-        dark:ring-primary-500/70 dark:hover:border-black-100 dark:hover:bg-black-300 dark:focus:ring-offset-black-400`,
+        duration-300 placeholder:text-zinc-400 hover:bg-zinc-50
+        focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed
+        disabled:opacity-50 dark:border-zinc-200 dark:bg-zinc-400
+        dark:ring-emerald-500/70 dark:hover:border-zinc-100 dark:hover:bg-zinc-300 dark:focus:ring-offset-zinc-400`,
       className
     )}
     {...props}
@@ -44,8 +44,8 @@ const SelectContent = React.forwardRef<
     <SelectPrimitive.Content
       ref={ref}
       className={clsx(
-        `animate-in fade-in-250 relative z-50 w-auto min-w-[8rem] overflow-hidden border border-transparent
-          border-t-gray-50 bg-white shadow-xl dark:border-black-200 dark:bg-black-300 dark:shadow-[0_0_40px_0] dark:shadow-primary-600/10 lg:rounded-md`,
+        `fade-in-250 relative z-50 w-auto min-w-[8rem] overflow-hidden border border-transparent border-t-zinc-50
+          bg-white shadow-xl animate-in dark:border-zinc-200 dark:bg-zinc-300 dark:shadow-[0_0_40px_0] dark:shadow-emerald-600/10 lg:rounded-md`,
         className
       )}
       sideOffset={sideOffset}
@@ -77,10 +77,10 @@ const SelectLabel = React.forwardRef<
 SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
 const SelectItemClassName = `
-  relative flex select-none items-center rounded-md hover:bg-primary-50 dark:hover:bg-black-200
-  h-11 lg:h-8 pr-4 pl-8 text-sm font-medium outline-none focus:bg-primary-50 my-0.5
-  data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [data-state="checked"]:bg-primary-50
-  [data-state="checked"]:dark:bg-black-200 dark:focus:bg-black-200 cursor-pointer data-[selected]:cursor-default
+  relative flex select-none items-center rounded-md hover:bg-emerald-50 dark:hover:bg-zinc-200
+  h-11 lg:h-8 pr-4 pl-8 text-sm font-medium outline-none focus:bg-emerald-50 my-0.5
+  data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [data-state="checked"]:bg-emerald-50
+  [data-state="checked"]:dark:bg-zinc-200 dark:focus:bg-zinc-200 cursor-pointer data-[selected]:cursor-default
   transition-colors`;
 
 const SelectItem = React.forwardRef<
@@ -94,7 +94,7 @@ const SelectItem = React.forwardRef<
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
       <SelectPrimitive.ItemIndicator>
-        <CheckCircleIcon className="h-5 text-primary-500" />
+        <CheckCircleIcon className="h-5 text-emerald-500" />
       </SelectPrimitive.ItemIndicator>
     </span>
 
@@ -127,7 +127,7 @@ const SelectSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator
     ref={ref}
-    className={clsx("-mx-1 my-1 h-px bg-gray-100 dark:bg-black-200", className)}
+    className={clsx("-mx-1 my-1 h-px bg-zinc-100 dark:bg-zinc-200", className)}
     {...props}
   />
 ));

@@ -3,16 +3,17 @@ import { classed, ComponentProps, deriveClassed } from "@tw-classed/react";
 import Spinner from "~/components/Spinner";
 
 const BaseButton = classed("button", {
-  base: "inline-flex items-center border shadow-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 flex space-x-1 justify-center",
+  base: "inline-flex items-center border shadow-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 space-x-1 justify-center",
   variants: {
     variant: {
       normal:
-        "border-white/20 bg-black-700 hover:bg-gray-900 hover:text-white disabled:hover:bg-black",
+        "border-white/20 bg-black hover:bg-zinc-900 hover:text-white disabled:hover:bg-black",
       primary:
         "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-300",
       outline:
         "text-zinc-400 border-white/20 hover:bg-white/5 hover:text-white",
       text: "text-emerald-500 hover:text-emerald-300 shadow-none border-0",
+      ghost: "",
     },
     size: {
       none: "px-0 py-0",

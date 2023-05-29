@@ -24,7 +24,7 @@ function PasswordResetPage() {
             <span>Password recovered?</span>
 
             <Link
-              className="text-primary-800 hover:underline dark:text-primary-500"
+              className="text-emerald-800 hover:underline dark:text-emerald-500"
               href={configuration.paths.signIn}
             >
               Sign In

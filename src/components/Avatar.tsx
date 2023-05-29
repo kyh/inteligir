@@ -12,5 +12,5 @@ export const AvatarImage = classed(AvatarPrimivite.Image, {
 });
 
 export const AvatarFallback = classed(AvatarPrimivite.Fallback, {
-  base: "flex h-full w-full items-center justify-center rounded-full bg-primary-500 font-semibold uppercase text-white",
+  base: "flex h-full w-full items-center justify-center rounded-full bg-emerald-500 font-semibold uppercase text-white",
 });

@@ -25,7 +25,7 @@ const icons = {
 const AlertContext = createContext<Maybe<AlertType>>(undefined);
 
 const BaseAlert = classed("div", {
-  base: "p-4 rounded relative flex items-center justify-between text-black-300 rounded-lg text-sm",
+  base: "p-4 rounded relative flex items-center justify-between text-zinc-300 rounded-lg text-sm",
   variants: {
     type: {
       success: `bg-green-50 dark:bg-green-500/10 dark:text-green-500 text-green-900`,

@@ -27,8 +27,8 @@ export const Code = ({ children, className, copy = true }: CodeProps) => {
   return (
     <pre
       className={clsx(
-        `inline-flex items-center rounded border border-white/10 bg-gray-900 p-3 font-mono text-sm shadow transition`,
-        copy && "hover:cursor-pointer hover:bg-black-700",
+        `inline-flex items-center rounded border border-white/10 bg-zinc-900 p-3 font-mono text-sm shadow transition`,
+        copy && "hover:cursor-pointer hover:bg-black",
         className
       )}
       onClick={copy ? copyToClipboard : undefined}

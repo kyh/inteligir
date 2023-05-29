@@ -205,7 +205,7 @@ function Chart(
       <ResponsiveContainer width="100%" height="100%">
         <LineChart width={400} height={100} data={props.data}>
           <Line
-            className="text-primary-500"
+            className="text-emerald-500"
             type="monotone"
             dataKey="value"
             stroke="currentColor"

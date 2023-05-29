@@ -60,7 +60,7 @@ const HeroPattern = () => {
           [7, 3],
           [10, 6],
         ]}
-        className="h-full w-full fill-white/2.5 stroke-white/5 mix-blend-overlay"
+        className="h-full w-full fill-white/[0.025] stroke-white/5 mix-blend-overlay"
       />
     </div>
   );
