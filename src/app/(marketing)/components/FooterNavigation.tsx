@@ -107,7 +107,7 @@ function SocialLink({
   return (
     <NavLink href={href} className="group">
       <span className="sr-only">{children}</span>
-      <Icon className="h-5 w-5 fill-gray-700 transition group-hover:fill-gray-900 dark:group-hover:fill-gray-500" />
+      <Icon className="h-5 w-5 fill-zinc-700 transition group-hover:fill-zinc-900 dark:group-hover:fill-zinc-500" />
     </NavLink>
   );
 }

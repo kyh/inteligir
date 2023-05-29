@@ -57,25 +57,25 @@ const SidebarItem = classed(NextLink, {
       false: `py-2 px-3 pr-12 space-x-2.5`,
     },
     active: {
-      true: `bg-primary-50 font-medium text-current dark:bg-primary-300/10 dark:text-primary-contrast`,
-      false: `text-zinc-600 ring-transparent hover:bg-gray-50 active:bg-gray-200 dark:bg-black-600 dark:text-zinc-300 dark:hover:bg-black-400 dark:hover:text-white dark:active:bg-black-300 dark:active:bg-black-300`,
+      true: `bg-emerald-50 font-medium text-current dark:bg-emerald-300/10 dark:text-emerald-contrast`,
+      false: `text-zinc-600 ring-transparent hover:bg-zinc-50 active:bg-zinc-200 dark:bg-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-400 dark:hover:text-white dark:active:bg-zinc-300 dark:active:bg-zinc-300`,
     },
   },
   compoundVariants: [
     {
       collapsed: true,
       active: true,
-      className: `bg-primary-500/5 dark:bg-primary-500/10 !text-primary-500`,
+      className: `bg-emerald-500/5 dark:bg-emerald-500/10 !text-emerald-500`,
     },
     {
       collapsed: false,
       active: true,
-      className: `bg-primary-50 font-medium text-current dark:bg-primary-300/10 dark:text-primary-contrast [&>svg]:text-primary-500`,
+      className: `bg-emerald-50 font-medium text-current dark:bg-emerald-300/10 dark:text-emerald-contrast [&>svg]:text-emerald-500`,
     },
     {
       collapsed: true,
       active: false,
-      className: `text-zinc-600 dark:text-primary-contrast`,
+      className: `text-zinc-600 dark:text-emerald-contrast`,
     },
   ],
 });

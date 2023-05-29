@@ -4,8 +4,8 @@ import {
   ArrowLeftCircleIcon,
   ArrowRightCircleIcon,
 } from "@heroicons/react/24/outline";
-import configuration from "~/configuration";
 import clsx from "clsx";
+import configuration from "~/configuration";
 import SidebarContext from "~/lib/contexts/sidebar";
 import IconButton from "~/components/IconButton";
 import { Logo } from "~/components/Logo";
@@ -16,7 +16,7 @@ const AppSidebar: React.FC = () => {
   const { collapsed, setCollapsed } = useContext(SidebarContext);
 
   return (
-    <div className="relative flex h-screen w-2/12 max-w-xs flex-row justify-center border-r border-gray-100 py-4 dark:border-black-300 dark:bg-black-600 sm:min-w-[12rem] lg:flex lg:min-w-[17rem]">
+    <div className="relative flex h-screen w-2/12 max-w-xs flex-row justify-center border-r border-zinc-100 py-4 dark:border-zinc-300 dark:bg-zinc-600 sm:min-w-[12rem] lg:flex lg:min-w-[17rem]">
       <div className="flex w-full flex-col space-y-7 px-4">
         <AppSidebarHeader collapsed={collapsed} />
         <AppSidebarNavigation collapsed={collapsed} />

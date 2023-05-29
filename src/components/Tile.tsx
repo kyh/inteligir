@@ -15,12 +15,7 @@ const Tile: React.FCC & {
   Badge: typeof TileBadge;
 } = ({ children }) => {
   return (
-    <div
-      className={
-        "flex flex-col space-y-3 rounded-2xl border border-gray-100" +
-        " bg-white p-5 dark:border-black-400 dark:bg-black-500"
-      }
-    >
+    <div className="flex flex-col space-y-3 rounded-2xl border border-zinc-100 bg-white p-5 dark:border-zinc-400 dark:bg-zinc-500">
       {children}
     </div>
   );

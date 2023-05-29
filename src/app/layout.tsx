@@ -34,7 +34,7 @@ export default async function RootLayout({
 }) {
   return (
     <html lang="en" className="dark">
-      <body className="bg-black-700 bg-gradient-to-br from-gray-900 to-black-700 text-base text-zinc-100 antialiased">
+      <body className="bg-black bg-gradient-to-br from-zinc-900 to-black text-base text-zinc-100 antialiased">
         {children}
       </body>
     </html>

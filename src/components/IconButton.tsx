@@ -17,11 +17,11 @@ type DivProps<TTag extends React.ElementType = "div"> =
 type Props = React.PropsWithChildren<DefaultProps | DivProps>;
 
 const CLASSNAME = `rounded-full bg-transparent h-10 w-10
-  flex items-center justify-center dark:focus:ring-primary-500/70
-  ring-primary-200 transition-all outline-none
-  focus:ring-2 hover:border dark:border-black-300 border-gray-100
+  flex items-center justify-center dark:focus:ring-emerald-500/70
+  ring-emerald-200 transition-all outline-none
+  focus:ring-2 hover:border dark:border-zinc-300 border-zinc-100
   disabled:cursor-not-allowed disabled:opacity-50
-  active:bg-gray-100 dark:active:bg-black-200
+  active:bg-zinc-100 dark:active:bg-zinc-200
  `;
 
 const IconButton = forwardRef(function IconButtonComponent(

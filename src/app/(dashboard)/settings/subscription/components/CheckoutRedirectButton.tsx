@@ -2,8 +2,8 @@
 
 import React from "react";
 import ArrowRightIcon from "@heroicons/react/24/outline/ArrowRightIcon";
-import configuration from "~/configuration";
 import clsx from "clsx";
+import configuration from "~/configuration";
 import isBrowser from "~/core/generic/is-browser";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { Button } from "~/components/Button";
@@ -30,7 +30,7 @@ const CheckoutRedirectButton: React.FCC<{
       />
       <Button
         className={clsx({
-          "bg-primary-contrast text-zinc-800": props.recommended,
+          "bg-emerald-contrast text-zinc-800": props.recommended,
         })}
         color={props.recommended ? "custom" : "secondary"}
         disabled={props.disabled}

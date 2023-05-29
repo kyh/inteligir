@@ -25,7 +25,7 @@ function SignUpPage() {
           <span>Already have an account?</span>
 
           <Link
-            className="text-primary-800 hover:underline dark:text-primary-500"
+            className="text-emerald-800 hover:underline dark:text-emerald-500"
             href={SIGN_IN_PATH}
           >
             Sign In

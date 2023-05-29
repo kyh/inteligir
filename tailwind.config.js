@@ -1,5 +1,3 @@
-const colors = require("tailwindcss/colors");
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   content: ["./src/**/*.{ts,tsx,jsx,js}"],
@@ -22,21 +20,47 @@ module.exports = {
       "9xl": ["8rem", { lineHeight: "1" }],
     },
     typography: require("./scripts/typography"),
+    container: {
+      center: true,
+      padding: "2rem",
+      screens: {
+        "2xl": "1400px",
+      },
+    },
     extend: {
       colors: {
+        border: "hsl(var(--border))",
+        input: "hsl(var(--input))",
+        ring: "hsl(var(--ring))",
+        background: "hsl(var(--background))",
+        foreground: "hsl(var(--foreground))",
         primary: {
-          ...colors.emerald,
-          contrast: "#fff",
+          DEFAULT: "hsl(var(--primary))",
+          foreground: "hsl(var(--primary-foreground))",
         },
-        black: {
-          50: "#525252",
-          100: "#424242",
-          200: "#363636",
-          300: "#282828",
-          400: "#222",
-          500: "#141414",
-          600: "#0a0a0a",
-          700: "#000",
+        secondary: {
+          DEFAULT: "hsl(var(--secondary))",
+          foreground: "hsl(var(--secondary-foreground))",
+        },
+        destructive: {
+          DEFAULT: "hsl(var(--destructive))",
+          foreground: "hsl(var(--destructive-foreground))",
+        },
+        muted: {
+          DEFAULT: "hsl(var(--muted))",
+          foreground: "hsl(var(--muted-foreground))",
+        },
+        accent: {
+          DEFAULT: "hsl(var(--accent))",
+          foreground: "hsl(var(--accent-foreground))",
+        },
+        popover: {
+          DEFAULT: "hsl(var(--popover))",
+          foreground: "hsl(var(--popover-foreground))",
+        },
+        card: {
+          DEFAULT: "hsl(var(--card))",
+          foreground: "hsl(var(--card-foreground))",
         },
       },
       backgroundImage: {
@@ -47,19 +71,24 @@ module.exports = {
         highlight:
           "0px 10px 25px rgb(0 0 0 / 5%), inset 0px 1px 1px rgb(255 255 255 / 20%)",
       },
-      maxWidth: {
-        lg: "33rem",
-        "2xl": "40rem",
-        "3xl": "50rem",
-        "5xl": "66rem",
+      borderRadius: {
+        lg: `var(--radius)`,
+        md: `calc(var(--radius) - 2px)`,
+        sm: "calc(var(--radius) - 4px)",
       },
-      opacity: {
-        1: "0.01",
-        2.5: "0.025",
-        7.5: "0.075",
-        15: "0.15",
+      keyframes: {
+        "accordion-down": {
+          from: { height: 0 },
+          to: { height: "var(--radix-accordion-content-height)" },
+        },
+        "accordion-up": {
+          from: { height: "var(--radix-accordion-content-height)" },
+          to: { height: 0 },
+        },
       },
       animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
         tilt: "tilt 6s infinite linear",
         disco: "disco 6s infinite linear",
       },
@@ -82,5 +111,9 @@ module.exports = {
       },
     },
   },
-  plugins: [require("@tailwindcss/forms"), require("@tailwindcss/typography")],
+  plugins: [
+    require("tailwindcss-animate"),
+    require("@tailwindcss/forms"),
+    require("@tailwindcss/typography"),
+  ],
 };

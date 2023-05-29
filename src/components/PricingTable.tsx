@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Transition } from "@headlessui/react";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
-import configuration from "~/configuration";
 import clsx from "clsx";
+import configuration from "~/configuration";
 import { Button } from "~/components/Button";
 import Heading from "~/components/Heading";
 import If from "~/components/If";
@@ -114,8 +114,8 @@ function PricingItem(
          p-6 lg:w-4/12 lg:p-8 xl:p-10 2xl:w-3/12
       `,
         {
-          ["bg-primary-600 text-primary-contrast"]: recommended,
-          ["bg-gray-50/20 dark:bg-black-300/30"]: !recommended,
+          ["text-emerald-contrast bg-emerald-600"]: recommended,
+          ["bg-zinc-50/20 dark:bg-zinc-300/30"]: !recommended,
         }
       )}
     >
@@ -130,8 +130,8 @@ function PricingItem(
           <If condition={props.product.badge}>
             <span
               className={clsx(`rounded-md px-2 py-1 text-xs font-medium`, {
-                ["bg-primary-700 text-primary-contrast"]: recommended,
-                ["bg-gray-50 text-zinc-500 dark:bg-black-300" +
+                ["text-emerald-contrast bg-emerald-700"]: recommended,
+                ["bg-zinc-50 text-zinc-500 dark:bg-zinc-300" +
                 " dark:text-zinc-300"]: !recommended,
               })}
             >
@@ -142,7 +142,7 @@ function PricingItem(
 
         <span
           className={clsx("text-sm font-medium", {
-            "text-primary-contrast": recommended,
+            "text-emerald-contrast": recommended,
             "text-zinc-400": !recommended,
           })}
         >
@@ -285,7 +285,7 @@ function DefaultCheckoutButton(
       <Button
         as={Link}
         className={clsx({
-          ["bg-primary-contrast hover:bg-primary-contrast/90" +
+          ["bg-emerald-contrast hover:bg-emerald-contrast/90" +
           " font-bold text-zinc-900"]: props.recommended,
         })}
         href={linkHref}

@@ -24,7 +24,7 @@ function FeedbackButton(props: React.ComponentProps<"button">) {
   return (
     <button
       type="submit"
-      className="px-3 text-sm font-medium text-zinc-600 transition hover:bg-gray-900/2.5 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
+      className="hover:bg-zinc-900/2.5 px-3 text-sm font-medium text-zinc-600 transition hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
       {...props}
     />
   );
@@ -43,9 +43,9 @@ const FeedbackForm = forwardRef(function FeedbackForm(
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Was this page helpful?
       </p>
-      <div className="group grid h-8 grid-cols-[1fr,1px,1fr] overflow-hidden rounded-full border border-gray-900/10 dark:border-white/10">
+      <div className="group grid h-8 grid-cols-[1fr,1px,1fr] overflow-hidden rounded-full border border-zinc-900/10 dark:border-white/10">
         <FeedbackButton data-response="yes">Yes</FeedbackButton>
-        <div className="bg-gray-900/10 dark:bg-white/10" />
+        <div className="bg-zinc-900/10 dark:bg-white/10" />
         <FeedbackButton data-response="no">No</FeedbackButton>
       </div>
     </form>

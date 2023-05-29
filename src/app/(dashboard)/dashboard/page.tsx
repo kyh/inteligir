@@ -18,7 +18,7 @@ function DashboardPage() {
   return (
     <>
       <AppHeader
-        Icon={<Squares2X2Icon className="h-6 dark:text-primary-500" />}
+        Icon={<Squares2X2Icon className="h-6 dark:text-emerald-500" />}
       >
         Dashboard
       </AppHeader>

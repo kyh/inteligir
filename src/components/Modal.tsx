@@ -47,7 +47,7 @@ const Modal: React.FC<
               &#8203;
             </span>
 
-            <div className="inline-block max-h-[90%] w-full max-w-xl transform overflow-auto rounded-xl bg-white p-6 text-left align-middle shadow-xl transition-all dark:bg-black-400">
+            <div className="inline-block max-h-[90%] w-full max-w-xl transform overflow-auto rounded-xl bg-white p-6 text-left align-middle shadow-xl transition-all dark:bg-zinc-400">
               <div className="flex flex-col space-y-4">
                 <div className="flex items-center">
                   <DialogTitle className="flex w-full text-xl font-semibold text-current">
