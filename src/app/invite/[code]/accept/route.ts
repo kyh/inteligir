@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 import configuration from "~/configuration";
+import { z } from "zod";
 import { throwInternalServerErrorException } from "~/core/http-exceptions";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";

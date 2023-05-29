@@ -4,8 +4,8 @@ import {
   ArrowLeftCircleIcon,
   ArrowRightCircleIcon,
 } from "@heroicons/react/24/outline";
-import clsx from "clsx";
 import configuration from "~/configuration";
+import clsx from "clsx";
 import SidebarContext from "~/lib/contexts/sidebar";
 import IconButton from "~/components/IconButton";
 import { Logo } from "~/components/Logo";
@@ -21,7 +21,6 @@ const AppSidebar: React.FC = () => {
         <AppSidebarHeader collapsed={collapsed} />
         <AppSidebarNavigation collapsed={collapsed} />
       </div>
-
       <AppSidebarFooterMenu collapsed={collapsed} setCollapsed={setCollapsed} />
     </div>
   );
@@ -78,7 +77,6 @@ function CollapsibleButton(
             <ArrowRightCircleIcon className="h-6" />
           </IconButton>
         </TooltipTrigger>
-
         <TooltipContent>Expand Sidebar</TooltipContent>
       </Tooltip>
     );
@@ -95,7 +93,6 @@ function CollapsibleButton(
         onClick={() => props.onClick(!props.collapsed)}
       >
         <ArrowLeftCircleIcon className="h-6" />
-
         <span>Collapse Sidebar</span>
       </button>
     </div>

@@ -1,5 +1,5 @@
 import { cloneElement } from "react";
-import { ComponentProps, classed, deriveClassed } from "@tw-classed/react";
+import { classed, ComponentProps, deriveClassed } from "@tw-classed/react";
 import Spinner from "~/components/Spinner";
 
 const BaseButton = classed("button", {

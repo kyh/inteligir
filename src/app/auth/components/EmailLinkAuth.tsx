@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, type FormEventHandler } from "react";
-import toast from "react-hot-toast";
 import configuration from "~/configuration";
+import toast from "react-hot-toast";
 import useSignInWithOtp from "~/core/hooks/use-sign-in-with-otp";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";

@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, forwardRef, useState } from "react";
+import { forwardRef, Fragment, useState } from "react";
 import { Transition } from "@headlessui/react";
 import { SmallPrint } from "~/app/(marketing)/components/FooterNavigation";
 import { PageNavigation } from "./PageNavigation";
