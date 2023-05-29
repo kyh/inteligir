@@ -12,8 +12,8 @@ export default function Home() {
         subtitle="built for teams"
         description={
           <>
-            A multi-platform, privacy-first, and hyper-relevant AI bot <br />{" "}
-            that fits effortlessly into your workflow
+            A multiplayer, privacy-first, hyper-relevant AI assistant <br />{" "}
+            that fits effortlessly in your organization workflow
           </>
         }
         action={<PrimaryButton>Request Early Access &rarr;</PrimaryButton>}

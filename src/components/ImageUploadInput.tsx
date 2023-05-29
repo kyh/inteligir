@@ -95,7 +95,7 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
       <label
         id="image-upload-input"
         tabIndex={0}
-        className="\n        focus:ring-2\n relative flex h-10 cursor-pointer rounded-md border border-dashed border-gray-200 bg-white px-3 py-2 outline-none ring-offset-1 transition-all hover:bg-gray-50        focus:ring-primary-200 dark:border-black-200 dark:bg-black-400 dark:hover:border-black-100 dark:focus:ring-primary-500/70 dark:focus:ring-offset-black-400"
+        className="\n        focus:ring-2\n relative flex h-10 cursor-pointer rounded-md border border-dashed border-zinc-200 bg-white px-3 py-2 outline-none ring-offset-1 transition-all hover:bg-zinc-50        focus:ring-emerald-200 dark:border-zinc-200 dark:bg-zinc-400 dark:hover:border-zinc-100 dark:focus:ring-emerald-500/70 dark:focus:ring-offset-zinc-400"
       >
         <input
           {...props}
@@ -110,7 +110,7 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
         <div className="flex items-center space-x-4">
           <div className="flex">
             <If condition={!state.image}>
-              <CloudArrowUpIcon className="h-5 text-zinc-500 dark:text-black-100" />
+              <CloudArrowUpIcon className="h-5 text-zinc-500 dark:text-zinc-100" />
             </If>
 
             <If condition={state.image}>

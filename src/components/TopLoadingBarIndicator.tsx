@@ -27,7 +27,7 @@ function TopLoadingBarIndicator() {
     <LoadingBar
       height={2}
       waitingTime={0}
-      className="bg-primary-500"
+      className="bg-emerald-500"
       color=""
       ref={ref}
     />

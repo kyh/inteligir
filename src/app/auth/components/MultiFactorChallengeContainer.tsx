@@ -171,7 +171,7 @@ function FactorsListContainer({
         <div key={factor.id}>
           <Button
             variant="outline"
-            className="border-gray-50"
+            className="border-zinc-50"
             onClick={() => onSelect(factor.id)}
           >
             {factor.friendly_name}

@@ -6,7 +6,7 @@ export const Badge = classed("span", {
   base: "inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium",
   variants: {
     color: {
-      normal: "bg-gray-800 text-zinc-400",
+      normal: "bg-zinc-800 text-zinc-400",
       green: "bg-emerald-100 text-emerald-800",
       transparent: "bg-transparent border border-white/10",
       // Update these

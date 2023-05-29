@@ -28,7 +28,7 @@ const DialogOverlay = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <DialogPrimitive.Overlay
     className={clsx(
-      "animate-in fade-in fixed inset-0 z-50 transition-opacity",
+      "fixed inset-0 z-50 transition-opacity animate-in fade-in",
       className
     )}
     {...props}
@@ -43,13 +43,13 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
 >(({ className, children, ...props }, ref) => (
   <DialogPortal>
-    <DialogOverlay className="bg-black-500/20 dark:bg-white/20" />
+    <DialogOverlay className="bg-zinc-500/20 dark:bg-white/20" />
 
     <DialogPrimitive.Content
       ref={ref}
       className={clsx(
         "animate-in fade-in-90 slide-in-from-bottom-10 sm:zoom-in-90" +
-          " sm:slide-in-from-bottom-0 fixed z-50 grid w-full scale-100 gap-4" +
+          " fixed z-50 grid w-full scale-100 gap-4 sm:slide-in-from-bottom-0" +
           " p-6 opacity-100 sm:max-w-lg sm:rounded-lg",
         className
       )}
@@ -57,7 +57,7 @@ const DialogContent = React.forwardRef<
     >
       {children}
 
-      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-primary-400 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-primary-100 dark:focus:ring-primary-400 dark:focus:ring-offset-primary-900 dark:data-[state=open]:bg-primary-800">
+      <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-emerald-100 dark:focus:ring-emerald-400 dark:focus:ring-offset-emerald-900 dark:data-[state=open]:bg-emerald-800">
         <XMarkIcon className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
@@ -117,8 +117,8 @@ const DialogDescription = React.forwardRef<
   <DialogPrimitive.Description
     ref={ref}
     className={clsx(
-      "text-sm text-primary-500",
-      "dark:text-primary-400",
+      "text-sm text-emerald-500",
+      "dark:text-emerald-400",
       className
     )}
     {...props}

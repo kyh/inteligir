@@ -65,8 +65,8 @@ const resources = [
 
 function ResourceIcon({ icon: Icon }: { icon: React.ComponentType<any> }) {
   return (
-    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/7.5 ring-1 ring-white/15 backdrop-blur-[2px] transition duration-300 group-hover:bg-emerald-300/10 group-hover:ring-emerald-400 group-hover:ring-gray-900/25">
-      <Icon className="h-5 w-5 fill-white/10 stroke-gray-400 transition-colors duration-300 group-hover:fill-emerald-300/10 group-hover:stroke-emerald-400" />
+    <div className="flex h-7 w-7 items-center justify-center rounded-full bg-white/[0.075] ring-1 ring-white/[0.15] backdrop-blur-[2px] transition duration-300 group-hover:bg-emerald-300/10 group-hover:ring-emerald-400">
+      <Icon className="h-5 w-5 fill-white/10 stroke-zinc-400 transition-colors duration-300 group-hover:fill-emerald-300/10 group-hover:stroke-emerald-400" />
     </div>
   );
 }

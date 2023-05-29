@@ -38,7 +38,7 @@ function OrganizationMembersList({
 
   return (
     <div className="w-full space-y-10">
-      <div className="flex flex-col divide-y divide-gray-100 dark:divide-black-400">
+      <div className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-400">
         {members.map((member) => {
           const displayName = member.data.displayName
             ? member.data.displayName

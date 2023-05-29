@@ -26,7 +26,7 @@ const SettingsTile: React.FCC<{
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-100 p-2.5 dark:border-black-300 lg:p-6">
+      <div className="rounded-lg border border-zinc-100 p-2.5 dark:border-zinc-300 lg:p-6">
         {children}
       </div>
     </div>

@@ -21,10 +21,10 @@ const PopoverContent = forwardRef<
         sideOffset={sideOffset}
         alignOffset={alignOffset}
         className={clsx(
-          `animate-in data-[side=bottom]:slide-in-from-top-2
-          data-[side=top]:slide-in-from-bottom-2 z-50 rounded-md border
-          border-gray-100 bg-white p-2 shadow-lg outline-none
-          dark:border-black-300 dark:bg-black-400`,
+          `z-50 rounded-md
+          border border-zinc-100 bg-white p-2
+          shadow-lg outline-none animate-in data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2
+          dark:border-zinc-300 dark:bg-zinc-400`,
           className
         )}
         {...props}
@@ -41,14 +41,14 @@ const PopoverItem = forwardRef<
     <div
       ref={ref}
       className={clsx(
-        `flex cursor-pointer items-center rounded-md bg-transparent px-4 py-2 transition duration-150 ease-in-out hover:bg-gray-50 focus:outline-none active:bg-gray-100 dark:hover:bg-black-300 dark:active:bg-black-300`,
+        `flex cursor-pointer items-center rounded-md bg-transparent px-4 py-2 transition duration-150 ease-in-out hover:bg-zinc-50 focus:outline-none active:bg-zinc-100 dark:hover:bg-zinc-300 dark:active:bg-zinc-300`,
         className
       )}
       {...props}
     >
       <span
         className={clsx(
-          `truncate text-sm font-medium text-zinc-700 hover:text-black-500 dark:text-zinc-300 dark:hover:text-white`
+          `truncate text-sm font-medium text-zinc-700 hover:text-zinc-500 dark:text-zinc-300 dark:hover:text-white`
         )}
       >
         {children}
@@ -62,7 +62,7 @@ const PopoverDivider: React.FC<{
 }> = ({ className }) => (
   <div
     className={clsx(
-      `my-1 border-t border-gray-100 dark:border-black-300`,
+      `my-1 border-t border-zinc-100 dark:border-zinc-300`,
       className
     )}
   />

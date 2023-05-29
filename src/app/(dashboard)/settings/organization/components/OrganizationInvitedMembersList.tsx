@@ -15,7 +15,7 @@ const OrganizationInvitedMembersList: React.FCC<{
   }
 
   return (
-    <div className="flex flex-col divide-y divide-gray-100 dark:divide-black-400">
+    <div className="flex flex-col divide-y divide-zinc-100 dark:divide-zinc-400">
       {invitedMembers.map(({ invitedEmail, role, id }) => {
         return (
           <div
