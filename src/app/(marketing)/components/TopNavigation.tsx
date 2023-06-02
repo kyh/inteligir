@@ -2,11 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import configuration from "~/configuration";
 import clsx from "clsx";
 import { useScroll } from "framer-motion";
 import useSignOut from "~/core/hooks/use-sign-out";
-import useUserSession from "~/core/hooks/use-user-session";
+import UserSession from "~/core/session/types/user-session";
 import If from "~/components/If";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
@@ -14,9 +13,12 @@ import ProfileDropdown from "~/components/ProfileDropdown";
 
 const baseContainerClassName = "sticky top-0 z-40 w-full bg-transparent";
 
-export const TopNavigation = () => {
+type TopNavigationProps = {
+  userSession: Maybe<UserSession>;
+};
+
+export const TopNavigation = ({ userSession }: TopNavigationProps) => {
   const signOut = useSignOut();
-  const userSession = useUserSession();
   const [containerClassName, setContainerClassName] = useState(
     baseContainerClassName
   );
@@ -34,7 +36,7 @@ export const TopNavigation = () => {
   }, [scrollY]);
 
   return (
-    <div className={containerClassName}>
+    <header className={containerClassName}>
       <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
         <Link href="/">
           <Logo />
@@ -56,12 +58,9 @@ export const TopNavigation = () => {
           condition={userSession?.auth}
           fallback={
             <div className="space-x-2">
-              <Link
-                className="text-sm text-white"
-                href={configuration.paths.signIn}
-              >
+              <NavLink variant="primary" href="/auth/sign-in">
                 Sign In
-              </Link>
+              </NavLink>
             </div>
           }
         >
@@ -71,6 +70,6 @@ export const TopNavigation = () => {
           />
         </If>
       </div>
-    </div>
+    </header>
   );
 };

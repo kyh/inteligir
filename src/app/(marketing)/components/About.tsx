@@ -73,13 +73,17 @@ export const About = () => {
         className="mt-14"
         title="Plug 'n Play"
         description={
-          <AboutCardDescriptionList
-            points={[
-              "Connect your knowledge base",
-              "Train your custom model",
-              "Smart presets with flexible configurations",
-            ]}
-          />
+          <ul className="flex flex-col gap-1">
+            <li className="flex items-start gap-2.5">
+              1/ Connect your knowledge base
+            </li>
+            <li className="flex items-start gap-2.5">
+              2/ Train your custom model
+            </li>
+            <li className="flex items-start gap-2.5">
+              3/ Integrate with your workflow
+            </li>
+          </ul>
         }
         imageSrc="/assets/images/monitor.png"
         imageAlt="Set up in less than 2 minutes"
@@ -90,9 +94,9 @@ export const About = () => {
           description={
             <AboutCardDescriptionList
               points={[
-                "Get your response times below 10ms with pre-cached responses from the edge",
-                "Avoid annoying rate limits",
-                "Bypass 3rd party pay per request APIs",
+                "Smart LLM presets with flexible configurations to prevent hallucinations",
+                "Customize your model for even more relevant results",
+                "Multiplayer mode means there's always a human in the loop",
               ]}
             />
           }
@@ -107,7 +111,7 @@ export const About = () => {
               points={[
                 "Built in permission and access control",
                 "End to end encryption",
-                "Compose our service with yours -- bring your own interface/model/database",
+                "BYO* *interface/model/database",
               ]}
             />
           }
@@ -122,9 +126,8 @@ export const About = () => {
         description={
           <AboutCardDescriptionList
             points={[
-              "One click self host option",
-              "Compose our service with yours -- bring your own interface/model/database",
-              "",
+              "Over data 100 integrations to train from",
+              "Multi-platform prebuilt interfaces to work where you work",
             ]}
           />
         }

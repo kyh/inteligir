@@ -16,7 +16,6 @@ const ProfileAvatar: React.FCC<ProfileAvatarProps> = (props) => {
     return (
       <Avatar>
         {photoUrl ? <AvatarImage src={photoUrl} /> : null}
-
         <AvatarFallback>{getUserInitials(props.user)}</AvatarFallback>
       </Avatar>
     );

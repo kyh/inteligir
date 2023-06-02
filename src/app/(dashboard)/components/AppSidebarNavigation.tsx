@@ -1,8 +1,8 @@
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
-import { classed } from "@tw-classed/react";
 import NAVIGATION_CONFIG from "~/navigation.config";
 import isRouteActive from "~/core/generic/is-route-active";
+import { classed } from "~/lib/utils/cn";
 import If from "~/components/If";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 
