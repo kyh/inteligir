@@ -1,13 +1,12 @@
 "use client";
 
-import { classed } from "@tw-classed/react";
-import clsx from "clsx";
 import {
   motion,
   useMotionTemplate,
   useMotionValue,
   type MotionValue,
 } from "framer-motion";
+import { classed, cn } from "~/lib/utils/cn";
 import { GridPattern, type GridPatternProps } from "~/components/GridPattern";
 
 export const Card = classed("article", {
@@ -93,7 +92,7 @@ export const HighlightCard = ({
   return (
     <Card
       variant="highlight"
-      className={clsx("group relative", className)}
+      className={cn("group relative", className)}
       onMouseMove={onMouseMove}
       {...props}
     >

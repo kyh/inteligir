@@ -8,7 +8,8 @@ import {
   ShieldExclamationIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
-import { classed, ComponentProps, deriveClassed } from "@tw-classed/react";
+import { ComponentProps, deriveClassed } from "@tw-classed/react";
+import { classed } from "~/lib/utils/cn";
 import Heading from "~/components/Heading";
 import IconButton from "~/components/IconButton";
 import If from "~/components/If";
