@@ -1,4 +1,5 @@
-import { classed, type VariantProps } from "@tw-classed/react";
+import { type VariantProps } from "@tw-classed/react";
+import { classed } from "~/lib/utils/cn";
 
 export type BadgeProps = VariantProps<typeof Badge>;
 

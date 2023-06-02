@@ -169,11 +169,7 @@ function FactorsListContainer({
 
       {verifiedFactors.map((factor) => (
         <div key={factor.id}>
-          <Button
-            variant="outline"
-            className="border-zinc-50"
-            onClick={() => onSelect(factor.id)}
-          >
+          <Button onClick={() => onSelect(factor.id)}>
             {factor.friendly_name}
           </Button>
         </div>

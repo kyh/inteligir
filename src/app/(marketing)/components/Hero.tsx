@@ -1,16 +1,10 @@
 import { Badge } from "~/components/Badge";
 import { GridPattern } from "~/components/GridPattern";
 import { HeroBackgroundImage } from "./HeroBackgroundImage";
+import { PrimaryButton } from "./HomeButton";
 import { SectionTitle } from "./SectionTitle";
 
-type Props = {
-  title: React.ReactNode;
-  subtitle: React.ReactNode;
-  description: React.ReactNode;
-  action: React.ReactNode;
-};
-
-export const Hero = ({ title, subtitle, description, action }: Props) => {
+export const Hero = () => {
   return (
     <>
       <HeroPattern />
@@ -20,14 +14,17 @@ export const Hero = ({ title, subtitle, description, action }: Props) => {
         </div>
         <SectionTitle>
           <span className="block bg-gradient-to-b from-emerald-300 to-green-600 bg-clip-text text-transparent">
-            {title}
+            Personalized AI assistants
           </span>
-          <span>{subtitle}</span>
+          <span>built for teams</span>
         </SectionTitle>
         <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
-          {description}
+          A multi-platform, privacy-first, hyper-relevant AI assistant <br />{" "}
+          that fits effortlessly in your organization workflow
         </p>
-        <div className="mt-8 grid items-start justify-center">{action}</div>
+        <div className="mt-8 grid items-start justify-center">
+          <PrimaryButton>Request Early Access &rarr;</PrimaryButton>
+        </div>
       </section>
       <div className="full-bleed relative min-h-[30vh]">
         <video

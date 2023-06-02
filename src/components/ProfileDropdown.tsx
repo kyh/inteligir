@@ -5,18 +5,16 @@ import {
   Cog8ToothIcon,
   Squares2X2Icon,
 } from "@heroicons/react/24/outline";
-import configuration from "~/configuration";
 import type UserSession from "~/core/session/types/user-session";
 import {
   DropdownMenu,
-  DropdownMenuLabel,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/Dropdown";
 import ProfileAvatar from "~/components/ProfileAvatar";
-import { Button } from "~/components/Button";
 
 const ProfileDropdown: React.FCC<{
   userSession: Maybe<UserSession>;
@@ -33,16 +31,18 @@ const ProfileDropdown: React.FCC<{
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+        <button className="relative h-8 w-8 rounded-full">
           <ProfileAvatar user={userSession} />
-        </Button>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-56" align="end" forceMount
+        className="w-56"
+        align="end"
+        forceMount
         collisionPadding={{ right: 20 }}
       >
         <DropdownMenuLabel className="font-normal">
-          <div className="flex flex-col space-y-1">
+          <div className="flex flex-col space-y-2">
             <p className="text-sm font-medium leading-none">Signed in as</p>
             <p className="text-xs leading-none text-muted-foreground">
               {signedInAsLabel}
@@ -53,7 +53,7 @@ const ProfileDropdown: React.FCC<{
         <DropdownMenuItem>
           <Link
             className="flex h-full w-full items-center space-x-2"
-            href={configuration.paths.appHome}
+            href="/dashboard"
           >
             <Squares2X2Icon className="h-5" />
             <span>Dashboard</span>

@@ -1,19 +1,18 @@
 import { cloneElement } from "react";
-import { classed, ComponentProps, deriveClassed } from "@tw-classed/react";
+import { ComponentProps, deriveClassed } from "@tw-classed/react";
+import { classed } from "~/lib/utils/cn";
 import Spinner from "~/components/Spinner";
 
 const BaseButton = classed("button", {
-  base: "inline-flex items-center border shadow-sm font-medium transition focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 space-x-1 justify-center",
+  base: "inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 space-x-1 justify-center",
   variants: {
     variant: {
       normal:
-        "border-white/20 bg-black hover:bg-zinc-900 hover:text-white disabled:hover:bg-black",
+        "border-white/20 bg-black hover:bg-zinc-900 hover:text-white disabled:hover:bg-black border shadow-sm font-medium transition",
       primary:
-        "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-300",
-      outline:
-        "text-zinc-400 border-white/20 hover:bg-white/5 hover:text-white",
-      text: "text-emerald-500 hover:text-emerald-300 shadow-none border-0",
-      ghost: "",
+        "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-300 border shadow-sm font-medium transition",
+      text: "text-emerald-500 hover:text-emerald-300",
+      plain: "",
     },
     size: {
       none: "px-0 py-0",
@@ -21,7 +20,7 @@ const BaseButton = classed("button", {
       md: "px-4 py-2 text-sm",
     },
     shape: {
-      normal: "rounded-full",
+      pill: "rounded-full",
       square: "rounded",
     },
     selected: {
@@ -37,7 +36,7 @@ const BaseButton = classed("button", {
   defaultVariants: {
     variant: "normal",
     size: "md",
-    shape: "normal",
+    shape: "pill",
   },
 });
 
