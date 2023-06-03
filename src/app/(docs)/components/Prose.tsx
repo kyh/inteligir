@@ -1,4 +1,4 @@
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 type ProseProps = {
   as?: React.ElementType;
@@ -13,7 +13,7 @@ export function Prose({
 }: ProseProps) {
   return (
     <Component
-      className={clsx(className, "prose dark:prose-invert")}
+      className={cn(className, "prose dark:prose-invert")}
       {...props}
     />
   );

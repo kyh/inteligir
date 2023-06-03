@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import clsx from "clsx";
 import { useScroll } from "framer-motion";
 import useSignOut from "~/core/hooks/use-sign-out";
 import UserSession from "~/core/session/types/user-session";
+import { cn } from "~/lib/utils/cn";
 import If from "~/components/If";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
@@ -27,7 +27,7 @@ export const TopNavigation = ({ userSession }: TopNavigationProps) => {
   useEffect(() => {
     const subscription = scrollY.on("change", () => {
       if (scrollY.get() > 100) {
-        setContainerClassName(clsx(baseContainerClassName, "backdrop-blur"));
+        setContainerClassName(cn(baseContainerClassName, "backdrop-blur"));
       } else {
         setContainerClassName(baseContainerClassName);
       }

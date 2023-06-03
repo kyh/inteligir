@@ -1,5 +1,5 @@
 import React, { createElement, forwardRef } from "react";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 type DefaultProps = React.ButtonHTMLAttributes<unknown> & {
   loading?: boolean;
@@ -33,7 +33,7 @@ const IconButton = forwardRef(function IconButtonComponent(
 
   const allProps = {
     ...props,
-    className: clsx(CLASSNAME, className),
+    className: cn(CLASSNAME, className),
     disabled: loading || disabled,
     "aria-label": label,
     title: label,

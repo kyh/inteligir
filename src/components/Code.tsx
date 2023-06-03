@@ -1,7 +1,7 @@
 import { Children } from "react";
 import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
-import clsx from "clsx";
 import toaster from "react-hot-toast";
+import { cn } from "~/lib/utils/cn";
 
 type CodeProps = {
   children?: React.ReactNode;
@@ -26,7 +26,7 @@ export const Code = ({ children, className, copy = true }: CodeProps) => {
 
   return (
     <pre
-      className={clsx(
+      className={cn(
         `inline-flex items-center rounded border border-white/10 bg-zinc-900 p-3 font-mono text-sm shadow transition`,
         copy && "hover:cursor-pointer hover:bg-black",
         className

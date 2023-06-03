@@ -3,7 +3,7 @@
 import * as React from "react";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -13,7 +13,7 @@ const DialogPortal = ({
   children,
   ...props
 }: DialogPrimitive.DialogPortalProps) => (
-  <DialogPrimitive.Portal className={clsx(className)} {...props}>
+  <DialogPrimitive.Portal className={cn(className)} {...props}>
     <div className="fixed inset-0 z-50 flex items-start justify-center sm:items-center">
       {children}
     </div>
@@ -27,7 +27,7 @@ const DialogOverlay = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, children, ...props }, ref) => (
   <DialogPrimitive.Overlay
-    className={clsx(
+    className={cn(
       "fixed inset-0 z-50 transition-opacity animate-in fade-in",
       className
     )}
@@ -47,7 +47,7 @@ const DialogContent = React.forwardRef<
 
     <DialogPrimitive.Content
       ref={ref}
-      className={clsx(
+      className={cn(
         "animate-in fade-in-90 slide-in-from-bottom-10 sm:zoom-in-90" +
           " fixed z-50 grid w-full scale-100 gap-4 sm:slide-in-from-bottom-0" +
           " p-6 opacity-100 sm:max-w-lg sm:rounded-lg",
@@ -72,7 +72,7 @@ const DialogHeader = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={clsx(
+    className={cn(
       "flex flex-col space-y-2 text-center sm:text-left",
       className
     )}
@@ -87,7 +87,7 @@ const DialogFooter = ({
   ...props
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={clsx(
+    className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
       className
     )}
@@ -103,7 +103,7 @@ const DialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={clsx("text-lg", className)}
+    className={cn("text-lg", className)}
     {...props}
   />
 ));
@@ -116,7 +116,7 @@ const DialogDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Description
     ref={ref}
-    className={clsx(
+    className={cn(
       "text-sm text-emerald-500",
       "dark:text-emerald-400",
       className

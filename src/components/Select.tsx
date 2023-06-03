@@ -1,7 +1,7 @@
 import * as React from "react";
 import { CheckCircleIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import * as SelectPrimitive from "@radix-ui/react-select";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 const Select = SelectPrimitive.Root;
 const SelectGroup = SelectPrimitive.Group;
@@ -13,7 +13,7 @@ const SelectTrigger = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Trigger
     ref={ref}
-    className={clsx(
+    className={cn(
       `flex h-10 w-full items-center justify-between space-x-2.5
         rounded-md border bg-transparent px-2.5 py-1.5 ring-offset-1 transition-all
         duration-300 placeholder:text-zinc-400 hover:bg-zinc-50
@@ -43,7 +43,7 @@ const SelectContent = React.forwardRef<
   <SelectPrimitive.Portal>
     <SelectPrimitive.Content
       ref={ref}
-      className={clsx(
+      className={cn(
         `fade-in-250 relative z-50 w-auto min-w-[8rem] overflow-hidden border border-transparent border-t-zinc-50
           bg-white shadow-xl animate-in dark:border-zinc-200 dark:bg-zinc-300 dark:shadow-[0_0_40px_0] dark:shadow-emerald-600/10 lg:rounded-md`,
         className
@@ -66,7 +66,7 @@ const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={clsx(
+    className={cn(
       "py-1.5 pl-2 pr-2 text-xs font-medium text-zinc-400 dark:text-zinc-400",
       className
     )}
@@ -89,7 +89,7 @@ const SelectItem = React.forwardRef<
 >(({ className, children, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
-    className={clsx(SelectItemClassName, className)}
+    className={cn(SelectItemClassName, className)}
     {...props}
   >
     <span className="absolute left-2 flex h-3.5 w-3.5 items-center justify-center">
@@ -113,7 +113,7 @@ const SelectAction = React.forwardRef<
       tabIndex={0}
       role="button"
       ref={ref}
-      className={clsx(SelectItemClassName, "!pl-4 !pr-4", className)}
+      className={cn(SelectItemClassName, "!pl-4 !pr-4", className)}
       {...props}
     >
       {children}
@@ -127,7 +127,7 @@ const SelectSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator
     ref={ref}
-    className={clsx("-mx-1 my-1 h-px bg-zinc-100 dark:bg-zinc-200", className)}
+    className={cn("-mx-1 my-1 h-px bg-zinc-100 dark:bg-zinc-200", className)}
     {...props}
   />
 ));

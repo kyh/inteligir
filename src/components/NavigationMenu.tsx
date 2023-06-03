@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 type BaseProps = {
   vertical?: boolean;
@@ -21,7 +21,7 @@ type Props = BaseProps &
 function NavigationMenu(props: PropsWithChildren<Props>) {
   return (
     <nav
-      className={clsx(`NavigationMenu`, {
+      className={cn(`NavigationMenu`, {
         PillNavigationMenu: "pill" in props && props.pill,
         BorderedNavigationMenu: "bordered" in props && props.bordered,
         SecondaryNavigationMenu: "secondary" in props && props.secondary,
