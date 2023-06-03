@@ -1,7 +1,7 @@
 import { forwardRef } from "react";
 import Link from "next/link";
-import clsx from "clsx";
 import { motion } from "framer-motion";
+import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
@@ -23,7 +23,7 @@ export const TopNavigation = forwardRef(function TopNavigation(
   return (
     <motion.div
       ref={ref}
-      className={clsx(
+      className={cn(
         className,
         "fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between gap-12 px-4 transition sm:px-6 lg:z-30 lg:px-8",
         !isInsideMobileNavigation &&
@@ -32,7 +32,7 @@ export const TopNavigation = forwardRef(function TopNavigation(
       )}
     >
       <div
-        className={clsx(
+        className={cn(
           "absolute inset-x-0 top-full h-px transition",
           (isInsideMobileNavigation || !mobileNavIsOpen) &&
             "bg-zinc-900/7.5 dark:bg-white/7.5"

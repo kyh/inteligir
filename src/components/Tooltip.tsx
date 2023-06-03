@@ -2,7 +2,7 @@
 
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 const Tooltip = ({ delayDuration = 0, ...props }) => (
   <TooltipPrimitive.Provider delayDuration={delayDuration}>
@@ -21,7 +21,7 @@ const TooltipContent = React.forwardRef<
   <TooltipPrimitive.Content
     ref={ref}
     sideOffset={sideOffset}
-    className={clsx(
+    className={cn(
       `z-50 overflow-hidden rounded-md
          bg-zinc-500/80
          px-3

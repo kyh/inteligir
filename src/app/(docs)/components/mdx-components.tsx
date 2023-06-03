@@ -1,6 +1,6 @@
 import Image from "next/image";
-import clsx from "clsx";
 import { useMDXComponent } from "next-contentlayer/hooks";
+import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
 
 function InfoIcon(props: any) {
@@ -41,7 +41,7 @@ function Row({ children }: any) {
 function Col({ children, sticky = false }: any) {
   return (
     <div
-      className={clsx(
+      className={cn(
         "[&>:first-child]:mt-0 [&>:last-child]:mb-0",
         sticky && "xl:sticky xl:top-24"
       )}

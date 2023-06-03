@@ -3,14 +3,11 @@
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Logo } from "~/components/Logo";
-import { Footer } from "~/app/(docs)/components/Footer";
-import { Prose } from "~/app/(docs)/components/Prose";
-import {
-  SectionProvider,
-  type SectionsType,
-} from "~/app/(docs)/components/SectionProvider";
-import { SideNavigation } from "~/app/(docs)/components/SideNavigation";
-import { TopNavigation } from "~/app/(docs)/components/TopNavigation";
+import { Footer } from "./Footer";
+import { Prose } from "./Prose";
+import { SectionProvider, type SectionsType } from "./SectionProvider";
+import { SideNavigation } from "./SideNavigation";
+import { TopNavigation } from "./TopNavigation";
 
 type LayoutProps = {
   children: React.ReactNode;
