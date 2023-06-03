@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 import If from "~/components/If";
 import { Logo } from "~/components/Logo";
 import Spinner from "~/components/Spinner";
@@ -19,7 +19,7 @@ export default function PageLoadingIndicator({
 
   return (
     <div
-      className={clsx(
+      className={cn(
         "flex flex-col items-center justify-center space-y-6",
         className,
         {

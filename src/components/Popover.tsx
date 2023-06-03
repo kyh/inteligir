@@ -1,6 +1,6 @@
 import { forwardRef } from "react";
 import * as PopoverPrimitive from "@radix-ui/react-popover";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 const Popover = PopoverPrimitive.Root;
 
@@ -20,7 +20,7 @@ const PopoverContent = forwardRef<
         align={align}
         sideOffset={sideOffset}
         alignOffset={alignOffset}
-        className={clsx(
+        className={cn(
           `z-50 rounded-md
           border border-zinc-100 bg-white p-2
           shadow-lg outline-none animate-in data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2
@@ -40,14 +40,14 @@ const PopoverItem = forwardRef<
   return (
     <div
       ref={ref}
-      className={clsx(
+      className={cn(
         `flex cursor-pointer items-center rounded-md bg-transparent px-4 py-2 transition duration-150 ease-in-out hover:bg-zinc-50 focus:outline-none active:bg-zinc-100 dark:hover:bg-zinc-300 dark:active:bg-zinc-300`,
         className
       )}
       {...props}
     >
       <span
-        className={clsx(
+        className={cn(
           `truncate text-sm font-medium text-zinc-700 hover:text-zinc-500 dark:text-zinc-300 dark:hover:text-white`
         )}
       >
@@ -61,7 +61,7 @@ const PopoverDivider: React.FC<{
   className?: string;
 }> = ({ className }) => (
   <div
-    className={clsx(
+    className={cn(
       `my-1 border-t border-zinc-100 dark:border-zinc-300`,
       className
     )}

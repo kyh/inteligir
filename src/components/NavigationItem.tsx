@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import clsx from "clsx";
 import isRouteActive from "~/core/generic/is-route-active";
+import { cn } from "~/lib/utils/cn";
 
 interface LinkModel {
   path: string;
@@ -21,7 +21,7 @@ const NavigationMenuItem: React.FCC<{
   const pathName = usePathname() ?? "";
   const isActive = isRouteActive(link.path, pathName, depth);
 
-  const itemClassName = clsx(`NavigationItem`, className, {
+  const itemClassName = cn(`NavigationItem`, className, {
     [`NavigationItemActive`]: isActive,
     [`NavigationItemNotActive`]: !isActive,
   });

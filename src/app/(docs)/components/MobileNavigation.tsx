@@ -4,8 +4,8 @@ import { createContext, Fragment, useContext } from "react";
 import { Dialog, Transition } from "@headlessui/react";
 import { motion } from "framer-motion";
 import { create } from "zustand";
-import { SideNavigation } from "~/app/(docs)/components/SideNavigation";
-import { TopNavigation } from "~/app/(docs)/components/TopNavigation";
+import { SideNavigation } from "./SideNavigation";
+import { TopNavigation } from "./TopNavigation";
 
 function MenuIcon(props: React.SVGProps<SVGSVGElement>) {
   return (

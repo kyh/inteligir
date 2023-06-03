@@ -4,8 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { Transition } from "@headlessui/react";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
-import clsx from "clsx";
 import configuration from "~/configuration";
+import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
 import Heading from "~/components/Heading";
 import If from "~/components/If";
@@ -108,7 +108,7 @@ function PricingItem(
   return (
     <div
       data-cy="subscription-plan"
-      className={clsx(
+      className={cn(
         `
          relative flex w-full flex-col justify-between space-y-6 rounded-2xl
          p-6 lg:w-4/12 lg:p-8 xl:p-10 2xl:w-3/12
@@ -129,7 +129,7 @@ function PricingItem(
 
           <If condition={props.product.badge}>
             <span
-              className={clsx(`rounded-md px-2 py-1 text-xs font-medium`, {
+              className={cn(`rounded-md px-2 py-1 text-xs font-medium`, {
                 ["text-emerald-contrast bg-emerald-700"]: recommended,
                 ["bg-zinc-50 text-zinc-500 dark:bg-zinc-300" +
                 " dark:text-zinc-300"]: !recommended,
@@ -141,7 +141,7 @@ function PricingItem(
         </div>
 
         <span
-          className={clsx("text-sm font-medium", {
+          className={cn("text-sm font-medium", {
             "text-emerald-contrast": recommended,
             "text-zinc-400": !recommended,
           })}
@@ -165,7 +165,7 @@ function PricingItem(
 
           <If condition={props.plan.name}>
             <span
-              className={clsx(`text-lg lowercase`, {
+              className={cn(`text-lg lowercase`, {
                 "text-zinc-100": recommended,
                 "text-zinc-400 dark:text-zinc-400": !recommended,
               })}
@@ -249,7 +249,7 @@ function PlansSwitcher(
   return (
     <div className="flex">
       {props.plans.map((plan, index) => {
-        const className = clsx("focus:!ring-0 !outline-none", {
+        const className = cn("focus:!ring-0 !outline-none", {
           "rounded-r-none": index === 0,
           "rounded-l-none": index === props.plans.length - 1,
         });
@@ -284,7 +284,7 @@ function DefaultCheckoutButton(
     <div className="bottom-0 left-0 w-full p-0">
       <Button
         as={Link}
-        className={clsx({
+        className={cn({
           ["bg-emerald-contrast hover:bg-emerald-contrast/90" +
           " font-bold text-zinc-900"]: props.recommended,
         })}

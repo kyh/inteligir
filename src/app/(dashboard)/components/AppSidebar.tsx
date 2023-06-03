@@ -4,9 +4,9 @@ import {
   ArrowLeftCircleIcon,
   ArrowRightCircleIcon,
 } from "@heroicons/react/24/outline";
-import clsx from "clsx";
 import configuration from "~/configuration";
 import SidebarContext from "~/lib/contexts/sidebar";
+import { cn } from "~/lib/utils/cn";
 import IconButton from "~/components/IconButton";
 import { Logo } from "~/components/Logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
@@ -48,7 +48,7 @@ function AppSidebarFooterMenu(
 ) {
   return (
     <div
-      className={clsx(`absolute bottom-8 w-full`, {
+      className={cn(`absolute bottom-8 w-full`, {
         "px-6": !props.collapsed,
         "flex justify-center px-2": props.collapsed,
       })}
@@ -82,7 +82,7 @@ function CollapsibleButton(
     );
   }
 
-  const className = clsx({
+  const className = cn({
     "[&>span]:hidden justify-center": props.collapsed,
   });
 

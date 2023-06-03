@@ -1,12 +1,10 @@
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 const NavigationContainer: React.FCC<{
   className?: string;
 }> = ({ children, className }) => {
   return (
-    <div className={clsx(`border-b border-zinc-400`, className)}>
-      {children}
-    </div>
+    <div className={cn(`border-b border-zinc-400`, className)}>{children}</div>
   );
 };
 

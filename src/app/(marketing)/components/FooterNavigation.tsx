@@ -1,4 +1,5 @@
 import { config } from "~/config/site";
+import { ArrowRightIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
@@ -7,10 +8,12 @@ import { TextField } from "~/components/TextField";
 export const FooterNavigation = () => {
   return (
     <footer className="border-t border-white/10">
-      <div className="mx-auto max-w-5xl px-5 pb-14 pt-16">
+      <div className="mx-auto max-w-5xl px-5 py-10 md:py-16">
         <div className="flex w-full justify-between pb-8">
-          <Logo />
-          <div className="flex justify-between gap-10">
+          <div className="hidden md:block">
+            <Logo />
+          </div>
+          <div className="flex w-full justify-between md:w-auto md:gap-20">
             <ul>
               <p className="mb-2 text-xs font-semibold text-zinc-100">
                 Resources
@@ -139,19 +142,20 @@ const ConvertkitSignupForm = ({ formId }: { formId: string }) => {
       action={action}
       method="POST"
       target="_blank"
-      className="relative w-[270px]"
+      className="relative w-full md:w-[270px]"
     >
       <TextField.Input
         type="email"
         name="email_address"
         aria-label="Your email address"
         placeholder="your@email.com"
+        shape="pill"
         required
       />
       <Button
         className="absolute right-0 top-0 text-xs"
         variant="plain"
-        shape="square"
+        shape="pill"
       >
         Subscribe
       </Button>

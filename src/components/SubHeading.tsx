@@ -1,11 +1,11 @@
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 
 const SubHeading: React.FCC<{
   className?: string;
 }> = ({ children, className }) => {
   return (
     <h2
-      className={clsx(
+      className={cn(
         `font-heading text-lg font-normal text-zinc-500 dark:text-zinc-400`,
         className
       )}

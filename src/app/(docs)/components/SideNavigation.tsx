@@ -3,8 +3,8 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import clsx from "clsx";
 import { AnimatePresence, motion, useIsPresent } from "framer-motion";
+import { cn } from "~/lib/utils/cn";
 import { remToPx } from "~/lib/utils/remToPx";
 import { Badge } from "~/components/Badge";
 import { Button } from "~/components/Button";
@@ -52,7 +52,7 @@ function NavLink({
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
-      className={clsx(
+      className={cn(
         "flex justify-between gap-2 py-1 pr-3 text-sm transition",
         isAnchorLink ? "pl-7" : "pl-4",
         active
@@ -136,7 +136,7 @@ function NavigationGroup({ group, className }) {
     group.links.findIndex((link) => link.href === pathName) !== -1;
 
   return (
-    <li className={clsx("relative mt-6", className)}>
+    <li className={cn("relative mt-6", className)}>
       <motion.h2
         layout="position"
         className="text-xs font-medium uppercase tracking-wide text-white"

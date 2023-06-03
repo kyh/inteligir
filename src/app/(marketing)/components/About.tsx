@@ -1,5 +1,5 @@
 import { CheckIcon } from "@heroicons/react/24/solid";
-import clsx from "clsx";
+import { cn } from "~/lib/utils/cn";
 import { HighlightCard } from "~/components/Card";
 import { SectionTitle } from "./SectionTitle";
 
@@ -31,7 +31,7 @@ const AboutCard = ({
       }}
     >
       <div
-        className={clsx(
+        className={cn(
           "flex items-center gap-5 text-left lg:gap-8",
           inline ? "flex-col" : "flex-col lg:flex-row"
         )}
