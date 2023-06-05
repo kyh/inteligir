@@ -19,8 +19,8 @@ export const Hero = () => {
           <span>built for teams</span>
         </SectionTitle>
         <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
-          A multi-platform, privacy-first, hyper-relevant AI assistant <br />{" "}
-          that fits effortlessly in your organization workflow
+          A multi-platform, privacy-first, hyper-relevant AI assistant that fits
+          effortlessly in your organization workflow
         </p>
         <div className="mt-8 grid items-start justify-center">
           <PrimaryButton>Request Early Access &rarr;</PrimaryButton>

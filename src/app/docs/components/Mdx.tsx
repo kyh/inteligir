@@ -87,7 +87,7 @@ function Property({ name, type, children }: any) {
 
 const components = {
   Button,
-  Image,
+  // Image,
 };
 
 interface MdxProps {
