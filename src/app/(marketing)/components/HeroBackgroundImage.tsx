@@ -13,7 +13,7 @@ export const HeroBackgroundImage = () => {
 
   return (
     <motion.img
-      className="mx-auto mt-10 rounded-md border-2 border-zinc-50/5 shadow backdrop-blur-lg sm:w-[600px] md:w-[900px]"
+      className="mx-auto mt-10 rounded-md border-2 border-border shadow backdrop-blur-lg sm:w-[600px] md:w-[900px]"
       src="/assets/images/dashboard.png"
       alt="dashboard"
       style={{
