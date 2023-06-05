@@ -7,15 +7,15 @@ import { notFound } from "next/navigation";
 import { allDocs } from "contentlayer/generated";
 import { absoluteUrl } from "~/lib/utils/url";
 // import { getTableOfContents } from "@/lib/toc"
-import { Mdx } from "../../components/mdx-components";
+import { Mdx } from "~/app/docs/components/Mdx";
 
-interface DocPageProps {
+type DocPageProps = {
   params: {
     slug: string[];
   };
-}
+};
 
-async function getDocFromParams(params) {
+async function getDocFromParams(params: DocPageProps["params"]) {
   const slug = params.slug?.join("/") || "";
   const doc = allDocs.find((doc) => doc.slugAsParams === slug);
 

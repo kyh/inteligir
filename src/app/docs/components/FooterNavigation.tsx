@@ -1,11 +1,15 @@
 "use client";
 
 import { forwardRef, Fragment, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Transition } from "@headlessui/react";
+import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { Button } from "~/components/Button";
 import { SmallPrint } from "~/app/(marketing)/components/FooterNavigation";
-import { PageNavigation } from "./PageNavigation";
+import { pages } from "./SideNavigation";
 
-function CheckIcon(props: React.SVGProps<SVGSVGElement>) {
+const CheckIcon = (props: React.SVGProps<SVGSVGElement>) => {
   return (
     <svg viewBox="0 0 20 20" aria-hidden="true" {...props}>
       <circle cx="10" cy="10" r="10" strokeWidth="0" />
@@ -18,17 +22,17 @@ function CheckIcon(props: React.SVGProps<SVGSVGElement>) {
       />
     </svg>
   );
-}
+};
 
-function FeedbackButton(props: React.ComponentProps<"button">) {
+const FeedbackButton = (props: React.ComponentProps<"button">) => {
   return (
     <button
       type="submit"
-      className="hover:bg-zinc-900/2.5 px-3 text-sm font-medium text-zinc-600 transition hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
+      className="px-3 text-sm font-medium text-zinc-600 transition hover:bg-zinc-900/20 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-white/5 dark:hover:text-white"
       {...props}
     />
   );
-}
+};
 
 const FeedbackForm = forwardRef(function FeedbackForm(
   { onSubmit }: { onSubmit: React.FormEventHandler<HTMLFormElement> },
@@ -43,7 +47,7 @@ const FeedbackForm = forwardRef(function FeedbackForm(
       <p className="text-sm text-zinc-600 dark:text-zinc-400">
         Was this page helpful?
       </p>
-      <div className="group grid h-8 grid-cols-[1fr,1px,1fr] overflow-hidden rounded-full border border-zinc-900/10 dark:border-white/10">
+      <div className="group grid h-8 grid-cols-[1fr,1px,1fr] overflow-hidden rounded-full border border-border dark:border-white/10">
         <FeedbackButton data-response="yes">Yes</FeedbackButton>
         <div className="bg-zinc-900/10 dark:bg-white/10" />
         <FeedbackButton data-response="no">No</FeedbackButton>
@@ -69,17 +73,17 @@ const FeedbackThanks = forwardRef(function FeedbackThanks(
   );
 });
 
-function Feedback() {
+const Feedback = () => {
   const [submitted, setSubmitted] = useState(false);
 
-  function onSubmit(event: React.FormEvent) {
+  const onSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
     // event.nativeEvent.submitter.dataset.response
     // => "yes" or "no"
 
     setSubmitted(true);
-  }
+  };
 
   return (
     <div className="relative h-8">
@@ -103,9 +107,74 @@ function Feedback() {
       </Transition>
     </div>
   );
-}
+};
 
-export function Footer() {
+const PageLink = ({
+  label,
+  page,
+  previous = false,
+}: {
+  label: string;
+  page: (typeof pages)[0]["links"][0];
+  previous?: boolean;
+}) => {
+  return (
+    <>
+      <Button
+        as={Link}
+        href={page.href}
+        aria-label={`${label}: ${page.title}`}
+        size="sm"
+      >
+        {previous && <ArrowLeftIcon className="mr-1 h-4 w-4" />}
+        {label}
+        {!previous && <ArrowRightIcon className="ml-1 h-4 w-4" />}
+      </Button>
+      <Link
+        href={page.href}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="text-base font-semibold text-zinc-900 transition hover:text-zinc-600 dark:text-white dark:hover:text-zinc-300"
+      >
+        {page.title}
+      </Link>
+    </>
+  );
+};
+
+const PageNavigation = () => {
+  const pathName = usePathname();
+  const allPages = pages.flatMap((group) => group.links);
+  const currentPageIndex = allPages.findIndex((page) => page.href === pathName);
+
+  if (currentPageIndex === -1) {
+    return null;
+  }
+
+  const previousPage = allPages[currentPageIndex - 1];
+  const nextPage = allPages[currentPageIndex + 1];
+
+  if (!previousPage && !nextPage) {
+    return null;
+  }
+
+  return (
+    <div className="flex">
+      {previousPage && (
+        <div className="flex flex-col items-start gap-3">
+          <PageLink label="Previous" page={previousPage} previous />
+        </div>
+      )}
+      {nextPage && (
+        <div className="ml-auto flex flex-col items-end gap-3">
+          <PageLink label="Next" page={nextPage} />
+        </div>
+      )}
+    </div>
+  );
+};
+
+export function FooterNavigation() {
   return (
     <footer className="mx-auto max-w-2xl space-y-10 pb-16 lg:max-w-5xl">
       <Feedback />

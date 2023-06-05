@@ -22,9 +22,9 @@ const PopoverContent = forwardRef<
         alignOffset={alignOffset}
         className={cn(
           `z-50 rounded-md
-          border border-zinc-100 bg-white p-2
+          border border-border bg-white p-2
           shadow-lg outline-none animate-in data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2
-          dark:border-zinc-300 dark:bg-zinc-400`,
+        dark:bg-zinc-400`,
           className
         )}
         {...props}
@@ -60,12 +60,7 @@ const PopoverItem = forwardRef<
 const PopoverDivider: React.FC<{
   className?: string;
 }> = ({ className }) => (
-  <div
-    className={cn(
-      `my-1 border-t border-zinc-100 dark:border-zinc-300`,
-      className
-    )}
-  />
+  <div className={cn(`my-1 border-t border-border`, className)} />
 );
 
 PopoverContent.displayName = PopoverPrimitive.Content.displayName;
