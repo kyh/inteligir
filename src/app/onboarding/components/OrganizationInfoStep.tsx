@@ -4,8 +4,8 @@ import { useCallback, type FormEvent } from "react";
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import useUserSession from "~/core/hooks/use-user-session";
 import { Button } from "~/components/Button";
-import Heading from "~/components/Heading";
 import SubHeading from "~/components/SubHeading";
+import { Text } from "~/components/Text";
 import { TextField } from "~/components/TextField";
 
 export interface OrganizationInfoStepData {
@@ -38,8 +38,10 @@ const OrganizationInfoStep: React.FCC<{
       className="flex w-full flex-1 flex-col space-y-6"
     >
       <div className="flex flex-col space-y-1.5">
-        <Heading type={2}>Hi, {displayName}</Heading>
-        <SubHeading>Let&apos;s create your organization.</SubHeading>
+        <Text as="h1" variant="heading2">
+          Hi, {displayName}
+        </Text>
+        <Text as="p">Let&apos;s create your organization.</Text>
       </div>
 
       <div className="flex flex-1 flex-col space-y-2">

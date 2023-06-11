@@ -7,8 +7,8 @@ import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import configuration from "~/configuration";
 import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
-import Heading from "~/components/Heading";
 import If from "~/components/If";
+import { Text } from "~/components/Text";
 
 interface CheckoutButtonProps {
   readonly stripePriceId?: string;
@@ -121,11 +121,7 @@ function PricingItem(
     >
       <div className="flex flex-col space-y-1.5">
         <div className="flex items-center space-x-3">
-          <Heading type={3}>
-            <span className="font-semibold dark:text-white">
-              {props.product.name}
-            </span>
-          </Heading>
+          <Text>{props.product.name}</Text>
 
           <If condition={props.product.badge}>
             <span

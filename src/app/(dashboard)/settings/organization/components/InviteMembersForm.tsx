@@ -8,7 +8,6 @@ import useUserSession from "~/core/hooks/use-user-session";
 import useInviteMembers from "~/lib/organizations/hooks/use-invite-members-mutation";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import { Button } from "~/components/Button";
-import IconButton from "~/components/IconButton";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
@@ -105,16 +104,16 @@ const InviteMembersForm = () => {
                   <div className="w-1/12">
                     <Tooltip className="flex justify-center">
                       <TooltipTrigger asChild>
-                        <IconButton
+                        <Button
                           data-cy="remove-invite-button"
-                          label="Remove invite"
                           onClick={() => {
                             remove(index);
                             clearErrors(emailInputName);
                           }}
                         >
+                          <span className="sr-only">Remove invite</span>
                           <XMarkIcon className="h-4 lg:h-5" />
-                        </IconButton>
+                        </Button>
                       </TooltipTrigger>
                       <TooltipContent>Remove invite</TooltipContent>
                     </Tooltip>

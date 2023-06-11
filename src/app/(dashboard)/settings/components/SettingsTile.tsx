@@ -1,5 +1,5 @@
-import Heading from "~/components/Heading";
 import If from "~/components/If";
+import { Text } from "~/components/Text";
 
 const SettingsTile: React.FCC<{
   heading?: string | React.ReactNode;
@@ -12,20 +12,15 @@ const SettingsTile: React.FCC<{
         <div className="flex items-center justify-between">
           <If condition={heading}>
             <div className="flex flex-col space-y-1">
-              <Heading type={4}>
-                <span className="font-medium">{heading}</span>
-              </Heading>
-
+              <Text>{heading}</Text>
               <If condition={subHeading}>
                 <p className="text-zinc-500 dark:text-zinc-400">{subHeading}</p>
               </If>
             </div>
           </If>
-
           <If condition={actions}>{actions}</If>
         </div>
       </div>
-
       <div className="rounded-lg border border-border p-2.5 lg:p-6">
         {children}
       </div>

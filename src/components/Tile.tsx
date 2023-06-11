@@ -4,7 +4,7 @@ import {
   ArrowSmallUpIcon,
   Bars2Icon,
 } from "@heroicons/react/24/outline";
-import Heading from "~/components/Heading";
+import { Text } from "~/components/Text";
 
 const Tile: React.FCC & {
   Header: typeof TileHeader;
@@ -26,13 +26,7 @@ function TileHeader(props: React.PropsWithChildren) {
 }
 
 function TileHeading(props: React.PropsWithChildren) {
-  return (
-    <Heading type={5}>
-      <span className="font-medium text-zinc-600 dark:text-zinc-400">
-        {props.children}
-      </span>
-    </Heading>
-  );
+  return <Text>{props.children}</Text>;
 }
 
 function TileBody(props: React.PropsWithChildren) {

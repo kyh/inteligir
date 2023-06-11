@@ -1,7 +1,7 @@
-import { FooterNavigation } from "~/app/docs/components/FooterNavigation";
-import { Prose } from "~/app/docs/components/Prose";
-import { SideNavigation } from "~/app/docs/components/SideNavigation";
-import { TopNavigation } from "~/app/docs/components/TopNavigation";
+import { FooterNavigation } from "~/app/(docs)/components/FooterNavigation";
+import { Prose } from "~/app/(docs)/components/Prose";
+import { SideNavigation } from "~/app/(docs)/components/SideNavigation";
+import { TopNavigation } from "~/app/(docs)/components/TopNavigation";
 
 type DocsLayoutProps = {
   children: React.ReactNode;

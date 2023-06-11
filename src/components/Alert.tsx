@@ -10,9 +10,9 @@ import {
 } from "@heroicons/react/24/outline";
 import { ComponentProps, deriveClassed } from "@tw-classed/react";
 import { classed } from "~/lib/utils/cn";
-import Heading from "~/components/Heading";
-import IconButton from "~/components/IconButton";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
+import { Text } from "~/components/Text";
 
 type AlertType = "success" | "error" | "warn" | "info";
 
@@ -59,12 +59,12 @@ const DerivedBaseAlert = deriveClassed<typeof BaseAlert, AlertProps>(
             <span>{children}</span>
           </span>
           <If condition={showClose ?? false}>
-            <IconButton
-              className="dark:hover:bg-transparent"
+            <Button
+            variant="transparent"
               onClick={() => setVisible(false)}
             >
               <XMarkIcon className="h-6" />
-            </IconButton>
+            </Button>
           </If>
         </AlertContext.Provider>
       </BaseAlert>
@@ -79,9 +79,7 @@ const AlertHeading = ({ children }: React.PropsWithChildren) => {
   return (
     <div className="mb-2 flex items-center space-x-2">
       <span>{Icon}</span>
-      <Heading type={6}>
-        <span className="text-base font-semibold">{children}</span>
-      </Heading>
+      <Text className="font-semibold">{children}</Text>
     </div>
   );
 };

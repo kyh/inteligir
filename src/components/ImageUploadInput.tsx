@@ -10,7 +10,7 @@ import React, {
   type MouseEventHandler,
 } from "react";
 import { CloudArrowUpIcon, XMarkIcon } from "@heroicons/react/24/outline";
-import IconButton from "~/components/IconButton";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 
@@ -158,9 +158,9 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
           </If>
 
           <If condition={state.image}>
-            <IconButton className="!h-5 !w-5" onClick={imageRemoved}>
+            <Button className="!h-5 !w-5" onClick={imageRemoved}>
               <XMarkIcon className="h-4" />
-            </IconButton>
+            </Button>
           </If>
         </div>
       </label>
