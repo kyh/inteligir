@@ -11,7 +11,6 @@ import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
 import { Alert } from "~/components/Alert";
 import { Badge } from "~/components/Badge";
 import { Button } from "~/components/Button";
-import IconButton from "~/components/IconButton";
 import If from "~/components/If";
 import Modal from "~/components/Modal";
 import Spinner from "~/components/Spinner";
@@ -223,9 +222,9 @@ function FactorsTable({
             <td className="flex justify-end">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <IconButton onClick={() => setUnenrolling(factor.id)}>
+                  <Button onClick={() => setUnenrolling(factor.id)}>
                     <XMarkIcon className="h-4" />
-                  </IconButton>
+                  </Button>
                 </TooltipTrigger>
 
                 <TooltipContent>Unenroll this factor</TooltipContent>

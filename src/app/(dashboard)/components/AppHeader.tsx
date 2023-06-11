@@ -3,9 +3,9 @@
 import React from "react";
 import useSignOut from "~/core/hooks/use-sign-out";
 import useUserSession from "~/core/hooks/use-user-session";
-import Heading from "~/components/Heading";
 import MobileNavigation from "~/components/MobileNavigation";
 import ProfileDropdown from "~/components/ProfileDropdown";
+import { Text } from "~/components/Text";
 import HeaderSubscriptionStatusBadge from "~/app/(dashboard)/components/organizations/HeaderSubscriptionStatusBadge";
 import OrganizationsSelector from "~/app/(dashboard)/components/organizations/OrganizationsSelector";
 import AppContainer from "./AppContainer";
@@ -30,15 +30,14 @@ const AppHeader: React.FCC<{
                 <OrganizationsSelector />
               </div>
 
-              <Heading type={5}>
+              <Text>
                 <span className="flex items-center space-x-0.5 lg:space-x-2">
                   {Icon}
-
                   <span className="lg:text-initial text-base font-medium dark:text-white">
                     {children}
                   </span>
                 </span>
-              </Heading>
+              </Text>
             </div>
           </div>
 

@@ -8,10 +8,12 @@ const BaseButton = classed("button", {
   variants: {
     variant: {
       normal:
-        "border-white/20 bg-black hover:bg-zinc-900 hover:text-white disabled:hover:bg-black border shadow-sm font-medium transition",
+        "border-border bg-black hover:bg-zinc-900 hover:text-white disabled:hover:bg-black border shadow-sm font-medium transition",
       primary:
         "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-300 border shadow-sm font-medium transition",
       text: "text-emerald-500 hover:text-emerald-300",
+      transparent:
+        "bg-transparent border-border hover:bg-zinc-900 hover:text-white border shadow-sm font-medium transition",
       plain: "",
     },
     size: {

@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { Line, LineChart, ResponsiveContainer, XAxis } from "recharts";
 import useUserSession from "~/core/hooks/use-user-session";
-import Heading from "~/components/Heading";
+import { Text } from "~/components/Text";
 import Tile from "~/components/Tile";
 
 export default function DashboardDemo() {
@@ -167,8 +167,9 @@ function UserGreetings() {
 
   return (
     <div>
-      <Heading type={4}>Welcome Back, {userDisplayName}</Heading>
-
+      <Text as="h1" variant="heading2">
+        Welcome Back, {userDisplayName}
+      </Text>
       <p className="text-zinc-500 dark:text-zinc-400">
         <span>Here&apos;s what is happening in your SaaS</span>
       </p>

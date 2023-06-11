@@ -7,7 +7,7 @@ import {
 import configuration from "~/configuration";
 import SidebarContext from "~/lib/contexts/sidebar";
 import { cn } from "~/lib/utils/cn";
-import IconButton from "~/components/IconButton";
+import { Button } from "~/components/Button";
 import { Logo } from "~/components/Logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 import AppSidebarNavigation from "./AppSidebarNavigation";
@@ -73,9 +73,9 @@ function CollapsibleButton(
     return (
       <Tooltip>
         <TooltipTrigger>
-          <IconButton as="div" onClick={() => props.onClick(!props.collapsed)}>
+          <Button as="div" onClick={() => props.onClick(!props.collapsed)}>
             <ArrowRightCircleIcon className="h-6" />
-          </IconButton>
+          </Button>
         </TooltipTrigger>
         <TooltipContent>Expand Sidebar</TooltipContent>
       </Tooltip>

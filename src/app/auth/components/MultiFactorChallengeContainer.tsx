@@ -5,9 +5,9 @@ import useSignOut from "~/core/hooks/use-sign-out";
 import useSupabase from "~/core/hooks/use-supabase";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import Heading from "~/components/Heading";
 import If from "~/components/If";
 import Spinner from "~/components/Spinner";
+import { Text } from "~/components/Text";
 import VerificationCodeInput from "./VerificationCodeInput";
 
 function MultiFactorChallengeContainer({
@@ -164,7 +164,7 @@ function FactorsListContainer({
   return (
     <div className="flex flex-col space-y-4">
       <div>
-        <Heading type={6}>Choose a factor to verify your identity</Heading>
+        <Text>Choose a factor to verify your identity</Text>
       </div>
 
       {verifiedFactors.map((factor) => (

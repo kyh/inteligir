@@ -4,7 +4,6 @@ import { useCallback, useState } from "react";
 import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import useRemoveMemberMutation from "~/lib/organizations/hooks/use-remove-member-mutation";
 import { Button } from "~/components/Button";
-import IconButton from "~/components/IconButton";
 import If from "~/components/If";
 import Modal from "~/components/Modal";
 
@@ -23,13 +22,14 @@ const DeleteInviteButton: React.FCC<{
 
   return (
     <>
-      <IconButton
+      <Button
         data-cy="delete-invite-button"
-        label="Delete Invite"
         onClick={() => setIsDeleting(true)}
+        variant="transparent"
       >
+        <span className="sr-only">Delete Invite</span>
         <XMarkIcon className="h-6" />
-      </IconButton>
+      </Button>
 
       <If condition={isDeleting}>
         <Modal

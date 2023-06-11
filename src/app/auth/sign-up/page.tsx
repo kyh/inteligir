@@ -1,6 +1,6 @@
 import Link from "next/link";
 import configuration from "~/configuration";
-import Heading from "~/components/Heading";
+import { Text } from "~/components/Text";
 import SignUpMethodsContainer from "~/app/auth/components/SignUpMethodsContainer";
 
 const SIGN_IN_PATH = configuration.paths.signIn;
@@ -13,9 +13,7 @@ function SignUpPage() {
   return (
     <>
       <div>
-        <Heading type={6}>
-          <span className="font-medium">Create an account</span>
-        </Heading>
+        <Text className="font-medium">Create an account</Text>
       </div>
 
       <SignUpMethodsContainer />

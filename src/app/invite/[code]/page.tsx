@@ -8,8 +8,8 @@ import invariant from "tiny-invariant";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getMembershipByInviteCode } from "~/lib/memberships/queries";
-import Heading from "~/components/Heading";
 import If from "~/components/If";
+import { Text } from "~/components/Text";
 import ExistingUserInviteForm from "../components/ExistingUserInviteForm";
 import InviteCsrfTokenProvider from "../components/InviteCsrfTokenProvider";
 import NewUserInviteForm from "../components/NewUserInviteForm";
@@ -30,7 +30,7 @@ const InvitePage = ({ params }: Context) => {
 
   return (
     <>
-      <Heading type={4}>Join {organization.name}</Heading>
+      <Text>Join {organization.name}</Text>
 
       <div>
         <p className="text-center">

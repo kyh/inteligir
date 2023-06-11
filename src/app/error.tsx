@@ -3,7 +3,7 @@
 import Link from "next/link";
 import configuration from "~/configuration";
 import { Button } from "~/components/Button";
-import Heading from "~/components/Heading";
+import { Text } from "~/components/Text";
 import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 
 export const metadata = {
@@ -13,20 +13,18 @@ export const metadata = {
 const ErrorPage = () => {
   return (
     <main>
-      <TopNavigation />
+      <TopNavigation userSession={undefined}/>
       <div className="m-auto flex min-h-[50vh] w-full items-center justify-center">
         <div className="flex flex-col space-y-8">
           <div className="flex space-x-8 divide-x divide-zinc-100">
             <div>
-              <Heading type={1}>
-                <span className="text-emerald-500">500</span>
-              </Heading>
+              <Text as="h1" variant="heading1">
+                500
+              </Text>
             </div>
             <div className="flex flex-col space-y-4 pl-8">
               <div className="flex flex-col space-y-2">
-                <div>
-                  <Heading type={1}>Oooops. An error occurred</Heading>
-                </div>
+                <Text as="h2" variant="heading2">Oooops. An error occurred</Text>
                 <p className="text-zinc-500 dark:text-zinc-300">
                   Apologies, an error occurred while processing your request.
                   Please contact us if the issue persists.

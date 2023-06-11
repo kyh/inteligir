@@ -7,7 +7,7 @@ import { notFound } from "next/navigation";
 import { allDocs } from "contentlayer/generated";
 import { absoluteUrl } from "~/lib/utils/url";
 // import { getTableOfContents } from "@/lib/toc"
-import { Mdx } from "~/app/docs/components/Mdx";
+import { Mdx } from "~/app/(docs)/components/Mdx";
 
 type DocPageProps = {
   params: {

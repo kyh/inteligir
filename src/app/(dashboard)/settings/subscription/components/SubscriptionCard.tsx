@@ -2,9 +2,9 @@ import React, { useMemo } from "react";
 import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import configuration from "~/configuration";
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
-import Heading from "~/components/Heading";
 import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";
+import { Text } from "~/components/Text";
 import SubscriptionStatusBadge from "~/app/(dashboard)/components/organizations/SubscriptionStatusBadge";
 import SubscriptionStatusAlert from "~/app/(dashboard)/settings/subscription/components/SubscriptionStatusAlert";
 
@@ -32,24 +32,17 @@ const SubscriptionCard: React.FC<{
     <div className="flex flex-col space-y-6" data-cy="subscription-card">
       <div className="flex flex-col space-y-2">
         <div className="flex items-center space-x-4">
-          <Heading type={3}>
+          <Text>
             <span data-cy="subscription-name">{details.product.name}</span>
-          </Heading>
-
+          </Text>
           <SubscriptionStatusBadge subscription={subscription} />
         </div>
-
-        <Heading type={6}>
-          <span className="text-zinc-500 dark:text-zinc-400">
-            {details.product.description}
-          </span>
-        </Heading>
+        <Text className="text-zinc-400">{details.product.description}</Text>
       </div>
 
       <div>
         <span className="flex items-end">
           <PricingTable.Price>{details.plan.price}</PricingTable.Price>
-
           <span className="lowercase text-zinc-500 dark:text-zinc-400">
             /{details.plan.name}
           </span>

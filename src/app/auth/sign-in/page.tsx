@@ -1,6 +1,6 @@
 import Link from "next/link";
 import configuration from "~/configuration";
-import Heading from "~/components/Heading";
+import { Text } from "~/components/Text";
 import SignInMethodsContainer from "~/app/auth/components/SignInMethodsContainer";
 
 const SIGN_UP_PATH = configuration.paths.signUp;
@@ -13,9 +13,9 @@ function SignInPage() {
   return (
     <>
       <div>
-        <Heading type={6}>
+        <Text>
           <span className="font-medium">Sign in to your account</span>
-        </Heading>
+        </Text>
       </div>
       <SignInMethodsContainer />
       <div className="flex justify-center text-xs">
