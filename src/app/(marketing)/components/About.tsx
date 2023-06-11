@@ -1,7 +1,7 @@
 import { CheckIcon } from "@heroicons/react/24/solid";
 import { cn } from "~/lib/utils/cn";
 import { HighlightCard } from "~/components/Card";
-import { SectionTitle } from "./SectionTitle";
+import { Text } from "~/components/Text";
 
 const AboutCard = ({
   className,
@@ -66,9 +66,9 @@ const AboutCardDescriptionList = ({
 export const About = () => {
   return (
     <section className="px-5 pt-20 sm:pt-24">
-      <SectionTitle as="h2">
+      <Text as="h2" variant="heading1" className="mx-auto mt-3 max-w-xl">
         You bring the knowledge base and we&apos;ll handle everything else.
-      </SectionTitle>
+      </Text>
       <AboutCard
         className="mt-14"
         title="Plug 'n Play"
