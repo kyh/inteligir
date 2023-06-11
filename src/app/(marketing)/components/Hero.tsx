@@ -1,8 +1,8 @@
 import { Badge } from "~/components/Badge";
 import { GridPattern } from "~/components/GridPattern";
+import { Text } from "~/components/Text";
 import { HeroBackgroundImage } from "./HeroBackgroundImage";
 import { PrimaryButton } from "./HomeButton";
-import { SectionTitle } from "./SectionTitle";
 
 export const Hero = () => {
   return (
@@ -12,12 +12,12 @@ export const Hero = () => {
         <div className="flex justify-center gap-1 text-xs">
           <Badge color="transparent">v0.0.1</Badge>
         </div>
-        <SectionTitle>
+        <Text as="h1" variant="heading1" className="mx-auto mt-3 max-w-xl">
           <span className="block bg-gradient-to-b from-emerald-300 to-green-600 bg-clip-text text-transparent">
             Personalized AI assistants
           </span>
           <span>built for teams</span>
-        </SectionTitle>
+        </Text>
         <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
           A multi-platform, privacy-first, hyper-relevant AI assistant that fits
           effortlessly in your organization workflow
