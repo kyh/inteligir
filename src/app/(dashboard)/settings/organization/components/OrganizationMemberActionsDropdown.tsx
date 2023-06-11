@@ -4,6 +4,7 @@ import {
   UserCircleIcon,
   XMarkIcon,
 } from "@heroicons/react/24/outline";
+import { Button } from "~/components/Button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -11,7 +12,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/Dropdown";
-import IconButton from "~/components/IconButton";
 import If from "~/components/If";
 
 const OrganizationMemberActionsDropdown: React.FCC<{
@@ -24,13 +24,13 @@ const OrganizationMemberActionsDropdown: React.FCC<{
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild disabled={props.disabled}>
-        <IconButton
+        <Button
           data-cy="member-actions-dropdown"
           disabled={props.disabled}
-          label="Open members actions menu"
         >
+          <span className="sr-only">Open members actions menu</span>
           <EllipsisVerticalIcon className="h-6" />
-        </IconButton>
+        </Button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent collisionPadding={{ right: 50 }}>

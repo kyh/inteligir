@@ -1,6 +1,6 @@
 import Link from "next/link";
 import configuration from "~/configuration";
-import Heading from "~/components/Heading";
+import { Text } from "~/components/Text";
 import PasswordResetContainer from "~/app/auth/components/PasswordResetContainer";
 
 export const metadata = {
@@ -11,9 +11,9 @@ function PasswordResetPage() {
   return (
     <>
       <div>
-        <Heading type={6}>
+        <Text>
           <span className="font-medium">Reset Password</span>
-        </Heading>
+        </Text>
       </div>
 
       <div className="flex flex-col space-y-4">

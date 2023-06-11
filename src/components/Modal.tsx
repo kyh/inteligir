@@ -4,7 +4,7 @@ import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import { Close as DialogPrimitiveClose } from "@radix-ui/react-dialog";
 import { Button } from "~/components/Button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/Dialog";
-import IconButton from "~/components/IconButton";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 
 const Modal: React.FC<
@@ -59,14 +59,13 @@ const Modal: React.FC<
 
                 <If condition={useCloseButton}>
                   <DialogPrimitiveClose asChild>
-                    <IconButton
+                    <Button
                       className="absolute right-4 top-0 flex items-center"
-                      label="Close Modal"
                       onClick={() => setIsOpen(false)}
                     >
+                      <span className="sr-only">Close Modal</span>
                       <XMarkIcon className="h-6" />
-                      <span className="sr-only">Close</span>
-                    </IconButton>
+                    </Button>
                   </DialogPrimitiveClose>
                 </If>
               </div>
