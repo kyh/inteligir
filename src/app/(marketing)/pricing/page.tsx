@@ -1,7 +1,6 @@
 import { Container } from "~/components/Container";
-import Hero from "~/components/Hero";
 import PricingTable from "~/components/PricingTable";
-import SubHeading from "~/components/SubHeading";
+import { Text } from "~/components/Text";
 
 export const metadata = {
   title: "Pricing",
@@ -10,13 +9,15 @@ export const metadata = {
 function PricingPage() {
   return (
     <Container>
-      <div className="flex flex-col space-y-8">
-        <div className="flex flex-col items-center">
-          <Hero>Pricing</Hero>
-          <SubHeading>Fair pricing for your customers</SubHeading>
-        </div>
-        <PricingTable />
-      </div>
+      <header className="px-5 pt-[70px] text-center sm:pt-[100px]">
+        <Text as="h1" variant="heading1" className="mx-auto mt-3 max-w-xl">
+          Pricing
+        </Text>
+        <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
+          Fair pricing for your customers
+        </p>
+      </header>
+      <PricingTable />
     </Container>
   );
 }

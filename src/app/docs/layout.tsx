@@ -1,5 +1,3 @@
-import { use } from "react";
-import loadUserData from "~/lib/server/loaders/load-user-data";
 import { FooterNavigation } from "~/app/docs/components/FooterNavigation";
 import { Prose } from "~/app/docs/components/Prose";
 import { SideNavigation } from "~/app/docs/components/SideNavigation";
