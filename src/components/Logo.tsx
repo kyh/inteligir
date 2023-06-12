@@ -1,8 +1,10 @@
-export const Logo = () => {
+import { cn } from "~/lib/utils/cn";
+
+export const Logo = ({ className }: { className?: string }) => {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      className="h-9 w-9"
+      className={cn("h-9 w-9", className)}
       viewBox="0 0 606.59 688"
     >
       <path

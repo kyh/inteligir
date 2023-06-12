@@ -12,16 +12,13 @@ export const metadata = {
 function SignUpPage() {
   return (
     <>
-      <div>
-        <Text className="font-medium">Create an account</Text>
-      </div>
-
+      <Text as="h1" className="font-medium">
+        Create an account
+      </Text>
       <SignUpMethodsContainer />
-
       <div className="flex justify-center text-xs">
         <p className="flex space-x-1">
           <span>Already have an account?</span>
-
           <Link
             className="text-emerald-800 hover:underline dark:text-emerald-500"
             href={SIGN_IN_PATH}

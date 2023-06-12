@@ -12,11 +12,9 @@ export const metadata = {
 function SignInPage() {
   return (
     <>
-      <div>
-        <Text>
-          <span className="font-medium">Sign in to your account</span>
-        </Text>
-      </div>
+      <Text as="h1" className="font-medium">
+        Sign in to your account
+      </Text>
       <SignInMethodsContainer />
       <div className="flex justify-center text-xs">
         <p className="flex space-x-1">
