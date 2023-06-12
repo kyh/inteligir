@@ -8,8 +8,8 @@ import { TextField } from "~/components/TextField";
 export const FooterNavigation = () => {
   return (
     <footer className="mt-20 border-t border-white/10 sm:mt-24">
-      <div className="mx-auto max-w-5xl px-5 py-10 md:py-16">
-        <div className="flex w-full justify-between pb-8">
+      <div className="mx-auto max-w-5xl px-5 py-10 md:pb-12 md:pt-16">
+        <div className="flex w-full justify-between pb-10 md:pb-12">
           <div className="hidden md:block">
             <Logo />
           </div>

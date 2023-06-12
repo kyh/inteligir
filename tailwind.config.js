@@ -76,6 +76,13 @@ module.exports = {
         md: `calc(var(--radius) - 2px)`,
         sm: "calc(var(--radius) - 4px)",
       },
+      animation: {
+        "accordion-down": "accordion-down 0.2s ease-out",
+        "accordion-up": "accordion-up 0.2s ease-out",
+        tilt: "tilt 6s linear infinite",
+        disco: "disco 6s linear infinite",
+        "slide-across": "slide-across linear infinite",
+      },
       keyframes: {
         "accordion-down": {
           from: { height: 0 },
@@ -85,14 +92,6 @@ module.exports = {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: 0 },
         },
-      },
-      animation: {
-        "accordion-down": "accordion-down 0.2s ease-out",
-        "accordion-up": "accordion-up 0.2s ease-out",
-        tilt: "tilt 6s infinite linear",
-        disco: "disco 6s infinite linear",
-      },
-      keyframes: {
         tilt: {
           "0%, 50%, 100%": {
             transform: "rotate(0deg)",
@@ -105,8 +104,12 @@ module.exports = {
           },
         },
         disco: {
-          "0%": { transform: "translateY(-50%) rotate(0deg)" },
-          "100%": { transform: "translateY(-50%) rotate(360deg)" },
+          from: { transform: "translateY(-50%) rotate(0deg)" },
+          to: { transform: "translateY(-50%) rotate(360deg)" },
+        },
+        "slide-across": {
+          from: { transform: "translateX(0)" },
+          to: { transform: "translateX(-100%)" },
         },
       },
     },
