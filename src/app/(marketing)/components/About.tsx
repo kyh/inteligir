@@ -15,6 +15,7 @@ import {
   KeyIcon,
   LockIcon,
   SearchIcon,
+  TerminalSquareIcon,
   UploadIcon,
   UserIcon,
   XIcon,
@@ -222,10 +223,6 @@ export const About = () => {
               Encrypted
             </div>
             <div className="flex flex-col items-center">
-              <SourceIcon className="rounded" Icon={EyeIcon} />
-              Transparent
-            </div>
-            <div className="flex flex-col items-center">
               <SourceIcon className="rounded" Icon={ClipboardCheckIcon} />
               Compliant
             </div>
@@ -235,7 +232,11 @@ export const About = () => {
             </div>
             <div className="flex flex-col items-center">
               <SourceIcon className="rounded" Icon={EyeIcon} />
-              Transparent
+              Observable
+            </div>
+            <div className="flex flex-col items-center">
+              <SourceIcon className="rounded" Icon={TerminalSquareIcon} />
+              Scriptable
             </div>
           </div>
         </AboutCard>
