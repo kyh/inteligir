@@ -26,7 +26,14 @@ import { Logo } from "~/components/Logo";
 import { Text } from "~/components/Text";
 import { InfiniteLooper } from "./InfiniteLoop";
 
+const hightlightedTransform = {
+  0: 0,
+  1: -100,
+  2: -170,
+};
+
 export const About = () => {
+  const [highlighted, setHighlighted] = useState(0);
   const sourcesContainerRef = useRef<HTMLDivElement>(null);
   const [sourcesContainerDimensions, setSourcesContainerDimensions] = useState({
     width: 0,
@@ -69,43 +76,85 @@ export const About = () => {
         title="Plug 'n Play"
         description={
           <ol className="ml-5 flex list-decimal flex-col gap-1">
-            <li>Connect your knowledge base</li>
-            <li>Train your custom model</li>
-            <li>Integrate with your workflow</li>
-            <li>And ask away</li>
+            {[
+              "Connect your knowledge base",
+              "Train your custom model",
+              "Integrate with your workflow",
+            ].map((item, index) => {
+              return (
+                <>
+                  <li
+                    className="relative leading-9"
+                    onMouseEnter={() => setHighlighted(index)}
+                  >
+                    {highlighted === index && (
+                      <motion.div
+                        layoutId="active"
+                        className="absolute -left-7 top-0 -z-10 h-full w-full rounded bg-zinc-900"
+                      />
+                    )}
+                    {item}
+                  </li>
+                </>
+              );
+            })}
           </ol>
         }
       >
-        <div className="w-full overflow-hidden">
-          <h3 className="text-center text-xs">Things people ask:</h3>
-          <InfiniteLooper containerClassName="mt-3">
-            <QuestionCard>When does the next Arc Europe start?</QuestionCard>
-            <QuestionCard>Whats the latest on the Acme deal?</QuestionCard>
-            <QuestionCard>Who is managing design system project?</QuestionCard>
-          </InfiniteLooper>
-          <InfiniteLooper
-            containerClassName="mt-3"
-            speed={120}
-            direction="left"
+        <div className="flex grow items-center justify-center overflow-hidden">
+          <div
+            className="max-h-[254px] transition duration-500 ease-in-out"
+            style={{
+              transform: `translateY(${
+                hightlightedTransform[
+                  highlighted as keyof typeof hightlightedTransform
+                ]
+              }px)`,
+            }}
           >
-            <QuestionCard>Can you summarize the last all hands?</QuestionCard>
-            <QuestionCard>Whats does the Grow team do?</QuestionCard>
-            <QuestionCard>
-              Can you provide a changelog of everything shipped in Ampersand
-              this week?
-            </QuestionCard>
-            <QuestionCard>
-              Whats our HR policy on working from home?
-            </QuestionCard>
-          </InfiniteLooper>
-          <InfiniteLooper containerClassName="mt-3" speed={30}>
-            <QuestionCard>
-              Who do I contact to get Airtable access?
-            </QuestionCard>
-            <QuestionCard>
-              Whats our HR policy on working from home?
-            </QuestionCard>
-          </InfiniteLooper>
+            <div className="grid grid-cols-4 items-center justify-center gap-4">
+              <SourceIcon id="notion" />
+              <SourceIcon id="drive" />
+              <SourceIcon id="dropbox" />
+              <SourceIcon id="linear" />
+              <SourceIcon Icon={GlobeIcon} />
+              <SourceIcon Icon={GithubIcon} />
+              <SourceIcon id="markdown" />
+              <SourceIcon Icon={UploadIcon} />
+            </div>
+            <div className="w-full px-5">
+              <div ref={sourcesContainerRef}>
+                <Lines
+                  width={sourcesContainerDimensions.width}
+                  height={100}
+                  radius={5}
+                  strokeWidth={1}
+                  highlightStrokeWidth={2}
+                  strokeDasharray={2}
+                />
+              </div>
+              <div className="flex justify-center">
+                <div className="rounded-full p-3 text-white shadow-highlight">
+                  <Logo className="h-5 w-5" />
+                </div>
+              </div>
+              <Lines
+                width={sourcesContainerDimensions.width}
+                height={100}
+                radius={5}
+                strokeWidth={1}
+                highlightStrokeWidth={2}
+                strokeDasharray={2}
+                invert
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center justify-center gap-4">
+              <SourceIcon Icon={AppWindowIcon} />
+              <SourceIcon Icon={BracesIcon} />
+              <SourceIcon id="slack" />
+              <SourceIcon Icon={ApertureIcon} />
+            </div>
+          </div>
         </div>
       </AboutCard>
       <div className="mt-8 flex flex-col gap-8 lg:flex-row">
@@ -204,55 +253,36 @@ export const About = () => {
           />
         }
       >
-        <div className="flex grow items-center justify-center overflow-hidden">
-          <div className="max-h-[320px]">
-            <div className="grid grid-cols-4 items-center justify-center gap-4">
-              <SourceIcon id="notion" />
-              <SourceIcon id="drive" />
-              <SourceIcon id="dropbox" />
-              <SourceIcon id="wordpress" />
-              <SourceIcon id="linear" />
-              <SourceIcon id="jira" />
-              <SourceIcon id="airtable" />
-              <SourceIcon id="markdown" />
-              <SourceIcon Icon={GlobeIcon} />
-              <SourceIcon Icon={GithubIcon} />
-              <SourceIcon id="zendesk" />
-              <SourceIcon Icon={UploadIcon} />
-            </div>
-            <div className="w-full px-5">
-              <div ref={sourcesContainerRef}>
-                <Lines
-                  width={sourcesContainerDimensions.width}
-                  height={100}
-                  radius={5}
-                  strokeWidth={1}
-                  highlightStrokeWidth={2}
-                  strokeDasharray={2}
-                />
-              </div>
-              <div className="flex justify-center">
-                <div className="rounded-full p-3 text-white shadow-highlight">
-                  <Logo className="h-5 w-5" />
-                </div>
-              </div>
-              <Lines
-                width={sourcesContainerDimensions.width}
-                height={100}
-                radius={5}
-                strokeWidth={1}
-                highlightStrokeWidth={2}
-                strokeDasharray={2}
-                invert
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center justify-center gap-4">
-              <SourceIcon Icon={AppWindowIcon} />
-              <SourceIcon Icon={BracesIcon} />
-              <SourceIcon id="slack" />
-              <SourceIcon Icon={ApertureIcon} />
-            </div>
-          </div>
+        <div className="w-full overflow-hidden">
+          <h3 className="text-center text-xs">Things people ask:</h3>
+          <InfiniteLooper containerClassName="mt-3">
+            <QuestionCard>When does the next Arc Europe start?</QuestionCard>
+            <QuestionCard>Whats the latest on the Acme deal?</QuestionCard>
+            <QuestionCard>Who is managing design system project?</QuestionCard>
+          </InfiniteLooper>
+          <InfiniteLooper
+            containerClassName="mt-3"
+            speed={120}
+            direction="left"
+          >
+            <QuestionCard>Can you summarize the last all hands?</QuestionCard>
+            <QuestionCard>Whats does the Grow team do?</QuestionCard>
+            <QuestionCard>
+              Can you provide a changelog of everything shipped in Ampersand
+              this week?
+            </QuestionCard>
+            <QuestionCard>
+              Whats our HR policy on working from home?
+            </QuestionCard>
+          </InfiniteLooper>
+          <InfiniteLooper containerClassName="mt-3" speed={30}>
+            <QuestionCard>
+              Who do I contact to get Airtable access?
+            </QuestionCard>
+            <QuestionCard>
+              Whats our HR policy on working from home?
+            </QuestionCard>
+          </InfiniteLooper>
         </div>
       </AboutCard>
     </section>
