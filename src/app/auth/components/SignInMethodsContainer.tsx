@@ -20,9 +20,7 @@ function SignInMethodsContainer() {
     <>
       <OAuthProviders />
       <If condition={configuration.auth.providers.emailPassword}>
-        <div>
-          <span className="text-xs text-zinc-400">or continue with email</span>
-        </div>
+        <div className="text-xs text-zinc-400">or continue with email</div>
         <EmailPasswordSignInContainer onSignIn={onSignIn} />
       </If>
       <If condition={configuration.auth.providers.phoneNumber}>

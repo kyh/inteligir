@@ -16,7 +16,7 @@ export const Hero = () => {
           <span className="block bg-gradient-to-b from-emerald-300 to-green-600 bg-clip-text text-transparent">
             Personalized AI assistants
           </span>
-          <span>built for teams</span>
+          <span>for the workplace</span>
         </Text>
         <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
           A multi-platform, privacy-first, hyper-relevant AI assistant that fits

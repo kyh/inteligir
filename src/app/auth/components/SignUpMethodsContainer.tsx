@@ -19,19 +19,13 @@ function SignUpMethodsContainer() {
   return (
     <>
       <OAuthProviders />
-
       <If condition={configuration.auth.providers.emailPassword}>
-        <div>
-          <span className="text-xs text-zinc-400">or continue with email</span>
-        </div>
-
+        <div className="text-xs text-zinc-400">or continue with email</div>
         <EmailPasswordSignUpContainer onSignUp={onSignUp} />
       </If>
-
       <If condition={configuration.auth.providers.phoneNumber}>
         <PhoneNumberSignInContainer onSignIn={onSignUp} />
       </If>
-
       <If condition={configuration.auth.providers.emailLink}>
         <EmailLinkAuth />
       </If>

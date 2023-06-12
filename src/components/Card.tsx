@@ -74,20 +74,26 @@ export const HighlightCard = ({
   className,
   gridProps,
   children,
+  pattern = null,
   ...props
 }: {
   className?: string;
   gridProps?: Omit<GridPatternProps, "width" | "height">;
+  pattern?: React.ReactNode;
   children?: React.ReactNode;
 } & React.ComponentProps<typeof Card>) => {
   const mouseX = useMotionValue(0);
   const mouseY = useMotionValue(0);
 
-  function onMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
+  const onMouseMove = ({
+    currentTarget,
+    clientX,
+    clientY,
+  }: React.MouseEvent) => {
     const { left, top } = currentTarget.getBoundingClientRect();
     mouseX.set(clientX - left);
     mouseY.set(clientY - top);
-  }
+  };
 
   return (
     <Card
@@ -96,9 +102,10 @@ export const HighlightCard = ({
       onMouseMove={onMouseMove}
       {...props}
     >
+      {pattern}
       <Pattern {...gridProps} mouseX={mouseX} mouseY={mouseY} />
       <div className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/0 group-hover:ring-white/5" />
-      <div className="relative">{children}</div>
+      <div className="relative h-full">{children}</div>
     </Card>
   );
 };
