@@ -24,67 +24,7 @@ import { cn } from "~/lib/utils/cn";
 import { HighlightCard } from "~/components/Card";
 import { Logo } from "~/components/Logo";
 import { Text } from "~/components/Text";
-
-const AboutCard = ({
-  className,
-  title,
-  description,
-  inline,
-  pattern,
-  children,
-}: {
-  className?: string;
-  title?: React.ReactNode;
-  description?: React.ReactNode;
-  inline?: boolean;
-  pattern?: React.ReactNode;
-  children?: React.ReactNode;
-}) => {
-  return (
-    <HighlightCard
-      size="lg"
-      className={cn("grow", className)}
-      pattern={pattern}
-      gridProps={{
-        y: -6,
-        squares: [
-          [-1, 2],
-          [1, 3],
-        ],
-      }}
-    >
-      <div
-        className={cn(
-          "flex h-full items-center gap-5 text-center lg:gap-8 lg:text-start",
-          inline ? "flex-col" : "flex-col lg:flex-row"
-        )}
-      >
-        <div className="flex flex-col gap-2 lg:gap-5">
-          <h3 className="text-xl font-semibold sm:text-2xl">{title}</h3>
-          <div className="text-start text-sm text-zinc-300 sm:text-base">
-            {description}
-          </div>
-        </div>
-        {children}
-      </div>
-    </HighlightCard>
-  );
-};
-
-const AboutCardDescriptionList = ({
-  points,
-}: {
-  points: React.ReactNode[];
-}) => (
-  <ul className="flex flex-col gap-1">
-    {points.map((point, index) => (
-      <li className="flex items-start gap-2.5" key={index}>
-        <CheckIcon className="mt-1.5 h-4 w-4 flex-none text-green-500" />
-        {point}
-      </li>
-    ))}
-  </ul>
-);
+import { InfiniteLooper } from "./InfiniteLoop";
 
 export const About = () => {
   const sourcesContainerRef = useRef<HTMLDivElement>(null);
@@ -132,9 +72,42 @@ export const About = () => {
             <li>Connect your knowledge base</li>
             <li>Train your custom model</li>
             <li>Integrate with your workflow</li>
+            <li>And ask away</li>
           </ol>
         }
-      ></AboutCard>
+      >
+        <div className="w-full overflow-hidden">
+          <h3 className="text-center text-xs">Things people ask:</h3>
+          <InfiniteLooper containerClassName="mt-3">
+            <QuestionCard>When does the next Arc Europe start?</QuestionCard>
+            <QuestionCard>Whats the latest on the Acme deal?</QuestionCard>
+            <QuestionCard>Who is managing design system project?</QuestionCard>
+          </InfiniteLooper>
+          <InfiniteLooper
+            containerClassName="mt-3"
+            speed={120}
+            direction="left"
+          >
+            <QuestionCard>Can you summarize the last all hands?</QuestionCard>
+            <QuestionCard>Whats does the Grow team do?</QuestionCard>
+            <QuestionCard>
+              Can you provide a changelog of everything shipped in Ampersand
+              this week?
+            </QuestionCard>
+            <QuestionCard>
+              Whats our HR policy on working from home?
+            </QuestionCard>
+          </InfiniteLooper>
+          <InfiniteLooper containerClassName="mt-3" speed={30}>
+            <QuestionCard>
+              Who do I contact to get Airtable access?
+            </QuestionCard>
+            <QuestionCard>
+              Whats our HR policy on working from home?
+            </QuestionCard>
+          </InfiniteLooper>
+        </div>
+      </AboutCard>
       <div className="mt-8 flex flex-col gap-8 lg:flex-row">
         <AboutCard
           title="Ultra relevant results"
@@ -283,6 +256,75 @@ export const About = () => {
         </div>
       </AboutCard>
     </section>
+  );
+};
+
+const AboutCard = ({
+  className,
+  title,
+  description,
+  inline,
+  pattern,
+  children,
+}: {
+  className?: string;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  inline?: boolean;
+  pattern?: React.ReactNode;
+  children?: React.ReactNode;
+}) => {
+  return (
+    <HighlightCard
+      size="lg"
+      className={cn("grow", className)}
+      pattern={pattern}
+      gridProps={{
+        y: -6,
+        squares: [
+          [-1, 2],
+          [1, 3],
+        ],
+      }}
+    >
+      <div
+        className={cn(
+          "flex h-full items-center gap-5 text-center lg:gap-8 lg:text-start",
+          inline ? "flex-col" : "flex-col lg:flex-row"
+        )}
+      >
+        <div className="flex min-w-[300px] shrink-0 flex-col gap-2 lg:gap-5">
+          <h3 className="text-xl font-semibold sm:text-2xl">{title}</h3>
+          <div className="text-start text-sm text-zinc-300 sm:text-base">
+            {description}
+          </div>
+        </div>
+        {children}
+      </div>
+    </HighlightCard>
+  );
+};
+
+const AboutCardDescriptionList = ({
+  points,
+}: {
+  points: React.ReactNode[];
+}) => (
+  <ul className="flex flex-col gap-1">
+    {points.map((point, index) => (
+      <li className="flex items-start gap-2.5" key={index}>
+        <CheckIcon className="mt-1.5 h-4 w-4 flex-none text-green-500" />
+        {point}
+      </li>
+    ))}
+  </ul>
+);
+
+const QuestionCard = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <div className="mr-3 rounded border border-dashed border-zinc-700 bg-zinc-900 p-3 text-xs text-white">
+      {children}
+    </div>
   );
 };
 
