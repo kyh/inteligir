@@ -82,20 +82,19 @@ export const About = () => {
               "Integrate with your workflow",
             ].map((item, index) => {
               return (
-                <>
-                  <li
-                    className="relative leading-9"
-                    onMouseEnter={() => setHighlighted(index)}
-                  >
-                    {highlighted === index && (
-                      <motion.div
-                        layoutId="active"
-                        className="absolute -left-7 top-0 -z-10 h-full w-full rounded bg-zinc-900"
-                      />
-                    )}
-                    {item}
-                  </li>
-                </>
+                <li
+                  className="relative leading-9"
+                  onMouseEnter={() => setHighlighted(index)}
+                  key={item}
+                >
+                  {highlighted === index && (
+                    <motion.div
+                      layoutId="about-card-active"
+                      className="absolute -left-7 top-0 -z-10 h-full w-full rounded bg-zinc-900"
+                    />
+                  )}
+                  {item}
+                </li>
               );
             })}
           </ol>
@@ -163,8 +162,8 @@ export const About = () => {
           description={
             <AboutCardDescriptionList
               points={[
-                "References are provided to prevent hallucinations",
-                "Customize your model for even more relevant results",
+                "References are provided which link back to the source",
+                "Fully customizable settings to tweak the output results",
               ]}
             />
           }

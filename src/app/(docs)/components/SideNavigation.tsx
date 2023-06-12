@@ -12,16 +12,15 @@ export const pages = [
       { title: "Quickstart", href: "/docs/quickstart" },
       { title: "SDKs", href: "/docs/sdks" },
       { title: "Authentication", href: "/docs/authentication" },
-      { title: "Cache", href: "/docs/cache" },
       { title: "Errors", href: "/docs/errors" },
     ],
   },
   {
-    title: "Resources",
+    title: "API",
     links: [
-      { title: "Cache", href: "/docs/resource/cache" },
-      { title: "Clients", href: "/docs/resource/clients" },
-      { title: "Activity", href: "/docs/resource/activity" },
+      { title: "Upload", href: "/docs/resource/upload" },
+      { title: "Train", href: "/docs/resource/train" },
+      { title: "Query", href: "/docs/resource/query" },
       { title: "Stats", href: "/docs/resource/stats" },
     ],
   },
@@ -47,7 +46,7 @@ export const SideNavigation = () => {
                   >
                     {page.href === activeLink && (
                       <motion.div
-                        layoutId="active"
+                        layoutId="docs-sidebar-active"
                         className="absolute -left-px top-2 h-4 w-px bg-emerald-500 shadow shadow-emerald-400"
                       />
                     )}
