@@ -4,16 +4,15 @@ import { classed } from "~/lib/utils/cn";
 import Spinner from "~/components/Spinner";
 
 const BaseButton = classed("button", {
-  base: "inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 space-x-1 justify-center",
+  base: "relative inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 space-x-1 justify-center transition",
   variants: {
     variant: {
       normal:
-        "border-border bg-black hover:bg-zinc-900 hover:text-white disabled:hover:bg-black border shadow-sm font-medium transition",
+        "border-border bg-black hover:bg-zinc-900 hover:text-white disabled:hover:bg-black border shadow-sm",
       primary:
-        "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-300 border shadow-sm font-medium transition",
+        "bg-emerald-400/10 text-emerald-400 border-emerald-400/20 hover:bg-emerald-400/10 hover:text-emerald-300 hover:border-emerald-300 border shadow-sm",
       text: "text-emerald-500 hover:text-emerald-300",
-      transparent:
-        "bg-transparent border-border hover:bg-zinc-900 hover:text-white border shadow-sm font-medium transition",
+      transparent: "bg-transparent hover:bg-zinc-900 hover:text-white",
       plain: "",
     },
     size: {
@@ -32,7 +31,7 @@ const BaseButton = classed("button", {
       true: "",
     },
     iconOnly: {
-      true: "",
+      true: "px-3 py-3",
     },
   },
   defaultVariants: {
@@ -87,7 +86,7 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
         ref={ref}
         {...props}
       >
-        {!!props.loading && <Spinner className="mx-auto fill-white" />}
+        {!!props.loading && <Spinner className="absolute mx-auto fill-white" />}
         {startIcon && renderIcon(startIcon, iconClassName, iconSize)}
         {children}
         {endIcon && renderIcon(endIcon, iconClassName, iconSize)}

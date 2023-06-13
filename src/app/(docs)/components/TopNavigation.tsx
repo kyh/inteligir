@@ -1,8 +1,12 @@
+import { MenuIcon } from "lucide-react";
 import useSignOut from "~/core/hooks/use-sign-out";
 import UserSession from "~/core/session/types/user-session";
+import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { NavLink } from "~/components/NavLink";
 import ProfileDropdown from "~/components/ProfileDropdown";
+import { Sheet, SheetContent, SheetTrigger } from "~/components/Sheet";
+import { Nav } from "./SideNavigation";
 
 type TopNavigationProps = {
   userSession: Maybe<UserSession>;
@@ -12,7 +16,21 @@ export const TopNavigation = ({ userSession }: TopNavigationProps) => {
   const signOut = useSignOut();
 
   return (
-    <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between gap-12 bg-zinc-900/20 px-4 backdrop-blur-sm transition dark:backdrop-blur sm:px-6 lg:left-72 lg:z-30 lg:px-8">
+    <header className="fixed inset-x-0 top-0 z-50 flex h-16 items-center justify-between bg-zinc-900/20 px-5 backdrop-blur transition lg:left-72 lg:z-30 lg:px-8">
+      <Sheet>
+        <SheetTrigger asChild>
+          <Button
+            className="lg:hidden"
+            variant="transparent"
+            startIcon={<MenuIcon />}
+            iconSize={16}
+            aria-label="Menu"
+          />
+        </SheetTrigger>
+        <SheetContent position="left">
+          <Nav />
+        </SheetContent>
+      </Sheet>
       <nav>
         <ul className="flex gap-3 md:gap-8">
           <li>

@@ -12,7 +12,7 @@ const ReauthenticationModal: React.FC<{
 
   return (
     <Modal
-      heading={Reauthenticate}
+      heading={"Reauthenticate"}
       isOpen={isOpen}
       setIsOpen={setIsOpen}
       closeButton={false}

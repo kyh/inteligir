@@ -4,7 +4,6 @@ import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import { Close as DialogPrimitiveClose } from "@radix-ui/react-dialog";
 import { Button } from "~/components/Button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/Dialog";
-import { Button } from "~/components/Button";
 import If from "~/components/If";
 
 const Modal: React.FC<
