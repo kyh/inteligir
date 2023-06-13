@@ -91,10 +91,10 @@ export const About = () => {
                   {highlighted === index && (
                     <motion.div
                       layoutId="about-card-active"
-                      className="absolute -left-7 top-0 -z-10 h-full w-full rounded bg-zinc-900"
+                      className="pointer-events-none absolute -left-7 top-0 h-full w-full rounded bg-black/50"
                     />
                   )}
-                  {item}
+                  <span className="relative">{item}</span>
                 </li>
               );
             })}
