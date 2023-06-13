@@ -1,0 +1,24 @@
+import Link from "next/link";
+import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
+import SubscriptionStatusBadge from "./SubscriptionStatusBadge";
+
+function HeaderSubscriptionStatusBadge() {
+  const organization = useCurrentOrganization();
+  const subscription = organization?.subscription?.data;
+
+  // if the organization has an active subscription
+  // we do not show the subscription status badge
+  if (subscription?.status === "active") {
+    return null;
+  }
+
+  // in all other cases we show the subscription status badge
+  // which will show the subscription status and a link to the subscription page
+  return (
+    <Link href="/settings/subscription">
+      <SubscriptionStatusBadge subscription={subscription} />
+    </Link>
+  );
+}
+
+export default HeaderSubscriptionStatusBadge;
