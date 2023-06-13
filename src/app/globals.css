@@ -1,0 +1,82 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 5.9% 10%;
+    --foreground: 213 31% 91%;
+
+    --muted: 223 47% 11%;
+    --muted-foreground: 215.4 16.3% 56.9%;
+
+    --popover: 240 5.9% 10%;
+    --popover-foreground: 215 20.2% 65.1%;
+
+    --card: 240 5.9% 10%;
+    --card-foreground: 213 31% 91%;
+
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 1.2%;
+
+    --secondary: 222.2 47.4% 11.2%;
+    --secondary-foreground: 210 40% 98%;
+
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 63% 31%;
+    --destructive-foreground: 210 40% 98%;
+
+    --ring: 240 3.7% 15.9%;
+
+    --radius: 0.5rem;
+
+    --shiki-color-text: theme("colors.white");
+    --shiki-token-constant: theme("colors.emerald.300");
+    --shiki-token-string: theme("colors.emerald.300");
+    --shiki-token-comment: theme("colors.gray.500");
+    --shiki-token-keyword: theme("colors.sky.300");
+    --shiki-token-parameter: theme("colors.pink.300");
+    --shiki-token-function: theme("colors.violet.300");
+    --shiki-token-string-expression: theme("colors.emerald.300");
+    --shiki-token-punctuation: theme("colors.gray.200");
+    --primary-glow: radial-gradient(
+      rgba(16, 185, 129, 0.4),
+      rgba(1, 65, 255, 0)
+    );
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  .site-container {
+    display: grid;
+    grid-template-columns: 1fr min(theme("maxWidth.5xl"), 100%) 1fr;
+  }
+
+  .site-container > * {
+    grid-column: 2;
+  }
+
+  .full-bleed {
+    width: 100%;
+    grid-column: 1 / 4;
+  }
+
+  .bg-gradient-ball {
+    filter: blur(45px);
+    background: var(--primary-glow);
+  }
+}
