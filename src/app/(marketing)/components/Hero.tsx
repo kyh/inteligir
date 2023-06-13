@@ -1,7 +1,7 @@
 import { Badge } from "~/components/Badge";
 import { GridPattern } from "~/components/GridPattern";
 import { Text } from "~/components/Text";
-import { HeroBackgroundImage } from "./HeroBackgroundImage";
+import { HeroExample } from "./HeroExample";
 import { PrimaryButton } from "./HomeButton";
 
 export const Hero = () => {
@@ -33,11 +33,11 @@ export const Hero = () => {
           autoPlay
           muted
           playsInline
-          className="pointer-events-none absolute inset-0 translate-y-10 opacity-50 mix-blend-lighten hue-rotate-[250deg] [mask-image:linear-gradient(transparent_10%,black,transparent)]"
+          className="pointer-events-none absolute inset-0 w-full translate-y-10 opacity-50 mix-blend-lighten hue-rotate-[250deg] [mask-image:linear-gradient(transparent_10%,black,transparent)]"
         >
           <source src="/assets/home-hero-bg.mov" />
         </video>
-        <HeroBackgroundImage />
+        <HeroExample />
       </div>
     </>
   );

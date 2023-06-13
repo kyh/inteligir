@@ -14,7 +14,7 @@ export const Card = classed("article", {
   variants: {
     variant: {
       normal: "bg-zinc-800 rounded shadow",
-      highlight: "rounded-2xl bg-zinc-800/20 shadow-highlight",
+      highlight: "rounded-2xl bg-zinc-900/90 shadow-highlight",
     },
     size: {
       md: "p-4",
@@ -62,7 +62,7 @@ const Pattern = ({
           width={72}
           height={56}
           x="50%"
-          className="absolute inset-x-0 inset-y-[-30%] h-[160%] w-full skew-y-[-18deg] fill-white/[0.025] stroke-white/10"
+          className="absolute inset-x-0 inset-y-[-30%] h-[160%] w-full fill-white/[0.025] stroke-white/10"
           {...gridProps}
         />
       </motion.div>
