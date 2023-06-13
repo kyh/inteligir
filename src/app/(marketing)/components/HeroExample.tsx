@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { cn } from "~/lib/utils/cn";
 import { Badge } from "~/components/Badge";
@@ -44,27 +44,51 @@ export const HeroExample = () => {
   );
 };
 
+const samples = [
+  {
+    input:
+      "I'm writing a story about the gaming industry, who should I talk to?",
+    output: {
+      text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit totam sequi! Corrupti, commodi odit officia praesentium repellat harum quaerat quia explicabo amet.",
+      references: ["Reference 1", "Reference 2"],
+    },
+  },
+  {
+    input:
+      "I'm writing a story about the gaming industry, who should I talk to?",
+    output: {
+      text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit totam sequi! Corrupti, commodi odit officia praesentium repellat harum quaerat quia explicabo amet.",
+      references: ["Reference 1", "Reference 2"],
+    },
+  },
+  {
+    input:
+      "I'm writing a story about the gaming industry, who should I talk to?",
+    output: {
+      text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit totam sequi! Corrupti, commodi odit officia praesentium repellat harum quaerat quia explicabo amet.",
+      references: ["Reference 1", "Reference 2"],
+    },
+  },
+];
+
 export const ExampleChat = () => {
+  const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
+  const currentSample = samples[currentSampleIndex];
+
   return (
     <section className={styles.container}>
       <section className={styles.window}>
         <div className={styles.input}>
-          <div className="block">
-            I'm writing a story about the gaming industry, who should I talk to?
-          </div>
+          <div className="block">{currentSample.input}</div>
         </div>
         <div className={styles.loading} />
         <div className={styles.output}>
-          <div className={styles.outputText}>
-            Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis
-            nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit
-            totam sequi! Corrupti, commodi odit officia praesentium repellat
-            harum quaerat quia explicabo amet.
-          </div>
+          <div className={styles.outputText}>{currentSample.output.text}</div>
           <footer className={styles.outputFooter}>
             <div className="flex gap-2">
-              <Badge>Reference 1</Badge>
-              <Badge>Reference 2</Badge>
+              {currentSample.output.references.map((reference) => (
+                <Badge key={reference}>{reference}</Badge>
+              ))}
             </div>
           </footer>
         </div>

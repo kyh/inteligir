@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Transition } from "@headlessui/react";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import configuration from "~/configuration";
 import { cn } from "~/lib/utils/cn";
@@ -146,32 +145,20 @@ function PricingItem(
         </span>
       </div>
 
-      <Transition
-        show
-        appear
-        enter="duration-300 relative transition-all ease-in"
-        enterFrom="opacity-0 right-1"
-        enterTo="opacity-100 right-0"
-        leave="duration-300 relative transition-all ease-out"
-        leaveFrom="opacity-100 right-0"
-        leaveTo="opacity-0 right-1"
-      >
-        <div className="flex items-end space-x-1">
-          <Price>{props.plan.price}</Price>
-
-          <If condition={props.plan.name}>
-            <span
-              className={cn(`text-lg lowercase`, {
-                "text-zinc-100": recommended,
-                "text-zinc-400 dark:text-zinc-400": !recommended,
-              })}
-            >
-              <span>/</span>
-              <span>{props.plan.name}</span>
-            </span>
-          </If>
-        </div>
-      </Transition>
+      <div className="flex items-end space-x-1">
+        <Price>{props.plan.price}</Price>
+        <If condition={props.plan.name}>
+          <span
+            className={cn(`text-lg lowercase`, {
+              "text-zinc-100": recommended,
+              "text-zinc-400 dark:text-zinc-400": !recommended,
+            })}
+          >
+            <span>/</span>
+            <span>{props.plan.name}</span>
+          </span>
+        </If>
+      </div>
 
       <div className="my-2.5 py-2.5 text-current">
         <FeaturesList features={props.product.features} />

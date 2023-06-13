@@ -121,10 +121,9 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
               type="password"
               {...newPasswordControl}
             />
-            <TextField.Error
-              data-cy="new-password-error"
-              error={errors.newPassword?.message}
-            />
+            <TextField.Hint color="error" data-cy="new-password-error">
+              {errors.newPassword?.message}
+            </TextField.Hint>
           </TextField.Label>
         </TextField>
 
@@ -137,10 +136,9 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
               type="password"
               {...repeatPasswordControl}
             />
-            <TextField.Error
-              data-cy="repeat-password-error"
-              error={errors.repeatPassword?.message}
-            />
+            <TextField.Hint color="error" data-cy="repeat-password-error">
+              {errors.repeatPassword?.message}
+            </TextField.Hint>
           </TextField.Label>
         </TextField>
 
