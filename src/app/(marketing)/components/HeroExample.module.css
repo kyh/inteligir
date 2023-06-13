@@ -86,7 +86,7 @@
 
 .output {
   height: var(--height);
-  padding: 28px 40px;
+  padding: 24px 32px;
 }
 
 .outputText {
@@ -100,7 +100,6 @@
 .outputFooter {
   position: absolute;
   right: 32px;
-  bottom: 28px;
   bottom: 24px;
   left: 32px;
   display: flex;

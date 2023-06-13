@@ -50,7 +50,7 @@ function VerificationCodeInput({
     setFocus("values.0.value");
   }, [setFocus]);
 
-  const onInput: FormEventHandler<HTMLFormElement> = useCallback(
+  const onChange: FormEventHandler<HTMLFormElement> = useCallback(
     (target) => {
       const element = target.currentTarget;
       const isValid = element.reportValidity();
@@ -82,7 +82,6 @@ function VerificationCodeInput({
             required
             key={digit}
             maxLength={1}
-            onInput={onInput}
             {...control}
           />
         );
