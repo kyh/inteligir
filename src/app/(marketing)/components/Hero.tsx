@@ -26,7 +26,7 @@ export const Hero = () => {
           <PrimaryButton>Request Early Access &rarr;</PrimaryButton>
         </div>
       </section>
-      <div className="full-bleed relative min-h-[30vh]">
+      <div className="full-bleed relative">
         <video
           preload="metadata"
           loop

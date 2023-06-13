@@ -12,7 +12,7 @@ const NotFoundPage = async () => {
   return (
     <main>
       <TopNavigation userSession={undefined} />
-      <div className="m-auto flex min-h-[50vh] w-full items-center justify-center">
+      <div className="m-auto flex min-h-screen w-full items-center justify-center">
         <div className="flex flex-col space-y-8">
           <div className="flex space-x-8 divide-x divide-zinc-100">
             <div>

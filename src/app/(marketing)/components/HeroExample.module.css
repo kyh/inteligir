@@ -1,6 +1,6 @@
 .container {
   --border-radius: 12px;
-  --height: 300px;
+  --height: 400px;
 
   text-align: start;
   position: relative;
@@ -86,7 +86,7 @@
 
 .output {
   height: var(--height);
-  padding: 27px 40px 32px 27px;
+  padding: 28px 40px;
 }
 
 .outputText {
@@ -105,10 +105,4 @@
   left: 32px;
   display: flex;
   justify-content: space-between;
-}
-
-@media (min-width: 768px) {
-  .container {
-    --height: 372px;
-  }
 }
