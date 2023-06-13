@@ -1,12 +1,18 @@
 "use client";
 
-import { motion, useScroll, useTransform } from "framer-motion";
+import { useRef } from "react";
+import { motion, useInView, useScroll, useTransform } from "framer-motion";
+import { cn } from "~/lib/utils/cn";
 import { Badge } from "~/components/Badge";
 import styles from "./HeroExample.module.css";
 
 const scrollYProgressMap = [0, 0.1];
 
 export const HeroExample = () => {
+  const ref = useRef(null);
+  const isInView = useInView(ref, {
+    amount: 1,
+  });
   const { scrollYProgress } = useScroll();
   const y = useTransform(scrollYProgress, scrollYProgressMap, [21.28, 0]);
   const z = useTransform(scrollYProgress, scrollYProgressMap, [-74.56, 0]);
@@ -14,18 +20,27 @@ export const HeroExample = () => {
   const scale = useTransform(scrollYProgress, scrollYProgressMap, [0.9, 1]);
 
   return (
-    <motion.div
-      className="mx-auto mt-10 max-w-[900px] px-3 shadow"
-      style={{
-        transformPerspective: 3312,
-        y,
-        z,
-        rotateX,
-        scale,
-      }}
-    >
-      <ExampleChat />
-    </motion.div>
+    <>
+      <div
+        className={cn(
+          "pointer-events-none fixed inset-0 bg-transparent opacity-0 backdrop-blur transition",
+          isInView && "opacity-1"
+        )}
+      />
+      <motion.div
+        ref={ref}
+        className="mx-auto mt-10 max-w-[900px] px-3 shadow"
+        style={{
+          transformPerspective: 3312,
+          y,
+          z,
+          rotateX,
+          scale,
+        }}
+      >
+        <ExampleChat />
+      </motion.div>
+    </>
   );
 };
 
