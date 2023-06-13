@@ -4,14 +4,15 @@ const production = process.env.NODE_ENV === "production";
 
 const configuration = {
   site: {
-    name: "Inteligir - Your SaaS Title",
-    description: "Your SaaS Description",
+    name: "Inteligir - Personalized AI assistants for the workplace",
+    description:
+      "A multi-platform, privacy-first, hyper-relevant AI assistant that fits effortlessly in your organization workflow",
     themeColor: "#ffffff",
     themeColorDark: "#0a0a0a",
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
     siteName: "Inteligir",
-    twitterHandle: "",
-    githubHandle: "",
+    twitterHandle: "kaiyuhsu",
+    githubHandle: "kyh",
     language: "en",
     convertKitFormId: "",
     locale: process.env.NEXT_PUBLIC_DEFAULT_LOCALE,
