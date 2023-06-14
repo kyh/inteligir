@@ -8,8 +8,6 @@ import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
 
-const CHECKOUT_SESSION_API_ENDPOINT = configuration.paths.api.checkout;
-
 const CheckoutRedirectButton: React.FCC<{
   disabled?: boolean;
   stripePriceId?: string;
@@ -18,11 +16,7 @@ const CheckoutRedirectButton: React.FCC<{
   customerId: Maybe<string>;
 }> = ({ children, ...props }) => {
   return (
-    <form
-      data-cy="checkout-form"
-      action={CHECKOUT_SESSION_API_ENDPOINT}
-      method="POST"
-    >
+    <form data-cy="checkout-form" action="/api/stripe/checkout" method="POST">
       <CheckoutFormData
         customerId={props.customerId}
         organizationId={props.organizationId}

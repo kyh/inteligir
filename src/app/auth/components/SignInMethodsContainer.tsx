@@ -13,7 +13,7 @@ function SignInMethodsContainer() {
   const router = useRouter();
 
   const onSignIn = useCallback(() => {
-    router.push(configuration.paths.appHome);
+    router.push("/dashboard");
   }, [router]);
 
   return (

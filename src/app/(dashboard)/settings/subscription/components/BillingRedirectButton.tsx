@@ -5,14 +5,12 @@ import configuration from "~/configuration";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { Button } from "~/components/Button";
 
-const BILLING_PORTAL_REDIRECT_ENDPOINT = configuration.paths.api.billingPortal;
-
 const BillingPortalRedirectButton: React.FCC<{
   customerId: string;
   className?: string;
 }> = ({ children, customerId, className }) => {
   return (
-    <form method="POST" action={BILLING_PORTAL_REDIRECT_ENDPOINT}>
+    <form method="POST" action="/api/stripe/portal">
       <input type="hidden" name="customerId" value={customerId} />
 
       <CsrfTokenInput />

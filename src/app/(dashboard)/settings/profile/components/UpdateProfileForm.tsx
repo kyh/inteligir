@@ -145,7 +145,7 @@ function UpdateProfileForm({
 
             <If condition={email}>
               <div>
-                <Button as={Link} href={configuration.paths.settings.email}>
+                <Button as={Link} href="/settings/profile/email">
                   <span className="text-xs font-normal">
                     Update Email Address
                   </span>
@@ -155,10 +155,7 @@ function UpdateProfileForm({
 
             <If condition={!email}>
               <div>
-                <Button
-                  as={Link}
-                  href={configuration.paths.settings.authentication}
-                >
+                <Button as={Link} href="/settings/profile/authentication">
                   <span className="text-xs font-normal">Add Email address</span>
                 </Button>
               </div>

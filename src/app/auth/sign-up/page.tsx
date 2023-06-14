@@ -3,8 +3,6 @@ import configuration from "~/configuration";
 import { Text } from "~/components/Text";
 import SignUpMethodsContainer from "~/app/auth/components/SignUpMethodsContainer";
 
-const SIGN_IN_PATH = configuration.paths.signIn;
-
 export const metadata = {
   title: "Sign up",
 };
@@ -21,7 +19,7 @@ function SignUpPage() {
           <span>Already have an account?</span>
           <Link
             className="text-emerald-800 hover:underline dark:text-emerald-500"
-            href={SIGN_IN_PATH}
+            href="/auth/sign-in"
           >
             Sign In
           </Link>

@@ -25,5 +25,5 @@ async function loadData() {
     return {};
   }
 
-  return redirect(configuration.paths.signIn);
+  return redirect("/auth/sign-in");
 }
