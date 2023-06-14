@@ -1,14 +1,22 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { motion, useInView, useScroll, useTransform } from "framer-motion";
-import { cn } from "~/lib/utils/cn";
+import { useEffect, useRef, useState } from "react";
+import {
+  AnimatePresence,
+  motion,
+  useInView,
+  useMotionValueEvent,
+  useScroll,
+  useTransform,
+} from "framer-motion";
+import Typewriter, { TypewriterClass } from "typewriter-effect";
 import { Badge } from "~/components/Badge";
 import styles from "./HeroExample.module.css";
 
 const scrollYProgressMap = [0, 0.1];
 
 export const HeroExample = () => {
+  const [isScaled, setIsScaled] = useState(false);
   const ref = useRef(null);
   const isInView = useInView(ref, {
     amount: 1,
@@ -19,14 +27,28 @@ export const HeroExample = () => {
   const rotateX = useTransform(scrollYProgress, scrollYProgressMap, [40, 0]);
   const scale = useTransform(scrollYProgress, scrollYProgressMap, [0.9, 1]);
 
+  useMotionValueEvent(scale, "change", (latest) => {
+    if (latest > 0.999) {
+      setIsScaled(true);
+    } else {
+      setIsScaled(false);
+    }
+  });
+
+  const shouldRun = isScaled && isInView;
+
   return (
     <>
-      <div
-        className={cn(
-          "pointer-events-none fixed inset-0 bg-transparent opacity-0 backdrop-blur transition",
-          isInView && "opacity-1"
+      <AnimatePresence>
+        {shouldRun && (
+          <motion.div
+            className="pointer-events-none fixed inset-0 bg-transparent backdrop-blur transition"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          />
         )}
-      />
+      </AnimatePresence>
       <motion.div
         ref={ref}
         className="mx-auto mt-10 max-w-[900px] px-3 shadow"
@@ -38,7 +60,7 @@ export const HeroExample = () => {
           scale,
         }}
       >
-        <ExampleChat />
+        <ExampleChat start={shouldRun} />
       </motion.div>
     </>
   );
@@ -71,22 +93,49 @@ const samples = [
   },
 ];
 
-export const ExampleChat = () => {
+export const ExampleChat = ({ start }: { start: boolean }) => {
+  const [instance, setInstance] = useState<TypewriterClass>();
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
-  const currentSample = samples[currentSampleIndex];
+  const [currentOutputText, setCurrentOutputText] = useState("");
+  const [currentReferences, setCurrentReferences] = useState([]);
+
+  useEffect(() => {
+    const currentSample = samples[currentSampleIndex];
+    if (instance && start) {
+      instance
+        .typeString(currentSample.input)
+        .callFunction(() => {
+          setCurrentOutputText(currentSample.output.text);
+        })
+        .start();
+    }
+    if (instance && !start) {
+      instance.deleteAll().callFunction(() => {
+        setCurrentOutputText("");
+        setCurrentReferences([]);
+      });
+    }
+  }, [instance, start, currentSampleIndex]);
 
   return (
     <section className={styles.container}>
       <section className={styles.window}>
         <div className={styles.input}>
-          <div className="block">{currentSample.input}</div>
+          <Typewriter
+            options={{
+              delay: 50,
+            }}
+            onInit={(typewriter) => {
+              setInstance(typewriter);
+            }}
+          />
         </div>
         <div className={styles.loading} />
         <div className={styles.output}>
-          <div className={styles.outputText}>{currentSample.output.text}</div>
+          <div className={styles.outputText}>{currentOutputText}</div>
           <footer className={styles.outputFooter}>
             <div className="flex gap-2">
-              {currentSample.output.references.map((reference) => (
+              {currentReferences.map((reference) => (
                 <Badge key={reference}>{reference}</Badge>
               ))}
             </div>
