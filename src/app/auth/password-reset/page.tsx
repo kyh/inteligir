@@ -25,7 +25,7 @@ function PasswordResetPage() {
 
             <Link
               className="text-emerald-800 hover:underline dark:text-emerald-500"
-              href={configuration.paths.signIn}
+              href="/auth/sign-in"
             >
               Sign In
             </Link>

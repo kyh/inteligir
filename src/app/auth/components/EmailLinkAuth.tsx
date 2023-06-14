@@ -21,7 +21,7 @@ const EmailLinkAuth: React.FC = () => {
       const email = data.get("email") as string;
 
       const origin = window.location.origin;
-      const redirectUrl = [origin, configuration.paths.signInFromLink].join("");
+      const redirectUrl = [origin, "/auth/link"].join("");
 
       const promise = signInWithOtpMutation.trigger({
         email,

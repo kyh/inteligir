@@ -105,7 +105,7 @@ async function loadMembers() {
   });
 
   if (!organizationResponse) {
-    throw redirect(configuration.paths.appHome);
+    throw redirect("/dashboard");
   }
 
   const organizationId = organizationResponse.organization.id;

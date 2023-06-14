@@ -8,8 +8,7 @@ import useSupabase from "~/core/hooks/use-supabase";
 function AuthLinkRedirect() {
   const params = useSearchParams();
 
-  const redirectPath =
-    params?.get("redirectPath") || configuration.paths.appHome;
+  const redirectPath = params?.get("redirectPath") || "/dashboard";
 
   useRedirectOnSignIn(redirectPath);
 

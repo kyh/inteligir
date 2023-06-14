@@ -48,7 +48,7 @@ export async function POST(request: Request) {
   try {
     const referer = headers().get("referer");
     const origin = headers().get("origin");
-    const returnUrl = referer || origin || configuration.paths.appHome;
+    const returnUrl = referer || origin || "/dashboard";
 
     // get the Stripe Billing Portal session
     const { url } = await createBillingPortalSession({

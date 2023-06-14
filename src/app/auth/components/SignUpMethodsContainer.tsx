@@ -13,7 +13,7 @@ function SignUpMethodsContainer() {
   const router = useRouter();
 
   const onSignUp = useCallback(() => {
-    router.push(configuration.paths.onboarding);
+    router.push("/onboarding");
   }, [router]);
 
   return (

@@ -28,7 +28,7 @@ const CompleteOnboardingStep: React.FC<{
 
     try {
       await trigger(data);
-      router.push(configuration.paths.appHome);
+      router.push("/dashboard");
     } catch (e) {
       submitted.current = false;
     }

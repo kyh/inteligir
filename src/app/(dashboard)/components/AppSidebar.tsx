@@ -29,11 +29,9 @@ const AppSidebar: React.FC = () => {
 function AppSidebarHeader({
   collapsed,
 }: React.PropsWithChildren<{ collapsed: boolean }>) {
-  const logoHref = configuration.paths.appHome;
-
   return (
     <div className="flex px-2.5 py-1">
-      <Link href={logoHref}>
+      <Link href="/dashboard">
         <Logo />
       </Link>
     </div>

@@ -75,7 +75,7 @@ const loadAppData = cache(async () => {
 });
 
 function redirectToOnboarding() {
-  return redirect(configuration.paths.onboarding);
+  return redirect("/onboarding");
 }
 
 function redirectToHomePage() {

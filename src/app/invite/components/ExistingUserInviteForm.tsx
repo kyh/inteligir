@@ -27,7 +27,7 @@ function ExistingUserInviteForm(
   const onInviteAccepted = useCallback(async () => {
     await acceptInvite.trigger({});
 
-    return router.push(configuration.paths.appHome);
+    return router.push("/dashboard");
   }, [acceptInvite, router]);
 
   return (

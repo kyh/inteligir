@@ -12,7 +12,7 @@ async function requireSession(client: SupabaseClient) {
   const { data, error } = await client.auth.getSession();
 
   if (!data.session || error) {
-    throw redirect(configuration.paths.signIn);
+    throw redirect("/auth/sign-in");
   }
 
   const requiresMfa = await verifyRequiresMfa(client);
@@ -20,7 +20,7 @@ async function requireSession(client: SupabaseClient) {
   // If the user requires multi-factor authentication,
   // redirect them to the page where they can verify their identity.
   if (requiresMfa) {
-    throw redirect(configuration.paths.signInMfa);
+    throw redirect("/auth/verify");
   }
 
   return data.session;
