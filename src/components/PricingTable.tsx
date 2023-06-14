@@ -259,8 +259,7 @@ function DefaultCheckoutButton(
   }>
 ) {
   const linkHref =
-    props.plan.href ??
-    `${configuration.paths.signUp}?utm_source=${props.plan.stripePriceId}`;
+    props.plan.href ?? `/auth/sign-up?utm_source=${props.plan.stripePriceId}`;
   const label = props.plan.label ?? "common:getStarted";
 
   return (

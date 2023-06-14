@@ -9,7 +9,7 @@ function VerifyFormContainer() {
   const router = useRouter();
 
   const onSuccess = useCallback(() => {
-    router.push(configuration.paths.appHome);
+    router.push("/dashboard");
   }, [router]);
 
   return <MultiFactorChallengeContainer onSuccess={onSuccess} />;

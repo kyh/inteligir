@@ -34,7 +34,7 @@ function NewUserInviteForm() {
       // if the user is *not* required to confirm their email
       // we redirect them to the app home
       if (!shouldVerifyEmail) {
-        return router.push(configuration.paths.appHome);
+        return router.push("/dashboard");
       }
     },
     [acceptInvite, router]

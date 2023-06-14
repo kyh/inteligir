@@ -83,8 +83,8 @@ export default PasswordResetContainer;
  */
 function getReturnUrl() {
   const host = window.location.origin;
-  const signInFromLink = configuration.paths.signInFromLink;
-  const redirectPath = configuration.paths.settings.password;
+  const signInFromLink = "/auth/link";
+  const redirectPath = "/settings/profile/password";
 
   return `${host}${signInFromLink}?redirectPath=${redirectPath}`;
 }

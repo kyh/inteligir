@@ -30,7 +30,7 @@ async function loadData() {
   );
 
   if (userData && userData.onboarded) {
-    return redirect(configuration.paths.appHome);
+    return redirect("/dashboard");
   }
 
   return {

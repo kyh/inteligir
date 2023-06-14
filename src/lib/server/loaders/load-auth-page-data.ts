@@ -29,7 +29,7 @@ const loadAuthPageData = async () => {
     // If the user is logged in and does not require multi-factor authentication,
     // redirect them to the home page.
     if (session && !requiresMultiFactorAuthentication) {
-      return redirect(configuration.paths.appHome);
+      return redirect("/dashboard");
     }
 
     return {};
