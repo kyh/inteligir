@@ -67,8 +67,8 @@
     90deg,
     rgba(144, 224, 196, 0),
     rgba(162, 183, 231, 0.5) 41%,
-    #784dda 91%,
-    #ef9655 122%
+    #059669 91%,
+    #6ee7b7 122%
   );
   transform-origin: 0 50%;
   opacity: 0;
@@ -82,6 +82,24 @@
 
 .loading::after {
   height: 1px;
+}
+
+.loading.active::before,
+.loading.active::after {
+  animation-name: loading;
+  animation-duration: 1.4s;
+  animation-timing-function: ease-in-out;
+  animation-fill-mode: forwards;
+}
+
+@keyframes loading {
+  0% {
+    transform: scaleX(0) translateX(-50%);
+    opacity: 1;
+  }
+  100% {
+    transform: scaleX(1) translateX(100%);
+  }
 }
 
 .output {

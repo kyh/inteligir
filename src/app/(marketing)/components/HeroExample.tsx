@@ -9,6 +9,7 @@ import {
   useScroll,
   useTransform,
 } from "framer-motion";
+import { cn } from "~/lib/utils/cn";
 import { Badge } from "~/components/Badge";
 import styles from "./HeroExample.module.css";
 
@@ -27,7 +28,7 @@ export const HeroExample = () => {
   const scale = useTransform(scrollYProgress, scrollYProgressMap, [0.9, 1]);
 
   useMotionValueEvent(scale, "change", (latest) => {
-    if (latest > 0.999) {
+    if (latest > 0.97) {
       setIsScaled(true);
     } else {
       setIsScaled(false);
@@ -67,7 +68,8 @@ export const HeroExample = () => {
 
 const samples = [
   {
-    input: "Can you provide a changelog of everything shipped in TC this week?",
+    input:
+      "Can you provide a changelog of everything shipped in Inteligir this week?",
     output: {
       text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit totam sequi! Corrupti, commodi odit officia praesentium repellat harum quaerat quia explicabo amet.",
       references: ["Reference 1", "Reference 2"],
@@ -106,7 +108,7 @@ export const ExampleChat = ({ start }: { start: boolean }) => {
             onCleared={() => setShowAnswer(false)}
           />
         </div>
-        <div className={styles.loading} />
+        <div className={cn(styles.loading, showAnswer && styles.active)} />
         <div className={styles.output}>
           <div className={styles.outputText}>
             {showAnswer && currentSample.output.text}
@@ -147,7 +149,7 @@ const Typewriter = ({
       if (!textRef.current || finishedRef.current) return;
       if (i < text.length) {
         animatingRef.current = true;
-        textRef.current.innerHTML = text.substring(0, i);
+        textRef.current.innerHTML = text.substring(0, i + 1);
         i++;
         setTimeout(write, 50);
       } else {
