@@ -136,49 +136,56 @@ const Typewriter = ({
   onTyped?: () => void;
   onCleared?: () => void;
 }) => {
-  const [finished, setFinished] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement>(null);
+  const animatingRef = useRef(false);
+  const finishedRef = useRef(false);
 
   useEffect(() => {
     let i = 0;
 
     const write = () => {
-      if (!ref.current || finished) return;
+      if (!textRef.current || finishedRef.current) return;
       if (i < text.length) {
-        ref.current.innerHTML += text.charAt(i);
+        animatingRef.current = true;
+        textRef.current.innerHTML = text.substring(0, i);
         i++;
         setTimeout(write, 50);
       } else {
+        animatingRef.current = false;
+        finishedRef.current = true;
         i = 0;
         onTyped?.();
-        setFinished(true);
       }
     };
 
     const clear = () => {
-      if (!ref.current || !finished) return;
+      if (!textRef.current || !finishedRef.current) return;
       if (i < text.length) {
-        ref.current.innerHTML = text.substring(0, text.length - i);
+        animatingRef.current = true;
+        textRef.current.innerHTML = text.substring(0, text.length - i);
         i++;
         setTimeout(clear, 5);
       } else {
+        animatingRef.current = false;
+        finishedRef.current = false;
         i = 0;
-        ref.current.innerHTML = "";
+        textRef.current.innerHTML = "";
         onCleared?.();
-        setFinished(false);
       }
     };
+
+    if (animatingRef.current) return;
 
     if (start) {
       write();
     } else {
       clear();
     }
-  }, [ref, start, text, onTyped, onCleared, finished]);
+  }, [textRef, start, text, onTyped, onCleared]);
 
   return (
     <div>
-      <span ref={ref} />
+      <span ref={textRef} />
       <span className={styles.cursor}>|</span>
     </div>
   );
