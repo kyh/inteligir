@@ -254,10 +254,10 @@ export const About = () => {
         }
       >
         <div className="w-full overflow-hidden">
-          <h3 className="text-center text-xs">Things people ask:</h3>
+          <h3 className="text-center text-xs">Things people have asked:</h3>
           <InfiniteLooper containerClassName="mt-3">
-            <QuestionCard>When does the next Arc Europe start?</QuestionCard>
-            <QuestionCard>Whats the latest on the Acme deal?</QuestionCard>
+            <QuestionCard>When does the next fundraise start?</QuestionCard>
+            <QuestionCard>Whats the latest on the Block deal?</QuestionCard>
             <QuestionCard>Who is managing design system project?</QuestionCard>
           </InfiniteLooper>
           <InfiniteLooper
@@ -268,8 +268,7 @@ export const About = () => {
             <QuestionCard>Can you summarize the last all hands?</QuestionCard>
             <QuestionCard>Whats does the Grow team do?</QuestionCard>
             <QuestionCard>
-              Can you provide a changelog of everything shipped in Ampersand
-              this week?
+              Can you provide a changelog of everything shipped in TC this week?
             </QuestionCard>
             <QuestionCard>
               Whats our HR policy on working from home?
@@ -280,7 +279,7 @@ export const About = () => {
               Who do I contact to get Airtable access?
             </QuestionCard>
             <QuestionCard>
-              Whats our HR policy on working from home?
+              Who is responsible for the design of the landing experience?
             </QuestionCard>
           </InfiniteLooper>
         </div>
