@@ -105,3 +105,20 @@
   display: flex;
   justify-content: space-between;
 }
+
+.cursor {
+  animation: cursor 1s infinite;
+  margin-left: 1px;
+}
+
+@keyframes cursor {
+  0% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
