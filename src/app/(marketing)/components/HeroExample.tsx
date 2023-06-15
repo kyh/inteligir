@@ -93,6 +93,7 @@ const samples = [
 
 export const ExampleChat = ({ start }: { start: boolean }) => {
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
+  const [showQuestion, setShowQuestion] = useState(true);
   const [showAnswer, setShowAnswer] = useState(false);
 
   const currentSample = samples[currentSampleIndex];
@@ -102,7 +103,7 @@ export const ExampleChat = ({ start }: { start: boolean }) => {
       <section className={styles.window}>
         <div className={styles.input}>
           <Typewriter
-            start={start}
+            start={start && showQuestion}
             text={currentSample.input}
             onTyped={() => setShowAnswer(true)}
             onCleared={() => setShowAnswer(false)}
@@ -120,6 +121,20 @@ export const ExampleChat = ({ start }: { start: boolean }) => {
                   <Badge key={reference}>{reference}</Badge>
                 ))}
             </div>
+            <button
+              className="hidden"
+              onClick={() => {
+                setShowQuestion(false);
+                setTimeout(() => {
+                  setCurrentSampleIndex(
+                    (currentSampleIndex + 1) % samples.length
+                  );
+                  setShowQuestion(true);
+                }, 1000);
+              }}
+            >
+              next
+            </button>
           </footer>
         </div>
       </section>
@@ -138,7 +153,7 @@ const Typewriter = ({
   onTyped?: () => void;
   onCleared?: () => void;
 }) => {
-  const textRef = useRef<HTMLDivElement>(null);
+  const textContainerRef = useRef<HTMLDivElement>(null);
   const animatingRef = useRef(false);
   const finishedRef = useRef(false);
 
@@ -146,10 +161,10 @@ const Typewriter = ({
     let i = 0;
 
     const write = () => {
-      if (!textRef.current || finishedRef.current) return;
+      if (!textContainerRef.current || finishedRef.current) return;
       if (i < text.length) {
         animatingRef.current = true;
-        textRef.current.innerHTML = text.substring(0, i + 1);
+        textContainerRef.current.innerHTML = text.substring(0, i + 1);
         i++;
         setTimeout(write, 50);
       } else {
@@ -161,17 +176,17 @@ const Typewriter = ({
     };
 
     const clear = () => {
-      if (!textRef.current || !finishedRef.current) return;
+      if (!textContainerRef.current || !finishedRef.current) return;
       if (i < text.length) {
         animatingRef.current = true;
-        textRef.current.innerHTML = text.substring(0, text.length - i);
+        textContainerRef.current.innerHTML = text.substring(0, text.length - i);
         i++;
         setTimeout(clear, 5);
       } else {
         animatingRef.current = false;
         finishedRef.current = false;
         i = 0;
-        textRef.current.innerHTML = "";
+        textContainerRef.current.innerHTML = "";
         onCleared?.();
       }
     };
@@ -183,11 +198,11 @@ const Typewriter = ({
     } else {
       clear();
     }
-  }, [textRef, start, text, onTyped, onCleared]);
+  }, [textContainerRef, start, text, onTyped, onCleared]);
 
   return (
     <div>
-      <span ref={textRef} />
+      <span ref={textContainerRef} />
       <span className={styles.cursor}>|</span>
     </div>
   );
