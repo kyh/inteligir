@@ -11,13 +11,9 @@ function PricingPage() {
     <Container>
       <header className="px-5 pt-[70px] text-center sm:pt-[100px]">
         <Text as="h1" variant="heading1" className="mx-auto mt-3 max-w-xl">
-          Pricing
+          Pricing (Coming Soon)
         </Text>
-        <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
-          Fair pricing for your customers
-        </p>
       </header>
-      <PricingTable />
     </Container>
   );
 }
