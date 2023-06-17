@@ -71,30 +71,113 @@ const samples = [
     input:
       "Can you provide a changelog of everything shipped in Inteligir this week?",
     output: {
-      text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit totam sequi! Corrupti, commodi odit officia praesentium repellat harum quaerat quia explicabo amet.",
-      references: ["Reference 1", "Reference 2"],
+      text: `
+According to Asana and Github commits, the following things were completed this week:
+
+Version 1.1.2 launch - ${new Date().toLocaleDateString()}:
+- Added a new feature for sentiment analysis, allowing users to analyze the sentiment of text inputs
+- Improved the accuracy of the image recognition module by integrating the Azure deep learning model
+- Fixed a bug that caused the application to crash when processing large datasets
+- Optimized the performance of the recommendation engine
+      `.trim(),
+      references: [
+        { source: "asana", content: "Ticket #1704" },
+        { source: "github", content: "PR #102" },
+      ],
     },
   },
   {
-    input: "Who is responsible for the design of the landing experience?",
+    input: "Who is responsible for the new landing experience?",
     output: {
-      text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit totam sequi! Corrupti, commodi odit officia praesentium repellat harum quaerat quia explicabo amet.",
-      references: ["Reference 1", "Reference 2"],
+      text: `
+The team responsible for "Project Neue", the new landing page, is the Grow team. It is an initiative launched by Kevin Wu to showcase our free training and resources programs, to help people acquire the digital skills they need to succeed in the modern economy.
+
+The initiative aims to bridge the digital skills gap and provide opportunities for individuals and businesses to learn and grow.
+
+The Grow team collaborates with various partners, including educational institutions, nonprofits, and local communities, to deliver in-person workshops, online training courses, and other resources. 
+      `.trim(),
+      references: [
+        { source: "site", content: "Grow Team" },
+        { source: "notion", content: "Project Neue" },
+        { source: "person", content: "Kevin Wu (Grow)" },
+      ],
     },
   },
   {
     input: "Whats our HR policy on working from home?",
     output: {
-      text: "Lorem ipsum dolor sit amet consectetur adipisicing elit. Corporis nisi harum unde tenetur obcaecati quaerat laboriosam reprehenderit totam sequi! Corrupti, commodi odit officia praesentium repellat harum quaerat quia explicabo amet.",
-      references: ["Reference 1", "Reference 2"],
+      text: "According to the latest onboarding docs, we have a flexible work policy. You can work from home as long as you get your work done and are available for meetings.",
+      references: [
+        { source: "ppt", content: "Onboarding 101" },
+        { source: "person", content: "Emily Lin (HR)" },
+      ],
     },
   },
 ];
 
+const wait = (delay: number) => {
+  let timeout: ReturnType<typeof setTimeout>;
+
+  const promise = new Promise((resolve) => {
+    timeout = setTimeout(resolve, delay);
+  });
+
+  return {
+    promise,
+    cancel: () => clearTimeout(timeout),
+  };
+};
+
 export const ExampleChat = ({ start }: { start: boolean }) => {
+  const promisesRef = useRef<any[]>([]);
   const [currentSampleIndex, setCurrentSampleIndex] = useState(0);
   const [showQuestion, setShowQuestion] = useState(true);
+  const [showLoading, setShowLoading] = useState(false);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [showFooter, setShowFooter] = useState(false);
+
+  useEffect(() => {
+    if (!start) {
+      promisesRef.current.forEach((cancel) => cancel());
+      promisesRef.current = [];
+      clearAll();
+    } else {
+      setShowQuestion(true);
+    }
+  }, [start]);
+
+  const clearAll = () => {
+    setShowQuestion(false);
+    setShowLoading(false);
+    setShowAnswer(false);
+    setShowFooter(false);
+  };
+
+  const showResults = async () => {
+    setShowLoading(true);
+    const afterShowLoading = wait(1000);
+    promisesRef.current.push(afterShowLoading.cancel);
+    await afterShowLoading.promise;
+
+    setShowAnswer(true);
+    const afterShowAnswer = wait(1000);
+    promisesRef.current.push(afterShowAnswer.cancel);
+    await afterShowAnswer.promise;
+
+    setShowFooter(true);
+    const afterShowFooter = wait(10000);
+    promisesRef.current.push(afterShowFooter.cancel);
+    await afterShowFooter.promise;
+
+    // Reset
+    clearAll();
+    const afterClearAll = wait(1000);
+    promisesRef.current.push(afterClearAll.cancel);
+    await afterClearAll.promise;
+
+    setCurrentSampleIndex((currentSampleIndex + 1) % samples.length);
+    setShowQuestion(true);
+  };
 
   const currentSample = samples[currentSampleIndex];
 
@@ -105,37 +188,46 @@ export const ExampleChat = ({ start }: { start: boolean }) => {
           <Typewriter
             start={start && showQuestion}
             text={currentSample.input}
-            onTyped={() => setShowAnswer(true)}
-            onCleared={() => setShowAnswer(false)}
+            onTyped={() => showResults()}
           />
         </div>
-        <div className={cn(styles.loading, showAnswer && styles.active)} />
+        <div className={cn(styles.loading, showLoading && styles.active)} />
         <div className={styles.output}>
-          <div className={styles.outputText}>
-            {showAnswer && currentSample.output.text}
-          </div>
-          <footer className={styles.outputFooter}>
-            <div className="flex gap-2">
-              {showAnswer &&
-                currentSample.output.references.map((reference) => (
-                  <Badge key={reference}>{reference}</Badge>
-                ))}
-            </div>
-            <button
-              className="hidden"
-              onClick={() => {
-                setShowQuestion(false);
-                setTimeout(() => {
-                  setCurrentSampleIndex(
-                    (currentSampleIndex + 1) % samples.length
-                  );
-                  setShowQuestion(true);
-                }, 1000);
-              }}
-            >
-              next
-            </button>
-          </footer>
+          <AnimatePresence>
+            {start && showAnswer && (
+              <motion.div
+                className={styles.outputText}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+              >
+                <Typewriter
+                  start
+                  text={currentSample.output.text}
+                  splitType="words"
+                  hideCursor
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+          <AnimatePresence>
+            {start && showFooter && (
+              <motion.footer
+                className={styles.outputFooter}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              >
+                <ul className="flex gap-2">
+                  {currentSample.output.references.map((reference) => (
+                    <Badge as="li" key={reference.content}>
+                      {reference.content}
+                    </Badge>
+                  ))}
+                </ul>
+              </motion.footer>
+            )}
+          </AnimatePresence>
         </div>
       </section>
     </section>
@@ -147,11 +239,15 @@ const Typewriter = ({
   text,
   onTyped,
   onCleared,
+  splitType = "letters",
+  hideCursor,
 }: {
   start: boolean;
   text: string;
   onTyped?: () => void;
   onCleared?: () => void;
+  splitType?: "letters" | "words";
+  hideCursor?: boolean;
 }) => {
   const textContainerRef = useRef<HTMLDivElement>(null);
   const animatingRef = useRef(false);
@@ -159,12 +255,16 @@ const Typewriter = ({
 
   useEffect(() => {
     let i = 0;
+    const splitBy = splitType === "letters" ? "" : " ";
+    const splitText = text.split(splitBy);
 
     const write = () => {
       if (!textContainerRef.current || finishedRef.current) return;
-      if (i < text.length) {
+      if (i < splitText.length) {
         animatingRef.current = true;
-        textContainerRef.current.innerHTML = text.substring(0, i + 1);
+        textContainerRef.current.innerHTML = splitText
+          .slice(0, i + 1)
+          .join(splitBy);
         i++;
         setTimeout(write, 50);
       } else {
@@ -177,9 +277,11 @@ const Typewriter = ({
 
     const clear = () => {
       if (!textContainerRef.current || !finishedRef.current) return;
-      if (i < text.length) {
+      if (i < splitText.length) {
         animatingRef.current = true;
-        textContainerRef.current.innerHTML = text.substring(0, text.length - i);
+        textContainerRef.current.innerHTML = splitText
+          .slice(0, text.length - i)
+          .join(splitBy);
         i++;
         setTimeout(clear, 5);
       } else {
@@ -198,12 +300,12 @@ const Typewriter = ({
     } else {
       clear();
     }
-  }, [textContainerRef, start, text, onTyped, onCleared]);
+  }, [textContainerRef, start, text, onTyped, onCleared, splitType]);
 
   return (
     <div>
       <span ref={textContainerRef} />
-      <span className={styles.cursor}>|</span>
+      {!hideCursor && <span className={styles.cursor}>|</span>}
     </div>
   );
 };
