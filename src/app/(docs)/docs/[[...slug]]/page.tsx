@@ -86,7 +86,6 @@ export default async function DocPage({ params }: DocPageProps) {
   // const toc = await getTableOfContents(doc.body.raw)
 
   return (
-    // <span>Coming soon</span>
     <Mdx code={doc.body.code} />
   );
 }
