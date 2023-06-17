@@ -6,14 +6,14 @@ import {
   AtSymbolIcon,
   DevicePhoneMobileIcon,
 } from "@heroicons/react/24/outline";
-import configuration from "~/configuration";
+import { config } from "~/config/site";
 import useSignInWithProvider from "~/core/hooks/use-sign-in-with-provider";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 import AuthErrorMessage from "./AuthErrorMessage";
 
-const OAUTH_PROVIDERS = configuration.auth.providers.oAuth;
+const OAUTH_PROVIDERS = config.auth.providers.oAuth;
 
 const OAuthProviders: React.FCC<{
   returnUrl?: string;
@@ -78,7 +78,7 @@ const OAuthProviders: React.FCC<{
                   );
                 }}
               >
-                Sign in with {provider}
+                Sign in with <span className="capitalize">{provider}</span>
               </AuthProviderButton>
             );
           })}
