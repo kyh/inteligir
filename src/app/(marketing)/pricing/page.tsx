@@ -11,7 +11,7 @@ function PricingPage() {
     <Container>
       <header className="px-5 pt-[70px] text-center sm:pt-[100px]">
         <Text as="h1" variant="heading1" className="mx-auto mt-3 max-w-xl">
-          Pricing (Coming Soon)
+          (Coming Soon)
         </Text>
       </header>
     </Container>
