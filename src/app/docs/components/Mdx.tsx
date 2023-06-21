@@ -90,9 +90,9 @@ const components = {
   // Image,
 };
 
-interface MdxProps {
+type MdxProps = {
   code: string;
-}
+};
 
 export function Mdx({ code }: MdxProps) {
   const Component = useMDXComponent(code);

@@ -16,7 +16,7 @@ import AppSidebar from "./AppSidebar";
 import AuthChangeListener from "./AuthChangeListener";
 import Toaster from "./Toaster";
 
-interface Data {
+type Data = {
   accessToken: Maybe<string>;
   language?: string;
   csrfToken: string | null;
@@ -28,7 +28,7 @@ interface Data {
     sidebarState?: string;
     theme?: string;
   };
-}
+};
 
 const RouteShell: React.FCC<{
   data: Data;

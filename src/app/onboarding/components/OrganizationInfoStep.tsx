@@ -7,9 +7,9 @@ import { Button } from "~/components/Button";
 import { Text } from "~/components/Text";
 import { TextField } from "~/components/TextField";
 
-export interface OrganizationInfoStepData {
+export type OrganizationInfoStepData = {
   organization: string;
-}
+};
 
 const OrganizationInfoStep: React.FCC<{
   onSubmit: (data: OrganizationInfoStepData) => void;

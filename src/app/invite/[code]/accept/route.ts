@@ -7,11 +7,11 @@ import getSupabaseServerClient from "~/core/supabase/server-client";
 import { acceptInviteToOrganization } from "~/lib/memberships/mutations";
 import { createOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
 
-interface Context {
+type Context = {
   params: {
     code: string;
   };
-}
+};
 
 export async function POST(request: Request, { params }: Context) {
   const code = params.code;
