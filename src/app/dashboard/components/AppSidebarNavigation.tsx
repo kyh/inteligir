@@ -1,10 +1,29 @@
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
-import NAVIGATION_CONFIG from "~/navigation.config";
+import { Cog8ToothIcon, Squares2X2Icon } from "@heroicons/react/24/outline";
 import isRouteActive from "~/core/generic/is-route-active";
 import { classed } from "~/lib/utils/cn";
 import If from "~/components/If";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
+
+const NAVIGATION_CONFIG = (organizationUuid: string) => ({
+  items: [
+    {
+      label: "Dashboard",
+      path: `${organizationUuid}/dashboard`,
+      Icon: ({ className }: { className?: string }) => {
+        return <Squares2X2Icon className={className} />;
+      },
+    },
+    {
+      label: "Settings",
+      path: `${organizationUuid}/settings`,
+      Icon: ({ className }: { className?: string }) => {
+        return <Cog8ToothIcon className={className} />;
+      },
+    },
+  ],
+});
 
 function AppSidebarNavigation({
   collapsed,

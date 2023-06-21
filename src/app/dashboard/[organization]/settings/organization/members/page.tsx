@@ -1,9 +1,9 @@
 import { use } from "react";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/gotrue-js";
+import type { DatabaseClient } from "~/core/db";
 import type UserData from "~/core/session/types/user-data";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import type { DatabaseClient } from "~/lib/db";
 import {
   getMembersAuthMetadata,
   getOrganizationInvitedMembers,

@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
+import type { DatabaseClient } from "~/core/db";
 import verifyRequiresMfa from "~/core/session/utils/check-requires-mfa";
-import type { DatabaseClient } from "~/lib/db";
 
 async function requireSession(client: DatabaseClient) {
   const { data, error } = await client.auth.getSession();

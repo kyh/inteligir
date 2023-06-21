@@ -1,6 +1,6 @@
-import type { Database } from "~/database.types";
 import type { Stripe } from "stripe";
-import type { DatabaseClient } from "~/lib/db";
+import type { Database } from "~/core/database.types";
+import type { DatabaseClient } from "~/core/db";
 
 type SubscriptionRow = Database["public"]["Tables"]["subscriptions"]["Row"];
 

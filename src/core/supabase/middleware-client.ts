@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "~/database.types";
 import invariant from "tiny-invariant";
+import type { Database } from "~/core/database.types";
 
 function getSupabaseMiddlewareClient(
   req: NextRequest,

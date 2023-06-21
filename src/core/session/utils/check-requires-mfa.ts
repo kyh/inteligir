@@ -1,4 +1,4 @@
-import type { DatabaseClient } from "~/lib/db";
+import type { DatabaseClient } from "~/core/db";
 
 const ASSURANCE_LEVEL_2 = "aal2";
 
