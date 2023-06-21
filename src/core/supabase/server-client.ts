@@ -1,8 +1,8 @@
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import { createClient } from "@supabase/supabase-js";
-import type { Database } from "~/database.types";
 import invariant from "tiny-invariant";
+import type { Database } from "~/core/database.types";
 
 /**
  * @name getSupabaseServerClient

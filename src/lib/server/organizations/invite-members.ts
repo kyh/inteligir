@@ -1,7 +1,7 @@
 import { siteConfig } from "~/config/site";
+import type { DatabaseClient } from "~/core/db";
 import sendEmail from "~/core/email/send-email";
 import getLogger from "~/core/logger";
-import type { DatabaseClient } from "~/lib/db";
 import {
   createOrganizationMembership,
   updateMembershipById,

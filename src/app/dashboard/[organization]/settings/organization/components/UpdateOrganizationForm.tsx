@@ -3,9 +3,9 @@
 import { useCallback, useContext, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import toast from "react-hot-toast";
+import type { DatabaseClient } from "~/core/db";
 import useSupabase from "~/core/hooks/use-supabase";
 import OrganizationContext from "~/lib/contexts/organization";
-import type { DatabaseClient } from "~/lib/db";
 import useUpdateOrganizationMutation from "~/lib/organizations/hooks/use-update-organization-mutation";
 import type Organization from "~/lib/organizations/types/organization";
 import { Button } from "~/components/Button";

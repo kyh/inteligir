@@ -1,4 +1,4 @@
-import type { DatabaseClient } from "~/lib/db";
+import type { DatabaseClient } from "~/core/db";
 
 export async function getOrganizationSubscription(
   client: DatabaseClient,
