@@ -1,6 +1,6 @@
 import type { Stripe } from "stripe";
 
-export interface OrganizationSubscription {
+export type OrganizationSubscription = {
   id: string;
 
   priceId: string;
@@ -17,4 +17,4 @@ export interface OrganizationSubscription {
   periodEndsAt: string;
   trialStartsAt: string | null;
   trialEndsAt: string | null;
-}
+};

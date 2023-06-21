@@ -10,18 +10,18 @@ import {
   getMembershipByEmail,
   getUserMembershipByOrganization,
 } from "~/lib/memberships/queries";
-import { getOrganizationByUid } from "~/lib/organizations/database/queries";
 import { canInviteUser } from "~/lib/organizations/permissions";
+import { getOrganizationByUid } from "~/lib/organizations/queries";
 import type Membership from "~/lib/organizations/types/membership";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
-import { getUserById } from "~/lib/user/database/queries";
+import { getUserById } from "~/lib/user/queries";
 
-interface Invite {
+type Invite = {
   email: string;
   role: MembershipRole;
-}
+};
 
-interface Params {
+type Params = {
   // we use the normal client to query/insert data and leverage RLS for security
   client: DatabaseClient;
   // we use the admin client to retrieve the user's email address
@@ -30,7 +30,7 @@ interface Params {
   organizationUid: string;
   inviterId: string;
   invites: Invite[];
-}
+};
 
 export default async function inviteMembers(params: Params) {
   const { organizationUid, invites, inviterId, adminClient, client } = params;

@@ -8,7 +8,7 @@ import {
   getMembersAuthMetadata,
   getOrganizationInvitedMembers,
   getOrganizationMembers,
-} from "~/lib/organizations/database/queries";
+} from "~/lib/organizations/queries";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import getCurrentOrganization from "~/lib/server/organizations/get-current-organization";
 import requireSession from "~/lib/user/require-session";

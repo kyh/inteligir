@@ -4,10 +4,10 @@ import { Button } from "~/components/Button";
 import { TextField } from "~/components/TextField";
 import MembershipRoleSelector from "./MembershipRoleSelector";
 
-interface Member {
+type Member = {
   email: string;
   role: MembershipRole;
-}
+};
 
 const MemberRow: React.FCC<{
   member: Member;
@@ -16,16 +16,14 @@ const MemberRow: React.FCC<{
   return (
     <div
       key={member.email}
-      className="space-between flex items-center space-x-1"
+      className="flex items-center justify-between space-x-1"
     >
       <div className="w-7/12">
         <TextField.Input placeholder="member@email.com" type="email" />
       </div>
-
       <div className="w-4/12">
         <MembershipRoleSelector value={member.role} />
       </div>
-
       <div className="w-1/12">
         <Button color="transparent" onClick={() => memberRemoved(member)}>
           <MinusIcon className="h-5" />

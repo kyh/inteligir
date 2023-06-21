@@ -14,7 +14,7 @@ import {
   deleteMembershipById,
   updateMembershipById,
 } from "~/lib/memberships/mutations";
-import { getOrganizationById } from "~/lib/organizations/database/queries";
+import { getOrganizationById } from "~/lib/organizations/queries";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import { createOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
 
