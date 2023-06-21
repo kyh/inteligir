@@ -2,14 +2,15 @@ import { join } from "path";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import { z } from "zod";
 import getApiRefererPath from "~/core/generic/get-api-referer-path";
 import HttpStatusCode from "~/core/generic/http-status-code.enum";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
+import type { DatabaseClient } from "~/lib/db";
 import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
+import { getOrganizationByUid } from "~/lib/organizations/database/queries";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
 import createStripeCheckout from "~/lib/stripe/create-checkout";
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
     return redirectToErrorPage(`Invalid request body`);
   }
 
-  const { organizationId, priceId, customerId, returnUrl } = bodyResult.data;
+  const { organizationUid, priceId, customerId, returnUrl } = bodyResult.data;
 
   // create the Supabase client
   const client = getSupabaseServerClient();
@@ -44,15 +45,19 @@ export async function POST(request: Request) {
 
   const userId = session.user.id;
 
-  const currentOrganizationId = Number(
-    await parseOrganizationIdCookie(cookies())
-  );
-
-  const matchesSessionOrganizationId = currentOrganizationId === organizationId;
+  const currentOrganizationUid = await parseOrganizationIdCookie(cookies());
+  const matchesSessionOrganizationId =
+    currentOrganizationUid === organizationUid;
 
   // check if the organization ID in the cookie matches the one in the request
   if (!matchesSessionOrganizationId) {
     return redirectToErrorPage(`Conflicting Organizations`);
+  }
+
+  const { error } = await getOrganizationByUid(client, organizationUid);
+
+  if (error) {
+    return redirectToErrorPage(`Organization not found`);
   }
 
   const plan = getPlanByPriceId(priceId);
@@ -66,7 +71,7 @@ export async function POST(request: Request) {
 
   // check the user's role has access to the checkout
   const canChangeBilling = await getUserCanAccessCheckout(client, {
-    organizationId,
+    organizationUid,
     userId,
   });
 
@@ -77,7 +82,7 @@ export async function POST(request: Request) {
     logger.debug(
       {
         userId,
-        organizationId,
+        organizationUid,
       },
       `User attempted to access checkout but lacked permissions`
     );
@@ -96,7 +101,7 @@ export async function POST(request: Request) {
     // create the Stripe Checkout session
     const { url } = await createStripeCheckout({
       returnUrl,
-      organizationId,
+      organizationUid,
       priceId,
       customerId,
       trialPeriodDays,
@@ -116,16 +121,10 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * @name getUserCanAccessCheckout
- * @description check if the user has permissions to access the checkout
- * @param client
- * @param params
- */
 async function getUserCanAccessCheckout(
-  client: SupabaseClient,
+  client: DatabaseClient,
   params: {
-    organizationId: number;
+    organizationUid: string;
     userId: string;
   }
 ) {
@@ -147,11 +146,7 @@ async function getUserCanAccessCheckout(
 function getBodySchema() {
   return z.object({
     csrf_token: z.string().min(1),
-    organizationId: z
-      .number({
-        coerce: true,
-      })
-      .min(1),
+    organizationUid: z.string().uuid(),
     priceId: z.string().min(1),
     customerId: z.string().optional(),
     returnUrl: z.string().min(1),
@@ -159,7 +154,7 @@ function getBodySchema() {
 }
 
 function getPlanByPriceId(priceId: string) {
-  const products = configuration.stripe.products;
+  const products = siteConfig.stripe.products;
 
   type Plan = (typeof products)[0]["plans"][0];
 
@@ -172,15 +167,6 @@ function getPlanByPriceId(priceId: string) {
   }, undefined);
 }
 
-/**
- *
- * @param portalUrl
- * @param returnUrl
- * @description return the URL of the Checkout Portal
- * if running in emulator mode and the portal URL is undefined (as
- * stripe-mock does) then return the returnUrl (i.e. it redirects back to
- * the subscriptions page)
- */
 function getCheckoutPortalUrl(portalUrl: string | null, returnUrl: string) {
   if (isTestingMode() && !portalUrl) {
     return [returnUrl, "success=true"].join("?");
@@ -189,9 +175,6 @@ function getCheckoutPortalUrl(portalUrl: string | null, returnUrl: string) {
   return portalUrl as string;
 }
 
-/**
- * @description detect if Stripe is running in emulator mode
- */
 function isTestingMode() {
   const enableStripeTesting = process.env.ENABLE_STRIPE_TESTING;
 

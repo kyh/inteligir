@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import { z } from "zod";
 import { throwInternalServerErrorException } from "~/core/http-exceptions";
 import getLogger from "~/core/logger";
@@ -71,8 +71,7 @@ export async function POST(request: Request, { params }: Context) {
     const organizationCookie = createOrganizationIdCookie(organizationId);
     const cookies = new NextResponse().cookies.set(organizationCookie);
 
-    const verifyEmail =
-      configuration.auth.requireEmailConfirmation && !signedIn;
+    const verifyEmail = siteConfig.auth.requireEmailConfirmation && !signedIn;
 
     return NextResponse.json(
       {

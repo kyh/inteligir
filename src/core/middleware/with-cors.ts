@@ -1,8 +1,3 @@
-/**
- * @name withCors
- * @description Returns the headers to enable CORS for the API route
- *
- */
 function withCors() {
   const headers = new Headers();
 

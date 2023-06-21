@@ -1,4 +1,4 @@
-import configuration from "../../configuration";
+import { siteConfig } from "~/config/site";
 
 interface SendEmailParams {
   from: string;
@@ -19,22 +19,18 @@ function getTransporter() {
     return getMockMailTransporter();
   }
 
-  if (!configuration.production) {
+  if (!siteConfig.production) {
     return getEtherealMailTransporter();
   }
 
   return getSMTPTransporter();
 }
 
-/**
- * @description SMTP Transporter for production use. Add your favorite email
- * API details (Mailgun, Sendgrid, etc.) to the configuration.
- */
 async function getSMTPTransporter() {
   const nodemailer = await import("nodemailer");
 
-  const { host, port, user, password: pass } = configuration.email;
-  const secure = port === 465 && !configuration.production;
+  const { host, port, user, password: pass } = siteConfig.email;
+  const secure = port === 465 && !siteConfig.production;
 
   return nodemailer.createTransport({
     host,
@@ -47,10 +43,6 @@ async function getSMTPTransporter() {
   });
 }
 
-/**
- * @description Dev transport for https://ethereal.email that you can use to
- * debug your emails for free. It's the default for the dev environment
- */
 async function getEtherealMailTransporter() {
   const nodemailer = await import("nodemailer");
   const testAccount = await getEtherealTestAccount();

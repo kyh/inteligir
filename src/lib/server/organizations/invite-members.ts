@@ -1,7 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import sendEmail from "~/core/email/send-email";
 import getLogger from "~/core/logger";
+import type { DatabaseClient } from "~/lib/db";
 import {
   createOrganizationMembership,
   updateMembershipById,
@@ -10,7 +10,7 @@ import {
   getMembershipByEmail,
   getUserMembershipByOrganization,
 } from "~/lib/memberships/queries";
-import { getOrganizationById } from "~/lib/organizations/database/queries";
+import { getOrganizationByUid } from "~/lib/organizations/database/queries";
 import { canInviteUser } from "~/lib/organizations/permissions";
 import type Membership from "~/lib/organizations/types/membership";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
@@ -23,27 +23,22 @@ interface Invite {
 
 interface Params {
   // we use the normal client to query/insert data and leverage RLS for security
-  client: SupabaseClient;
-
+  client: DatabaseClient;
   // we use the admin client to retrieve the user's email address
-  adminClient: SupabaseClient;
-  organizationId: number;
+  adminClient: DatabaseClient;
+
+  organizationUid: string;
   inviterId: string;
   invites: Invite[];
 }
 
-/**
- * @name inviteMembers
- * @description Send and create invitations for the given users. The invite is a pending membership that can be accepted by the user.
- * @param params
- */
 export default async function inviteMembers(params: Params) {
-  const { organizationId, invites, inviterId, adminClient, client } = params;
+  const { organizationUid, invites, inviterId, adminClient, client } = params;
   const logger = getLogger();
 
   const [{ data: inviter }, { data: organization }] = await Promise.all([
     getUserById(client, params.inviterId),
-    getOrganizationById(client, params.organizationId),
+    getOrganizationByUid(client, params.organizationUid),
   ]);
 
   // Check if the inviter exists
@@ -57,10 +52,11 @@ export default async function inviteMembers(params: Params) {
   }
 
   const organizationName = organization.name;
+  const organizationId = organization.id;
 
   // retrieve the inviter's membership in the organization to validate permissions
   const { role: inviterRole } = await getUserMembershipByOrganization(client, {
-    organizationId: params.organizationId,
+    organizationUid,
     userId: params.inviterId,
   });
 
@@ -191,7 +187,7 @@ export default async function inviteMembers(params: Params) {
           );
 
           // send email to user
-          await sendEmailRequest(code);
+          await sendEmailRequest(code!);
 
           logger.info(
             {
@@ -230,8 +226,8 @@ async function sendInviteEmail(props: {
 
   const { default: renderInviteEmail } = await import("~/lib/emails/invite");
 
-  const sender = configuration.email.senderAddress;
-  const productName = configuration.site.siteName;
+  const sender = siteConfig.email.senderAddress;
+  const productName = siteConfig.site.siteName;
 
   const subject = "You have been invited to join an organization!";
   const link = getInvitePageFullUrl(code);
@@ -253,16 +249,10 @@ async function sendInviteEmail(props: {
   });
 }
 
-/**
- * @name getInvitePageFullUrl
- * @description Return the full URL to the invite page link. For example,
- * inteligir.dev/invite/{INVITE_CODE}
- * @param code
- */
 function getInvitePageFullUrl(code: string) {
-  let siteUrl = configuration.site.siteUrl;
+  let siteUrl = siteConfig.site.siteUrl;
 
-  if (!configuration.production) {
+  if (!siteConfig.production) {
     siteUrl = getLocalEnvironmentHost();
   }
 
@@ -272,9 +262,9 @@ function getInvitePageFullUrl(code: string) {
 }
 
 function assertSiteUrl(siteUrl: Maybe<string>): asserts siteUrl is string {
-  if (!siteUrl && configuration.production) {
+  if (!siteUrl && siteConfig.production) {
     throw new Error(
-      `Please configure the "siteUrl" property in the configuration file ~/configuration.ts`
+      `Please configure the "siteUrl" property in the file ~/config/siteConfig.ts`
     );
   }
 }

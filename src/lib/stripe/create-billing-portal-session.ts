@@ -1,10 +1,5 @@
 import getStripeInstance from "~/core/stripe/get-stripe";
 
-/**
- * @name createBillingPortalSession
- * @description Create a Stripe billing portal session for a user
- * @param params
- */
 export default async function createBillingPortalSession(params: {
   customerId: string;
   returnUrl: string;

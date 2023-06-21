@@ -2,7 +2,6 @@
 
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import configuration from "~/configuration";
 import useSupabase from "~/core/hooks/use-supabase";
 
 function AuthLinkRedirect() {

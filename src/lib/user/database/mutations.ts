@@ -1,19 +1,12 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type UserData from "~/core/session/types/user-data";
-import { USERS_TABLE } from "~/lib/db-tables";
+import type { DatabaseClient } from "~/lib/db";
 
-/**
- * @name updateUserData
- * @param client
- * @param id
- * @param data
- */
 export function updateUserData(
-  client: SupabaseClient,
+  client: DatabaseClient,
   { id, ...data }: WithId<Partial<UserData>>
 ) {
   return client
-    .from(USERS_TABLE)
+    .from("users")
     .update({
       display_name: data.displayName,
       photo_url: data.photoUrl,
@@ -22,11 +15,6 @@ export function updateUserData(
     .throwOnError();
 }
 
-/**
- * @name createUser
- * @param client
- * @param data
- */
-export async function createUser(client: SupabaseClient, data: UserData) {
-  return client.from(USERS_TABLE).insert(data).throwOnError();
+export async function createUser(client: DatabaseClient, data: UserData) {
+  return client.from("users").insert(data).throwOnError();
 }

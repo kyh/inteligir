@@ -1,13 +1,5 @@
 const ROOT_PATH = "/";
 
-/**
- * @name isRouteActive
- * @description A function to check if a route is active. This is used to
- * highlight the active link in the navigation.
- * @param targetLink - The link to check against
- * @param currentRoute - the current route
- * @param depth - how far down should segments be matched?
- */
 export default function isRouteActive(
   targetLink: string,
   currentRoute: string,
@@ -45,10 +37,14 @@ function hasMatchingSegments(
   const segments = splitIntoSegments(targetLink);
   const matchingSegments = numberOfMatchingSegments(currentRoute, segments);
 
+  if (targetLink === currentRoute) {
+    return true;
+  }
+
   // how far down should segments be matched?
   // - if depth = 1 => only highlight the links of the immediate parent
   // - if depth = 2 => for url = /settings match /settings/organization/members
-  return matchingSegments > segments.length - depth;
+  return matchingSegments > segments.length - (depth - 1);
 }
 
 function numberOfMatchingSegments(href: string, segments: string[]) {

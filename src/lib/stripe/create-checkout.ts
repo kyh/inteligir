@@ -4,19 +4,12 @@ import getStripeInstance from "~/core/stripe/get-stripe";
 
 interface CreateCheckoutParams {
   returnUrl: string;
-  organizationId: number;
+  organizationUid: string;
   priceId: string;
   customerId?: string;
   trialPeriodDays?: Maybe<number>;
 }
 
-/**
- * @name createStripeCheckout
- * @description Creates a Stripe Checkout session, and returns an Object
- * containing the session, which you can use to redirect the user to the
- * checkout page
- * @param params
- */
 export default async function createStripeCheckout(
   params: CreateCheckoutParams
 ) {
@@ -31,7 +24,7 @@ export default async function createStripeCheckout(
   // in Inteligir, a subscription belongs to an organization,
   // rather than to a user
   // if you wish to change it, use the current user ID instead
-  const clientReferenceId = params.organizationId;
+  const clientReferenceId = params.organizationUid;
 
   // we pass an optional customer ID, so we do not duplicate the Stripe
   // customers if an organization subscribes multiple times

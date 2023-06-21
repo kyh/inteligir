@@ -1,13 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import { Button } from "~/components/Button";
 import { Text } from "~/components/Text";
 import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 
 export const metadata = {
-  title: `An error occurred - ${configuration.site.name}`,
+  title: `An error occurred - ${siteConfig.site.name}`,
 };
 
 const ErrorPage = () => {

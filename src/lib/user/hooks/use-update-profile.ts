@@ -5,9 +5,6 @@ import { updateUserData } from "~/lib/user/database/mutations";
 
 type Payload = WithId<Partial<UserData>>;
 
-/**
- * @name useUpdateProfile
- */
 function useUpdateProfile() {
   const client = useSupabase();
   const key = "useUpdateProfile";
