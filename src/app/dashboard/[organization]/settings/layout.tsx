@@ -1,9 +1,9 @@
 import React from "react";
 import { Cog8ToothIcon } from "@heroicons/react/24/outline";
-import NavigationItem from "~/components/NavigationItem";
-import NavigationMenu from "~/components/NavigationMenu";
 import AppContainer from "~/app/dashboard/components/AppContainer";
 import AppHeader from "~/app/dashboard/components/AppHeader";
+import NavigationItem from "~/app/dashboard/components/NavigationItem";
+import NavigationMenu from "~/app/dashboard/components/NavigationMenu";
 
 const links = [
   {
