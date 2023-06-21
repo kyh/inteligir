@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type { Stripe } from "stripe";
+import type { DatabaseClient } from "~/core/db";
 import {
   throwBadRequestException,
   throwInternalServerErrorException,
@@ -9,7 +10,6 @@ import getLogger from "~/core/logger";
 import getStripeInstance from "~/core/stripe/get-stripe";
 import StripeWebhooks from "~/core/stripe/stripe-webhooks.enum";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import type { DatabaseClient } from "~/lib/db";
 import { setOrganizationSubscriptionData } from "~/lib/organizations/database/mutations";
 import {
   addSubscription,

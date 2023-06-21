@@ -1,4 +1,4 @@
-import type { DatabaseClient } from "~/lib/db";
+import type { DatabaseClient } from "~/core/db";
 import type Membership from "~/lib/organizations/types/membership";
 
 export async function getMembershipByInviteCode<Response>(

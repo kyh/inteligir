@@ -1,5 +1,5 @@
+import type { DatabaseClient } from "~/core/db";
 import type UserData from "~/core/session/types/user-data";
-import type { DatabaseClient } from "~/lib/db";
 
 export function getUserById(client: DatabaseClient, userId: string) {
   return client

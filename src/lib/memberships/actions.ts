@@ -5,10 +5,10 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { siteConfig } from "~/config/site";
 import { z } from "zod";
+import type { DatabaseClient } from "~/core/db";
 import { withCsrfCheck, withSession } from "~/core/generic/actions-utils";
 import getLogger from "~/core/logger";
 import getSupabaseServerActionClient from "~/core/supabase/action-client";
-import type { DatabaseClient } from "~/lib/db";
 import {
   acceptInviteToOrganization,
   deleteMembershipById,

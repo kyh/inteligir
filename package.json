@@ -15,7 +15,7 @@
     "supabase:db-reset": "supabase db reset",
     "supabase:start": "supabase start --ignore-health-check",
     "supabase:stop": "supabase stop",
-    "supabase:gen-types": "supabase gen types typescript --local > src/database.types.ts",
+    "supabase:gen-types": "supabase gen types typescript --local > src/core/database.types.ts",
     "test:db": "supabase test db --debug",
     "test:e2e": "sh ./scripts/test.sh",
     "test:reset:db": "supabase db reset && supabase test db --debug"

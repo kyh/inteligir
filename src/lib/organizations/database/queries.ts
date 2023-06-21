@@ -1,6 +1,6 @@
 import type { User } from "@supabase/gotrue-js";
+import type { DatabaseClient } from "~/core/db";
 import type UserData from "~/core/session/types/user-data";
-import type { DatabaseClient } from "~/lib/db";
 import type Membership from "~/lib/organizations/types/membership";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import type Organization from "~/lib/organizations/types/organization";

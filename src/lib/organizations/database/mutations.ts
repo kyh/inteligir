@@ -1,5 +1,5 @@
-import type { Database } from "~/database.types";
-import type { DatabaseClient } from "~/lib/db";
+import type { Database } from "~/core/database.types";
+import type { DatabaseClient } from "~/core/db";
 import { getOrganizationByUid } from "~/lib/organizations/database/queries";
 import type Organization from "~/lib/organizations/types/organization";
 

@@ -1,5 +1,5 @@
+import type { DatabaseClient } from "~/core/db";
 import type UserData from "~/core/session/types/user-data";
-import type { DatabaseClient } from "~/lib/db";
 
 export async function getUserDataById(client: DatabaseClient, userId: string) {
   const result = await client
