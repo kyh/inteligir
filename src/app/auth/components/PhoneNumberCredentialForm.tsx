@@ -1,37 +1,29 @@
 "use client";
 
 import { useCallback, type FormEventHandler } from "react";
-import toaster from "react-hot-toast";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 
-const PhoneNumberCredentialForm: React.FC<{
-  onSuccess: (phoneNumber: string) => void;
-  action: string;
-}> = ({ onSuccess, action }) => {
-  const updateUserMutation = useUpdateUserMutation();
+type ActionTypes = `link` | `signIn`;
 
+const PhoneNumberCredentialForm: React.FC<{
+  onSubmit: (phoneNumber: string) => void;
+  action: ActionTypes;
+  loading?: boolean;
+}> = ({ onSubmit, action, loading }) => {
   const onLinkPhoneNumberSubmit: FormEventHandler<HTMLFormElement> =
     useCallback(
-      async (event) => {
+      (event) => {
         event.preventDefault();
 
         const data = new FormData(event.currentTarget);
-        const phone = data.get("phoneNumber") as string;
+        const phoneNumber = data.get("phoneNumber") as string;
 
-        const promise = updateUserMutation.trigger({ phone });
-
-        await toaster.promise(promise, {
-          loading: "Linking phone number...",
-          success: "Phone number linked successfully",
-          error: "Error linking phone number",
-        });
-
-        onSuccess(phone);
+        onSubmit(phoneNumber);
       },
-      [onSuccess, updateUserMutation]
+      [onSubmit]
     );
 
   return (
@@ -45,11 +37,10 @@ const PhoneNumberCredentialForm: React.FC<{
             name="phoneNumber"
             type="tel"
             placeholder="Ex. +919367788755"
-            disabled={updateUserMutation.isMutating}
+            disabled={loading}
           />
         </TextField.Label>
-
-        <Button type="submit">
+        <Button type="submit" loading={loading}>
           <If condition={action === "link"}>Link Phone Number</If>
           <If condition={action === "signIn"}>Sign in with Phone Number</If>
         </Button>

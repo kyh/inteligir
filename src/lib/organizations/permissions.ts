@@ -16,13 +16,6 @@ import MembershipRole from "~/lib/organizations/types/membership-role";
  * You can update {@link MembershipRole} however you wish according to your app's domain
  */
 
-/**
- *
- * @param currentUserRole The current logged-in user
- * @param targetUser The role of the target of the action
- * @description Checks if a user can perform actions (such as update a role) of another user
- * @name canUpdateUser
- */
 export function canUpdateUser(
   currentUserRole: MembershipRole,
   targetUser: MembershipRole
@@ -30,36 +23,14 @@ export function canUpdateUser(
   return currentUserRole > targetUser;
 }
 
-/**
- * @name canChangeBilling
- * @param currentUserRole
- * @description Checks if a role can change billing information.
- * By default, only Owners and Admin can invite users
- */
 export function canChangeBilling(currentUserRole: MembershipRole) {
   return currentUserRole === MembershipRole.Owner;
 }
 
-/**
- * @name canInviteUsers
- * @param currentUserRole
- * @description Checks if a role can change invite new users to an organization.
- * By default, only Owners and Admin can invite users
- */
 export function canInviteUsers(currentUserRole: MembershipRole) {
   return currentUserRole >= MembershipRole.Admin;
 }
 
-/**
- * @description Check a user with role {@link inviterRole} can invite a user
- * with role {@link inviteeRole}.
- *
- * By default, users can invite users having the same or inferior role, and
- * ownership can only be transferred
- * @param inviterRole
- * @param inviteeRole
- * @name canInviteUser
- */
 export function canInviteUser(
   inviterRole: MembershipRole,
   inviteeRole: MembershipRole
@@ -71,11 +42,6 @@ export function canInviteUser(
   return canInvite && hasGreaterRole && isNotOwner;
 }
 
-/**
- * @description Check if a user can delete invites
- * @param inviterRole
- * @name canDeleteInvites
- */
 export function canDeleteInvites(inviterRole: MembershipRole) {
   return canInviteUsers(inviterRole);
 }

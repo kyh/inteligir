@@ -1,6 +1,6 @@
 {
   "name": "inteligir",
-  "version": "0.1.3",
+  "version": "0.2.2",
   "private": true,
   "sideEffects": false,
   "scripts": {

@@ -4,14 +4,11 @@ import {
   isRedirectError,
 } from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
-import configuration from "~/configuration";
 import verifyRequiresMfa from "~/core/session/utils/check-requires-mfa";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 
 /**
- * @name loadAuthPageData
- * @description This function is responsible for loading the authentication
- * layout's data.
+ * This function is responsible for loading the authentication layout's data.
  * If the user is logged in and does not require multi-factor
  * authentication, redirect them to the app home page. Otherwise, continue
  * to the authentication pages.

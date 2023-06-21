@@ -1,14 +1,11 @@
 import useSWRMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 
-interface Params {
+type Params = {
   email: string;
   redirectTo: string;
-}
+};
 
-/**
- * @name useResetPassword
- */
 function useResetPassword() {
   const client = useSupabase();
   const key = ["auth", "reset-password"];

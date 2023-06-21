@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
@@ -32,7 +32,7 @@ interface PricingItemProps {
   };
 }
 
-const STRIPE_PRODUCTS = configuration.stripe.products;
+const STRIPE_PRODUCTS = siteConfig.stripe.products;
 
 const STRIPE_PLANS = STRIPE_PRODUCTS.reduce<string[]>((acc, product) => {
   product.plans.forEach((plan) => {

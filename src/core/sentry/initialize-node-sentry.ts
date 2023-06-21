@@ -2,11 +2,11 @@ import * as Sentry from "@sentry/node";
 // Importing @sentry/tracing patches the global hub for tracing to work
 // Fore more info: https://docs.sentry.io/platforms/node/
 import "@sentry/tracing";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import isBrowser from "~/core/generic/is-browser";
 
 export function initializeNodeSentry() {
-  const dsn = configuration.sentry.dsn;
+  const dsn = siteConfig.sentry.dsn;
 
   if (!dsn) {
     warnSentryNotConfigured();
@@ -21,7 +21,7 @@ export function initializeNodeSentry() {
   Sentry.init({
     dsn,
     tracesSampleRate: 1.0,
-    environment: configuration.environment,
+    environment: siteConfig.environment,
   });
 }
 

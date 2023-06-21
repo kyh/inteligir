@@ -1,23 +1,15 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { MEMBERSHIPS_TABLE } from "~/lib/db-tables";
+import type { DatabaseClient } from "~/lib/db";
 import type Membership from "~/lib/organizations/types/membership";
-import type { Database } from "../../database.types";
 
-type Client = SupabaseClient<Database>;
-
-/**
- * @name getMembershipByInviteCode
- * @description Fetch a membership by its invite code
- */
 export async function getMembershipByInviteCode<Response>(
-  client: Client,
+  client: DatabaseClient,
   params: {
     code: string;
     query?: string;
   }
 ) {
   return client
-    .from(MEMBERSHIPS_TABLE)
+    .from("memberships")
     .select<string, Response>(
       params.query ??
         `
@@ -34,23 +26,27 @@ export async function getMembershipByInviteCode<Response>(
     .single();
 }
 
-/**
- * @description Get the role of a user given an organization ID
- */
 export async function getUserMembershipByOrganization(
-  client: Client,
+  client: DatabaseClient,
   params: {
     userId: string;
-    organizationId: number;
+    organizationUid: string;
   }
 ) {
   const { data, error } = await client
-    .from(MEMBERSHIPS_TABLE)
-    .select<string, Membership>(`*`)
+    .from("memberships")
+    .select<string, Membership>(
+      `
+      *,
+      organization: organization_id !inner (
+        uuid
+      )
+     `
+    )
     .eq("user_id", params.userId)
-    .eq("organization_id", params.organizationId)
-    .throwOnError()
-    .single();
+    .eq("organization.uuid", params.organizationUid)
+    .single()
+    .throwOnError();
 
   if (error) {
     throw error;
@@ -59,15 +55,12 @@ export async function getUserMembershipByOrganization(
   return data;
 }
 
-/**
- * @description Get the role of a user given an membership ID
- */
 export async function getUserRoleByMembershipId(
-  client: Client,
+  client: DatabaseClient,
   membershipId: number
 ) {
   const { data, error } = await client
-    .from(MEMBERSHIPS_TABLE)
+    .from("memberships")
     .select<string, Pick<Membership, "role">>(`role`)
     .eq("id", membershipId)
     .throwOnError()
@@ -80,20 +73,15 @@ export async function getUserRoleByMembershipId(
   return data.role;
 }
 
-/**
- * @name getMembershipByEmail
- * @param client
- * @param params
- */
 export async function getMembershipByEmail(
-  client: Client,
+  client: DatabaseClient,
   params: {
     email: string;
     organizationId: number;
   }
 ) {
   return client
-    .from(MEMBERSHIPS_TABLE)
+    .from("memberships")
     .select(
       `
       id,

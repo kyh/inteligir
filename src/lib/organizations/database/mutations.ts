@@ -1,22 +1,12 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "~/database.types";
-import {
-  ORGANIZATIONS_SUBSCRIPTIONS_TABLE,
-  ORGANIZATIONS_TABLE,
-} from "~/lib/db-tables";
+import type { DatabaseClient } from "~/lib/db";
+import { getOrganizationByUid } from "~/lib/organizations/database/queries";
 import type Organization from "~/lib/organizations/types/organization";
 
 type OrganizationRow = Database["public"]["Tables"]["organizations"]["Row"];
 
-type Client = SupabaseClient<Database>;
-
-/**
- * @name updateOrganization
- * @param client
- * @param params
- */
 export async function updateOrganization(
-  client: Client,
+  client: DatabaseClient,
   params: {
     id: number;
     data: Partial<Organization>;
@@ -31,7 +21,7 @@ export async function updateOrganization(
   }
 
   const { data } = await client
-    .from(ORGANIZATIONS_TABLE)
+    .from("organizations")
     .update(payload)
     .match({ id: params.id })
     .throwOnError()
@@ -42,22 +32,29 @@ export async function updateOrganization(
   return data;
 }
 
-/**
- * @name setOrganizationSubscriptionData
- * @description Adds or updates a subscription to an Organization
- */
-export function setOrganizationSubscriptionData(
-  client: Client,
+export async function setOrganizationSubscriptionData(
+  client: DatabaseClient,
   props: {
-    organizationId: number;
+    organizationUid: string;
     customerId: string;
     subscriptionId: string;
   }
 ) {
-  const { customerId, organizationId, subscriptionId } = props;
+  const { customerId, organizationUid, subscriptionId } = props;
+
+  const { data: organization, error } = await getOrganizationByUid(
+    client,
+    organizationUid
+  );
+
+  if (error || !organization) {
+    throw error;
+  }
+
+  const organizationId = organization.id;
 
   return client
-    .from(ORGANIZATIONS_SUBSCRIPTIONS_TABLE)
+    .from("organizations_subscriptions")
     .upsert({
       customer_id: customerId,
       subscription_id: subscriptionId,

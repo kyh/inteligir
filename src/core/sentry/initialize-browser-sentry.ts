@@ -1,13 +1,10 @@
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import isBrowser from "~/core/generic/is-browser";
 
 let initialized = false;
 
-/**
- * @description Loads and initializes Sentry for tracking runtime errors
- */
 async function initializeBrowserSentry() {
-  const dsn = configuration.sentry.dsn;
+  const dsn = siteConfig.sentry.dsn;
   const Sentry = await import("@sentry/react");
   const { Integrations: SentryIntegrations } = await import("@sentry/tracing");
 
@@ -23,7 +20,7 @@ async function initializeBrowserSentry() {
     dsn,
     integrations: [new SentryIntegrations.BrowserTracing()],
     tracesSampleRate: 1.0,
-    environment: configuration.environment,
+    environment: siteConfig.environment,
   });
 
   initialized = true;

@@ -1,22 +1,18 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type UserData from "~/core/session/types/user-data";
+import type { DatabaseClient } from "~/lib/db";
 
-/**
- * @name getUserById
- * @param client
- * @param userId
- */
-export function getUserById(client: SupabaseClient, userId: string) {
+export function getUserById(client: DatabaseClient, userId: string) {
   return client
     .from("users")
     .select<string, UserData>(
       `
       id,
       displayName: display_name,
-      photoUrl: photo_url
+      photoUrl: photo_url,
+      onboarded
     `
     )
     .eq("id", userId)
     .throwOnError()
-    .single();
+    .maybeSingle();
 }

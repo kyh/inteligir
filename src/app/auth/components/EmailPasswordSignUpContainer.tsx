@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import useSignUpWithEmailAndPasswordMutation from "~/core/hooks/use-sign-up-with-email-password";
 import { Alert } from "~/components/Alert";
 import If from "~/components/If";
 import EmailPasswordSignUpForm from "~/app/auth/components/EmailPasswordSignUpForm";
 import AuthErrorMessage from "./AuthErrorMessage";
 
-const requireEmailConfirmation = configuration.auth.requireEmailConfirmation;
+const requireEmailConfirmation = siteConfig.auth.requireEmailConfirmation;
 
 const EmailPasswordSignUpContainer: React.FCC<{
   onSignUp?: () => unknown;
