@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import isBrowser from "~/core/generic/is-browser";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
@@ -60,7 +60,7 @@ function NewUserInviteForm() {
 
       <OAuthProviders returnUrl={oAuthReturnUrl} />
 
-      <If condition={configuration.auth.providers.emailPassword}>
+      <If condition={siteConfig.auth.providers.emailPassword}>
         <If condition={mode === Mode.SignUp}>
           <div className="flex w-full flex-col items-center space-y-4">
             <EmailPasswordSignUpContainer onSubmit={onInviteAccepted} />
@@ -80,11 +80,11 @@ function NewUserInviteForm() {
         </If>
       </If>
 
-      <If condition={configuration.auth.providers.phoneNumber}>
+      <If condition={siteConfig.auth.providers.phoneNumber}>
         <PhoneNumberSignInContainer onSignIn={onInviteAccepted} />
       </If>
 
-      <If condition={configuration.auth.providers.emailLink}>
+      <If condition={siteConfig.auth.providers.emailLink}>
         <EmailLinkAuth />
       </If>
     </>

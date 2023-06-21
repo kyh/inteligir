@@ -3,7 +3,6 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/auth-helpers-nextjs";
-import configuration from "~/configuration";
 import useRefresh from "~/core/hooks/use-refresh";
 import useSignOut from "~/core/hooks/use-sign-out";
 import { Button } from "~/components/Button";

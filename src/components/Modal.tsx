@@ -8,7 +8,7 @@ import If from "~/components/If";
 
 const Modal: React.FC<
   React.PropsWithChildren<{
-    heading: string | JSX.Element;
+    heading: string | React.ReactNode;
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => unknown;
     closeButton?: boolean;

@@ -1,17 +1,14 @@
 import type { User } from "@supabase/gotrue-js";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "~/database.types";
 import type UserData from "~/core/session/types/user-data";
-import { MEMBERSHIPS_TABLE, ORGANIZATIONS_TABLE } from "~/lib/db-tables";
+import type { DatabaseClient } from "~/lib/db";
 import type Membership from "~/lib/organizations/types/membership";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import type Organization from "~/lib/organizations/types/organization";
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
 
-type Client = SupabaseClient<Database>;
-
 const FETCH_ORGANIZATION_QUERY = `
   id,
+  uuid,
   name,
   logoURL: logo_url,
   subscription: organizations_subscriptions (
@@ -42,15 +39,12 @@ export type UserOrganizationData = {
   };
 };
 
-/**
- * @name getOrganizationsByUserId
- * @description Get all the organizations where the user {@link userId} is a member
- * @param client
- * @param userId
- */
-export function getOrganizationsByUserId(client: Client, userId: string) {
+export function getOrganizationsByUserId(
+  client: DatabaseClient,
+  userId: string
+) {
   return client
-    .from(MEMBERSHIPS_TABLE)
+    .from("memberships")
     .select<string, UserOrganizationData>(
       `
         role,
@@ -61,18 +55,12 @@ export function getOrganizationsByUserId(client: Client, userId: string) {
     .throwOnError();
 }
 
-/**
- * @name getFirstOrganizationByUserId
- * @description Get the first organization where the user {@link userId} is a member
- * @param client
- * @param userId
- */
 export async function getFirstOrganizationByUserId(
-  client: Client,
+  client: DatabaseClient,
   userId: string
 ) {
   return client
-    .from(MEMBERSHIPS_TABLE)
+    .from("memberships")
     .select<string, UserOrganizationData>(
       `
         role,
@@ -87,11 +75,11 @@ export async function getFirstOrganizationByUserId(
 }
 
 export async function getOrganizationInvitedMembers(
-  client: Client,
+  client: DatabaseClient,
   organizationId: number
 ) {
   return client
-    .from(MEMBERSHIPS_TABLE)
+    .from("memberships")
     .select<string, Membership>(
       `
       id,
@@ -104,15 +92,12 @@ export async function getOrganizationInvitedMembers(
     .throwOnError();
 }
 
-/**
- * @name getOrganizationMembers
- * @description Get all the members of an organization
- * @param client
- * @param organizationId
- */
-export function getOrganizationMembers(client: Client, organizationId: number) {
+export function getOrganizationMembers(
+  client: DatabaseClient,
+  organizationId: number
+) {
   return client
-    .from(MEMBERSHIPS_TABLE)
+    .from("memberships")
     .select<
       string,
       {
@@ -135,14 +120,26 @@ export function getOrganizationMembers(client: Client, organizationId: number) {
     .is("code", null);
 }
 
-/**
- * @name getOrganizationById
- * @description Returns the Database record of the organization by its ID
- * {@link organizationId}
- */
-export function getOrganizationById(client: Client, organizationId: number) {
+export function getOrganizationByUid(client: DatabaseClient, uid: string) {
   return client
-    .from(ORGANIZATIONS_TABLE)
+    .from("organizations")
+    .select<
+      string,
+      Organization & {
+        subscription: OrganizationSubscription;
+      }
+    >(FETCH_ORGANIZATION_QUERY)
+    .eq("uuid", uid)
+    .throwOnError()
+    .maybeSingle();
+}
+
+export function getOrganizationById(
+  client: DatabaseClient,
+  organizationId: number
+) {
+  return client
+    .from("organizations")
     .select<
       string,
       Organization & {
@@ -154,24 +151,18 @@ export function getOrganizationById(client: Client, organizationId: number) {
     .single();
 }
 
-/**
- * @name getOrganizationByCustomerId
- * @description Retrieve an organization using the customer ID assigned by
- * Stripe after the first checkout, e,g. when the customer record is created
- * @param client
- * @param customerId
- */
 export function getOrganizationByCustomerId(
-  client: Client,
+  client: DatabaseClient,
   customerId: string
 ) {
   return client
-    .from(ORGANIZATIONS_TABLE)
+    .from("organizations")
     .select(
       `
       id,
       name,
       logoURL: logo_url,
+      uuid,
       subscription: organizations_subscriptions (
         customerId: customer_id
       )
@@ -182,19 +173,30 @@ export function getOrganizationByCustomerId(
     .single();
 }
 
-/**
- * @name getMembersAuthMetadata
- * @param client
- * @param userIds
- */
-export function getMembersAuthMetadata(client: Client, userIds: string[]) {
-  return Promise.all(
+export async function getMembersAuthMetadata(
+  client: DatabaseClient,
+  userIds: string[]
+) {
+  const users = await Promise.all(
     userIds.map((userId) => {
       const response = client.auth.admin.getUserById(userId);
 
-      return response.then((response) => {
-        return response.data.user as User;
-      });
+      return response
+        .then((response) => {
+          return response.data.user as User;
+        })
+        .catch((error) => {
+          console.error(
+            {
+              userId,
+            },
+            `Error fetching user: ${error}`
+          );
+
+          return undefined;
+        });
     }) ?? []
   );
+
+  return users.filter(Boolean) as User[];
 }

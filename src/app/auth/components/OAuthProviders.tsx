@@ -6,14 +6,14 @@ import {
   AtSymbolIcon,
   DevicePhoneMobileIcon,
 } from "@heroicons/react/24/outline";
-import { config } from "~/config/site";
+import { siteConfig } from "~/config/site";
 import useSignInWithProvider from "~/core/hooks/use-sign-in-with-provider";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 import AuthErrorMessage from "./AuthErrorMessage";
 
-const OAUTH_PROVIDERS = config.auth.providers.oAuth;
+const OAUTH_PROVIDERS = siteConfig.auth.providers.oAuth;
 
 const OAuthProviders: React.FCC<{
   returnUrl?: string;
@@ -57,13 +57,13 @@ const OAuthProviders: React.FCC<{
                 providerId={provider}
                 onClick={() => {
                   const origin = window.location.origin;
-                  const signInFromLink = "/auth/link";
+                  const callback = "/auth/callback";
 
                   const returnUrlParams = props.returnUrl
                     ? `?returnUrl=${props.returnUrl}`
                     : "";
 
-                  const returnUrl = [signInFromLink, returnUrlParams].join("");
+                  const returnUrl = [callback, returnUrlParams].join("");
                   const redirectTo = [origin, returnUrl].join("");
 
                   const credentials = {
@@ -138,7 +138,7 @@ const AuthProviderLogo: React.FC<{
   return <>{image}</>;
 };
 
-function getOAuthProviderLogos(): Record<string, string | JSX.Element> {
+function getOAuthProviderLogos(): Record<string, string | React.ReactNode> {
   return {
     email: <AtSymbolIcon className="h-7" />,
     phone: <DevicePhoneMobileIcon className="h-7" />,

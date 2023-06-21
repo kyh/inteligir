@@ -12,14 +12,6 @@ const ENCODING = "hex";
 const BASE_64_ENCODING = "base64";
 const SEPARATOR = ":";
 
-/**
- * @name encrypt
- * @param data
- * @param key
- * @description Encrypt a string (such as an API key).
- * It requires the Secret key environment (SECRET_KEY) variable to be defined
- * Decrypt with {@link decrypt}
- */
 export function encrypt(data: string, key = getSecretKey()) {
   const iv = randomBytes(IV_LENGTH);
   const hash = getHash(key);
@@ -32,13 +24,6 @@ export function encrypt(data: string, key = getSecretKey()) {
   return iv.toString(ENCODING) + SEPARATOR + encrypted.toString(ENCODING);
 }
 
-/**
- * @name decrypt
- * @param data
- * @param key
- * @description Descrypt a string encrypted with {@link encrypt}.
- * It requires the Secret key environment (SECRET_KEY) variable to be defined
- */
 export function decrypt(data: string, key = getSecretKey()) {
   const textParts = data.split(SEPARATOR);
   const hash = getHash(key);

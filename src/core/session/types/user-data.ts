@@ -3,11 +3,11 @@
  * Not to be confused with {@link User} defined in Supabase Auth
  * This data is always present in {@link UserSession}
  */
-interface UserData {
+type UserData = {
   id: string;
   photoUrl?: string;
   displayName?: string;
   onboarded: boolean;
-}
+};
 
 export default UserData;

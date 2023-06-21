@@ -1,14 +1,14 @@
 import { Column } from "@react-email/column";
 import { Section } from "@react-email/section";
 import { Text } from "@react-email/text";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 
 function EmailNavbar(
   props: React.PropsWithChildren<{
     productName?: string;
   }>
 ) {
-  const productName = props.productName ?? configuration.site.name;
+  const productName = props.productName ?? siteConfig.site.name;
 
   return (
     <Section style={{ width: "100%" }}>

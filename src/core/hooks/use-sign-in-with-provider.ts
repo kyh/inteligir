@@ -2,9 +2,6 @@ import type { SignInWithOAuthCredentials } from "@supabase/gotrue-js";
 import useMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 
-/**
- * @name useSignInWithProvider
- */
 function useSignInWithProvider() {
   const client = useSupabase();
   const key = ["auth", "sign-in-with-provider"];

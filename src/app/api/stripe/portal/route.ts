@@ -2,14 +2,13 @@ import { join } from "path";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import configuration from "~/configuration";
 import { z } from "zod";
 import getApiRefererPath from "~/core/generic/get-api-referer-path";
 import HttpStatusCode from "~/core/generic/http-status-code.enum";
 import { throwNotFoundException } from "~/core/http-exceptions";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
+import type { DatabaseClient } from "~/lib/db";
 import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
 import { getOrganizationByCustomerId } from "~/lib/organizations/database/queries";
 import { canChangeBilling } from "~/lib/organizations/permissions";
@@ -67,34 +66,29 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * @name getUserCanAccessCustomerPortal
- * @description Returns whether a user {@link userId} has access to the
- * Stripe portal of an organization with customer ID {@link customerId}
- */
 async function getUserCanAccessCustomerPortal(
-  client: SupabaseClient,
+  client: DatabaseClient,
   params: {
     customerId: string;
     userId: string;
   }
 ) {
   try {
-    const { data: organization } = await getOrganizationByCustomerId(
+    const { data: organization, error } = await getOrganizationByCustomerId(
       client,
       params.customerId
     );
 
-    const organizationId = organization?.id;
-
-    if (!organizationId) {
+    if (error) {
       return throwNotFoundException(
         `Organization not found for customer ${params.customerId}`
       );
     }
 
+    const organizationUid = organization.uuid;
+
     const { role } = await getUserMembershipByOrganization(client, {
-      organizationId,
+      organizationUid,
       userId: params.userId,
     });
 

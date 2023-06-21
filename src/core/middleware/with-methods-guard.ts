@@ -2,7 +2,7 @@ import { NextApiRequest } from "next";
 import { throwMethodNotAllowedException } from "~/core/http-exceptions";
 
 /**
- * @description guard an API endpoint against unsupported methods
+ * Guard an API endpoint against unsupported methods
  * It can be used as a middleware for your writing your API handlers. For
  * example, if you API only supports GET requests
  *

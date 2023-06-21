@@ -1,11 +1,11 @@
 import Link from "next/link";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import { Button } from "~/components/Button";
 import { Text } from "~/components/Text";
 import { TopNavigation } from "~/app/(marketing)/components/TopNavigation";
 
 export const metadata = {
-  title: `Page not found - ${configuration.site.name}`,
+  title: `Page not found - ${siteConfig.site.name}`,
 };
 
 const NotFoundPage = async () => {

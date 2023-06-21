@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import csrf from "edge-csrf";
 import HttpStatusCode from "~/core/generic/http-status-code.enum";
 
@@ -14,7 +14,7 @@ export const config = {
 
 const csrfMiddleware = csrf({
   cookie: {
-    secure: configuration.production,
+    secure: siteConfig.production,
     name: CSRF_SECRET_COOKIE,
   },
 });

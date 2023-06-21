@@ -3,8 +3,7 @@ import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserDataById } from "~/lib/server/queries";
 
 /**
- * @name loadUserData
- * @description Loads the user's data from Supabase Auth and Database.
+ * Loads the user's data from Supabase Auth and Database.
  * This is used in the (site) layout to display the user's name and avatar.
  */
 async function loadUserData() {

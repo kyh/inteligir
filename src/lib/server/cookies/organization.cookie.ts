@@ -4,12 +4,12 @@ import readServerCookie, {
 
 const ORGANIZATION_ID_COOKIE_NAME = "organizationId";
 
-export function createOrganizationIdCookie(organizationId: number) {
+export function createOrganizationIdCookie(organizationId: string) {
   const secure = process.env.ENVIRONMENT === "production";
 
   return {
     name: ORGANIZATION_ID_COOKIE_NAME,
-    value: organizationId.toString(),
+    value: organizationId,
     httpOnly: false,
     secure,
     path: "/",
@@ -18,14 +18,5 @@ export function createOrganizationIdCookie(organizationId: number) {
 }
 
 export async function parseOrganizationIdCookie(cookies: AnyCookies) {
-  const organizationId = await readServerCookie(
-    cookies,
-    ORGANIZATION_ID_COOKIE_NAME
-  );
-
-  if (Number.isNaN(Number(organizationId)) || organizationId === null) {
-    return undefined;
-  }
-
-  return organizationId;
+  return await readServerCookie(cookies, ORGANIZATION_ID_COOKIE_NAME);
 }

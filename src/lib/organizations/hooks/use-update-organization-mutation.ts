@@ -4,10 +4,6 @@ import useUserId from "~/core/hooks/use-user-id";
 import { updateOrganization } from "~/lib/organizations/database/mutations";
 import type Organization from "~/lib/organizations/types/organization";
 
-/**
- * @name useUpdateOrganizationMutation
- * @description Hook to update an organization's general information (name, logo and timezone)
- */
 function useUpdateOrganizationMutation() {
   const client = useSupabase();
   const userId = useUserId();
