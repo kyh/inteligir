@@ -10,7 +10,7 @@ import getLogger from "~/core/logger";
 import getStripeInstance from "~/core/stripe/get-stripe";
 import StripeWebhooks from "~/core/stripe/stripe-webhooks.enum";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import { setOrganizationSubscriptionData } from "~/lib/organizations/database/mutations";
+import { setOrganizationSubscriptionData } from "~/lib/organizations/mutations";
 import {
   addSubscription,
   deleteSubscription,
