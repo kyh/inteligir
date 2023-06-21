@@ -2,9 +2,9 @@
 
 import React, { useMemo } from "react";
 import useUser from "~/core/hooks/use-user";
-import MobileNavigationDropdown from "~/components/MobileNavigationDropdown";
-import NavigationItem from "~/components/NavigationItem";
-import NavigationMenu from "~/components/NavigationMenu";
+import MobileNavigationDropdown from "~/app/dashboard/components/MobileNavigationDropdown";
+import NavigationItem from "~/app/dashboard/components/NavigationItem";
+import NavigationMenu from "~/app/dashboard/components/NavigationMenu";
 
 const links = {
   General: {

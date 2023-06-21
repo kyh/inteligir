@@ -1,7 +1,7 @@
 import useSWRMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 import useUserId from "~/core/hooks/use-user-id";
-import { updateOrganization } from "~/lib/organizations/database/mutations";
+import { updateOrganization } from "~/lib/organizations/mutations";
 import type Organization from "~/lib/organizations/types/organization";
 
 function useUpdateOrganizationMutation() {
