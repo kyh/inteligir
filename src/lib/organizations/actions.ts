@@ -5,7 +5,7 @@ import { withCsrfCheck, withSession } from "~/core/generic/actions-utils";
 import getLogger from "~/core/logger";
 import getSupabaseServerActionClient from "~/core/supabase/action-client";
 import { transferOwnership } from "~/lib/memberships/mutations";
-import { getOrganizationByUid } from "~/lib/organizations/database/queries";
+import { getOrganizationByUid } from "~/lib/organizations/queries";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import {
   createOrganizationIdCookie,

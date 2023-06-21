@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation";
 import isRouteActive from "~/core/generic/is-route-active";
 import { cn } from "~/lib/utils/cn";
 
-interface LinkModel {
+type LinkModel = {
   path: string;
   label: string;
-}
+};
 
 const NavigationMenuItem: React.FCC<{
   link: LinkModel;

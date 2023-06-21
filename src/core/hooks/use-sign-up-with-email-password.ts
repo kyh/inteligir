@@ -1,10 +1,10 @@
 import useSWRMutation from "swr/mutation";
 import useSupabase from "./use-supabase";
 
-interface Credentials {
+type Credentials = {
   email: string;
   password: string;
-}
+};
 
 function useSignUpWithEmailAndPassword() {
   const client = useSupabase();

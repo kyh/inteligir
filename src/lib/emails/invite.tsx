@@ -9,14 +9,14 @@ import { Text } from "@react-email/text";
 import CallToActionButton from "~/components/emails/CallToActionButton";
 import EmailNavbar from "~/components/emails/EmailNavbar";
 
-interface Props {
+type Props = {
   organizationName: string;
   organizationLogo?: string;
   inviter: Maybe<string>;
   invitedUserEmail: string;
   link: string;
   productName: string;
-}
+};
 
 export default function renderInviteEmail(props: Props) {
   const title = `You have been invited to join ${props.organizationName}`;

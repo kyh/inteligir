@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
-import { getOrganizationByUid } from "~/lib/organizations/database/queries";
+import { getOrganizationByUid } from "~/lib/organizations/queries";
 
 export default async function getCurrentOrganization(params: {
   organizationUid: string;

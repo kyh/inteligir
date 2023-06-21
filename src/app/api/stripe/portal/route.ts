@@ -10,8 +10,8 @@ import { throwNotFoundException } from "~/core/http-exceptions";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
-import { getOrganizationByCustomerId } from "~/lib/organizations/database/queries";
 import { canChangeBilling } from "~/lib/organizations/permissions";
+import { getOrganizationByCustomerId } from "~/lib/organizations/queries";
 import createBillingPortalSession from "~/lib/stripe/create-billing-portal-session";
 import requireSession from "~/lib/user/require-session";
 

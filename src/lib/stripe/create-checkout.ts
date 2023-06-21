@@ -2,13 +2,13 @@ import { URL } from "url";
 import type { Stripe } from "stripe";
 import getStripeInstance from "~/core/stripe/get-stripe";
 
-interface CreateCheckoutParams {
+type CreateCheckoutParams = {
   returnUrl: string;
   organizationUid: string;
   priceId: string;
   customerId?: string;
   trialPeriodDays?: Maybe<number>;
-}
+};
 
 export default async function createStripeCheckout(
   params: CreateCheckoutParams

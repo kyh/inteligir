@@ -9,12 +9,12 @@ import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { Text } from "~/components/Text";
 
-interface CheckoutButtonProps {
+type CheckoutButtonProps = {
   readonly stripePriceId?: string;
   readonly recommended?: boolean;
-}
+};
 
-interface PricingItemProps {
+type PricingItemProps = {
   selectable: boolean;
   product: {
     name: string;
@@ -30,7 +30,7 @@ interface PricingItemProps {
     label?: string;
     href?: string;
   };
-}
+};
 
 const STRIPE_PRODUCTS = siteConfig.stripe.products;
 

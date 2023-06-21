@@ -14,17 +14,17 @@ import ExistingUserInviteForm from "../components/ExistingUserInviteForm";
 import InviteCsrfTokenProvider from "../components/InviteCsrfTokenProvider";
 import NewUserInviteForm from "../components/NewUserInviteForm";
 
-interface Context {
+type InvitePageProps = {
   params: {
     code: string;
   };
-}
+};
 
 export const metadata = {
   title: `Join Organization`,
 };
 
-const InvitePage = ({ params }: Context) => {
+const InvitePage = ({ params }: InvitePageProps) => {
   const data = use(loadInviteData(params.code));
   const organization = data.membership.organization;
 

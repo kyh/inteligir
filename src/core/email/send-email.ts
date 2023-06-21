@@ -1,12 +1,12 @@
 import { siteConfig } from "~/config/site";
 
-interface SendEmailParams {
+type SendEmailParams = {
   from: string;
   to: string;
   subject: string;
   text?: string;
   html?: string;
-}
+};
 
 export default async function sendEmail(config: SendEmailParams) {
   const transporter = await getTransporter();

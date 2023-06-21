@@ -1,6 +1,6 @@
 import useSWR from "swr";
 import useSupabase from "~/core/hooks/use-supabase";
-import { getOrganizationsByUserId } from "~/lib/organizations/database/queries";
+import { getOrganizationsByUserId } from "~/lib/organizations/queries";
 
 function useUserOrganizationsQuery(userId: string) {
   const client = useSupabase();
