@@ -2,6 +2,7 @@
 
 import { ArrowRightIcon } from "@heroicons/react/24/outline";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
+import { createBillingPortalSessionAction } from "~/lib/stripe/actions";
 import { Button } from "~/components/Button";
 
 const BillingPortalRedirectButton: React.FCC<{
@@ -9,7 +10,7 @@ const BillingPortalRedirectButton: React.FCC<{
   className?: string;
 }> = ({ children, customerId, className }) => {
   return (
-    <form method="POST" action="/api/stripe/portal">
+    <form method="POST" action={createBillingPortalSessionAction}>
       <input type="hidden" name="customerId" value={customerId} />
 
       <CsrfTokenInput />
