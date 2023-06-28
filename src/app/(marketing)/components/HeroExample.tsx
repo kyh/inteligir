@@ -165,7 +165,7 @@ export const ExampleChat = ({ start }: { start: boolean }) => {
     await afterShowAnswer.promise;
 
     setShowFooter(true);
-    const afterShowFooter = wait(10000);
+    const afterShowFooter = wait(5000);
     promisesRef.current.push(afterShowFooter.cancel);
     await afterShowFooter.promise;
 
@@ -266,7 +266,7 @@ const Typewriter = ({
           .slice(0, i + 1)
           .join(splitBy);
         i++;
-        setTimeout(write, 50);
+        setTimeout(write, 25);
       } else {
         animatingRef.current = false;
         finishedRef.current = true;
