@@ -55,25 +55,6 @@ export function getOrganizationsByUserId(
     .throwOnError();
 }
 
-export async function getFirstOrganizationByUserId(
-  client: DatabaseClient,
-  userId: string
-) {
-  return client
-    .from("memberships")
-    .select<string, UserOrganizationData>(
-      `
-        role,
-        userId: user_id,
-        organization:organization_id (${FETCH_ORGANIZATION_QUERY})
-      )`
-    )
-    .eq("user_id", userId)
-    .limit(1)
-    .throwOnError()
-    .single();
-}
-
 export async function getOrganizationInvitedMembers(
   client: DatabaseClient,
   organizationId: number

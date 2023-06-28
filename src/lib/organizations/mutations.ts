@@ -55,11 +55,16 @@ export async function setOrganizationSubscriptionData(
 
   return client
     .from("organizations_subscriptions")
-    .upsert({
-      customer_id: customerId,
-      subscription_id: subscriptionId,
-      organization_id: organizationId,
-    })
-    .match({ id: organizationId })
+    .upsert(
+      {
+        customer_id: customerId,
+        subscription_id: subscriptionId,
+        organization_id: organizationId,
+      },
+      {
+        onConflict: "customer_id",
+      }
+    )
+    .match({ customer_id: customerId })
     .throwOnError();
 }
