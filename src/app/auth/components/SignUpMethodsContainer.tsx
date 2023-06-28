@@ -18,7 +18,9 @@ function SignUpMethodsContainer() {
 
   return (
     <>
-      <OAuthProviders />
+      <If condition={siteConfig.auth.providers.oAuth.length}>
+        <OAuthProviders />
+      </If>
       <If condition={siteConfig.auth.providers.emailPassword}>
         <div className="text-xs text-zinc-400">or continue with email</div>
         <EmailPasswordSignUpContainer onSignUp={onSignUp} />

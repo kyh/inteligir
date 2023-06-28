@@ -1,7 +1,8 @@
-import { FormEventHandler, useCallback } from "react";
+import { FormEventHandler, useCallback, useTransition } from "react";
 import toaster from "react-hot-toast";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
 import useUserId from "~/core/hooks/use-user-id";
-import useCreateOrganization from "~/lib/organizations/hooks/use-create-organization";
+import { createNewOrganizationAction } from "~/lib/organizations/actions";
 import { Button } from "~/components/Button";
 import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
@@ -10,28 +11,31 @@ const CreateOrganizationModal: React.FC<{
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => unknown;
 }> = ({ isOpen, setIsOpen }) => {
-  const userId = useUserId();
-  const createOrganizationMutation = useCreateOrganization(userId);
+  const [isSubmitting, startTransition] = useTransition();
+  const csrfToken = useCsrfToken();
+
+  const createOrganizationMutation = useCallback(
+    (organization: string) => {
+      return startTransition(async () => {
+        await createNewOrganizationAction({
+          organization,
+          csrfToken,
+        });
+
+        setIsOpen(false);
+      });
+    },
+    [csrfToken, setIsOpen]
+  );
 
   const onSubmit: FormEventHandler = useCallback(
     async (e) => {
       e.preventDefault();
-
-      const organization = new FormData(e.currentTarget as HTMLFormElement).get(
-        "name"
-      ) as string;
-
-      const promise = createOrganizationMutation.trigger(organization);
-
-      await toaster.promise(promise, {
-        success: "Organization created successfully",
-        error: "Organization not created. Please try again.",
-        loading: "Creating organization...",
-      });
-
-      setIsOpen(false);
+      const data = new FormData(e.currentTarget as HTMLFormElement);
+      const organization = data.get("name") as string;
+      createOrganizationMutation(organization);
     },
-    [createOrganizationMutation, setIsOpen]
+    [createOrganizationMutation]
   );
 
   return (
@@ -56,7 +60,7 @@ const CreateOrganizationModal: React.FC<{
 
             <Button
               data-cy="confirm-create-organization-button"
-              loading={createOrganizationMutation.isMutating}
+              loading={isSubmitting}
             >
               Create Organization
             </Button>

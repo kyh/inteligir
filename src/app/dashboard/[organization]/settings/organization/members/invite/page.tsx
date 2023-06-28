@@ -17,7 +17,6 @@ const OrganizationMembersInvitePage = () => {
       >
         <InviteMembersForm />
       </SettingsTile>
-
       <div className="mt-4">
         <GoBackToMembersButton />
       </div>
@@ -31,7 +30,7 @@ function GoBackToMembersButton() {
   return (
     <Button
       as={Link}
-      href="/settings/organization/members"
+      href="../members"
       startIcon={<ArrowLeftIcon className="h-3" />}
     >
       Go back to members

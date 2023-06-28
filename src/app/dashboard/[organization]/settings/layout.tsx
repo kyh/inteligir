@@ -26,11 +26,9 @@ async function SettingsLayout({ children }: React.PropsWithChildren) {
       <AppHeader>
         <span className="flex space-x-2">
           <Cog8ToothIcon className="w-6" />
-
           <span>Settings</span>
         </span>
       </AppHeader>
-
       <AppContainer>
         <NavigationMenu bordered>
           {links.map((link) => (
@@ -41,7 +39,6 @@ async function SettingsLayout({ children }: React.PropsWithChildren) {
             />
           ))}
         </NavigationMenu>
-
         <div className="mt-4 flex h-full flex-col space-y-4 lg:mt-6 lg:flex-row lg:space-x-8 lg:space-y-0">
           {children}
         </div>
