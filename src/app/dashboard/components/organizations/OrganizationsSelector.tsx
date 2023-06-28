@@ -1,10 +1,10 @@
-import { useCallback, useContext, useState, useTransition } from "react";
+import { useCallback, useContext, useState } from "react";
+import Image from "next/image";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { PlusCircleIcon } from "@heroicons/react/24/outline";
 import { SelectArrow } from "@radix-ui/react-select";
-import useRefresh from "~/core/hooks/use-refresh";
 import UserSessionContext from "~/core/session/contexts/user-session";
 import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
-import useSetCurrentOrganization from "~/lib/organizations/hooks/use-set-current-organization";
 import useUserOrganizationsQuery from "~/lib/organizations/hooks/use-user-organizations-query";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import type Organization from "~/lib/organizations/types/organization";
@@ -25,40 +25,23 @@ import CreateOrganizationModal from "./CreateOrganizationModal";
 const OrganizationsSelector = () => {
   const [isOrganizationModalOpen, setIsOrganizationModalOpen] = useState(false);
   const [isSelectOpen, setIsSelectOpen] = useState(false);
-  const [isPending, startTransition] = useTransition();
+  const changeOrganization = useChangeOrganization();
 
   const organization = useCurrentOrganization();
   const { userSession } = useContext(UserSessionContext);
-  const refresh = useRefresh();
-  const setCurrentOrganizationMutation = useSetCurrentOrganization();
 
   const userId = userSession?.data?.id as string;
-  const selectedOrganizationId = organization?.id.toString();
+  const selectedOrganizationId = organization?.uuid;
 
   const { data, isLoading } = useUserOrganizationsQuery(userId);
-
-  const onOrganizationChange = useCallback(
-    async (organizationId: string) => {
-      await setCurrentOrganizationMutation.trigger(organizationId);
-
-      startTransition(() => {
-        refresh();
-      });
-    },
-    [refresh, setCurrentOrganizationMutation]
-  );
-
-  const isChangingOrganization =
-    isPending || setCurrentOrganizationMutation.isMutating;
 
   return (
     <>
       <Select
-        disabled={isChangingOrganization}
         open={isSelectOpen}
         value={selectedOrganizationId}
         onOpenChange={setIsSelectOpen}
-        onValueChange={onOrganizationChange}
+        onValueChange={(uuid) => changeOrganization(uuid)}
       >
         <SelectTrigger
           data-cy="organization-selector"
@@ -107,7 +90,6 @@ const OrganizationsSelector = () => {
                 className="flex flex-row items-center space-x-2 truncate"
               >
                 <PlusCircleIcon className="h-5" />
-
                 <span>New organization</span>
               </span>
             </SelectAction>
@@ -138,8 +120,8 @@ function OrganizationsOptions(
         return (
           <SelectItem
             data-cy={`organization-selector-${organization.name}`}
-            value={organization.id.toString()}
-            key={organization.id}
+            value={organization.uuid}
+            key={organization.uuid}
           >
             <OrganizationItem organization={organization} />
           </SelectItem>
@@ -169,8 +151,7 @@ function OrganizationItem({
     >
       <If condition={logoURL}>
         <span className="flex items-center">
-          <img
-            loading="lazy"
+          <Image
             style={{
               width: imageSize,
               height: imageSize,
@@ -190,3 +171,22 @@ function OrganizationItem({
 }
 
 export default OrganizationsSelector;
+
+function useChangeOrganization() {
+  const path = usePathname();
+  const params = useParams();
+  const router = useRouter();
+
+  return useCallback(
+    (uuid: string) => {
+      const appPrefix = "/dashboard";
+      const organizationPath = `${appPrefix}/${uuid}`;
+      const route = path?.replace(`${appPrefix}/${params?.organization}`, "");
+
+      if (route !== undefined) {
+        router.push(`${organizationPath}/${route}`);
+      }
+    },
+    [params?.organization, path, router]
+  );
+}
