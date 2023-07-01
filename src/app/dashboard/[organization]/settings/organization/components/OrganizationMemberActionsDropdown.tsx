@@ -1,9 +1,9 @@
 import {
-  AdjustmentsHorizontalIcon,
-  EllipsisVerticalIcon,
+  MoreVerticalIcon,
+  ReplaceIcon,
   UserCircleIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/outline";
+  XIcon,
+} from "lucide-react";
 import { Button } from "~/components/Button";
 import {
   DropdownMenu,
@@ -24,12 +24,9 @@ const OrganizationMemberActionsDropdown: React.FCC<{
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild disabled={props.disabled}>
-        <Button
-          data-cy="member-actions-dropdown"
-          disabled={props.disabled}
-        >
+        <Button data-cy="member-actions-dropdown" disabled={props.disabled}>
           <span className="sr-only">Open members actions menu</span>
-          <EllipsisVerticalIcon className="h-6" />
+          <MoreVerticalIcon className="h-6" />
         </Button>
       </DropdownMenuTrigger>
 
@@ -40,8 +37,7 @@ const OrganizationMemberActionsDropdown: React.FCC<{
           onClick={props.onChangeRoleSelected}
         >
           <span className="flex items-center space-x-2">
-            <AdjustmentsHorizontalIcon className="h-5" />
-
+            <ReplaceIcon className="h-5" />
             <span>Change Role</span>
           </span>
         </DropdownMenuItem>
@@ -67,7 +63,7 @@ const OrganizationMemberActionsDropdown: React.FCC<{
           onClick={props.onRemoveSelected}
         >
           <span className="flex items-center space-x-2 text-red-700 dark:text-red-500">
-            <XMarkIcon className="h-5" />
+            <XIcon className="h-5" />
             <span>Remove</span>
           </span>
         </DropdownMenuItem>

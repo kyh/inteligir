@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { XMarkIcon } from "@heroicons/react/24/outline";
 import { Factor } from "@supabase/gotrue-js";
+import { XIcon } from "lucide-react";
 import toaster from "react-hot-toast";
 import useMutation from "swr/mutation";
 import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
@@ -223,7 +223,7 @@ function FactorsTable({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button onClick={() => setUnenrolling(factor.id)}>
-                    <XMarkIcon className="h-4" />
+                    <XIcon className="h-4" />
                   </Button>
                 </TooltipTrigger>
 

@@ -4,7 +4,7 @@ import { forwardRef, Fragment, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Transition } from "@headlessui/react";
-import { ArrowLeftIcon, ArrowRightIcon } from "@heroicons/react/24/outline";
+import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { SmallPrint } from "~/app/(marketing)/components/FooterNavigation";
 import { pages } from "./SideNavigation";

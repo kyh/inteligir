@@ -1,6 +1,6 @@
 import * as React from "react";
-import { CheckCircleIcon, ChevronDownIcon } from "@heroicons/react/24/outline";
 import * as SelectPrimitive from "@radix-ui/react-select";
+import { CheckCircleIcon, ChevronDownIcon } from "lucide-react";
 import { cn } from "~/lib/utils/cn";
 
 const Select = SelectPrimitive.Root;

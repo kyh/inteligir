@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, type FormEvent } from "react";
-import { ArrowRightIcon } from "@heroicons/react/24/outline";
+import { ArrowRightIcon } from "lucide-react";
 import useUserSession from "~/core/hooks/use-user-session";
 import { Button } from "~/components/Button";
 import { Text } from "~/components/Text";
