@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
 import { siteConfig } from "~/config/site";
+import { CheckCircleIcon, XCircleIcon } from "lucide-react";
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
 import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";

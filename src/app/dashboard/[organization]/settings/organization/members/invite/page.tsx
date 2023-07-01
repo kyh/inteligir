@@ -1,5 +1,5 @@
 import Link from "next/link";
-import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
+import { ArrowLeftIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import SettingsTile from "~/app/dashboard/[organization]/settings/components/SettingsTile";
 import InviteMembersForm from "~/app/dashboard/[organization]/settings/organization/components/InviteMembersForm";

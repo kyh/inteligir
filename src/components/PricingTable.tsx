@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import CheckCircleIcon from "@heroicons/react/24/outline/CheckCircleIcon";
 import { siteConfig } from "~/config/site";
+import { CheckCircleIcon } from "lucide-react";
 import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
 import If from "~/components/If";

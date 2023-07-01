@@ -1,14 +1,14 @@
 "use client";
 
 import { createContext, useContext, useMemo, useState } from "react";
-import {
-  CheckCircleIcon,
-  ExclamationCircleIcon,
-  InformationCircleIcon,
-  ShieldExclamationIcon,
-  XMarkIcon,
-} from "@heroicons/react/24/outline";
 import { ComponentProps, deriveClassed } from "@tw-classed/react";
+import {
+  AlertCircleIcon,
+  CheckCircleIcon,
+  InfoIcon,
+  ShieldAlertIcon,
+  XIcon,
+} from "lucide-react";
 import { classed } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
@@ -18,9 +18,9 @@ type AlertType = "success" | "error" | "warn" | "info";
 
 const icons = {
   success: <CheckCircleIcon className="h-5 rounded-full text-green-700" />,
-  error: <ExclamationCircleIcon className="h-5 rounded-full text-red-700" />,
-  warn: <ShieldExclamationIcon className="h-5 rounded-full text-yellow-700" />,
-  info: <InformationCircleIcon className="h-5 rounded-full text-blue-700" />,
+  error: <AlertCircleIcon className="h-5 rounded-full text-red-700" />,
+  warn: <ShieldAlertIcon className="h-5 rounded-full text-yellow-700" />,
+  info: <InfoIcon className="h-5 rounded-full text-blue-700" />,
 };
 
 const AlertContext = createContext<Maybe<AlertType>>(undefined);
@@ -59,11 +59,8 @@ const DerivedBaseAlert = deriveClassed<typeof BaseAlert, AlertProps>(
             <span>{children}</span>
           </span>
           <If condition={showClose ?? false}>
-            <Button
-            variant="transparent"
-              onClick={() => setVisible(false)}
-            >
-              <XMarkIcon className="h-6" />
+            <Button variant="transparent" onClick={() => setVisible(false)}>
+              <XIcon className="h-6" />
             </Button>
           </If>
         </AlertContext.Provider>

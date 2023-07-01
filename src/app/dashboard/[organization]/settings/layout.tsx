@@ -1,5 +1,5 @@
 import React from "react";
-import { Cog8ToothIcon } from "@heroicons/react/24/outline";
+import { CogIcon } from "lucide-react";
 import AppContainer from "~/app/dashboard/components/AppContainer";
 import AppHeader from "~/app/dashboard/components/AppHeader";
 import NavigationItem from "~/app/dashboard/components/NavigationItem";
@@ -25,7 +25,7 @@ async function SettingsLayout({ children }: React.PropsWithChildren) {
     <>
       <AppHeader>
         <span className="flex space-x-2">
-          <Cog8ToothIcon className="w-6" />
+          <CogIcon className="w-6" />
           <span>Settings</span>
         </span>
       </AppHeader>
