@@ -1,8 +1,8 @@
 import { useCallback, useContext, useState } from "react";
 import Image from "next/image";
 import { useParams, usePathname, useRouter } from "next/navigation";
-import { PlusCircleIcon } from "@heroicons/react/24/outline";
 import { SelectArrow } from "@radix-ui/react-select";
+import { PlusCircleIcon } from "lucide-react";
 import UserSessionContext from "~/core/session/contexts/user-session";
 import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
 import useUserOrganizationsQuery from "~/lib/organizations/hooks/use-user-organizations-query";

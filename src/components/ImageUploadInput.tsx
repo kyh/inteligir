@@ -9,7 +9,7 @@ import React, {
   type FormEvent,
   type MouseEventHandler,
 } from "react";
-import { CloudArrowUpIcon, XMarkIcon } from "@heroicons/react/24/outline";
+import { UploadCloudIcon, XIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
@@ -110,9 +110,8 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
         <div className="flex items-center space-x-4">
           <div className="flex">
             <If condition={!state.image}>
-              <CloudArrowUpIcon className="h-5 text-zinc-500 dark:text-zinc-100" />
+              <UploadCloudIcon className="h-5 text-zinc-500 dark:text-zinc-100" />
             </If>
-
             <If condition={state.image}>
               <img
                 loading="lazy"
@@ -159,7 +158,7 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
 
           <If condition={state.image}>
             <Button className="!h-5 !w-5" onClick={imageRemoved}>
-              <XMarkIcon className="h-4" />
+              <XIcon className="h-4" />
             </Button>
           </If>
         </div>

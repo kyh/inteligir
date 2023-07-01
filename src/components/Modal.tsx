@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { Transition } from "@headlessui/react";
-import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import { Close as DialogPrimitiveClose } from "@radix-ui/react-dialog";
+import { XIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { Dialog, DialogContent, DialogTitle } from "~/components/Dialog";
 import If from "~/components/If";
@@ -63,7 +63,7 @@ const Modal: React.FC<
                       onClick={() => setIsOpen(false)}
                     >
                       <span className="sr-only">Close Modal</span>
-                      <XMarkIcon className="h-6" />
+                      <XIcon className="h-6" />
                     </Button>
                   </DialogPrimitiveClose>
                 </If>

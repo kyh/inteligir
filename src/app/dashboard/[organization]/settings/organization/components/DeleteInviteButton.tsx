@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
+import { XIcon } from "lucide-react";
 import useRemoveMemberMutation from "~/lib/organizations/hooks/use-remove-member-mutation";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
@@ -28,7 +28,7 @@ const DeleteInviteButton: React.FCC<{
         variant="transparent"
       >
         <span className="sr-only">Delete Invite</span>
-        <XMarkIcon className="h-6" />
+        <XIcon className="h-6" />
       </Button>
 
       <If condition={isDeleting}>

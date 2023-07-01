@@ -1,9 +1,6 @@
 import React, { useContext } from "react";
 import Link from "next/link";
-import {
-  ArrowLeftCircleIcon,
-  ArrowRightCircleIcon,
-} from "@heroicons/react/24/outline";
+import { ArrowLeftCircleIcon, ArrowRightCircleIcon } from "lucide-react";
 import SidebarContext from "~/lib/contexts/sidebar";
 import { cn } from "~/lib/utils/cn";
 import { Button } from "~/components/Button";

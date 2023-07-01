@@ -1,8 +1,7 @@
 "use client";
 
 import { Fragment } from "react";
-import PlusCircleIcon from "@heroicons/react/24/outline/PlusCircleIcon";
-import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
+import { PlusCircleIcon, XIcon } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
 import useUserSession from "~/core/hooks/use-user-session";
 import useInviteMembers from "~/lib/organizations/hooks/use-invite-members-mutation";
@@ -112,7 +111,7 @@ const InviteMembersForm = () => {
                           }}
                         >
                           <span className="sr-only">Remove invite</span>
-                          <XMarkIcon className="h-4 lg:h-5" />
+                          <XIcon className="h-4 lg:h-5" />
                         </Button>
                       </TooltipTrigger>
                       <TooltipContent>Remove invite</TooltipContent>

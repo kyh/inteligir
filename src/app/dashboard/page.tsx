@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import Image from "next/image";
 import { redirect } from "next/navigation";
-import { ChevronRightIcon } from "@heroicons/react/24/outline";
+import { ChevronRightIcon } from "lucide-react";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getOrganizationsByUserId } from "~/lib/organizations/queries";
 import { parseOrganizationIdCookie } from "~/lib/server/cookies/organization.cookie";
@@ -103,7 +103,6 @@ async function OrganizationsPage() {
                       }
                     >
                       <span>{organization.name}</span>
-
                       <ChevronRightIcon className={"h-4"} />
                     </span>
                   </span>

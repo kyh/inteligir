@@ -2,11 +2,8 @@
 
 import { useCallback } from "react";
 import Image from "next/image";
-import {
-  AtSymbolIcon,
-  DevicePhoneMobileIcon,
-} from "@heroicons/react/24/outline";
 import { siteConfig } from "~/config/site";
+import { MailIcon, PhoneIcon } from "lucide-react";
 import useSignInWithProvider from "~/core/hooks/use-sign-in-with-provider";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
@@ -140,8 +137,8 @@ const AuthProviderLogo: React.FC<{
 
 function getOAuthProviderLogos(): Record<string, string | React.ReactNode> {
   return {
-    email: <AtSymbolIcon className="h-7" />,
-    phone: <DevicePhoneMobileIcon className="h-7" />,
+    email: <MailIcon className="h-7" />,
+    phone: <PhoneIcon className="h-7" />,
     google: "/assets/images/google.webp",
     facebook: "/assets/images/facebook.webp",
     twitter: "/assets/images/twitter.webp",

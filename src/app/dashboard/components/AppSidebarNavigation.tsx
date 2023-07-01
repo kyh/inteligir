@@ -1,6 +1,6 @@
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
-import { Cog8ToothIcon, Squares2X2Icon } from "@heroicons/react/24/outline";
+import { CogIcon, LayoutDashboardIcon } from "lucide-react";
 import isRouteActive from "~/core/generic/is-route-active";
 import { classed } from "~/lib/utils/cn";
 import If from "~/components/If";
@@ -12,14 +12,14 @@ const NAVIGATION_CONFIG = (organizationUuid: string) => ({
       label: "Dashboard",
       path: `${organizationUuid}/dashboard`,
       Icon: ({ className }: { className?: string }) => {
-        return <Squares2X2Icon className={className} />;
+        return <LayoutDashboardIcon className={className} />;
       },
     },
     {
       label: "Settings",
       path: `${organizationUuid}/settings`,
       Icon: ({ className }: { className?: string }) => {
-        return <Cog8ToothIcon className={className} />;
+        return <CogIcon className={className} />;
       },
     },
   ],

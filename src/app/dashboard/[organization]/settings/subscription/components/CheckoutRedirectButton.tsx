@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import ArrowRightIcon from "@heroicons/react/24/outline/ArrowRightIcon";
+import { ArrowRightIcon } from "lucide-react";
 import isBrowser from "~/core/generic/is-browser";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { createCheckoutAction } from "~/lib/stripe/actions";
