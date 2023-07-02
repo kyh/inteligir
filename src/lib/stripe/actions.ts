@@ -112,12 +112,6 @@ export async function createCheckoutAction(formData: FormData) {
   return redirect(portalUrl, RedirectType.replace);
 }
 
-/**
- * @name getUserCanAccessCheckout
- * @description check if the user has permissions to access the checkout
- * @param client
- * @param params
- */
 async function getUserCanAccessCheckout(
   client: SupabaseClient,
   params: {
@@ -187,11 +181,6 @@ export async function createBillingPortalSessionAction(formData: FormData) {
   return redirect(url, RedirectType.replace);
 }
 
-/**
- * @name getUserCanAccessCustomerPortal
- * @description Returns whether a user {@link userId} has access to the
- * Stripe portal of an organization with customer ID {@link customerId}
- */
 async function getUserCanAccessCustomerPortal(
   client: SupabaseClient,
   params: {

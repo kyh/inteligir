@@ -1,5 +1,6 @@
-import { useCallback } from "react";
-import useTransferOrganizationOwnership from "~/lib/organizations/hooks/use-transfer-organization-ownership";
+import { useCallback, useTransition } from "react";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
+import { transferOrganizationOwnershipAction } from "~/lib/organizations/actions";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import Modal from "~/components/Modal";
@@ -10,38 +11,46 @@ const TransferOrganizationOwnershipModal: React.FC<{
   membershipId: number;
   targetDisplayName: string;
 }> = ({ isOpen, setIsOpen, targetDisplayName, membershipId }) => {
-  const { trigger, isMutating } = useTransferOrganizationOwnership();
+  const csrfToken = useCsrfToken();
+  const [pending, startTransition] = useTransition();
 
-  const onConfirmTransferOwnership = useCallback(async () => {
-    await trigger({ membershipId });
+  const onSubmit = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
 
-    setIsOpen(false);
-  }, [trigger, membershipId, setIsOpen]);
+      startTransition(async () => {
+        await transferOrganizationOwnershipAction({
+          membershipId,
+          csrfToken,
+        });
+
+        setIsOpen(false);
+      });
+    },
+    [csrfToken, membershipId, setIsOpen]
+  );
 
   return (
-    <Modal heading={"Transfer Ownership"} isOpen={isOpen} setIsOpen={setIsOpen}>
-      <div className="flex flex-col space-y-6 text-sm">
+    <Modal heading="Transfer Ownership" isOpen={isOpen} setIsOpen={setIsOpen}>
+      <form className="flex flex-col space-y-6 text-sm" onSubmit={onSubmit}>
         <p>
           You are transferring ownership of the selected organization to{" "}
           <b>{targetDisplayName}</b>. Your new role will be <b>Admin</b>.
         </p>
-
         <p>Are you sure you want to continue?</p>
-
         <div className="flex justify-end space-x-2">
           <Modal.CancelButton onClick={() => setIsOpen(false)} />
-
           <Button
+            type="submit"
             data-cy="confirm-transfer-ownership-button"
-            onClick={onConfirmTransferOwnership}
-            loading={isMutating}
+            loading={pending}
           >
-            <If condition={isMutating} fallback={"Transfer Ownership"}>
+            <If condition={pending} fallback={"Transfer Ownership"}>
               Transferring ownership...
             </If>
           </Button>
         </div>
-      </div>
+      </form>
     </Modal>
   );
 };

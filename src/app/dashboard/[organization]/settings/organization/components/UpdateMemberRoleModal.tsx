@@ -1,5 +1,6 @@
-import { useCallback, useState } from "react";
-import useUpdateMemberRequest from "~/lib/organizations/hooks/use-update-member-role";
+import { useCallback, useState, useTransition } from "react";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
+import { updateMemberAction } from "~/lib/memberships/actions";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import { Button } from "~/components/Button";
 import Modal from "~/components/Modal";
@@ -12,15 +13,18 @@ const UpdateMemberRoleModal: React.FCC<{
   memberRole: MembershipRole;
 }> = ({ isOpen, setIsOpen, memberRole, membershipId }) => {
   const [role, setRole] = useState<MembershipRole>(memberRole);
-  const { trigger, isMutating } = useUpdateMemberRequest(membershipId);
+  const [isSubmitting, startTransition] = useTransition();
+  const csrfToken = useCsrfToken();
 
   const onRoleUpdated = useCallback(async () => {
     if (role !== undefined) {
-      await trigger({ role });
+      startTransition(async () => {
+        await updateMemberAction({ membershipId, role, csrfToken });
 
-      setIsOpen(false);
+        setIsOpen(false);
+      });
     }
-  }, [role, trigger, setIsOpen]);
+  }, [csrfToken, membershipId, role, setIsOpen]);
 
   return (
     <Modal
@@ -30,13 +34,11 @@ const UpdateMemberRoleModal: React.FCC<{
     >
       <div className="flex flex-col space-y-6">
         <MembershipRoleSelector value={role} onChange={setRole} />
-
         <div className="flex justify-end space-x-2">
           <Modal.CancelButton onClick={() => setIsOpen(false)} />
-
           <Button
             data-cy="confirm-update-member-role"
-            loading={isMutating}
+            loading={isSubmitting}
             onClick={onRoleUpdated}
           >
             Update Role

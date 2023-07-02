@@ -25,7 +25,7 @@ const PlanSelectionForm: React.FCC<{
             CheckoutButton={(props) => {
               return (
                 <CheckoutRedirectButton
-                  organizationId={organization.id}
+                  organizationUid={organization.uuid}
                   customerId={customerId}
                   stripePriceId={props.stripePriceId}
                   recommended={props.recommended}
@@ -35,13 +35,11 @@ const PlanSelectionForm: React.FCC<{
               );
             }}
           />
-
           <If condition={customerId}>
             <div className="flex flex-col space-y-2">
               <BillingPortalRedirectButton customerId={customerId as string}>
                 Go to Customer Portal
               </BillingPortalRedirectButton>
-
               <span className="text-xs text-zinc-500 dark:text-zinc-400">
                 Visit your Customer Portal to manage your subscription and
                 billing.
@@ -60,7 +58,7 @@ function NoPermissionsAlert() {
   return (
     <Alert type="warn">
       <Alert.Heading>
-        You don't have permissions to change the billing
+        You don&apos;t have permissions to change the billing
       </Alert.Heading>
       Please contact your organization owner to change the billing settings for
       your organization.
