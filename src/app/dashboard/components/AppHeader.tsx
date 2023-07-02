@@ -1,3 +1,5 @@
+"use client";
+
 import React from "react";
 import useSignOut from "~/core/hooks/use-sign-out";
 import useUserSession from "~/core/hooks/use-user-session";

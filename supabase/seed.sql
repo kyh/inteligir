@@ -22,8 +22,18 @@ insert into auth.users
   values ('00000000-0000-0000-0000-000000000000', '2b4a6624-7118-4551-8f0f-6b753e32e139', 'authenticated', 'authenticated', 'test2@inteligir.dev', '$2a$10$qnNMdqnF6hipOVe9sN.rXu7nK2bFcNzyu5GLzHKZpG9CA7kObkcbi', '2022-12-15 19:24:42.345467+00', null, '', NULL, '', null, '', '', null, '2022-12-15 19:24:42.347755+00', '{"provider": "email", "providers": ["email"]}', '{}', null, '2022-12-15 19:24:42.341975+00', '2022-12-15 19:24:42.349475+00', null, null,
     '', '', null, default, '', 0, NULL, '', null);
 
+insert into auth.users
+  values ('00000000-0000-0000-0000-000000000000',
+  'e6058751-75dc-4831-b773-dd6e0c821963', 'authenticated', 'authenticated',
+  'test-update-password@inteligir.dev', '$2a$10$xTcejQ5rqsn2R3p9jx4XhO18/Gv844c38YhXLgle5sbbtruLcr.x2', '2022-12-15 19:24:42.345467+00',
+  null, '', NULL, '', null, '', '', null, '2022-12-15 19:24:42.347755+00', '{"provider": "email", "providers": ["email"]}', '{}', null, '2022-12-15 19:24:42.341975+00', '2022-12-15 19:24:42.349475+00', null, null, '', '', null, default, '', 0, NULL, '', null);
+
 insert into auth.identities (id, provider, user_id, identity_data, last_sign_in_at, created_at, updated_at) values (
     '059b89cf-0417-4692-abdf-cb065496ea4c', 'email', '059b89cf-0417-4692-abdf-cb065496ea4c', '{}', '2022-12-15 19:24:42.345467+00', '2022-12-15 19:24:42.345467+00', '2022-12-15 19:24:42.345467+00'
+);
+
+insert into auth.identities (id, provider, user_id, identity_data, last_sign_in_at, created_at, updated_at) values (
+    'e6058751-75dc-4831-b773-dd6e0c821963', 'email', 'e6058751-75dc-4831-b773-dd6e0c821963', '{}', '2022-12-15 19:24:42.345467+00', '2022-12-15 19:24:42.345467+00', '2022-12-15 19:24:42.345467+00'
 );
 
 insert into public.users (id, display_name, photo_url, onboarded)
@@ -44,11 +54,14 @@ insert into public.users (id, display_name, photo_url, onboarded)
 insert into public.users (id, display_name, photo_url, onboarded)
   values ('b2e506f1-0ff6-43de-8437-67a870564ab2', null, null, true);
 
-insert into public.organizations (id, name, logo_url) OVERRIDING system VALUE
-  values (6, 'IndieCorp', null);
+insert into public.users (id, display_name, photo_url, onboarded)
+  values ('e6058751-75dc-4831-b773-dd6e0c821963', null, null, true);
 
-insert into public.organizations (id, name, logo_url) OVERRIDING system VALUE
-  values (7, 'Test', null);
+insert into public.organizations (id, name, logo_url, uuid) OVERRIDING system
+VALUE values (6, 'IndieCorp', null, 'bc3ab22c-c444-4491-84f2-cd8d9873e8c2');
+
+insert into public.organizations (id, name, logo_url, uuid) OVERRIDING system
+VALUE values (7, 'Test', null, '4a562b19-3dea-4126-88d8-47ee20a5cd67');
 
 insert into public.memberships (id, user_id, organization_id, role, invited_email, code) OVERRIDING system VALUE
   values (7, '2b4a6624-7118-4551-8f0f-6b753e32e139', 7, 2, null, null);
@@ -79,6 +92,9 @@ insert into public.memberships (id, user_id, organization_id, role, invited_emai
 
 insert into public.memberships (id, user_id, organization_id, role, invited_email, code) OVERRIDING system VALUE
   values (16, 'b2e506f1-0ff6-43de-8437-67a870564ab2', 6, 0, null, null);
+
+insert into public.memberships (id, user_id, organization_id, role, invited_email, code) OVERRIDING system VALUE
+  values (17, 'e6058751-75dc-4831-b773-dd6e0c821963', 6, 0, null, null);
 
 SELECT setval('organizations_id_seq', COALESCE((SELECT MAX(id)+1 FROM organizations), 1), false);
 SELECT setval('memberships_id_seq', COALESCE((SELECT MAX(id)+1 FROM memberships), 1), false);

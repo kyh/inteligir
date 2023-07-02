@@ -15,7 +15,8 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
 
   const updateEmail = useCallback(
     (email: string) => {
-      const promise = updateUserMutation.trigger({ email });
+      const redirectTo = [window.location.origin, "/auth/callback"].join("");
+      const promise = updateUserMutation.trigger({ email, redirectTo });
 
       return toast.promise(promise, {
         success: "Email updated successfully",

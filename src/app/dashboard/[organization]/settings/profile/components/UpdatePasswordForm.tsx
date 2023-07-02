@@ -53,7 +53,8 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
   const updatePasswordFromCredential = useCallback(
     async (password: string) => {
-      const promise = updateUserMutation.trigger({ password });
+      const redirectTo = [window.location.origin, "/auth/callback"].join("");
+      const promise = updateUserMutation.trigger({ password, redirectTo });
 
       return await toast.promise(promise, {
         success: "Password updated successfully",
