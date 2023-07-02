@@ -2,9 +2,6 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import useSupabase from "~/core/hooks/use-supabase";
 
-/**
- * @name useUser
- */
 function useUser() {
   const router = useRouter();
   const client = useSupabase();

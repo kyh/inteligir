@@ -1,15 +1,15 @@
 "use client";
 
 import { useCallback, type FormEvent } from "react";
-import { ArrowRightIcon } from "@heroicons/react/24/outline";
+import { ArrowRightIcon } from "lucide-react";
 import useUserSession from "~/core/hooks/use-user-session";
 import { Button } from "~/components/Button";
 import { Text } from "~/components/Text";
 import { TextField } from "~/components/TextField";
 
-export interface OrganizationInfoStepData {
+export type OrganizationInfoStepData = {
   organization: string;
-}
+};
 
 const OrganizationInfoStep: React.FCC<{
   onSubmit: (data: OrganizationInfoStepData) => void;

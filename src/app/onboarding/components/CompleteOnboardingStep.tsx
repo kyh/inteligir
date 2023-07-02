@@ -2,19 +2,18 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import configuration from "~/configuration";
 import useSWRMutation from "swr/mutation";
 import useApiRequest from "~/core/hooks/use-api";
 import useCsrfTokenHeader from "~/core/hooks/use-csrf-token-header";
 import Spinner from "~/components/Spinner";
 
-interface CompleteOnboardingStepData {
-  organization: string;
-}
+type CompleteOnboardingStepProps = {
+  data: {
+    organization: string;
+  };
+};
 
-const CompleteOnboardingStep: React.FC<{
-  data: CompleteOnboardingStepData;
-}> = ({ data }) => {
+const CompleteOnboardingStep = ({ data }: CompleteOnboardingStepProps) => {
   const router = useRouter();
   const { trigger } = useCompleteOnboardingRequest();
   const submitted = useRef(false);

@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Stripe } from "stripe";
+import type { DatabaseClient } from "~/core/db";
 import {
   throwBadRequestException,
   throwInternalServerErrorException,
@@ -10,7 +10,7 @@ import getLogger from "~/core/logger";
 import getStripeInstance from "~/core/stripe/get-stripe";
 import StripeWebhooks from "~/core/stripe/stripe-webhooks.enum";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import { setOrganizationSubscriptionData } from "~/lib/organizations/database/mutations";
+import { setOrganizationSubscriptionData } from "~/lib/organizations/mutations";
 import {
   addSubscription,
   deleteSubscription,
@@ -21,9 +21,6 @@ const STRIPE_SIGNATURE_HEADER = "stripe-signature";
 
 const webhookSecretKey = process.env.STRIPE_WEBHOOK_SECRET as string;
 
-/**
- * @description Handle the webhooks from Stripe related to checkouts
- */
 export async function POST(request: Request) {
   const logger = getLogger();
   const signature = headers().get(STRIPE_SIGNATURE_HEADER);
@@ -108,17 +105,12 @@ export async function POST(request: Request) {
   }
 }
 
-/**
- * @description When the checkout is completed, we store the order. The
- * subscription is only activated if the order was paid successfully.
- * Otherwise, we have to wait for a further webhook
- */
 async function onCheckoutCompleted(
-  client: SupabaseClient,
+  client: DatabaseClient,
   session: Stripe.Checkout.Session,
   subscription: Stripe.Subscription
 ) {
-  const organizationId = getOrganizationIdFromClientReference(session);
+  const organizationUid = getOrganizationUidFromClientReference(session);
   const customerId = session.customer as string;
 
   // build organization subscription and set on the organization document
@@ -135,19 +127,14 @@ async function onCheckoutCompleted(
   }
 
   return setOrganizationSubscriptionData(client, {
-    organizationId,
+    organizationUid,
     customerId,
     subscriptionId: data.id,
   });
 }
 
-/**
- * @name getOrganizationIdFromClientReference
- * @description Get the organization ID from the client reference ID
- * @param session
- */
-function getOrganizationIdFromClientReference(
+function getOrganizationUidFromClientReference(
   session: Stripe.Checkout.Session
 ) {
-  return Number(session.client_reference_id);
+  return session.client_reference_id as string;
 }

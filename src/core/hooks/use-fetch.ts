@@ -3,12 +3,6 @@ import useCsrfToken from "~/core/hooks/use-csrf-token";
 
 const CSRF_TOKEN_HEADER = "x-csrf-token";
 
-/**
- * @name useFetch
- * @param path
- * @param method
- * @param config
- */
 function useFetch<Body = unknown>(
   path: string,
   method: HttpMethod = "POST",

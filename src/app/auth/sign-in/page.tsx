@@ -1,5 +1,4 @@
 import Link from "next/link";
-import configuration from "~/configuration";
 import { Text } from "~/components/Text";
 import SignInMethodsContainer from "~/app/auth/components/SignInMethodsContainer";
 
@@ -17,7 +16,6 @@ function SignInPage() {
       <div className="flex justify-center text-xs">
         <p className="flex space-x-1">
           <span>Do not have an account yet?</span>
-
           <Link
             className="text-emerald-800 hover:underline dark:text-emerald-500"
             href="/auth/sign-up"

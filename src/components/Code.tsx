@@ -1,5 +1,5 @@
 import { Children } from "react";
-import { DocumentDuplicateIcon } from "@heroicons/react/24/outline";
+import { CopyIcon } from "lucide-react";
 import toaster from "react-hot-toast";
 import { cn } from "~/lib/utils/cn";
 
@@ -33,7 +33,7 @@ export const Code = ({ children, className, copy = true }: CodeProps) => {
       )}
       onClick={copy ? copyToClipboard : undefined}
     >
-      {copy && <DocumentDuplicateIcon className="mr-2 h-4 w-4" />}
+      {copy && <CopyIcon className="mr-2 h-4 w-4" />}
       {children}
     </pre>
   );

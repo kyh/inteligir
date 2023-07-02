@@ -1,20 +1,20 @@
 import "./globals.css";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 
 export const metadata = {
-  title: configuration.site.name,
-  description: configuration.site.description,
+  title: siteConfig.site.name,
+  description: siteConfig.site.description,
   openGraph: {
-    url: configuration.site.siteUrl,
-    siteName: configuration.site.siteName,
-    description: configuration.site.description,
+    url: siteConfig.site.siteUrl,
+    siteName: siteConfig.site.siteName,
+    description: siteConfig.site.description,
   },
-  themeColor: configuration.site.themeColor,
+  themeColor: siteConfig.site.themeColor,
   twitter: {
     card: "summary_large_image",
-    title: configuration.site.name,
-    description: configuration.site.description,
-    creator: configuration.site.twitterHandle,
+    title: siteConfig.site.name,
+    description: siteConfig.site.description,
+    creator: siteConfig.site.twitterHandle,
   },
   icons: {
     icon: "/assets/images/favicon/favicon.ico",

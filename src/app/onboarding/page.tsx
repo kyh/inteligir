@@ -1,7 +1,6 @@
 import { use } from "react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import configuration from "~/configuration";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserDataById } from "~/lib/server/queries";
 import requireSession from "~/lib/user/require-session";
@@ -10,14 +9,6 @@ import OnboardingContainer from "./components/OnboardingContainer";
 export const metadata = {
   title: "Onboarding",
 };
-
-function OnboardingPage() {
-  const { csrfToken } = use(loadData());
-
-  return <OnboardingContainer csrfToken={csrfToken} />;
-}
-
-export default OnboardingPage;
 
 async function loadData() {
   const csrfToken = headers().get("X-CSRF-Token");
@@ -37,3 +28,11 @@ async function loadData() {
     csrfToken,
   };
 }
+
+function OnboardingPage() {
+  const { csrfToken } = use(loadData());
+
+  return <OnboardingContainer csrfToken={csrfToken} />;
+}
+
+export default OnboardingPage;

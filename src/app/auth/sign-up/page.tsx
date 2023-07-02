@@ -1,5 +1,4 @@
 import Link from "next/link";
-import configuration from "~/configuration";
 import { Text } from "~/components/Text";
 import SignUpMethodsContainer from "~/app/auth/components/SignUpMethodsContainer";
 

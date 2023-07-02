@@ -1,7 +1,3 @@
-/**
- * @name suspensify
- * @param promise
- */
 function suspensify<T>(promise: Promise<T>) {
   let status = "pending";
   let result: T;

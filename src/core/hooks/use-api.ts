@@ -2,8 +2,7 @@ import { useCallback, useRef } from "react";
 import useCsrfTokenHeader from "~/core/hooks/use-csrf-token-header";
 
 /**
- * @name useApiRequest
- * @description A hook to make API requests
+ * A hook to make API requests
  * 1. By default, it will use the `POST` method and will send the payload as
  * JSON
  * 2. Also, it will automatically add the CSRF token to the request headers

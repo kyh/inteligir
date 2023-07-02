@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { UserOrganizationData } from "~/lib/organizations/database/queries";
+import type { UserOrganizationData } from "~/lib/organizations/queries";
 
 type OrganizationContextPayload = UserOrganizationData["organization"];
 

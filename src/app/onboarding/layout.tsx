@@ -2,7 +2,6 @@ import { isRedirectError } from "next/dist/client/components/redirect";
 import { redirect } from "next/navigation";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
-import getCurrentOrganization from "~/lib/server/organizations/get-current-organization";
 import { getUserDataById } from "~/lib/server/queries";
 import requireSession from "~/lib/user/require-session";
 import { Logo } from "~/components/Logo";
@@ -14,25 +13,15 @@ async function OnboardingLayout({ children }: React.PropsWithChildren) {
   await initializeOnboardingRoute();
 
   return (
-    <div className={"flex flex-1 flex-col dark:bg-zinc-500"}>
-      <div className={"flex divide-x divide-zinc-100 dark:divide-zinc-300"}>
-        <div
-          className={
-            "flex h-screen w-full flex-1 flex-col items-center justify-center lg:w-6/12"
-          }
-        >
+    <div className="flex flex-1 flex-col dark:bg-zinc-500">
+      <div className="flex divide-x divide-zinc-100 dark:divide-zinc-300">
+        <div className="flex h-screen w-full flex-1 flex-col items-center justify-center lg:w-6/12">
           <div className={"absolute top-24 hidden lg:flex"}>
             <Logo />
           </div>
-
           {children}
         </div>
-
-        <div
-          className={
-            "hidden w-6/12 flex-1 items-center justify-center bg-zinc-50 dark:bg-zinc-400 lg:flex"
-          }
-        >
+        <div className="hidden w-6/12 flex-1 items-center justify-center bg-zinc-50 dark:bg-zinc-400 lg:flex">
           <div>
             <OnboardingIllustration />
           </div>
@@ -65,9 +54,6 @@ async function initializeOnboardingRoute() {
       };
     }
 
-    const userId = userData.id;
-
-    const organization = await getCurrentOrganization({ userId });
     const onboarded = userData.onboarded;
 
     // there are two cases when we redirect the user to the onboarding
@@ -76,7 +62,7 @@ async function initializeOnboardingRoute() {
     //
     // NB: you should remove this if you want to
     // allow organization-less users within the application
-    if (onboarded && organization) {
+    if (onboarded) {
       return redirect("/");
     }
 
@@ -92,7 +78,7 @@ async function initializeOnboardingRoute() {
         Error while initializing onboarding route: ${e}`
       );
 
-      throw redirect("/auth/sign-in");
+      redirect("/auth/sign-in");
     }
   }
 }

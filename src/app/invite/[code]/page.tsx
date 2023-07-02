@@ -1,10 +1,10 @@
 import { use } from "react";
 import { isNotFoundError } from "next/dist/client/components/not-found";
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
-import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
-import { Database } from "~/database.types";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import invariant from "tiny-invariant";
+import { Database } from "~/core/database.types";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getMembershipByInviteCode } from "~/lib/memberships/queries";
@@ -14,17 +14,17 @@ import ExistingUserInviteForm from "../components/ExistingUserInviteForm";
 import InviteCsrfTokenProvider from "../components/InviteCsrfTokenProvider";
 import NewUserInviteForm from "../components/NewUserInviteForm";
 
-interface Context {
+type InvitePageProps = {
   params: {
     code: string;
   };
-}
+};
 
 export const metadata = {
   title: `Join Organization`,
 };
 
-const InvitePage = ({ params }: Context) => {
+const InvitePage = ({ params }: InvitePageProps) => {
   const data = use(loadInviteData(params.code));
   const organization = data.membership.organization;
 
@@ -57,8 +57,10 @@ export default InvitePage;
 
 async function loadInviteData(code: string) {
   const logger = getLogger();
+  const client = getSupabaseServerClient();
 
   // we use an admin client to be able to read the pending membership
+  // without having to be logged in
   const adminClient = getSupabaseServerClient({ admin: true });
 
   try {
@@ -93,7 +95,7 @@ async function loadInviteData(code: string) {
       return notFound();
     }
 
-    const { data: userSession } = await adminClient.auth.getSession();
+    const { data: userSession } = await client.auth.getSession();
     const session = userSession?.session;
     const csrfToken = headers().get("x-csrf-token");
 
@@ -112,13 +114,10 @@ async function loadInviteData(code: string) {
       `Error encountered while fetching invite. Redirecting to home page...`
     );
 
-    return redirect("/");
+    redirect("/");
   }
 }
 
-/**
- * @name getAdminClient
- */
 function getAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -128,10 +127,7 @@ function getAdminClient() {
 
   // we build a server client to be able to read the pending membership
   // bypassing the session using empty headers and cookies
-  return createServerComponentSupabaseClient<Database>({
-    supabaseUrl: url,
-    supabaseKey: serviceRoleKey,
-    headers: () => {},
-    cookies: () => {},
+  return createServerComponentClient<Database>({
+    cookies,
   });
 }
