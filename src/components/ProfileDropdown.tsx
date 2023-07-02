@@ -1,10 +1,6 @@
 import { useMemo } from "react";
 import Link from "next/link";
-import {
-  ArrowLeftOnRectangleIcon,
-  Cog8ToothIcon,
-  Squares2X2Icon,
-} from "@heroicons/react/24/outline";
+import { CogIcon, LayoutDashboardIcon, LogOutIcon } from "lucide-react";
 import type UserSession from "~/core/session/types/user-session";
 import {
   DropdownMenu,
@@ -55,7 +51,7 @@ const ProfileDropdown: React.FCC<{
             className="flex h-full w-full items-center space-x-2"
             href="/dashboard"
           >
-            <Squares2X2Icon className="h-5" />
+            <LayoutDashboardIcon className="h-5" />
             <span>Dashboard</span>
           </Link>
         </DropdownMenuItem>
@@ -64,7 +60,7 @@ const ProfileDropdown: React.FCC<{
             className="flex w-full items-center space-x-2"
             href="/settings/profile"
           >
-            <Cog8ToothIcon className="h-5" />
+            <CogIcon className="h-5" />
             <span>Settings</span>
           </Link>
         </DropdownMenuItem>
@@ -75,7 +71,7 @@ const ProfileDropdown: React.FCC<{
           onClick={signOutRequested}
         >
           <span className="flex w-full items-center space-x-2">
-            <ArrowLeftOnRectangleIcon className="h-5" />
+            <LogOutIcon className="h-5" />
             <span>Sign out</span>
           </span>
         </DropdownMenuItem>

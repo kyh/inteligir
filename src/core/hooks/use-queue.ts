@@ -1,27 +1,26 @@
 import { useCallback } from "react";
 
-interface Task<Data = unknown> {
+type Task<Data = unknown> = {
   data?: Data;
   action: () => Promise<unknown>;
   resolve: <T extends Data>(value: T | PromiseLike<T>) => void;
   reject: (value: unknown) => void;
-}
+};
 
-interface QueueItem {
+type QueueItem = {
   tasks: Task[];
   pending: boolean;
-}
+};
 
-interface QueueParams {
+type QueueParams = {
   delayTime: number;
-}
+};
 
 const state = new Map<string, QueueItem>();
 const callbacks = new Map<string, (item: QueueItem, task: Task) => void>();
 
 /**
- * @name useQueue
- * @description Simple Queue to execute promises sequentially
+ * Simple Queue to execute promises sequentially
  *
  * For example, we can create a queue that writes quickly to a document with ID
  * /doc/1, but we want to execute the writes sequentially to avoid

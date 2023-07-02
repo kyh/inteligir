@@ -9,9 +9,6 @@ export const Hero = () => {
     <>
       <HeroPattern />
       <section className="px-5 pt-[70px] sm:pt-[100px]">
-        <div className="flex justify-center gap-1 text-xs">
-          <Badge color="transparent">v0.0.1</Badge>
-        </div>
         <Text as="h1" variant="heading1" className="mx-auto mt-3 max-w-xl">
           <span className="block bg-gradient-to-b from-emerald-300 to-green-600 bg-clip-text text-transparent">
             Personalized AI assistants
@@ -19,8 +16,9 @@ export const Hero = () => {
           <span>for the workplace</span>
         </Text>
         <p className="mx-auto mt-6 max-w-md whitespace-pre-line text-zinc-400">
-          A multi-platform, privacy-first, hyper-relevant AI assistant that fits
-          effortlessly in your organization workflow
+          Ask questions about your workplace data. First class data privacy and
+          security. No hallucinations. Fits effortlessly in your organization
+          workflow
         </p>
         <div className="mt-8 grid items-start justify-center">
           <PrimaryButton>Request Early Access &rarr;</PrimaryButton>

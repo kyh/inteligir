@@ -1,13 +1,10 @@
 import useMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 import type UserData from "~/core/session/types/user-data";
-import { updateUserData } from "~/lib/user/database/mutations";
+import { updateUserData } from "~/lib/user/mutations";
 
 type Payload = WithId<Partial<UserData>>;
 
-/**
- * @name useUpdateProfile
- */
 function useUpdateProfile() {
   const client = useSupabase();
   const key = "useUpdateProfile";

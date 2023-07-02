@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { XIcon } from "lucide-react";
 import { cn } from "~/lib/utils/cn";
 
 const Dialog = DialogPrimitive.Root;
@@ -58,7 +58,7 @@ const DialogContent = React.forwardRef<
       {children}
 
       <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-emerald-100 dark:focus:ring-emerald-400 dark:focus:ring-offset-emerald-900 dark:data-[state=open]:bg-emerald-800">
-        <XMarkIcon className="h-4 w-4" />
+        <XIcon className="h-4 w-4" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </DialogPrimitive.Content>

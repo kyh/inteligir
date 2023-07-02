@@ -2,7 +2,7 @@ import type { Provider } from "@supabase/gotrue-js/src/lib/types";
 
 const production = process.env.NODE_ENV === "production";
 
-export const config = {
+export const siteConfig = {
   site: {
     name: "Inteligir - Personalized AI assistants built for teams",
     description:
@@ -12,7 +12,9 @@ export const config = {
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
     siteName: "Inteligir",
     twitterUrl: "kaiyuhsu",
+    twitterHandle: "kaiyuhsu",
     githubUrl: "kyh",
+    githubHandle: "kyh",
     discordUrl: "",
     language: "en",
     convertKitFormId: "5222442",

@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import If from "~/components/If";
 import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
 import EmailPasswordSignInContainer from "~/app/auth/components/EmailPasswordSignInContainer";
@@ -18,15 +18,17 @@ function SignInMethodsContainer() {
 
   return (
     <>
-      <OAuthProviders />
-      <If condition={configuration.auth.providers.emailPassword}>
+      <If condition={siteConfig.auth.providers.oAuth.length}>
+        <OAuthProviders />
+      </If>
+      <If condition={siteConfig.auth.providers.emailPassword}>
         <div className="text-xs text-zinc-400">or continue with email</div>
         <EmailPasswordSignInContainer onSignIn={onSignIn} />
       </If>
-      <If condition={configuration.auth.providers.phoneNumber}>
-        <PhoneNumberSignInContainer onSignIn={onSignIn} />
+      <If condition={siteConfig.auth.providers.phoneNumber}>
+        <PhoneNumberSignInContainer onSuccess={onSignIn} mode={"signIn"} />
       </If>
-      <If condition={configuration.auth.providers.emailLink}>
+      <If condition={siteConfig.auth.providers.emailLink}>
         <EmailLinkAuth />
       </If>
     </>

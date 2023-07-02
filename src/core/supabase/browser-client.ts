@@ -1,9 +1,9 @@
 import {
-  createBrowserSupabaseClient,
+  createClientComponentClient,
   SupabaseClient,
 } from "@supabase/auth-helpers-nextjs";
-import type { Database } from "~/database.types";
 import invariant from "tiny-invariant";
+import type { Database } from "~/core/database.types";
 
 let client: SupabaseClient<Database>;
 
@@ -26,7 +26,7 @@ function getSupabaseBrowserClient() {
     `Supabase Anon key was not provided`
   );
 
-  client = createBrowserSupabaseClient<Database>({
+  client = createClientComponentClient<Database>({
     supabaseUrl: NEXT_PUBLIC_SUPABASE_URL,
     supabaseKey: NEXT_PUBLIC_SUPABASE_ANON_KEY,
   });

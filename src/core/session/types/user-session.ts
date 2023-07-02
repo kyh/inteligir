@@ -6,10 +6,10 @@ import type MembershipRole from "~/lib/organizations/types/membership-role";
  * This interface combines the user's metadata from
  * Supabase Auth and the user's record in Database
  */
-interface UserSession {
+type UserSession = {
   auth: Maybe<Session>;
   data: Maybe<UserData>;
   role: Maybe<MembershipRole>;
-}
+};
 
 export default UserSession;
