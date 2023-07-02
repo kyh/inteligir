@@ -1,8 +1,8 @@
-import "server-only";
-import { cookies, headers } from "next/headers";
-import { createServerComponentSupabaseClient } from "@supabase/auth-helpers-nextjs";
-import type { Database } from "~/database.types";
+import { cookies } from "next/headers";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import { createClient } from "@supabase/supabase-js";
 import invariant from "tiny-invariant";
+import type { Database } from "~/core/database.types";
 
 /**
  * @name getSupabaseServerClient
@@ -28,20 +28,18 @@ function getSupabaseServerClient(
 
     invariant(serviceRoleKey, `Supabase Service Role Key not provided`);
 
-    return createServerComponentSupabaseClient<Database>({
-      supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
-      supabaseKey: serviceRoleKey,
-      headers,
-      cookies,
-    });
+    return createClient<Database>(
+      env.NEXT_PUBLIC_SUPABASE_URL,
+      serviceRoleKey,
+      {
+        auth: {
+          persistSession: false,
+        },
+      }
+    );
   }
 
-  return createServerComponentSupabaseClient<Database>({
-    supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
-    supabaseKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    headers,
-    cookies,
-  });
+  return createServerComponentClient<Database>({ cookies });
 }
 
 export default getSupabaseServerClient;

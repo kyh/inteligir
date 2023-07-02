@@ -76,125 +76,62 @@ const BaseSheetContent = classed(SheetPrimitive.Content, {
   },
   compoundVariants: [
     {
-      position: "top",
+      position: ["top", "bottom"],
       size: "content",
       class: "max-h-screen",
     },
     {
-      position: "top",
+      position: ["top", "bottom"],
       size: "default",
       class: "h-1/3",
     },
     {
-      position: "top",
+      position: ["top", "bottom"],
       size: "sm",
       class: "h-1/4",
     },
     {
-      position: "top",
+      position: ["top", "bottom"],
       size: "lg",
       class: "h-1/2",
     },
     {
-      position: "top",
+      position: ["top", "bottom"],
       size: "xl",
       class: "h-5/6",
     },
     {
-      position: "top",
+      position: ["top", "bottom"],
       size: "full",
       class: "h-screen",
     },
-
     {
-      position: "bottom",
-      size: "content",
-      class: "max-h-screen",
-    },
-    {
-      position: "bottom",
-      size: "default",
-      class: "h-1/3",
-    },
-    {
-      position: "bottom",
-      size: "sm",
-      class: "h-1/4",
-    },
-    {
-      position: "bottom",
-      size: "lg",
-      class: "h-1/2",
-    },
-    {
-      position: "bottom",
-      size: "xl",
-      class: "h-5/6",
-    },
-    {
-      position: "bottom",
-      size: "full",
-      class: "h-screen",
-    },
-
-    {
-      position: "right",
+      position: ["right", "left"],
       size: "content",
       class: "max-w-screen",
     },
     {
-      position: "right",
+      position: ["right", "left"],
       size: "default",
       class: "w-1/3",
     },
     {
-      position: "right",
+      position: ["right", "left"],
       size: "sm",
       class: "w-1/4",
     },
     {
-      position: "right",
+      position: ["right", "left"],
       size: "lg",
       class: "w-1/2",
     },
     {
-      position: "right",
+      position: ["right", "left"],
       size: "xl",
       class: "w-5/6",
     },
     {
-      position: "right",
-      size: "full",
-      class: "w-screen",
-    },
-
-    {
-      position: "left",
-      size: "content",
-      class: "max-w-screen",
-    },
-    {
-      position: "left",
-      size: "default",
-      class: "w-1/3",
-    },
-    {
-      position: "left",
-      size: "sm",
-      class: "w-1/4",
-    },
-    {
-      position: "left",
-      size: "lg",
-      class: "w-1/2",
-    },
-    {
-      position: "left",
-      size: "xl",
-      class: "w-5/6",
-    },
-    {
-      position: "left",
+      position: ["right", "left"],
       size: "full",
       class: "w-screen",
     },

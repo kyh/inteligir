@@ -1,15 +1,11 @@
-import configuration from "~/configuration";
 import useSWRMutation from "swr/mutation";
 import useSupabase from "./use-supabase";
 
-interface Credentials {
+type Credentials = {
   email: string;
   password: string;
-}
+};
 
-/**
- * @name useSignUpWithEmailAndPassword
- */
 function useSignUpWithEmailAndPassword() {
   const client = useSupabase();
   const key = ["auth", "sign-up-with-email-password"];
@@ -17,10 +13,9 @@ function useSignUpWithEmailAndPassword() {
   return useSWRMutation(
     key,
     (_, { arg: credentials }: { arg: Credentials }) => {
-      const emailRedirectTo = [
-        configuration.site.siteUrl,
-        "/auth/sign-in",
-      ].join("/");
+      const emailRedirectTo = [window.location.origin, "/auth/callback"].join(
+        ""
+      );
 
       return client.auth
         .signUp({

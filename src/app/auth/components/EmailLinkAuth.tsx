@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback, type FormEventHandler } from "react";
-import configuration from "~/configuration";
 import toast from "react-hot-toast";
 import useSignInWithOtp from "~/core/hooks/use-sign-in-with-otp";
 import { Alert } from "~/components/Alert";
@@ -21,7 +20,7 @@ const EmailLinkAuth: React.FC = () => {
       const email = data.get("email") as string;
 
       const origin = window.location.origin;
-      const redirectUrl = [origin, "/auth/link"].join("");
+      const redirectUrl = [origin, "/auth/callback"].join("");
 
       const promise = signInWithOtpMutation.trigger({
         email,

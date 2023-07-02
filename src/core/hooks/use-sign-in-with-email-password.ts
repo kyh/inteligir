@@ -1,14 +1,11 @@
 import useMutation from "swr/mutation";
 import useSupabase from "./use-supabase";
 
-interface Credentials {
+type Credentials = {
   email: string;
   password: string;
-}
+};
 
-/**
- * @name useSignInWithEmailPassword
- */
 function useSignInWithEmailPassword() {
   const client = useSupabase();
   const key = ["auth", "sign-in-with-email-password"];

@@ -1,4 +1,4 @@
-import { config } from "~/config/site";
+import { siteConfig } from "~/config/site";
 import { ArrowRightIcon } from "lucide-react";
 import { Button } from "~/components/Button";
 import { Logo } from "~/components/Logo";
@@ -59,7 +59,7 @@ export const FooterNavigation = () => {
             </p>
           </div>
           <div className="flex items-center gap-2 md:ml-auto">
-            <ConvertkitSignupForm formId={config.site.convertKitFormId} />
+            <ConvertkitSignupForm formId={siteConfig.site.convertKitFormId} />
           </div>
         </div>
         <SmallPrint />
@@ -120,13 +120,13 @@ export const SmallPrint = () => {
         &copy; Copyright {new Date().getFullYear()}. All rights reserved.
       </p>
       <div className="flex gap-4">
-        <SocialLink href={config.site.twitterUrl} icon={TwitterIcon}>
+        <SocialLink href={siteConfig.site.twitterUrl} icon={TwitterIcon}>
           Follow us on Twitter
         </SocialLink>
-        <SocialLink href={config.site.githubUrl} icon={GitHubIcon}>
+        <SocialLink href={siteConfig.site.githubUrl} icon={GitHubIcon}>
           Follow us on GitHub
         </SocialLink>
-        <SocialLink href={config.site.discordUrl} icon={DiscordIcon}>
+        <SocialLink href={siteConfig.site.discordUrl} icon={DiscordIcon}>
           Join our Discord server
         </SocialLink>
       </div>

@@ -1,11 +1,6 @@
 import { AuthError } from "@supabase/gotrue-js";
 import { Alert } from "~/components/Alert";
 
-/**
- * @name AuthErrorMessage
- * @param error This error comes from Supabase as the code returned on errors
- * @constructor
- */
 export default function AuthErrorMessage({
   error,
 }: {

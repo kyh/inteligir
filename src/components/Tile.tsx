@@ -1,9 +1,3 @@
-import { useMemo } from "react";
-import {
-  ArrowSmallDownIcon,
-  ArrowSmallUpIcon,
-  Bars2Icon,
-} from "@heroicons/react/24/outline";
 import { Text } from "~/components/Text";
 
 const Tile: React.FCC & {
@@ -42,21 +36,9 @@ function TileTrend(
     trend: "up" | "down" | "stale";
   }>
 ) {
-  const Icon = useMemo(() => {
-    switch (props.trend) {
-      case "up":
-        return <ArrowSmallUpIcon className="h-4 text-green-500" />;
-      case "down":
-        return <ArrowSmallDownIcon className="h-4 text-red-500" />;
-      case "stale":
-        return <Bars2Icon className="h-4 text-yellow-500" />;
-    }
-  }, [props.trend]);
-
   return (
     <TileBadge trend={props.trend}>
       <span className="flex items-center space-x-1">
-        {Icon}
         <span>{props.children}</span>
       </span>
     </TileBadge>

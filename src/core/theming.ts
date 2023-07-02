@@ -1,10 +1,10 @@
-import configuration from "~/configuration";
+import { siteConfig } from "~/config/site";
 import { getCookie, setCookie } from "~/core/generic/cookies";
 
 const THEME_KEY = `theme`;
 
-const LIGHT_THEME_META_COLOR = configuration.site.themeColor;
-const DARK_THEME_META_COLOR = configuration.site.themeColorDark;
+const LIGHT_THEME_META_COLOR = siteConfig.site.themeColor;
+const DARK_THEME_META_COLOR = siteConfig.site.themeColorDark;
 
 export const DARK_THEME_CLASSNAME = `dark`;
 export const LIGHT_THEME_CLASSNAME = `light`;

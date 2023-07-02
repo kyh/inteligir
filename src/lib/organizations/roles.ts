@@ -16,20 +16,20 @@ import MembershipRole from "~/lib/organizations/types/membership-role";
  */
 
 const OWNER = {
-  label: "common:roles.owner.label",
-  description: "common:roles.owner.description",
+  label: "owner",
+  description: "",
   value: MembershipRole.Owner,
 };
 
 const ADMIN = {
-  label: "common:roles.admin.label",
-  description: "common:roles.admin.description",
+  label: "admin",
+  description: "",
   value: MembershipRole.Admin,
 };
 
 const MEMBER = {
-  label: "common:roles.member.label",
-  description: "common:roles.member.description",
+  label: "member",
+  description: "",
   value: MembershipRole.Member,
 };
 

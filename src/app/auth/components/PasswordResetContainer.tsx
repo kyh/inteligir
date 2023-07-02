@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useCallback } from "react";
-import configuration from "~/configuration";
 import useResetPassword from "~/core/hooks/use-reset-password";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
@@ -76,15 +75,10 @@ function PasswordResetContainer() {
 
 export default PasswordResetContainer;
 
-/**
- * @description
- * Return the URL where the user will be redirected to after resetting
- * their password
- */
 function getReturnUrl() {
   const host = window.location.origin;
-  const signInFromLink = "/auth/link";
+  const callback = "/auth/callback";
   const redirectPath = "/settings/profile/password";
 
-  return `${host}${signInFromLink}?redirectPath=${redirectPath}`;
+  return `${host}${callback}?redirectPath=${redirectPath}`;
 }

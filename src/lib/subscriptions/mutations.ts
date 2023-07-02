@@ -1,19 +1,17 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Stripe } from "stripe";
-import { SUBSCRIPTIONS_TABLE } from "~/lib/db-tables";
-import type { Database } from "../../database.types";
-
-type Client = SupabaseClient<Database>;
+import type { Database } from "~/core/database.types";
+import type { DatabaseClient } from "~/core/db";
 
 type SubscriptionRow = Database["public"]["Tables"]["subscriptions"]["Row"];
 
 export async function addSubscription(
-  client: Client,
+  client: DatabaseClient,
   subscription: Stripe.Subscription
 ) {
   const data = subscriptionMapper(subscription);
 
-  return getSubscriptionsTable(client)
+  return client
+    .from("subscriptions")
     .insert({
       ...data,
       id: subscription.id,
@@ -23,31 +21,23 @@ export async function addSubscription(
     .single();
 }
 
-/**
- * @name deleteSubscription
- * @description Removes a subscription from an organization by
- * Stripe subscription ID
- */
 export async function deleteSubscription(
-  client: Client,
+  client: DatabaseClient,
   subscriptionId: string
 ) {
-  return getSubscriptionsTable(client)
+  return client
+    .from("subscriptions")
     .delete()
     .match({ id: subscriptionId })
     .throwOnError();
 }
 
-/**
- * @name updateSubscriptionById
- * @default Update subscription with ID {@link subscriptionId} with data
- * object {@link subscription}
- */
 export async function updateSubscriptionById(
-  client: Client,
+  client: DatabaseClient,
   subscription: Stripe.Subscription
 ) {
-  return getSubscriptionsTable(client)
+  return client
+    .from("subscriptions")
     .update(subscriptionMapper(subscription))
     .match({
       id: subscription.id,
@@ -93,8 +83,4 @@ function subscriptionMapper(
 
 function toISO(timestamp: number) {
   return new Date(timestamp * 1000).toISOString();
-}
-
-function getSubscriptionsTable(client: Client) {
-  return client.from(SUBSCRIPTIONS_TABLE);
 }

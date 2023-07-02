@@ -1,10 +1,7 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DatabaseClient } from "~/core/db";
 import type UserData from "~/core/session/types/user-data";
 
-/**
- * @description Fetch user object data (not auth!) by ID {@link userId}
- */
-export async function getUserDataById(client: SupabaseClient, userId: string) {
+export async function getUserDataById(client: DatabaseClient, userId: string) {
   const result = await client
     .from("users")
     .select<string, UserData>(
@@ -16,7 +13,7 @@ export async function getUserDataById(client: SupabaseClient, userId: string) {
     `
     )
     .eq("id", userId)
-    .single();
+    .maybeSingle();
 
   return result.data;
 }
