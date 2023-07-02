@@ -21,95 +21,135 @@ export const metadata = {
   title: "Members",
 };
 
-const OrganizationMembersPage = () => {
-  const data = use(loadMembers());
+const OrganizationMembersPage: React.FC<{
+  params: {
+    organization: string;
+  };
+}> = ({ params }) => {
+  const data = use(loadMembers(params.organization));
 
   return (
-    <>
-      <div className="flex flex-1 flex-col space-y-6">
-        <SettingsTile
-          heading={"Members"}
-          subHeading={"Manage and Invite members"}
-          actions={<InviteMembersLinkButton />}
-        >
-          <OrganizationMembersList members={data.members} />
-        </SettingsTile>
-
-        <SettingsTile
-          heading={"Pending Invites"}
-          subHeading={"Manage invites not yet accepted"}
-        >
-          <OrganizationInvitedMembersList
-            invitedMembers={data.invitedMembers || []}
-          />
-        </SettingsTile>
-      </div>
-    </>
+    <div className="flex flex-1 flex-col space-y-6">
+      <SettingsTile
+        heading="Members"
+        subHeading="Manage and Invite members"
+        actions={<InviteMembersLinkButton />}
+      >
+        <OrganizationMembersList members={data.members} />
+      </SettingsTile>
+      <SettingsTile
+        heading={"Pending Invites"}
+        subHeading={"Manage invites not yet accepted"}
+      >
+        <OrganizationInvitedMembersList
+          invitedMembers={data.invitedMembers || []}
+        />
+      </SettingsTile>
+    </div>
   );
 };
 
 export default OrganizationMembersPage;
 
 function getMembersPayload<
-  T extends {
+  Payload extends {
     data: UserData;
     role: MembershipRole;
   }
->(members: Array<T | null>, users: User[]) {
-  type NonNullMembers = Exclude<T, null>;
+>(members: Array<Payload | null>, users: User[]) {
+  type NonNullMembers = Exclude<Payload, null>;
 
   return members
     .filter((value): value is NonNullMembers => !!value)
     .sort((prev, next) => {
       return next.role > prev.role ? 1 : -1;
     })
-    .map((member) => {
+    .reduce<
+      Array<
+        Payload & {
+          auth: User;
+        }
+      >
+    >((acc, member) => {
       const authInfo = users.find((user) => {
         return user.id === member.data.id;
-      }) as User;
+      });
 
-      return {
-        ...member,
-        auth: authInfo,
-      };
-    });
+      if (authInfo) {
+        const user = {
+          ...member,
+          auth: authInfo,
+        };
+
+        return [...acc, user];
+      }
+
+      return acc;
+    }, []);
 }
 
 async function fetchOrganizationMembers(
   client: DatabaseClient,
   organizationId: number
 ) {
-  const { data, error } = await getOrganizationMembers(client, organizationId);
+  const organizationMembersResponse = await getOrganizationMembers(
+    client,
+    organizationId
+  );
 
-  if (error) {
+  const onError = (error: unknown) => {
+    console.error(
+      {
+        organizationId,
+      },
+      `Error fetching organization members: ${error}`
+    );
+
     return [];
+  };
+
+  if (organizationMembersResponse.error) {
+    return onError(organizationMembersResponse.error);
   }
 
-  const userIds = data.map((member) => member.data.id).filter(Boolean);
-  const users = await getMembersAuthMetadata(client, userIds);
+  try {
+    const members = organizationMembersResponse.data;
+    const userIds = members.map((member) => member.data.id).filter(Boolean);
+    const users = await getMembersAuthMetadata(client, userIds);
 
-  return getMembersPayload(data, users);
+    return getMembersPayload(members, users);
+  } catch (error) {
+    return onError(error);
+  }
 }
 
-async function loadMembers() {
-  const client = getSupabaseServerClient({
+async function loadMembers(organizationUid: string) {
+  const client = getSupabaseServerClient();
+
+  const adminClient = getSupabaseServerClient({
     admin: true,
   });
 
   const session = await requireSession(client);
+  const userId = session.user.id;
 
   const organizationResponse = await getCurrentOrganization({
-    userId: session.user.id,
+    organizationUid,
+    userId,
   });
 
-  if (!organizationResponse) {
-    throw redirect("/dashboard");
+  const organizationId = organizationResponse.organization?.id;
+
+  if (!organizationId) {
+    return redirect("/dashboard");
   }
 
-  const organizationId = organizationResponse.organization.id;
-
   const [members, invitedMembers] = await Promise.all([
-    fetchOrganizationMembers(client, organizationId).catch(() => []),
+    fetchOrganizationMembers(adminClient, organizationId).catch((error) => {
+      console.error(`Error fetching organization members: ${error}`);
+
+      return [];
+    }),
     getOrganizationInvitedMembers(client, organizationId).then(
       (result) => result.data
     ),

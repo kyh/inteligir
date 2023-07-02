@@ -57,9 +57,7 @@ function NewUserInviteForm() {
           Accepting invite. Please wait...
         </PageLoadingIndicator>
       </If>
-
       <OAuthProviders returnUrl={oAuthReturnUrl} />
-
       <If condition={siteConfig.auth.providers.emailPassword}>
         <If condition={mode === Mode.SignUp}>
           <div className="flex w-full flex-col items-center space-y-4">
@@ -69,7 +67,6 @@ function NewUserInviteForm() {
             </Button>
           </div>
         </If>
-
         <If condition={mode === Mode.SignIn}>
           <div className="flex w-full flex-col items-center space-y-4">
             <EmailPasswordSignInContainer onSignIn={onInviteAccepted} />
@@ -79,11 +76,12 @@ function NewUserInviteForm() {
           </div>
         </If>
       </If>
-
       <If condition={siteConfig.auth.providers.phoneNumber}>
-        <PhoneNumberSignInContainer onSignIn={onInviteAccepted} />
+        <PhoneNumberSignInContainer
+          onSuccess={onInviteAccepted}
+          mode="signUp"
+        />
       </If>
-
       <If condition={siteConfig.auth.providers.emailLink}>
         <EmailLinkAuth />
       </If>

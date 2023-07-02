@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useTransition } from "react";
 import { XIcon } from "lucide-react";
-import useRemoveMemberMutation from "~/lib/organizations/hooks/use-remove-member-mutation";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
+import { deleteMemberAction } from "~/lib/memberships/actions";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import Modal from "~/components/Modal";
@@ -11,14 +12,17 @@ const DeleteInviteButton: React.FCC<{
   membershipId: number;
   memberEmail: string;
 }> = ({ membershipId, memberEmail }) => {
+  const [isSubmitting, startTransition] = useTransition();
+  const csrfToken = useCsrfToken();
   const [isDeleting, setIsDeleting] = useState(false);
-  const deleteRequest = useRemoveMemberMutation();
 
   const onInviteDeleteRequested = useCallback(async () => {
-    await deleteRequest.trigger(membershipId);
+    startTransition(async () => {
+      await deleteMemberAction({ membershipId, csrfToken });
 
-    setIsDeleting(false);
-  }, [deleteRequest, membershipId]);
+      setIsDeleting(false);
+    });
+  }, [csrfToken, membershipId]);
 
   return (
     <>
@@ -49,6 +53,7 @@ const DeleteInviteButton: React.FCC<{
 
               <Button
                 data-cy="confirm-delete-invite-button"
+                loading={isSubmitting}
                 onClick={onInviteDeleteRequested}
               >
                 Delete Invite

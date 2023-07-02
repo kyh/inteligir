@@ -1,10 +1,11 @@
 "use client";
 
-import { Fragment } from "react";
+import { Fragment, useTransition } from "react";
 import { PlusCircleIcon, XIcon } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
 import useUserSession from "~/core/hooks/use-user-session";
-import useInviteMembers from "~/lib/organizations/hooks/use-invite-members-mutation";
+import { inviteMembersToOrganizationAction } from "~/lib/organizations/actions";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
@@ -16,8 +17,8 @@ type InviteModel = ReturnType<typeof memberFactory>;
 
 const InviteMembersForm = () => {
   const user = useUserSession();
-  const inviteMembers = useInviteMembers();
-  const submitting = inviteMembers.isMutating;
+  const [isSubmitting, startTransition] = useTransition();
+  const csrfToken = useCsrfToken();
 
   const { register, handleSubmit, setValue, control, clearErrors, watch } =
     useInviteMembersForm();
@@ -43,7 +44,12 @@ const InviteMembersForm = () => {
       data-cy="invite-members-form"
       onSubmit={(event) => {
         handleSubmit((data) => {
-          return inviteMembers.trigger(data.members);
+          startTransition(async () => {
+            await inviteMembersToOrganizationAction({
+              invites: data.members,
+              csrfToken,
+            });
+          });
         })(event);
       }}
     >
@@ -89,7 +95,6 @@ const InviteMembersForm = () => {
                     required
                   />
                 </div>
-
                 <div className="w-4/12 md:w-3/12">
                   <MembershipRoleSelector
                     value={field.role}
@@ -98,7 +103,6 @@ const InviteMembersForm = () => {
                     }}
                   />
                 </div>
-
                 <If condition={fields.length > 1}>
                   <div className="w-1/12">
                     <Tooltip className="flex justify-center">
@@ -131,7 +135,6 @@ const InviteMembersForm = () => {
           >
             <span className="flex items-center space-x-2">
               <PlusCircleIcon className="h-5" />
-
               <span>Add another one</span>
             </span>
           </Button>
@@ -140,12 +143,12 @@ const InviteMembersForm = () => {
 
       <div>
         <Button
-          loading={submitting}
+          loading={isSubmitting}
           className="w-full lg:w-auto"
           data-cy="send-invites-button"
           type="submit"
         >
-          {submitting ? "Inviting members..." : "Send Invites"}
+          {isSubmitting ? "Inviting members..." : "Send Invites"}
         </Button>
       </div>
     </form>
