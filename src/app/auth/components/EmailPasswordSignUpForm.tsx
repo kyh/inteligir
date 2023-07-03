@@ -4,46 +4,22 @@ import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 
 const EmailPasswordSignUpForm: React.FCC<{
-  onSubmit: (params: {
-    email: string;
-    password: string;
-    repeatPassword: string;
-  }) => unknown;
+  onSubmit: (params: { email: string; password: string }) => unknown;
   loading: boolean;
 }> = ({ onSubmit, loading }) => {
-  const { register, handleSubmit, watch, formState } = useForm({
+  const { register, handleSubmit, formState } = useForm({
     defaultValues: {
       email: "",
       password: "",
-      repeatPassword: "",
     },
   });
 
   const emailControl = register("email", { required: true });
-  const errors = formState.errors;
-
   const passwordControl = register("password", {
     required: true,
     minLength: {
       value: 6,
       message: "Password must be at least 6 characters long",
-    },
-  });
-
-  const passwordValue = watch(`password`);
-
-  const repeatPasswordControl = register("repeatPassword", {
-    required: true,
-    minLength: {
-      value: 6,
-      message: "Password must be at least 6 characters long",
-    },
-    validate: (value) => {
-      if (value !== passwordValue) {
-        return "Passwords do not match";
-      }
-
-      return true;
     },
   });
 
@@ -60,14 +36,13 @@ const EmailPasswordSignUpForm: React.FCC<{
               type="email"
               placeholder="your@email.com"
             />
-            <If condition={errors.email}>
+            <If condition={formState.errors.email}>
               <TextField.Hint color="error">
-                {errors.email?.message}
+                {formState.errors.email?.message}
               </TextField.Hint>
             </If>
           </TextField.Label>
         </TextField>
-
         <TextField>
           <TextField.Label>
             Password
@@ -81,44 +56,21 @@ const EmailPasswordSignUpForm: React.FCC<{
             <TextField.Hint>
               Ensure it&apos;s at least 6 characters
             </TextField.Hint>
-            <If condition={errors.password}>
+            <If condition={formState.errors.password}>
               <TextField.Hint color="error">
-                {errors.password?.message}
+                {formState.errors.password?.message}
               </TextField.Hint>
             </If>
           </TextField.Label>
         </TextField>
-
-        <TextField>
-          <TextField.Label>
-            Repeat password
-            <TextField.Input
-              {...repeatPasswordControl}
-              data-cy="repeat-password-input"
-              required
-              type="password"
-              placeholder=""
-            />
-            <TextField.Hint>Type your password again</TextField.Hint>
-            <If condition={errors.repeatPassword}>
-              <TextField.Hint color="error">
-                {errors.repeatPassword?.message}
-              </TextField.Hint>
-            </If>
-          </TextField.Label>
-        </TextField>
-
         <div>
           <Button
             data-cy="auth-submit-button"
             className="w-full"
-            color="primary"
             type="submit"
             loading={loading}
           >
-            <If condition={loading} fallback="Get started">
-              Signing up...
-            </If>
+            Get started
           </Button>
         </div>
       </div>

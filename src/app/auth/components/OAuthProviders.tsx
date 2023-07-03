@@ -44,7 +44,6 @@ const OAuthProviders: React.FCC<{
       <If condition={loading}>
         <PageLoadingIndicator />
       </If>
-
       <div className="flex w-full flex-1 flex-col space-y-3">
         <div className="flex-col space-y-2">
           {OAUTH_PROVIDERS.map((provider) => {
@@ -75,7 +74,7 @@ const OAuthProviders: React.FCC<{
                   );
                 }}
               >
-                Sign in with <span className="capitalize">{provider}</span>
+                Connect with <span className="capitalize">{provider}</span>
               </AuthProviderButton>
             );
           })}

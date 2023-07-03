@@ -1,10 +1,10 @@
 import { cloneElement } from "react";
 import { ComponentProps, deriveClassed } from "@tw-classed/react";
-import { classed } from "~/lib/utils/cn";
+import { classed, cn } from "~/lib/utils/cn";
 import Spinner from "~/components/Spinner";
 
 const BaseButton = classed("button", {
-  base: "relative inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-500 disabled:opacity-40 space-x-1 justify-center transition",
+  base: "relative inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-500 space-x-1 justify-center transition",
   variants: {
     variant: {
       normal:
@@ -26,9 +26,6 @@ const BaseButton = classed("button", {
     },
     selected: {
       true: "bg-emerald-400/10 border-emerald-400/20",
-    },
-    loading: {
-      true: "",
     },
     iconOnly: {
       true: "px-3 py-3",
@@ -56,11 +53,12 @@ const renderIcon = (
 };
 
 export type ButtonProps = ComponentProps<typeof BaseButton> & {
+  loading?: boolean;
+  contentClassName?: string;
   iconClassName?: string;
   startIcon?: string | React.ReactNode;
   endIcon?: string | React.ReactNode;
   iconSize?: number;
-  href?: string;
 };
 
 export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
@@ -71,7 +69,9 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
       endIcon,
       iconSize,
       iconClassName,
+      contentClassName,
       disabled,
+      loading,
       ...props
     },
     ref
@@ -81,15 +81,23 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
 
     return (
       <BaseButton
-        disabled={disabled || !!props.loading}
+        disabled={disabled || !!loading}
         iconOnly={hasIcon && !hasContent}
         ref={ref}
         {...props}
       >
-        {!!props.loading && <Spinner className="absolute mx-auto fill-white" />}
-        {startIcon && renderIcon(startIcon, iconClassName, iconSize)}
-        {children}
-        {endIcon && renderIcon(endIcon, iconClassName, iconSize)}
+        {!!loading && <Spinner className="absolute border-white" />}
+        <div
+          className={cn(
+            contentClassName,
+            loading && "opacity-0",
+            disabled && "opacity-50"
+          )}
+        >
+          {startIcon && renderIcon(startIcon, iconClassName, iconSize)}
+          {children}
+          {endIcon && renderIcon(endIcon, iconClassName, iconSize)}
+        </div>
       </BaseButton>
     );
   }

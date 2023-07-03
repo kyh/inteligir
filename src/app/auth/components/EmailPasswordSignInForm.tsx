@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 
 const EmailPasswordSignInForm: React.FCC<{
@@ -45,24 +44,23 @@ const EmailPasswordSignInForm: React.FCC<{
               placeholder=""
               {...passwordControl}
             />
-            <div className="py-0.5 text-xs">
-              <Link href="/auth/password-reset" className="hover:underline">
-                Password forgotten?
-              </Link>
-            </div>
+            <TextField.Hint
+              as={Link}
+              href="/auth/password-reset"
+              className="hover:underline"
+            >
+              Forgot your password?
+            </TextField.Hint>
           </TextField.Label>
         </TextField>
         <div>
           <Button
             className="w-full"
-            color="primary"
             data-cy="auth-submit-button"
             type="submit"
             loading={loading}
           >
-            <If condition={loading} fallback="Sign In">
-              Signing in...
-            </If>
+            Sign In
           </Button>
         </div>
       </div>
