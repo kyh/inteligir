@@ -6,9 +6,7 @@ export default function AuthErrorMessage({
 }: {
   error: Maybe<Error | AuthError | unknown>;
 }) {
-  if (!error) {
-    return null;
-  }
+  if (!error) return null;
 
   const errorCode = error instanceof AuthError ? error.message : error;
 
