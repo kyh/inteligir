@@ -32,9 +32,7 @@ const EmailPasswordSignUpContainer: React.FCC<{
 
   const onSignupRequested = useCallback(
     async (params: { email: string; password: string }) => {
-      if (loading) {
-        return;
-      }
+      if (loading) return;
 
       try {
         const data = await signUpMutation.trigger(params);
@@ -65,17 +63,14 @@ const EmailPasswordSignUpContainer: React.FCC<{
       <If condition={showVerifyEmailAlert}>
         <Alert type="success">
           <Alert.Heading>We sent you a confirmation email.</Alert.Heading>
-
           <p data-cy="email-confirmation-alert">
             Welcome! Please check your email and click the link to verify your
             account.
           </p>
         </Alert>
       </If>
-
       <If condition={!showVerifyEmailAlert}>
         <AuthErrorMessage error={signUpMutation.error} />
-
         <EmailPasswordSignUpForm
           onSubmit={onSignupRequested}
           loading={loading}

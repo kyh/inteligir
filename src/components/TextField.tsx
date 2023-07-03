@@ -28,7 +28,7 @@ const BaseInput = classed("input", {
 });
 
 const BaseHint = classed("span", {
-  base: "text-sm text-zinc-500",
+  base: "text-xs text-zinc-400",
   variants: {
     color: {
       error: "text-red-500",

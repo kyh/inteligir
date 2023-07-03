@@ -36,38 +36,39 @@ function PasswordResetContainer() {
           Check your Inbox! We emailed you a link for resetting your Password.
         </Alert>
       </If>
-
       <If condition={!resetPasswordMutation.data}>
-        <>
-          <form
-            onSubmit={(e) => void onSubmit(e)}
-            className="container mx-auto flex justify-center"
-          >
-            <div className="flex-col space-y-4">
-              <div>
-                <p className="text-sm text-zinc-700 dark:text-zinc-400">
-                  Enter your email address below. You will receive a link to
-                  reset your password.
-                </p>
-              </div>
-              <div>
-                <TextField.Label>
-                  Email Address
-                  <TextField.Input
-                    name="email"
-                    required
-                    type="email"
-                    placeholder="your@email.com"
-                  />
-                </TextField.Label>
-              </div>
-              <AuthErrorMessage error={error} />
-              <Button loading={resetPasswordMutation.isMutating} type="submit">
-                Reset Password
-              </Button>
+        <form
+          onSubmit={(e) => void onSubmit(e)}
+          className="container mx-auto flex justify-center"
+        >
+          <div className="flex-col space-y-4">
+            <div>
+              <p className="text-sm text-zinc-700 dark:text-zinc-400">
+                Enter your email address below. You will receive a link to reset
+                your password.
+              </p>
             </div>
-          </form>
-        </>
+            <div>
+              <TextField.Label>
+                Email Address
+                <TextField.Input
+                  name="email"
+                  required
+                  type="email"
+                  placeholder="your@email.com"
+                />
+              </TextField.Label>
+            </div>
+            <AuthErrorMessage error={error} />
+            <Button
+              loading={resetPasswordMutation.isMutating}
+              type="submit"
+              className="w-full"
+            >
+              Reset Password
+            </Button>
+          </div>
+        </form>
       </If>
     </>
   );
