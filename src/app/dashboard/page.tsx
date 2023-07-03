@@ -1,5 +1,6 @@
 import { cookies, headers } from "next/headers";
 import Image from "next/image";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ChevronRightIcon } from "lucide-react";
 import getSupabaseServerClient from "~/core/supabase/server-client";
@@ -70,15 +71,15 @@ async function OrganizationsPage() {
             }
           >
             <NewOrganizationButtonContainer csrfToken={csrfToken} />
-
             {organizations.map((organization) => {
               const href = getAppHomeUrl(organization.uuid);
 
               return (
                 <Button
+                  as={Link}
                   className={"relative"}
-                  href={href}
                   key={organization.id}
+                  href={href}
                 >
                   <span
                     className={
@@ -96,7 +97,6 @@ async function OrganizationsPage() {
                         />
                       )}
                     </If>
-
                     <span
                       className={
                         "flex items-center space-x-2.5 text-base font-medium"
