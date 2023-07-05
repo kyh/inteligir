@@ -2,7 +2,7 @@
 
 import { useCallback, useContext, useEffect } from "react";
 import { useForm } from "react-hook-form";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import type { DatabaseClient } from "~/core/db";
 import useSupabase from "~/core/hooks/use-supabase";
 import OrganizationContext from "~/lib/contexts/organization";

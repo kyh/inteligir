@@ -8,17 +8,17 @@ import OrganizationInfoStep, {
   OrganizationInfoStepData,
 } from "./OrganizationInfoStep";
 
-type FormData = {
+type Data = {
   organization: string;
 };
 
-type OnboardingContainerProps = {
-  csrfToken: string | null;
-};
-
-function OnboardingContainer({ csrfToken }: OnboardingContainerProps) {
+function OnboardingContainer(
+  props: React.PropsWithChildren<{
+    csrfToken: string | null;
+  }>
+) {
   const [currentStep, setCurrentStep] = useState(0);
-  const [formData, setFormData] = useState<FormData>();
+  const [formData, setFormData] = useState<Data>();
 
   const onFirstStepSubmitted = useCallback(
     (organizationInfo: OrganizationInfoStepData) => {
@@ -32,7 +32,7 @@ function OnboardingContainer({ csrfToken }: OnboardingContainerProps) {
   );
 
   return (
-    <CsrfTokenContext.Provider value={csrfToken}>
+    <CsrfTokenContext.Provider value={props.csrfToken}>
       <div className="w-9/12">
         <If condition={currentStep === 0}>
           <OrganizationInfoStep onSubmit={onFirstStepSubmitted} />

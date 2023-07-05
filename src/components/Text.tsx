@@ -1,4 +1,4 @@
-import { classed } from "~/lib/utils/cn";
+import { classed } from "~/lib/utils";
 
 export const Text = classed("span", {
   base: "text-base",

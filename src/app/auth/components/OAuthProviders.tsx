@@ -8,7 +8,6 @@ import useSignInWithProvider from "~/core/hooks/use-sign-in-with-provider";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import PageLoadingIndicator from "~/components/PageLoadingIndicator";
-import AuthErrorMessage from "./AuthErrorMessage";
 
 const OAUTH_PROVIDERS = siteConfig.auth.providers.oAuth;
 
@@ -79,8 +78,6 @@ const OAuthProviders: React.FCC<{
             );
           })}
         </div>
-
-        <AuthErrorMessage error={signInWithProviderMutation.error} />
       </div>
     </>
   );

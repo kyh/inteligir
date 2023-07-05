@@ -4,7 +4,7 @@ import * as React from "react";
 import * as SheetPrimitive from "@radix-ui/react-dialog";
 import { ComponentProps, deriveClassed, VariantProps } from "@tw-classed/react";
 import { X } from "lucide-react";
-import { classed, cn } from "~/lib/utils/cn";
+import { classed, cn } from "~/lib/utils";
 
 const Sheet = SheetPrimitive.Root;
 

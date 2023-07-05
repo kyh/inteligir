@@ -1,6 +1,6 @@
 import { cloneElement } from "react";
 import { ComponentProps, deriveClassed } from "@tw-classed/react";
-import { classed, cn } from "~/lib/utils/cn";
+import { classed, cn } from "~/lib/utils";
 import Spinner from "~/components/Spinner";
 
 const BaseButton = classed("button", {
@@ -86,12 +86,18 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
         ref={ref}
         {...props}
       >
-        {!!loading && <Spinner className="absolute border-white" />}
+        <Spinner
+          className={cn(
+            "absolute border-white opacity-0 transition duration-300",
+            !!loading && "opacity-100"
+          )}
+        />
         <div
           className={cn(
-            contentClassName,
+            "transition duration-300",
             loading && "opacity-0",
-            disabled && "opacity-50"
+            disabled && "opacity-50",
+            contentClassName
           )}
         >
           {startIcon && renderIcon(startIcon, iconClassName, iconSize)}

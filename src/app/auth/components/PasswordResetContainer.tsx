@@ -6,7 +6,6 @@ import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
-import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function PasswordResetContainer() {
   const resetPasswordMutation = useResetPassword();
@@ -59,7 +58,6 @@ function PasswordResetContainer() {
                 />
               </TextField.Label>
             </div>
-            <AuthErrorMessage error={error} />
             <Button
               loading={resetPasswordMutation.isMutating}
               type="submit"

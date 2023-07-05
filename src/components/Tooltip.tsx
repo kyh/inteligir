@@ -2,7 +2,7 @@
 
 import React from "react";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 
 const Tooltip = ({ delayDuration = 0, ...props }) => (
   <TooltipPrimitive.Provider delayDuration={delayDuration}>

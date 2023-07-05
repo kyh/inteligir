@@ -42,8 +42,7 @@ function NewUserInviteForm() {
 
   if (acceptInvite.data?.verifyEmail) {
     return (
-      <Alert type="success">
-        <Alert.Heading>We sent you a confirmation email.</Alert.Heading>
+      <Alert type="success" heading="We sent you a confirmation email.">
         Welcome! Please check your email and click the link to verify your
         account.
       </Alert>

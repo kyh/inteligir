@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import isRouteActive from "~/core/generic/is-route-active";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 
 type LinkModel = {
   path: string;

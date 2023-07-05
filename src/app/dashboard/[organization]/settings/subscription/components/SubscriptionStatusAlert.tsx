@@ -58,10 +58,8 @@ function SubscriptionStatusAlert(
   }
 
   return (
-    <Alert type={type}>
-      <Alert.Heading>{heading}</Alert.Heading>
-
-      <span className="block">{message}</span>
+    <Alert type={type} heading={heading}>
+      <p>{message}</p>
     </Alert>
   );
 }

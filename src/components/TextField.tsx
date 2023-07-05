@@ -1,4 +1,4 @@
-import { classed } from "~/lib/utils/cn";
+import { classed } from "~/lib/utils";
 
 const BaseTextField = classed("div", {
   base: "flex flex-col space-y-1",

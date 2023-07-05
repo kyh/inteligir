@@ -1,4 +1,4 @@
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 
 type ProseProps = {
   as?: React.ElementType;

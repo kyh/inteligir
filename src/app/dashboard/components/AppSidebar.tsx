@@ -2,7 +2,7 @@ import React, { useContext } from "react";
 import Link from "next/link";
 import { ArrowLeftCircleIcon, ArrowRightCircleIcon } from "lucide-react";
 import SidebarContext from "~/lib/contexts/sidebar";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/Button";
 import { Logo } from "~/components/Logo";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";

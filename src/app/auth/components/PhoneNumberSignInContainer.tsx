@@ -66,10 +66,7 @@ const PhoneNumberSignInContainer: React.FC<{
       <form className={"w-full"} onSubmit={onOTPSubmit}>
         <div className={"flex flex-col space-y-4"}>
           <If condition={verifyOtp.error}>
-            <Alert type={"error"}>
-              <Alert.Heading>
-                Sorry, we were unable to log you in.
-              </Alert.Heading>
+            <Alert type={"error"} heading="Sorry, we were unable to log you in">
               We were unable to verify your phone number. Please try again
               later.
             </Alert>
@@ -95,8 +92,7 @@ const PhoneNumberSignInContainer: React.FC<{
   return (
     <div className={"flex w-full flex-col space-y-4"}>
       <If condition={signInWithOtp.error}>
-        <Alert type={"error"}>
-          <Alert.Heading>Sorry, something went wrong.</Alert.Heading>
+        <Alert type={"error"} heading="Sorry, something went wrong.">
           We were unable to send you an OTP. Please try again later.
         </Alert>
       </If>
