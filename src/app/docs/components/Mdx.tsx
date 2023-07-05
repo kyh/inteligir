@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { useMDXComponent } from "next-contentlayer/hooks";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/Button";
 
 function InfoIcon(props: any) {

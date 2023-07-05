@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { siteConfig } from "~/config/site";
 import { CheckCircleIcon } from "lucide-react";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { Text } from "~/components/Text";

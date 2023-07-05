@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { User } from "@supabase/gotrue-js";
 import { siteConfig } from "~/config/site";
 import { useForm } from "react-hook-form";
-import toaster from "react-hot-toast";
+import { toast } from "sonner";
 import useMutation from "swr/mutation";
 import type { DatabaseClient } from "~/core/db";
 import useSupabase from "~/core/hooks/use-supabase";
@@ -15,7 +15,6 @@ import If from "~/components/If";
 import ImageUploadInput from "~/components/ImageUploadInput";
 import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
-import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 
 function UpdateProfileForm({
   session,
@@ -82,7 +81,7 @@ function UpdateProfileForm({
       onUpdateProfileData(info);
     });
 
-    return toaster.promise(promise, {
+    return toast.promise(promise, {
       loading: "Updating profile...",
       success: "Profile updated successfully",
       error: "Error updating profile",
@@ -246,7 +245,7 @@ function RemovePhoneNumberButton({
       onSuccess();
     });
 
-    return toaster.promise(promise, {
+    return toast.promise(promise, {
       loading: "Unlinking phone number...",
       success: "Phone number unlinked successfully",
       error: "Error unlinking phone number",
@@ -266,7 +265,6 @@ function RemovePhoneNumberButton({
       >
         <div className="flex flex-col space-y-3">
           <div>Are you sure you want to continue?</div>
-          <AuthErrorMessage error={unlinkProfileNumberMutation.error} />
           <Button
             loading={unlinkProfileNumberMutation.isMutating}
             onClick={onUnlinkPhoneNumber}

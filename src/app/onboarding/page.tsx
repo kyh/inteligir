@@ -10,9 +10,16 @@ export const metadata = {
   title: "Onboarding",
 };
 
+function OnboardingPage() {
+  const { csrfToken } = use(loadData());
+
+  return <OnboardingContainer csrfToken={csrfToken} />;
+}
+
+export default OnboardingPage;
+
 async function loadData() {
   const csrfToken = headers().get("X-CSRF-Token");
-
   const client = getSupabaseServerClient();
   const { user } = await requireSession(client);
 
@@ -21,18 +28,10 @@ async function loadData() {
   );
 
   if (userData && userData.onboarded) {
-    return redirect("/dashboard");
+    redirect("/dashboard");
   }
 
   return {
     csrfToken,
   };
 }
-
-function OnboardingPage() {
-  const { csrfToken } = use(loadData());
-
-  return <OnboardingContainer csrfToken={csrfToken} />;
-}
-
-export default OnboardingPage;

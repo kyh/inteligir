@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 
 type BaseProps = {
   vertical?: boolean;

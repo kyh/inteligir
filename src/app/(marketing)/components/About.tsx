@@ -21,7 +21,7 @@ import {
   XIcon,
 } from "lucide-react";
 import colors from "tailwindcss/colors";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 import { HighlightCard } from "~/components/Card";
 import { Logo } from "~/components/Logo";
 import { Text } from "~/components/Text";
@@ -134,7 +134,7 @@ export const About = () => {
                 />
               </div>
               <div className="flex justify-center">
-                <div className="rounded-full p-3 text-white shadow-highlight">
+                <div className="shadow-highlight rounded-full p-3 text-white">
                   <Logo className="h-5 w-5" />
                 </div>
               </div>

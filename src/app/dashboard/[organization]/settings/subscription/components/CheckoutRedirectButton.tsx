@@ -5,7 +5,7 @@ import { ArrowRightIcon } from "lucide-react";
 import isBrowser from "~/core/generic/is-browser";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { createCheckoutAction } from "~/lib/stripe/actions";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 import { Button } from "~/components/Button";
 
 const CheckoutRedirectButton: React.FCC<{

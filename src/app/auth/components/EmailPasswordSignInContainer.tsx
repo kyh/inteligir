@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback } from "react";
+import { toast } from "sonner";
 import useSignInWithEmailPassword from "~/core/hooks/use-sign-in-with-email-password";
-import AuthErrorMessage from "~/app/auth/components/AuthErrorMessage";
 import EmailPasswordSignInForm from "~/app/auth/components/EmailPasswordSignInForm";
 
 const EmailPasswordSignInContainer: React.FCC<{
@@ -19,18 +19,13 @@ const EmailPasswordSignInContainer: React.FCC<{
 
         onSignIn(userId);
       } catch (e) {
-        // wrong credentials, do nothing
+        toast.error("Sorry, we could not authenticate you");
       }
     },
     [onSignIn, signInMutation]
   );
 
-  return (
-    <>
-      <AuthErrorMessage error={signInMutation.error} />
-      <EmailPasswordSignInForm onSubmit={onSubmit} loading={isLoading} />
-    </>
-  );
+  return <EmailPasswordSignInForm onSubmit={onSubmit} loading={isLoading} />;
 };
 
 export default EmailPasswordSignInContainer;

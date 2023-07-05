@@ -1,5 +1,5 @@
 import type { PropsWithChildren } from "react";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 import If from "~/components/If";
 import { Logo } from "~/components/Logo";
 import Spinner from "~/components/Spinner";
