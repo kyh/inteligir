@@ -27,7 +27,7 @@ export const TopNavigation = ({ userSession }: TopNavigationProps) => {
             aria-label="Menu"
           />
         </SheetTrigger>
-        <SheetContent position="left">
+        <SheetContent side="left">
           <Nav />
         </SheetContent>
       </Sheet>

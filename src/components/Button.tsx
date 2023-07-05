@@ -4,7 +4,7 @@ import { classed, cn } from "~/lib/utils";
 import Spinner from "~/components/Spinner";
 
 const BaseButton = classed("button", {
-  base: "relative inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-500 space-x-1 justify-center transition",
+  base: "relative inline-flex items-center focus:outline-none focus:ring-2 focus:ring-emerald-500 justify-center transition",
   variants: {
     variant: {
       normal:
