@@ -5,7 +5,6 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { allDocs } from "contentlayer/generated";
-import { absoluteUrl } from "~/lib/utils/url";
 // import { getTableOfContents } from "@/lib/toc"
 import { Mdx } from "~/app/docs/components/Mdx";
 
@@ -102,4 +101,8 @@ export default async function DocPage({ params }: DocPageProps) {
         </div>
       </div>
     </main> */
+}
+
+function absoluteUrl(path: string) {
+  return `${process.env.NEXT_PUBLIC_SITE_URL}${path}`;
 }

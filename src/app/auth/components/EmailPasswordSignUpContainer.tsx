@@ -6,7 +6,6 @@ import useSignUpWithEmailAndPasswordMutation from "~/core/hooks/use-sign-up-with
 import { Alert } from "~/components/Alert";
 import If from "~/components/If";
 import EmailPasswordSignUpForm from "~/app/auth/components/EmailPasswordSignUpForm";
-import AuthErrorMessage from "./AuthErrorMessage";
 
 const requireEmailConfirmation = siteConfig.auth.requireEmailConfirmation;
 
@@ -36,7 +35,6 @@ const EmailPasswordSignUpContainer: React.FCC<{
 
       try {
         const data = await signUpMutation.trigger(params);
-
         // If the user is required to confirm their email, we display a message
         if (requireEmailConfirmation) {
           setShowVerifyEmailAlert(true);
@@ -47,7 +45,7 @@ const EmailPasswordSignUpContainer: React.FCC<{
           }
         } else {
           // Otherwise, we redirect the user to the onboarding page
-          onSignUp && onSignUp();
+          onSignUp?.();
         }
       } catch (error) {
         if (onError) {
@@ -61,8 +59,7 @@ const EmailPasswordSignUpContainer: React.FCC<{
   return (
     <>
       <If condition={showVerifyEmailAlert}>
-        <Alert type="success">
-          <Alert.Heading>We sent you a confirmation email.</Alert.Heading>
+        <Alert type="success" heading="We sent you a confirmation email">
           <p data-cy="email-confirmation-alert">
             Welcome! Please check your email and click the link to verify your
             account.
@@ -70,7 +67,6 @@ const EmailPasswordSignUpContainer: React.FCC<{
         </Alert>
       </If>
       <If condition={!showVerifyEmailAlert}>
-        <AuthErrorMessage error={signUpMutation.error} />
         <EmailPasswordSignUpForm
           onSubmit={onSignupRequested}
           loading={loading}

@@ -9,7 +9,7 @@ import {
   useScroll,
   useTransform,
 } from "framer-motion";
-import { cn } from "~/lib/utils/cn";
+import { cn } from "~/lib/utils";
 import { Badge } from "~/components/Badge";
 import styles from "./HeroExample.module.css";
 

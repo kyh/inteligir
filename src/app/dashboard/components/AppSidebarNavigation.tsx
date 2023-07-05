@@ -2,7 +2,7 @@ import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { CogIcon, LayoutDashboardIcon } from "lucide-react";
 import isRouteActive from "~/core/generic/is-route-active";
-import { classed } from "~/lib/utils/cn";
+import { classed } from "~/lib/utils";
 import If from "~/components/If";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 

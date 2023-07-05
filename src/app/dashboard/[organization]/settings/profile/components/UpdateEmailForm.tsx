@@ -3,7 +3,7 @@
 import { useCallback, useEffect } from "react";
 import type { User } from "@supabase/gotrue-js";
 import { useForm } from "react-hook-form";
-import toast from "react-hot-toast";
+import { toast } from "sonner";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
@@ -75,8 +75,7 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
   return (
     <form data-cy="update-email-form" onSubmit={handleSubmit(onSubmit)}>
       <If condition={updateUserMutation.data}>
-        <Alert type="success">
-          <Alert.Heading>Email update request successful</Alert.Heading>
+        <Alert type="success" heading="Email update request successful">
           We sent you an email to confirm your new email address. Please check
           your inbox and click on the link to confirm your new email address.
         </Alert>

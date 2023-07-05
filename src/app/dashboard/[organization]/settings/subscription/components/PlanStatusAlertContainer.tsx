@@ -31,8 +31,7 @@ function PlansStatusAlert({
   switch (status) {
     case SubscriptionStatusQueryParams.Cancel:
       return (
-        <Alert type="warn" showClose>
-          <Alert.Heading>The checkout was canceled</Alert.Heading>
+        <Alert type="warn" heading="The checkout was canceled" showClose>
           <p>
             The checkout was canceled. Please contact us if you&apos;re
             experiencing any issues.
@@ -42,8 +41,7 @@ function PlansStatusAlert({
 
     case SubscriptionStatusQueryParams.Error:
       return (
-        <Alert type="error" showClose>
-          <Alert.Heading>Sorry, something went wrong</Alert.Heading>
+        <Alert type="error" heading="Sorry, something went wrong" showClose>
           <p>
             We encountered an unknown error while processing your payment.
             Please try again or contact support.
@@ -53,8 +51,11 @@ function PlansStatusAlert({
 
     case SubscriptionStatusQueryParams.Success:
       return (
-        <Alert type="success" showClose>
-          <Alert.Heading>Checkout successfully completed</Alert.Heading>
+        <Alert
+          type="success"
+          heading="Checkout successfully completed"
+          showClose
+        >
           <p>Yay, your payment went through!</p>
         </Alert>
       );

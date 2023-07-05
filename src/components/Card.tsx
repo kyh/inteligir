@@ -6,7 +6,7 @@ import {
   useMotionValue,
   type MotionValue,
 } from "framer-motion";
-import { classed, cn } from "~/lib/utils/cn";
+import { classed, cn } from "~/lib/utils";
 import { GridPattern, type GridPatternProps } from "~/components/GridPattern";
 
 export const Card = classed("article", {

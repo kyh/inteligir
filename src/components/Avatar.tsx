@@ -1,7 +1,7 @@
 "use client";
 
 import * as AvatarPrimivite from "@radix-ui/react-avatar";
-import { classed } from "~/lib/utils/cn";
+import { classed } from "~/lib/utils";
 
 export const Avatar = classed(AvatarPrimivite.Root, {
   base: "relative flex h-8 w-8 shrink-0 overflow-hidden rounded-full",

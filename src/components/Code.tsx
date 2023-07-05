@@ -1,7 +1,7 @@
 import { Children } from "react";
 import { CopyIcon } from "lucide-react";
-import toaster from "react-hot-toast";
-import { cn } from "~/lib/utils/cn";
+import { toast } from "sonner";
+import { cn } from "~/lib/utils";
 
 type CodeProps = {
   children?: React.ReactNode;
@@ -21,7 +21,7 @@ export const Code = ({ children, className, copy = true }: CodeProps) => {
       copiedText = children.toString();
     }
     navigator.clipboard.writeText(copiedText);
-    toaster("Copied to clipboard");
+    toast("Copied to clipboard");
   };
 
   return (

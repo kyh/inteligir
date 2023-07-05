@@ -56,10 +56,10 @@ export default PlanSelectionForm;
 
 function NoPermissionsAlert() {
   return (
-    <Alert type="warn">
-      <Alert.Heading>
-        You don&apos;t have permissions to change the billing
-      </Alert.Heading>
+    <Alert
+      type="warn"
+      heading="You don't have permissions to change the billing"
+    >
       Please contact your organization owner to change the billing settings for
       your organization.
     </Alert>

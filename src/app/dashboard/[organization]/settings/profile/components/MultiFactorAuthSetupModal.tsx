@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
-import toaster from "react-hot-toast";
+import { toast } from "sonner";
 import useMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
@@ -19,7 +19,7 @@ function MultiFactorAuthSetupModal(
 ) {
   const onEnrollSuccess = useCallback(() => {
     props.setIsOpen(false);
-    return toaster.success("Factor enrolled successfully");
+    return toast.success("Factor enrolled successfully");
   }, [props]);
 
   return (

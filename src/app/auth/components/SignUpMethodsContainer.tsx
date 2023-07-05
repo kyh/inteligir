@@ -26,7 +26,7 @@ function SignUpMethodsContainer() {
         <EmailPasswordSignUpContainer onSignUp={onSignUp} />
       </If>
       <If condition={siteConfig.auth.providers.phoneNumber}>
-        <PhoneNumberSignInContainer onSuccess={onSignUp} mode={"signUp"} />
+        <PhoneNumberSignInContainer onSuccess={onSignUp} mode="signUp" />
       </If>
       <If condition={siteConfig.auth.providers.emailLink}>
         <EmailLinkAuth />

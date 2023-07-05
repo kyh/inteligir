@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 import { Factor } from "@supabase/gotrue-js";
 import { XIcon } from "lucide-react";
-import toaster from "react-hot-toast";
+import { toast } from "sonner";
 import useMutation from "swr/mutation";
 import useFetchAuthFactors from "~/core/hooks/use-fetch-factors";
 import useSupabase from "~/core/hooks/use-supabase";
@@ -74,10 +74,10 @@ function MultiFactorAuthFactorsList({
   if (!allFactors.length) {
     return (
       <div className="flex flex-col space-y-4">
-        <Alert type="info">
-          <Alert.Heading>
-            Secure your account with Multi-Factor Authentication
-          </Alert.Heading>
+        <Alert
+          type="info"
+          heading="Secure your account with Multi-Factor Authentication"
+        >
           Enable Multi-Factor Authentication to verify your identity for an
           extra layer of security to your account in case your password is
           stolen. In addition to entering your password, it requires you confirm
@@ -137,7 +137,7 @@ function ConfirmUnenrollFactorModal(
 
       const promise = unEnroll.trigger(factorId);
 
-      await toaster.promise(promise, {
+      await toast.promise(promise, {
         loading: "Unenrolling...",
         success: "Unenrolled successfully",
         error: "Error unenrolling",

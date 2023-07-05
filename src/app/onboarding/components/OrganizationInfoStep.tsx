@@ -54,7 +54,6 @@ const OrganizationInfoStep: React.FCC<{
             />
           </TextField.Label>
         </TextField>
-
         <div>
           <Button type="submit">
             <span className="flex items-center space-x-2">

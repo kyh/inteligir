@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ComponentProps, deriveClassed } from "@tw-classed/react";
 import {
   AlertCircleIcon,
@@ -9,24 +9,19 @@ import {
   ShieldAlertIcon,
   XIcon,
 } from "lucide-react";
-import { classed } from "~/lib/utils/cn";
+import { classed } from "~/lib/utils";
 import { Button } from "~/components/Button";
 import If from "~/components/If";
-import { Text } from "~/components/Text";
-
-type AlertType = "success" | "error" | "warn" | "info";
 
 const icons = {
-  success: <CheckCircleIcon className="h-5 rounded-full text-green-700" />,
-  error: <AlertCircleIcon className="h-5 rounded-full text-red-700" />,
-  warn: <ShieldAlertIcon className="h-5 rounded-full text-yellow-700" />,
-  info: <InfoIcon className="h-5 rounded-full text-blue-700" />,
+  success: <CheckCircleIcon className="h-5 w-5 rounded-full text-green-700" />,
+  error: <AlertCircleIcon className="h-5 w-5 rounded-full text-red-700" />,
+  warn: <ShieldAlertIcon className="h-5 w-5 rounded-full text-yellow-700" />,
+  info: <InfoIcon className="h-5 w-5 rounded-full text-blue-700" />,
 };
 
-const AlertContext = createContext<Maybe<AlertType>>(undefined);
-
 const BaseAlert = classed("div", {
-  base: "p-4 rounded relative flex items-center justify-between text-zinc-300 text-sm",
+  base: "p-4 rounded relative",
   variants: {
     type: {
       success: `bg-green-50 dark:bg-green-500/10 dark:text-green-500 text-green-900`,
@@ -40,51 +35,43 @@ const BaseAlert = classed("div", {
   },
 });
 
-export type AlertProps = ComponentProps<typeof BaseAlert> & {
+type AlertProps = ComponentProps<typeof BaseAlert> & {
+  heading?: React.ReactNode;
   showClose?: boolean;
 };
 
-const DerivedBaseAlert = deriveClassed<typeof BaseAlert, AlertProps>(
-  function DerivedBaseAlert({ children, showClose, ...props }, ref) {
-    const [visible, setVisible] = useState(true);
+export const Alert = deriveClassed<typeof BaseAlert, AlertProps>(function Alert(
+  { children, showClose, heading, ...props },
+  ref
+) {
+  const [visible, setVisible] = useState(true);
+  const Icon = useMemo(
+    () => (props.type ? icons[props.type] : null),
+    [props.type]
+  );
 
-    if (!visible) {
-      return null;
-    }
-
-    return (
-      <BaseAlert ref={ref} {...props}>
-        <AlertContext.Provider value={props.type}>
-          <span className="flex items-center space-x-2">
-            <span>{children}</span>
-          </span>
-          <If condition={showClose ?? false}>
-            <Button variant="transparent" onClick={() => setVisible(false)}>
-              <XIcon className="h-6" />
-            </Button>
-          </If>
-        </AlertContext.Provider>
-      </BaseAlert>
-    );
+  if (!visible) {
+    return null;
   }
-);
-
-const AlertHeading = ({ children }: React.PropsWithChildren) => {
-  const type = useContext(AlertContext);
-  const Icon = useMemo(() => (type ? icons[type] : null), [type]);
 
   return (
-    <div className="mb-2 flex items-center space-x-2">
-      <span>{Icon}</span>
-      <Text className="font-semibold">{children}</Text>
-    </div>
+    <BaseAlert ref={ref} {...props}>
+      <div className="flex">
+        <div className="mt-0.5 shrink-0">{Icon}</div>
+        <div className="ml-3">
+          {heading && <h3 className="mb-2 text-sm font-medium">{heading}</h3>}
+          <div className="text-sm">{children}</div>
+        </div>
+      </div>
+      <If condition={showClose ?? false}>
+        <Button
+          className="absolute right-0 top-0"
+          variant="plain"
+          onClick={() => setVisible(false)}
+          startIcon={<XIcon />}
+          iconSize={20}
+        />
+      </If>
+    </BaseAlert>
   );
-};
-
-type AlertComponentType = typeof DerivedBaseAlert & {
-  Heading: typeof AlertHeading;
-};
-
-export const Alert = DerivedBaseAlert as AlertComponentType;
-
-Alert.Heading = AlertHeading;
+});

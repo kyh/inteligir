@@ -1,83 +1,47 @@
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import useSWRMutation from "swr/mutation";
-import useApiRequest from "~/core/hooks/use-api";
-import useCsrfTokenHeader from "~/core/hooks/use-csrf-token-header";
+import { useEffect, useRef, useTransition } from "react";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
 import Spinner from "~/components/Spinner";
+import { handleOnboardingCompleteAction } from "~/app/onboarding/actions";
 
-type CompleteOnboardingStepProps = {
-  data: {
-    organization: string;
-  };
-};
+interface CompleteOnboardingStepData {
+  organization: string;
+}
 
-const CompleteOnboardingStep = ({ data }: CompleteOnboardingStepProps) => {
-  const router = useRouter();
-  const { trigger } = useCompleteOnboardingRequest();
-  const submitted = useRef(false);
-
-  const callRequestCallback = useCallback(async () => {
-    if (submitted.current) {
-      return;
-    }
-
-    submitted.current = true;
-
-    try {
-      await trigger(data);
-      router.push("/dashboard");
-    } catch (e) {
-      submitted.current = false;
-    }
-  }, [data, trigger, router]);
-
-  useEffect(() => {
-    void callRequestCallback();
-  }, [callRequestCallback]);
+const CompleteOnboardingStep: React.FC<{
+  data: CompleteOnboardingStepData;
+}> = ({ data }) => {
+  useCompleteOnboarding(data);
 
   return (
-    <div className="flex flex-1 flex-col items-center space-y-8">
+    <div className={"flex flex-1 flex-col items-center space-y-8"}>
       <span>
-        <Spinner className="h-12 w-12" />
+        <Spinner className={"h-12 w-12"} />
       </span>
-
       <span>Getting Started. Please wait...</span>
     </div>
   );
 };
 
-function useCompleteOnboardingRequest() {
-  const fetcher = useApiRequest<
-    unknown,
-    {
-      organization: string;
-    }
-  >();
-  const csrfTokenHeader = useCsrfTokenHeader();
-  const endpoint = `/onboarding/complete`;
-
-  return useSWRMutation(
-    endpoint,
-    (
-      path,
-      {
-        arg: body,
-      }: {
-        arg: {
-          organization: string;
-        };
-      }
-    ) => {
-      return fetcher({
-        path,
-        method: "POST",
-        body,
-        headers: csrfTokenHeader,
-      });
-    }
-  );
-}
-
 export default CompleteOnboardingStep;
+
+function useCompleteOnboarding(data: CompleteOnboardingStepData) {
+  const submitted = useRef(false);
+  const [, startTransition] = useTransition();
+  const csrfToken = useCsrfToken();
+
+  useEffect(() => {
+    if (submitted.current) {
+      return;
+    }
+
+    void (async () => {
+      submitted.current = true;
+
+      startTransition(async () => {
+        await handleOnboardingCompleteAction({ ...data, csrfToken });
+      });
+    })();
+  }, [csrfToken, data]);
+}
