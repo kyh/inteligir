@@ -3,21 +3,19 @@ import { usePathname } from "next/navigation";
 import { CogIcon, LayoutDashboardIcon } from "lucide-react";
 import isRouteActive from "~/core/generic/is-route-active";
 import { classed } from "~/lib/utils";
-import If from "~/components/If";
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 
 const NAVIGATION_CONFIG = (organizationUuid: string) => ({
   items: [
     {
       label: "Dashboard",
-      path: `${organizationUuid}/dashboard`,
+      path: `/dashboard/${organizationUuid}`,
       Icon: ({ className }: { className?: string }) => {
         return <LayoutDashboardIcon className={className} />;
       },
     },
     {
       label: "Settings",
-      path: `${organizationUuid}/settings`,
+      path: `/dashboard/${organizationUuid}/settings`,
       Icon: ({ className }: { className?: string }) => {
         return <CogIcon className={className} />;
       },
@@ -26,10 +24,8 @@ const NAVIGATION_CONFIG = (organizationUuid: string) => ({
 });
 
 function AppSidebarNavigation({
-  collapsed,
   organizationUuid,
 }: React.PropsWithChildren<{
-  collapsed: boolean;
   organizationUuid: string;
 }>) {
   const path = usePathname() ?? "";
@@ -44,23 +40,9 @@ function AppSidebarNavigation({
           <SidebarItem
             key={item.path}
             href={item.path}
-            collapsed={collapsed}
             active={active}
           >
-            <If
-              condition={collapsed}
-              fallback={<SidebarItemIcon as={item.Icon} />}
-            >
-              <Tooltip>
-                <TooltipTrigger>
-                  <SidebarItemIcon as={item.Icon} />
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={20}>
-                  {Label}
-                </TooltipContent>
-              </Tooltip>
-            </If>
-            <span>{Label}</span>
+            <item.Icon /> {Label}
           </SidebarItem>
         );
       })}
@@ -73,10 +55,6 @@ export default AppSidebarNavigation;
 const SidebarItem = classed(NextLink, {
   base: `flex w-full items-center rounded-md border-transparent text-sm font-medium text-zinc-600 transition-colors duration-300`,
   variants: {
-    collapsed: {
-      true: `justify-center space-x-0 px-0.5 py-2 [&>span]:hidden`,
-      false: `py-2 px-3 pr-12 space-x-2.5`,
-    },
     active: {
       true: `bg-emerald-50 font-medium text-current dark:bg-emerald-300/10 dark:text-emerald-contrast`,
       false: `text-zinc-600 ring-transparent hover:bg-zinc-50 active:bg-zinc-200 dark:bg-zinc-600 dark:text-zinc-300 dark:hover:bg-zinc-400 dark:hover:text-white dark:active:bg-zinc-300 dark:active:bg-zinc-300`,
@@ -84,29 +62,16 @@ const SidebarItem = classed(NextLink, {
   },
   compoundVariants: [
     {
-      collapsed: true,
       active: true,
       className: `bg-emerald-500/5 dark:bg-emerald-500/10 !text-emerald-500`,
     },
     {
-      collapsed: false,
       active: true,
       className: `bg-emerald-50 font-medium text-current dark:bg-emerald-300/10 dark:text-emerald-contrast [&>svg]:text-emerald-500`,
     },
     {
-      collapsed: true,
       active: false,
       className: `text-zinc-600 dark:text-emerald-contrast`,
     },
   ],
-});
-
-const SidebarItemIcon = classed("span", {
-  base: "",
-  variants: {
-    collapsed: {
-      true: `h-7`,
-      false: `h-6`,
-    },
-  },
 });
