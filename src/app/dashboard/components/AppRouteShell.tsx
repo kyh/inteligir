@@ -9,7 +9,6 @@ import UserData from "~/core/session/types/user-data";
 import UserSession from "~/core/session/types/user-session";
 import CsrfTokenContext from "~/lib/contexts/csrf";
 import OrganizationContext from "~/lib/contexts/organization";
-import SidebarContext from "~/lib/contexts/sidebar";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import Organization from "~/lib/organizations/types/organization";
 import { Toaster } from "~/components/Toaster";
@@ -72,15 +71,10 @@ const RouteShell: React.FCC<{
       <OrganizationContext.Provider value={{ organization, setOrganization }}>
         <CsrfTokenContext.Provider value={data.csrfToken}>
           <AuthChangeListener accessToken={data.accessToken} whenSignedOut="/">
-            <main>
-              <Toaster />
-              <RouteShellWithSidebar
-                organizationUuid={organization?.uuid ?? ""}
-                collapsed={data.ui.sidebarState === "collapsed"}
-              >
-                {children}
-              </RouteShellWithSidebar>
-            </main>
+            <Toaster />
+            <RouteShellWithSidebar organizationUuid={organization?.uuid ?? ""}>
+              {children}
+            </RouteShellWithSidebar>
           </AuthChangeListener>
         </CsrfTokenContext.Provider>
       </OrganizationContext.Provider>
@@ -92,22 +86,15 @@ export default RouteShell;
 
 function RouteShellWithSidebar(
   props: React.PropsWithChildren<{
-    collapsed: boolean;
     organizationUuid: string;
   }>
 ) {
-  const [collapsed, setCollapsed] = useCollapsible(props.collapsed);
-
   return (
     <div className="flex h-full flex-1 overflow-hidden">
-      <SidebarContext.Provider value={{ collapsed, setCollapsed }}>
-        <div className="hidden lg:block">
-          <AppSidebar organizationUuid={props.organizationUuid} />
-        </div>
-        <div className="relative mx-auto h-screen w-full overflow-y-auto">
-          <div>{props.children}</div>
-        </div>
-      </SidebarContext.Provider>
+      <AppSidebar organizationUuid={props.organizationUuid} />
+      <div className="relative mx-auto h-screen w-full overflow-y-auto">
+        <main>{props.children}</main>
+      </div>
     </div>
   );
 }

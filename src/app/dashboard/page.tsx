@@ -62,7 +62,6 @@ async function OrganizationsPage() {
   return (
     <div className={"flex flex-col space-y-8"}>
       <OrganizationsPageHeader />
-
       <AppContainer>
         <Container>
           <div
