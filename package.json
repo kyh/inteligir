@@ -1,6 +1,6 @@
 {
   "name": "inteligir",
-  "version": "0.2.9",
+  "version": "0.2.11",
   "private": true,
   "sideEffects": false,
   "scripts": {
@@ -50,7 +50,7 @@
     "edge-csrf": "^1.0.4",
     "framer-motion": "^10.12.18",
     "heroicons": "^2.0.18",
-    "lucide-react": "^0.258.0",
+    "lucide-react": "^0.259.0",
     "next": "^13.4.8",
     "next-contentlayer": "^0.3.4",
     "nodemailer": "^6.9.3",
@@ -62,7 +62,7 @@
     "recharts": "^2.7.2",
     "server-only": "^0.0.1",
     "shiki": "^0.14.3",
-    "sonner": "^0.5.0",
+    "sonner": "^0.6.2",
     "stripe": "^12.11.0",
     "swr": "^2.2.0",
     "tailwind-merge": "^1.13.2",
@@ -88,11 +88,10 @@
     "eslint-config-prettier": "^8.8.0",
     "eslint-plugin-react": "^7.32.2",
     "eslint-plugin-tailwindcss": "^3.13.0",
-    "mdast-util-toc": "^6.1.1",
     "pino-pretty": "^10.0.1",
     "postcss": "^8.4.24",
-    "prettier": "2.8.8",
-    "prettier-plugin-tailwindcss": "^0.3.0",
+    "prettier": "^2.8.8",
+    "prettier-plugin-tailwindcss": "^0.4.0",
     "rehype": "^12.0.1",
     "rehype-autolink-headings": "^6.1.1",
     "rehype-pretty-code": "^0.10.0",
@@ -102,7 +101,15 @@
     "supabase": "^1.75.3",
     "tailwindcss": "^3.3.2",
     "tailwindcss-animate": "^1.0.6",
-    "typescript": "^5.1.6",
-    "unist-util-visit": "^4.1.2"
+    "typescript": "^5.1.6"
+  },
+  "overrides": {
+    "@opentelemetry/api": "1.4.1",
+    "@opentelemetry/core": "1.13.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "0.39.1",
+    "@opentelemetry/resources": "1.13.0",
+    "@opentelemetry/sdk-trace-base": "1.13.0",
+    "@opentelemetry/sdk-trace-node": "1.13.0",
+    "@opentelemetry/semantic-conventions": "1.13.0"
   }
 }
