@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import React from "react";
 import { ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
 import { Alert } from "~/components/Alert";
@@ -22,13 +23,11 @@ const PlansStatusAlertContainer = () => {
 
 export default PlansStatusAlertContainer;
 
-const PlansStatusAlert = (
-  {
-    status,
-  }: {
-    status: SubscriptionStatusQueryParams;
-  }
-) => {
+const PlansStatusAlert = ({
+  status,
+}: {
+  status: SubscriptionStatusQueryParams;
+}) => {
   switch (status) {
     case SubscriptionStatusQueryParams.Cancel:
       return (

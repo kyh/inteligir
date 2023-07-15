@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { useCallback, useContext } from "react";
 import type { User } from "@supabase/gotrue-js";
 import useUserSession from "~/core/hooks/use-user-session";

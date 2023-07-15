@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { createRef, useEffect, useRef } from "react";
 import LoadingBar, { LoadingBarRef } from "react-top-loading-bar";
 

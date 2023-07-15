@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { useCallback, useState } from "react";
 import CsrfTokenContext from "~/lib/contexts/csrf";
 import If from "~/components/If";

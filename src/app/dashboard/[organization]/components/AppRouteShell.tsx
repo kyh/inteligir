@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import { setCookie } from "~/core/generic/cookies";

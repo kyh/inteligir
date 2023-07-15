@@ -134,7 +134,7 @@ export const About = () => {
                 />
               </div>
               <div className="flex justify-center">
-                <div className="shadow-highlight rounded-full p-3 text-white">
+                <div className="rounded-full p-3 text-white shadow-highlight">
                   <Logo className="h-5 w-5" />
                 </div>
               </div>

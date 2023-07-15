@@ -5,29 +5,29 @@ import AppHeader from "~/app/dashboard/[organization]/components/AppHeader";
 import NavigationItem from "~/app/dashboard/[organization]/components/NavigationItem";
 import NavigationMenu from "~/app/dashboard/[organization]/components/NavigationMenu";
 
-
 const getLinks = (organizationUuid: string) => [
   {
-    path: getPath(organizationUuid, 'settings/profile'),
+    path: getPath(organizationUuid, "settings/profile"),
     label: "Profile",
   },
   {
-    path: getPath(organizationUuid, 'settings/organization'),
+    path: getPath(organizationUuid, "settings/organization"),
     label: "Organization",
   },
   {
-    path: getPath(organizationUuid, 'settings/subscription'),
+    path: getPath(organizationUuid, "settings/subscription"),
     label: "Subscription",
   },
 ];
 
-const SettingsLayout = (
-  { children, params }: React.PropsWithChildren<{
-    params: {
-      organization: string;
-    };
-  }>
-) => {
+const SettingsLayout = ({
+  children,
+  params,
+}: React.PropsWithChildren<{
+  params: {
+    organization: string;
+  };
+}>) => {
   const links = getLinks(params.organization);
 
   return (

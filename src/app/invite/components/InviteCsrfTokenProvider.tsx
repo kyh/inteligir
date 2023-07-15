@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import CsrfTokenContext from "~/lib/contexts/csrf";
 
 const InviteCsrfTokenProvider = (

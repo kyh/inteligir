@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { useMemo } from "react";
 import type { User } from "@supabase/gotrue-js";
 import useUserId from "~/core/hooks/use-user-id";
@@ -11,18 +12,16 @@ import ProfileAvatar from "~/components/ProfileAvatar";
 import OrganizationMembersActionsContainer from "./OrganizationMembersActionsContainer";
 import RoleBadge from "./RoleBadge";
 
-const OrganizationMembersList = (
-  {
-    members,
-  }: React.PropsWithChildren<{
-    members: Array<{
-      role: MembershipRole;
-      membershipId: number;
-      auth: User;
-      data: UserData;
-    }>;
-  }>
-) => {
+const OrganizationMembersList = ({
+  members,
+}: React.PropsWithChildren<{
+  members: Array<{
+    role: MembershipRole;
+    membershipId: number;
+    auth: User;
+    data: UserData;
+  }>;
+}>) => {
   const currentUserId = useUserId();
 
   const currentUser = useMemo(() => {
