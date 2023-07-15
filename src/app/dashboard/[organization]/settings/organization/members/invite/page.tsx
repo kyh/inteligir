@@ -26,7 +26,7 @@ const OrganizationMembersInvitePage = () => {
 
 export default OrganizationMembersInvitePage;
 
-function GoBackToMembersButton() {
+const GoBackToMembersButton = () => {
   return (
     <Button
       as={Link}
@@ -36,4 +36,4 @@ function GoBackToMembersButton() {
       Go back to members
     </Button>
   );
-}
+};

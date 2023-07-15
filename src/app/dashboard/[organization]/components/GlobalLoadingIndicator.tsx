@@ -1,9 +1,8 @@
-"use client";
-
+"use client";;
 import TopLoadingBarIndicator from "~/components/TopLoadingBarIndicator";
 
-function GlobalLoadingIndicator() {
+const GlobalLoadingIndicator = () => {
   return <TopLoadingBarIndicator />;
-}
+};
 
 export default GlobalLoadingIndicator;

@@ -55,7 +55,7 @@ const InvitePage = ({ params }: InvitePageProps) => {
 
 export default InvitePage;
 
-async function loadInviteData(code: string) {
+const loadInviteData = async (code: string) => {
   const logger = getLogger();
   const client = getSupabaseServerClient();
 
@@ -116,9 +116,9 @@ async function loadInviteData(code: string) {
 
     redirect("/");
   }
-}
+};
 
-function getAdminClient() {
+const getAdminClient = () => {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -130,4 +130,4 @@ function getAdminClient() {
   return createServerComponentClient<Database>({
     cookies,
   });
-}
+};

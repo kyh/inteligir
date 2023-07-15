@@ -8,14 +8,16 @@ export type GridPatternProps = {
   squares?: number[][];
 } & React.SVGProps<SVGSVGElement>;
 
-export function GridPattern({
-  width,
-  height,
-  x,
-  y,
-  squares,
-  ...props
-}: GridPatternProps) {
+export const GridPattern = (
+  {
+    width,
+    height,
+    x,
+    y,
+    squares,
+    ...props
+  }: GridPatternProps
+) => {
   const patternId = useId();
 
   return (
@@ -54,4 +56,4 @@ export function GridPattern({
       )}
     </svg>
   );
-}
+};

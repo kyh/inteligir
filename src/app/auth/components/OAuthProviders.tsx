@@ -131,7 +131,7 @@ const AuthProviderLogo: React.FC<{
   return <>{image}</>;
 };
 
-function getOAuthProviderLogos(): Record<string, string | React.ReactNode> {
+const getOAuthProviderLogos = (): Record<string, string | React.ReactNode> => {
   return {
     email: <MailIcon className="h-7" />,
     phone: <PhoneIcon className="h-7" />,
@@ -142,17 +142,6 @@ function getOAuthProviderLogos(): Record<string, string | React.ReactNode> {
     microsoft: "/assets/images/microsoft.webp",
     apple: "/assets/images/apple.webp",
   };
-}
-
-function getProviderName(providerId: string) {
-  const capitalize = (value: string) =>
-    value.slice(0, 1).toUpperCase() + value.slice(1);
-
-  if (providerId.endsWith(".com")) {
-    return capitalize(providerId.split(".com")[0]);
-  }
-
-  return capitalize(providerId);
-}
+};
 
 export default OAuthProviders;

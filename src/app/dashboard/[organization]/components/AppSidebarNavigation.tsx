@@ -15,7 +15,7 @@ const NAVIGATION_CONFIG = (organizationUuid: string) => ({
     },
     {
       label: "Settings",
-      path: `/dashboard/${organizationUuid}/settings`,
+      path: `/dashboard/${organizationUuid}/settings/profile`,
       Icon: ({ className }: { className?: string }) => {
         return <CogIcon className={className} />;
       },
@@ -23,11 +23,13 @@ const NAVIGATION_CONFIG = (organizationUuid: string) => ({
   ],
 });
 
-function AppSidebarNavigation({
-  organizationUuid,
-}: React.PropsWithChildren<{
-  organizationUuid: string;
-}>) {
+const AppSidebarNavigation = (
+  {
+    organizationUuid,
+  }: React.PropsWithChildren<{
+    organizationUuid: string;
+  }>
+) => {
   const path = usePathname() ?? "";
 
   return (
@@ -48,7 +50,7 @@ function AppSidebarNavigation({
       })}
     </div>
   );
-}
+};
 
 export default AppSidebarNavigation;
 

@@ -6,7 +6,7 @@ import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";
 import { Text } from "~/components/Text";
 import SubscriptionStatusAlert from "~/app/dashboard/[organization]/settings/subscription/components/SubscriptionStatusAlert";
-import SubscriptionStatusBadge from "~/app/dashboard/components/organizations/SubscriptionStatusBadge";
+import SubscriptionStatusBadge from "~/app/dashboard/[organization]/components/organizations/SubscriptionStatusBadge";
 
 const SubscriptionCard: React.FC<{
   subscription: OrganizationSubscription;
@@ -61,7 +61,7 @@ const SubscriptionCard: React.FC<{
   );
 };
 
-function RenewStatusDescription(
+const RenewStatusDescription = (
   props: React.PropsWithChildren<{
     cancelAtPeriodEnd: boolean;
     dates: {
@@ -69,7 +69,7 @@ function RenewStatusDescription(
       trialEndDate: string | null;
     };
   }>
-) {
+) => {
   return (
     <span className="flex items-center space-x-1.5 text-sm">
       <If condition={props.cancelAtPeriodEnd}>
@@ -90,9 +90,9 @@ function RenewStatusDescription(
       </If>
     </span>
   );
-}
+};
 
-function getProducts() {
+const getProducts = () => {
   if (!siteConfig.production) {
     /**
      * This is read-only, so we also include the testing plans
@@ -104,9 +104,9 @@ function getProducts() {
   }
 
   return siteConfig.stripe.products;
-}
+};
 
-function getTestingProducts() {
+const getTestingProducts = () => {
   return [
     {
       name: "Testing Plan",
@@ -121,9 +121,9 @@ function getTestingProducts() {
       ],
     },
   ];
-}
+};
 
-function useSubscriptionDetails(priceId: string) {
+const useSubscriptionDetails = (priceId: string) => {
   const products = useMemo(() => getProducts(), []);
 
   return useMemo(() => {
@@ -135,6 +135,6 @@ function useSubscriptionDetails(priceId: string) {
       }
     }
   }, [products, priceId]);
-}
+};
 
 export default SubscriptionCard;

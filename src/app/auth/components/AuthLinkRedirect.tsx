@@ -1,10 +1,9 @@
-"use client";
-
+"use client";;
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import useSupabase from "~/core/hooks/use-supabase";
 
-function AuthLinkRedirect() {
+const AuthLinkRedirect = () => {
   const params = useSearchParams();
 
   const redirectPath = params?.get("redirectPath") || "/dashboard";
@@ -12,11 +11,11 @@ function AuthLinkRedirect() {
   useRedirectOnSignIn(redirectPath);
 
   return null;
-}
+};
 
 export default AuthLinkRedirect;
 
-function useRedirectOnSignIn(redirectPath: string) {
+const useRedirectOnSignIn = (redirectPath: string) => {
   const supabase = useSupabase();
   const router = useRouter();
 
@@ -29,4 +28,4 @@ function useRedirectOnSignIn(redirectPath: string) {
 
     return () => data.subscription.unsubscribe();
   }, [supabase, router, redirectPath]);
-}
+};

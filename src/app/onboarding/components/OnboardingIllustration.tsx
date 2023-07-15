@@ -1,4 +1,4 @@
-function OnboardingIllustration() {
+const OnboardingIllustration = () => {
   return (
     <svg
       data-name="Layer 1"
@@ -164,6 +164,6 @@ function OnboardingIllustration() {
       />
     </svg>
   );
-}
+};
 
 export default OnboardingIllustration;

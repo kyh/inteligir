@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { useCallback, useState } from "react";
 import { Factor } from "@supabase/gotrue-js";
 import { XIcon } from "lucide-react";
@@ -20,7 +19,7 @@ import MultiFactorAuthSetupModal from "~/app/dashboard/[organization]/settings/p
 
 const MAX_FACTOR_COUNT = 10;
 
-function MultiFactorAuthenticationSettings() {
+const MultiFactorAuthenticationSettings = () => {
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
 
   return (
@@ -39,15 +38,17 @@ function MultiFactorAuthenticationSettings() {
       />
     </div>
   );
-}
+};
 
 export default MultiFactorAuthenticationSettings;
 
-function MultiFactorAuthFactorsList({
-  onEnrollRequested,
-}: React.PropsWithChildren<{
-  onEnrollRequested: () => void;
-}>) {
+const MultiFactorAuthFactorsList = (
+  {
+    onEnrollRequested,
+  }: React.PropsWithChildren<{
+    onEnrollRequested: () => void;
+  }>
+) => {
   const { data: factors, isLoading, error } = useFetchAuthFactors();
   const [unEnrolling, setUnenrolling] = useState<string>();
 
@@ -109,26 +110,26 @@ function MultiFactorAuthFactorsList({
       </If>
     </div>
   );
-}
+};
 
-function SetupMfaButton(
+const SetupMfaButton = (
   props: React.PropsWithChildren<{
     onClick: () => void;
   }>
-) {
+) => {
   return (
     <div>
       <Button onClick={props.onClick}>Setup a new Factor</Button>
     </div>
   );
-}
+};
 
-function ConfirmUnenrollFactorModal(
+const ConfirmUnenrollFactorModal = (
   props: React.PropsWithChildren<{
     factorId: string;
     setIsModalOpen: (isOpen: boolean) => void;
   }>
-) {
+) => {
   const unEnroll = useUnenrollFactor();
 
   const onUnenrollRequested = useCallback(
@@ -177,15 +178,17 @@ function ConfirmUnenrollFactorModal(
       </div>
     </Modal>
   );
-}
+};
 
-function FactorsTable({
-  setUnenrolling,
-  factors,
-}: React.PropsWithChildren<{
-  setUnenrolling: (factorId: string) => void;
-  factors: Factor[];
-}>) {
+const FactorsTable = (
+  {
+    setUnenrolling,
+    factors,
+  }: React.PropsWithChildren<{
+    setUnenrolling: (factorId: string) => void;
+    factors: Factor[];
+  }>
+) => {
   return (
     <table className="Table">
       <thead>
@@ -235,9 +238,9 @@ function FactorsTable({
       </tbody>
     </table>
   );
-}
+};
 
-function useUnenrollFactor() {
+const useUnenrollFactor = () => {
   const client = useSupabase();
   const key = useFactorsMutationKey();
 
@@ -252,4 +255,4 @@ function useUnenrollFactor() {
 
     return data;
   });
-}
+};

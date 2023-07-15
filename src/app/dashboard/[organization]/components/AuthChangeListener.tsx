@@ -41,14 +41,14 @@ const AuthRedirectListener: React.FCC<{
   return <>{children}</>;
 };
 
-export default function AuthChangeListener({
+const AuthChangeListener = ({
   children,
   whenSignedOut,
   accessToken,
 }: React.PropsWithChildren<{
   whenSignedOut?: string;
   accessToken: Maybe<string>;
-}>) {
+}>) => {
   const shouldActivateListener = isBrowser();
 
   // we only activate the listener if
@@ -65,9 +65,9 @@ export default function AuthChangeListener({
       {children}
     </AuthRedirectListener>
   );
-}
+};
 
-function useRedirectUserAway() {
+const useRedirectUserAway = () => {
   return useCallback((path: string) => {
     const currentPath = window.location.pathname;
     const isNotCurrentPage = currentPath !== path;
@@ -78,4 +78,6 @@ function useRedirectUserAway() {
       window.location.assign(path);
     }
   }, []);
-}
+};
+
+export default AuthChangeListener;

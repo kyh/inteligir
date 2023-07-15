@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { FormEvent, useCallback } from "react";
 import useResetPassword from "~/core/hooks/use-reset-password";
 import { Alert } from "~/components/Alert";
@@ -7,7 +6,7 @@ import { Button } from "~/components/Button";
 import If from "~/components/If";
 import { TextField } from "~/components/TextField";
 
-function PasswordResetContainer() {
+const PasswordResetContainer = () => {
   const resetPasswordMutation = useResetPassword();
   const error = resetPasswordMutation.error;
   const success = resetPasswordMutation.data;
@@ -70,14 +69,14 @@ function PasswordResetContainer() {
       </If>
     </>
   );
-}
+};
 
 export default PasswordResetContainer;
 
-function getReturnUrl() {
+const getReturnUrl = () => {
   const host = window.location.origin;
   const callback = "/auth/callback";
   const redirectPath = "/settings/profile/password";
 
   return `${host}${callback}?redirectPath=${redirectPath}`;
-}
+};

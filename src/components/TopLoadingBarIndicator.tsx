@@ -1,9 +1,8 @@
-"use client";
-
+"use client";;
 import { createRef, useEffect, useRef } from "react";
 import LoadingBar, { LoadingBarRef } from "react-top-loading-bar";
 
-function TopLoadingBarIndicator() {
+const TopLoadingBarIndicator = () => {
   const ref = createRef<LoadingBarRef>();
   const runningRef = useRef(false);
 
@@ -32,6 +31,6 @@ function TopLoadingBarIndicator() {
       ref={ref}
     />
   );
-}
+};
 
 export default TopLoadingBarIndicator;

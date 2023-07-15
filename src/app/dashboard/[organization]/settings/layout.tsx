@@ -1,26 +1,35 @@
 import React from "react";
 import { CogIcon } from "lucide-react";
-import AppContainer from "~/app/dashboard/components/AppContainer";
-import AppHeader from "~/app/dashboard/components/AppHeader";
-import NavigationItem from "~/app/dashboard/components/NavigationItem";
-import NavigationMenu from "~/app/dashboard/components/NavigationMenu";
+import AppContainer from "~/app/dashboard/[organization]/components/AppContainer";
+import AppHeader from "~/app/dashboard/[organization]/components/AppHeader";
+import NavigationItem from "~/app/dashboard/[organization]/components/NavigationItem";
+import NavigationMenu from "~/app/dashboard/[organization]/components/NavigationMenu";
 
-const links = [
+
+const getLinks = (organizationUuid: string) => [
   {
-    path: "/settings/profile",
+    path: getPath(organizationUuid, 'settings/profile'),
     label: "Profile",
   },
   {
-    path: "/settings/organization",
+    path: getPath(organizationUuid, 'settings/organization'),
     label: "Organization",
   },
   {
-    path: "/settings/subscription",
+    path: getPath(organizationUuid, 'settings/subscription'),
     label: "Subscription",
   },
 ];
 
-async function SettingsLayout({ children }: React.PropsWithChildren) {
+const SettingsLayout = (
+  { children, params }: React.PropsWithChildren<{
+    params: {
+      organization: string;
+    };
+  }>
+) => {
+  const links = getLinks(params.organization);
+
   return (
     <>
       <AppHeader>
@@ -45,6 +54,13 @@ async function SettingsLayout({ children }: React.PropsWithChildren) {
       </AppContainer>
     </>
   );
-}
+};
 
 export default SettingsLayout;
+
+const getPath = (uuid: string, path: string) => {
+  const appPrefix = "/dashboard";
+  const organizationPath = `${appPrefix}/${uuid}`;
+
+  return `${organizationPath}/${path}`;
+};

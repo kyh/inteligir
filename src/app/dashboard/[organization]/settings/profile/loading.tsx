@@ -1,7 +1,7 @@
-import GlobalLoadingIndicator from "~/app/dashboard/components/GlobalLoadingIndicator";
+import GlobalLoadingIndicator from "~/app/dashboard/[organization]/components/GlobalLoadingIndicator";
 
-function Loading() {
+const Loading = () => {
   return <GlobalLoadingIndicator />;
-}
+};
 
 export default Loading;

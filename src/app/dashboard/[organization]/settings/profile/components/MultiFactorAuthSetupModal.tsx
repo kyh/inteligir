@@ -11,12 +11,12 @@ import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
 import VerificationCodeInput from "~/app/auth/components/VerificationCodeInput";
 
-function MultiFactorAuthSetupModal(
+const MultiFactorAuthSetupModal = (
   props: React.PropsWithChildren<{
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => void;
   }>
-) {
+) => {
   const onEnrollSuccess = useCallback(() => {
     props.setIsOpen(false);
     return toast.success("Factor enrolled successfully");
@@ -35,15 +35,17 @@ function MultiFactorAuthSetupModal(
       />
     </Modal>
   );
-}
+};
 
-function MultiFactorAuthSetupForm({
-  onEnrolled,
-  onCancel,
-}: React.PropsWithChildren<{
-  onCancel: () => void;
-  onEnrolled: () => void;
-}>) {
+const MultiFactorAuthSetupForm = (
+  {
+    onEnrolled,
+    onCancel,
+  }: React.PropsWithChildren<{
+    onCancel: () => void;
+    onEnrolled: () => void;
+  }>
+) => {
   const { trigger: verifyCode } = useVerifyCodeMutation();
   const [factorId, setFactorId] = useState<string | undefined>();
   const [verificationCode, setVerificationCode] = useState("");
@@ -141,15 +143,17 @@ function MultiFactorAuthSetupForm({
       </If>
     </div>
   );
-}
+};
 
-function FactorQrCode({
-  onSetFactorId,
-  onCancel,
-}: React.PropsWithChildren<{
-  onCancel: () => void;
-  onSetFactorId: React.Dispatch<React.SetStateAction<string | undefined>>;
-}>) {
+const FactorQrCode = (
+  {
+    onSetFactorId,
+    onCancel,
+  }: React.PropsWithChildren<{
+    onCancel: () => void;
+    onSetFactorId: React.Dispatch<React.SetStateAction<string | undefined>>;
+  }>
+) => {
   const { trigger: enrollFactor } = useEnrollFactor();
   const [error, setError] = useState(false);
 
@@ -226,14 +230,14 @@ function FactorQrCode({
       </div>
     </div>
   );
-}
+};
 
-function FactorNameForm(
+const FactorNameForm = (
   props: React.PropsWithChildren<{
     onSetFactorName: (name: string) => void;
     onCancel: () => void;
   }>
-) {
+) => {
   const inputName = "factorName";
 
   return (
@@ -266,15 +270,15 @@ function FactorNameForm(
       </div>
     </form>
   );
-}
+};
 
-function QrImage({ src }: { src: string }) {
+const QrImage = ({ src }: { src: string }) => {
   return <Image alt="QR Code" src={src} width={160} height={160} />;
-}
+};
 
 export default MultiFactorAuthSetupModal;
 
-function useEnrollFactor() {
+const useEnrollFactor = () => {
   const client = useSupabase();
   const key = useFactorsMutationKey();
 
@@ -290,9 +294,9 @@ function useEnrollFactor() {
 
     return data;
   });
-}
+};
 
-function useVerifyCodeMutation() {
+const useVerifyCodeMutation = () => {
   const key = useFactorsMutationKey();
   const client = useSupabase();
 
@@ -322,4 +326,4 @@ function useVerifyCodeMutation() {
       return verify;
     }
   );
-}
+};

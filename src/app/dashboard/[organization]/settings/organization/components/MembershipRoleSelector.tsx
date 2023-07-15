@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/Select";
-import IfHasPermissions from "~/app/dashboard/components/IfHasPermissions";
+import IfHasPermissions from "~/app/dashboard/[organization]/components/IfHasPermissions";
 
 const MembershipRoleSelector: React.FCC<{
   value?: MembershipRole;
@@ -50,7 +50,7 @@ const MembershipRoleSelector: React.FCC<{
   );
 };
 
-function getSelectedRoleModel(currentRole: MembershipRole | undefined) {
+const getSelectedRoleModel = (currentRole: MembershipRole | undefined) => {
   const memberRole = roles[2];
 
   return (
@@ -58,6 +58,6 @@ function getSelectedRoleModel(currentRole: MembershipRole | undefined) {
       return role.value === currentRole;
     }) ?? memberRole
   );
-}
+};
 
 export default MembershipRoleSelector;

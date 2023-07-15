@@ -27,11 +27,7 @@ export const metadata = {
   },
 };
 
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <html lang="en" className="dark">
       <body className="bg-black bg-gradient-to-br from-zinc-900 to-black text-base text-zinc-100 antialiased">
@@ -39,4 +35,6 @@ export default async function RootLayout({
       </body>
     </html>
   );
-}
+};
+
+export default RootLayout;

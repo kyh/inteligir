@@ -2,7 +2,7 @@ import Link from "next/link";
 import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
 import SubscriptionStatusBadge from "./SubscriptionStatusBadge";
 
-function HeaderSubscriptionStatusBadge() {
+const HeaderSubscriptionStatusBadge = () => {
   const organization = useCurrentOrganization();
   const subscription = organization?.subscription?.data;
 
@@ -19,6 +19,6 @@ function HeaderSubscriptionStatusBadge() {
       <SubscriptionStatusBadge subscription={subscription} />
     </Link>
   );
-}
+};
 
 export default HeaderSubscriptionStatusBadge;

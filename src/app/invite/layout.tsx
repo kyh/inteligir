@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Logo } from "~/components/Logo";
 import { Toaster } from "~/components/Toaster";
 
-function InvitePageLayout({ children }: React.PropsWithChildren) {
+const InvitePageLayout = ({ children }: React.PropsWithChildren) => {
   return (
     <>
       <Toaster position="top-center" />
@@ -16,6 +16,6 @@ function InvitePageLayout({ children }: React.PropsWithChildren) {
       </div>
     </>
   );
-}
+};
 
 export default InvitePageLayout;

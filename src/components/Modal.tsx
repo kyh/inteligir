@@ -78,9 +78,9 @@ const Modal: React.FC<
 
 export default Modal;
 
-function CancelButton<Props extends React.ButtonHTMLAttributes<unknown>>(
+const CancelButton = <Props extends React.ButtonHTMLAttributes<unknown>>(
   props: Props
-) {
+) => {
   return (
     <Button
       type="button"
@@ -91,6 +91,6 @@ function CancelButton<Props extends React.ButtonHTMLAttributes<unknown>>(
       Cancel
     </Button>
   );
-}
+};
 
 Modal.CancelButton = CancelButton;

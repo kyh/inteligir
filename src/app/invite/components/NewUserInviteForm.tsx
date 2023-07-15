@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { siteConfig } from "~/config/site";
@@ -20,7 +19,7 @@ enum Mode {
   SignIn,
 }
 
-function NewUserInviteForm() {
+const NewUserInviteForm = () => {
   const [mode, setMode] = useState<Mode>(Mode.SignUp);
   const acceptInvite = useAcceptInvite();
   const router = useRouter();
@@ -86,6 +85,6 @@ function NewUserInviteForm() {
       </If>
     </>
   );
-}
+};
 
 export default NewUserInviteForm;

@@ -6,7 +6,7 @@ export const metadata = {
   title: "Password Reset",
 };
 
-function PasswordResetPage() {
+const PasswordResetPage = () => {
   return (
     <>
       <div>
@@ -33,6 +33,6 @@ function PasswordResetPage() {
       </div>
     </>
   );
-}
+};
 
 export default PasswordResetPage;

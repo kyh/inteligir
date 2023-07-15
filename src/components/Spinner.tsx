@@ -23,7 +23,7 @@ type SpinnerProps = {
   className?: string;
 };
 
-function Spinner({ className, size }: SpinnerProps) {
+const Spinner = ({ className, size }: SpinnerProps) => {
   return (
     <div
       className={cn("spinner", className)}
@@ -41,6 +41,6 @@ function Spinner({ className, size }: SpinnerProps) {
       </div>
     </div>
   );
-}
+};
 
 export default Spinner;

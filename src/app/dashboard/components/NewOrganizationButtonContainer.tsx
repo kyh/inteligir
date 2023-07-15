@@ -1,16 +1,17 @@
-"use client";
-
+"use client";;
 import { useState } from "react";
 import { PlusIcon } from "lucide-react";
 import CsrfTokenContext from "~/lib/contexts/csrf";
 import { Button } from "~/components/Button";
-import CreateOrganizationModal from "~/app/dashboard/components/organizations/CreateOrganizationModal";
+import CreateOrganizationModal from "~/app/dashboard/[organization]/components/organizations/CreateOrganizationModal";
 
-function NewOrganizationButtonContainer({
-  csrfToken,
-}: React.PropsWithChildren<{
-  csrfToken: string;
-}>) {
+const NewOrganizationButtonContainer = (
+  {
+    csrfToken,
+  }: React.PropsWithChildren<{
+    csrfToken: string;
+  }>
+) => {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
@@ -27,6 +28,6 @@ function NewOrganizationButtonContainer({
       <CreateOrganizationModal isOpen={isOpen} setIsOpen={setIsOpen} />
     </CsrfTokenContext.Provider>
   );
-}
+};
 
 export default NewOrganizationButtonContainer;

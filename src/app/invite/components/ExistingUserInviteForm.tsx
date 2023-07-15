@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@supabase/auth-helpers-nextjs";
@@ -8,11 +7,11 @@ import useSignOut from "~/core/hooks/use-sign-out";
 import { Button } from "~/components/Button";
 import useAcceptInvite from "~/app/invite/use-accept-invite";
 
-function ExistingUserInviteForm(
+const ExistingUserInviteForm = (
   props: React.PropsWithChildren<{
     session: Session;
   }>
-) {
+) => {
   const signOut = useSignOut();
   const acceptInvite = useAcceptInvite();
   const router = useRouter();
@@ -60,6 +59,6 @@ function ExistingUserInviteForm(
       </div>
     </>
   );
-}
+};
 
 export default ExistingUserInviteForm;

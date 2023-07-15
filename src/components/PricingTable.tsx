@@ -44,11 +44,11 @@ const STRIPE_PLANS = STRIPE_PRODUCTS.reduce<string[]>((acc, product) => {
   return acc;
 }, []);
 
-function PricingTable(
+const PricingTable = (
   props: React.PropsWithChildren<{
     CheckoutButton?: React.ComponentType<CheckoutButtonProps>;
   }>
-) {
+) => {
   const [planVariant, setPlanVariant] = useState<string>(STRIPE_PLANS[0]);
 
   return (
@@ -87,21 +87,15 @@ function PricingTable(
       </div>
     </>
   );
-}
+};
 
-export default PricingTable;
-
-PricingTable.Item = PricingItem;
-PricingTable.Price = Price;
-PricingTable.FeaturesList = FeaturesList;
-
-function PricingItem(
+const PricingItem = (
   props: React.PropsWithChildren<
     PricingItemProps & {
       CheckoutButton?: React.ComponentType<CheckoutButtonProps>;
     }
   >
-) {
+) => {
   const recommended = props.product.recommended ?? false;
 
   return (
@@ -184,13 +178,13 @@ function PricingItem(
       </If>
     </div>
   );
-}
+};
 
-function FeaturesList(
+const FeaturesList = (
   props: React.PropsWithChildren<{
     features: string[];
   }>
-) {
+) => {
   return (
     <ul className="flex flex-col space-y-3">
       {props.features.map((feature) => {
@@ -198,9 +192,9 @@ function FeaturesList(
       })}
     </ul>
   );
-}
+};
 
-function Price({ children }: React.PropsWithChildren) {
+const Price = ({ children }: React.PropsWithChildren) => {
   return (
     <div>
       <span className="text-2xl font-extrabold lg:text-3xl xl:text-4xl">
@@ -208,9 +202,9 @@ function Price({ children }: React.PropsWithChildren) {
       </span>
     </div>
   );
-}
+};
 
-function ListItem({ children }: React.PropsWithChildren) {
+const ListItem = ({ children }: React.PropsWithChildren) => {
   return (
     <li className="flex items-center space-x-3 font-medium">
       <div>
@@ -220,15 +214,15 @@ function ListItem({ children }: React.PropsWithChildren) {
       <span className="text-sm">{children}</span>
     </li>
   );
-}
+};
 
-function PlansSwitcher(
+const PlansSwitcher = (
   props: React.PropsWithChildren<{
     plans: string[];
     plan: string;
     setPlan: (plan: string) => void;
   }>
-) {
+) => {
   return (
     <div className="flex">
       {props.plans.map((plan, index) => {
@@ -250,14 +244,14 @@ function PlansSwitcher(
       })}
     </div>
   );
-}
+};
 
-function DefaultCheckoutButton(
+const DefaultCheckoutButton = (
   props: React.PropsWithChildren<{
     plan: PricingItemProps["plan"];
     recommended?: boolean;
   }>
-) {
+) => {
   const linkHref =
     props.plan.href ?? `/auth/sign-up?utm_source=${props.plan.stripePriceId}`;
   const label = props.plan.label ?? "common:getStarted";
@@ -277,4 +271,10 @@ function DefaultCheckoutButton(
       </Button>
     </div>
   );
-}
+};
+
+export default PricingTable;
+
+PricingTable.Item = PricingItem;
+PricingTable.Price = Price;
+PricingTable.FeaturesList = FeaturesList;

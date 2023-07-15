@@ -4,8 +4,8 @@ export const metadata = {
   title: "Authentication",
 };
 
-function AuthenticationPage() {
+const AuthenticationPage = () => {
   return <MultiFactorAuthenticationSettings />;
-}
+};
 
 export default AuthenticationPage;

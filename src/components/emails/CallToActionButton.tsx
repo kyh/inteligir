@@ -3,11 +3,11 @@ import { Button } from "@react-email/button";
 // update this with your brand's primary color
 const PRIMARY_COLOR = `#10b981`;
 
-function CallToActionButton(
+const CallToActionButton = (
   props: React.PropsWithChildren<{
     href: string;
   }>
-) {
+) => {
   return (
     <Button
       style={{
@@ -21,6 +21,6 @@ function CallToActionButton(
       {props.children}
     </Button>
   );
-}
+};
 
 export default CallToActionButton;

@@ -7,7 +7,7 @@ type DocsLayoutProps = {
   children: React.ReactNode;
 };
 
-export default function DocsLayout({ children }: DocsLayoutProps) {
+const DocsLayout = ({ children }: DocsLayoutProps) => {
   return (
     <div className="lg:ml-72">
       <header className="fixed inset-y-0 left-0 z-40 contents w-72 overflow-y-auto border-r border-border px-6 pb-8 pt-4 lg:block">
@@ -22,4 +22,6 @@ export default function DocsLayout({ children }: DocsLayoutProps) {
       </div>
     </div>
   );
-}
+};
+
+export default DocsLayout;

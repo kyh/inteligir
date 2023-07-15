@@ -32,13 +32,13 @@ const ProfileAvatar: React.FCC<ProfileAvatarProps> = (props) => {
   return null;
 };
 
-function getUserInitials(session: Maybe<UserSession>) {
+const getUserInitials = (session: Maybe<UserSession>) => {
   const displayName = getDisplayName(session);
 
   return displayName[0] ?? "";
-}
+};
 
-function getDisplayName(session: Maybe<UserSession>) {
+const getDisplayName = (session: Maybe<UserSession>) => {
   if (!session) {
     return "";
   }
@@ -46,6 +46,6 @@ function getDisplayName(session: Maybe<UserSession>) {
   const email = session.auth?.user.email;
 
   return session.data?.displayName ?? email ?? "";
-}
+};
 
 export default ProfileAvatar;

@@ -4,7 +4,7 @@ import If from "~/components/If";
 import { Logo } from "~/components/Logo";
 import Spinner from "~/components/Spinner";
 
-export default function PageLoadingIndicator({
+const PageLoadingIndicator = ({
   children,
   fullPage,
   displayLogo,
@@ -13,7 +13,7 @@ export default function PageLoadingIndicator({
   className?: string;
   fullPage?: boolean;
   displayLogo?: boolean;
-}>) {
+}>) => {
   const useFullPage = fullPage ?? true;
   const shouldDisplayLogo = displayLogo ?? true;
 
@@ -41,4 +41,6 @@ export default function PageLoadingIndicator({
       <div className="text-sm font-medium">{children}</div>
     </div>
   );
-}
+};
+
+export default PageLoadingIndicator;

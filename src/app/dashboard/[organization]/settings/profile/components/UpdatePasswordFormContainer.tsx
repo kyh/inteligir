@@ -1,11 +1,10 @@
-"use client";
-
+"use client";;
 import useUser from "~/core/hooks/use-user";
 import { Alert } from "~/components/Alert";
 import If from "~/components/If";
 import UpdatePasswordForm from "~/app/dashboard/[organization]/settings/profile/components/UpdatePasswordForm";
 
-function UpdatePasswordFormContainer() {
+const UpdatePasswordFormContainer = () => {
   const { data: user } = useUser();
 
   if (!user) {
@@ -24,14 +23,14 @@ function UpdatePasswordFormContainer() {
       <UpdatePasswordForm user={user} />
     </If>
   );
-}
+};
 
 export default UpdatePasswordFormContainer;
 
-function WarnCannotUpdatePasswordAlert() {
+const WarnCannotUpdatePasswordAlert = () => {
   return (
     <Alert type="warn">
       You cannot update your password because your account is not linked to any.
     </Alert>
   );
-}
+};

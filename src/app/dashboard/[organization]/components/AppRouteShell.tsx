@@ -1,9 +1,7 @@
-"use client";
-
+"use client";;
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import { setCookie } from "~/core/generic/cookies";
-import useCollapsible from "~/core/hooks/use-sidebar-state";
 import UserSessionContext from "~/core/session/contexts/user-session";
 import UserData from "~/core/session/types/user-data";
 import UserSession from "~/core/session/types/user-session";
@@ -84,11 +82,11 @@ const RouteShell: React.FCC<{
 
 export default RouteShell;
 
-function RouteShellWithSidebar(
+const RouteShellWithSidebar = (
   props: React.PropsWithChildren<{
     organizationUuid: string;
   }>
-) {
+) => {
   return (
     <div className="flex h-full flex-1 overflow-hidden">
       <AppSidebar organizationUuid={props.organizationUuid} />
@@ -97,4 +95,4 @@ function RouteShellWithSidebar(
       </div>
     </div>
   );
-}
+};

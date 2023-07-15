@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { siteConfig } from "~/config/site";
@@ -9,7 +8,7 @@ import EmailPasswordSignUpContainer from "~/app/auth/components/EmailPasswordSig
 import OAuthProviders from "~/app/auth/components/OAuthProviders";
 import PhoneNumberSignInContainer from "~/app/auth/components/PhoneNumberSignInContainer";
 
-function SignUpMethodsContainer() {
+const SignUpMethodsContainer = () => {
   const router = useRouter();
 
   const onSignUp = useCallback(() => {
@@ -33,6 +32,6 @@ function SignUpMethodsContainer() {
       </If>
     </>
   );
-}
+};
 
 export default SignUpMethodsContainer;
