@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { useEffect, useRef, useTransition } from "react";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import Spinner from "~/components/Spinner";
@@ -26,7 +25,7 @@ const CompleteOnboardingStep: React.FC<{
 
 export default CompleteOnboardingStep;
 
-function useCompleteOnboarding(data: CompleteOnboardingStepData) {
+const useCompleteOnboarding = (data: CompleteOnboardingStepData) => {
   const submitted = useRef(false);
   const [, startTransition] = useTransition();
   const csrfToken = useCsrfToken();
@@ -44,4 +43,4 @@ function useCompleteOnboarding(data: CompleteOnboardingStepData) {
       });
     })();
   }, [csrfToken, data]);
-}
+};

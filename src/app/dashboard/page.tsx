@@ -14,10 +14,10 @@ import { Container } from "~/components/Container";
 import If from "~/components/If";
 import { Logo } from "~/components/Logo";
 import { Text } from "~/components/Text";
-import AppContainer from "~/app/dashboard/components/AppContainer";
+import AppContainer from "~/app/dashboard/[organization]/components/AppContainer";
 import NewOrganizationButtonContainer from "~/app/dashboard/components/NewOrganizationButtonContainer";
 
-async function OrganizationsPage() {
+const OrganizationsPage = async () => {
   const client = getSupabaseServerClient();
   const session = await requireSession(client);
   const userId = session.user.id;
@@ -113,11 +113,11 @@ async function OrganizationsPage() {
       </AppContainer>
     </div>
   );
-}
+};
 
 export default OrganizationsPage;
 
-function OrganizationsPageHeader() {
+const OrganizationsPageHeader = () => {
   return (
     <div className="flex flex-1 items-center justify-between border-b border-border p-4">
       <div className={"flex w-full flex-1 justify-between"}>
@@ -140,8 +140,8 @@ function OrganizationsPageHeader() {
       </div>
     </div>
   );
-}
+};
 
-function getAppHomeUrl(organizationUid: string) {
+const getAppHomeUrl = (organizationUid: string) => {
   return ["/dashboard", organizationUid].join("/");
-}
+};

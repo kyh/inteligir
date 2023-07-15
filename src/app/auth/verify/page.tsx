@@ -8,15 +8,15 @@ export const metadata = {
   title: "Verify Authentication",
 };
 
-function VerifyPage() {
+const VerifyPage = () => {
   use(loadData());
 
   return <VerifyFormContainer />;
-}
+};
 
 export default VerifyPage;
 
-async function loadData() {
+const loadData = async () => {
   const client = getSupabaseServerClient();
   const needsMfa = await verifyRequiresMfa(client);
 
@@ -25,4 +25,4 @@ async function loadData() {
   }
 
   return redirect("/auth/sign-in");
-}
+};

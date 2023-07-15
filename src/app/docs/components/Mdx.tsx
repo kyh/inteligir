@@ -3,7 +3,7 @@ import { useMDXComponent } from "next-contentlayer/hooks";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/Button";
 
-function InfoIcon(props: any) {
+const InfoIcon = (props: any) => {
   return (
     <svg viewBox="0 0 16 16" aria-hidden="true" {...props}>
       <circle cx="8" cy="8" r="8" strokeWidth="0" />
@@ -17,9 +17,9 @@ function InfoIcon(props: any) {
       <circle cx="8" cy="4" r=".5" fill="none" />
     </svg>
   );
-}
+};
 
-function Note({ children }: any) {
+const Note = ({ children }: any) => {
   return (
     <div className="my-6 flex gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-50/50 p-4 leading-6 text-emerald-900 dark:border-emerald-500/30 dark:bg-emerald-500/5 dark:text-emerald-200 dark:[--tw-prose-links-hover:theme(colors.emerald.300)] dark:[--tw-prose-links:theme(colors.white)]">
       <InfoIcon className="mt-1 h-4 w-4 flex-none fill-emerald-500 stroke-white dark:fill-emerald-200/20 dark:stroke-emerald-200" />
@@ -28,17 +28,17 @@ function Note({ children }: any) {
       </div>
     </div>
   );
-}
+};
 
-function Row({ children }: any) {
+const Row = ({ children }: any) => {
   return (
     <div className="grid grid-cols-1 items-start gap-x-16 gap-y-10 xl:max-w-none xl:grid-cols-2">
       {children}
     </div>
   );
-}
+};
 
-function Col({ children, sticky = false }: any) {
+const Col = ({ children, sticky = false }: any) => {
   return (
     <div
       className={cn(
@@ -49,9 +49,9 @@ function Col({ children, sticky = false }: any) {
       {children}
     </div>
   );
-}
+};
 
-function Properties({ children }: any) {
+const Properties = ({ children }: any) => {
   return (
     <div className="my-6">
       <ul
@@ -62,9 +62,9 @@ function Properties({ children }: any) {
       </ul>
     </div>
   );
-}
+};
 
-function Property({ name, type, children }: any) {
+const Property = ({ name, type, children }: any) => {
   return (
     <li className="m-0 px-0 py-4 first:pt-0 last:pb-0">
       <dl className="m-0 flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -83,7 +83,7 @@ function Property({ name, type, children }: any) {
       </dl>
     </li>
   );
-}
+};
 
 const components = {
   Button,
@@ -94,7 +94,7 @@ type MdxProps = {
   code: string;
 };
 
-export function Mdx({ code }: MdxProps) {
+export const Mdx = ({ code }: MdxProps) => {
   const Component = useMDXComponent(code);
 
   return (
@@ -102,4 +102,4 @@ export function Mdx({ code }: MdxProps) {
       <Component components={components} />
     </div>
   );
-}
+};

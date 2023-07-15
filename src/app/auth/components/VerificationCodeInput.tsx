@@ -4,13 +4,15 @@ import { TextField } from "~/components/TextField";
 
 const DIGITS = 6;
 
-function VerificationCodeInput({
-  onValid,
-  onInvalid,
-}: React.PropsWithChildren<{
-  onValid: (code: string) => void;
-  onInvalid: () => void;
-}>) {
+const VerificationCodeInput = (
+  {
+    onValid,
+    onInvalid,
+  }: React.PropsWithChildren<{
+    onValid: (code: string) => void;
+    onInvalid: () => void;
+  }>
+) => {
   const digitsArray = useMemo(
     () => Array.from({ length: DIGITS }, (_, i) => i),
     []
@@ -88,6 +90,6 @@ function VerificationCodeInput({
       })}
     </div>
   );
-}
+};
 
 export default VerificationCodeInput;

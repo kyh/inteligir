@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import React from "react";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 import type Organization from "~/lib/organizations/types/organization";
@@ -8,7 +7,7 @@ import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";
 import BillingPortalRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/BillingRedirectButton";
 import CheckoutRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/CheckoutRedirectButton";
-import IfHasPermissions from "~/app/dashboard/components/IfHasPermissions";
+import IfHasPermissions from "~/app/dashboard/[organization]/components/IfHasPermissions";
 
 const PlanSelectionForm: React.FCC<{
   organization: WithId<Organization>;
@@ -54,7 +53,7 @@ const PlanSelectionForm: React.FCC<{
 
 export default PlanSelectionForm;
 
-function NoPermissionsAlert() {
+const NoPermissionsAlert = () => {
   return (
     <Alert
       type="warn"
@@ -64,4 +63,4 @@ function NoPermissionsAlert() {
       your organization.
     </Alert>
   );
-}
+};

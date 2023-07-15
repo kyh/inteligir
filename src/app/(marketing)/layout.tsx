@@ -1,12 +1,12 @@
 import { use } from "react";
 import loadUserData from "~/lib/server/loaders/load-user-data";
-import AuthChangeListener from "~/app/dashboard/components/AuthChangeListener";
+import AuthChangeListener from "~/app/dashboard/[organization]/components/AuthChangeListener";
 import { FooterNavigation } from "./components/FooterNavigation";
 import { TopNavigation } from "./components/TopNavigation";
 
 export const dynamic = "force-dynamic";
 
-function SiteLayout({ children }: React.PropsWithChildren) {
+const SiteLayout = ({ children }: React.PropsWithChildren) => {
   const data = use(loadUserData());
 
   return (
@@ -18,6 +18,6 @@ function SiteLayout({ children }: React.PropsWithChildren) {
       <FooterNavigation />
     </>
   );
-}
+};
 
 export default SiteLayout;

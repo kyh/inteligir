@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { Fragment, useTransition } from "react";
 import { PlusCircleIcon, XIcon } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";
@@ -155,14 +154,14 @@ const InviteMembersForm = () => {
   );
 };
 
-function memberFactory() {
+const memberFactory = () => {
   return {
     email: "",
     role: MembershipRole.Member,
   };
-}
+};
 
-function useInviteMembersForm() {
+const useInviteMembersForm = () => {
   return useForm({
     defaultValues: {
       members: [memberFactory()],
@@ -171,15 +170,15 @@ function useInviteMembersForm() {
     shouldFocusError: true,
     shouldUnregister: true,
   });
-}
+};
 
-function getFormValidator(members: InviteModel[]) {
+const getFormValidator = (members: InviteModel[]) => {
   return function isValueInvalid(value: string, index: number) {
     const emails = members.map((member) => member.email);
     const valueIndex = emails.indexOf(value);
 
     return valueIndex >= 0 && valueIndex !== index;
   };
-}
+};
 
 export default InviteMembersForm;

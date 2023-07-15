@@ -1,11 +1,10 @@
-"use client";
-
+"use client";;
 import useUser from "~/core/hooks/use-user";
 import { Alert } from "~/components/Alert";
 import If from "~/components/If";
 import UpdateEmailForm from "~/app/dashboard/[organization]/settings/profile/components/UpdateEmailForm";
 
-function UpdateEmailFormContainer() {
+const UpdateEmailFormContainer = () => {
   const { data: user } = useUser();
 
   if (!user) {
@@ -21,14 +20,14 @@ function UpdateEmailFormContainer() {
       <UpdateEmailForm user={user} />
     </If>
   );
-}
+};
 
 export default UpdateEmailFormContainer;
 
-function WarnCannotUpdateEmailAlert() {
+const WarnCannotUpdateEmailAlert = () => {
   return (
     <Alert type="warn">
       You cannot update your email because your account is not linked to any.
     </Alert>
   );
-}
+};

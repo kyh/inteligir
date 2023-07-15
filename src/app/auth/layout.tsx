@@ -5,7 +5,7 @@ import { Toaster } from "~/components/Toaster";
 
 export const dynamic = "force-dynamic";
 
-async function AuthLayout({ children }: React.PropsWithChildren) {
+const AuthLayout = async ({ children }: React.PropsWithChildren) => {
   await loadAuthPageData();
 
   return (
@@ -21,6 +21,6 @@ async function AuthLayout({ children }: React.PropsWithChildren) {
       </div>
     </>
   );
-}
+};
 
 export default AuthLayout;

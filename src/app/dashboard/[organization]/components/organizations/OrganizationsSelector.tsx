@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { useCallback, useContext, useState } from "react";
 import Image from "next/image";
 import { useParams, usePathname, useRouter } from "next/navigation";
@@ -107,7 +106,7 @@ const OrganizationsSelector = () => {
   );
 };
 
-function OrganizationsOptions(
+const OrganizationsOptions = (
   props: React.PropsWithChildren<{
     organizations: Array<{
       organization: Organization;
@@ -115,7 +114,7 @@ function OrganizationsOptions(
     }>;
     organizationId: Maybe<number>;
   }>
-) {
+) => {
   return (
     <>
       {props.organizations.map(({ organization }) => {
@@ -131,13 +130,15 @@ function OrganizationsOptions(
       })}
     </>
   );
-}
+};
 
-function OrganizationItem({
-  organization,
-}: {
-  organization: Maybe<Organization>;
-}) {
+const OrganizationItem = (
+  {
+    organization,
+  }: {
+    organization: Maybe<Organization>;
+  }
+) => {
   const imageSize = 18;
 
   if (!organization) {
@@ -170,11 +171,11 @@ function OrganizationItem({
       <span className="w-auto truncate text-sm font-medium">{name}</span>
     </span>
   );
-}
+};
 
 export default OrganizationsSelector;
 
-function useChangeOrganization() {
+const useChangeOrganization = () => {
   const path = usePathname();
   const params = useParams();
   const router = useRouter();
@@ -191,4 +192,4 @@ function useChangeOrganization() {
     },
     [params?.organization, path, router]
   );
-}
+};

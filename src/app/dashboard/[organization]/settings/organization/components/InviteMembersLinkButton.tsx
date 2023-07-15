@@ -1,11 +1,10 @@
-"use client";
-
+"use client";;
 import Link from "next/link";
 import { UserPlusIcon } from "lucide-react";
 import useUserCanInviteUsers from "~/lib/organizations/hooks/use-user-can-invite-users";
 import { Button } from "~/components/Button";
 
-function InviteMembersLinkButton() {
+const InviteMembersLinkButton = () => {
   const canInviteUsers = useUserCanInviteUsers();
 
   if (!canInviteUsers) {
@@ -26,6 +25,6 @@ function InviteMembersLinkButton() {
       </span>
     </Button>
   );
-}
+};
 
 export default InviteMembersLinkButton;

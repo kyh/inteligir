@@ -3,7 +3,7 @@
 import { canDeleteInvites } from "~/lib/organizations/permissions";
 import type Membership from "~/lib/organizations/types/membership";
 import ProfileAvatar from "~/components/ProfileAvatar";
-import IfHasPermissions from "~/app/dashboard/components/IfHasPermissions";
+import IfHasPermissions from "~/app/dashboard/[organization]/components/IfHasPermissions";
 import DeleteInviteButton from "./DeleteInviteButton";
 import RoleBadge from "./RoleBadge";
 

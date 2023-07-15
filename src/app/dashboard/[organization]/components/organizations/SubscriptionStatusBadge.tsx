@@ -2,11 +2,13 @@ import type { OrganizationSubscription } from "~/lib/organizations/types/organiz
 import { Badge } from "~/components/Badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 
-function SubscriptionStatusBadge({
-  subscription,
-}: React.PropsWithChildren<{
-  subscription: Maybe<OrganizationSubscription>;
-}>) {
+const SubscriptionStatusBadge = (
+  {
+    subscription,
+  }: React.PropsWithChildren<{
+    subscription: Maybe<OrganizationSubscription>;
+  }>
+) => {
   let label: string;
   let description: string;
   let type: "success" | "error" | "warn" | "info";
@@ -72,9 +74,9 @@ function SubscriptionStatusBadge({
       <TooltipContent>{description}</TooltipContent>
     </Tooltip>
   );
-}
+};
 
-function getDates(subscription: Maybe<OrganizationSubscription>) {
+const getDates = (subscription: Maybe<OrganizationSubscription>) => {
   if (!subscription) {
     return {};
   }
@@ -85,6 +87,6 @@ function getDates(subscription: Maybe<OrganizationSubscription>) {
       ? new Date(subscription.trialEndsAt).toDateString()
       : null,
   };
-}
+};
 
 export default SubscriptionStatusBadge;

@@ -174,7 +174,7 @@ const PageNavigation = () => {
   );
 };
 
-export function FooterNavigation() {
+export const FooterNavigation = () => {
   return (
     <footer className="mx-auto max-w-2xl space-y-10 pb-16 lg:max-w-5xl">
       <Feedback />
@@ -182,4 +182,4 @@ export function FooterNavigation() {
       <SmallPrint />
     </footer>
   );
-}
+};

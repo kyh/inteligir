@@ -5,8 +5,8 @@ import useSignOut from "~/core/hooks/use-sign-out";
 import useUserSession from "~/core/hooks/use-user-session";
 import ProfileDropdown from "~/components/ProfileDropdown";
 import { Text } from "~/components/Text";
-import HeaderSubscriptionStatusBadge from "~/app/dashboard/components/organizations/HeaderSubscriptionStatusBadge";
-import OrganizationsSelector from "~/app/dashboard/components/organizations/OrganizationsSelector";
+import HeaderSubscriptionStatusBadge from "~/app/dashboard/[organization]/components/organizations/HeaderSubscriptionStatusBadge";
+import OrganizationsSelector from "~/app/dashboard/[organization]/components/organizations/OrganizationsSelector";
 import AppContainer from "./AppContainer";
 
 const AppHeader: React.FCC<{

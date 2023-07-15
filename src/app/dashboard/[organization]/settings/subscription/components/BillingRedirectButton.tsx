@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { ArrowRightIcon } from "lucide-react";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { createBillingPortalSessionAction } from "~/lib/stripe/actions";
@@ -26,10 +25,10 @@ const BillingPortalRedirectButton: React.FCC<{
   );
 };
 
-function CsrfTokenInput() {
+const CsrfTokenInput = () => {
   const csrfToken = useCsrfToken();
 
   return <input type="hidden" name="csrf_token" defaultValue={csrfToken} />;
-}
+};
 
 export default BillingPortalRedirectButton;

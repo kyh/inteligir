@@ -9,7 +9,7 @@ import OnboardingIllustration from "./components/OnboardingIllustration";
 
 export const dynamic = "force-dynamic";
 
-async function OnboardingLayout({ children }: React.PropsWithChildren) {
+const OnboardingLayout = async ({ children }: React.PropsWithChildren) => {
   await initializeOnboardingRoute();
 
   return (
@@ -29,11 +29,11 @@ async function OnboardingLayout({ children }: React.PropsWithChildren) {
       </div>
     </div>
   );
-}
+};
 
 export default OnboardingLayout;
 
-async function initializeOnboardingRoute() {
+const initializeOnboardingRoute = async () => {
   const logger = getLogger();
 
   try {
@@ -81,4 +81,4 @@ async function initializeOnboardingRoute() {
       redirect("/auth/sign-in");
     }
   }
-}
+};

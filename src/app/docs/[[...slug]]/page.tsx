@@ -14,7 +14,7 @@ type DocPageProps = {
   };
 };
 
-async function getDocFromParams(params: DocPageProps["params"]) {
+const getDocFromParams = (params: DocPageProps["params"]) => {
   const slug = params.slug?.join("/") || "";
   const doc = allDocs.find((doc) => doc.slugAsParams === slug);
 
@@ -23,11 +23,9 @@ async function getDocFromParams(params: DocPageProps["params"]) {
   }
 
   return doc;
-}
+};
 
-export async function generateMetadata({
-  params,
-}: DocPageProps): Promise<Metadata> {
+export const generateMetadata = async ({ params }: DocPageProps) => {
   const doc = await getDocFromParams(params);
 
   if (!doc) {
@@ -65,17 +63,15 @@ export async function generateMetadata({
       images: [ogUrl.toString()],
     },
   };
-}
+};
 
-export async function generateStaticParams(): Promise<
-  DocPageProps["params"][]
-> {
+export const generateStaticParams = () => {
   return allDocs.map((doc) => ({
     slug: doc.slugAsParams.split("/"),
   }));
-}
+};
 
-export default async function DocPage({ params }: DocPageProps) {
+const DocPage = async ({ params }: DocPageProps) => {
   const doc = await getDocFromParams(params);
 
   if (!doc) {
@@ -85,7 +81,7 @@ export default async function DocPage({ params }: DocPageProps) {
   // const toc = await getTableOfContents(doc.body.raw)
 
   return <Mdx code={doc.body.code} />;
-}
+};
 
 {
   /* <main className="relative py-6 lg:gap-10 lg:py-10 xl:grid xl:grid-cols-[1fr_300px]">
@@ -103,6 +99,8 @@ export default async function DocPage({ params }: DocPageProps) {
     </main> */
 }
 
-function absoluteUrl(path: string) {
+const absoluteUrl = (path: string) => {
   return `${process.env.NEXT_PUBLIC_SITE_URL}${path}`;
-}
+};
+
+export default DocPage;

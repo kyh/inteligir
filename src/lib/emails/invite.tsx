@@ -18,7 +18,7 @@ type Props = {
   productName: string;
 };
 
-export default function renderInviteEmail(props: Props) {
+const renderInviteEmail = (props: Props) => {
   const title = `You have been invited to join ${props.organizationName}`;
 
   return render(
@@ -61,4 +61,6 @@ export default function renderInviteEmail(props: Props) {
       </Body>
     </Html>
   );
-}
+};
+
+export default renderInviteEmail;

@@ -10,15 +10,15 @@ export const metadata = {
   title: "Onboarding",
 };
 
-function OnboardingPage() {
+const OnboardingPage = () => {
   const { csrfToken } = use(loadData());
 
   return <OnboardingContainer csrfToken={csrfToken} />;
-}
+};
 
 export default OnboardingPage;
 
-async function loadData() {
+const loadData = async () => {
   const csrfToken = headers().get("X-CSRF-Token");
   const client = getSupabaseServerClient();
   const { user } = await requireSession(client);
@@ -34,4 +34,4 @@ async function loadData() {
   return {
     csrfToken,
   };
-}
+};

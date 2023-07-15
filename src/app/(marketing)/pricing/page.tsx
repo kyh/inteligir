@@ -6,7 +6,7 @@ export const metadata = {
   title: "Pricing",
 };
 
-function PricingPage() {
+const PricingPage = () => {
   return (
     <Container>
       <header className="px-5 pt-[70px] text-center sm:pt-[100px]">
@@ -16,6 +16,6 @@ function PricingPage() {
       </header>
     </Container>
   );
-}
+};
 
 export default PricingPage;

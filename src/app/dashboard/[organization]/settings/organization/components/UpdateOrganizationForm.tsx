@@ -150,7 +150,7 @@ const UpdateOrganizationForm = () => {
   );
 };
 
-async function uploadLogo({
+const uploadLogo = async ({
   client,
   organizationId,
   logo,
@@ -158,7 +158,7 @@ async function uploadLogo({
   client: DatabaseClient;
   organizationId: number;
   logo: File;
-}) {
+}) => {
   const bytes = await logo.arrayBuffer();
   const bucket = client.storage.from("logos");
   const fileName = getLogoName(logo.name, organizationId);
@@ -173,15 +173,15 @@ async function uploadLogo({
   }
 
   throw result.error;
-}
+};
 
-function getLogoName(fileName: string, organizationId: number) {
+const getLogoName = (fileName: string, organizationId: number) => {
   const extension = fileName.split(".").pop();
 
   return `${organizationId}.${extension}`;
-}
+};
 
-function getLogoFile(value: string | null | FileList) {
+const getLogoFile = (value: string | null | FileList) => {
   if (!value) {
     return;
   }
@@ -191,6 +191,6 @@ function getLogoFile(value: string | null | FileList) {
   }
 
   return value.item(0) ?? undefined;
-}
+};
 
 export default UpdateOrganizationForm;

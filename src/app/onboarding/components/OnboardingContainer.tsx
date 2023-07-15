@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import { useCallback, useState } from "react";
 import CsrfTokenContext from "~/lib/contexts/csrf";
 import If from "~/components/If";
@@ -12,11 +11,11 @@ type Data = {
   organization: string;
 };
 
-function OnboardingContainer(
+const OnboardingContainer = (
   props: React.PropsWithChildren<{
     csrfToken: string | null;
   }>
-) {
+) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<Data>();
 
@@ -43,6 +42,6 @@ function OnboardingContainer(
       </div>
     </CsrfTokenContext.Provider>
   );
-}
+};
 
 export default OnboardingContainer;

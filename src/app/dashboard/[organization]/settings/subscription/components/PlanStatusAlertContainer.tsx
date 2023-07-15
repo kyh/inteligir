@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import React from "react";
 import { ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
 import { Alert } from "~/components/Alert";
@@ -11,7 +10,7 @@ enum SubscriptionStatusQueryParams {
   Error = "error",
 }
 
-function PlansStatusAlertContainer() {
+const PlansStatusAlertContainer = () => {
   const status = useSubscriptionStatus();
 
   return (
@@ -19,15 +18,17 @@ function PlansStatusAlertContainer() {
       <PlansStatusAlert status={status as SubscriptionStatusQueryParams} />
     </If>
   );
-}
+};
 
 export default PlansStatusAlertContainer;
 
-function PlansStatusAlert({
-  status,
-}: {
-  status: SubscriptionStatusQueryParams;
-}) {
+const PlansStatusAlert = (
+  {
+    status,
+  }: {
+    status: SubscriptionStatusQueryParams;
+  }
+) => {
   switch (status) {
     case SubscriptionStatusQueryParams.Cancel:
       return (
@@ -60,15 +61,15 @@ function PlansStatusAlert({
         </Alert>
       );
   }
-}
+};
 
-function useSubscriptionStatus() {
+const useSubscriptionStatus = () => {
   const params = useSearchParams();
 
   return getStatus(params);
-}
+};
 
-function getStatus(params: ReadonlyURLSearchParams | null) {
+const getStatus = (params: ReadonlyURLSearchParams | null) => {
   if (!params) {
     return;
   }
@@ -84,4 +85,4 @@ function getStatus(params: ReadonlyURLSearchParams | null) {
   } else if (error) {
     return SubscriptionStatusQueryParams.Error;
   }
-}
+};

@@ -16,7 +16,7 @@ import ImageUploadInput from "~/components/ImageUploadInput";
 import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
 
-function UpdateProfileForm({
+const UpdateProfileForm = ({
   session,
   onUpdateProfileData,
   onUpdateAuthData,
@@ -24,7 +24,7 @@ function UpdateProfileForm({
   session: UserSession;
   onUpdateProfileData: (user: Partial<UserData>) => void;
   onUpdateAuthData: (data: Partial<User>) => void;
-}) {
+}) => {
   const client = useSupabase();
   const updateProfileMutation = useUpdateProfileMutation();
 
@@ -195,21 +195,21 @@ function UpdateProfileForm({
       </form>
     </>
   );
-}
+};
 
-function getPhotoFile(value: string | null | FileList) {
+const getPhotoFile = (value: string | null | FileList) => {
   if (!value || typeof value === "string") {
     return;
   }
 
   return value.item(0) ?? undefined;
-}
+};
 
-async function uploadUserProfilePhoto(
+const uploadUserProfilePhoto = async (
   client: DatabaseClient,
   photoFile: File,
   userId: string
-) {
+) => {
   const bytes = await photoFile.arrayBuffer();
   const bucket = client.storage.from("avatars");
   const extension = photoFile.name.split(".").pop();
@@ -224,18 +224,18 @@ async function uploadUserProfilePhoto(
   }
 
   throw result.error;
-}
+};
 
-function deleteProfilePhoto(client: DatabaseClient, url: string) {
+const deleteProfilePhoto = (client: DatabaseClient, url: string) => {
   const bucket = client.storage.from("logos");
   return bucket.remove([url]);
-}
+};
 
-function RemovePhoneNumberButton({
+const RemovePhoneNumberButton = ({
   onSuccess,
 }: React.PropsWithChildren<{
   onSuccess: () => void;
-}>) {
+}>) => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const unlinkProfileNumberMutation = useUnlinkProfilePhone();
 
@@ -275,9 +275,9 @@ function RemovePhoneNumberButton({
       </Modal>
     </>
   );
-}
+};
 
-function useUnlinkProfilePhone() {
+const useUnlinkProfilePhone = () => {
   const client = useSupabase();
   const key = "unlinkProfilePhone";
 
@@ -294,6 +294,6 @@ function useUnlinkProfilePhone() {
         return response.data;
       });
   });
-}
+};
 
 export default UpdateProfileForm;

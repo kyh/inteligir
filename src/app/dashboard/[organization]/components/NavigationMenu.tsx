@@ -18,7 +18,7 @@ type Props = BaseProps &
       }
   );
 
-function NavigationMenu(props: PropsWithChildren<Props>) {
+const NavigationMenu = (props: PropsWithChildren<Props>) => {
   return (
     <nav
       className={cn(`NavigationMenu`, {
@@ -31,6 +31,6 @@ function NavigationMenu(props: PropsWithChildren<Props>) {
       {props.children}
     </nav>
   );
-}
+};
 
 export default NavigationMenu;

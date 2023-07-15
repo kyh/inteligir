@@ -51,12 +51,15 @@ const OrganizationMembersPage: React.FC<{
 
 export default OrganizationMembersPage;
 
-function getMembersPayload<
+const getMembersPayload = <
   Payload extends {
     data: UserData;
     role: MembershipRole;
   }
->(members: Array<Payload | null>, users: User[]) {
+>(
+  members: Array<Payload | null>,
+  users: User[]
+) => {
   type NonNullMembers = Exclude<Payload, null>;
 
   return members
@@ -86,12 +89,12 @@ function getMembersPayload<
 
       return acc;
     }, []);
-}
+};
 
-async function fetchOrganizationMembers(
+const fetchOrganizationMembers = async (
   client: DatabaseClient,
   organizationId: number
-) {
+) => {
   const organizationMembersResponse = await getOrganizationMembers(
     client,
     organizationId
@@ -121,9 +124,9 @@ async function fetchOrganizationMembers(
   } catch (error) {
     return onError(error);
   }
-}
+};
 
-async function loadMembers(organizationUid: string) {
+const loadMembers = async (organizationUid: string) => {
   const client = getSupabaseServerClient();
 
   const adminClient = getSupabaseServerClient({
@@ -159,4 +162,4 @@ async function loadMembers(organizationUid: string) {
     members,
     invitedMembers,
   };
-}
+};

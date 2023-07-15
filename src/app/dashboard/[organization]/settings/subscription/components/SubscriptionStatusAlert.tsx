@@ -1,7 +1,7 @@
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
 import { Alert } from "~/components/Alert";
 
-function SubscriptionStatusAlert(
+const SubscriptionStatusAlert = (
   props: React.PropsWithChildren<{
     subscription: OrganizationSubscription;
     values: {
@@ -9,7 +9,7 @@ function SubscriptionStatusAlert(
       trialEndDate: string | null;
     };
   }>
-) {
+) => {
   const status = props.subscription.status;
 
   let message = "";
@@ -62,6 +62,6 @@ function SubscriptionStatusAlert(
       <p>{message}</p>
     </Alert>
   );
-}
+};
 
 export default SubscriptionStatusAlert;

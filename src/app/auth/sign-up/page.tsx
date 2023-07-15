@@ -6,7 +6,7 @@ export const metadata = {
   title: "Sign up",
 };
 
-function SignUpPage() {
+const SignUpPage = () => {
   return (
     <>
       <Text as="h1" className="font-medium">
@@ -26,6 +26,6 @@ function SignUpPage() {
       </div>
     </>
   );
-}
+};
 
 export default SignUpPage;

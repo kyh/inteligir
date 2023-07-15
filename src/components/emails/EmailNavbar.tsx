@@ -3,11 +3,11 @@ import { Section } from "@react-email/section";
 import { Text } from "@react-email/text";
 import { siteConfig } from "~/config/site";
 
-function EmailNavbar(
+const EmailNavbar = (
   props: React.PropsWithChildren<{
     productName?: string;
   }>
-) {
+) => {
   const productName = props.productName ?? siteConfig.site.name;
 
   return (
@@ -20,6 +20,6 @@ function EmailNavbar(
       </Column>
     </Section>
   );
-}
+};
 
 export default EmailNavbar;

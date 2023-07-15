@@ -5,7 +5,7 @@ import { canChangeBilling } from "~/lib/organizations/permissions";
 import If from "~/components/If";
 import BillingPortalRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/BillingRedirectButton";
 import PlanSelectionForm from "~/app/dashboard/[organization]/settings/subscription/components/PlanSelectionForm";
-import IfHasPermissions from "~/app/dashboard/components/IfHasPermissions";
+import IfHasPermissions from "~/app/dashboard/[organization]/components/IfHasPermissions";
 import SubscriptionCard from "./SubscriptionCard";
 
 const Plans: React.FC = () => {

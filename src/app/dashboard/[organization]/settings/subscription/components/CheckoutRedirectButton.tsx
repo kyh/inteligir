@@ -1,5 +1,4 @@
-"use client";
-
+"use client";;
 import React from "react";
 import { ArrowRightIcon } from "lucide-react";
 import isBrowser from "~/core/generic/is-browser";
@@ -38,13 +37,13 @@ const CheckoutRedirectButton: React.FCC<{
 
 export default CheckoutRedirectButton;
 
-function CheckoutFormData(
+const CheckoutFormData = (
   props: React.PropsWithChildren<{
     organizationUid: string;
     priceId: Maybe<string>;
     customerId: Maybe<string>;
   }>
-) {
+) => {
   const csrfToken = useCsrfToken();
 
   return (
@@ -60,10 +59,10 @@ function CheckoutFormData(
       <input type="hidden" name="customerId" defaultValue={props.customerId} />
     </>
   );
-}
+};
 
-function getReturnUrl() {
+const getReturnUrl = () => {
   return isBrowser()
     ? [window.location.origin, window.location.pathname].join("")
     : undefined;
-}
+};
