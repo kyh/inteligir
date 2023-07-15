@@ -7,7 +7,7 @@ export const metadata = {
 
 const OrganizationSettingsPage = () => {
   return (
-    <SettingsTile heading={"General"} subHeading={"Manage your Organization"}>
+    <SettingsTile heading="General" subHeading="Manage your Organization">
       <UpdateOrganizationForm />
     </SettingsTile>
   );

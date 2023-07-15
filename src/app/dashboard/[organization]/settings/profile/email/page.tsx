@@ -7,7 +7,7 @@ export const metadata = {
 
 const ProfileEmailSettingsPage = () => {
   return (
-    <SettingsTile heading={"Email"} subHeading={"Update your email address"}>
+    <SettingsTile heading="Email" subHeading="Update your email address">
       <UpdateEmailFormContainer />
     </SettingsTile>
   );

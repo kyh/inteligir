@@ -12,7 +12,7 @@ const ReauthenticationModal: React.FC<{
 
   return (
     <Modal
-      heading={"Reauthenticate"}
+      heading="Reauthenticate"
       isOpen={isOpen}
       setIsOpen={setIsOpen}
       closeButton={false}
@@ -20,7 +20,6 @@ const ReauthenticationModal: React.FC<{
       <div className="my-4">
         <p>For security reasons, we need you to re-authenticate</p>
       </div>
-
       <ReauthenticationForm onSuccess={onSuccess} />
     </Modal>
   );

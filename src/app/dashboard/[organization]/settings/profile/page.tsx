@@ -7,10 +7,7 @@ export const metadata = {
 
 const ProfileDetailsPage = () => {
   return (
-    <SettingsTile
-      heading={"My Details"}
-      subHeading={"Manage your profile details"}
-    >
+    <SettingsTile heading="My Details" subHeading="Manage your profile details">
       <UpdateProfileFormContainer />
     </SettingsTile>
   );

@@ -34,10 +34,9 @@ const DeleteInviteButton: React.FCC<{
         <span className="sr-only">Delete Invite</span>
         <XIcon className="h-6" />
       </Button>
-
       <If condition={isDeleting}>
         <Modal
-          heading={"Deleting Invite"}
+          heading="Deleting Invite"
           isOpen={isDeleting}
           setIsOpen={setIsDeleting}
         >

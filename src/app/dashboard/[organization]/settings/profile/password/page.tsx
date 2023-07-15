@@ -7,7 +7,7 @@ export const metadata = {
 
 const ProfilePasswordSettingsPage = () => {
   return (
-    <SettingsTile heading={"Password"} subHeading={"Update your password"}>
+    <SettingsTile heading="Password" subHeading="Update your password">
       <UpdatePasswordFormContainer />
     </SettingsTile>
   );

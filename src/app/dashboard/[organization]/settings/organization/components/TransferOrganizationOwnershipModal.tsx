@@ -45,7 +45,7 @@ const TransferOrganizationOwnershipModal: React.FC<{
             data-cy="confirm-transfer-ownership-button"
             loading={pending}
           >
-            <If condition={pending} fallback={"Transfer Ownership"}>
+            <If condition={pending} fallback="Transfer Ownership">
               Transferring ownership...
             </If>
           </Button>

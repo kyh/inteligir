@@ -60,15 +60,11 @@ const OrganizationsPage = async () => {
   }
 
   return (
-    <div className={"flex flex-col space-y-8"}>
+    <div className="flex flex-col space-y-8">
       <OrganizationsPageHeader />
       <AppContainer>
         <Container>
-          <div
-            className={
-              "grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-4 xl:gap-6"
-            }
-          >
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3 xl:grid-cols-4 xl:gap-6">
             <NewOrganizationButtonContainer csrfToken={csrfToken} />
             {organizations.map((organization) => {
               const href = getAppHomeUrl(organization.uuid);
@@ -76,33 +72,25 @@ const OrganizationsPage = async () => {
               return (
                 <Button
                   as={Link}
-                  className={"relative"}
+                  className="relative"
                   key={organization.id}
                   href={href}
                 >
-                  <span
-                    className={
-                      "absolute left-6 top-4 flex items-center space-x-4"
-                    }
-                  >
+                  <span className="absolute left-6 top-4 flex items-center space-x-4">
                     <If condition={organization.logoURL}>
                       {(logo) => (
                         <Image
                           width={36}
                           height={36}
-                          className={"rounded-full"}
+                          className="rounded-full"
                           src={logo}
                           alt={`${organization.name} Logo`}
                         />
                       )}
                     </If>
-                    <span
-                      className={
-                        "flex items-center space-x-2.5 text-base font-medium"
-                      }
-                    >
+                    <span className="flex items-center space-x-2.5 text-base font-medium">
                       <span>{organization.name}</span>
-                      <ChevronRightIcon className={"h-4"} />
+                      <ChevronRightIcon className="h-4" />
                     </span>
                   </span>
                 </Button>
@@ -120,17 +108,13 @@ export default OrganizationsPage;
 const OrganizationsPageHeader = () => {
   return (
     <div className="flex flex-1 items-center justify-between border-b border-border p-4">
-      <div className={"flex w-full flex-1 justify-between"}>
-        <div
-          className={"flex items-center justify-between space-x-4 lg:space-x-0"}
-        >
-          <div
-            className={"flex items-center space-x-2 lg:space-x-4 xl:space-x-6"}
-          >
+      <div className="flex w-full flex-1 justify-between">
+        <div className="flex items-center justify-between space-x-4 lg:space-x-0">
+          <div className="flex items-center space-x-2 lg:space-x-4 xl:space-x-6">
             <Logo />
             <Text variant="heading2">
-              <span className={"flex items-center space-x-0.5 lg:space-x-2"}>
-                <span className={"text-base font-medium dark:text-white"}>
+              <span className="flex items-center space-x-0.5 lg:space-x-2">
+                <span className="text-base font-medium dark:text-white">
                   Your Organizations
                 </span>
               </span>

@@ -38,8 +38,8 @@ const OrganizationMembersPage: React.FC<{
         <OrganizationMembersList members={data.members} />
       </SettingsTile>
       <SettingsTile
-        heading={"Pending Invites"}
-        subHeading={"Manage invites not yet accepted"}
+        heading="Pending Invites"
+        subHeading="Manage invites not yet accepted"
       >
         <OrganizationInvitedMembersList
           invitedMembers={data.invitedMembers || []}
