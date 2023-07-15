@@ -9,8 +9,8 @@ export const metadata = {
 const SubscriptionSettingsPage = () => {
   return (
     <SettingsTile
-      heading={"Subscription"}
-      subHeading={"Manage your Subscription and Billing"}
+      heading="Subscription"
+      subHeading="Manage your Subscription and Billing"
     >
       <div className="flex flex-col space-y-4">
         <PlansStatusAlertContainer />

@@ -16,7 +16,7 @@ const OnboardingLayout = async ({ children }: React.PropsWithChildren) => {
     <div className="flex flex-1 flex-col dark:bg-zinc-500">
       <div className="flex divide-x divide-zinc-100 dark:divide-zinc-300">
         <div className="flex h-screen w-full flex-1 flex-col items-center justify-center lg:w-6/12">
-          <div className={"absolute top-24 hidden lg:flex"}>
+          <div className="absolute top-24 hidden lg:flex">
             <Logo />
           </div>
           {children}

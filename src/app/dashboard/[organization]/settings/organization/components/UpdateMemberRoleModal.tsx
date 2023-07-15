@@ -27,11 +27,7 @@ const UpdateMemberRoleModal: React.FCC<{
   }, [csrfToken, membershipId, role, setIsOpen]);
 
   return (
-    <Modal
-      heading={"Update Member's Role"}
-      isOpen={isOpen}
-      setIsOpen={setIsOpen}
-    >
+    <Modal heading="Update Member's Role" isOpen={isOpen} setIsOpen={setIsOpen}>
       <div className="flex flex-col space-y-6">
         <MembershipRoleSelector value={role} onChange={setRole} />
         <div className="flex justify-end space-x-2">

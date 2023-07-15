@@ -22,7 +22,7 @@ const RemoveOrganizationMemberModal: React.FCC<{
 
   return (
     <Modal
-      heading={"You are removing this user"}
+      heading="You are removing this user"
       isOpen={isOpen}
       setIsOpen={setIsOpen}
     >

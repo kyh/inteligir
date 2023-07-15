@@ -12,8 +12,8 @@ const OrganizationMembersInvitePage = () => {
   return (
     <>
       <SettingsTile
-        heading={"Invite Members"}
-        subHeading={"Invite members to your organization"}
+        heading="Invite Members"
+        subHeading="Invite members to your organization"
       >
         <InviteMembersForm />
       </SettingsTile>

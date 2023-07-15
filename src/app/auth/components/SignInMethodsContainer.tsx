@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { siteConfig } from "~/config/site";
@@ -25,7 +26,7 @@ const SignInMethodsContainer = () => {
         <EmailPasswordSignInContainer onSignIn={onSignIn} />
       </If>
       <If condition={siteConfig.auth.providers.phoneNumber}>
-        <PhoneNumberSignInContainer onSuccess={onSignIn} mode={"signIn"} />
+        <PhoneNumberSignInContainer onSuccess={onSignIn} mode="signIn" />
       </If>
       <If condition={siteConfig.auth.providers.emailLink}>
         <EmailLinkAuth />
