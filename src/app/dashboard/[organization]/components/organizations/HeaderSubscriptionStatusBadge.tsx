@@ -12,10 +12,12 @@ const HeaderSubscriptionStatusBadge = () => {
     return null;
   }
 
+  const href = `/dashboard/${organization?.uuid}/settings/subscription`;
+
   // in all other cases we show the subscription status badge
   // which will show the subscription status and a link to the subscription page
   return (
-    <Link href="/settings/subscription">
+    <Link href={href}>
       <SubscriptionStatusBadge subscription={subscription} />
     </Link>
   );
