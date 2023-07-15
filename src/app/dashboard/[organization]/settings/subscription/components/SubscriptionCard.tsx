@@ -5,8 +5,8 @@ import type { OrganizationSubscription } from "~/lib/organizations/types/organiz
 import If from "~/components/If";
 import PricingTable from "~/components/PricingTable";
 import { Text } from "~/components/Text";
-import SubscriptionStatusAlert from "~/app/dashboard/[organization]/settings/subscription/components/SubscriptionStatusAlert";
 import SubscriptionStatusBadge from "~/app/dashboard/[organization]/components/organizations/SubscriptionStatusBadge";
+import SubscriptionStatusAlert from "~/app/dashboard/[organization]/settings/subscription/components/SubscriptionStatusAlert";
 
 const SubscriptionCard: React.FC<{
   subscription: OrganizationSubscription;

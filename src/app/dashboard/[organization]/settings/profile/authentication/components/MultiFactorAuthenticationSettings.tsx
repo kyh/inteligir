@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { useCallback, useState } from "react";
 import { Factor } from "@supabase/gotrue-js";
 import { XIcon } from "lucide-react";
@@ -42,13 +43,11 @@ const MultiFactorAuthenticationSettings = () => {
 
 export default MultiFactorAuthenticationSettings;
 
-const MultiFactorAuthFactorsList = (
-  {
-    onEnrollRequested,
-  }: React.PropsWithChildren<{
-    onEnrollRequested: () => void;
-  }>
-) => {
+const MultiFactorAuthFactorsList = ({
+  onEnrollRequested,
+}: React.PropsWithChildren<{
+  onEnrollRequested: () => void;
+}>) => {
   const { data: factors, isLoading, error } = useFetchAuthFactors();
   const [unEnrolling, setUnenrolling] = useState<string>();
 
@@ -180,15 +179,13 @@ const ConfirmUnenrollFactorModal = (
   );
 };
 
-const FactorsTable = (
-  {
-    setUnenrolling,
-    factors,
-  }: React.PropsWithChildren<{
-    setUnenrolling: (factorId: string) => void;
-    factors: Factor[];
-  }>
-) => {
+const FactorsTable = ({
+  setUnenrolling,
+  factors,
+}: React.PropsWithChildren<{
+  setUnenrolling: (factorId: string) => void;
+  factors: Factor[];
+}>) => {
   return (
     <table className="Table">
       <thead>

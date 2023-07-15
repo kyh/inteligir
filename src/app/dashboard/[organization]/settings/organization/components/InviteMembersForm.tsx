@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { Fragment, useTransition } from "react";
 import { PlusCircleIcon, XIcon } from "lucide-react";
 import { useFieldArray, useForm } from "react-hook-form";

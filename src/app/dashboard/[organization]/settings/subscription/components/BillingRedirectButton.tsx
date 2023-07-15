@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { ArrowRightIcon } from "lucide-react";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { createBillingPortalSessionAction } from "~/lib/stripe/actions";

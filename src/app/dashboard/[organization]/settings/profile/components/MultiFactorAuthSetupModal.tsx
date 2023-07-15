@@ -37,15 +37,13 @@ const MultiFactorAuthSetupModal = (
   );
 };
 
-const MultiFactorAuthSetupForm = (
-  {
-    onEnrolled,
-    onCancel,
-  }: React.PropsWithChildren<{
-    onCancel: () => void;
-    onEnrolled: () => void;
-  }>
-) => {
+const MultiFactorAuthSetupForm = ({
+  onEnrolled,
+  onCancel,
+}: React.PropsWithChildren<{
+  onCancel: () => void;
+  onEnrolled: () => void;
+}>) => {
   const { trigger: verifyCode } = useVerifyCodeMutation();
   const [factorId, setFactorId] = useState<string | undefined>();
   const [verificationCode, setVerificationCode] = useState("");
@@ -145,15 +143,13 @@ const MultiFactorAuthSetupForm = (
   );
 };
 
-const FactorQrCode = (
-  {
-    onSetFactorId,
-    onCancel,
-  }: React.PropsWithChildren<{
-    onCancel: () => void;
-    onSetFactorId: React.Dispatch<React.SetStateAction<string | undefined>>;
-  }>
-) => {
+const FactorQrCode = ({
+  onSetFactorId,
+  onCancel,
+}: React.PropsWithChildren<{
+  onCancel: () => void;
+  onSetFactorId: React.Dispatch<React.SetStateAction<string | undefined>>;
+}>) => {
   const { trigger: enrollFactor } = useEnrollFactor();
   const [error, setError] = useState(false);
 

@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import Link from "next/link";
 import { UserPlusIcon } from "lucide-react";
 import useUserCanInviteUsers from "~/lib/organizations/hooks/use-user-can-invite-users";

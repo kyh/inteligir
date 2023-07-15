@@ -10,13 +10,11 @@ import Spinner from "~/components/Spinner";
 import { Text } from "~/components/Text";
 import VerificationCodeInput from "./VerificationCodeInput";
 
-const MultiFactorChallengeContainer = (
-  {
-    onSuccess,
-  }: React.PropsWithChildren<{
-    onSuccess: () => void;
-  }>
-) => {
+const MultiFactorChallengeContainer = ({
+  onSuccess,
+}: React.PropsWithChildren<{
+  onSuccess: () => void;
+}>) => {
   const [factorId, setFactorId] = useState("");
   const [verifyCode, setVerifyCode] = useState("");
   const mutation = useVerifyMFAChallenge();
@@ -109,15 +107,13 @@ const useVerifyMFAChallenge = () => {
   );
 };
 
-const FactorsListContainer = (
-  {
-    onSuccess,
-    onSelect,
-  }: React.PropsWithChildren<{
-    onSuccess: () => void;
-    onSelect: (factor: string) => void;
-  }>
-) => {
+const FactorsListContainer = ({
+  onSuccess,
+  onSelect,
+}: React.PropsWithChildren<{
+  onSuccess: () => void;
+  onSelect: (factor: string) => void;
+}>) => {
   const signOut = useSignOut();
 
   const { data: factors, isLoading, error } = useFetchAuthFactors();

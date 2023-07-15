@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { FormEvent, useCallback } from "react";
 import useResetPassword from "~/core/hooks/use-reset-password";
 import { Alert } from "~/components/Alert";

@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import React from "react";
 import { ArrowRightIcon } from "lucide-react";
 import isBrowser from "~/core/generic/is-browser";

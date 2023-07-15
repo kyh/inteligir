@@ -23,13 +23,11 @@ const NAVIGATION_CONFIG = (organizationUuid: string) => ({
   ],
 });
 
-const AppSidebarNavigation = (
-  {
-    organizationUuid,
-  }: React.PropsWithChildren<{
-    organizationUuid: string;
-  }>
-) => {
+const AppSidebarNavigation = ({
+  organizationUuid,
+}: React.PropsWithChildren<{
+  organizationUuid: string;
+}>) => {
   const path = usePathname() ?? "";
 
   return (
@@ -39,11 +37,7 @@ const AppSidebarNavigation = (
         const active = isRouteActive(item.path, path, 3);
 
         return (
-          <SidebarItem
-            key={item.path}
-            href={item.path}
-            active={active}
-          >
+          <SidebarItem key={item.path} href={item.path} active={active}>
             <item.Icon /> {Label}
           </SidebarItem>
         );

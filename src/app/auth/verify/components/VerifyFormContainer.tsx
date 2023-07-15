@@ -1,4 +1,5 @@
-"use client";;
+"use client";
+
 import { useCallback } from "react";
 import MultiFactorChallengeContainer from "~/app/auth/components/MultiFactorChallengeContainer";
 
