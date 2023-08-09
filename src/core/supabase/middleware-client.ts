@@ -4,13 +4,13 @@ import { createClient } from "@supabase/supabase-js";
 import invariant from "tiny-invariant";
 import type { Database } from "~/core/database.types";
 
-function getSupabaseMiddlewareClient(
+const getSupabaseMiddlewareClient = (
   req: NextRequest,
   res: NextResponse,
   params = {
     admin: false,
   },
-) {
+) => {
   const env = process.env;
 
   invariant(env.NEXT_PUBLIC_SUPABASE_URL, `Supabase URL not provided`);
@@ -46,6 +46,6 @@ function getSupabaseMiddlewareClient(
       supabaseKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     },
   );
-}
+};
 
 export default getSupabaseMiddlewareClient;

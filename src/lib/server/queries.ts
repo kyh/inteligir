@@ -1,7 +1,10 @@
 import type { DatabaseClient } from "~/core/db";
 import type UserData from "~/core/session/types/user-data";
 
-export async function getUserDataById(client: DatabaseClient, userId: string) {
+export const getUserDataById = async (
+  client: DatabaseClient,
+  userId: string,
+) => {
   const result = await client
     .from("users")
     .select<string, UserData>(
@@ -16,4 +19,4 @@ export async function getUserDataById(client: DatabaseClient, userId: string) {
     .maybeSingle();
 
   return result.data;
-}
+};

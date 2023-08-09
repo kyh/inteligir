@@ -2,7 +2,7 @@ import type { VerifyOtpParams } from "@supabase/gotrue-js";
 import useMutation from "swr/mutation";
 import useSupabase from "~/core/hooks/use-supabase";
 
-function useVerifyOtp() {
+const useVerifyOtp = () => {
   const client = useSupabase();
 
   return useMutation(
@@ -17,6 +17,6 @@ function useVerifyOtp() {
       return data;
     },
   );
-}
+};
 
 export default useVerifyOtp;

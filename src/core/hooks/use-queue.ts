@@ -19,37 +19,7 @@ type QueueParams = {
 const state = new Map<string, QueueItem>();
 const callbacks = new Map<string, (item: QueueItem, task: Task) => void>();
 
-/**
- * Simple Queue to execute promises sequentially
- *
- * For example, we can create a queue that writes quickly to a document with ID
- * /doc/1, but we want to execute the writes sequentially to avoid
- * race-conditions
- *
- * Usage:
- *
- * const queue = useQueue();
- * const [isWriting, setIsWriting] = useState();
- *
- * const docId = '/doc/1';
- *
- * queue.subscribe(docId, ({ pending }) => {
- *   setIsWriting(pending);
- * });
- *
- * queue.enqueue(
- *  docId,
- *  addDoc(doc(docId, data))
- * );
- *
- * queue.enqueue(
- *  docId,
- *  updateDoc(doc(docId, data))
- * );
- *
- * queue.clear(docId);
- */
-function useQueue(params?: Partial<QueueParams>) {
+const useQueue = (params?: Partial<QueueParams>) => {
   const delayTime = params?.delayTime;
 
   const subscribe = (
@@ -155,6 +125,6 @@ function useQueue(params?: Partial<QueueParams>) {
     clear,
     subscribe,
   };
-}
+};
 
 export default useQueue;

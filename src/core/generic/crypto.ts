@@ -12,7 +12,7 @@ const ENCODING = "hex";
 const BASE_64_ENCODING = "base64";
 const SEPARATOR = ":";
 
-export function encrypt(data: string, key = getSecretKey()) {
+export const encrypt = (data: string, key = getSecretKey()) => {
   const iv = randomBytes(IV_LENGTH);
   const hash = getHash(key);
   const cipher = createCipheriv(ALGORITHM, hash, iv);
@@ -22,9 +22,9 @@ export function encrypt(data: string, key = getSecretKey()) {
   encrypted = Buffer.concat([encrypted, cipher.final()]);
 
   return iv.toString(ENCODING) + SEPARATOR + encrypted.toString(ENCODING);
-}
+};
 
-export function decrypt(data: string, key = getSecretKey()) {
+export const decrypt = (data: string, key = getSecretKey()) => {
   const textParts = data.split(SEPARATOR);
   const hash = getHash(key);
   const iv = Buffer.from(textParts.shift() as string, ENCODING);
@@ -36,16 +36,16 @@ export function decrypt(data: string, key = getSecretKey()) {
   decrypted = Buffer.concat([decrypted, decipher.final()]);
 
   return decrypted.toString();
-}
+};
 
-function getHash(key: string) {
+const getHash = (key: string) => {
   return createHash(HASH_ALGORITHM)
     .update(key)
     .digest(BASE_64_ENCODING)
     .substr(0, 32);
-}
+};
 
-function getSecretKey() {
+const getSecretKey = () => {
   const key = process.env.SECRET_KEY;
 
   if (!key) {
@@ -55,4 +55,4 @@ function getSecretKey() {
   }
 
   return key;
-}
+};

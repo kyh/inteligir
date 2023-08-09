@@ -1,10 +1,10 @@
 const ROOT_PATH = "/";
 
-export default function isRouteActive(
+const isRouteActive = (
   targetLink: string,
   currentRoute: string,
   depth: number,
-) {
+) => {
   // we remove any eventual query param from the route's URL
   const currentRoutePath = currentRoute.split("?")[0];
 
@@ -23,17 +23,19 @@ export default function isRouteActive(
   }
 
   return hasMatchingSegments(targetLink, currentRoutePath, depth);
-}
+};
 
-function splitIntoSegments(href: string) {
+export default isRouteActive;
+
+const splitIntoSegments = (href: string) => {
   return href.split("/").filter(Boolean);
-}
+};
 
-function hasMatchingSegments(
+const hasMatchingSegments = (
   targetLink: string,
   currentRoute: string,
   depth: number,
-) {
+) => {
   const segments = splitIntoSegments(targetLink);
   const matchingSegments = numberOfMatchingSegments(currentRoute, segments);
 
@@ -45,9 +47,9 @@ function hasMatchingSegments(
   // - if depth = 1 => only highlight the links of the immediate parent
   // - if depth = 2 => for url = /settings match /settings/organization/members
   return matchingSegments > segments.length - (depth - 1);
-}
+};
 
-function numberOfMatchingSegments(href: string, segments: string[]) {
+const numberOfMatchingSegments = (href: string, segments: string[]) => {
   let count = 0;
 
   for (const segment of splitIntoSegments(href)) {
@@ -60,8 +62,8 @@ function numberOfMatchingSegments(href: string, segments: string[]) {
   }
 
   return count;
-}
+};
 
-function isRoot(path: string) {
+const isRoot = (path: string) => {
   return path === ROOT_PATH;
-}
+};

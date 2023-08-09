@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 
 const ORGANIZATION_ID_COOKIE_NAME = "organizationId";
 
-export function createOrganizationIdCookie(organizationId: string) {
+export const createOrganizationIdCookie = (organizationId: string) => {
   const secure = process.env.ENVIRONMENT === "production";
 
   return {
@@ -13,8 +13,8 @@ export function createOrganizationIdCookie(organizationId: string) {
     path: "/",
     sameSite: "lax" as const,
   };
-}
+};
 
-export async function parseOrganizationIdCookie() {
+export const parseOrganizationIdCookie = () => {
   return cookies().get(ORGANIZATION_ID_COOKIE_NAME)?.value;
-}
+};

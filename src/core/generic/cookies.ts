@@ -1,4 +1,4 @@
-export function getCookie(name: string) {
+export const getCookie = (name: string) => {
   const cookieDict = document.cookie
     .split(";")
     .map((x) => x.split("="))
@@ -8,8 +8,8 @@ export function getCookie(name: string) {
     }, Object());
 
   return cookieDict[name];
-}
+};
 
-export function setCookie(name: string, value: string) {
+export const setCookie = (name: string, value: string) => {
   document.cookie = `${name}=${value}; Path=/`;
-}
+};

@@ -2,11 +2,7 @@ import "server-only";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserDataById } from "~/lib/server/queries";
 
-/**
- * Loads the user's data from Supabase Auth and Database.
- * This is used in the (site) layout to display the user's name and avatar.
- */
-async function loadUserData() {
+const loadUserData = async () => {
   const client = getSupabaseServerClient();
 
   try {
@@ -31,13 +27,13 @@ async function loadUserData() {
   } catch (e) {
     return emptyUserData();
   }
-}
+};
 
-async function emptyUserData() {
+const emptyUserData = () => {
   return {
     accessToken: undefined,
     session: undefined,
   };
-}
+};
 
 export default loadUserData;

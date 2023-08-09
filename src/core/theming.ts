@@ -10,15 +10,15 @@ export const DARK_THEME_CLASSNAME = `dark`;
 export const LIGHT_THEME_CLASSNAME = `light`;
 export const SYSTEM_THEME_CLASSNAME = "system";
 
-export function getStoredTheme() {
+export const getStoredTheme = () => {
   try {
     return getCookie(THEME_KEY) ?? LIGHT_THEME_CLASSNAME;
   } catch (e) {
     return LIGHT_THEME_CLASSNAME;
   }
-}
+};
 
-export function setTheme(theme: string | null) {
+export const setTheme = (theme: string | null) => {
   const root = getHtml();
 
   root.classList.remove(DARK_THEME_CLASSNAME);
@@ -48,17 +48,17 @@ export function setTheme(theme: string | null) {
 
       return;
   }
-}
+};
 
-function getHtml() {
+const getHtml = () => {
   return document.firstElementChild as HTMLHtmlElement;
-}
+};
 
-function getThemeMetaTag() {
+const getThemeMetaTag = () => {
   return document.querySelector(`meta[name='theme-color']`);
-}
+};
 
-function setMetaTag(value: string) {
+const setMetaTag = (value: string) => {
   const callback = () => {
     let tag = getThemeMetaTag();
 
@@ -77,12 +77,12 @@ function setMetaTag(value: string) {
   } else {
     document.addEventListener("DOMContentLoaded", callback);
   }
-}
+};
 
-export function isDarkSystemTheme() {
+export const isDarkSystemTheme = () => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches;
-}
+};
 
-export function loadSelectedTheme() {
+export const loadSelectedTheme = () => {
   setTheme(getStoredTheme());
-}
+};

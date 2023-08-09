@@ -5,13 +5,13 @@ import type Organization from "~/lib/organizations/types/organization";
 
 type OrganizationRow = Database["public"]["Tables"]["organizations"]["Row"];
 
-export async function updateOrganization(
+export const updateOrganization = async (
   client: DatabaseClient,
   params: {
     id: number;
     data: Partial<Organization>;
   },
-) {
+) => {
   const payload: Omit<Partial<OrganizationRow>, "id"> = {
     name: params.data.name,
   };
@@ -30,16 +30,16 @@ export async function updateOrganization(
     .single();
 
   return data;
-}
+};
 
-export async function setOrganizationSubscriptionData(
+export const setOrganizationSubscriptionData = async (
   client: DatabaseClient,
   props: {
     organizationUid: string;
     customerId: string;
     subscriptionId: string;
   },
-) {
+) => {
   const { customerId, organizationUid, subscriptionId } = props;
 
   const { data: organization, error } = await getOrganizationByUid(
@@ -67,4 +67,4 @@ export async function setOrganizationSubscriptionData(
     )
     .match({ customer_id: customerId })
     .throwOnError();
-}
+};

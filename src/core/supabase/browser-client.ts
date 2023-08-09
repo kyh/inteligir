@@ -7,11 +7,7 @@ import type { Database } from "~/core/database.types";
 
 let client: SupabaseClient<Database>;
 
-/**
- * @name getSupabaseBrowserClient
- * @description Get a Supabase client for use in the Browser
- */
-function getSupabaseBrowserClient() {
+const getSupabaseBrowserClient = () => {
   if (client) {
     return client;
   }
@@ -32,6 +28,6 @@ function getSupabaseBrowserClient() {
   });
 
   return client;
-}
+};
 
 export default getSupabaseBrowserClient;

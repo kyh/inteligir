@@ -1,4 +1,4 @@
-function suspensify<T>(promise: Promise<T>) {
+const suspensify = <T>(promise: Promise<T>) => {
   let status = "pending";
   let result: T;
 
@@ -24,6 +24,6 @@ function suspensify<T>(promise: Promise<T>) {
       }
     },
   };
-}
+};
 
 export default suspensify;

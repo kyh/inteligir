@@ -5,7 +5,7 @@ import "@sentry/tracing";
 import { siteConfig } from "~/config/site";
 import isBrowser from "~/core/generic/is-browser";
 
-export function initializeNodeSentry() {
+export const initializeNodeSentry = () => {
   const dsn = siteConfig.sentry.dsn;
 
   if (!dsn) {
@@ -23,16 +23,16 @@ export function initializeNodeSentry() {
     tracesSampleRate: 1.0,
     environment: siteConfig.environment,
   });
-}
+};
 
-function warnSentryNotConfigured() {
+const warnSentryNotConfigured = () => {
   console.warn(
     `Sentry DSN not provided. Please add a SENTRY_DSN environment variable to enable error tracking.`,
   );
-}
+};
 
-function warnNotNodeEnvironment() {
+const warnNotNodeEnvironment = () => {
   console.warn(
     `This Sentry instance is being initialized in a browser environment, but it's for Node. Please use 'initializeBrowserSentry' instead.`,
   );
-}
+};

@@ -6,12 +6,12 @@ export type AnyCookies =
       key: string;
     }>;
 
-async function readServerCookie(cookies: AnyCookies, key: string) {
+const readServerCookie = (cookies: AnyCookies, key: string) => {
   if ("get" in cookies && typeof cookies.get === "function") {
     return cookies.get(key)?.value;
   }
 
   return (cookies as StringObject)[key];
-}
+};
 
 export default readServerCookie;

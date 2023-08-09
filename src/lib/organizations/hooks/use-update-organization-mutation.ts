@@ -4,7 +4,7 @@ import useUserId from "~/core/hooks/use-user-id";
 import { updateOrganization } from "~/lib/organizations/mutations";
 import type Organization from "~/lib/organizations/types/organization";
 
-function useUpdateOrganizationMutation() {
+const useUpdateOrganizationMutation = () => {
   const client = useSupabase();
   const userId = useUserId();
   const key = ["organizations", userId];
@@ -18,6 +18,6 @@ function useUpdateOrganizationMutation() {
       });
     },
   );
-}
+};
 
 export default useUpdateOrganizationMutation;

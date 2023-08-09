@@ -10,9 +10,7 @@ type CreateCheckoutParams = {
   trialPeriodDays?: Maybe<number>;
 };
 
-export default async function createStripeCheckout(
-  params: CreateCheckoutParams,
-) {
+const createStripeCheckout = async (params: CreateCheckoutParams) => {
   const successUrl = getUrlWithParams(params.returnUrl, {
     success: "true",
   });
@@ -57,9 +55,11 @@ export default async function createStripeCheckout(
     client_reference_id: clientReferenceId.toString(),
     subscription_data: subscriptionData,
   });
-}
+};
 
-function getUrlWithParams(origin: string, params: StringObject) {
+export default createStripeCheckout;
+
+const getUrlWithParams = (origin: string, params: StringObject) => {
   const url = new URL(origin);
   const returnUrl = cleanParams(url);
 
@@ -68,12 +68,12 @@ function getUrlWithParams(origin: string, params: StringObject) {
   }
 
   return returnUrl.toString();
-}
+};
 
-function cleanParams(returnUrl: URL) {
+const cleanParams = (returnUrl: URL) => {
   returnUrl.searchParams.delete("cancel");
   returnUrl.searchParams.delete("success");
   returnUrl.searchParams.delete("error");
 
   return returnUrl;
-}
+};

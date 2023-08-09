@@ -3,7 +3,7 @@ import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organi
 
 const ACTIVE_STATUSES: Stripe.Subscription.Status[] = ["active", "trialing"];
 
-function useIsSubscriptionActive() {
+const useIsSubscriptionActive = () => {
   const organization = useCurrentOrganization();
   const status = organization?.subscription?.data.status;
 
@@ -12,6 +12,6 @@ function useIsSubscriptionActive() {
   }
 
   return ACTIVE_STATUSES.includes(status);
-}
+};
 
 export default useIsSubscriptionActive;

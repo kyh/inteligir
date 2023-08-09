@@ -1,6 +1,18 @@
 import { NextResponse } from "next/server";
 import HttpStatusCode from "~/core/generic/http-status-code.enum";
 
+const buildException = (status: HttpStatusCode) => {
+  return (message?: string) => {
+    return NextResponse.json(
+      {},
+      {
+        status,
+        statusText: message ?? `Unknown Error`,
+      },
+    );
+  };
+};
+
 export const throwInternalServerErrorException = buildException(
   HttpStatusCode.InternalServerError,
 );
@@ -35,15 +47,3 @@ export const throwUnauthorizedException = buildException(
 );
 
 export const throwForbiddenException = buildException(HttpStatusCode.Forbidden);
-
-function buildException(status: HttpStatusCode) {
-  return (message?: string) => {
-    return NextResponse.json(
-      {},
-      {
-        status,
-        statusText: message ?? `Unknown Error`,
-      },
-    );
-  };
-}

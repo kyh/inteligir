@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import type { DatabaseClient } from "~/core/db";
 import verifyRequiresMfa from "~/core/session/utils/check-requires-mfa";
 
-async function requireSession(client: DatabaseClient) {
+const requireSession = async (client: DatabaseClient) => {
   const { data, error } = await client.auth.getSession();
 
   if (!data.session || error) {
@@ -18,6 +18,6 @@ async function requireSession(client: DatabaseClient) {
   }
 
   return data.session;
-}
+};
 
 export default requireSession;

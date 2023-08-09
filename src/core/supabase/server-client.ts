@@ -4,16 +4,11 @@ import { createClient } from "@supabase/supabase-js";
 import invariant from "tiny-invariant";
 import type { Database } from "~/core/database.types";
 
-/**
- * @name getSupabaseServerClient
- * @description Get a Supabase client for use in the Server Routes
- * @param params
- */
-function getSupabaseServerClient(
+const getSupabaseServerClient = (
   params = {
     admin: false,
   },
-) {
+) => {
   const env = process.env;
 
   invariant(env.NEXT_PUBLIC_SUPABASE_URL, `Supabase URL not provided`);
@@ -40,6 +35,6 @@ function getSupabaseServerClient(
   }
 
   return createServerComponentClient<Database>({ cookies });
-}
+};
 
 export default getSupabaseServerClient;

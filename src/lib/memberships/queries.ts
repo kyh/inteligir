@@ -1,13 +1,13 @@
 import type { DatabaseClient } from "~/core/db";
 import type Membership from "~/lib/organizations/types/membership";
 
-export async function getMembershipByInviteCode<Response>(
+export const getMembershipByInviteCode = <Response>(
   client: DatabaseClient,
   params: {
     code: string;
     query?: string;
   },
-) {
+) => {
   return client
     .from("memberships")
     .select<string, Response>(
@@ -24,15 +24,15 @@ export async function getMembershipByInviteCode<Response>(
     .eq("code", params.code)
     .throwOnError()
     .single();
-}
+};
 
-export async function getUserMembershipByOrganization(
+export const getUserMembershipByOrganization = async (
   client: DatabaseClient,
   params: {
     userId: string;
     organizationUid: string;
   },
-) {
+) => {
   const { data, error } = await client
     .from("memberships")
     .select<string, Membership>(
@@ -53,12 +53,12 @@ export async function getUserMembershipByOrganization(
   }
 
   return data;
-}
+};
 
-export async function getUserRoleByMembershipId(
+export const getUserRoleByMembershipId = async (
   client: DatabaseClient,
   membershipId: number,
-) {
+) => {
   const { data, error } = await client
     .from("memberships")
     .select<string, Pick<Membership, "role">>(`role`)
@@ -71,15 +71,15 @@ export async function getUserRoleByMembershipId(
   }
 
   return data.role;
-}
+};
 
-export async function getMembershipByEmail(
+export const getMembershipByEmail = (
   client: DatabaseClient,
   params: {
     email: string;
     organizationId: number;
   },
-) {
+) => {
   return client
     .from("memberships")
     .select(
@@ -95,4 +95,4 @@ export async function getMembershipByEmail(
     .eq("invited_email", params.email)
     .eq("organization_id", params.organizationId)
     .single();
-}
+};

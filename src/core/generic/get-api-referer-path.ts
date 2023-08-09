@@ -8,9 +8,12 @@ import { URL } from "url";
  * function with return /my/page. This is useful to redirect the user back from
  * where they came from, for example in case of errors.
  */
-export default function getApiRefererPath<
+const getApiRefererPath = <
   ReadonlyHeaders extends Omit<Headers, "append" | "delete" | "set">,
->(headers: ReadonlyHeaders, defaultPath = "/") {
+>(
+  headers: ReadonlyHeaders,
+  defaultPath = "/",
+) => {
   const fullPath = headers.get("referer") || headers.get("origin");
 
   if (!fullPath) {
@@ -20,4 +23,6 @@ export default function getApiRefererPath<
   const url = new URL(fullPath);
 
   return url.pathname;
-}
+};
+
+export default getApiRefererPath;

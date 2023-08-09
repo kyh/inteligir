@@ -1,7 +1,7 @@
 import type { DatabaseClient } from "~/core/db";
 import type UserData from "~/core/session/types/user-data";
 
-export function getUserById(client: DatabaseClient, userId: string) {
+export const getUserById = (client: DatabaseClient, userId: string) => {
   return client
     .from("users")
     .select<string, UserData>(
@@ -15,4 +15,4 @@ export function getUserById(client: DatabaseClient, userId: string) {
     .eq("id", userId)
     .throwOnError()
     .maybeSingle();
-}
+};

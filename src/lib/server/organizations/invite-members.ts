@@ -32,7 +32,7 @@ type Params = {
   invites: Invite[];
 };
 
-export default async function inviteMembers(params: Params) {
+const inviteMembers = async (params: Params) => {
   const { organizationUid, invites, inviterId, adminClient, client } = params;
   const logger = getLogger();
 
@@ -207,15 +207,17 @@ export default async function inviteMembers(params: Params) {
   }
 
   return Promise.all(requests);
-}
+};
 
-async function sendInviteEmail(props: {
+export default inviteMembers;
+
+const sendInviteEmail = async (props: {
   invitedUserEmail: string;
   code: string;
   organizationName: string;
   organizationLogo: Maybe<string>;
   inviter: Maybe<string>;
-}) {
+}) => {
   const {
     invitedUserEmail,
     code,
@@ -247,9 +249,9 @@ async function sendInviteEmail(props: {
     subject,
     html,
   });
-}
+};
 
-function getInvitePageFullUrl(code: string) {
+const getInvitePageFullUrl = (code: string) => {
   let siteUrl = siteConfig.site.siteUrl;
 
   if (!siteConfig.production) {
@@ -259,19 +261,19 @@ function getInvitePageFullUrl(code: string) {
   assertSiteUrl(siteUrl);
 
   return [siteUrl, "invite", code].join("/");
-}
+};
 
-function assertSiteUrl(siteUrl: Maybe<string>): asserts siteUrl is string {
+const assertSiteUrl = (siteUrl: Maybe<string>) => {
   if (!siteUrl && siteConfig.production) {
     throw new Error(
       `Please configure the "siteUrl" property in the file ~/config/siteConfig.ts`,
     );
   }
-}
+};
 
-function getLocalEnvironmentHost() {
+const getLocalEnvironmentHost = () => {
   const host = `http://localhost`;
   const port = 3000;
 
   return [host, port].join(":");
-}
+};

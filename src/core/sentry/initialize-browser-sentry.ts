@@ -3,7 +3,7 @@ import isBrowser from "~/core/generic/is-browser";
 
 let initialized = false;
 
-async function initializeBrowserSentry() {
+const initializeBrowserSentry = async () => {
   const dsn = siteConfig.sentry.dsn;
   const Sentry = await import("@sentry/react");
   const { Integrations: SentryIntegrations } = await import("@sentry/tracing");
@@ -24,12 +24,12 @@ async function initializeBrowserSentry() {
   });
 
   initialized = true;
-}
+};
 
-function warnSentryNotConfigured() {
+const warnSentryNotConfigured = () => {
   console.warn(
     `Sentry DSN was not provided. Please add a SENTRY_DSN environment variable to enable error tracking.`,
   );
-}
+};
 
 export default initializeBrowserSentry;

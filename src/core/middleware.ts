@@ -19,11 +19,11 @@ const csrfMiddleware = csrf({
   },
 });
 
-export async function middleware(request: NextRequest) {
+export const middleware = async (request: NextRequest) => {
   return await withCsrfMiddleware(request);
-}
+};
 
-async function withCsrfMiddleware(request: NextRequest) {
+const withCsrfMiddleware = async (request: NextRequest) => {
   const csrfResponse = NextResponse.next();
   const csrfError = await csrfMiddleware(request, csrfResponse);
 
@@ -53,4 +53,4 @@ async function withCsrfMiddleware(request: NextRequest) {
   }
 
   return csrfResponse;
-}
+};

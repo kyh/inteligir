@@ -5,13 +5,13 @@ import { updateUserData } from "~/lib/user/mutations";
 
 type Payload = WithId<Partial<UserData>>;
 
-function useUpdateProfile() {
+const useUpdateProfile = () => {
   const client = useSupabase();
   const key = "useUpdateProfile";
 
   return useMutation(key, async (_, { arg: data }: { arg: Payload }) => {
     return updateUserData(client, data);
   });
-}
+};
 
 export default useUpdateProfile;

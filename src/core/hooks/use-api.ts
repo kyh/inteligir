@@ -1,13 +1,7 @@
 import { useCallback, useRef } from "react";
 import useCsrfTokenHeader from "~/core/hooks/use-csrf-token-header";
 
-/**
- * A hook to make API requests
- * 1. By default, it will use the `POST` method and will send the payload as
- * JSON
- * 2. Also, it will automatically add the CSRF token to the request headers
- */
-function useApiRequest<Resp = unknown, Body = void>() {
+const useApiRequest = <Resp = unknown, Body = void>() => {
   const headersRef = useRef<StringObject>({});
   const csrfTokenHeader = useCsrfTokenHeader();
 
@@ -43,14 +37,14 @@ function useApiRequest<Resp = unknown, Body = void>() {
     },
     [csrfTokenHeader],
   );
-}
+};
 
-async function executeFetchRequest<Resp = unknown>(
+const executeFetchRequest = async <Resp = unknown>(
   url: string,
   payload: string,
   method = "POST",
   headers?: StringObject,
-) {
+) => {
   const options: RequestInit = {
     method,
     headers: {
@@ -82,6 +76,6 @@ async function executeFetchRequest<Resp = unknown>(
   } catch (error) {
     return Promise.reject(error);
   }
-}
+};
 
 export default useApiRequest;
