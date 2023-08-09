@@ -5,7 +5,6 @@ import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserDataById } from "~/lib/server/queries";
 import requireSession from "~/lib/user/require-session";
 import { Logo } from "~/components/Logo";
-import OnboardingIllustration from "./components/OnboardingIllustration";
 
 export const dynamic = "force-dynamic";
 
@@ -16,15 +15,10 @@ const OnboardingLayout = async ({ children }: React.PropsWithChildren) => {
     <div className="flex flex-1 flex-col dark:bg-zinc-500">
       <div className="flex divide-x divide-zinc-100 dark:divide-zinc-300">
         <div className="flex h-screen w-full flex-1 flex-col items-center justify-center lg:w-6/12">
-          <div className="absolute top-24 hidden lg:flex">
+          <div className="absolute top-12 hidden lg:flex xl:top-24">
             <Logo />
           </div>
           {children}
-        </div>
-        <div className="hidden w-6/12 flex-1 items-center justify-center bg-zinc-50 dark:bg-zinc-400 lg:flex">
-          <div>
-            <OnboardingIllustration />
-          </div>
         </div>
       </div>
     </div>

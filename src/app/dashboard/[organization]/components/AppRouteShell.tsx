@@ -10,8 +10,8 @@ import CsrfTokenContext from "~/lib/contexts/csrf";
 import OrganizationContext from "~/lib/contexts/organization";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import Organization from "~/lib/organizations/types/organization";
+import AuthChangeListener from "~/components/AuthChangeListener";
 import { Toaster } from "~/components/Toaster";
-import AuthChangeListener from "../../../../components/AuthChangeListener";
 import AppSidebar from "./AppSidebar";
 
 type Data = {
@@ -91,7 +91,7 @@ const RouteShellWithSidebar = (
   return (
     <div className="flex h-full flex-1 overflow-hidden">
       <AppSidebar organizationUuid={props.organizationUuid} />
-      <div className="relative mx-auto h-screen w-full overflow-y-auto">
+      <div className="relative mx-auto flex h-screen w-full flex-col overflow-y-auto">
         <main>{props.children}</main>
       </div>
     </div>

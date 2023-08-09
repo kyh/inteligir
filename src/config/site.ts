@@ -1,5 +1,10 @@
 import type { Provider } from "@supabase/gotrue-js/src/lib/types";
 
+enum Themes {
+  Light = "light",
+  Dark = "dark",
+}
+
 const production = process.env.NODE_ENV === "production";
 
 export const siteConfig = {
@@ -36,6 +41,7 @@ export const siteConfig = {
   },
   production,
   environment: process.env.NEXT_PUBLIC_ENVIRONMENT,
+  theme: Themes.Dark,
   email: {
     host: "",
     port: 587,
