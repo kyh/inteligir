@@ -229,7 +229,7 @@ export const inviteMembersToOrganizationAction = withCsrfCheck(
   ),
 );
 
-function getInviteMembersBodySchema() {
+const getInviteMembersBodySchema = () => {
   return z.object({
     csrfToken: z.string().min(1),
     organizationUid: z.string().uuid(),
@@ -240,21 +240,21 @@ function getInviteMembersBodySchema() {
       }),
     ),
   });
-}
+};
 
-function getTransferOrganizationOwnershipBodySchema() {
+const getTransferOrganizationOwnershipBodySchema = () => {
   return z.object({
     membershipId: z.coerce.number(),
     csrfToken: z.string().min(1),
     organizationUid: z.string().uuid(),
   });
-}
+};
 
-function handleError<Error = unknown>(
+const handleError = <Error = unknown>(
   error: Error,
   message: string,
   organizationId?: string,
-) {
+) => {
   const exception = error instanceof Error ? error.message : undefined;
 
   getLogger().error(
@@ -266,4 +266,4 @@ function handleError<Error = unknown>(
   );
 
   throw new Error(message);
-}
+};

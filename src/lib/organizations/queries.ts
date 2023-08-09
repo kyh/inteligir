@@ -39,10 +39,10 @@ export type UserOrganizationData = {
   };
 };
 
-export function getOrganizationsByUserId(
+export const getOrganizationsByUserId = (
   client: DatabaseClient,
   userId: string,
-) {
+) => {
   return client
     .from("memberships")
     .select<string, UserOrganizationData>(
@@ -53,12 +53,12 @@ export function getOrganizationsByUserId(
     )
     .eq("user_id", userId)
     .throwOnError();
-}
+};
 
-export async function getOrganizationInvitedMembers(
+export const getOrganizationInvitedMembers = (
   client: DatabaseClient,
   organizationId: number,
-) {
+) => {
   return client
     .from("memberships")
     .select<string, Membership>(
@@ -71,12 +71,12 @@ export async function getOrganizationInvitedMembers(
     .eq("organization_id", organizationId)
     .not("code", "is", null)
     .throwOnError();
-}
+};
 
-export function getOrganizationMembers(
+export const getOrganizationMembers = (
   client: DatabaseClient,
   organizationId: number,
-) {
+) => {
   return client
     .from("memberships")
     .select<
@@ -99,9 +99,9 @@ export function getOrganizationMembers(
     )
     .eq("organization_id", organizationId)
     .is("code", null);
-}
+};
 
-export function getOrganizationByUid(client: DatabaseClient, uid: string) {
+export const getOrganizationByUid = (client: DatabaseClient, uid: string) => {
   return client
     .from("organizations")
     .select<
@@ -113,12 +113,12 @@ export function getOrganizationByUid(client: DatabaseClient, uid: string) {
     .eq("uuid", uid)
     .throwOnError()
     .maybeSingle();
-}
+};
 
-export function getOrganizationById(
+export const getOrganizationById = (
   client: DatabaseClient,
   organizationId: number,
-) {
+) => {
   return client
     .from("organizations")
     .select<
@@ -130,12 +130,12 @@ export function getOrganizationById(
     .eq("id", organizationId)
     .throwOnError()
     .single();
-}
+};
 
-export async function getOrganizationByCustomerId(
+export const getOrganizationByCustomerId = (
   client: DatabaseClient,
   customerId: string,
-) {
+) => {
   return client
     .from("organizations")
     .select(
@@ -152,12 +152,12 @@ export async function getOrganizationByCustomerId(
     .eq("organizations_subscriptions.customer_id", customerId)
     .throwOnError()
     .single();
-}
+};
 
-export async function getMembersAuthMetadata(
+export const getMembersAuthMetadata = async (
   client: DatabaseClient,
   userIds: string[],
-) {
+) => {
   const users = await Promise.all(
     userIds.map((userId) => {
       const response = client.auth.admin.getUserById(userId);
@@ -180,4 +180,4 @@ export async function getMembersAuthMetadata(
   );
 
   return users.filter(Boolean) as User[];
-}
+};

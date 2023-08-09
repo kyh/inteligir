@@ -2,7 +2,7 @@ import pino, { type Logger } from "pino";
 
 let logger: Logger;
 
-function getLogger() {
+const getLogger = () => {
   if (logger) {
     return logger;
   }
@@ -29,6 +29,6 @@ function getLogger() {
   }
 
   return logger;
-}
+};
 
 export default getLogger;

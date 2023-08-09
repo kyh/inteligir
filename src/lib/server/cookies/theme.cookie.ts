@@ -3,11 +3,11 @@ import { serialize } from "cookie";
 
 const THEME_COOKIE_NAME = "theme";
 
-export function parseThemeCookie() {
+export const parseThemeCookie = () => {
   return cookies().get(THEME_COOKIE_NAME)?.value;
-}
+};
 
-export function serializeThemeCookie(value: string) {
+export const serializeThemeCookie = (value: string) => {
   const secure = process.env.ENVIRONMENT === "production";
 
   return serialize(THEME_COOKIE_NAME, value, {
@@ -16,4 +16,4 @@ export function serializeThemeCookie(value: string) {
     secure,
     sameSite: "lax" as const,
   });
-}
+};

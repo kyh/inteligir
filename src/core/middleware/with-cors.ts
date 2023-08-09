@@ -1,4 +1,4 @@
-function withCors() {
+const withCors = () => {
   const headers = new Headers();
 
   headers.append("Access-Control-Allow-Origin", "*");
@@ -9,6 +9,6 @@ function withCors() {
   );
 
   return headers;
-}
+};
 
 export default withCors;

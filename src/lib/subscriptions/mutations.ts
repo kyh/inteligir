@@ -4,10 +4,10 @@ import type { DatabaseClient } from "~/core/db";
 
 type SubscriptionRow = Database["public"]["Tables"]["subscriptions"]["Row"];
 
-export async function addSubscription(
+export const addSubscription = (
   client: DatabaseClient,
   subscription: Stripe.Subscription,
-) {
+) => {
   const data = subscriptionMapper(subscription);
 
   return client
@@ -19,23 +19,23 @@ export async function addSubscription(
     .select("id")
     .throwOnError()
     .single();
-}
+};
 
-export async function deleteSubscription(
+export const deleteSubscription = (
   client: DatabaseClient,
   subscriptionId: string,
-) {
+) => {
   return client
     .from("subscriptions")
     .delete()
     .match({ id: subscriptionId })
     .throwOnError();
-}
+};
 
-export async function updateSubscriptionById(
+export const updateSubscriptionById = (
   client: DatabaseClient,
   subscription: Stripe.Subscription,
-) {
+) => {
   return client
     .from("subscriptions")
     .update(subscriptionMapper(subscription))
@@ -43,11 +43,11 @@ export async function updateSubscriptionById(
       id: subscription.id,
     })
     .throwOnError();
-}
+};
 
-function subscriptionMapper(
+const subscriptionMapper = (
   subscription: Stripe.Subscription,
-): SubscriptionRow {
+): SubscriptionRow => {
   const lineItem = subscription.items.data[0];
   const price = lineItem.price;
   const priceId = price.id;
@@ -79,8 +79,8 @@ function subscriptionMapper(
   }
 
   return row as SubscriptionRow;
-}
+};
 
-function toISO(timestamp: number) {
+const toISO = (timestamp: number) => {
   return new Date(timestamp * 1000).toISOString();
-}
+};

@@ -6,7 +6,7 @@ type Credentials = {
   password: string;
 };
 
-function useSignUpWithEmailAndPassword() {
+const useSignUpWithEmailAndPassword = () => {
   const client = useSupabase();
   const key = ["auth", "sign-up-with-email-password"];
 
@@ -33,6 +33,6 @@ function useSignUpWithEmailAndPassword() {
         });
     },
   );
-}
+};
 
 export default useSignUpWithEmailAndPassword;

@@ -1,15 +1,7 @@
 import { NextApiRequest } from "next";
 import { throwMethodNotAllowedException } from "~/core/http-exceptions";
 
-/**
- * Guard an API endpoint against unsupported methods
- * It can be used as a middleware for your writing your API handlers. For
- * example, if you API only supports GET requests
- *
- * @param request
- * @param methods
- */
-function withMethodsGuard(request: NextApiRequest, methods: HttpMethod[]) {
+const withMethodsGuard = (request: NextApiRequest, methods: HttpMethod[]) => {
   const method = request.method as HttpMethod;
 
   if (
@@ -19,6 +11,6 @@ function withMethodsGuard(request: NextApiRequest, methods: HttpMethod[]) {
   ) {
     throwMethodNotAllowedException(methods, method);
   }
-}
+};
 
 export default withMethodsGuard;

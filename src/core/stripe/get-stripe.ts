@@ -1,6 +1,6 @@
 const STRIPE_API_VERSION = "2022-11-15";
 
-export default async function getStripeInstance() {
+const getStripeInstance = () => {
   if (isCypressEnv()) {
     console.warn(`Stripe is running in Testing mode`);
 
@@ -8,22 +8,24 @@ export default async function getStripeInstance() {
   }
 
   return getStripeProductionInstance();
-}
+};
 
-async function getStripeProductionInstance() {
+export default getStripeInstance;
+
+const getStripeProductionInstance = async () => {
   const Stripe = await loadStripe();
   const key = getStripeKey();
 
   return new Stripe(key, {
     apiVersion: STRIPE_API_VERSION,
   });
-}
+};
 
-function isCypressEnv() {
+const isCypressEnv = () => {
   return process.env.IS_CI === `true`;
-}
+};
 
-async function getStripeEmulatorInstance() {
+const getStripeEmulatorInstance = async () => {
   const Stripe = await loadStripe();
 
   return new Stripe(`sk_test_12345`, {
@@ -32,9 +34,9 @@ async function getStripeEmulatorInstance() {
     apiVersion: STRIPE_API_VERSION,
     protocol: `http`,
   });
-}
+};
 
-function getStripeKey() {
+const getStripeKey = () => {
   const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 
   if (!STRIPE_SECRET_KEY) {
@@ -44,10 +46,10 @@ function getStripeKey() {
   }
 
   return STRIPE_SECRET_KEY;
-}
+};
 
-async function loadStripe() {
+const loadStripe = async () => {
   const { default: Stripe } = await import("stripe");
 
   return Stripe;
-}
+};

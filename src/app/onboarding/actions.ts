@@ -69,9 +69,9 @@ export const handleOnboardingCompleteAction = withSession(
   }),
 );
 
-function getBodySchema() {
+const getBodySchema = () => {
   return z.object({
     organization: z.string().trim().min(1),
     csrfToken: z.string(),
   });
-}
+};

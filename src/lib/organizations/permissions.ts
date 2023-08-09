@@ -16,32 +16,32 @@ import MembershipRole from "~/lib/organizations/types/membership-role";
  * You can update {@link MembershipRole} however you wish according to your app's domain
  */
 
-export function canUpdateUser(
+export const canUpdateUser = (
   currentUserRole: MembershipRole,
   targetUser: MembershipRole,
-) {
+) => {
   return currentUserRole > targetUser;
-}
+};
 
-export function canChangeBilling(currentUserRole: MembershipRole) {
+export const canChangeBilling = (currentUserRole: MembershipRole) => {
   return currentUserRole === MembershipRole.Owner;
-}
+};
 
-export function canInviteUsers(currentUserRole: MembershipRole) {
+export const canInviteUsers = (currentUserRole: MembershipRole) => {
   return currentUserRole >= MembershipRole.Admin;
-}
+};
 
-export function canInviteUser(
+export const canInviteUser = (
   inviterRole: MembershipRole,
   inviteeRole: MembershipRole,
-) {
+) => {
   const canInvite = canInviteUsers(inviterRole);
   const hasGreaterRole = inviterRole >= inviteeRole;
   const isNotOwner = inviteeRole !== MembershipRole.Owner;
 
   return canInvite && hasGreaterRole && isNotOwner;
-}
+};
 
-export function canDeleteInvites(inviterRole: MembershipRole) {
+export const canDeleteInvites = (inviterRole: MembershipRole) => {
   return canInviteUsers(inviterRole);
-}
+};

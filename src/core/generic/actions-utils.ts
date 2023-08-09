@@ -2,22 +2,24 @@ import getSupabaseServerActionClient from "~/core/supabase/action-client";
 import verifyCsrfToken from "~/core/verify-csrf-token";
 import requireSession from "~/lib/user/require-session";
 
-export function withCsrfCheck<
+export const withCsrfCheck = <
   Params extends {
     csrfToken: string;
   },
   Return extends unknown,
->(fn: (params: Params) => Return) {
+>(
+  fn: (params: Params) => Return,
+) => {
   return async (params: Params) => {
     await verifyCsrfToken(params.csrfToken);
 
     return fn(params);
   };
-}
+};
 
-export function withSession<Args extends any[]>(
+export const withSession = <Args extends any[]>(
   fn: (...params: Args) => unknown,
-) {
+) => {
   return async (...params: Args) => {
     const client = getSupabaseServerActionClient();
 
@@ -25,4 +27,4 @@ export function withSession<Args extends any[]>(
 
     return fn(...params);
   };
-}
+};

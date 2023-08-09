@@ -6,7 +6,7 @@ type Params = {
   redirectTo: string;
 };
 
-function useResetPassword() {
+const useResetPassword = () => {
   const client = useSupabase();
   const key = ["auth", "reset-password"];
 
@@ -23,6 +23,6 @@ function useResetPassword() {
         return result.data;
       });
   });
-}
+};
 
 export default useResetPassword;

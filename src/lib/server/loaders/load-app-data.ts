@@ -81,16 +81,16 @@ const loadAppData = cache(async (organizationUid: string) => {
   }
 });
 
-function redirectToOnboarding() {
+const redirectToOnboarding = () => {
   return redirect("/onboarding");
-}
+};
 
-function redirectToHomePage() {
+const redirectToHomePage = () => {
   return redirect("/");
-}
+};
 
-function getCsrfToken() {
+const getCsrfToken = () => {
   return headers().get("X-CSRF-Token");
-}
+};
 
 export default loadAppData;

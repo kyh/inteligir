@@ -8,13 +8,15 @@ type SendEmailParams = {
   html?: string;
 };
 
-export default async function sendEmail(config: SendEmailParams) {
+const sendEmail = async (config: SendEmailParams) => {
   const transporter = await getTransporter();
 
   return transporter.sendMail(config);
-}
+};
 
-function getTransporter() {
+export default sendEmail;
+
+const getTransporter = () => {
   if (isTest()) {
     return getMockMailTransporter();
   }
@@ -24,9 +26,9 @@ function getTransporter() {
   }
 
   return getSMTPTransporter();
-}
+};
 
-async function getSMTPTransporter() {
+const getSMTPTransporter = async () => {
   const nodemailer = await import("nodemailer");
 
   const { host, port, user, password: pass } = siteConfig.email;
@@ -41,9 +43,9 @@ async function getSMTPTransporter() {
       pass,
     },
   });
-}
+};
 
-async function getEtherealMailTransporter() {
+const getEtherealMailTransporter = async () => {
   const nodemailer = await import("nodemailer");
   const testAccount = await getEtherealTestAccount();
 
@@ -59,9 +61,9 @@ async function getEtherealMailTransporter() {
       pass: testAccount.pass,
     },
   });
-}
+};
 
-function getMockMailTransporter() {
+const getMockMailTransporter = () => {
   return {
     sendMail(params: SendEmailParams) {
       console.log(
@@ -70,9 +72,9 @@ function getMockMailTransporter() {
       );
     },
   };
-}
+};
 
-async function getEtherealTestAccount() {
+const getEtherealTestAccount = () => {
   const user = process.env.ETHEREAL_EMAIL;
   const pass = process.env.ETHEREAL_PASSWORD;
 
@@ -90,9 +92,9 @@ async function getEtherealTestAccount() {
   // Otherwise, we create a new account and recommend to add the credentials
   // to the configuration file
   return createEtherealTestAccount();
-}
+};
 
-async function createEtherealTestAccount() {
+const createEtherealTestAccount = async () => {
   const nodemailer = await import("nodemailer");
   const newAccount = await nodemailer.createTestAccount();
 
@@ -109,8 +111,8 @@ async function createEtherealTestAccount() {
   console.log(`Consider adding these credentials to your configuration file`);
 
   return newAccount;
-}
+};
 
-function isTest() {
+const isTest = () => {
   return process.env.IS_CI === "true";
-}
+};

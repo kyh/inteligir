@@ -2,7 +2,7 @@ import { useRouter } from "next/navigation";
 import useSWR from "swr";
 import useSupabase from "~/core/hooks/use-supabase";
 
-function useUser() {
+const useUser = () => {
   const router = useRouter();
   const client = useSupabase();
   const key = "user";
@@ -25,6 +25,6 @@ function useUser() {
         return router.refresh();
       });
   });
-}
+};
 
 export default useUser;

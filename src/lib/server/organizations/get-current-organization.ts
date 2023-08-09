@@ -4,10 +4,10 @@ import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
 import { getOrganizationByUid } from "~/lib/organizations/queries";
 
-export default async function getCurrentOrganization(params: {
+const getCurrentOrganization = async (params: {
   organizationUid: string;
   userId: string;
-}) {
+}) => {
   const { userId, organizationUid } = params;
   const { data, error } = await fetchOrganization(organizationUid);
 
@@ -22,7 +22,9 @@ export default async function getCurrentOrganization(params: {
     organization,
     role,
   };
-}
+};
+
+export default getCurrentOrganization;
 
 const fetchOrganization = cache(async (uid: string) => {
   const client = getSupabaseServerClient();

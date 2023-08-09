@@ -5,7 +5,7 @@ import csrf from "edge-csrf";
 
 const CSRF_SECRET_COOKIE = "csrfSecret";
 
-async function verifyCsrfToken(token: string) {
+const verifyCsrfToken = async (token: string) => {
   const csrfMiddleware = csrf({
     cookie: {
       secure: siteConfig.production,
@@ -23,6 +23,6 @@ async function verifyCsrfToken(token: string) {
   if (csrfError) {
     throw new Error("Invalid CSRF token");
   }
-}
+};
 
 export default verifyCsrfToken;

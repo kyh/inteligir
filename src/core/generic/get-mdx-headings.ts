@@ -1,4 +1,4 @@
-export default function getMDXHeadings(source: string) {
+const getMDXHeadings = (source: string) => {
   const headingLines = source.split("\n").filter((line) => {
     return line.match(/^#*\s/);
   });
@@ -21,4 +21,6 @@ export default function getMDXHeadings(source: string) {
     },
     [],
   );
-}
+};
+
+export default getMDXHeadings;

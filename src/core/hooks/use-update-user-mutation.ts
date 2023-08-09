@@ -4,7 +4,7 @@ import useSupabase from "~/core/hooks/use-supabase";
 
 type Params = { arg: UserAttributes & { redirectTo: string } };
 
-function useUpdateUserMutation() {
+const useUpdateUserMutation = () => {
   const client = useSupabase();
   const key = ["auth", "update-user"];
 
@@ -23,6 +23,6 @@ function useUpdateUserMutation() {
         return response.data;
       });
   });
-}
+};
 
 export default useUpdateUserMutation;

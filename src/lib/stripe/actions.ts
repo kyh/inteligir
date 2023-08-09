@@ -20,7 +20,7 @@ import createBillingPortalSession from "~/lib/stripe/create-billing-portal-sessi
 import createStripeCheckout from "~/lib/stripe/create-checkout";
 import requireSession from "~/lib/user/require-session";
 
-export async function createCheckoutAction(formData: FormData) {
+export const createCheckoutAction = async (formData: FormData) => {
   const logger = getLogger();
   const body = Object.fromEntries(formData);
   const bodyResult = await getCheckoutBodySchema().safeParseAsync(body);
@@ -109,21 +109,15 @@ export async function createCheckoutAction(formData: FormData) {
 
   // redirect user back based on the response
   return redirect(portalUrl, RedirectType.replace);
-}
+};
 
-/**
- * @name getUserCanAccessCheckout
- * @description check if the user has permissions to access the checkout
- * @param client
- * @param params
- */
-async function getUserCanAccessCheckout(
+const getUserCanAccessCheckout = async (
   client: SupabaseClient,
   params: {
     organizationUid: string;
     userId: string;
   },
-) {
+) => {
   try {
     const { role } = await getUserMembershipByOrganization(client, params);
 
@@ -137,9 +131,9 @@ async function getUserCanAccessCheckout(
 
     return false;
   }
-}
+};
 
-export async function createBillingPortalSessionAction(formData: FormData) {
+export const createBillingPortalSessionAction = async (formData: FormData) => {
   const body = Object.fromEntries(formData);
   const bodyResult = await getBillingPortalBodySchema().safeParseAsync(body);
   const referrerPath = getApiRefererPath(headers());
@@ -184,15 +178,15 @@ export async function createBillingPortalSessionAction(formData: FormData) {
 
   // redirect to the Stripe Billing Portal
   return redirect(url, RedirectType.replace);
-}
+};
 
-async function getUserCanAccessCustomerPortal(
+const getUserCanAccessCustomerPortal = async (
   client: SupabaseClient,
   params: {
     customerId: string;
     userId: string;
   },
-) {
+) => {
   const logger = getLogger();
 
   const { data: organization, error } = await getOrganizationByCustomerId(
@@ -230,15 +224,15 @@ async function getUserCanAccessCustomerPortal(
 
     return false;
   }
-}
+};
 
-function getBillingPortalBodySchema() {
+const getBillingPortalBodySchema = () => {
   return z.object({
     customerId: z.string().min(1),
   });
-}
+};
 
-function getCheckoutBodySchema() {
+const getCheckoutBodySchema = () => {
   return z.object({
     csrf_token: z.string().min(1),
     organizationUid: z.string().uuid(),
@@ -246,9 +240,9 @@ function getCheckoutBodySchema() {
     customerId: z.string().optional(),
     returnUrl: z.string().min(1),
   });
-}
+};
 
-function getPlanByPriceId(priceId: string) {
+const getPlanByPriceId = (priceId: string) => {
   const products = siteConfig.stripe.products;
 
   type Plan = (typeof products)[0]["plans"][0];
@@ -260,24 +254,24 @@ function getPlanByPriceId(priceId: string) {
 
     return product.plans.find(({ stripePriceId }) => stripePriceId === priceId);
   }, undefined);
-}
+};
 
-function getCheckoutPortalUrl(portalUrl: string | null, returnUrl: string) {
+const getCheckoutPortalUrl = (portalUrl: string | null, returnUrl: string) => {
   if (isTestingMode() && !portalUrl) {
     return [returnUrl, "success=true"].join("?");
   }
 
   return portalUrl as string;
-}
+};
 
-function isTestingMode() {
+const isTestingMode = () => {
   const enableStripeTesting = process.env.ENABLE_STRIPE_TESTING;
 
   return enableStripeTesting === "true";
-}
+};
 
-function redirectToErrorPage(referrerPath: string) {
+const redirectToErrorPage = (referrerPath: string) => {
   const url = join(referrerPath, `?error=true`);
 
   return redirect(url);
-}
+};

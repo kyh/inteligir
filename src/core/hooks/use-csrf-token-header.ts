@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 
-function useCsrfTokenHeader() {
+const useCsrfTokenHeader = () => {
   const csrfToken = useCsrfToken();
 
   return useMemo(
@@ -10,6 +10,6 @@ function useCsrfTokenHeader() {
     }),
     [csrfToken],
   );
-}
+};
 
 export default useCsrfTokenHeader;

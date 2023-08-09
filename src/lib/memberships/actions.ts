@@ -151,10 +151,10 @@ export const acceptInviteAction = withCsrfCheck(
   },
 );
 
-async function handleRemoveMemberRequest(
+const handleRemoveMemberRequest = async (
   client: DatabaseClient,
   membershipId: number,
-) {
+) => {
   const logger = getLogger();
 
   logger.info(
@@ -172,15 +172,15 @@ async function handleRemoveMemberRequest(
     },
     `Member successfully removed.`,
   );
-}
+};
 
-async function handleUpdateMemberRequest(
+const handleUpdateMemberRequest = async (
   client: DatabaseClient,
   params: {
     membershipId: number;
     role: MembershipRole;
   },
-) {
+) => {
   const logger = getLogger();
   const { role, membershipId } = getUpdateMembershipBodySchema().parse(params);
 
@@ -203,15 +203,15 @@ async function handleUpdateMemberRequest(
     },
     `Member successfully updated.`,
   );
-}
+};
 
-function getUpdateMembershipBodySchema() {
+const getUpdateMembershipBodySchema = () => {
   return z.object({
     role: z.nativeEnum(MembershipRole),
     membershipId: z.number(),
   });
-}
+};
 
-function revalidateMembersPage() {
+const revalidateMembersPage = () => {
   return revalidatePath("/settings/organization/members");
-}
+};

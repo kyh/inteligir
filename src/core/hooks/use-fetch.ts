@@ -3,14 +3,14 @@ import useCsrfToken from "~/core/hooks/use-csrf-token";
 
 const CSRF_TOKEN_HEADER = "x-csrf-token";
 
-function useFetch<Body = unknown>(
+const useFetch = <Body = unknown>(
   path: string,
   method: HttpMethod = "POST",
   config?: Partial<{
     headers: StringObject;
     redirect: RequestRedirect;
   }>,
-) {
+) => {
   const headersRef = useRef(config?.headers);
   const csrfToken = useCsrfToken();
 
@@ -33,15 +33,15 @@ function useFetch<Body = unknown>(
     },
     [csrfToken, method, path],
   );
-}
+};
 
-async function buildFetchRequest(params: {
+const buildFetchRequest = (params: {
   url: string;
   body: string;
   method: string;
   redirect?: RequestRedirect;
   headers?: StringObject;
-}) {
+}) => {
   const { url, method, body, redirect, headers } = params;
 
   const options: RequestInit = {
@@ -62,6 +62,6 @@ async function buildFetchRequest(params: {
   }
 
   return fetch(url, options);
-}
+};
 
 export default useFetch;

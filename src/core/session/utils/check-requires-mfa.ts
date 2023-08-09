@@ -2,9 +2,9 @@ import type { DatabaseClient } from "~/core/db";
 
 const ASSURANCE_LEVEL_2 = "aal2";
 
-async function checkSessionRequiresMultiFactorAuthentication(
+const checkSessionRequiresMultiFactorAuthentication = async (
   client: DatabaseClient,
-) {
+) => {
   const assuranceLevel = await client.auth.mfa.getAuthenticatorAssuranceLevel();
 
   if (assuranceLevel.error) {
@@ -14,6 +14,6 @@ async function checkSessionRequiresMultiFactorAuthentication(
   const { nextLevel, currentLevel } = assuranceLevel.data;
 
   return nextLevel === ASSURANCE_LEVEL_2 && nextLevel !== currentLevel;
-}
+};
 
 export default checkSessionRequiresMultiFactorAuthentication;

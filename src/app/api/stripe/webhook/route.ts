@@ -21,7 +21,7 @@ const STRIPE_SIGNATURE_HEADER = "stripe-signature";
 
 const webhookSecretKey = process.env.STRIPE_WEBHOOK_SECRET as string;
 
-export async function POST(request: Request) {
+export const POST = async (request: Request) => {
   const logger = getLogger();
   const signature = headers().get(STRIPE_SIGNATURE_HEADER);
 
@@ -103,13 +103,13 @@ export async function POST(request: Request) {
 
     return throwInternalServerErrorException();
   }
-}
+};
 
-async function onCheckoutCompleted(
+const onCheckoutCompleted = async (
   client: DatabaseClient,
   session: Stripe.Checkout.Session,
   subscription: Stripe.Subscription,
-) {
+) => {
   const organizationUid = getOrganizationUidFromClientReference(session);
   const customerId = session.customer as string;
 
@@ -131,10 +131,10 @@ async function onCheckoutCompleted(
     customerId,
     subscriptionId: data.id,
   });
-}
+};
 
-function getOrganizationUidFromClientReference(
+const getOrganizationUidFromClientReference = (
   session: Stripe.Checkout.Session,
-) {
+) => {
   return session.client_reference_id as string;
-}
+};

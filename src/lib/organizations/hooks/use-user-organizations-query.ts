@@ -2,7 +2,7 @@ import useSWR from "swr";
 import useSupabase from "~/core/hooks/use-supabase";
 import { getOrganizationsByUserId } from "~/lib/organizations/queries";
 
-function useUserOrganizationsQuery(userId: string) {
+const useUserOrganizationsQuery = (userId: string) => {
   const client = useSupabase();
   const key = ["organizations", userId];
 
@@ -11,6 +11,6 @@ function useUserOrganizationsQuery(userId: string) {
       (result) => result.data,
     );
   });
-}
+};
 
 export default useUserOrganizationsQuery;
