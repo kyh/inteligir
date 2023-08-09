@@ -88,7 +88,7 @@ const UpdateOrganizationForm = () => {
       currentLogoUrl,
       updateOrganizationMutation,
       setOrganization,
-    ]
+    ],
   );
 
   useEffect(() => {

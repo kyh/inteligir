@@ -59,7 +59,7 @@ const renderInviteEmail = (props: Props) => {
           </Column>
         </Section>
       </Body>
-    </Html>
+    </Html>,
   );
 };
 

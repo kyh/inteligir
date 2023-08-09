@@ -8,7 +8,7 @@ import { Database } from "~/core/database.types";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getMembershipByInviteCode } from "~/lib/memberships/queries";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { Text } from "~/components/Text";
 import ExistingUserInviteForm from "../components/ExistingUserInviteForm";
 import InviteCsrfTokenProvider from "../components/InviteCsrfTokenProvider";
@@ -89,7 +89,7 @@ const loadInviteData = async (code: string) => {
         {
           code,
         },
-        `User navigated to invite page, but it wasn't found. Redirecting to home page...`
+        `User navigated to invite page, but it wasn't found. Redirecting to home page...`,
       );
 
       return notFound();
@@ -111,7 +111,7 @@ const loadInviteData = async (code: string) => {
     }
     logger.error(
       error,
-      `Error encountered while fetching invite. Redirecting to home page...`
+      `Error encountered while fetching invite. Redirecting to home page...`,
     );
 
     redirect("/");

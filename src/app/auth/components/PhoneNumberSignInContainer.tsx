@@ -3,7 +3,7 @@ import useSignInWithOtp from "~/core/hooks/use-sign-in-with-otp";
 import useVerifyOtp from "~/core/hooks/use-verify-otp";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import PhoneNumberCredentialForm from "~/app/auth/components/PhoneNumberCredentialForm";
 import VerificationCodeInput from "~/app/auth/components/VerificationCodeInput";
 
@@ -36,7 +36,7 @@ const PhoneNumberSignInContainer: React.FC<{
       setStep(Step.Otp);
       setPhone(phone);
     },
-    [mode, signInWithOtp]
+    [mode, signInWithOtp],
   );
 
   const onOTPSubmit: FormEventHandler = useCallback(
@@ -58,7 +58,7 @@ const PhoneNumberSignInContainer: React.FC<{
         onSuccess();
       }
     },
-    [onSuccess, verificationCode, phone, verifyOtp]
+    [onSuccess, verificationCode, phone, verifyOtp],
   );
 
   if (step === Step.Otp) {

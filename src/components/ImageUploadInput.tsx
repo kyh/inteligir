@@ -11,7 +11,7 @@ import React, {
 } from "react";
 import { UploadCloudIcon, XIcon } from "lucide-react";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { TextField } from "~/components/TextField";
 
 type Props = Omit<React.InputHTMLAttributes<unknown>, "value"> & {
@@ -24,7 +24,7 @@ const IMAGE_SIZE = 22;
 const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
   function ImageUploadInputComponent(
     { children, image, onClear, onInput, ...props },
-    forwardedRef
+    forwardedRef,
   ) {
     const localRef = useRef<HTMLInputElement>();
 
@@ -53,7 +53,7 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
           onInput(e);
         }
       },
-      [onInput]
+      [onInput],
     );
 
     const imageRemoved: MouseEventHandler = useCallback(
@@ -73,7 +73,7 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
           onClear();
         }
       },
-      [onClear]
+      [onClear],
     );
 
     const setRef = useCallback(
@@ -84,7 +84,7 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
           forwardedRef(localRef.current);
         }
       },
-      [forwardedRef]
+      [forwardedRef],
     );
 
     useEffect(() => {
@@ -164,6 +164,6 @@ const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
         </div>
       </label>
     );
-  }
+  },
 );
 export default ImageUploadInput;

@@ -6,7 +6,7 @@ export function withCsrfCheck<
   Params extends {
     csrfToken: string;
   },
-  Return extends unknown
+  Return extends unknown,
 >(fn: (params: Params) => Return) {
   return async (params: Params) => {
     await verifyCsrfToken(params.csrfToken);
@@ -16,7 +16,7 @@ export function withCsrfCheck<
 }
 
 export function withSession<Args extends any[]>(
-  fn: (...params: Args) => unknown
+  fn: (...params: Args) => unknown,
 ) {
   return async (...params: Args) => {
     const client = getSupabaseServerActionClient();

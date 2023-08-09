@@ -5,7 +5,7 @@ import { XIcon } from "lucide-react";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { deleteMemberAction } from "~/lib/memberships/actions";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import Modal from "~/components/Modal";
 
 const DeleteInviteButton: React.FCC<{

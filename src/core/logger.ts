@@ -16,7 +16,7 @@ function getLogger() {
       {},
       pretty({
         colorize: true,
-      })
+      }),
     );
   } else {
     logger = pino({

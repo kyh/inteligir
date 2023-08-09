@@ -1,6 +1,6 @@
 import { use } from "react";
 import loadUserData from "~/lib/server/loaders/load-user-data";
-import AuthChangeListener from "~/app/dashboard/[organization]/components/AuthChangeListener";
+import AuthChangeListener from "~/components/AuthChangeListener";
 import { FooterNavigation } from "./components/FooterNavigation";
 import { TopNavigation } from "./components/TopNavigation";
 

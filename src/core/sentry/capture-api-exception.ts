@@ -1,6 +1,6 @@
 export async function captureApiException(
   exception: unknown,
-  requestContext: UnknownObject
+  requestContext: UnknownObject,
 ) {
   const { initializeNodeSentry } = await import(
     "~/core/sentry/initialize-node-sentry"

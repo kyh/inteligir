@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { TextField } from "~/components/TextField";
 
 const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
@@ -62,7 +62,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
         loading: "Updating password...",
       });
     },
-    [updateUserMutation]
+    [updateUserMutation],
   );
 
   const updatePasswordCallback = useCallback(
@@ -81,7 +81,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
         return Promise.reject(e);
       }
     },
-    [updatePasswordFromCredential]
+    [updatePasswordFromCredential],
   );
 
   const onSubmit = useCallback(
@@ -90,7 +90,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
       return updatePasswordCallback(user, currentPassword, newPassword);
     },
-    [user, updatePasswordCallback]
+    [user, updatePasswordCallback],
   );
 
   // reset form on success

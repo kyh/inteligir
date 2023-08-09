@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -11,7 +11,7 @@ import { getUserById } from "~/lib/user/queries";
 import requireSession from "~/lib/user/require-session";
 import { Button } from "~/components/Button";
 import { Container } from "~/components/Container";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { Logo } from "~/components/Logo";
 import { Text } from "~/components/Text";
 import AppContainer from "~/app/dashboard/[organization]/components/AppContainer";
@@ -27,7 +27,7 @@ const OrganizationsPage = async () => {
     redirect("/onboarding");
   }
 
-  const organizationUidCookie = await parseOrganizationIdCookie(cookies());
+  const organizationUidCookie = await parseOrganizationIdCookie();
 
   if (organizationUidCookie) {
     const currentOrganizationResponse = await getCurrentOrganization({

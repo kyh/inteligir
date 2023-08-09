@@ -3,7 +3,7 @@
 import React from "react";
 import { ReadonlyURLSearchParams, useSearchParams } from "next/navigation";
 import { Alert } from "~/components/Alert";
-import If from "~/components/If";
+import { If } from "~/components/If";
 
 enum SubscriptionStatusQueryParams {
   Success = "success",

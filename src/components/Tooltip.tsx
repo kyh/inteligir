@@ -28,7 +28,7 @@ const TooltipContent = React.forwardRef<
          py-1.5 text-xs text-zinc-100
          shadow-md animate-in fade-in-100 data-[side=bottom]:slide-in-from-top-1 data-[side=left]:slide-in-from-right-1 data-[side=right]:slide-in-from-left-1
          data-[side=top]:slide-in-from-bottom-1 dark:bg-zinc-300/90`,
-      className
+      className,
     )}
     {...props}
   >

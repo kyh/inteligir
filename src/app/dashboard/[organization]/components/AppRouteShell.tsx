@@ -11,8 +11,8 @@ import OrganizationContext from "~/lib/contexts/organization";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import Organization from "~/lib/organizations/types/organization";
 import { Toaster } from "~/components/Toaster";
+import AuthChangeListener from "../../../../components/AuthChangeListener";
 import AppSidebar from "./AppSidebar";
-import AuthChangeListener from "./AuthChangeListener";
 
 type Data = {
   accessToken: Maybe<string>;
@@ -40,7 +40,7 @@ const RouteShell: React.FCC<{
   }, [data]);
 
   const [organization, setOrganization] = useState<Maybe<Organization>>(
-    data.organization
+    data.organization,
   );
 
   const [userSession, setUserSession] =
@@ -86,7 +86,7 @@ export default RouteShell;
 const RouteShellWithSidebar = (
   props: React.PropsWithChildren<{
     organizationUuid: string;
-  }>
+  }>,
 ) => {
   return (
     <div className="flex h-full flex-1 overflow-hidden">

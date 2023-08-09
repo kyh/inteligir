@@ -42,7 +42,7 @@ export const InfiniteLooper = ({
 
     if (widthDeficit) {
       setLooperInstances(
-        looperInstances + Math.ceil(widthDeficit / instanceWidth) + 1
+        looperInstances + Math.ceil(widthDeficit / instanceWidth) + 1,
       );
     }
 

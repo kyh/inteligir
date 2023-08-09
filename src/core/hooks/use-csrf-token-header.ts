@@ -8,7 +8,7 @@ function useCsrfTokenHeader() {
     () => ({
       "X-CSRF-Token": csrfToken,
     }),
-    [csrfToken]
+    [csrfToken],
   );
 }
 

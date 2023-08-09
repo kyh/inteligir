@@ -4,9 +4,9 @@ import React from "react";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 import type Organization from "~/lib/organizations/types/organization";
 import { Alert } from "~/components/Alert";
-import If from "~/components/If";
+import { If } from "~/components/If";
+import IfHasPermissions from "~/components/IfHasPermissions";
 import PricingTable from "~/components/PricingTable";
-import IfHasPermissions from "~/app/dashboard/[organization]/components/IfHasPermissions";
 import BillingPortalRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/BillingRedirectButton";
 import CheckoutRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/CheckoutRedirectButton";
 

@@ -50,7 +50,7 @@ function getSecretKey() {
 
   if (!key) {
     throw new Error(
-      `Please provide the required secret key environment variable`
+      `Please provide the required secret key environment variable`,
     );
   }
 

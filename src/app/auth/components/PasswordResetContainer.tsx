@@ -4,7 +4,7 @@ import { FormEvent, useCallback } from "react";
 import useResetPassword from "~/core/hooks/use-reset-password";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { TextField } from "~/components/TextField";
 
 const PasswordResetContainer = () => {
@@ -25,7 +25,7 @@ const PasswordResetContainer = () => {
         redirectTo,
       });
     },
-    [resetPasswordMutation]
+    [resetPasswordMutation],
   );
 
   return (
@@ -77,7 +77,6 @@ export default PasswordResetContainer;
 const getReturnUrl = () => {
   const host = window.location.origin;
   const callback = "/auth/callback";
-  const redirectPath = "/settings/profile/password";
 
-  return `${host}${callback}?redirectPath=${redirectPath}`;
+  return `${host}${callback}`;
 };

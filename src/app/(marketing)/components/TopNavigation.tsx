@@ -6,7 +6,7 @@ import { useScroll } from "framer-motion";
 import useSignOut from "~/core/hooks/use-sign-out";
 import UserSession from "~/core/session/types/user-session";
 import { cn } from "~/lib/utils";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { Logo } from "~/components/Logo";
 import { NavLink } from "~/components/NavLink";
 import ProfileDropdown from "~/components/ProfileDropdown";
@@ -20,7 +20,7 @@ type TopNavigationProps = {
 export const TopNavigation = ({ userSession }: TopNavigationProps) => {
   const signOut = useSignOut();
   const [containerClassName, setContainerClassName] = useState(
-    baseContainerClassName
+    baseContainerClassName,
   );
   const { scrollY } = useScroll();
 

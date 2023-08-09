@@ -27,12 +27,12 @@ export function initializeNodeSentry() {
 
 function warnSentryNotConfigured() {
   console.warn(
-    `Sentry DSN not provided. Please add a SENTRY_DSN environment variable to enable error tracking.`
+    `Sentry DSN not provided. Please add a SENTRY_DSN environment variable to enable error tracking.`,
   );
 }
 
 function warnNotNodeEnvironment() {
   console.warn(
-    `This Sentry instance is being initialized in a browser environment, but it's for Node. Please use 'initializeBrowserSentry' instead.`
+    `This Sentry instance is being initialized in a browser environment, but it's for Node. Please use 'initializeBrowserSentry' instead.`,
   );
 }

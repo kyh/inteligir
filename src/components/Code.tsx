@@ -29,7 +29,7 @@ export const Code = ({ children, className, copy = true }: CodeProps) => {
       className={cn(
         `inline-flex items-center rounded border border-white/10 bg-zinc-900 p-3 font-mono text-sm shadow transition`,
         copy && "hover:cursor-pointer hover:bg-black",
-        className
+        className,
       )}
       onClick={copy ? copyToClipboard : undefined}
     >

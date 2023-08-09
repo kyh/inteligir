@@ -23,7 +23,7 @@ function getSupabaseBrowserClient() {
   invariant(NEXT_PUBLIC_SUPABASE_URL, `Supabase URL was not provided`);
   invariant(
     NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    `Supabase Anon key was not provided`
+    `Supabase Anon key was not provided`,
   );
 
   client = createClientComponentClient<Database>({

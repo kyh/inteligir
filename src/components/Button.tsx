@@ -41,7 +41,7 @@ const BaseButton = classed("button", {
 const renderIcon = (
   icon: ButtonProps["startIcon"],
   iconClassName: ButtonProps["iconClassName"],
-  iconSize: ButtonProps["iconSize"]
+  iconSize: ButtonProps["iconSize"],
 ) => {
   const iconProps = { width: iconSize || 24, height: iconSize || 24 };
 
@@ -74,7 +74,7 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
       loading,
       ...props
     },
-    ref
+    ref,
   ) => {
     const hasIcon = !!startIcon || !!endIcon;
     const hasContent = !!children;
@@ -89,7 +89,7 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
         <Spinner
           className={cn(
             "absolute border-white opacity-0 transition duration-300",
-            !!loading && "opacity-100"
+            !!loading && "opacity-100",
           )}
         />
         <div
@@ -97,7 +97,7 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
             "transition duration-300",
             loading && "opacity-0",
             disabled && "opacity-50",
-            contentClassName
+            contentClassName,
           )}
         >
           {startIcon && renderIcon(startIcon, iconClassName, iconSize)}
@@ -106,5 +106,5 @@ export const Button = deriveClassed<typeof BaseButton, ButtonProps>(
         </div>
       </BaseButton>
     );
-  }
+  },
 );

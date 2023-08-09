@@ -38,10 +38,10 @@ function useApiRequest<Resp = unknown, Body = void>() {
         params.path,
         payload,
         params.method,
-        headersRef.current
+        headersRef.current,
       );
     },
-    [csrfTokenHeader]
+    [csrfTokenHeader],
   );
 }
 
@@ -49,7 +49,7 @@ async function executeFetchRequest<Resp = unknown>(
   url: string,
   payload: string,
   method = "POST",
-  headers?: StringObject
+  headers?: StringObject,
 ) {
   const options: RequestInit = {
     method,

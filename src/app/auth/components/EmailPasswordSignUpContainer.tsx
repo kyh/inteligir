@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { siteConfig } from "~/config/site";
 import useSignUpWithEmailAndPasswordMutation from "~/core/hooks/use-sign-up-with-email-password";
 import { Alert } from "~/components/Alert";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import EmailPasswordSignUpForm from "~/app/auth/components/EmailPasswordSignUpForm";
 
 const requireEmailConfirmation = siteConfig.auth.requireEmailConfirmation;
@@ -53,7 +53,7 @@ const EmailPasswordSignUpContainer: React.FCC<{
         }
       }
     },
-    [loading, onError, onSignUp, onSubmit, signUpMutation]
+    [loading, onError, onSignUp, onSubmit, signUpMutation],
   );
 
   return (

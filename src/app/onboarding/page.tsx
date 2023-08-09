@@ -24,7 +24,7 @@ const loadData = async () => {
   const { user } = await requireSession(client);
 
   const userData = await getUserDataById(client, user.id.toString()).catch(
-    () => undefined
+    () => undefined,
   );
 
   if (userData && userData.onboarded) {

@@ -2,8 +2,8 @@
 
 import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
 import { canChangeBilling } from "~/lib/organizations/permissions";
-import If from "~/components/If";
-import IfHasPermissions from "~/app/dashboard/[organization]/components/IfHasPermissions";
+import { If } from "~/components/If";
+import IfHasPermissions from "~/components/IfHasPermissions";
 import BillingPortalRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/BillingRedirectButton";
 import PlanSelectionForm from "~/app/dashboard/[organization]/settings/subscription/components/PlanSelectionForm";
 import SubscriptionCard from "./SubscriptionCard";

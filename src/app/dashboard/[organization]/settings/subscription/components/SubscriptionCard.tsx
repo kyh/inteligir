@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { siteConfig } from "~/config/site";
 import { CheckCircleIcon, XCircleIcon } from "lucide-react";
 import type { OrganizationSubscription } from "~/lib/organizations/types/organization-subscription";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import PricingTable from "~/components/PricingTable";
 import { Text } from "~/components/Text";
 import SubscriptionStatusBadge from "~/app/dashboard/[organization]/components/organizations/SubscriptionStatusBadge";
@@ -68,7 +68,7 @@ const RenewStatusDescription = (
       endDate: string;
       trialEndDate: string | null;
     };
-  }>
+  }>,
 ) => {
   return (
     <span className="flex items-center space-x-1.5 text-sm">

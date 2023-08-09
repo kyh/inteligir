@@ -1,8 +1,9 @@
 import { useCallback, useTransition } from "react";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import { transferOrganizationOwnershipAction } from "~/lib/organizations/actions";
+import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import Modal from "~/components/Modal";
 
 const TransferOrganizationOwnershipModal: React.FC<{
@@ -12,6 +13,8 @@ const TransferOrganizationOwnershipModal: React.FC<{
   targetDisplayName: string;
 }> = ({ isOpen, setIsOpen, targetDisplayName, membershipId }) => {
   const csrfToken = useCsrfToken();
+  const organization = useCurrentOrganization();
+  const organizationUid = organization?.uuid ?? "";
   const [pending, startTransition] = useTransition();
 
   const onSubmit = useCallback(
@@ -22,12 +25,13 @@ const TransferOrganizationOwnershipModal: React.FC<{
         await transferOrganizationOwnershipAction({
           membershipId,
           csrfToken,
+          organizationUid,
         });
 
         setIsOpen(false);
       });
     },
-    [csrfToken, membershipId, setIsOpen]
+    [csrfToken, membershipId, setIsOpen],
   );
 
   return (

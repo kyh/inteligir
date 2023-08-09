@@ -22,7 +22,7 @@ const EmailPasswordSignInContainer: React.FCC<{
         toast.error("Sorry, we could not authenticate you");
       }
     },
-    [onSignIn, signInMutation]
+    [onSignIn, signInMutation],
   );
 
   return <EmailPasswordSignInForm onSubmit={onSubmit} loading={isLoading} />;

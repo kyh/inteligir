@@ -43,7 +43,7 @@ const CheckoutFormData = (
     organizationUid: string;
     priceId: Maybe<string>;
     customerId: Maybe<string>;
-  }>
+  }>,
 ) => {
   const csrfToken = useCsrfToken();
 

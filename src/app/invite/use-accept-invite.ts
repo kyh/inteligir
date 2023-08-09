@@ -25,7 +25,7 @@ function useAcceptInvite() {
           userId: arg.userId,
         },
       });
-    }
+    },
   );
 }
 

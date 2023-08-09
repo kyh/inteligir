@@ -10,7 +10,7 @@ export function getUserById(client: DatabaseClient, userId: string) {
       displayName: display_name,
       photoUrl: photo_url,
       onboarded
-    `
+    `,
     )
     .eq("id", userId)
     .throwOnError()

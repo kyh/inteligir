@@ -13,7 +13,7 @@ const VerificationCodeInput = ({
 }>) => {
   const digitsArray = useMemo(
     () => Array.from({ length: DIGITS }, (_, i) => i),
-    []
+    [],
   );
 
   const { control, register, watch, setFocus, formState } = useForm({
@@ -65,7 +65,7 @@ const VerificationCodeInput = ({
         setFocus(`values.${nextIndex}.value`);
       }
     },
-    [setFocus]
+    [setFocus],
   );
 
   return (

@@ -3,7 +3,7 @@ import type { DatabaseClient } from "~/core/db";
 const ASSURANCE_LEVEL_2 = "aal2";
 
 async function checkSessionRequiresMultiFactorAuthentication(
-  client: DatabaseClient
+  client: DatabaseClient,
 ) {
   const assuranceLevel = await client.auth.mfa.getAuthenticatorAssuranceLevel();
 

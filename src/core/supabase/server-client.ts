@@ -12,7 +12,7 @@ import type { Database } from "~/core/database.types";
 function getSupabaseServerClient(
   params = {
     admin: false,
-  }
+  },
 ) {
   const env = process.env;
 
@@ -20,7 +20,7 @@ function getSupabaseServerClient(
 
   invariant(
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    `Supabase Anon Key not provided`
+    `Supabase Anon Key not provided`,
   );
 
   if (params.admin) {
@@ -35,7 +35,7 @@ function getSupabaseServerClient(
         auth: {
           persistSession: false,
         },
-      }
+      },
     );
   }
 

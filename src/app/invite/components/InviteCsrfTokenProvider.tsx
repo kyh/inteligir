@@ -5,7 +5,7 @@ import CsrfTokenContext from "~/lib/contexts/csrf";
 const InviteCsrfTokenProvider = (
   props: React.PropsWithChildren<{
     csrfToken: string | null;
-  }>
+  }>,
 ) => {
   return (
     <CsrfTokenContext.Provider value={props.csrfToken}>

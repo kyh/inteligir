@@ -10,7 +10,7 @@ import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organi
 import useUserOrganizationsQuery from "~/lib/organizations/hooks/use-user-organizations-query";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import type Organization from "~/lib/organizations/types/organization";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import {
   Select,
   SelectAction,
@@ -114,7 +114,7 @@ const OrganizationsOptions = (
       role: MembershipRole;
     }>;
     organizationId: Maybe<number>;
-  }>
+  }>,
 ) => {
   return (
     <>
@@ -189,6 +189,6 @@ const useChangeOrganization = () => {
         router.push(`${organizationPath}/${route}`);
       }
     },
-    [params?.organization, path, router]
+    [params?.organization, path, router],
   );
 };
