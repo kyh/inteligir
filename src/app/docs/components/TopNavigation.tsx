@@ -2,7 +2,7 @@ import { MenuIcon } from "lucide-react";
 import useSignOut from "~/core/hooks/use-sign-out";
 import UserSession from "~/core/session/types/user-session";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { NavLink } from "~/components/NavLink";
 import ProfileDropdown from "~/components/ProfileDropdown";
 import { Sheet, SheetContent, SheetTrigger } from "~/components/Sheet";

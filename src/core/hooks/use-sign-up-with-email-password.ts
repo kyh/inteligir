@@ -14,7 +14,7 @@ function useSignUpWithEmailAndPassword() {
     key,
     (_, { arg: credentials }: { arg: Credentials }) => {
       const emailRedirectTo = [window.location.origin, "/auth/callback"].join(
-        ""
+        "",
       );
 
       return client.auth
@@ -31,7 +31,7 @@ function useSignUpWithEmailAndPassword() {
 
           return response.data;
         });
-    }
+    },
   );
 }
 

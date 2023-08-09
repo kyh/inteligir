@@ -6,7 +6,7 @@ import { siteConfig } from "~/config/site";
 import { CheckCircleIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { Text } from "~/components/Text";
 
 type CheckoutButtonProps = {
@@ -47,7 +47,7 @@ const STRIPE_PLANS = STRIPE_PRODUCTS.reduce<string[]>((acc, product) => {
 const PricingTable = (
   props: React.PropsWithChildren<{
     CheckoutButton?: React.ComponentType<CheckoutButtonProps>;
-  }>
+  }>,
 ) => {
   const [planVariant, setPlanVariant] = useState<string>(STRIPE_PLANS[0]);
 
@@ -94,7 +94,7 @@ const PricingItem = (
     PricingItemProps & {
       CheckoutButton?: React.ComponentType<CheckoutButtonProps>;
     }
-  >
+  >,
 ) => {
   const recommended = props.product.recommended ?? false;
 
@@ -109,7 +109,7 @@ const PricingItem = (
         {
           ["text-emerald-contrast bg-emerald-600"]: recommended,
           ["bg-zinc-50/20 dark:bg-zinc-300/30"]: !recommended,
-        }
+        },
       )}
     >
       <div className="flex flex-col space-y-1.5">
@@ -183,7 +183,7 @@ const PricingItem = (
 const FeaturesList = (
   props: React.PropsWithChildren<{
     features: string[];
-  }>
+  }>,
 ) => {
   return (
     <ul className="flex flex-col space-y-3">
@@ -221,7 +221,7 @@ const PlansSwitcher = (
     plans: string[];
     plan: string;
     setPlan: (plan: string) => void;
-  }>
+  }>,
 ) => {
   return (
     <div className="flex">
@@ -250,7 +250,7 @@ const DefaultCheckoutButton = (
   props: React.PropsWithChildren<{
     plan: PricingItemProps["plan"];
     recommended?: boolean;
-  }>
+  }>,
 ) => {
   const linkHref =
     props.plan.href ?? `/auth/sign-up?utm_source=${props.plan.stripePriceId}`;

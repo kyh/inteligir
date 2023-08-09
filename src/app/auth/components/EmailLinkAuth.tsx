@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import useSignInWithOtp from "~/core/hooks/use-sign-in-with-otp";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { TextField } from "~/components/TextField";
 
 const EmailLinkAuth: React.FC = () => {
@@ -36,7 +36,7 @@ const EmailLinkAuth: React.FC = () => {
           "An error occurred while sending the email link. Please try again.",
       });
     },
-    [signInWithOtpMutation]
+    [signInWithOtpMutation],
   );
 
   if (signInWithOtpMutation.data) {

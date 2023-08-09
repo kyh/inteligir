@@ -11,7 +11,7 @@ import useAcceptInvite from "~/app/invite/use-accept-invite";
 const ExistingUserInviteForm = (
   props: React.PropsWithChildren<{
     session: Session;
-  }>
+  }>,
 ) => {
   const signOut = useSignOut();
   const acceptInvite = useAcceptInvite();

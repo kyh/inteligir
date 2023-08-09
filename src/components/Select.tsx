@@ -20,7 +20,7 @@ const SelectTrigger = React.forwardRef<
         focus:outline-none focus:ring-2 focus:ring-emerald-200 disabled:cursor-not-allowed
         disabled:opacity-50 dark:border-zinc-200 dark:bg-zinc-400
         dark:ring-emerald-500/70 dark:hover:border-zinc-100 dark:hover:bg-zinc-300 dark:focus:ring-offset-zinc-400`,
-      className
+      className,
     )}
     {...props}
   >
@@ -46,7 +46,7 @@ const SelectContent = React.forwardRef<
       className={cn(
         `fade-in-250 relative z-50 w-auto min-w-[8rem] overflow-hidden border border-transparent border-t-zinc-50
           bg-white shadow-xl animate-in dark:border-zinc-200 dark:bg-zinc-300 dark:shadow-[0_0_40px_0] dark:shadow-emerald-600/10 lg:rounded-md`,
-        className
+        className,
       )}
       sideOffset={sideOffset}
       {...props}
@@ -68,7 +68,7 @@ const SelectLabel = React.forwardRef<
     ref={ref}
     className={cn(
       "py-1.5 pl-2 pr-2 text-xs font-medium text-zinc-400 dark:text-zinc-400",
-      className
+      className,
     )}
     {...props}
   />

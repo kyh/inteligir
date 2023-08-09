@@ -28,12 +28,14 @@ export const updateMemberAction = withCsrfCheck(
       const client = getSupabaseServerActionClient();
 
       await handleUpdateMemberRequest(client, params);
+      // we revalidate the cache for the members page
+      revalidateMembersPage();
 
       return {
         success: true,
       };
-    }
-  )
+    },
+  ),
 );
 
 export const deleteMemberAction = withCsrfCheck(
@@ -42,11 +44,13 @@ export const deleteMemberAction = withCsrfCheck(
 
     await handleRemoveMemberRequest(client, params.membershipId);
     await revalidatePath("/settings/organization/members");
+    // we revalidate the cache for the members page
+    revalidateMembersPage();
 
     return {
       success: true,
     };
-  })
+  }),
 );
 
 export const acceptInviteAction = withCsrfCheck(
@@ -80,7 +84,7 @@ export const acceptInviteAction = withCsrfCheck(
         code,
         userId,
       },
-      `Adding member to organization...`
+      `Adding member to organization...`,
     );
 
     const { data, error } = await acceptInviteToOrganization(adminClient, {
@@ -90,7 +94,7 @@ export const acceptInviteAction = withCsrfCheck(
 
     if (error) {
       throw new Error(
-        `Error accepting invite to organization: ${error.message}`
+        `Error accepting invite to organization: ${error.message}`,
       );
     }
 
@@ -104,12 +108,12 @@ export const acceptInviteAction = withCsrfCheck(
         organizationId,
         userId,
       },
-      `Member successfully added to organization`
+      `Member successfully added to organization`,
     );
 
     const organizationResponse = await getOrganizationById(
       adminClient,
-      organizationId
+      organizationId,
     );
 
     if (organizationResponse.error) {
@@ -130,7 +134,7 @@ export const acceptInviteAction = withCsrfCheck(
         {
           membershipId,
         },
-        `Redirecting user to app home...`
+        `Redirecting user to app home...`,
       );
 
       return redirect("/dashboard");
@@ -140,16 +144,16 @@ export const acceptInviteAction = withCsrfCheck(
       {
         membershipId,
       },
-      `User needs to verify their email address - returning JSON response...`
+      `User needs to verify their email address - returning JSON response...`,
     );
 
     return needsEmailVerification;
-  }
+  },
 );
 
 async function handleRemoveMemberRequest(
   client: DatabaseClient,
-  membershipId: number
+  membershipId: number,
 ) {
   const logger = getLogger();
 
@@ -157,7 +161,7 @@ async function handleRemoveMemberRequest(
     {
       membershipId,
     },
-    `Removing member...`
+    `Removing member...`,
   );
 
   await deleteMembershipById(client, membershipId);
@@ -166,10 +170,8 @@ async function handleRemoveMemberRequest(
     {
       membershipId,
     },
-    `Member successfully removed.`
+    `Member successfully removed.`,
   );
-
-  await revalidatePath("/settings/organization/members");
 }
 
 async function handleUpdateMemberRequest(
@@ -177,7 +179,7 @@ async function handleUpdateMemberRequest(
   params: {
     membershipId: number;
     role: MembershipRole;
-  }
+  },
 ) {
   const logger = getLogger();
   const { role, membershipId } = getUpdateMembershipBodySchema().parse(params);
@@ -187,7 +189,7 @@ async function handleUpdateMemberRequest(
       membershipId,
       role,
     },
-    `Updating member...`
+    `Updating member...`,
   );
 
   await updateMembershipById(client, {
@@ -199,10 +201,8 @@ async function handleUpdateMemberRequest(
     {
       membershipId,
     },
-    `Member successfully updated.`
+    `Member successfully updated.`,
   );
-
-  await revalidatePath("/settings/organization/members");
 }
 
 function getUpdateMembershipBodySchema() {
@@ -210,4 +210,8 @@ function getUpdateMembershipBodySchema() {
     role: z.nativeEnum(MembershipRole),
     membershipId: z.number(),
   });
+}
+
+function revalidateMembersPage() {
+  return revalidatePath("/settings/organization/members");
 }

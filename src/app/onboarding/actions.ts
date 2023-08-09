@@ -35,7 +35,7 @@ export const handleOnboardingCompleteAction = withSession(
       {
         userId,
       },
-      `Completing onboarding for user...`
+      `Completing onboarding for user...`,
     );
 
     // complete onboarding and get the organization id created
@@ -47,7 +47,7 @@ export const handleOnboardingCompleteAction = withSession(
           error,
           userId,
         },
-        `Error completing onboarding for user`
+        `Error completing onboarding for user`,
       );
 
       throw new Error();
@@ -58,7 +58,7 @@ export const handleOnboardingCompleteAction = withSession(
         userId,
         organizationUid,
       },
-      `Onboarding successfully completed for user`
+      `Onboarding successfully completed for user`,
     );
 
     cookies().set(createOrganizationIdCookie(organizationUid));
@@ -66,7 +66,7 @@ export const handleOnboardingCompleteAction = withSession(
     const redirectPath = ["/dashboard", organizationUid].join("/");
 
     return redirect(redirectPath);
-  })
+  }),
 );
 
 function getBodySchema() {

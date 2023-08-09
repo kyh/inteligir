@@ -12,7 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "~/components/Dropdown";
-import If from "~/components/If";
+import { If } from "~/components/If";
 
 const OrganizationMemberActionsDropdown: React.FCC<{
   onRemoveSelected: EmptyCallback;

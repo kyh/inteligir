@@ -6,9 +6,10 @@ import { useFieldArray, useForm } from "react-hook-form";
 import useCsrfToken from "~/core/hooks/use-csrf-token";
 import useUserSession from "~/core/hooks/use-user-session";
 import { inviteMembersToOrganizationAction } from "~/lib/organizations/actions";
+import useCurrentOrganization from "~/lib/organizations/hooks/use-current-organization";
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { TextField } from "~/components/TextField";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
 import MembershipRoleSelector from "./MembershipRoleSelector";
@@ -17,6 +18,7 @@ type InviteModel = ReturnType<typeof memberFactory>;
 
 const InviteMembersForm = () => {
   const user = useUserSession();
+  const organization = useCurrentOrganization();
   const [isSubmitting, startTransition] = useTransition();
   const csrfToken = useCsrfToken();
 
@@ -45,9 +47,11 @@ const InviteMembersForm = () => {
       onSubmit={(event) => {
         handleSubmit((data) => {
           startTransition(async () => {
+            if (!organization) return;
             await inviteMembersToOrganizationAction({
               invites: data.members,
               csrfToken,
+              organizationUid: organization.uuid,
             });
           });
         })(event);

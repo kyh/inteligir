@@ -6,7 +6,7 @@ import useSupabase from "~/core/hooks/use-supabase";
 import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
 import VerificationCodeInput from "~/app/auth/components/VerificationCodeInput";
@@ -15,7 +15,7 @@ const MultiFactorAuthSetupModal = (
   props: React.PropsWithChildren<{
     isOpen: boolean;
     setIsOpen: (isOpen: boolean) => void;
-  }>
+  }>,
 ) => {
   const onEnrollSuccess = useCallback(() => {
     props.setIsOpen(false);
@@ -232,7 +232,7 @@ const FactorNameForm = (
   props: React.PropsWithChildren<{
     onSetFactorName: (name: string) => void;
     onCancel: () => void;
-  }>
+  }>,
 ) => {
   const inputName = "factorName";
 
@@ -320,6 +320,6 @@ const useVerifyCodeMutation = () => {
       }
 
       return verify;
-    }
+    },
   );
 };

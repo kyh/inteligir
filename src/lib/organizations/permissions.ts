@@ -18,7 +18,7 @@ import MembershipRole from "~/lib/organizations/types/membership-role";
 
 export function canUpdateUser(
   currentUserRole: MembershipRole,
-  targetUser: MembershipRole
+  targetUser: MembershipRole,
 ) {
   return currentUserRole > targetUser;
 }
@@ -33,7 +33,7 @@ export function canInviteUsers(currentUserRole: MembershipRole) {
 
 export function canInviteUser(
   inviterRole: MembershipRole,
-  inviteeRole: MembershipRole
+  inviteeRole: MembershipRole,
 ) {
   const canInvite = canInviteUsers(inviterRole);
   const hasGreaterRole = inviterRole >= inviteeRole;

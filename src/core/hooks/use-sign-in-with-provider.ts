@@ -16,7 +16,7 @@ function useSignInWithProvider() {
 
         return response.data;
       });
-    }
+    },
   );
 }
 

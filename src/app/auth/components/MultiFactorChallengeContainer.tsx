@@ -5,7 +5,7 @@ import useSignOut from "~/core/hooks/use-sign-out";
 import useSupabase from "~/core/hooks/use-supabase";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import Spinner from "~/components/Spinner";
 import { Text } from "~/components/Text";
 import VerificationCodeInput from "./VerificationCodeInput";
@@ -34,7 +34,7 @@ const MultiFactorChallengeContainer = ({
 
       onSuccess();
     },
-    [factorId, mutation, onSuccess, verifyCode]
+    [factorId, mutation, onSuccess, verifyCode],
   );
 
   if (!factorId) {
@@ -89,7 +89,7 @@ const useVerifyMFAChallenge = () => {
           factorId: string;
           verifyCode: string;
         };
-      }
+      },
     ) => {
       const { factorId, verifyCode: code } = arg;
 
@@ -103,7 +103,7 @@ const useVerifyMFAChallenge = () => {
       }
 
       return response.data;
-    }
+    },
   );
 };
 

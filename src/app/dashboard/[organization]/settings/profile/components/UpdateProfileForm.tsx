@@ -1,29 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import type { User } from "@supabase/gotrue-js";
-import { siteConfig } from "~/config/site";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
-import useMutation from "swr/mutation";
 import type { DatabaseClient } from "~/core/db";
 import useSupabase from "~/core/hooks/use-supabase";
 import type UserData from "~/core/session/types/user-data";
 import type UserSession from "~/core/session/types/user-session";
 import useUpdateProfileMutation from "~/lib/user/hooks/use-update-profile";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
 import ImageUploadInput from "~/components/ImageUploadInput";
-import Modal from "~/components/Modal";
 import { TextField } from "~/components/TextField";
 
 const UpdateProfileForm = ({
   session,
   onUpdateProfileData,
-  onUpdateAuthData,
 }: {
   session: UserSession;
   onUpdateProfileData: (user: Partial<UserData>) => void;
-  onUpdateAuthData: (data: Partial<User>) => void;
 }) => {
   const client = useSupabase();
   const updateProfileMutation = useUpdateProfileMutation();
@@ -32,7 +25,6 @@ const UpdateProfileForm = ({
   const currentDisplayName = session?.data?.displayName ?? "";
 
   const user = session.auth?.user;
-  const currentPhoneNumber = user?.phone ?? "";
   const email = user?.email ?? "";
 
   const { register, handleSubmit, reset, setValue } = useForm({
@@ -141,48 +133,19 @@ const UpdateProfileForm = ({
               Email Address
               <TextField.Input disabled value={email} />
             </TextField.Label>
-
-            <If condition={email}>
-              <div>
-                <Button as={Link} href="/settings/profile/email">
-                  <span className="text-xs font-normal">
-                    Update Email Address
-                  </span>
-                </Button>
-              </div>
-            </If>
-
-            <If condition={!email}>
-              <div>
-                <Button as={Link} href="/settings/profile/authentication">
-                  <span className="text-xs font-normal">Add Email address</span>
-                </Button>
-              </div>
-            </If>
+            <div>
+              <Button as={Link} href="/settings/profile/email">
+                <span className="text-xs font-normal">
+                  Update Email Address
+                </span>
+              </Button>
+            </div>
+            <div>
+              <Button as={Link} href="/settings/profile/authentication">
+                <span className="text-xs font-normal">Add Email address</span>
+              </Button>
+            </div>
           </TextField>
-
-          <TextField>
-            <TextField.Label>
-              Phone Number
-              <TextField.Input disabled value={currentPhoneNumber} />
-            </TextField.Label>
-
-            {/* Only show this if phone number is enabled */}
-            <If condition={siteConfig.auth.providers.phoneNumber}>
-              <div>
-                <If condition={currentPhoneNumber}>
-                  <RemovePhoneNumberButton
-                    onSuccess={() => {
-                      onUpdateAuthData({
-                        phone: undefined,
-                      });
-                    }}
-                  />
-                </If>
-              </div>
-            </If>
-          </TextField>
-
           <div>
             <Button
               className="w-full md:w-auto"
@@ -208,7 +171,7 @@ const getPhotoFile = (value: string | null | FileList) => {
 const uploadUserProfilePhoto = async (
   client: DatabaseClient,
   photoFile: File,
-  userId: string
+  userId: string,
 ) => {
   const bytes = await photoFile.arrayBuffer();
   const bucket = client.storage.from("avatars");
@@ -229,71 +192,6 @@ const uploadUserProfilePhoto = async (
 const deleteProfilePhoto = (client: DatabaseClient, url: string) => {
   const bucket = client.storage.from("logos");
   return bucket.remove([url]);
-};
-
-const RemovePhoneNumberButton = ({
-  onSuccess,
-}: React.PropsWithChildren<{
-  onSuccess: () => void;
-}>) => {
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const unlinkProfileNumberMutation = useUnlinkProfilePhone();
-
-  const onUnlinkPhoneNumber = useCallback(() => {
-    const promise = unlinkProfileNumberMutation.trigger().then(() => {
-      setIsModalOpen(false);
-      onSuccess();
-    });
-
-    return toast.promise(promise, {
-      loading: "Unlinking phone number...",
-      success: "Phone number unlinked successfully",
-      error: "Error unlinking phone number",
-    });
-  }, [unlinkProfileNumberMutation, onSuccess]);
-
-  return (
-    <>
-      <Button type="button" onClick={() => setIsModalOpen(true)}>
-        <span className="text-xs font-normal">Unlink Phone</span>
-      </Button>
-
-      <Modal
-        heading="Unlink Phone Number"
-        isOpen={isModalOpen}
-        setIsOpen={setIsModalOpen}
-      >
-        <div className="flex flex-col space-y-3">
-          <div>Are you sure you want to continue?</div>
-          <Button
-            loading={unlinkProfileNumberMutation.isMutating}
-            onClick={onUnlinkPhoneNumber}
-          >
-            Unlink Phone
-          </Button>
-        </div>
-      </Modal>
-    </>
-  );
-};
-
-const useUnlinkProfilePhone = () => {
-  const client = useSupabase();
-  const key = "unlinkProfilePhone";
-
-  return useMutation(key, async () => {
-    return client.auth
-      .updateUser({
-        phone: undefined,
-      })
-      .then((response) => {
-        if (response.error) {
-          throw response.error;
-        }
-
-        return response.data;
-      });
-  });
 };
 
 export default UpdateProfileForm;

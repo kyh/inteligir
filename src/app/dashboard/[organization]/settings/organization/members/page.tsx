@@ -55,10 +55,10 @@ const getMembersPayload = <
   Payload extends {
     data: UserData;
     role: MembershipRole;
-  }
+  },
 >(
   members: Array<Payload | null>,
-  users: User[]
+  users: User[],
 ) => {
   type NonNullMembers = Exclude<Payload, null>;
 
@@ -93,11 +93,11 @@ const getMembersPayload = <
 
 const fetchOrganizationMembers = async (
   client: DatabaseClient,
-  organizationId: number
+  organizationId: number,
 ) => {
   const organizationMembersResponse = await getOrganizationMembers(
     client,
-    organizationId
+    organizationId,
   );
 
   const onError = (error: unknown) => {
@@ -105,7 +105,7 @@ const fetchOrganizationMembers = async (
       {
         organizationId,
       },
-      `Error fetching organization members: ${error}`
+      `Error fetching organization members: ${error}`,
     );
 
     return [];
@@ -154,7 +154,7 @@ const loadMembers = async (organizationUid: string) => {
       return [];
     }),
     getOrganizationInvitedMembers(client, organizationId).then(
-      (result) => result.data
+      (result) => result.data,
     ),
   ]);
 

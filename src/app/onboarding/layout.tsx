@@ -75,7 +75,7 @@ const initializeOnboardingRoute = async () => {
     if (!isRedirectError(e)) {
       logger.error(
         `
-        Error while initializing onboarding route: ${e}`
+        Error while initializing onboarding route: ${e}`,
       );
 
       redirect("/auth/sign-in");

@@ -6,7 +6,7 @@ import { siteConfig } from "~/config/site";
 import isBrowser from "~/core/generic/is-browser";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
 import EmailPasswordSignInContainer from "~/app/auth/components/EmailPasswordSignInContainer";
@@ -37,7 +37,7 @@ const NewUserInviteForm = () => {
         return router.push("/dashboard");
       }
     },
-    [acceptInvite, router]
+    [acceptInvite, router],
   );
 
   if (acceptInvite.data?.verifyEmail) {

@@ -19,6 +19,6 @@ export default function getMDXHeadings(source: string) {
 
       return acc;
     },
-    []
+    [],
   );
 }

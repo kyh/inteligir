@@ -1,11 +1,11 @@
 "use client";
 
-import { forwardRef, Fragment, useState } from "react";
+import { forwardRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Transition } from "@headlessui/react";
 import { ArrowLeftIcon, ArrowRightIcon } from "lucide-react";
 import { Button } from "~/components/Button";
+import { If } from "~/components/If";
 import { SmallPrint } from "~/app/(marketing)/components/FooterNavigation";
 import { pages } from "./SideNavigation";
 
@@ -36,7 +36,7 @@ const FeedbackButton = (props: React.ComponentProps<"button">) => {
 
 const FeedbackForm = forwardRef(function FeedbackForm(
   { onSubmit }: { onSubmit: React.FormEventHandler<HTMLFormElement> },
-  ref: React.Ref<HTMLFormElement>
+  ref: React.Ref<HTMLFormElement>,
 ) {
   return (
     <form
@@ -58,7 +58,7 @@ const FeedbackForm = forwardRef(function FeedbackForm(
 
 const FeedbackThanks = forwardRef(function FeedbackThanks(
   _props,
-  ref: React.Ref<HTMLDivElement>
+  ref: React.Ref<HTMLDivElement>,
 ) {
   return (
     <div
@@ -87,24 +87,12 @@ const Feedback = () => {
 
   return (
     <div className="relative h-8">
-      <Transition
-        show={!submitted}
-        as={Fragment}
-        leaveFrom="opacity-100"
-        leaveTo="opacity-0"
-        leave="pointer-events-none duration-300"
-      >
+      <If condition={!submitted}>
         <FeedbackForm onSubmit={onSubmit} />
-      </Transition>
-      <Transition
-        show={submitted}
-        as={Fragment}
-        enterFrom="opacity-0"
-        enterTo="opacity-100"
-        enter="delay-150 duration-300"
-      >
+      </If>
+      <If condition={submitted}>
         <FeedbackThanks />
-      </Transition>
+      </If>
     </div>
   );
 };

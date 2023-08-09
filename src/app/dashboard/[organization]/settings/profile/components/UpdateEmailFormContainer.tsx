@@ -2,7 +2,7 @@
 
 import useUser from "~/core/hooks/use-user";
 import { Alert } from "~/components/Alert";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import UpdateEmailForm from "~/app/dashboard/[organization]/settings/profile/components/UpdateEmailForm";
 
 const UpdateEmailFormContainer = () => {
@@ -13,7 +13,7 @@ const UpdateEmailFormContainer = () => {
   }
 
   const canUpdateEmail = user.identities?.some(
-    (item) => item.provider === `email`
+    (item) => item.provider === `email`,
   );
 
   return (

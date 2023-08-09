@@ -6,7 +6,7 @@ import { siteConfig } from "~/config/site";
 import { MailIcon, PhoneIcon } from "lucide-react";
 import useSignInWithProvider from "~/core/hooks/use-sign-in-with-provider";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import PageLoadingIndicator from "~/components/PageLoadingIndicator";
 
 const OAUTH_PROVIDERS = siteConfig.auth.providers.oAuth;
@@ -31,7 +31,7 @@ const OAuthProviders: React.FCC<{
         throw error;
       }
     },
-    []
+    [],
   );
 
   if (!OAUTH_PROVIDERS || !OAUTH_PROVIDERS.length) {
@@ -69,7 +69,7 @@ const OAuthProviders: React.FCC<{
                   };
 
                   return onSignInWithProvider(() =>
-                    signInWithProviderMutation.trigger(credentials)
+                    signInWithProviderMutation.trigger(credentials),
                   );
                 }}
               >

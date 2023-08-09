@@ -3,7 +3,7 @@
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { siteConfig } from "~/config/site";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import EmailLinkAuth from "~/app/auth/components/EmailLinkAuth";
 import EmailPasswordSignUpContainer from "~/app/auth/components/EmailPasswordSignUpContainer";
 import OAuthProviders from "~/app/auth/components/OAuthProviders";

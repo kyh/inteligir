@@ -6,7 +6,7 @@ import { siteConfig } from "~/config/site";
 const EmailNavbar = (
   props: React.PropsWithChildren<{
     productName?: string;
-  }>
+  }>,
 ) => {
   const productName = props.productName ?? siteConfig.site.name;
 

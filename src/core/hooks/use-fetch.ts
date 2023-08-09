@@ -9,7 +9,7 @@ function useFetch<Body = unknown>(
   config?: Partial<{
     headers: StringObject;
     redirect: RequestRedirect;
-  }>
+  }>,
 ) {
   const headersRef = useRef(config?.headers);
   const csrfToken = useCsrfToken();
@@ -31,7 +31,7 @@ function useFetch<Body = unknown>(
         headers: headersRef.current,
       });
     },
-    [csrfToken, method, path]
+    [csrfToken, method, path],
   );
 }
 

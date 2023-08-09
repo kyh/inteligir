@@ -2,7 +2,7 @@ import { useMemo } from "react";
 
 type Condition<Value = unknown> = Value | Falsy;
 
-const If = <Value = unknown,>({
+export const If = <Value = unknown,>({
   condition,
   children,
   fallback,
@@ -27,5 +27,3 @@ const If = <Value = unknown,>({
     return null;
   }, [condition, fallback, children]);
 };
-
-export default If;

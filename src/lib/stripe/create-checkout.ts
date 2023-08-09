@@ -11,7 +11,7 @@ type CreateCheckoutParams = {
 };
 
 export default async function createStripeCheckout(
-  params: CreateCheckoutParams
+  params: CreateCheckoutParams,
 ) {
   const successUrl = getUrlWithParams(params.returnUrl, {
     success: "true",

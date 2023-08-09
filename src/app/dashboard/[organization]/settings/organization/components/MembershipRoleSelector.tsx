@@ -1,6 +1,7 @@
 import { canInviteUser } from "~/lib/organizations/permissions";
 import roles from "~/lib/organizations/roles";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
+import IfHasPermissions from "~/components/IfHasPermissions";
 import {
   Select,
   SelectContent,
@@ -8,7 +9,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "~/components/Select";
-import IfHasPermissions from "~/app/dashboard/[organization]/components/IfHasPermissions";
 
 const MembershipRoleSelector: React.FCC<{
   value?: MembershipRole;

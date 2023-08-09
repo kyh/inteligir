@@ -319,7 +319,7 @@ const AboutCard = ({
       <div
         className={cn(
           "flex h-full items-center gap-5 text-center lg:gap-8 lg:text-start",
-          inline ? "flex-col" : "flex-col lg:flex-row"
+          inline ? "flex-col" : "flex-col lg:flex-row",
         )}
       >
         <div className="flex min-w-[300px] shrink-0 flex-col gap-2 lg:gap-5">
@@ -370,7 +370,7 @@ const SourceIcon = ({
     <div
       className={cn(
         "inline-flex justify-center rounded-full border border-dashed border-zinc-700 bg-zinc-900 p-3 text-white",
-        className
+        className,
       )}
     >
       {Icon && <Icon className="h-5 w-5" />}

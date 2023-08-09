@@ -15,7 +15,7 @@ function useVerifyOtp() {
       }
 
       return data;
-    }
+    },
   );
 }
 

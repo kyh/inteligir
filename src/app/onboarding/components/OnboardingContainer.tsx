@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import CsrfTokenContext from "~/lib/contexts/csrf";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import CompleteOnboardingStep from "./CompleteOnboardingStep";
 import OrganizationInfoStep, {
   OrganizationInfoStepData,
@@ -15,7 +15,7 @@ type Data = {
 const OnboardingContainer = (
   props: React.PropsWithChildren<{
     csrfToken: string | null;
-  }>
+  }>,
 ) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [formData, setFormData] = useState<Data>();
@@ -28,7 +28,7 @@ const OnboardingContainer = (
 
       setCurrentStep(1);
     },
-    []
+    [],
   );
 
   return (

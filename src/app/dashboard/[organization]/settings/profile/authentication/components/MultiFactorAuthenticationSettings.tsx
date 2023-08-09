@@ -11,7 +11,7 @@ import useFactorsMutationKey from "~/core/hooks/use-user-factors-mutation-key";
 import { Alert } from "~/components/Alert";
 import { Badge } from "~/components/Badge";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import Modal from "~/components/Modal";
 import Spinner from "~/components/Spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "~/components/Tooltip";
@@ -114,7 +114,7 @@ const MultiFactorAuthFactorsList = ({
 const SetupMfaButton = (
   props: React.PropsWithChildren<{
     onClick: () => void;
-  }>
+  }>,
 ) => {
   return (
     <div>
@@ -127,7 +127,7 @@ const ConfirmUnenrollFactorModal = (
   props: React.PropsWithChildren<{
     factorId: string;
     setIsModalOpen: (isOpen: boolean) => void;
-  }>
+  }>,
 ) => {
   const unEnroll = useUnenrollFactor();
 
@@ -145,7 +145,7 @@ const ConfirmUnenrollFactorModal = (
 
       props.setIsModalOpen(false);
     },
-    [props, unEnroll]
+    [props, unEnroll],
   );
 
   return (

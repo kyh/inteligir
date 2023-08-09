@@ -1,6 +1,6 @@
 import type { PropsWithChildren } from "react";
 import { cn } from "~/lib/utils";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { Logo } from "~/components/Logo";
 import Spinner from "~/components/Spinner";
 
@@ -25,7 +25,7 @@ const PageLoadingIndicator = ({
         {
           [`fixed left-0 top-0 z-[100] h-screen w-screen bg-white dark:bg-zinc-500`]:
             useFullPage,
-        }
+        },
       )}
     >
       <If condition={shouldDisplayLogo}>

@@ -23,7 +23,7 @@ const CreateOrganizationModal: React.FC<{
         setIsOpen(false);
       });
     },
-    [csrfToken, setIsOpen]
+    [csrfToken, setIsOpen],
   );
 
   const onSubmit: FormEventHandler = useCallback(
@@ -33,7 +33,7 @@ const CreateOrganizationModal: React.FC<{
       const organization = data.get("name") as string;
       createOrganizationMutation(organization);
     },
-    [createOrganizationMutation]
+    [createOrganizationMutation],
   );
 
   return (

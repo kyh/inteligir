@@ -8,7 +8,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { siteConfig } from "~/config/site";
 import { z } from "zod";
 import getApiRefererPath from "~/core/generic/get-api-referer-path";
-import { throwNotFoundException } from "~/core/http-exceptions";
 import getLogger from "~/core/logger";
 import getSupabaseServerClient from "~/core/supabase/server-client";
 import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
@@ -60,7 +59,7 @@ export async function createCheckoutAction(formData: FormData) {
   // check if the plan exists in the configuration.
   if (!plan) {
     console.warn(
-      `Plan not found for price ID "${priceId}". Did you forget to add it to the configuration? If the Price ID is incorrect, the checkout will be rejected. Please check the Stripe dashboard`
+      `Plan not found for price ID "${priceId}". Did you forget to add it to the configuration? If the Price ID is incorrect, the checkout will be rejected. Please check the Stripe dashboard`,
     );
   }
 
@@ -79,11 +78,11 @@ export async function createCheckoutAction(formData: FormData) {
         userId,
         organizationUid,
       },
-      `User attempted to access checkout but lacked permissions`
+      `User attempted to access checkout but lacked permissions`,
     );
 
     return redirectToErrorPage(
-      `You do not have permission to access this page`
+      `You do not have permission to access this page`,
     );
   }
 
@@ -112,12 +111,18 @@ export async function createCheckoutAction(formData: FormData) {
   return redirect(portalUrl, RedirectType.replace);
 }
 
+/**
+ * @name getUserCanAccessCheckout
+ * @description check if the user has permissions to access the checkout
+ * @param client
+ * @param params
+ */
 async function getUserCanAccessCheckout(
   client: SupabaseClient,
   params: {
     organizationUid: string;
     userId: string;
-  }
+  },
 ) {
   try {
     const { role } = await getUserMembershipByOrganization(client, params);
@@ -186,20 +191,28 @@ async function getUserCanAccessCustomerPortal(
   params: {
     customerId: string;
     userId: string;
-  }
+  },
 ) {
-  try {
-    const { data: organization, error } = await getOrganizationByCustomerId(
-      client,
-      params.customerId
+  const logger = getLogger();
+
+  const { data: organization, error } = await getOrganizationByCustomerId(
+    client,
+    params.customerId,
+  );
+
+  if (error) {
+    logger.error(
+      {
+        error,
+        customerId: params.customerId,
+      },
+      `Could not retrieve organization by Customer ID`,
     );
 
-    if (error) {
-      return throwNotFoundException(
-        `Organization not found for customer ${params.customerId}`
-      );
-    }
+    return false;
+  }
 
+  try {
     const organizationUid = organization.uuid;
 
     const { role } = await getUserMembershipByOrganization(client, {
@@ -213,7 +226,7 @@ async function getUserCanAccessCustomerPortal(
 
     return canChangeBilling(role);
   } catch (e) {
-    getLogger().error(e, `Could not retrieve user role`);
+    logger.error(e, `Could not retrieve user role`);
 
     return false;
   }

@@ -72,7 +72,7 @@ const loadAppData = cache(async (organizationUid: string) => {
       {
         error: JSON.stringify(error),
       },
-      `Could not load application data`
+      `Could not load application data`,
     );
 
     // in case of any error, we redirect the user to the home page

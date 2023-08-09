@@ -5,7 +5,7 @@ function withCors() {
 
   headers.append(
     "Access-Control-Allow-Headers",
-    "Origin, X-Requested-With, Content-Type, Accept, referer-path"
+    "Origin, X-Requested-With, Content-Type, Accept, referer-path",
   );
 
   return headers;

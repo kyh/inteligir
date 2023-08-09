@@ -41,7 +41,7 @@ export type UserOrganizationData = {
 
 export function getOrganizationsByUserId(
   client: DatabaseClient,
-  userId: string
+  userId: string,
 ) {
   return client
     .from("memberships")
@@ -49,7 +49,7 @@ export function getOrganizationsByUserId(
       `
         role,
         userId: user_id,
-        organization:organization_id (${FETCH_ORGANIZATION_QUERY})`
+        organization:organization_id (${FETCH_ORGANIZATION_QUERY})`,
     )
     .eq("user_id", userId)
     .throwOnError();
@@ -57,7 +57,7 @@ export function getOrganizationsByUserId(
 
 export async function getOrganizationInvitedMembers(
   client: DatabaseClient,
-  organizationId: number
+  organizationId: number,
 ) {
   return client
     .from("memberships")
@@ -66,7 +66,7 @@ export async function getOrganizationInvitedMembers(
       id,
       role,
       invitedEmail: invited_email
-    `
+    `,
     )
     .eq("organization_id", organizationId)
     .not("code", "is", null)
@@ -75,7 +75,7 @@ export async function getOrganizationInvitedMembers(
 
 export function getOrganizationMembers(
   client: DatabaseClient,
-  organizationId: number
+  organizationId: number,
 ) {
   return client
     .from("memberships")
@@ -95,7 +95,7 @@ export function getOrganizationMembers(
           photoUrl: photo_url,
           displayName: display_name
         )
-       `
+       `,
     )
     .eq("organization_id", organizationId)
     .is("code", null);
@@ -117,7 +117,7 @@ export function getOrganizationByUid(client: DatabaseClient, uid: string) {
 
 export function getOrganizationById(
   client: DatabaseClient,
-  organizationId: number
+  organizationId: number,
 ) {
   return client
     .from("organizations")
@@ -132,9 +132,9 @@ export function getOrganizationById(
     .single();
 }
 
-export function getOrganizationByCustomerId(
+export async function getOrganizationByCustomerId(
   client: DatabaseClient,
-  customerId: string
+  customerId: string,
 ) {
   return client
     .from("organizations")
@@ -144,10 +144,10 @@ export function getOrganizationByCustomerId(
       name,
       logoURL: logo_url,
       uuid,
-      subscription: organizations_subscriptions (
+      subscription: organizations_subscriptions !inner (
         customerId: customer_id
       )
-      `
+      `,
     )
     .eq("organizations_subscriptions.customer_id", customerId)
     .throwOnError()
@@ -156,7 +156,7 @@ export function getOrganizationByCustomerId(
 
 export async function getMembersAuthMetadata(
   client: DatabaseClient,
-  userIds: string[]
+  userIds: string[],
 ) {
   const users = await Promise.all(
     userIds.map((userId) => {
@@ -171,12 +171,12 @@ export async function getMembersAuthMetadata(
             {
               userId,
             },
-            `Error fetching user: ${error}`
+            `Error fetching user: ${error}`,
           );
 
           return undefined;
         });
-    }) ?? []
+    }) ?? [],
   );
 
   return users.filter(Boolean) as User[];

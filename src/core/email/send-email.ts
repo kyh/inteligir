@@ -66,7 +66,7 @@ function getMockMailTransporter() {
     sendMail(params: SendEmailParams) {
       console.log(
         `Using mock email transporter with params`,
-        JSON.stringify(params, null, 2)
+        JSON.stringify(params, null, 2),
       );
     },
   };
@@ -103,7 +103,7 @@ async function createEtherealTestAccount() {
   `);
 
   console.log(
-    `Created Ethereal test account: ${JSON.stringify(newAccount, null, 2)}`
+    `Created Ethereal test account: ${JSON.stringify(newAccount, null, 2)}`,
   );
 
   console.log(`Consider adding these credentials to your configuration file`);

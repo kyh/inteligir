@@ -7,7 +7,7 @@ import type UserData from "~/core/session/types/user-data";
 import { canUpdateUser } from "~/lib/organizations/permissions";
 import type MembershipRole from "~/lib/organizations/types/membership-role";
 import { Badge } from "~/components/Badge";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import ProfileAvatar from "~/components/ProfileAvatar";
 import OrganizationMembersActionsContainer from "./OrganizationMembersActionsContainer";
 import RoleBadge from "./RoleBadge";

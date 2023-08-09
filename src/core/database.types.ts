@@ -71,7 +71,7 @@ export interface Database {
             columns: ["project_id"];
             referencedRelation: "projects";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       domains: {
@@ -102,7 +102,7 @@ export interface Database {
             columns: ["project_id"];
             referencedRelation: "projects";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       file_sections: {
@@ -133,7 +133,7 @@ export interface Database {
             columns: ["files_id"];
             referencedRelation: "files";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       files: {
@@ -179,7 +179,7 @@ export interface Database {
             columns: ["source_id"];
             referencedRelation: "sources";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       memberships: {
@@ -222,7 +222,7 @@ export interface Database {
             columns: ["user_id"];
             referencedRelation: "users";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       messages: {
@@ -253,7 +253,7 @@ export interface Database {
             columns: ["chat_id"];
             referencedRelation: "chats";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       models: {
@@ -305,7 +305,7 @@ export interface Database {
             columns: ["organization_id"];
             referencedRelation: "organizations";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       organizations: {
@@ -357,7 +357,7 @@ export interface Database {
             columns: ["organization_id"];
             referencedRelation: "organizations";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       organizations_subscriptions: {
@@ -388,7 +388,7 @@ export interface Database {
             columns: ["subscription_id"];
             referencedRelation: "subscriptions";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       projects: {
@@ -419,7 +419,7 @@ export interface Database {
             columns: ["organization_id"];
             referencedRelation: "organizations";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       projects_memberships: {
@@ -450,7 +450,7 @@ export interface Database {
             columns: ["project_id"];
             referencedRelation: "projects";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       sources: {
@@ -484,7 +484,7 @@ export interface Database {
             columns: ["project_id"];
             referencedRelation: "projects";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       subscriptions: {
@@ -560,7 +560,7 @@ export interface Database {
             columns: ["project_id"];
             referencedRelation: "projects";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       users: {
@@ -591,7 +591,7 @@ export interface Database {
             columns: ["id"];
             referencedRelation: "users";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
     };
@@ -784,7 +784,7 @@ export interface Database {
             columns: ["owner"];
             referencedRelation: "users";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       migrations: {
@@ -851,7 +851,7 @@ export interface Database {
             columns: ["bucket_id"];
             referencedRelation: "buckets";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
     };

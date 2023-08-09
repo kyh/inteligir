@@ -39,7 +39,7 @@ function getStripeKey() {
 
   if (!STRIPE_SECRET_KEY) {
     throw new Error(
-      `'STRIPE_SECRET_KEY' environment variable was not provided`
+      `'STRIPE_SECRET_KEY' environment variable was not provided`,
     );
   }
 

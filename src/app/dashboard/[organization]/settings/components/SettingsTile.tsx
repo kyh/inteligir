@@ -1,4 +1,4 @@
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { Text } from "~/components/Text";
 
 const SettingsTile: React.FCC<{

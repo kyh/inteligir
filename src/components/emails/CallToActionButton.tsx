@@ -6,7 +6,7 @@ const PRIMARY_COLOR = `#10b981`;
 const CallToActionButton = (
   props: React.PropsWithChildren<{
     href: string;
-  }>
+  }>,
 ) => {
   return (
     <Button

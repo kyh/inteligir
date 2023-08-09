@@ -9,7 +9,7 @@ function getSupabaseMiddlewareClient(
   res: NextResponse,
   params = {
     admin: false,
-  }
+  },
 ) {
   const env = process.env;
 
@@ -17,7 +17,7 @@ function getSupabaseMiddlewareClient(
 
   invariant(
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    `Supabase Anon Key not provided`
+    `Supabase Anon Key not provided`,
   );
 
   if (params.admin) {
@@ -32,7 +32,7 @@ function getSupabaseMiddlewareClient(
         auth: {
           persistSession: false,
         },
-      }
+      },
     );
   }
 
@@ -44,7 +44,7 @@ function getSupabaseMiddlewareClient(
     {
       supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
       supabaseKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    }
+    },
   );
 }
 

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { classed } from "~/lib/utils";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 
 const icons = {
   success: <CheckCircleIcon className="h-5 w-5 rounded-full text-green-700" />,
@@ -42,12 +42,12 @@ type AlertProps = ComponentProps<typeof BaseAlert> & {
 
 export const Alert = deriveClassed<typeof BaseAlert, AlertProps>(function Alert(
   { children, showClose, heading, ...props },
-  ref
+  ref,
 ) {
   const [visible, setVisible] = useState(true);
   const Icon = useMemo(
     () => (props.type ? icons[props.type] : null),
-    [props.type]
+    [props.type],
   );
 
   if (!visible) {

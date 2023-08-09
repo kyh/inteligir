@@ -7,7 +7,7 @@ export async function acceptInviteToOrganization(
   params: {
     code: string;
     userId: string;
-  }
+  },
 ) {
   return client
     .rpc("accept_invite_to_organization", {
@@ -19,7 +19,7 @@ export async function acceptInviteToOrganization(
 
 export async function createOrganizationMembership(
   client: DatabaseClient,
-  membership: Partial<Membership>
+  membership: Partial<Membership>,
 ) {
   const code = nanoid(16);
 
@@ -38,7 +38,7 @@ export async function createOrganizationMembership(
 
 export async function updateMembershipById(
   client: DatabaseClient,
-  membership: Partial<Membership> & { id: number }
+  membership: Partial<Membership> & { id: number },
 ) {
   const { id, ...params } = membership;
 
@@ -47,7 +47,7 @@ export async function updateMembershipById(
 
 export async function deleteMembershipById(
   client: DatabaseClient,
-  membershipId: number
+  membershipId: number,
 ) {
   return client
     .from("memberships")
@@ -61,7 +61,7 @@ export async function transferOwnership(
   params: {
     organizationId: number;
     targetUserMembershipId: number;
-  }
+  },
 ) {
   return client.rpc("transfer_organization", {
     org_id: params.organizationId,

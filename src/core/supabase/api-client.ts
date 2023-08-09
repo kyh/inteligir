@@ -9,14 +9,14 @@ function getSupabaseAPIClient(
   res: NextApiResponse,
   params = {
     admin: false,
-  }
+  },
 ) {
   const env = process.env;
 
   invariant(env.NEXT_PUBLIC_SUPABASE_URL, `Supabase URL not provided`);
   invariant(
     env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    `Supabase Anon Key not provided`
+    `Supabase Anon Key not provided`,
   );
 
   if (params.admin) {
@@ -31,7 +31,7 @@ function getSupabaseAPIClient(
         auth: {
           persistSession: false,
         },
-      }
+      },
     );
   }
 
@@ -40,7 +40,7 @@ function getSupabaseAPIClient(
     {
       supabaseUrl: env.NEXT_PUBLIC_SUPABASE_URL,
       supabaseKey: env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-    }
+    },
   );
 }
 

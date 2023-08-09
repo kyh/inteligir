@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import useUpdateUserMutation from "~/core/hooks/use-update-user-mutation";
 import { Alert } from "~/components/Alert";
 import { Button } from "~/components/Button";
-import If from "~/components/If";
+import { If } from "~/components/If";
 import { TextField } from "~/components/TextField";
 
 const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
@@ -24,7 +24,7 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
         error: (error: Error) => error.message ?? "An error occurred",
       });
     },
-    [updateUserMutation]
+    [updateUserMutation],
   );
 
   const currentEmail = user?.email as string;
@@ -52,7 +52,7 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
 
       return await updateEmail(email);
     },
-    [currentEmail, updateEmail]
+    [currentEmail, updateEmail],
   );
 
   const emailControl = register("email", {

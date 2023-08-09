@@ -1,6 +1,4 @@
-import readServerCookie, {
-  AnyCookies,
-} from "~/core/generic/read-server-cookie";
+import { cookies } from "next/headers";
 
 const ORGANIZATION_ID_COOKIE_NAME = "organizationId";
 
@@ -17,6 +15,6 @@ export function createOrganizationIdCookie(organizationId: string) {
   };
 }
 
-export async function parseOrganizationIdCookie(cookies: AnyCookies) {
-  return await readServerCookie(cookies, ORGANIZATION_ID_COOKIE_NAME);
+export async function parseOrganizationIdCookie() {
+  return cookies().get(ORGANIZATION_ID_COOKIE_NAME)?.value;
 }

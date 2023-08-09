@@ -17,7 +17,7 @@ function useSignInWithOtp() {
         if (result.error) {
           if (shouldIgnoreError(result.error)) {
             console.warn(
-              `Ignoring error during development: ${result.error.message}`
+              `Ignoring error during development: ${result.error.message}`,
             );
 
             return {};
@@ -28,7 +28,7 @@ function useSignInWithOtp() {
 
         return result.data;
       });
-    }
+    },
   );
 }
 

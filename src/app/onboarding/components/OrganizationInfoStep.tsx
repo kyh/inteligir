@@ -28,7 +28,7 @@ const OrganizationInfoStep: React.FCC<{
         organization,
       });
     },
-    [onSubmit]
+    [onSubmit],
   );
 
   return (
