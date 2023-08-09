@@ -5,6 +5,7 @@ const THEME_KEY = `theme`;
 
 const LIGHT_THEME_META_COLOR = siteConfig.site.themeColor;
 const DARK_THEME_META_COLOR = siteConfig.site.themeColorDark;
+const DEFAULT_THEME = siteConfig.theme;
 
 export const DARK_THEME_CLASSNAME = `dark`;
 export const LIGHT_THEME_CLASSNAME = `light`;
@@ -12,9 +13,9 @@ export const SYSTEM_THEME_CLASSNAME = "system";
 
 export const getStoredTheme = () => {
   try {
-    return getCookie(THEME_KEY) ?? LIGHT_THEME_CLASSNAME;
+    return getCookie(THEME_KEY) ?? DEFAULT_THEME;
   } catch (e) {
-    return LIGHT_THEME_CLASSNAME;
+    return DEFAULT_THEME;
   }
 };
 
