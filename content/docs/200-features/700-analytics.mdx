@@ -1,0 +1,24 @@
+---
+title: Analytics
+excerpt: Learn how to set up analytics for your website using PostHog, an open-source product analytics platform. Follow this step-by-step guide to add the necessary environment variables, including POSTHOG_API_KEY and POSTHOG_HOST, to your Vercel project.
+---
+
+# Analytics
+
+In this step, we'll set up analytics.
+
+## PostHog
+
+Scalerepo uses [PostHog](https://posthog.com/) to track analytics. PostHog is an open-source product analytics platform. It's designed to be self-hosted, so you can use it to track your own analytics.
+
+You can use PostHog to track your own analytics.
+
+## Add your environment variables
+
+1. Open the Vercel project you created in the previous step
+2. Click the "Environment Variables" tab
+3. Add the following environment variables (replace example value with your own):
+
+```bash
+NEXT_PUBLIC_POSTHOG_KEY=somevalue
+```

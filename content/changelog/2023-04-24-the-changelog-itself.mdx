@@ -1,0 +1,29 @@
+---
+title: The Changelog Itself
+author: amy-kline
+createdAt: 2023-4-20
+heroImage: https://res.cloudinary.com/dmffaoohj/image/upload/v1682374462/changelog_ucfwxg.png
+---
+
+This is Scalerepo's first changelog and what better feature to introduce than the changelog itself!
+Over the last couple of weeks, we've quietly introduced a MDX rendering engine that's now powering our [blog](/blog), [docs](/docs), and now this changelog.
+
+One of the most jarring experiences in many websites is when you're switching between multiple providers for a blog, changelog, and documentation. Each provider has its own style and uses a different datastore which leads to obvious issues with data quality and aesthetics.
+With Scalerepo, you'll be able to write all three of these sites in MDX in the same repo as your codebase.
+
+To add a new changelog entry, create a file in `/content/changelog/`, with the format `date-your-title.mdx`
+
+The first few lines of this MDX file is some self explanatory metadata and the rest of the file is regular MDX.
+
+```mdx
+---
+title: The changelog itself
+author: yogi-seetharaman
+createdAt: 2023-4-20
+heroImage: https://res.cloudinary.com/dmffaoohj/image/upload/v1680887646/header-image_jydghl.png
+---
+
+This is Scalerepo's first changelog and what better feature to...
+```
+
+Note that the `author` field refers to an mdx file in `content/authors`. The same authors can write both blog posts and changelog entries.

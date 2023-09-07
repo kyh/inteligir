@@ -1,0 +1,92 @@
+---
+title: Documentation
+excerpt: Roll your own documentation using MDX
+---
+
+# Documentation
+
+Scalerepo uses Contentlayer and MDX to host docs.
+
+## Folder structure
+
+Any `mdx` file inside `your-scalerepo/content/docs` folder will get picked up in the docs. The files and folder structure will be displayed on the left sidebar. For example, the current docs page you're on looks something like this:
+
+```markdown
+scalerepo/
+content/
+docs/
+100-getting-started/
+100-setup.mdx
+200-environment.mdx
+300-run-app.mdx
+200-features/
+100-database.mdx
+200-auth.mdx
+300-emails.mdx
+400-onboarding.mdx
+500-organization.mdx
+600-payments.mdx
+700-analytics.mdx
+800-documenation.mdx
+400-contributing.mdx
+```
+
+You'll notice each file and folder is prefixed with a number and a dash (ex: `300-`). This number is used to sort the files into the right display order.
+
+## Markdown
+
+Out of the box, the docs page supports all basic Markdown.
+
+# H1
+
+## H2
+
+### H3
+
+#### H4
+
+`single line code blocks`
+
+```tsx
+Multi;
+line;
+code;
+blocks;
+```
+
+_italic_
+**bold**
+
+[Links](/docs/beta/documentation)
+
+## React with Tailwind
+
+The following code generates the red text below it
+
+```tsx
+<div className="text-red-500">This is red text</div>
+```
+
+<div className="text-red-500">This is red text</div>
+
+## Callouts
+
+Follow the `Callout` component to see how you can write more complex React with props with MDX. By passing a variant to this component, we can display different types of callouts in the documenation.
+
+<div className="flex flex-col space-y-2">
+  <Callout variant="info">This is an informational callout</Callout>
+  <Callout variant="success">This is a success callout</Callout>
+  <Callout variant="warning">This is a warning callout</Callout>
+  <Callout variant="danger">This is a danger callout</Callout>
+</div>
+
+These callouts were generated with this exact code in the MDX file.
+
+```tsx
+<div className="flex flex-col space-y-2">
+  <Callout variant="info">This is an informational callout</Callout>
+  <Callout variant="success">This is a success callout</Callout>
+  <Callout variant="warning">This is a warning callout</Callout>
+  <Callout variant="danger">This is a danger callout</Callout>
+</div>
+```

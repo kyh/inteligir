@@ -1,0 +1,45 @@
+---
+title: Authentication
+excerpt: Learn how to set up authentication using NextAuth.js, an open source authentication library for Next.js, and Planetscale, a fully managed database service that's built on top of MySQL. This step-by-step guide walks you through adding the necessary environment variables and generating a secret.
+---
+
+# Authentication
+
+In this step, we'll set up authentication.
+
+## NextAuth.js
+
+Scalerepo uses [NextAuth.js](https://next-auth.js.org) to handle authentication. NextAuth.js is an open source authentication library for Next.js. It supports a number of authentication providers, including email, GitHub, Google, and more.
+
+## Set up the database
+
+NextAuth.js requires a database to store user information. Scalerepo uses [Planetscale](https://planetscale.com) to store user information. Planetscale is a fully managed database service that's built on top of MySQL. It's designed to be a drop-in replacement for MySQL, so you can use the same tools you're already familiar with.
+
+### Add your environment variables
+
+1. Open the Vercel project you created in the previous step
+2. Click the "Environment Variables" tab
+3. Add the following environment variables:
+
+```bash
+NEXTAUTH_SECRET=somevalue
+NEXTAUTH_URL=http://localhost:3000
+```
+
+NextAuth.js uses the `NEXTAUTH_SECRET` environment variable to sign cookies. It uses the `NEXTAUTH_URL` environment variable to set the `next-auth.url` cookie.
+
+### Generate a secret
+
+To generate a NEXTAUTH_SECRET, you can run
+
+```bash
+openssl rand -base64 32
+```
+
+in your terminal or use this [website](https://generate-secret.vercel.app/32) to generate a value.
+
+### NextAuth.js URL
+
+NextAuth.js uses the `NEXTAUTH_URL` environment variable to set the `next-auth.url` cookie. This cookie is used to redirect users back to your app after they've signed in.
+
+We've already set up `NEXTAUTH_URL` for you (see `package.json`), but you can also set it manually. To do so, set `NEXTAUTH_URL` to the URL of your Vercel project.
