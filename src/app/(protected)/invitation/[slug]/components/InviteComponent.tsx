@@ -49,9 +49,9 @@ export function InviteComponent({
       <div className="flex flex-col items-center space-y-4">
         <Card>
           <CardHeader>
-            <CardTitle className="text-center">Suparepo Invitation</CardTitle>
+            <CardTitle className="text-center">Inteligir Invitation</CardTitle>
             <CardDescription className="text-center">
-              Join {team.name} on Suparepo
+              Join {team.name} on Inteligir
             </CardDescription>
           </CardHeader>
           <CardContent>

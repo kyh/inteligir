@@ -1,15 +1,11 @@
 import CreateWorkspace from "../components/CreateWorkspace";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "~/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
 export default async function CreatePage() {
-  // setup supabase
-  const supabase = createServerComponentClient({ cookies });
-
-  // get user
+  const supabase = getSupabaseServerClient();
 
   const {
     data: { user },
@@ -18,8 +14,6 @@ export default async function CreatePage() {
   if (!user) {
     redirect("/signin");
   }
-
-  // get user profile
 
   const { data: profile } = await supabase
     .from("profiles")

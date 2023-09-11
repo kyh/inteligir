@@ -1,11 +1,12 @@
-import SupabaseProvider from "~/components/providers/supabase-provider";
-import PHProvider from "~/components/providers/posthog-provider";
+import { SupabaseProvider } from "~/components/providers/supabase-provider";
+import { PHProvider } from "~/components/providers/posthog-provider";
+import { ThemeProvider } from "~/components/providers/theme-provider";
+import { Toaster } from "sonner";
 import "./globals.css";
-import { Toaster } from "~/components/ui/toaster";
 
 export const metadata = {
-  title: "Suparepo",
-  description: "A repo for Next.js (App Router) + Supabase",
+  title: "Inteligir",
+  description: "Build a data-informed team",
 };
 
 export default function RootLayout({
@@ -14,16 +15,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html
-      lang="en"
-      className="dark dark:selection:bg-white dark:selection:text-black"
-    >
+    <html lang="en" suppressHydrationWarning>
       <head />
       <body className="dark:bg-brand-950">
-        <PHProvider>
-          <SupabaseProvider>{children}</SupabaseProvider>
-        </PHProvider>
-        <Toaster />
+        <ThemeProvider>
+          <PHProvider>
+            <SupabaseProvider>{children}</SupabaseProvider>
+          </PHProvider>
+        </ThemeProvider>
+        <Toaster theme="system" />
       </body>
     </html>
   );

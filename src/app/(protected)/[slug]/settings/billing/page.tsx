@@ -1,9 +1,8 @@
 import BillingComponent from "~/app/(protected)/components/BillingComponent";
 import SettingsShell from "~/app/(protected)/components/SettingsShell";
-import { Database } from "~/lib/types";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "~/lib/supabase";
+import { stripe } from "~/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +12,10 @@ export default async function BillingPage({
   params: { slug: string };
 }) {
   const { slug: teamIdString } = params;
-
-  // convert teamId to number
   const teamId = parseInt(teamIdString, 10);
 
-  // setup supabase
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = getSupabaseServerClient();
 
-  // get user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -81,6 +76,14 @@ export default async function BillingPage({
     redirect("/signin");
   }
 
+  const { data: products } = await stripe.products.list({
+    active: true,
+  });
+
+  const { data: prices } = await stripe.prices.list({
+    active: true,
+  });
+
   return (
     <SettingsShell
       profile={profile}
@@ -89,7 +92,7 @@ export default async function BillingPage({
       title="Billing"
       description="View and manage your plans and invoices"
     >
-      <BillingComponent />
+      <BillingComponent team={team} products={products} prices={prices} />
     </SettingsShell>
   );
 }

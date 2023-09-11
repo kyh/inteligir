@@ -17,26 +17,22 @@ export async function POST(request: Request) {
   if (send) {
     try {
       await resend.emails.send({
-        from: "Neorepo <team@mail.neorepo.com>",
+        from: "Inteligir <team@mail.inteligir.com>",
         to: [email],
-        subject: "Your invitation to Suparepo",
+        subject: "Your invitation to Inteligir",
         react: InviteEmail({
           toEmail: email,
           inviteUrl: `${baseUrl}/invitation/${id}`,
         }),
-      });
-
-      return new Response("Success", {
-        status: 200,
       });
     } catch (error) {
       return new Response((error as Error).message, {
         status: 500,
       });
     }
-  } else {
-    return new Response("Success", {
-      status: 200,
-    });
   }
+
+  return new Response("Success", {
+    status: 200,
+  });
 }

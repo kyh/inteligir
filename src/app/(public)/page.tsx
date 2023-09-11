@@ -1,5 +1,5 @@
-import UnauthenticatedHome from "~/app/(public)/components/UnauthenticatedHome";
+import { Home } from "~/app/(public)/components/Home";
 
 export default async function LandingPage() {
-  return <UnauthenticatedHome />;
+  return <Home />;
 }

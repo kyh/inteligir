@@ -1,12 +1,15 @@
-import { useEffect } from "react";
-import React from "react";
+import { useEffect, createElement } from "react";
 
 const StripePricingTable = ({
   pricingTableId,
   publishableKey,
+  clientId,
+  customerEmail,
 }: {
   pricingTableId: string;
   publishableKey: string;
+  clientId: string;
+  customerEmail: string;
 }) => {
   useEffect(() => {
     // Ensure window object is available
@@ -29,11 +32,13 @@ const StripePricingTable = ({
     }
   }, []); // Empty dependency array means this effect runs once on mount and unmount
 
-  return React.createElement(
+  return createElement(
     "stripe-pricing-table",
     {
       "pricing-table-id": pricingTableId,
       "publishable-key": publishableKey,
+      "client-reference-id": clientId,
+      "customer-email": customerEmail,
     },
     null
   );

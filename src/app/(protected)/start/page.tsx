@@ -1,17 +1,13 @@
 import Start from "../components/Start";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "~/lib/supabase";
 
 export const revalidate = 0;
 
 export const dynamic = "force-dynamic";
 
 export default async function StartPage() {
-  // setup supabase
-  const supabase = createServerComponentClient({ cookies });
-
-  // get user
+  const supabase = getSupabaseServerClient();
 
   const {
     data: { user },

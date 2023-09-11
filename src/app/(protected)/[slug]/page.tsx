@@ -1,9 +1,7 @@
 import HomeCard from "../components/HomeCard";
 import Shell from "../components/Shell";
-import { Database } from "~/lib/types";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "~/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +11,10 @@ export default async function TeamPage({
   params: { slug: string };
 }) {
   const { slug: teamIdString } = params;
-
-  // convert teamId to number
   const teamId = parseInt(teamIdString, 10);
 
-  // setup supabase
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = getSupabaseServerClient();
 
-  // get user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -29,7 +23,6 @@ export default async function TeamPage({
     redirect("/signin");
   }
 
-  // get user profile
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
@@ -74,7 +67,6 @@ export default async function TeamPage({
   const team = teamsData.find((team) => team.id === teamId);
 
   // Check invites
-
   const { data: invitesData, error: invitesError } = await supabase
     .from("invites")
     .select("*")

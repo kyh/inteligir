@@ -1,3 +1,3 @@
-const EMAIL_FROM = "hello@neorepo.com";
+const EMAIL_FROM = "hello@inteligir.com";
 
 export default EMAIL_FROM;

@@ -1,4 +1,5 @@
 "use client";
+
 import { Database } from "~/lib/types";
 import {
   SupabaseClient,
@@ -13,11 +14,7 @@ type SupabaseContext = {
 
 const Context = createContext<SupabaseContext | undefined>(undefined);
 
-export default function SupabaseProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function SupabaseProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [supabase] = useState(() => createClientComponentClient<Database>());
 

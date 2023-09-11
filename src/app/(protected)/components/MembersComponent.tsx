@@ -21,13 +21,12 @@ import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { useSupabase } from "~/components/providers/supabase-provider";
 import { useRouter } from "next/navigation";
-import { useToast } from "~/components/ui/use-toast";
+import { toast } from "sonner";
 
 const InviteSection = ({ team, user }: { team: Team; user: Profile }) => {
   const [loading, setLoading] = useState(false);
   const [invites, setInvites] = useState([{ email: "", role: "MEMBER" }]);
   const { supabase } = useSupabase();
-  const { toast } = useToast();
   const router = useRouter();
 
   const handleAddInvite = useCallback(() => {
@@ -62,11 +61,7 @@ const InviteSection = ({ team, user }: { team: Team; user: Profile }) => {
     const invitesToCreate = invites.filter((invite) => invite.email);
 
     if (!invitesToCreate.length) {
-      toast({
-        variant: "destructive",
-        title: "Uh oh! Something went wrong.",
-        description: "Please enter at least one email",
-      });
+      toast.error("Please enter at least one email");
       return;
     }
 
@@ -86,17 +81,14 @@ const InviteSection = ({ team, user }: { team: Team; user: Profile }) => {
       }
     }
 
-    toast({
-      title: "Invites sent!",
-      description: "Your invites have been sent.",
-    });
+    toast.success("Your invites have been sent.");
 
     setInvites([{ email: "", role: "MEMBER" }]);
 
     router.refresh();
 
     setLoading(false);
-  }, [user, team, supabase, invites, router, toast]);
+  }, [user, team, supabase, invites, router]);
 
   return (
     <div className="rounded-lg border bg-white">
@@ -173,7 +165,6 @@ const InvitedSection = ({
 }) => {
   const { supabase } = useSupabase();
   const router = useRouter();
-  const { toast } = useToast();
 
   const handleDeleteInvite = useCallback(
     async (invite: Invite) => {
@@ -189,13 +180,11 @@ const InvitedSection = ({
         return;
       }
 
-      toast({
-        title: `Invite to ${invite.email} deleted`,
-      });
+      toast.success(`Invite to ${invite.email} deleted`);
 
       router.refresh();
     },
-    [supabase, router, toast]
+    [supabase, router]
   );
 
   if (!team || !teamInvites) return null;
@@ -278,16 +267,13 @@ const MembersSection = ({
   teamMembersProfiles: Profile[];
 }) => {
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
 
   const handleUpdateRole = useCallback(
     async (member: Member, role: Role) => {
       if (!team) return;
 
       if (member.user_id === user.id) {
-        toast({
-          variant: "destructive",
-          title: "You can't change your own role",
+        toast.error("You can't change your own role", {
           description: "Ask another admin to change your role",
         });
         return;
@@ -295,14 +281,11 @@ const MembersSection = ({
 
       setLoading(true);
 
-      toast({
-        title: "Role updated",
-        description: `Role has been updated to ${role}`,
-      });
+      toast.success(`Role has been updated to ${role}`);
 
       setLoading(false);
     },
-    [team, user, toast]
+    [team, user]
   );
 
   const handleRemoveMember = useCallback(
@@ -310,9 +293,7 @@ const MembersSection = ({
       if (!team) return;
 
       if (member.user_id === user?.id) {
-        toast({
-          variant: "destructive",
-          title: "You can't remove yourself",
+        toast.error("You can't remove yourself", {
           description: "Leave the team instead",
         });
         return;
@@ -320,12 +301,9 @@ const MembersSection = ({
 
       if (!confirm("Are you sure you want to remove this member?")) return;
 
-      toast({
-        title: "Member removed",
-        description: `Removed from the team`,
-      });
+      toast.success("Member removed from team the team");
     },
-    [team, user, toast]
+    [team, user]
   );
 
   if (!user || !team || !teamMembers || !teamMembersProfiles) return null;

@@ -13,7 +13,7 @@ import {
   DialogTrigger,
 } from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
-import { useToast } from "~/components/ui/use-toast";
+import { toast } from "sonner";
 
 type CreateTeamModalProps = {
   children?: React.ReactNode;
@@ -31,7 +31,6 @@ export default function CreateTeamModal({
   const [name, setName] = useState("");
   const [open, setOpen] = useState(_open);
   const [loading, setLoading] = useState(false);
-  const { toast } = useToast();
 
   const handleCreateTeam = useCallback(async () => {
     const {
@@ -43,11 +42,7 @@ export default function CreateTeamModal({
     const user = session.user;
 
     if (!name) {
-      toast({
-        variant: "destructive",
-        title: "Team name required.",
-        description: "Please enter a team name.",
-      });
+      toast.error("Team name required.");
       return;
     }
 
@@ -86,13 +81,11 @@ export default function CreateTeamModal({
 
     router.push(`/${team.id}`);
 
-    toast({
-      title: "Team created.",
-      description: `You have successfully created the team ${team.name}.`,
-    });
+    toast.success("You have successfully created the team ${team.name}.");
+
     setName("");
     setLoading(false);
-  }, [name, router, supabase, toast]);
+  }, [name, router, supabase]);
 
   const handleOpenChange = useCallback(
     (val: boolean) => {

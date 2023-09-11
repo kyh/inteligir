@@ -10,11 +10,7 @@ if (typeof window !== "undefined" && process.env.NEXT_PUBLIC_POSTHOG_KEY) {
   });
 }
 
-export default function PHProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function PHProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 

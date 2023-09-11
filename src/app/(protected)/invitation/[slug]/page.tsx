@@ -1,7 +1,6 @@
 import { InviteComponent } from "./components/InviteComponent";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "~/lib/supabase";
 
 export const revalidate = 0;
 
@@ -13,14 +12,9 @@ export default async function InvitationPage({
   params: { slug: string };
 }) {
   const { slug: inviteIdString } = params;
-
-  // convert teamId to number
   const inviteId = parseInt(inviteIdString, 10);
 
-  // setup supabase
-  const supabase = createServerComponentClient({ cookies });
-
-  // get user
+  const supabase = getSupabaseServerClient();
 
   const {
     data: { user },
@@ -30,15 +24,11 @@ export default async function InvitationPage({
     redirect("/signin");
   }
 
-  // get user profile
-
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single();
-
-  // get the invite data
 
   const { data: inviteData, error: inviteError } = await supabase
     .from("invites")
@@ -64,7 +54,6 @@ export default async function InvitationPage({
   }
 
   // Invitation email check
-
   const email = inviteData.email;
 
   if (email !== user.email) {

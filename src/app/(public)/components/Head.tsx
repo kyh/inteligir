@@ -23,7 +23,7 @@ export default function Head({
       <meta property="og:description" content={description} />
       <meta property="og:site_name" content={title} />
       <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://blog.neorepo.com" />
+      <meta property="og:url" content="https://blog.inteligir.com" />
       <meta name="image" property="og:image" content={image} />
       <meta property="og:title" content={title} />
       {/* twitter */}

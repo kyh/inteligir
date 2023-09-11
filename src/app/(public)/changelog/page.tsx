@@ -25,8 +25,8 @@ export default function ChangelogHome() {
   return (
     <>
       <Head
-        title="Neorepo Changelog"
-        description="The latest features, improvements, and bug fixes for Neorepo"
+        title="Inteligir Changelog"
+        description="The latest features, improvements, and bug fixes for Inteligir"
         image="https://cdn.hashnode.com/res/hashnode/image/upload/v1678913555475/TFjT1bbJa.png"
       />
       <div className="">

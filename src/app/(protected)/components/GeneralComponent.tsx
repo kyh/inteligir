@@ -6,7 +6,7 @@ import { Input } from "~/components/ui/input";
 import { useSupabase } from "~/components/providers/supabase-provider";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { useToast } from "~/components/ui/use-toast";
+import { toast } from "sonner";
 
 export default function GeneralComponent({
   team,
@@ -21,7 +21,6 @@ export default function GeneralComponent({
   const [nameLoading, setNameLoading] = useState(false);
   const router = useRouter();
   const { supabase } = useSupabase();
-  const { toast } = useToast();
 
   const role = userMembership.role;
 
@@ -36,10 +35,8 @@ export default function GeneralComponent({
       .eq("user_id", userMembership.user_id)
       .eq("team_id", userMembership.team_id);
 
-    toast({
-      title: "Left team",
-      description: "You have left the team",
-    });
+    toast.success("You have left the team");
+
     setLeaveLoading(false);
   };
 
@@ -48,10 +45,7 @@ export default function GeneralComponent({
 
     await supabase.from("teams").delete().eq("id", team.id);
 
-    toast({
-      title: "Team deleted",
-      description: "Your team has been deleted",
-    });
+    toast.success("Your team has been deleted");
 
     router.refresh();
 
@@ -63,10 +57,7 @@ export default function GeneralComponent({
 
     await supabase.from("teams").update({ name }).eq("id", team.id);
 
-    toast({
-      title: "Team name updated",
-      description: "Your team name has been updated",
-    });
+    toast.success("Your team name has been updated");
 
     setNameLoading(false);
 

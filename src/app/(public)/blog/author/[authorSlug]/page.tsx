@@ -22,7 +22,7 @@ export default async function PostPage({
     <>
       <Head
         title={author.name}
-        description={`${author.name}'s posts for the Neorepo blog`}
+        description={`${author.name}'s posts for the Inteligir blog`}
         image="https://cdn.hashnode.com/res/hashnode/image/upload/v1678913555475/TFjT1bbJa.png"
       />
       <div className="">

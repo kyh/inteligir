@@ -10,12 +10,12 @@ export const Hero = () => {
       <div className="relative px-8 py-24 mx-auto md:px-12 lg:px-32 max-w-7xl lg:py-56">
         <div>
           <h1 className="pb-2 text-4xl font-normal tracking-tight text-transparent bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text font-display sm:text-6xl">
-            Unleash your potential
-            <span className="lg:block"> through seamless online learning</span>
+            Build a data-informed team
+            <span className="lg:block">with weekly metrics reports</span>
           </h1>
           <p className="max-w-xl mt-4 text-brand-300">
-            Discover a boundless realm of knowledge and personal growth, all
-            conclaiently accessible right at your fingertips
+            Inteligir generates comprehensive weekly metrics reports alongside
+            actionable insights so that you can make data-informed decisions.
           </p>
           <div className="relative flex flex-col max-w-xl gap-2 mt-12 sm:flex-row">
             <a
@@ -32,104 +32,135 @@ export const Hero = () => {
             </a>
           </div>
         </div>
+
         <div className="grid flex-col justify-between gap-2 mt-4 gird-cols-1 lg:grid-cols-3 md:grid-cols-2 w-lg">
           <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl lg:mt-24">
-            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-card">
+            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-brand-900">
               <div>
-                <img src="/images/widget6.svg" />
+                <img src="/screenshots/widget6.svg" />
               </div>
               <div className="flex flex-col gap-2 p-4">
-                <p className="text-lg text-white font-display lg:text-xl">
-                  Personalized learning paths
+                <p className="text-sm text-brand-300 font-display">
+                  How engaged are the power users of my product?
                 </p>
-                <p className="text-sm text-brand-300">
-                  Embark on a tailored educational journey, with courses curated
-                  to match your interests, goals, and learning pace.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl">
-            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-card">
-              <div>
-                <img src="/images/widget5.svg" />
-              </div>
-              <div className="flex flex-col gap-2 p-4">
-                <p className="text-lg text-white font-display lg:text-xl">
-                  Interactive discussions
-                </p>
-                <p className="text-sm text-brand-300">
-                  Engage in vibrant discussions with fellow learners and
-                  educators, fostering a collaborative learning environment.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl lg:-mt-24">
-            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-card">
-              <div>
-                <img src="/images/widget4.svg" />
-              </div>
-              <div className="flex flex-col gap-2 p-4">
-                <p className="text-lg text-white font-display lg:text-xl">
-                  Rich multimedia content
-                </p>
-                <p className="text-sm text-brand-300">
-                  Dive into a variety of learning materials, from video lectures
-                  to interactive quizzes, ensuring an engaging and comprehensive
-                  experience.
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl lg:mt-24">
-            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-card">
-              <div>
-                <img src="/images/widget3.svg" />
-              </div>
-              <div className="flex flex-col gap-2 p-4">
-                <p className="text-lg text-white font-display lg:text-xl">
-                  Anytime, anywhere access
-                </p>
-                <p className="text-sm text-brand-300">
-                  Enjoy the flexibility of learning on your schedule, accessing
-                  courses and resources seamlessly across devices.
+                <p className="text-md text-white">
+                  The share of power users has been increasing this month (+12%
+                  change d/d).
                 </p>
               </div>
             </div>
           </div>
 
           <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl">
-            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-card">
+            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-brand-900">
               <div>
-                <img src="/images/widget2.svg" />
+                <img src="/screenshots/widget5.svg" />
               </div>
               <div className="flex flex-col gap-2 p-4">
-                <p className="text-lg text-white font-display lg:text-xl">
-                  Progress tracking
+                <p className="text-sm text-brand-300 font-display">
+                  How is short and long-term retention trending with each new
+                  cohort?
                 </p>
-                <p className="text-sm text-brand-300">
-                  Monitor your learning milestones and accomplishments,
-                  motivating you to stay on track and celebrate your
-                  achievements.
+                <p className="text-md text-white">
+                  The current cohort is doing much better than the cohort one
+                  quarter ago (+20% retention).
                 </p>
               </div>
             </div>
           </div>
-          <div className="p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl lg:-mt-24">
-            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-card">
+
+          <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl lg:-mt-24">
+            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-brand-900">
               <div>
-                <img src="/images/widget1.svg" />
+                <img src="/screenshots/widget4.svg" />
               </div>
               <div className="flex flex-col gap-2 p-4">
-                <p className="text-lg text-white font-display lg:text-xl">
-                  Expert instructors
+                <p className="text-sm text-brand-300 font-display">
+                  Which feature usage leads to the highest user retention?
                 </p>
-                <p className="text-sm text-brand-300">
-                  Learn from accomplished experts and industry professionals,
-                  gaining insights from their real-world experience.
+                <p className="text-md text-white">
+                  Users who share a post within their first week are more likely
+                  to retain (+25% than overall).
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl lg:mt-24">
+            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-brand-900">
+              <div>
+                <img src="/screenshots/widget3.svg" />
+              </div>
+              <div className="flex flex-col gap-2 p-4">
+                <p className="text-sm text-brand-300 font-display">
+                  Which slow-moving trends in new user growth are concerning?
+                </p>
+                <p className="text-md text-white">
+                  Retention of customers acquired via Facebook ads is trending
+                  down for 16 weeks now.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="h-full p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl">
+            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-brand-900">
+              <div>
+                <img src="/screenshots/widget2.svg" />
+              </div>
+              <div className="flex flex-col gap-2 p-4">
+                <p className="text-sm text-brand-300 font-display">
+                  What’s my growth forecast? Am I likely to hit my growth goal?
+                </p>
+                <p className="text-md text-white">
+                  Grow at 10% w/w to hit the May Goal, currently expected to be
+                  missed by 1M.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-2 bg-gradient-to-t from-white/20 ring-1 ring-white/10 rounded-3xl lg:-mt-24">
+            <div className="flex flex-col justify-between h-full p-4 overflow-hidden shadow-massive ring-1 ring-white/10 rounded-2xl bg-brand-900">
+              <div>
+                <img src="/screenshots/widget1.svg" />
+              </div>
+              <div className="flex flex-col gap-2 p-4">
+                <p className="text-sm text-brand-300 font-display">
+                  What opportunities are there to optimize my acquisition
+                  funnel?
+                </p>
+                <p className="text-md text-white">
+                  Raising conversion rate of Brazil Android users to overall avg
+                  would lead to $150K increase in ARR.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+const LogoCloud = () => {
+  return (
+    <section>
+      <div className="mx-auto px-8 lg:px-36 max-w-7xl md:px-12 py-12">
+        <div className="items-center grid grid-cols-1 lg:gap-24 lg:grid-cols-4 md:grid-cols-2 py-12">
+          <div className="mx-auto col-span-full lg:col-span-1 lg:max-w-none lg:mr-auto">
+            <p className="text-xs">Some of the companies generating reports</p>
+          </div>
+          <div className="mt-12 lg:mt-0 md:col-span-3">
+            <div className="flex justify-between flex-wrap">
+              <img alt="logo" className="h-8" src="/logos/airbnb.svg" />
+              <img alt="logo" className="h-8" src="/logos/basecamp.svg" />
+              <img alt="logo" className="h-8" src="/logos/dribbble.svg" />
+              <img
+                alt="logo"
+                className="h-8 hidden sm:block"
+                src="/logos/spacex.svg"
+              />
             </div>
           </div>
         </div>
@@ -156,7 +187,7 @@ const Feature = () => {
           className="grid grid-cols-1 gap-2 mt-2 list-none md:grid-cols-3 mx-auto ring-white/10 ring-1 p-2 bg-gradient-to-t from-white/20 rounded-3xl"
           role="list"
         >
-          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-card/80 h-full">
+          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-brand-900/80 h-full">
             <span className="ring-1 ring-white/10 rounded-full bg-white/5 h-10 w-10 items-center inline-flex text-white mx-auto justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -184,7 +215,7 @@ const Feature = () => {
               match your interests, goals, and learning pace.
             </p>
           </li>
-          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-card/80 h-full">
+          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-brand-900/80 h-full">
             <span className="ring-1 ring-white/10 rounded-full bg-white/5 h-10 w-10 items-center inline-flex text-white mx-auto justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -213,7 +244,7 @@ const Feature = () => {
               fostering a collaborative learning environment.
             </p>
           </li>
-          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-card/80 h-full">
+          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-brand-900/80 h-full">
             <span className="ring-1 ring-white/10 rounded-full bg-white/5 h-10 w-10 items-center inline-flex text-white mx-auto justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -248,7 +279,7 @@ const Feature = () => {
             </p>
           </li>
 
-          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-card/80 h-full">
+          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-brand-900/80 h-full">
             <span className="ring-1 ring-white/10 rounded-full bg-white/5 h-10 w-10 items-center inline-flex text-white mx-auto justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -280,7 +311,7 @@ const Feature = () => {
               courses and resources seamlessly across devices.
             </p>
           </li>
-          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-card/80 h-full">
+          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-brand-900/80 h-full">
             <span className="ring-1 ring-white/10 rounded-full bg-white/5 h-10 w-10 items-center inline-flex text-white mx-auto justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -311,7 +342,7 @@ const Feature = () => {
             </p>
           </li>
 
-          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-card/80 h-full">
+          <li className="p-8 ring-1 ring-white/10 rounded-2xl lg:p-10 shadow-massive bg-brand-900/80 h-full">
             <span className="ring-1 ring-white/10 rounded-full bg-white/5 h-10 w-10 items-center inline-flex text-white mx-auto justify-center">
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -344,16 +375,17 @@ const Feature = () => {
   );
 };
 
-export default function UnauthenticatedHome() {
+export function Home() {
   return (
     <>
       <Head
         title="Demorepo - a modern tool"
         description="A modern tool to help your business collaborate and grow"
-        image="https://framerusercontent.com/images/U10Ma2ZnGwFCA5tjS4wsy53KbmE.png"
+        image="https://framerusercontent.com/screenshots/U10Ma2ZnGwFCA5tjS4wsy53KbmE.png"
       />
       <Header />
       <Hero />
+      <LogoCloud />
       <Feature />
     </>
   );

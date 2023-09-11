@@ -19,8 +19,8 @@ export default async function Home() {
   return (
     <>
       <Head
-        title="Neorepo Blog"
-        description="Learn how to make production ready web apps with Neorepo"
+        title="Inteligir Blog"
+        description="Learn how to make production ready web apps with Inteligir"
         image="https://cdn.hashnode.com/res/hashnode/image/upload/v1678913555475/TFjT1bbJa.png"
       />
       <div className="">

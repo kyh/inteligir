@@ -1,9 +1,7 @@
 import ProfileComponent from "~/app/(protected)/components/ProfileComponent";
 import SettingsShell from "~/app/(protected)/components/SettingsShell";
-import { Database } from "~/lib/types";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "~/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -13,14 +11,10 @@ export default async function Profile({
   params: { slug: string };
 }) {
   const { slug: teamIdString } = params;
-
-  // convert teamId to number
   const teamId = parseInt(teamIdString, 10);
 
-  // setup supabase
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = getSupabaseServerClient();
 
-  // get user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -29,7 +23,6 @@ export default async function Profile({
     redirect("/signin");
   }
 
-  // get user profile
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")

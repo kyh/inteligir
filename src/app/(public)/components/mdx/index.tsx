@@ -10,7 +10,6 @@ import Pre from "./Pre";
 import Code from "./Code";
 import Span from "./Span";
 import UL from "./UL";
-import Tweet from "./Tweet";
 import type { MDXComponents } from "mdx/types";
 
 const MDX_COMPONENTS: MDXComponents = {
@@ -71,7 +70,6 @@ const MDX_COMPONENTS: MDXComponents = {
       {children}
     </Callout>
   ),
-  Tweet: ({ id, ...props }) => <Tweet id={id as string} {...props} />,
 };
 
 export default function MDX({ content }: { content: string }) {

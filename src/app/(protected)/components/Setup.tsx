@@ -248,7 +248,7 @@ function HostingContent() {
   return (
     <ContentBlock>
       <p>
-        Suparepo uses Vercel to host your app. If you're not familiar with
+        Inteligir uses Vercel to host your app. If you're not familiar with
         Vercel, check out their{" "}
         <Link href="https://vercel.com/docs">tutorial</Link> on how to setup a
         project.
@@ -297,7 +297,7 @@ function DatabaseContent() {
   return (
     <ContentBlock>
       <p>
-        Suparepo uses Supabase Database (i.e. Postgres). We want to set the{" "}
+        Inteligir uses Supabase Database (i.e. Postgres). We want to set the{" "}
         <InlineCode>NEXT_PUBLIC_SUPABASE_URL</InlineCode> and{" "}
         <InlineCode>NEXT_PUBLIC_SUPABASE_ANON_KEY</InlineCode> variables. to get
         started.
@@ -558,7 +558,7 @@ function AuthContent() {
   return (
     <ContentBlock>
       <p>
-        Suparepo uses Supabase Auth to handle magic link and multiple providers
+        Inteligir uses Supabase Auth to handle magic link and multiple providers
         for authentication.{" "}
       </p>
 
@@ -635,7 +635,7 @@ function BillingContent() {
   return (
     <ContentBlock>
       <p>
-        Suparepo uses Stripe to handle billing. Once you've connected Stripe,
+        Inteligir uses Stripe to handle billing. Once you've connected Stripe,
         customers can manage their payments from the Stripe billing portal on
         the <InlineCode>/billing</InlineCode> page.
       </p>
@@ -644,7 +644,7 @@ function BillingContent() {
         <InlineCode>NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY</InlineCode>.{" "}
       </p>
       <p>
-        Suparepo uses Stripe Pricing Table to show available products and
+        Inteligir uses Stripe Pricing Table to show available products and
         prices. Setup the following environment variables in Vercel and pull.
       </p>
       <p>
@@ -687,7 +687,7 @@ function AnalyticsContent() {
   return (
     <ContentBlock>
       <p>
-        Suparepo uses Posthog to track analytics. Posthog has a very generous
+        Inteligir uses Posthog to track analytics. Posthog has a very generous
         free tier and it's very easy to connect. Sign up for an account and put
         in their provided API key into the{" "}
         <InlineCode>NEXT_PUBLIC_POSTHOG_KEY</InlineCode>
@@ -706,7 +706,9 @@ function AnalyticsContent() {
 function WrapUpContent() {
   return (
     <ContentBlock>
-      <p>You're all set with all the features Suparepo comes out of the box.</p>
+      <p>
+        You're all set with all the features Inteligir comes out of the box.
+      </p>
     </ContentBlock>
   );
 }

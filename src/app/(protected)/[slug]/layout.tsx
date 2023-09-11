@@ -1,7 +1,5 @@
-import { Database } from "~/lib/types";
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "~/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +8,8 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // setup supabase
-  const supabase = createServerComponentClient<Database>({ cookies });
+  const supabase = getSupabaseServerClient();
 
-  // get user
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -22,7 +18,6 @@ export default async function DashboardLayout({
     redirect("/signin");
   }
 
-  // get user profile
   const { data: profile } = await supabase
     .from("profiles")
     .select("*")
@@ -33,7 +28,6 @@ export default async function DashboardLayout({
     redirect("/signin");
   }
 
-  // if user has not onboarded, redirect to onboarding
   if (!profile.has_onboarded) {
     redirect(`/onboarding`);
   }

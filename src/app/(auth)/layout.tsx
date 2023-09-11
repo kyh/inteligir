@@ -1,5 +1,4 @@
-import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
-import { cookies } from "next/headers";
+import { getSupabaseServerClient } from "~/lib/supabase";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -9,9 +8,7 @@ interface AuthLayoutProps {
 }
 
 export default async function AuthLayout({ children }: AuthLayoutProps) {
-  const supabase = createServerComponentClient({
-    cookies,
-  });
+  const supabase = getSupabaseServerClient();
 
   const {
     data: { user },
