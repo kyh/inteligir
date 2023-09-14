@@ -14,7 +14,7 @@ export default async function StartPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   // get user profile
@@ -63,7 +63,7 @@ export default async function StartPage() {
   }
 
   if (!teamsData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   // Get invites for the user
@@ -79,7 +79,7 @@ export default async function StartPage() {
   }
 
   if (!invitesData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   // Extract the team IDs from the result
@@ -97,7 +97,7 @@ export default async function StartPage() {
   }
 
   if (!teamsDataFromInvites) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const filteredTeamsDataFromInvites = teamsDataFromInvites.filter(

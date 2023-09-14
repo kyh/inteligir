@@ -4,7 +4,7 @@ import { useSupabase } from "~/components/providers/supabase-provider";
 import { User as UserIcon } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Logo from "~/components/ui/Logo";
+import Logo from "~/components/ui/logo";
 import Step, { StepProps } from "./Steps";
 import Testimonial from "./Testimonial";
 

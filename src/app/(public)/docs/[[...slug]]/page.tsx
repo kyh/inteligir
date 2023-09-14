@@ -1,11 +1,8 @@
 "use client";
 
-import Logo from "~/components/ui/Logo";
-import Footer from "~/app/(public)/components/Footer";
-import Head from "~/app/(public)/components/Head";
-import Header from "~/app/(public)/components/Header";
+import { Head } from "~/components/ui/head";
 import MDX from "~/app/(public)/components/mdx";
-import { Separator } from "~/components/ui/separator";
+import { Logo } from "~/components/ui/logo";
 import { cn } from "~/lib/cn";
 import { sluggifyTitle } from "~/lib/contentUtils";
 import type { DocHeading } from "contentlayer.config";
@@ -167,9 +164,6 @@ const Doc = ({
   return (
     <div className="relative">
       <Head title={doc.title} description={doc.excerpt} image={""} />
-      <div className="sticky top-0 z-10 flex w-full items-center border-b border-gray-200 bg-white">
-        <Header fullWidth />
-      </div>
       <div className="mx-auto flex max-w-[90rem]">
         {/* desktop nav tree */}
         <aside className="sticky top-20 hidden h-full shrink-0 overflow-auto px-4 py-5 md:block md:w-[320px]">
@@ -183,7 +177,7 @@ const Doc = ({
               onClick={() => setMobileSidebarOpen(false)}
             />
             <div className="fixed inset-y-0 left-0 z-50 w-2/3 max-w-[320px] animate-slideRightAndFadeIn bg-white p-4 md:hidden">
-              <Logo variant="wordmark" className="" />
+              <Logo className="" />
               <div className="h-8" />
               <DocsContents
                 node={toc}
@@ -205,8 +199,6 @@ const Doc = ({
           <PageContents headings={doc.headings} />
         </nav>
       </div>
-      <Separator />
-      <Footer />
     </div>
   );
 };

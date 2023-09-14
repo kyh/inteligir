@@ -20,7 +20,7 @@ export default async function Profile({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: profile } = await supabase
@@ -55,7 +55,7 @@ export default async function Profile({
   }
 
   if (!teamsData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const team = teamsData.find((team) => team.id === teamId);

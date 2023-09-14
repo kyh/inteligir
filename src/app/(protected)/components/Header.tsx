@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { Button } from "~/components/ui/button";
-import Logo from "../../../components/ui/Logo";
+import Logo from "../../../components/ui/logo";
 
 export default function Header({ children }: { children?: React.ReactNode }) {
   const { pathname } = useRouter();

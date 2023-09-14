@@ -1,6 +1,6 @@
 "use client";
 
-import Logo from "~/components/ui/Logo";
+import { Logo } from "~/components/ui/logo";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { useSupabase } from "~/components/providers/supabase-provider";
@@ -50,7 +50,7 @@ export default function SignInPage() {
   return (
     <div className="flex h-full flex-col items-center justify-center">
       <div className="mx-auto flex w-full max-w-sm flex-col items-center space-y-4 px-4">
-        <Logo className="" variant="logo" />
+        <Logo />
         <h1 className="text-3xl font-semibold">Log in or sign up</h1>
         <p className="text-lg text-gray-500">Welcome to Demorepo</p>
         <form

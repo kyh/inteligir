@@ -16,7 +16,7 @@ export default async function CheckPage() {
             We emailed a sign-in link to you.
           </span>
         </p>
-        <Link href={"/signin"}>
+        <Link href={"/login"}>
           <Button variant="link">
             <ArrowLeft className="mr-2 w-4" />
             <span>Back to sign in</span>

@@ -3,7 +3,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "~/components/ui/collapsible";
-import Logo from "~/components/ui/Logo";
+import Logo from "~/components/ui/logo";
 import { cn } from "~/lib/cn";
 import type { LucideIcon } from "lucide-react";
 import { ChevronDown, Home, Settings } from "lucide-react";

@@ -12,7 +12,7 @@ import { ChevronRightIcon, RocketIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import IconCircle from "./IconCircle";
-import Logo from "~/components/ui/Logo";
+import Logo from "~/components/ui/logo";
 import Testimonial from "./Testimonial";
 
 export default function Start({

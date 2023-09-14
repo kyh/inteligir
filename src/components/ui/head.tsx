@@ -7,12 +7,12 @@ type HeadProps = {
   preloadImages?: string[];
 };
 
-export default function Head({
+export const Head = ({
   title,
   description,
   image,
   preloadImages = [],
-}: HeadProps) {
+}: HeadProps) => {
   return (
     <NextHead>
       {/* basic */}
@@ -37,4 +37,4 @@ export default function Head({
       ))}
     </NextHead>
   );
-}
+};

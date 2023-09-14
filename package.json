@@ -38,7 +38,8 @@
     "resend": "^1.0.0",
     "sonner": "^0.7.1",
     "stripe": "^13.5.0",
-    "tailwind-merge": "^1.14.0"
+    "tailwind-merge": "^1.14.0",
+    "zod": "^3.22.2"
   },
   "devDependencies": {
     "@tailwindcss/aspect-ratio": "^0.4.2",

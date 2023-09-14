@@ -20,7 +20,7 @@ export default async function MembersPage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: profile } = await supabase
@@ -30,7 +30,7 @@ export default async function MembersPage({
     .single();
 
   if (!profile) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   // get the team with the given ID
@@ -123,7 +123,7 @@ export default async function MembersPage({
   }
 
   if (!teamsData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   return (

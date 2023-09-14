@@ -12,7 +12,7 @@ export default async function OnboardingPage() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: profile } = await supabase

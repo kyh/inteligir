@@ -21,7 +21,7 @@ export default async function BillingPage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   // get user profile
@@ -32,7 +32,7 @@ export default async function BillingPage({
     .single();
 
   if (!profile) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   // get the team with the given ID
@@ -73,7 +73,7 @@ export default async function BillingPage({
   }
 
   if (!teamsData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: products } = await stripe.products.list({

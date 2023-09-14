@@ -15,7 +15,7 @@ export default async function DashboardLayout({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: profile } = await supabase
@@ -25,7 +25,7 @@ export default async function DashboardLayout({
     .single();
 
   if (!profile) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   if (!profile.has_onboarded) {

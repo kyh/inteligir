@@ -21,7 +21,7 @@ export default async function InvitationPage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: profile } = await supabase
@@ -37,7 +37,7 @@ export default async function InvitationPage({
     .single();
 
   if (!inviteData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const teamId = inviteData.team_id;
@@ -50,14 +50,14 @@ export default async function InvitationPage({
     .single();
 
   if (!teamData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   // Invitation email check
   const email = inviteData.email;
 
   if (email !== user.email) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   return (

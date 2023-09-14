@@ -1,7 +1,4 @@
-import Footer from "../components/Footer";
-import Head from "../components/Head";
-import { BlogHeader } from "../components/Header";
-import PageTitle from "../components/PageTitle";
+import { Head } from "~/components/ui/head";
 import PostCard from "./components/PostCard";
 import { Separator } from "~/components/ui/separator";
 import { Author, Post, allAuthors, allPosts } from "contentlayer/generated";
@@ -23,21 +20,18 @@ export default async function Home() {
         description="Learn how to make production ready web apps with Inteligir"
         image="https://cdn.hashnode.com/res/hashnode/image/upload/v1678913555475/TFjT1bbJa.png"
       />
-      <div className="">
-        <BlogHeader />
-        <div className="container mx-auto mt-16 max-w-7xl px-4 lg:mt-16">
-          <PageTitle>Blog</PageTitle>
-          <Separator className="my-4 md:my-12" />
-          <ul className="grid grid-cols-1 gap-x-12 gap-y-16 lg:grid-cols-2 lg:gap-y-20">
-            {posts.map((post) => (
-              <li key={post._id}>
-                <PostCard post={post} author={post.author} />
-              </li>
-            ))}
-          </ul>
+      <div className="container mx-auto mt-16 max-w-7xl px-4 lg:mt-16">
+        <div className="mt-20 flex flex-col justify-between gap-4 md:mt-28 md:mb-12 md:flex-row md:items-center">
+          <h1 className="text-4xl font-bold md:text-5xl">Blog</h1>
         </div>
-        <div className="h-20" />
-        <Footer className="" />
+        <Separator className="my-4 md:my-12" />
+        <ul className="grid grid-cols-1 gap-x-12 gap-y-16 lg:grid-cols-2 lg:gap-y-20">
+          {posts.map((post) => (
+            <li key={post._id}>
+              <PostCard post={post} author={post.author} />
+            </li>
+          ))}
+        </ul>
       </div>
     </>
   );

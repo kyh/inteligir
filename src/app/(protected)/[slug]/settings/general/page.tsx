@@ -20,7 +20,7 @@ export default async function GeneralPage({
   } = await supabase.auth.getUser();
 
   if (!user) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: profile } = await supabase
@@ -30,7 +30,7 @@ export default async function GeneralPage({
     .single();
 
   if (!profile) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   const { data: team, error: teamError } = await supabase
@@ -83,7 +83,7 @@ export default async function GeneralPage({
   }
 
   if (!teamsData) {
-    redirect("/signin");
+    redirect("/login");
   }
 
   return (
