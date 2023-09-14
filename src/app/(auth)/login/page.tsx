@@ -52,7 +52,7 @@ export default function SignInPage() {
       <div className="mx-auto flex w-full max-w-sm flex-col items-center space-y-4 px-4">
         <Logo />
         <h1 className="text-3xl font-semibold">Log in or sign up</h1>
-        <p className="text-lg text-gray-500">Welcome to Demorepo</p>
+        <p className="text-lg text-gray-500">Welcome to Inteligir</p>
         <form
           className="flex w-full flex-col space-y-4"
           onSubmit={handleSignInWithEmail}

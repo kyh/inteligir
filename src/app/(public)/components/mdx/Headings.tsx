@@ -1,5 +1,5 @@
 import { cn } from "~/lib/cn";
-import { getNodeText, sluggifyTitle } from "~/lib/contentUtils";
+import { getNodeText, sluggifyTitle } from "~/lib/content";
 
 const Heading = (variant: "1" | "2" | "3" | "4") => {
   const Component: React.FC<React.HTMLProps<HTMLHeadingElement>> = ({

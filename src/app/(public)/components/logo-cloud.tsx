@@ -1,7 +1,7 @@
 export const LogoCloud = () => {
   return (
     <section>
-      <div className="mx-auto px-8 lg:px-36 max-w-7xl md:px-12 py-12">
+      <div className="mx-auto px-8 max-w-6xl py-12">
         <div className="items-center grid grid-cols-1 lg:gap-24 lg:grid-cols-4 md:grid-cols-2 py-12">
           <div className="mx-auto col-span-full lg:col-span-1 lg:max-w-none lg:mr-auto">
             <p className="text-xs lg:leading-5">

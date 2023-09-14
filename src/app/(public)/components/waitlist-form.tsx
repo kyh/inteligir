@@ -2,21 +2,28 @@
 
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
-import { register } from "./waitlist-actions";
-import { useServerAction } from "~/lib/use-actions";
+import { useState } from "react";
+import { toast } from "sonner";
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
-  const { mutate, data, error, loading } = useServerAction(register);
+  const [loading, setLoading] = useState(false);
 
-  console.log("loading", loading);
-  if (loading) return <div>Loading...</div>;
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
 
-  if (data) return <div>Success!</div>;
+    await sleep(5000);
+    toast.success("You have joined the waitlist");
+
+    setLoading(false);
+  };
 
   return (
     <form
       className="p-2 border border-white/10 bg-brand-800 shadow-big rounded-xl sm:max-w-sm sm:flex"
-      action={mutate}
+      onSubmit={onSubmit}
     >
       <div className="flex-1 min-w-0">
         <label htmlFor="email" className="sr-only">
@@ -28,6 +35,7 @@ export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
           type="email"
           placeholder="Your email..."
           defaultValue={defaultEmail || ""}
+          variant="ghost"
         />
       </div>
       <div className="mt-4 sm:mt-0 sm:ml-3">

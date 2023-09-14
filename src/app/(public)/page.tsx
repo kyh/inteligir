@@ -11,8 +11,8 @@ export default async function LandingPage() {
   return (
     <>
       <Head
-        title="Demorepo - a modern tool"
-        description="A modern tool to help your business collaborate and grow"
+        title="Inteligir - Build a data-informed team"
+        description="Break silos with comprehensive metrics reports and actionable insights, all on autopilot, so that you can make data-informed decisions."
         image="https://framerusercontent.com/screenshots/U10Ma2ZnGwFCA5tjS4wsy53KbmE.png"
       />
       <Hero>

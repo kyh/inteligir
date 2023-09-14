@@ -68,7 +68,7 @@ export default function GeneralComponent({
     <div className="flex flex-col space-y-4">
       <SettingsCard
         title="Team name"
-        description="This is your team's visible name within Demorepo. For example, the name of your company or department."
+        description="This is your team's visible name within Inteligir. For example, the name of your company or department."
         button={{
           name: "Save",
           onClick: handleUpdateName,

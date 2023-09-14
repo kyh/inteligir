@@ -1,12 +1,9 @@
-"use client";
-
 import { AuthorCard } from "../components/AuthorCard";
 import { Head } from "~/components/ui/head";
 import TimeToRead from "../components/MinuteRead";
 import PostDate from "../components/PostDate";
 import MDX from "~/app/(public)/components/mdx";
 import { Button } from "~/components/ui/button";
-import { DEMO_LINK } from "~/lib/links";
 import { allAuthors, allPosts } from "contentlayer/generated";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
@@ -58,20 +55,6 @@ export default function PostPage({ params }: { params: { slug: string } }) {
           <h1 className="mb-3 text-4xl font-bold">{post.title}</h1>
           <AuthorCard author={author} />
           <MDX content={post.body.code} />
-          <div className="my-4 w-full rounded py-10 px-4 pt-12 text-center shadow-outline">
-            <h3 className="text-xl font-bold md:text-2xl">
-              Scalerepo is a production-ready SaaS boilerplate
-            </h3>
-            <p className="mt-4 mb-6 text-base">
-              Skip the tedious parts of building auth, org management, payments,
-              and emails
-            </p>
-            <Button asChild>
-              <a href={DEMO_LINK}>See the demo</a>
-              <ArrowRight className="ml-2 w-4" />
-            </Button>
-          </div>
-          <div className="h-8" />
         </div>
       </div>
     </>

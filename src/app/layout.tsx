@@ -1,7 +1,7 @@
 import { SupabaseProvider } from "~/components/providers/supabase-provider";
 import { PHProvider } from "~/components/providers/posthog-provider";
 import { ThemeProvider } from "~/components/providers/theme-provider";
-import { Toaster } from "sonner";
+import { Toaster } from "~/components/ui/toaster";
 import "./globals.css";
 
 export const metadata = {
@@ -23,7 +23,7 @@ export default function RootLayout({
             <SupabaseProvider>{children}</SupabaseProvider>
           </PHProvider>
         </ThemeProvider>
-        <Toaster theme="system" />
+        <Toaster />
       </body>
     </html>
   );

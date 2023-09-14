@@ -4,7 +4,7 @@ import { Head } from "~/components/ui/head";
 import MDX from "~/app/(public)/components/mdx";
 import { Logo } from "~/components/ui/logo";
 import { cn } from "~/lib/cn";
-import { sluggifyTitle } from "~/lib/contentUtils";
+import { sluggifyTitle } from "~/lib/content";
 import type { DocHeading } from "contentlayer.config";
 import { Doc, allDocs } from "contentlayer/generated";
 import NextLink from "next/link";

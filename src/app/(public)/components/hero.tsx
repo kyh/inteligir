@@ -2,15 +2,16 @@ export const Hero = ({ children }: { children: React.ReactNode }) => {
   return (
     <section className="relative overflow-hidden">
       <div className="absolute inset-x-0 justify-center w-32 ml-auto rounded-lg opacity-50 bg-gradient-to-r from-brand-50 via-brand-200 to-brand-600 h-42 lg:-top-64 lg:w-96 lg:h-96 blur-3xl"></div>
-      <div className="relative px-8 py-24 mx-auto md:px-12 lg:px-32 max-w-7xl lg:py-56">
+      <div className="relative px-8 py-24 mx-auto max-w-6xl lg:py-56">
         <div>
           <h1 className="pb-2 text-4xl font-normal tracking-tight text-transparent bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text font-display sm:text-6xl">
             Build a data-informed team
             <span className="lg:block">with weekly metrics reports</span>
           </h1>
           <p className="max-w-xl mt-4 text-brand-300">
-            Inteligir generates comprehensive weekly metrics reports alongside
-            actionable insights so that you can make data-informed decisions.
+            Break silos with comprehensive metrics reports and actionable
+            insights, all on autopilot, so that you can make data-informed
+            decisions
           </p>
           <div className="mt-12">{children}</div>
         </div>

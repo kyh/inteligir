@@ -2,7 +2,7 @@ export const Steps = () => {
   return (
     <section className="relative overflow-hidden">
       <div className="h-[0.080rem] bg-gradient-to-r from-brand-950 max-w-3xl mx-auto via-brand-300 to-brand-950"></div>
-      <div className="px-8 py-12 mx-auto md:px-12 lg:px-32 max-w-7xl lg:py-24">
+      <div className="px-8 py-12 mx-auto max-w-6xl lg:py-24">
         <div className="max-w-2xl mx-auto text-center">
           <p className="bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text text-transparent text-4xl font-normal font-display tracking-tight pb-2 sm:text-5xl">
             Empowering <span className="lg:block">learning experiences</span>
@@ -31,11 +31,11 @@ export const Steps = () => {
           //     }
           // }"
           //   x-init="tabRepositionMarker($refs.tabButtons.firstElementChild);"
-          className="relative w-full"
+          className="ring-1 p-2 rounded-3xl bg-gradient-to-t from-white/20 ring-white/10 relative mt-12"
         >
           <div
             // x-ref="tabButtons"
-            className="relative flex flex-col justify-center w-full gap-6 mt-12 lg:bg-white border-gray-300 select-none sm:inline-grid rounded-t-3xl lg:flex-none lg:items-center sm:grid-cols-3"
+            className="relative flex flex-col justify-center w-full gap-6 shadow-massive rounded-2xl bg-brand-800/80 select-none sm:inline-grid rounded-t-3xl lg:flex-none lg:items-center sm:grid-cols-3"
           >
             <button
               // :id="$id(tabId)"
@@ -65,11 +65,9 @@ export const Steps = () => {
                   <path d="M12 14h.01"></path>
                   <path d="M3 3l18 18"></path>
                 </svg>
-                <p className="text-base font-medium text-brand-900">
-                  Encrypted
-                </p>
+                <p className="text-base font-medium text-brand-50">Encrypted</p>
               </div>
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-brand-300">
                 Use blockchain technology to create decentralized autonomous
                 organizations and manage.
               </p>
@@ -100,9 +98,9 @@ export const Steps = () => {
                   <path d="M8 15m0 1a1 1 0 0 1 1 -1h6a1 1 0 0 1 1 1v3a1 1 0 0 1 -1 1h-6a1 1 0 0 1 -1 -1z"></path>
                   <path d="M10 15v-2a2 2 0 0 1 3.736 -1"></path>
                 </svg>
-                <p className="text-lg font-medium text-brand-900">Privacy</p>
+                <p className="text-lg font-medium text-brand-50">Privacy</p>
               </div>
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-brand-300">
                 Trade cryptocurrencies and tokens on a decentralized exchange
                 for added security and anonymity.
               </p>
@@ -130,9 +128,9 @@ export const Steps = () => {
                   <path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-10"></path>
                   <path opacity="0.5" d="M10 12l4 0"></path>
                 </svg>
-                <p className="text-lg font-medium text-brand-900">Storage</p>
+                <p className="text-lg font-medium text-brand-50">Storage</p>
               </div>
-              <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-brand-300">
                 Trade cryptocurrencies and tokens on a decentralized exchange
                 for added security and anonymity.
               </p>
@@ -148,7 +146,7 @@ export const Steps = () => {
               className="relative"
             >
               <div className="w-full overflow-hidden">
-                <img alt="" src="/assets/chart1.svg" className="w-full" />
+                <img alt="" src="/screenshots/chart1.svg" className="w-full" />
               </div>
             </div>
 
@@ -159,7 +157,7 @@ export const Steps = () => {
               // x-cloak
             >
               <div className="w-full overflow-hidden">
-                <img alt="" src="/assets/chart2.svg" className="w-full" />
+                <img alt="" src="/screenshots/chart2.svg" className="w-full" />
               </div>
             </div>
 
@@ -170,7 +168,7 @@ export const Steps = () => {
               // x-cloak
             >
               <div className="w-full overflow-hidden">
-                <img alt="" src="/assets/chart3.svg" className="w-full" />
+                <img alt="" src="/screenshots/chart3.svg" className="w-full" />
               </div>
             </div>
           </div>
