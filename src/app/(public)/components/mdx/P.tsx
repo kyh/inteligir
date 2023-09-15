@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { cn } from "~/lib/cn";
 
-const P: FC<React.HTMLProps<HTMLParagraphElement>> = ({
+export const P: FC<React.HTMLProps<HTMLParagraphElement>> = ({
   children,
   className,
   ...props
@@ -12,5 +12,3 @@ const P: FC<React.HTMLProps<HTMLParagraphElement>> = ({
     </p>
   );
 };
-
-export default P;

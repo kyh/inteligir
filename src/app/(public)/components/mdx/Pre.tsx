@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { cn } from "~/lib/cn";
 
-const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
+export const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
   children,
   className,
   ...props
@@ -18,5 +18,3 @@ const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
     </pre>
   );
 };
-
-export default Pre;

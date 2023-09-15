@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { cn } from "~/lib/cn";
 
-const OL: FC<React.HTMLProps<HTMLOListElement>> = ({
+export const Ol: FC<React.HTMLProps<HTMLOListElement>> = ({
   children,
   className,
   ...props
@@ -12,5 +12,3 @@ const OL: FC<React.HTMLProps<HTMLOListElement>> = ({
     </ol>
   );
 };
-
-export default OL;

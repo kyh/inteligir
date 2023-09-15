@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { cn } from "~/lib/cn";
 
-const Code: FC<React.HTMLProps<HTMLElement>> = ({
+export const Code: FC<React.HTMLProps<HTMLElement>> = ({
   children,
   className,
   ...props
@@ -18,5 +18,3 @@ const Code: FC<React.HTMLProps<HTMLElement>> = ({
     </code>
   );
 };
-
-export default Code;

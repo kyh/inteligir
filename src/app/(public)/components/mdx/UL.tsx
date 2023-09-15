@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { cn } from "~/lib/cn";
 
-const UL: FC<React.HTMLProps<HTMLUListElement>> = ({
+export const Ul: FC<React.HTMLProps<HTMLUListElement>> = ({
   children,
   className,
   ...props
@@ -12,5 +12,3 @@ const UL: FC<React.HTMLProps<HTMLUListElement>> = ({
     </ul>
   );
 };
-
-export default UL;

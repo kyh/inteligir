@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { cn } from "~/lib/cn";
 
-const Span: FC<React.HTMLProps<HTMLSpanElement>> = ({
+export const Span: FC<React.HTMLProps<HTMLSpanElement>> = ({
   children,
   className,
   ...props
@@ -12,5 +12,3 @@ const Span: FC<React.HTMLProps<HTMLSpanElement>> = ({
     </span>
   );
 };
-
-export default Span;

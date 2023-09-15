@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { cn } from "~/lib/cn";
 import { AlertOctagon, AlertTriangle, CheckCircle2, Info } from "lucide-react";
 
-const Callout: React.FC<{
+export const Callout: React.FC<{
   children: ReactNode;
   className?: string | "";
   variant: "info" | "success" | "warning" | "danger";
@@ -45,5 +45,3 @@ const Callout: React.FC<{
     </div>
   );
 };
-
-export default Callout;

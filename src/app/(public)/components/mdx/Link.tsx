@@ -2,7 +2,7 @@ import NextLink from "next/link";
 import type { FC } from "react";
 import { ArrowUpRight } from "lucide-react";
 
-const Link: FC<React.HTMLProps<HTMLAnchorElement>> = ({
+export const Link: FC<React.HTMLProps<HTMLAnchorElement>> = ({
   href = "",
   children,
 }) => {
@@ -25,5 +25,3 @@ const Link: FC<React.HTMLProps<HTMLAnchorElement>> = ({
     </NextLink>
   );
 };
-
-export default Link;

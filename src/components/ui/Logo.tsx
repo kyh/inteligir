@@ -6,6 +6,8 @@ export const Logo = ({ className }: { className?: string }) => {
       xmlns="http://www.w3.org/2000/svg"
       className={cn("h-9 w-9", className)}
       viewBox="0 0 606.59 688"
+      width={36}
+      height={36}
     >
       <path
         fill="#FFF"

@@ -1,15 +1,15 @@
 import { useMDXComponent } from "next-contentlayer/hooks";
 import Image from "next/image";
-import Callout from "./Callout";
-import { H1, H2, H3, H4 } from "./Headings";
-import LI from "./LI";
-import Link from "./Link";
-import OL from "./OL";
-import P from "./P";
-import Pre from "./Pre";
-import Code from "./Code";
-import Span from "./Span";
-import UL from "./UL";
+import { Callout } from "./callout";
+import { Code } from "./code";
+import { H1, H2, H3, H4 } from "./headings";
+import { Li } from "./li";
+import { Link } from "./link";
+import { Ol } from "./ol";
+import { P } from "./p";
+import { Pre } from "./pre";
+import { Span } from "./span";
+import { Ul } from "./ul";
 import type { MDXComponents } from "mdx/types";
 
 const MDX_COMPONENTS: MDXComponents = {
@@ -23,7 +23,6 @@ const MDX_COMPONENTS: MDXComponents = {
       height={height as number}
     />
   ),
-
   h1: ({ children }) => <H1>{children}</H1>,
   h2: ({ children }) => <H2>{children}</H2>,
   h3: ({ children }) => <H3>{children}</H3>,
@@ -49,19 +48,19 @@ const MDX_COMPONENTS: MDXComponents = {
     </Span>
   ),
   ul: ({ children, className, ...props }) => (
-    <UL {...props} className={className}>
+    <Ul {...props} className={className}>
       {children}
-    </UL>
+    </Ul>
   ),
   ol: ({ children, className, ...props }) => (
-    <OL {...props} className={className}>
+    <Ol {...props} className={className}>
       {children}
-    </OL>
+    </Ol>
   ),
   li: ({ children, className, ...props }) => (
-    <LI {...props} className={className}>
+    <Li {...props} className={className}>
       {children}
-    </LI>
+    </Li>
   ),
 
   // custom

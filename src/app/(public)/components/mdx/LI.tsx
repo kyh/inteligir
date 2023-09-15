@@ -1,7 +1,7 @@
 import type { FC } from "react";
 import { cn } from "~/lib/cn";
 
-const LI: FC<React.HTMLProps<HTMLLIElement>> = ({
+export const Li: FC<React.HTMLProps<HTMLLIElement>> = ({
   children,
   className,
   ...props
@@ -12,5 +12,3 @@ const LI: FC<React.HTMLProps<HTMLLIElement>> = ({
     </li>
   );
 };
-
-export default LI;

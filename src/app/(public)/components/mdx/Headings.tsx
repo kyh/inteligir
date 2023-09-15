@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "~/lib/cn";
 import { getNodeText, sluggifyTitle } from "~/lib/content";
 
@@ -11,21 +12,19 @@ const Heading = (variant: "1" | "2" | "3" | "4") => {
     return (
       <Tag
         id={slug}
-        onClick={() => (window.location.hash = `#${slug}`)}
-        className={cn(
-          "group mt-8 mb-2 cursor-pointer scroll-mt-24 font-medium",
-          {
-            "text-3xl font-bold": variant === "1",
-            "text-2xl font-semibold": variant === "2",
-            "text-xl font-medium": variant === "3",
-            "text-lg": variant === "4",
-          }
-        )}
+        className={cn("group mt-8 mb-2 scroll-mt-24 font-medium", {
+          "text-3xl font-bold": variant === "1",
+          "text-2xl font-semibold": variant === "2",
+          "text-xl font-medium": variant === "3",
+          "text-lg": variant === "4",
+        })}
       >
-        <span className="absolute left-[0px] z-10 hidden text-slate-400 lg:group-hover:inline">
-          #
-        </span>
-        {children}
+        <Link href={`#${slug}`}>
+          <span className="absolute left-[0px] z-10 hidden text-slate-400 lg:group-hover:inline">
+            #
+          </span>
+          {children}
+        </Link>
       </Tag>
     );
   };

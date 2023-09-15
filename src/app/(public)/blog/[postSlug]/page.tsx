@@ -11,17 +11,17 @@ import Image from "next/image";
 
 export const revalidate = 60;
 
-export default function PostPage({ params }: { params: { slug: string } }) {
-  const { slug } = params;
+export default function PostPage({ params }: { params: { postSlug: string } }) {
+  const { postSlug } = params;
 
-  const post = allPosts.find((p) => p.slug === slug);
+  const post = allPosts.find((p) => p.slug === postSlug);
   if (!post) {
-    throw new Error(`Post with slug ${slug} not found`);
+    throw new Error(`Post with postSlug ${postSlug} not found`);
   }
 
   const author = allAuthors.find((a) => a.slug === post.author);
   if (!author) {
-    throw new Error(`Author with slug ${post.author} not found`);
+    throw new Error(`Author with postSlug ${post.author} not found`);
   }
 
   return (
