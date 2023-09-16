@@ -1,5 +1,5 @@
 {
-  "extends": "@inteligir/configs/tsconfig/nextjs.json",
+  "extends": "configs/tsconfig/nextjs.json",
   "compilerOptions": {
     "plugins": [{ "name": "next" }],
     "baseUrl": ".",

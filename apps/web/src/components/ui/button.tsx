@@ -9,9 +9,9 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-brand-900 text-brand-50 shadow hover:bg-brand-900/90 disabled:bg-brand-900/70 dark:bg-brand-50 dark:text-brand-900 dark:[--spinner-color:#000] dark:hover:bg-brand-50/90 dark:disabled:bg-brand-50/70",
+          "shadow text-brand-50 bg-brand-900 hover:bg-brand-900/90 disabled:bg-brand-900/70 dark:bg-brand-50 dark:text-brand-900 dark:[--spinner-color:#000] dark:hover:bg-brand-50/90 dark:disabled:bg-brand-50/70",
         secondary:
-          "bg-brand-100 text-brand-900 shadow-sm hover:bg-brand-100/80 dark:bg-brand-800 dark:bg-gradient-to-t dark:from-brand-900 dark:to-brand-800 dark:text-brand-50 dark:hover:bg-brand-800/80",
+          "bg-brand-100 text-brand-900 shadow-sm hover:bg-brand-100/80 dark:bg-brand-800 dark:text-brand-50 dark:hover:bg-brand-800/80",
         destructive:
           "bg-red-500 text-brand-50 shadow-sm hover:bg-red-500/90 dark:bg-red-900 dark:text-brand-50 dark:hover:bg-red-900/90",
         outline:

@@ -11,8 +11,9 @@ coverage
 # next.js
 .next/
 out/
-build
+build/
 .swc/
+.contentlayer/
 
 # misc
 .DS_Store

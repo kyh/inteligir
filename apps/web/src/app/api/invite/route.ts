@@ -1,4 +1,4 @@
-import InviteEmail from "emails/invite";
+import InviteEmail from "emails/src/invite";
 import { resend } from "@/lib/resend";
 
 export const dynamic = "force-dynamic";
