@@ -32,17 +32,8 @@ const computedSlugFields = defineComputedFields<
   },
 });
 
-export const CodePage = defineDocumentType(() => ({
-  name: "CodePage",
-  contentType: "mdx",
-  filePathPattern: `code-pages/*.mdx`,
-  fields: {
-    fileName: { type: "string", required: true },
-  },
-}));
-
-export const Log = defineDocumentType(() => ({
-  name: "Log",
+export const Changelog = defineDocumentType(() => ({
+  name: "Changelog",
   contentType: "mdx",
   filePathPattern: `changelog/*.mdx`,
   fields: {
@@ -88,6 +79,20 @@ export const Author = defineDocumentType(() => ({
   },
 }));
 
+export const Legal = defineDocumentType(() => ({
+  name: "Legal",
+  contentType: "mdx",
+  filePathPattern: `legal/*.mdx`,
+  fields: {
+    title: { type: "string", required: true },
+    createdAt: { type: "date", required: true },
+    updatedAt: { type: "date", required: false },
+  },
+  computedFields: {
+    ...computedSlugFields,
+  },
+}));
+
 const extractOrderFromWord = (
   word: string,
 ): { name: string; order: number } => {
@@ -118,8 +123,8 @@ export const getLastEditedDate =
 
 export type DocHeading = { level: 1 | 2 | 3; title: string };
 
-export const Doc = defineDocumentType(() => ({
-  name: "Doc",
+export const Documentation = defineDocumentType(() => ({
+  name: "Documentation",
   filePathPattern: `docs/**/*.mdx`,
   contentType: "mdx",
   fields: {
@@ -205,7 +210,7 @@ const tocPlugin =
 
 export default makeSource({
   contentDirPath: "content",
-  documentTypes: [Post, Author, Log, Doc, CodePage],
+  documentTypes: [Post, Author, Changelog, Documentation, Legal],
   mdx: {
     remarkPlugins: [remarkGfm],
     rehypePlugins: [
