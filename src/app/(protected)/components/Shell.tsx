@@ -34,15 +34,15 @@ export default function Shell({
       {mobileSidebarOpen && (
         <>
           <div
-            className="fixed inset-0 z-40 h-full w-full animate-fadeIn bg-gray-500 opacity-50"
+            className="animate-fadeIn fixed inset-0 z-40 h-full w-full bg-gray-500 opacity-50"
             onClick={() => setMobileSidebarOpen(false)}
           />
-          <div className="fixed inset-y-0 left-0 z-50 w-2/3 max-w-[320px] animate-slideRightAndFadeIn">
+          <div className="animate-slideRightAndFadeIn fixed inset-y-0 left-0 z-50 w-2/3 max-w-[320px]">
             <Sidebar user={profile} team={team} allTeams={allTeams} />
           </div>
         </>
       )}
-      <div className="flex flex-col h-full w-full overflow-auto bg-white">
+      <div className="flex h-full w-full flex-col overflow-auto bg-white">
         <div className="flex h-20 w-full flex-col justify-center border-b border-gray-200 bg-white px-4 md:px-8">
           <div className="flex items-center">
             <Button
@@ -73,7 +73,7 @@ export default function Shell({
         <section
           className={cn(
             "relative flex flex-grow p-4 md:p-8",
-            childrenClassname
+            childrenClassname,
           )}
         >
           {children}

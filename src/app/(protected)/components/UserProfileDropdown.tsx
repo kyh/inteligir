@@ -25,7 +25,7 @@ function MenuItem({
       onClick={onClick}
       className={cn(
         "flex w-full cursor-pointer items-center gap-x-2 px-4 py-2",
-        className
+        className,
       )}
     >
       {children}
@@ -68,7 +68,7 @@ export default function UserProfileButton({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="ml-12 mb-4 animate-slideDownAndFadeIn rounded-md bg-white shadow-lg transition"
+        className="animate-slideDownAndFadeIn mb-4 ml-12 rounded-md bg-white shadow-lg transition"
         align="start"
         sideOffset={4}
       >

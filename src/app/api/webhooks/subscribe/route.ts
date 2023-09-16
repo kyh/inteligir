@@ -13,7 +13,7 @@ const supabase = createClient<Database>(
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
-  }
+  },
 );
 
 export const dynamic = "force-dynamic";

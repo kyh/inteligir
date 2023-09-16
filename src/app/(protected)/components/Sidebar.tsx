@@ -29,7 +29,7 @@ interface StepsProps {
 const Steps: React.FC<StepsProps> = ({ steps, activeStepId }) => {
   return (
     <div className="relative flex w-full flex-col py-2">
-      <div className="absolute left-[15px] top-[28px] bottom-[25px] border-l border-gray-200 py-2" />
+      <div className="absolute bottom-[25px] left-[15px] top-[28px] border-l border-gray-200 py-2" />
       <div className="flex flex-col space-y-1">
         {steps.map((step) => (
           <div key={step.id} className={cn(`ml-4 flex items-center`)}>
@@ -107,7 +107,7 @@ export default function Sidebar({
   const pathname = usePathname();
 
   const [settingsExpanded, setSettingsExpanded] = useState(
-    pathname.includes("/settings")
+    pathname.includes("/settings"),
   );
 
   return (
@@ -150,7 +150,7 @@ export default function Sidebar({
         </div>
       </div>
       <Separator className="m-4" />
-      <div className="py-2 px-4">
+      <div className="px-4 py-2">
         <UserProfileButton team={team} user={user} />
       </div>
     </nav>

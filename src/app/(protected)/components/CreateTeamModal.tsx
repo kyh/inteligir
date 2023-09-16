@@ -92,7 +92,7 @@ export default function CreateTeamModal({
       setOpen(val);
       onOpenChange?.(val);
     },
-    [onOpenChange]
+    [onOpenChange],
   );
 
   // this component can either manage itself or allow itself to be managed

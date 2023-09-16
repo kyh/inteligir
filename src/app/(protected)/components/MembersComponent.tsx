@@ -184,7 +184,7 @@ const InvitedSection = ({
 
       router.refresh();
     },
-    [supabase, router]
+    [supabase, router],
   );
 
   if (!team || !teamInvites) return null;
@@ -202,7 +202,7 @@ const InvitedSection = ({
 
         return (
           <div
-            className="flex justify-between border-b py-3 px-6 last-of-type:border-none"
+            className="flex justify-between border-b px-6 py-3 last-of-type:border-none"
             key={i.id}
           >
             <div className="flex items-center gap-x-2">
@@ -285,7 +285,7 @@ const MembersSection = ({
 
       setLoading(false);
     },
-    [team, user]
+    [team, user],
   );
 
   const handleRemoveMember = useCallback(
@@ -303,7 +303,7 @@ const MembersSection = ({
 
       toast.success("Member removed from team the team");
     },
-    [team, user]
+    [team, user],
   );
 
   if (!user || !team || !teamMembers || !teamMembersProfiles) return null;
@@ -317,7 +317,7 @@ const MembersSection = ({
         const profile = teamMembersProfiles.find((p) => p.id === m.user_id);
         return (
           <div
-            className="flex justify-between border-b border-gray-100 py-3 px-4 last-of-type:border-none"
+            className="flex justify-between border-b border-gray-100 px-4 py-3 last-of-type:border-none"
             key={m.id}
           >
             <div className="flex items-center gap-x-2">
@@ -409,7 +409,7 @@ export default function MembersComponent({
       <div className="flex flex-col rounded-lg border bg-white">
         <h3 className="ml-6 mt-4 text-lg font-medium">Members</h3>
         <Tabs defaultValue="members" className="pb-2">
-          <TabsList className="ml-4 mt-3 mb-1">
+          <TabsList className="mb-1 ml-4 mt-3">
             <TabsTrigger value="members">Members</TabsTrigger>
             <TabsTrigger value="invited">Invited</TabsTrigger>
           </TabsList>

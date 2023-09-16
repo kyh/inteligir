@@ -18,7 +18,7 @@ export const Callout: React.FC<{
     >
       <div
         className={cn(
-          "ml-3 mt-4 flex h-full shrink-0 items-center justify-center"
+          "ml-3 mt-4 flex h-full shrink-0 items-center justify-center",
         )}
       >
         {variant === "warning" && (

@@ -100,8 +100,8 @@ const NavLink = ({
   return (
     <Link
       className={cn(
-        "block p-1 -mx-1 text-xs capitalize text-brand-300 transition hover:text-white",
-        className
+        "-mx-1 block p-1 text-xs capitalize text-brand-300 transition hover:text-white",
+        className,
       )}
       {...props}
     />

@@ -45,7 +45,7 @@ export function InviteComponent({
   };
 
   return (
-    <div className="flex h-full justify-center items-center">
+    <div className="flex h-full items-center justify-center">
       <div className="flex flex-col items-center space-y-4">
         <Card>
           <CardHeader>
@@ -55,7 +55,7 @@ export function InviteComponent({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="justify-center flex">
+            <div className="flex justify-center">
               <Button className="p-6" onClick={handleJoin}>
                 {loading ? (
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -67,7 +67,7 @@ export function InviteComponent({
               </Button>
             </div>
           </CardContent>
-          <CardFooter className="text-center max-w-md">
+          <CardFooter className="max-w-md text-center">
             By joining, you will be able to access the team&apos;s projects and
             collaborate with other members.
           </CardFooter>

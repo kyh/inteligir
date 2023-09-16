@@ -34,8 +34,8 @@ const InlineCode = ({
 }) => (
   <code
     className={cn(
-      "whitespace-pre-line rounded bg-gray-100 py-[2px] px-[5px] text-gray-900",
-      className
+      "whitespace-pre-line rounded bg-gray-100 px-[5px] py-[2px] text-gray-900",
+      className,
     )}
   >
     {children}
@@ -76,10 +76,10 @@ const StepCard = ({
   return (
     <div
       className={cn(
-        "relative w-36 cursor-pointer rounded border bg-white py-2 px-4 shadow-sm transition hover:shadow",
+        "relative w-36 cursor-pointer rounded border bg-white px-4 py-2 shadow-sm transition hover:shadow",
         {
           "border-primary-500 bg-primary-50": selected,
-        }
+        },
       )}
       onClick={() => onGoToStep(name)}
     >
@@ -102,7 +102,7 @@ const StepCard = ({
         </p>
       </div>
       <div
-        className={cn("absolute top-2.5 right-2.5", {
+        className={cn("absolute right-2.5 top-2.5", {
           "text-gray-500 ": !selected,
           "text-primary-900 ": selected,
         })}
@@ -571,7 +571,7 @@ function AuthContent() {
       <p>
         Then add the following redirect URLs to your Supabase Auth settings to
         handle local and production development:
-        <ul className="list-disc list-inside">
+        <ul className="list-inside list-disc">
           <li>
             <InlineCode>http://localhost:3000/**</InlineCode>
           </li>

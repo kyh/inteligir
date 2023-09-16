@@ -75,8 +75,8 @@ export default function BillingComponent({
 
   if (team.subscribed) {
     return (
-      <div className="flex flex-col lg:flex-row lg:space-x-4 space-y-4 lg:space-y-0">
-        <div className="justify-center flex">
+      <div className="flex flex-col space-y-4 lg:flex-row lg:space-x-4 lg:space-y-0">
+        <div className="flex justify-center">
           <Card className="flex-1">
             <CardHeader>
               <CardTitle className="text-center">Subscribed</CardTitle>
@@ -85,7 +85,7 @@ export default function BillingComponent({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="justify-center flex">
+              <div className="flex justify-center">
                 <Button className="p-6" onClick={triggerPortal}>
                   Manage Subscription
                 </Button>
@@ -109,12 +109,12 @@ export default function BillingComponent({
       </TabsList>
 
       <TabsContent value="monthly">
-        <div className="flex flex-col lg:flex-row lg:space-x-4 space-y-4 lg:space-y-0">
+        <div className="flex flex-col space-y-4 lg:flex-row lg:space-x-4 lg:space-y-0">
           {products.map((product) => {
             const monthlyPrice = prices.find(
               (price) =>
                 price.product === product.id &&
-                price.recurring?.interval === "month"
+                price.recurring?.interval === "month",
             );
             return (
               <Card key={product.id} className="flex-1">
@@ -125,7 +125,7 @@ export default function BillingComponent({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="justify-center flex">
+                  <div className="flex justify-center">
                     <Button
                       className="p-6"
                       onClick={() =>
@@ -143,7 +143,7 @@ export default function BillingComponent({
                     </Button>
                   </div>
                 </CardContent>
-                <CardFooter className="text-center max-w-md">
+                <CardFooter className="max-w-md text-center">
                   By joining, you will be able to access the team&apos;s
                   projects and collaborate with other members.
                 </CardFooter>
@@ -154,12 +154,12 @@ export default function BillingComponent({
       </TabsContent>
 
       <TabsContent value="yearly">
-        <div className="flex flex-col lg:flex-row lg:space-x-4 space-y-4 lg:space-y-0">
+        <div className="flex flex-col space-y-4 lg:flex-row lg:space-x-4 lg:space-y-0">
           {products.map((product) => {
             const yearlyPrice = prices.find(
               (price) =>
                 price.product === product.id &&
-                price.recurring?.interval === "year"
+                price.recurring?.interval === "year",
             );
             return (
               <Card key={product.id} className="flex-1">
@@ -170,7 +170,7 @@ export default function BillingComponent({
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="justify-center flex">
+                  <div className="flex justify-center">
                     <Button
                       className="p-6"
                       onClick={() =>
@@ -188,7 +188,7 @@ export default function BillingComponent({
                     </Button>
                   </div>
                 </CardContent>
-                <CardFooter className="text-center max-w-md">
+                <CardFooter className="max-w-md text-center">
                   By joining, you will be able to access the team&apos;s
                   projects and collaborate with other members.
                 </CardFooter>

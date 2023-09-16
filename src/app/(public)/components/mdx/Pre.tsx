@@ -11,7 +11,7 @@ export const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
       {...props}
       className={cn(
         "mb-2 mt-4 overflow-auto whitespace-pre rounded-md bg-gray-100 p-4 text-sm",
-        className
+        className,
       )}
     >
       {children}

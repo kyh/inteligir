@@ -101,7 +101,7 @@ export default async function StartPage() {
   }
 
   const filteredTeamsDataFromInvites = teamsDataFromInvites.filter(
-    (teamFromInvite) => !teamIds.includes(teamFromInvite.id)
+    (teamFromInvite) => !teamIds.includes(teamFromInvite.id),
   );
 
   return (

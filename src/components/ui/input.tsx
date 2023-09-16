@@ -8,15 +8,15 @@ const inputVariants = cva(
     variants: {
       variant: {
         default:
-          "bg-transparent border border-neutral-200 dark:border-neutral-800 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 dark:focus-visible:ring-neutral-300",
+          "border border-neutral-200 bg-transparent focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-neutral-950 dark:border-neutral-800 dark:focus-visible:ring-neutral-300",
         ghost:
-          "bg-transparent border-0 focus-visible:outline-none focus-visible:ring-transparent",
+          "border-0 bg-transparent focus-visible:outline-none focus-visible:ring-transparent",
       },
     },
     defaultVariants: {
       variant: "default",
     },
-  }
+  },
 );
 
 export interface InputProps
@@ -33,7 +33,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {...props}
       />
     );
-  }
+  },
 );
 Input.displayName = "Input";
 

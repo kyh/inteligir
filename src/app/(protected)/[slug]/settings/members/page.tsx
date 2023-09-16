@@ -94,7 +94,7 @@ export default async function MembersPage({
   }
 
   const filteredInvites = invitesData.filter(
-    (invite) => !profilesData.find((profile) => profile.email === invite.email)
+    (invite) => !profilesData.find((profile) => profile.email === invite.email),
   );
 
   // get the team IDs the user is a member of

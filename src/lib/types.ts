@@ -37,7 +37,7 @@ export interface Database {
             columns: ["team_id"];
             referencedRelation: "teams";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       members: {
@@ -74,7 +74,7 @@ export interface Database {
             columns: ["user_id"];
             referencedRelation: "users";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       profiles: {
@@ -102,7 +102,7 @@ export interface Database {
             columns: ["id"];
             referencedRelation: "users";
             referencedColumns: ["id"];
-          }
+          },
         ];
       };
       teams: {

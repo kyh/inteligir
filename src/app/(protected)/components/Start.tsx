@@ -32,7 +32,7 @@ export default function Start({
             <Logo variant="wordmark" />
           </div>
           <div className="my-auto">
-            <div className="w-full max-w-lg mb-4">
+            <div className="mb-4 w-full max-w-lg">
               <IconCircle>
                 <RocketIcon className="h-6 w-6 text-gray-600" />
               </IconCircle>
@@ -88,7 +88,7 @@ const TeamList = ({ teams }: { teams: Team[] }) => (
         <Link
           href={`/${team.id}`}
           key={team.id}
-          className="flex justify-between items-center p-3 border-b hover:bg-gray-100 cursor-pointer"
+          className="flex cursor-pointer items-center justify-between border-b p-3 hover:bg-gray-100"
         >
           <span>{team.name}</span>
           <ChevronRightIcon />
@@ -120,7 +120,7 @@ const InviteList = ({
           <Link
             href={`/invitation/${invite.id}`}
             key={invite.id}
-            className="flex justify-between items-center p-3 border-b hover:bg-gray-100 cursor-pointer"
+            className="flex cursor-pointer items-center justify-between border-b p-3 hover:bg-gray-100"
           >
             <span>{team.name}</span>
             <ChevronRightIcon />

@@ -12,7 +12,7 @@ const Heading = (variant: "1" | "2" | "3" | "4") => {
     return (
       <Tag
         id={slug}
-        className={cn("group mt-8 mb-2 scroll-mt-24 font-medium", {
+        className={cn("group mb-2 mt-8 scroll-mt-24 font-medium", {
           "text-3xl font-bold": variant === "1",
           "text-2xl font-semibold": variant === "2",
           "text-xl font-medium": variant === "3",

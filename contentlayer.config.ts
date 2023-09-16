@@ -89,7 +89,7 @@ export const Author = defineDocumentType(() => ({
 }));
 
 const extractOrderFromWord = (
-  word: string
+  word: string,
 ): { name: string; order: number } => {
   const re = /^((\d+)-)?(.*)$/;
   const [, , orderStr, name] = word.match(re) ?? [];
@@ -111,7 +111,7 @@ export const getLastEditedDate =
   (contentDirPath: string) =>
   async (doc: DocumentGen): Promise<Date> => {
     const stats = await fs.stat(
-      path.join(contentDirPath, doc._raw.sourceFilePath)
+      path.join(contentDirPath, doc._raw.sourceFilePath),
     );
     return stats.mtime;
   };
@@ -184,11 +184,11 @@ const tocPlugin =
   () => {
     return (node: any) => {
       for (const element of node.children.filter(
-        (child: any) => child.type === "heading"
+        (child: any) => child.type === "heading",
       )) {
         const title = toMarkdown(
           { type: "paragraph", children: element.children },
-          { extensions: [mdxToMarkdown()] }
+          { extensions: [mdxToMarkdown()] },
         )
           .trim()
           .replace(/<.*$/g, "")

@@ -31,13 +31,13 @@ export default function Steps({
       await onSubmit?.(input);
       setInput("");
     },
-    [onSubmit, input]
+    [onSubmit, input],
   );
 
   return (
     <div className="w-full max-w-lg">
       <IconCircle>{icon}</IconCircle>
-      <h2 className="mt-4 mb-8 text-xl font-semibold lg:text-3xl">
+      <h2 className="mb-8 mt-4 text-xl font-semibold lg:text-3xl">
         {step.title}
       </h2>
       <form

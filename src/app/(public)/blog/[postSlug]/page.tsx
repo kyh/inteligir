@@ -31,7 +31,7 @@ export default function PostPage({ params }: { params: { postSlug: string } }) {
         description={post.brief}
         image={post.heroImage}
       />
-      <div className="container relative mx-auto mt-16 max-w-[820px] py-12 px-4">
+      <div className="container relative mx-auto mt-16 max-w-[820px] px-4 py-12">
         <Link href="/blog">
           <Button variant="link" className="px-0 text-gray-600 hover:underline">
             <ArrowLeft className="mr-2 w-4" /> Back to blog

@@ -11,7 +11,7 @@ export const Code: FC<React.HTMLProps<HTMLElement>> = ({
       {...props}
       className={cn(
         "rounded-md bg-[#25292e] px-[5px] py-[1px] text-sm text-white",
-        className
+        className,
       )}
     >
       {children}

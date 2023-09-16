@@ -3,15 +3,15 @@
 import { Input } from "~/components/ui/input";
 import { Button } from "~/components/ui/button";
 import { experimental_useFormStatus as useFormStatus } from "react-dom";
-import { joinWaitlist } from "./actions";
+import { joinWaitlist } from "../lib/actions";
 
 export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
   return (
     <form
-      className="p-2 border border-white/10 bg-brand-800 shadow-big rounded-xl sm:max-w-sm sm:flex"
+      className="rounded-xl border border-white/10 bg-brand-800 p-2 shadow-big sm:flex sm:max-w-sm"
       action={joinWaitlist}
     >
-      <div className="flex-1 min-w-0">
+      <div className="min-w-0 flex-1">
         <label htmlFor="email" className="sr-only">
           Email address
         </label>
@@ -24,7 +24,7 @@ export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
           variant="ghost"
         />
       </div>
-      <div className="mt-4 sm:mt-0 sm:ml-3">
+      <div className="mt-4 sm:ml-3 sm:mt-0">
         <ActionButton />
       </div>
     </form>

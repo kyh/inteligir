@@ -7,29 +7,29 @@ export const Steps = () => {
 
   return (
     <section className="relative overflow-hidden">
-      <div className="h-[0.080rem] bg-gradient-to-r from-brand-950 max-w-3xl mx-auto via-brand-300 to-brand-950" />
-      <div className="px-8 py-12 mx-auto max-w-6xl lg:py-24">
-        <div className="max-w-2xl mx-auto text-center">
-          <p className="bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text text-transparent text-4xl font-normal font-display tracking-tight pb-2 sm:text-5xl">
+      <div className="mx-auto h-[0.080rem] max-w-3xl bg-gradient-to-r from-brand-950 via-brand-300 to-brand-950" />
+      <div className="mx-auto max-w-6xl px-8 py-12 lg:py-24">
+        <div className="mx-auto max-w-2xl text-center">
+          <p className="bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text pb-2 font-display text-4xl font-normal tracking-tight text-transparent sm:text-5xl">
             Empowering <span className="lg:block">learning experiences</span>
           </p>
-          <p className="text-brand-300 mt-4 max-w-sm mx-auto">
+          <p className="mx-auto mt-4 max-w-sm text-brand-300">
             Discover the features that make our platform your ultimate learning
             companion
           </p>
         </div>
 
-        <div className="ring-1 p-2 rounded-3xl bg-gradient-to-t from-white/20 ring-white/10 relative mt-12">
-          <div className="relative flex flex-col justify-center w-full gap-2 md:gap-6 shadow-massive bg-brand-800/80 select-none sm:inline-grid rounded-2xl md:rounded-t-3xl md:rounded-b-none lg:flex-none lg:items-center sm:grid-cols-3">
+        <div className="relative mt-12 rounded-3xl bg-gradient-to-t from-white/20 p-2 ring-1 ring-white/10">
+          <div className="relative flex w-full select-none flex-col justify-center gap-2 rounded-2xl bg-brand-800/80 shadow-massive sm:inline-grid sm:grid-cols-3 md:gap-6 md:rounded-b-none md:rounded-t-3xl lg:flex-none lg:items-center">
             <button
               type="button"
-              className="relative flex flex-col w-full text-left p-4 md:p-8 z-20"
+              className="relative z-20 flex w-full flex-col p-4 text-left md:p-8"
               onClick={() => setCurrentTab(1)}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="h-5 icon icon-tabler text-brand-300 icon-tabler-3d-cube-sphere w-5"
+                  className="icon icon-tabler icon-tabler-3d-cube-sphere h-5 w-5 text-brand-300"
                   viewBox="0 0 24 24"
                   strokeWidth="2"
                   stroke="currentColor"
@@ -60,13 +60,13 @@ export const Steps = () => {
             </button>
             <button
               type="button"
-              className="relative flex flex-col w-full text-left p-4 md:p-8 z-20"
+              className="relative z-20 flex w-full flex-col p-4 text-left md:p-8"
               onClick={() => setCurrentTab(2)}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5 icon icon-tabler text-brand-300 icon-tabler-adjustments-alt"
+                  className="icon icon-tabler icon-tabler-adjustments-alt h-5 w-5 text-brand-300"
                   viewBox="0 0 24 24"
                   strokeWidth="2"
                   stroke="currentColor"
@@ -94,13 +94,13 @@ export const Steps = () => {
             </button>
             <button
               type="button"
-              className="relative flex flex-col w-full text-left p-4 md:p-8 z-20"
+              className="relative z-20 flex w-full flex-col p-4 text-left md:p-8"
               onClick={() => setCurrentTab(3)}
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="w-5 h-5 icon icon-tabler text-brand-300 icon-tabler-file-unknown"
+                  className="icon icon-tabler icon-tabler-file-unknown h-5 w-5 text-brand-300"
                   viewBox="0 0 24 24"
                   strokeWidth="2"
                   stroke="currentColor"
@@ -124,11 +124,11 @@ export const Steps = () => {
                 for added security and anonymity.
               </p>
             </button>
-            <div className="absolute left-0 z-10 hidden w-1/2 h-full duration-300 ease-out md:block">
-              <div className="w-12 ml-8 h-full border-b-[3px] border-brand-500" />
+            <div className="absolute left-0 z-10 hidden h-full w-1/2 duration-300 ease-out md:block">
+              <div className="ml-8 h-full w-12 border-b-[3px] border-brand-500" />
             </div>
           </div>
-          <div className="relative items-center justify-center hidden w-full border-t border-brand-700 shadow-sm overflow-hidden content md:rounded-b-3xl md:block">
+          <div className="content relative hidden w-full items-center justify-center overflow-hidden border-t border-brand-700 shadow-sm md:block md:rounded-b-3xl">
             {[1, 2, 3].map(
               (i) =>
                 currentTab === i && (
@@ -141,7 +141,7 @@ export const Steps = () => {
                       />
                     </div>
                   </div>
-                )
+                ),
             )}
           </div>
         </div>

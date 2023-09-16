@@ -23,7 +23,7 @@ export default function TeamSelector({
     async (team: Team) => {
       await router.push(`/${team.id}`);
     },
-    [router]
+    [router],
   );
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -36,7 +36,7 @@ export default function TeamSelector({
       />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex select-none items-center justify-between rounded-lg bg-white p-2 shadow-outline transition hover:shadow-md-outline">
+          <button className="shadow-outline hover:shadow-md-outline flex select-none items-center justify-between rounded-lg bg-white p-2 transition">
             <div className="flex items-center space-x-2">
               <Avatar>
                 <AvatarFallback>{team?.name[0] ?? ""}</AvatarFallback>

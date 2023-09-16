@@ -40,7 +40,7 @@ const StripePricingTable = ({
       "client-reference-id": clientId,
       "customer-email": customerEmail,
     },
-    null
+    null,
   );
 };
 

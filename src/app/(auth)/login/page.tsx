@@ -40,7 +40,7 @@ export default function SignInPage() {
 
       router.push("/check");
     },
-    [email, router, supabase]
+    [email, router, supabase],
   );
 
   const updateEmail = (e: React.ChangeEvent<HTMLInputElement>) => {

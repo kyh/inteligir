@@ -40,7 +40,7 @@ const constructTOC = (docs: Doc[], title: string | null): NavTreeNode => {
           acc.push(cur.name);
         }
         return acc;
-      }, [])
+      }, []),
   );
 
   return {
@@ -74,7 +74,7 @@ const PageContents: FC<{ headings: DocHeading[] }> = ({ headings }) => {
                 href={`#${sluggifyTitle(title)}`}
                 style={{ marginLeft: (level - 2) * 16 }}
                 className={cn(
-                  "flex text-gray-600 transition hover:text-gray-900"
+                  "flex text-gray-600 transition hover:text-gray-900",
                 )}
               >
                 {title}
@@ -150,7 +150,7 @@ const Doc = ({
 
   const doc = allDocs.find(
     (d) =>
-      d.pathSegments.map((ps: PathSegment) => ps.name).join("/") === pagePath
+      d.pathSegments.map((ps: PathSegment) => ps.name).join("/") === pagePath,
   );
 
   if (!doc) {
@@ -173,10 +173,10 @@ const Doc = ({
         {mobileSidebarOpen && (
           <>
             <div
-              className="fixed inset-0 z-40 h-full w-full animate-fadeIn bg-gray-500 opacity-50 md:hidden"
+              className="animate-fadeIn fixed inset-0 z-40 h-full w-full bg-gray-500 opacity-50 md:hidden"
               onClick={() => setMobileSidebarOpen(false)}
             />
-            <div className="fixed inset-y-0 left-0 z-50 w-2/3 max-w-[320px] animate-slideRightAndFadeIn bg-white p-4 md:hidden">
+            <div className="animate-slideRightAndFadeIn fixed inset-y-0 left-0 z-50 w-2/3 max-w-[320px] bg-white p-4 md:hidden">
               <Logo className="" />
               <div className="h-8" />
               <DocsContents
@@ -188,7 +188,7 @@ const Doc = ({
         )}
         <article
           className={cn(
-            "relative flex h-full min-h-screen w-full justify-between overflow-auto px-4 pt-0 pb-20 md:px-8"
+            "relative flex h-full min-h-screen w-full justify-between overflow-auto px-4 pb-20 pt-0 md:px-8",
           )}
         >
           <div className="w-full">
