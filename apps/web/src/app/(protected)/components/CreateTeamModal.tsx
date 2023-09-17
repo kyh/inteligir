@@ -1,8 +1,8 @@
-import { Box, Loader2 } from "lucide-react";
+import { Box, Loader2 } from "ui/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useSupabase } from "@/components/providers/supabase-provider";
-import { Button } from "@/components/ui/button";
+import { Button } from "ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -11,8 +11,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "ui/components/dialog";
+import { Input } from "ui/components/input";
 import { toast } from "sonner";
 
 type CreateTeamModalProps = {
@@ -92,7 +92,7 @@ export default function CreateTeamModal({
       setOpen(val);
       onOpenChange?.(val);
     },
-    [onOpenChange]
+    [onOpenChange],
   );
 
   // this component can either manage itself or allow itself to be managed

@@ -1,4 +1,4 @@
-import { Head } from "@/components/ui/head";
+import { Head } from "ui/components/head";
 import { Steps } from "./components/steps";
 import { LogoCloud } from "./components/logo-cloud";
 import { Hero } from "./components/hero";

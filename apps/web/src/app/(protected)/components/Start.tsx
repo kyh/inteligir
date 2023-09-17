@@ -1,18 +1,18 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { ChevronRightIcon, RocketIcon } from "lucide-react";
+} from "ui/components/card";
+import { ChevronRightIcon, RocketIcon } from "ui/icons";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import IconCircle from "./IconCircle";
-import Logo from "@/components/ui/logo";
+import Logo from "ui/components/logo";
 import Testimonial from "./Testimonial";
 
 export default function Start({

@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "@/lib/cn";
+import { cn } from "ui/lib/cn";
 
 export const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
   children,
@@ -11,7 +11,7 @@ export const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
       {...props}
       className={cn(
         "mb-2 mt-4 overflow-auto whitespace-pre rounded-md bg-gray-100 p-4 text-sm",
-        className
+        className,
       )}
     >
       {children}

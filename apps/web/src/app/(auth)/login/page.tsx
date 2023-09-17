@@ -1,10 +1,10 @@
 "use client";
 
-import { Logo } from "@/components/ui/logo";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Logo } from "ui/components/logo";
+import { Button } from "ui/components/button";
+import { Input } from "ui/components/input";
 import { useSupabase } from "@/components/providers/supabase-provider";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "ui/icons";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useState } from "react";
 
@@ -40,7 +40,7 @@ export default function SignInPage() {
 
       router.push("/check");
     },
-    [email, router, supabase]
+    [email, router, supabase],
   );
 
   const updateEmail = (e: React.ChangeEvent<HTMLInputElement>) => {

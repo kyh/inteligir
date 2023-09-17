@@ -7,12 +7,12 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "ui/components/card";
 import { useSupabase } from "@/components/providers/supabase-provider";
-import { DoorOpenIcon, Loader2 } from "lucide-react";
+import { DoorOpenIcon, Loader2 } from "ui/icons";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "ui/components/button";
 
 export function InviteComponent({
   team,

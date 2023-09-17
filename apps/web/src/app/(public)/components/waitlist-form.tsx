@@ -1,14 +1,14 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Input } from "ui/components/input";
+import { Button } from "ui/components/button";
 import { experimental_useFormStatus as useFormStatus } from "react-dom";
 import { joinWaitlist } from "../lib/actions";
 
 export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
   return (
     <form
-      className="rounded-xl border border-white/10 bg-brand-800 p-2 shadow-big sm:flex sm:max-w-sm"
+      className="bg-brand-800 shadow-big rounded-xl border border-white/10 p-2 sm:flex sm:max-w-sm"
       action={joinWaitlist}
     >
       <div className="min-w-0 flex-1">

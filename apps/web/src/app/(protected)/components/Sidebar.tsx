@@ -2,16 +2,16 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import Logo from "@/components/ui/logo";
-import { cn } from "@/lib/cn";
-import type { LucideIcon } from "lucide-react";
-import { ChevronDown, Home, Settings } from "lucide-react";
+} from "ui/components/collapsible";
+import Logo from "ui/components/logo";
+import { cn } from "ui/lib/cn";
+import type { LucideIcon } from "ui/icons";
+import { ChevronDown, Home, Settings } from "ui/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "ui/components/button";
+import { Separator } from "ui/components/separator";
 import TeamSelector from "./TeamSelector";
 import UserProfileButton from "./UserProfileDropdown";
 
@@ -107,7 +107,7 @@ export default function Sidebar({
   const pathname = usePathname();
 
   const [settingsExpanded, setSettingsExpanded] = useState(
-    pathname.includes("/settings")
+    pathname.includes("/settings"),
   );
 
   return (

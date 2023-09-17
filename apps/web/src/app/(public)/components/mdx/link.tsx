@@ -1,6 +1,6 @@
 import NextLink from "next/link";
 import type { FC } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "ui/icons";
 
 export const Link: FC<React.HTMLProps<HTMLAnchorElement>> = ({
   href = "",

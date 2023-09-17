@@ -1,7 +1,7 @@
-import { SupabaseProvider } from "@/components/providers/supabase-provider";
-import { PHProvider } from "@/components/providers/posthog-provider";
-import { ThemeProvider } from "@/components/providers/theme-provider";
-import { Toaster } from "@/components/ui/toaster";
+import { SupabaseProvider } from "@/components/supabase-provider";
+import { PHProvider } from "@/components/posthog-provider";
+import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "ui/components/toaster";
 import "./globals.css";
 
 export const metadata = {

@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { ArrowLeft } from "lucide-react";
+import { Button } from "ui/components/button";
+import { ArrowLeft } from "ui/icons";
 import Link from "next/link";
 
 export default function BackToBlog() {

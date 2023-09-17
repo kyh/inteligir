@@ -1,6 +1,6 @@
-import { Head } from "@/components/ui/head";
+import { Head } from "ui/components/head";
 import PostCard from "./components/PostCard";
-import { Separator } from "@/components/ui/separator";
+import { Separator } from "ui/components/separator";
 import { Author, Post, allAuthors, allPosts } from "contentlayer/generated";
 
 export const revalidate = 60;

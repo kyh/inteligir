@@ -1,7 +1,11 @@
 import type { Config } from "tailwindcss";
 import sharedConfig from "configs/tailwind/tailwind.config";
 
-const config: Pick<Config, "presets"> = {
+const config: Config = {
+  content: [
+    "./src/**/*.{js,ts,jsx,tsx,mdx}",
+    "../../packages/ui/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
   presets: [sharedConfig],
 };
 

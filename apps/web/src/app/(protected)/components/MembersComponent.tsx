@@ -1,24 +1,24 @@
 "use client";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "ui/components/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "ui/components/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "ui/components/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "ui/components/tabs";
 import { ROLES, ROLE_ADMIN, Role } from "@/lib/roles";
-import { Loader2, MoreHorizontal, Plus } from "lucide-react";
+import { Loader2, MoreHorizontal, Plus } from "ui/icons";
 import { useCallback, useState } from "react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
+import { Input } from "ui/components/input";
+import { Button } from "ui/components/button";
 import { useSupabase } from "@/components/providers/supabase-provider";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
@@ -184,7 +184,7 @@ const InvitedSection = ({
 
       router.refresh();
     },
-    [supabase, router]
+    [supabase, router],
   );
 
   if (!team || !teamInvites) return null;
@@ -285,7 +285,7 @@ const MembersSection = ({
 
       setLoading(false);
     },
-    [team, user]
+    [team, user],
   );
 
   const handleRemoveMember = useCallback(
@@ -303,7 +303,7 @@ const MembersSection = ({
 
       toast.success("Member removed from team the team");
     },
-    [team, user]
+    [team, user],
   );
 
   if (!user || !team || !teamMembers || !teamMembersProfiles) return null;

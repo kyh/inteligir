@@ -1,4 +1,4 @@
-import { cn } from "@/lib/cn";
+import { cn } from "ui/lib/cn";
 
 type TagProps = {
   color: "green" | "red" | "blue" | "gray";
@@ -15,7 +15,7 @@ export default function Tag({ color, children }: TagProps) {
           "bg-red-200 text-red-900": color === "red",
           "bg-blue-200 text-blue-900": color === "blue",
           "bg-gray-200 text-gray-900": color === "gray",
-        }
+        },
       )}
     >
       {children}

@@ -1,8 +1,8 @@
 "use client";
 import Sidebar from "./Sidebar";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/cn";
-import { ChevronRight, Menu } from "lucide-react";
+import { Button } from "ui/components/button";
+import { cn } from "ui/lib/cn";
+import { ChevronRight, Menu } from "ui/icons";
 import { useState } from "react";
 
 export default function Shell({
@@ -73,7 +73,7 @@ export default function Shell({
         <section
           className={cn(
             "relative flex flex-grow p-4 md:p-8",
-            childrenClassname
+            childrenClassname,
           )}
         >
           {children}

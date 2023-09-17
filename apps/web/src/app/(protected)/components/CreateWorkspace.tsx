@@ -1,10 +1,10 @@
 "use client";
 
 import { useSupabase } from "@/components/providers/supabase-provider";
-import { Home } from "lucide-react";
+import { Home } from "ui/icons";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Logo from "@/components/ui/logo";
+import Logo from "ui/components/logo";
 import Step, { StepProps } from "./Steps";
 import Testimonial from "./Testimonial";
 

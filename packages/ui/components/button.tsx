@@ -1,24 +1,24 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { cn } from "@/lib/cn";
+import { cn } from "../lib/cn";
 import { Spinner } from "./spinner";
 
 const buttonVariants = cva(
-  "focus-visible:ring-brand-950 dark:focus-visible:ring-brand-300 relative inline-flex items-center justify-center rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 disabled:pointer-events-none",
+  "relative inline-flex items-center justify-center rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand-950 disabled:pointer-events-none dark:focus-visible:ring-brand-300",
   {
     variants: {
       variant: {
         default:
-          "text-brand-50 bg-brand-900 hover:bg-brand-900/90 disabled:bg-brand-900/70 dark:bg-brand-50 dark:text-brand-900 dark:hover:bg-brand-50/90 dark:disabled:bg-brand-50/70 shadow dark:[--spinner-color:#000]",
+          "bg-brand-900 text-brand-50 shadow hover:bg-brand-900/90 disabled:bg-brand-900/70 dark:bg-brand-50 dark:text-brand-900 dark:[--spinner-color:#000] dark:hover:bg-brand-50/90 dark:disabled:bg-brand-50/70",
         secondary:
-          "bg-brand-100 text-brand-900 hover:bg-brand-100/80 dark:bg-brand-800 dark:text-brand-50 dark:hover:bg-brand-800/80 shadow-sm",
+          "bg-brand-100 text-brand-900 shadow-sm hover:bg-brand-100/80 dark:bg-brand-800 dark:text-brand-50 dark:hover:bg-brand-800/80",
         destructive:
-          "text-brand-50 dark:text-brand-50 bg-red-500 shadow-sm hover:bg-red-500/90 dark:bg-red-900 dark:hover:bg-red-900/90",
+          "bg-red-500 text-brand-50 shadow-sm hover:bg-red-500/90 dark:bg-red-900 dark:text-brand-50 dark:hover:bg-red-900/90",
         outline:
-          "border-brand-200 hover:bg-brand-100 hover:text-brand-900 dark:border-brand-800 dark:hover:bg-brand-800 dark:hover:text-brand-50 border bg-transparent shadow-sm",
+          "border border-brand-200 bg-transparent shadow-sm hover:bg-brand-100 hover:text-brand-900 dark:border-brand-800 dark:hover:bg-brand-800 dark:hover:text-brand-50",
         ghost:
           "hover:bg-brand-100 hover:text-brand-900 dark:hover:bg-brand-800 dark:hover:text-brand-50",
-        link: "text-brand-900 dark:text-brand-50 underline-offset-4 hover:underline",
+        link: "text-brand-900 underline-offset-4 hover:underline dark:text-brand-50",
       },
       size: {
         default: "h-9 px-4 py-2",

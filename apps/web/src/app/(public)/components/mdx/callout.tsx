@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import { cn } from "@/lib/cn";
-import { AlertOctagon, AlertTriangle, CheckCircle2, Info } from "lucide-react";
+import { cn } from "ui/lib/cn";
+import { AlertOctagon, AlertTriangle, CheckCircle2, Info } from "ui/icons";
 
 export const Callout: React.FC<{
   children: ReactNode;
@@ -18,7 +18,7 @@ export const Callout: React.FC<{
     >
       <div
         className={cn(
-          "ml-3 mt-4 flex h-full shrink-0 items-center justify-center"
+          "ml-3 mt-4 flex h-full shrink-0 items-center justify-center",
         )}
       >
         {variant === "warning" && (

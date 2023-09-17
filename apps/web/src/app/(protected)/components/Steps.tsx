@@ -1,9 +1,9 @@
 "use client";
-import { Loader2 } from "lucide-react";
+import { Loader2 } from "ui/icons";
 import type { FormEvent } from "react";
 import { useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "ui/components/button";
+import { Input } from "ui/components/input";
 import IconCircle from "./IconCircle";
 
 export type StepProps = {
@@ -31,7 +31,7 @@ export default function Steps({
       await onSubmit?.(input);
       setInput("");
     },
-    [onSubmit, input]
+    [onSubmit, input],
   );
 
   return (

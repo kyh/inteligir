@@ -1,6 +1,6 @@
 import IconCircle from "@/app/(protected)/components/IconCircle";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Mail } from "lucide-react";
+import { Button } from "ui/components/button";
+import { ArrowLeft, Mail } from "ui/icons";
 import Link from "next/link";
 
 export default async function CheckPage() {

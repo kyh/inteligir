@@ -1,11 +1,11 @@
 import { AuthorCard } from "../components/AuthorCard";
-import { Head } from "@/components/ui/head";
+import { Head } from "ui/components/head";
 import TimeToRead from "../components/MinuteRead";
 import PostDate from "../components/PostDate";
 import MDX from "@/app/(public)/components/mdx";
-import { Button } from "@/components/ui/button";
+import { Button } from "ui/components/button";
 import { allAuthors, allPosts } from "contentlayer/generated";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight } from "ui/icons";
 import Link from "next/link";
 import Image from "next/image";
 

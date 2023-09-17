@@ -1,5 +1,5 @@
-import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
+import { Button } from "ui/components/button";
+import { Loader2 } from "ui/icons";
 
 export default function SettingsCard({
   title,

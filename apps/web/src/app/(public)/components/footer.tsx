@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Logo } from "@/components/ui/logo";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/cn";
+import { Button } from "ui/components/button";
+import { Logo } from "ui/components/logo";
+import { Input } from "ui/components/input";
+import { cn } from "ui/lib/cn";
 
 export const Footer = () => {
   return (
@@ -23,7 +23,7 @@ const FooterLinksSection = () => {
       </div>
       <div className="flex w-full justify-between md:w-auto md:gap-20">
         <ul>
-          <p className="mb-2 text-xs font-semibold text-brand-100">Resources</p>
+          <p className="text-brand-100 mb-2 text-xs font-semibold">Resources</p>
           <li>
             <NavLink href="/docs">Documentation</NavLink>
           </li>
@@ -32,7 +32,7 @@ const FooterLinksSection = () => {
           </li>
         </ul>
         <ul>
-          <p className="mb-2 text-xs font-semibold text-brand-100">Company</p>
+          <p className="text-brand-100 mb-2 text-xs font-semibold">Company</p>
           <li>
             <NavLink href="/about">About</NavLink>
           </li>
@@ -44,7 +44,7 @@ const FooterLinksSection = () => {
           </li>
         </ul>
         <ul>
-          <p className="mb-2 text-xs font-semibold text-brand-100">Support</p>
+          <p className="text-brand-100 mb-2 text-xs font-semibold">Support</p>
           <li>
             <NavLink href="/help">Help center</NavLink>
           </li>
@@ -60,7 +60,7 @@ const FooterLinksSection = () => {
 export const SmallPrintSection = () => {
   return (
     <div className="flex flex-col items-center justify-between gap-5 border-t border-white/10 pt-8 sm:flex-row">
-      <p className="text-xs text-brand-300">
+      <p className="text-brand-300 text-xs">
         &copy; Copyright {new Date().getFullYear()}. All rights reserved.
       </p>
       <div className="flex gap-4">
@@ -100,8 +100,8 @@ const NavLink = ({
   return (
     <Link
       className={cn(
-        "-mx-1 block p-1 text-xs capitalize text-brand-300 transition hover:text-white",
-        className
+        "text-brand-300 -mx-1 block p-1 text-xs capitalize transition hover:text-white",
+        className,
       )}
       {...props}
     />
@@ -148,7 +148,7 @@ const SocialLink = ({
   return (
     <NavLink href={href} className="group">
       <span className="sr-only">{children}</span>
-      <Icon className="h-5 w-5 fill-brand-700 transition group-hover:fill-brand-900 dark:group-hover:fill-brand-500" />
+      <Icon className="fill-brand-700 group-hover:fill-brand-900 dark:group-hover:fill-brand-500 h-5 w-5 transition" />
     </NavLink>
   );
 };

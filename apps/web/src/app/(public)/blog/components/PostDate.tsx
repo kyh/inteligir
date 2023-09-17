@@ -1,4 +1,4 @@
-import { cn } from "@/lib/cn";
+import { cn } from "ui/lib/cn";
 import dayjs from "dayjs";
 
 export default function PostDate({

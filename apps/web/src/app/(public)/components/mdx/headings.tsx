@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cn } from "@/lib/cn";
+import { cn } from "ui/lib/cn";
 import { getNodeText, sluggifyTitle } from "@/lib/content";
 
 const Heading = (variant: "1" | "2" | "3" | "4") => {

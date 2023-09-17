@@ -1,12 +1,12 @@
 "use client";
 
-import { cn } from "@/lib/cn";
-import { Menu } from "lucide-react";
+import { cn } from "ui/lib/cn";
+import { Menu } from "ui/icons";
 import Link from "next/link";
 import { useState } from "react";
-import { Logo } from "@/components/ui/logo";
+import { Logo } from "ui/components/logo";
 import { Session } from "@supabase/supabase-js";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "ui/components/button";
 
 export function Header({ session }: { session?: Session | null }) {
   const [open, setOpen] = useState(false);
@@ -28,17 +28,17 @@ export function Header({ session }: { session?: Session | null }) {
         <nav
           className={cn(
             open ? "flex" : "hidden",
-            "flex-grow flex-col items-center md:flex md:flex-row md:justify-end md:pb-0"
+            "flex-grow flex-col items-center md:flex md:flex-row md:justify-end md:pb-0",
           )}
         >
           <Link
-            className="px-2 py-2 text-sm font-normal text-brand-300 transition hover:text-white md:px-3 lg:ml-auto lg:px-6"
+            className="text-brand-300 px-2 py-2 text-sm font-normal transition hover:text-white md:px-3 lg:ml-auto lg:px-6"
             href="/docs"
           >
             Documentation
           </Link>
           <Link
-            className="px-2 py-2 text-sm font-normal text-brand-300 transition hover:text-white md:px-3 lg:px-6"
+            className="text-brand-300 px-2 py-2 text-sm font-normal transition hover:text-white md:px-3 lg:px-6"
             href="/blog"
           >
             Blog

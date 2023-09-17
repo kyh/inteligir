@@ -1,13 +1,13 @@
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Plus } from "ui/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "ui/components/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "ui/components/dropdown-menu";
 import CreateTeamModal from "./CreateTeamModal";
 
 export default function TeamSelector({
@@ -23,7 +23,7 @@ export default function TeamSelector({
     async (team: Team) => {
       await router.push(`/${team.id}`);
     },
-    [router]
+    [router],
   );
 
   const [createModalOpen, setCreateModalOpen] = useState(false);

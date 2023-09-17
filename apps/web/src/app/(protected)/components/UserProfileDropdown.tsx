@@ -1,14 +1,14 @@
-import { cn } from "@/lib/cn";
-import { Book, ChevronUp, LogOut, UserIcon } from "lucide-react";
+import { cn } from "ui/lib/cn";
+import { Book, ChevronUp, LogOut, UserIcon } from "ui/icons";
 import { useRouter } from "next/navigation";
 import React, { useCallback } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "ui/components/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "ui/components/dropdown-menu";
 import { useSupabase } from "@/components/providers/supabase-provider";
 
 function MenuItem({
@@ -25,7 +25,7 @@ function MenuItem({
       onClick={onClick}
       className={cn(
         "flex w-full cursor-pointer items-center gap-x-2 px-4 py-2",
-        className
+        className,
       )}
     >
       {children}

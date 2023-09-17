@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "@/lib/cn";
+import { cn } from "ui/lib/cn";
 
 export const Code: FC<React.HTMLProps<HTMLElement>> = ({
   children,
@@ -11,7 +11,7 @@ export const Code: FC<React.HTMLProps<HTMLElement>> = ({
       {...props}
       className={cn(
         "rounded-md bg-[#25292e] px-[5px] py-[1px] text-sm text-white",
-        className
+        className,
       )}
     >
       {children}

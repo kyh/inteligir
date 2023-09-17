@@ -1,12 +1,12 @@
 "use client";
 /* eslint-disable react/no-unescaped-entities */
-import { cn } from "@/lib/cn";
+import { cn } from "ui/lib/cn";
 import NextLink from "next/link";
 import { useCallback, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Tabs } from "@/components/ui/tabs";
-import type { LucideIcon } from "lucide-react";
+import { Button } from "ui/components/button";
+import { Tabs } from "ui/components/tabs";
 import {
+  type LucideIcon,
   ArrowLeft,
   ArrowRight,
   BarChart,
@@ -14,8 +14,8 @@ import {
   Globe,
   Lock,
   Table,
-} from "lucide-react";
-import { TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "ui/icons";
+import { TabsContent, TabsList, TabsTrigger } from "ui/components/tabs";
 
 const MultilineCode = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -35,7 +35,7 @@ const InlineCode = ({
   <code
     className={cn(
       "whitespace-pre-line rounded bg-gray-100 px-[5px] py-[2px] text-gray-900",
-      className
+      className,
     )}
   >
     {children}
@@ -79,7 +79,7 @@ const StepCard = ({
         "relative w-36 cursor-pointer rounded border bg-white px-4 py-2 shadow-sm transition hover:shadow",
         {
           "border-primary-500 bg-primary-50": selected,
-        }
+        },
       )}
       onClick={() => onGoToStep(name)}
     >

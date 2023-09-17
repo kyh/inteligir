@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "@/lib/cn";
+import { cn } from "ui/lib/cn";
 
 export const Span: FC<React.HTMLProps<HTMLSpanElement>> = ({
   children,

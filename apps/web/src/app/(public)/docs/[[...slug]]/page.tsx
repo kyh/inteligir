@@ -1,12 +1,12 @@
 "use client";
 
-import { Head } from "@/components/ui/head";
+import { Head } from "ui/components/head";
 import MDX from "@/app/(public)/components/mdx";
-import { Logo } from "@/components/ui/logo";
-import { cn } from "@/lib/cn";
+import { Logo } from "ui/components/logo";
+import { cn } from "ui/lib/cn";
 import { sluggifyTitle } from "@/lib/content";
 import type { DocHeading } from "contentlayer.config";
-import { Doc, allDocs } from "contentlayer/generated";
+import { type Documentation, allDocumentations } from "contentlayer/generated";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import type { FC } from "react";
@@ -18,7 +18,10 @@ type NavTreeNode = {
   children: NavTreeNode[];
 };
 
-const constructTOC = (docs: Doc[], title: string | null): NavTreeNode => {
+const constructTOC = (
+  docs: Documentation[],
+  title: string | null,
+): NavTreeNode => {
   const doc = docs[0];
   if (doc && docs.length === 1 && doc.pathSegments.length === 0) {
     return {
@@ -40,7 +43,7 @@ const constructTOC = (docs: Doc[], title: string | null): NavTreeNode => {
           acc.push(cur.name);
         }
         return acc;
-      }, [])
+      }, []),
   );
 
   return {
@@ -74,7 +77,7 @@ const PageContents: FC<{ headings: DocHeading[] }> = ({ headings }) => {
                 href={`#${sluggifyTitle(title)}`}
                 style={{ marginLeft: (level - 2) * 16 }}
                 className={cn(
-                  "flex text-gray-600 transition hover:text-gray-900"
+                  "flex text-gray-600 transition hover:text-gray-900",
                 )}
               >
                 {title}
@@ -148,16 +151,16 @@ const Doc = ({
   const { slug } = params;
   const pagePath = (slug && slug.join("/")) ?? "";
 
-  const doc = allDocs.find(
+  const doc = allDocumentations.find(
     (d) =>
-      d.pathSegments.map((ps: PathSegment) => ps.name).join("/") === pagePath
+      d.pathSegments.map((ps: PathSegment) => ps.name).join("/") === pagePath,
   );
 
   if (!doc) {
     throw new Error(`No doc found for slug: ${slug}`);
   }
 
-  const toc = constructTOC(allDocs, null);
+  const toc = constructTOC(allDocumentations, null);
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
@@ -188,7 +191,7 @@ const Doc = ({
         )}
         <article
           className={cn(
-            "relative flex h-full min-h-screen w-full justify-between overflow-auto px-4 pb-20 pt-0 md:px-8"
+            "relative flex h-full min-h-screen w-full justify-between overflow-auto px-4 pb-20 pt-0 md:px-8",
           )}
         >
           <div className="w-full">

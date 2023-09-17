@@ -7,10 +7,10 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+} from "ui/components/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "ui/components/tabs";
 import Stripe from "stripe";
-import { Button } from "@/components/ui/button";
+import { Button } from "ui/components/button";
 import { useRouter } from "next/navigation";
 
 export default function BillingComponent({
@@ -114,7 +114,7 @@ export default function BillingComponent({
             const monthlyPrice = prices.find(
               (price) =>
                 price.product === product.id &&
-                price.recurring?.interval === "month"
+                price.recurring?.interval === "month",
             );
             return (
               <Card key={product.id} className="flex-1">
@@ -159,7 +159,7 @@ export default function BillingComponent({
             const yearlyPrice = prices.find(
               (price) =>
                 price.product === product.id &&
-                price.recurring?.interval === "year"
+                price.recurring?.interval === "year",
             );
             return (
               <Card key={product.id} className="flex-1">
