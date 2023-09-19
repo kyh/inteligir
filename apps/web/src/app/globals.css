@@ -30,6 +30,13 @@
   --spinner-border-width: 3px;
 }
 
+.spinner-color-white {
+  --spinner-color: #fff;
+}
+.spinner-color-black {
+  --spinner-color: #000;
+}
+
 .spinner-line {
   position: absolute;
   width: 100%;

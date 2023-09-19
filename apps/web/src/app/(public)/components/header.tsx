@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Logo } from "ui/components/logo";
 import { Session } from "@supabase/supabase-js";
-import { buttonVariants } from "ui/components/button";
+import { Button } from "ui/components/button";
 
 export function Header({ session }: { session?: Session | null }) {
   const [open, setOpen] = useState(false);
@@ -32,27 +32,22 @@ export function Header({ session }: { session?: Session | null }) {
           )}
         >
           <Link
-            className="text-brand-300 px-2 py-2 text-sm font-normal transition hover:text-white md:px-3 lg:ml-auto lg:px-6"
+            className="px-2 py-2 text-sm font-normal text-brand-300 transition hover:text-white md:px-3 lg:ml-auto lg:px-6"
             href="/docs"
           >
             Documentation
           </Link>
           <Link
-            className="text-brand-300 px-2 py-2 text-sm font-normal transition hover:text-white md:px-3 lg:px-6"
+            className="px-2 py-2 text-sm font-normal text-brand-300 transition hover:text-white md:px-3 lg:px-6"
             href="/blog"
           >
             Blog
           </Link>
-          <Link
-            href={session ? "/start" : "/login"}
-            className={buttonVariants({
-              variant: "secondary",
-              size: "sm",
-              className: "ml-2 md:ml-4",
-            })}
-          >
-            {session ? "Dashboard" : "Login"}
-          </Link>
+          <Button className="ml-2 md:ml-4" variant="secondary" asChild>
+            <Link href={session ? "/start" : "/login"}>
+              {session ? "Dashboard" : "Login"}
+            </Link>
+          </Button>
         </nav>
       </div>
     </section>

@@ -17,7 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head />
-      <body className="dark:bg-brand-950">
+      <body className="bg-ui-bg-base">
         <ThemeProvider>
           <PHProvider>
             <SupabaseProvider>{children}</SupabaseProvider>
