@@ -73,6 +73,7 @@ const MDX_COMPONENTS: MDXComponents = {
 
 export default function MDX({ content }: { content: string }) {
   const Component = useMDXComponent(content);
+
   if (Component) {
     return (
       <div className="text-base">

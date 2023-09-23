@@ -11,9 +11,9 @@ const badgeVariants = cva("inline-flex items-center gap-x-0.5 border", {
       icon: "rounded-md",
     },
     size: {
-      sm: "txt-compact-xsmall-plus px-1.5",
-      md: "txt-compact-small-plus px-2 py-0.5",
-      lg: "txt-compact-medium-plus px-2.5 py-1",
+      sm: "px-1.5 text-xs",
+      md: "px-2 py-0.5 text-xs",
+      lg: "px-2.5 py-1 text-sm",
     },
     color: {
       green:

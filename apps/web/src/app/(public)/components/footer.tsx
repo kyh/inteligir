@@ -7,7 +7,7 @@ import { cn } from "ui/lib/cn";
 export const Footer = () => {
   return (
     <footer className="mt-20 border-t border-white/10 sm:mt-24">
-      <div className="mx-auto max-w-6xl px-8 py-10 md:pb-12 md:pt-16">
+      <div className="container max-w-6xl py-10 md:pb-12 md:pt-16">
         <FooterLinksSection />
         <SmallPrintSection />
       </div>
@@ -23,28 +23,28 @@ const FooterLinksSection = () => {
       </div>
       <div className="flex w-full justify-between md:w-auto md:gap-20">
         <ul>
-          <p className="text-brand-100 mb-2 text-xs font-semibold">Resources</p>
+          <p className="mb-2 text-xs font-semibold text-brand-100">Resources</p>
           <li>
-            <NavLink href="/docs">Documentation</NavLink>
+            <NavLink href="/templates">Templates</NavLink>
           </li>
           <li>
-            <NavLink href="/blog">Blog</NavLink>
+            <NavLink href="/integrations">Integrations</NavLink>
           </li>
         </ul>
         <ul>
-          <p className="text-brand-100 mb-2 text-xs font-semibold">Company</p>
+          <p className="mb-2 text-xs font-semibold text-brand-100">Company</p>
           <li>
             <NavLink href="/about">About</NavLink>
           </li>
           <li>
-            <NavLink href="/terms">Terms of Use</NavLink>
+            <NavLink href="/legal/terms">Terms of Use</NavLink>
           </li>
           <li>
-            <NavLink href="/privacy">Privacy Policy</NavLink>
+            <NavLink href="/legal/privacy">Privacy Policy</NavLink>
           </li>
         </ul>
         <ul>
-          <p className="text-brand-100 mb-2 text-xs font-semibold">Support</p>
+          <p className="mb-2 text-xs font-semibold text-brand-100">Support</p>
           <li>
             <NavLink href="/help">Help center</NavLink>
           </li>
@@ -60,18 +60,18 @@ const FooterLinksSection = () => {
 export const SmallPrintSection = () => {
   return (
     <div className="flex flex-col items-center justify-between gap-5 border-t border-white/10 pt-8 sm:flex-row">
-      <p className="text-brand-300 text-xs">
+      <p className="text-xs text-brand-300">
         &copy; Copyright {new Date().getFullYear()}. All rights reserved.
       </p>
       <div className="flex gap-4">
-        <SocialLink href={""} icon={TwitterIcon}>
-          Follow us on Twitter
+        <SocialLink href="https://twitter.com/kaiyuhsu" icon={TwitterIcon}>
+          Follow on X
         </SocialLink>
-        <SocialLink href={""} icon={GitHubIcon}>
-          Follow us on GitHub
+        <SocialLink href="https://github.com/kyh" icon={GitHubIcon}>
+          Follow on GitHub
         </SocialLink>
-        <SocialLink href={""} icon={DiscordIcon}>
-          Join our Discord server
+        <SocialLink href="https://discord.gg/BGFUs5UpZw" icon={DiscordIcon}>
+          Join the Discord server
         </SocialLink>
       </div>
     </div>
@@ -100,7 +100,7 @@ const NavLink = ({
   return (
     <Link
       className={cn(
-        "text-brand-300 -mx-1 block p-1 text-xs capitalize transition hover:text-white",
+        "-mx-1 block p-1 text-xs capitalize text-brand-300 transition hover:text-white",
         className,
       )}
       {...props}
@@ -110,15 +110,31 @@ const NavLink = ({
 
 const TwitterIcon = (props: React.SVGProps<SVGSVGElement>) => {
   return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" {...props}>
-      <path d="M16.712 6.652c.01.146.01.29.01.436 0 4.449-3.267 9.579-9.242 9.579v-.003a8.963 8.963 0 0 1-4.98-1.509 6.379 6.379 0 0 0 4.807-1.396c-1.39-.027-2.608-.966-3.035-2.337.487.097.99.077 1.467-.059-1.514-.316-2.606-1.696-2.606-3.3v-.041c.45.26.956.404 1.475.42C3.18 7.454 2.74 5.486 3.602 3.947c1.65 2.104 4.083 3.382 6.695 3.517a3.446 3.446 0 0 1 .94-3.217 3.172 3.172 0 0 1 4.596.148 6.38 6.38 0 0 0 2.063-.817 3.357 3.357 0 0 1-1.428 1.861 6.283 6.283 0 0 0 1.865-.53 6.735 6.735 0 0 1-1.62 1.744Z" />
+    <svg
+      viewBox="0 0 1200 1227"
+      aria-hidden="true"
+      width={14}
+      height={14}
+      {...props}
+    >
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M714.163 519.284L1160.89 0H1055.03L667.137 450.887L357.328 0H0L468.492 681.821L0 1226.37H105.866L515.491 750.218L842.672 1226.37H1200L714.137 519.284H714.163ZM569.165 687.828L521.697 619.934L144.011 79.6944H306.615L611.412 515.685L658.88 583.579L1055.08 1150.3H892.476L569.165 687.854V687.828Z"
+      />
     </svg>
   );
 };
 
 const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => {
   return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" {...props}>
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      width={20}
+      height={20}
+      {...props}
+    >
       <path
         fillRule="evenodd"
         clipRule="evenodd"
@@ -130,7 +146,13 @@ const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => {
 
 const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => {
   return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" {...props}>
+    <svg
+      viewBox="0 0 20 20"
+      aria-hidden="true"
+      width={20}
+      height={20}
+      {...props}
+    >
       <path d="M16.238 4.515a14.842 14.842 0 0 0-3.664-1.136.055.055 0 0 0-.059.027 10.35 10.35 0 0 0-.456.938 13.702 13.702 0 0 0-4.115 0 9.479 9.479 0 0 0-.464-.938.058.058 0 0 0-.058-.027c-1.266.218-2.497.6-3.664 1.136a.052.052 0 0 0-.024.02C1.4 8.023.76 11.424 1.074 14.782a.062.062 0 0 0 .024.042 14.923 14.923 0 0 0 4.494 2.272.058.058 0 0 0 .064-.02c.346-.473.654-.972.92-1.496a.057.057 0 0 0-.032-.08 9.83 9.83 0 0 1-1.404-.669.058.058 0 0 1-.029-.046.058.058 0 0 1 .023-.05c.094-.07.189-.144.279-.218a.056.056 0 0 1 .058-.008c2.946 1.345 6.135 1.345 9.046 0a.056.056 0 0 1 .059.007c.09.074.184.149.28.22a.058.058 0 0 1 .023.049.059.059 0 0 1-.028.046 9.224 9.224 0 0 1-1.405.669.058.058 0 0 0-.033.033.056.056 0 0 0 .002.047c.27.523.58 1.022.92 1.495a.056.056 0 0 0 .062.021 14.878 14.878 0 0 0 4.502-2.272.055.055 0 0 0 .016-.018.056.056 0 0 0 .008-.023c.375-3.883-.63-7.256-2.662-10.246a.046.046 0 0 0-.023-.021Zm-9.223 8.221c-.887 0-1.618-.814-1.618-1.814s.717-1.814 1.618-1.814c.908 0 1.632.821 1.618 1.814 0 1-.717 1.814-1.618 1.814Zm5.981 0c-.887 0-1.618-.814-1.618-1.814s.717-1.814 1.618-1.814c.908 0 1.632.821 1.618 1.814 0 1-.71 1.814-1.618 1.814Z" />
     </svg>
   );
@@ -146,9 +168,9 @@ const SocialLink = ({
   children: React.ReactNode;
 }) => {
   return (
-    <NavLink href={href} className="group">
+    <NavLink href={href} className="group flex items-center">
       <span className="sr-only">{children}</span>
-      <Icon className="fill-brand-700 group-hover:fill-brand-900 dark:group-hover:fill-brand-500 h-5 w-5 transition" />
+      <Icon className="fill-brand-700 transition group-hover:fill-brand-900 dark:group-hover:fill-brand-300" />
     </NavLink>
   );
 };

@@ -11,7 +11,7 @@ const Textarea = React.forwardRef<
       ref={ref}
       className={cn(
         inputBaseStyles,
-        "txt-medium min-h-[70px] w-full rounded-md border px-3 py-[7px]",
+        "min-h-[70px] w-full rounded-md border px-3 py-[7px] text-sm",
         className,
       )}
       {...props}

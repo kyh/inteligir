@@ -8,7 +8,7 @@ import {
   CardHeader,
   CardTitle,
 } from "ui/components/card";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { useSupabase } from "@/components/supabase-provider";
 import { DoorOpenIcon, Loader2 } from "ui/icons";
 import { useRouter } from "next/navigation";
 import { useState } from "react";

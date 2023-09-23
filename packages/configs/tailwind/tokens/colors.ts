@@ -2,7 +2,7 @@ export const colors = {
   dark: {
     "--bg-base-hover": "rgba(38, 38, 38, 1)",
     "--bg-base-pressed": "rgba(48, 48, 48, 1)",
-    "--bg-base": "rgba(23, 23, 23, 1)",
+    "--bg-base": "rgba(24, 24, 26, 1)",
     "--bg-component": "rgba(38, 38, 38, 1)",
     "--bg-disabled": "rgba(38, 38, 38, 1)",
     "--bg-field-hover": "rgba(48, 48, 48, 1)",

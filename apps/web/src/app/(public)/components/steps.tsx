@@ -8,14 +8,13 @@ export const Steps = () => {
   return (
     <section className="relative overflow-hidden">
       <div className="mx-auto h-[0.080rem] max-w-3xl bg-gradient-to-r from-brand-950 via-brand-300 to-brand-950" />
-      <div className="mx-auto max-w-6xl px-8 py-12 lg:py-24">
+      <div className="container max-w-6xl py-12 lg:py-24">
         <div className="mx-auto max-w-2xl text-center">
           <p className="bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text pb-2 font-display text-4xl font-normal tracking-tight text-transparent sm:text-5xl">
-            Empowering <span className="lg:block">learning experiences</span>
+            AI powered <span className="lg:block">data workspace</span>
           </p>
           <p className="mx-auto mt-4 max-w-sm text-brand-300">
-            Discover the features that make our platform your ultimate learning
-            companion
+            We'll handle the data reporting so you can focus on driving results
           </p>
         </div>
 
@@ -29,7 +28,7 @@ export const Steps = () => {
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="icon icon-tabler icon-tabler-3d-cube-sphere h-5 w-5 text-brand-300"
+                  className="h-5 w-5 text-brand-300"
                   viewBox="0 0 24 24"
                   strokeWidth="2"
                   stroke="currentColor"
@@ -51,11 +50,14 @@ export const Steps = () => {
                   <path d="M12 12l-2 -1.12" />
                   <path d="M6 8.6l-2 -1.1" />
                 </svg>
-                <p className="text-base font-medium text-brand-50">Encrypted</p>
+                <p className="text-base font-medium text-brand-50">
+                  Connect your Data
+                </p>
               </div>
               <p className="mt-2 text-sm text-brand-300">
-                Use blockchain technology to create decentralized autonomous
-                organizations and manage.
+                Inteligir connects to the database and tools your team is
+                already using. Combine multiple sources to discover unique
+                insights.
               </p>
             </button>
             <button
@@ -66,7 +68,7 @@ export const Steps = () => {
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="icon icon-tabler icon-tabler-adjustments-alt h-5 w-5 text-brand-300"
+                  className="h-5 w-5 text-brand-300"
                   viewBox="0 0 24 24"
                   strokeWidth="2"
                   stroke="currentColor"
@@ -85,7 +87,9 @@ export const Steps = () => {
                   <path d="M18 4l0 1" />
                   <path d="M18 9l0 11" opacity="0.5" />
                 </svg>
-                <p className="text-lg font-medium text-brand-50">Privacy</p>
+                <p className="text-lg font-medium text-brand-50">
+                  Ask your top questions
+                </p>
               </div>
               <p className="mt-2 text-sm text-brand-300">
                 Trade cryptocurrencies and tokens on a decentralized exchange
@@ -100,7 +104,7 @@ export const Steps = () => {
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
-                  className="icon icon-tabler icon-tabler-file-unknown h-5 w-5 text-brand-300"
+                  className="h-5 w-5 text-brand-300"
                   viewBox="0 0 24 24"
                   strokeWidth="2"
                   stroke="currentColor"
@@ -117,7 +121,9 @@ export const Steps = () => {
                   <path d="M12 17v.01" />
                   <path d="M12 14a1.5 1.5 0 1 0 -1.14 -2.474" />
                 </svg>
-                <p className="text-lg font-medium text-brand-50">Storage</p>
+                <p className="text-lg font-medium text-brand-50">
+                  Generate custom reports
+                </p>
               </div>
               <p className="mt-2 text-sm text-brand-300">
                 Trade cryptocurrencies and tokens on a decentralized exchange

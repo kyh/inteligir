@@ -13,11 +13,11 @@ import { cva } from "class-variance-authority";
 
 interface SelectProps
   extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root> {
-  size?: "base" | "small";
+  size?: "base" | "sm";
 }
 
 type SelectContextValue = {
-  size: "base" | "small";
+  size: "base" | "sm";
 };
 
 const SelectContext = React.createContext<SelectContextValue | null>(null);
@@ -46,7 +46,7 @@ const Value = SelectPrimitive.Value;
 
 const triggerVariants = cva(
   cn(
-    "bg-ui-bg-field txt-compact-medium border-ui-border-base shadow-buttons-neutral transition-fg flex w-full select-none items-center justify-between rounded-md border outline-none",
+    "bg-ui-bg-field border-ui-border-base shadow-buttons-neutral transition-fg flex w-full select-none items-center justify-between rounded-md border text-sm outline-none",
     "data-[placeholder]:text-ui-fg-muted text-ui-fg-base",
     "hover:bg-ui-bg-field-hover",
     "focus:shadow-borders-active focus:border-ui-border-interactive data-[state=open]:!shadow-borders-active data-[state=open]:!border-ui-border-interactive",
@@ -59,7 +59,7 @@ const triggerVariants = cva(
     variants: {
       size: {
         base: "h-10 px-3 py-[9px]",
-        small: "h-8 px-2 py-[5px]",
+        sm: "h-8 px-2 py-[5px]",
       },
     },
   },
@@ -147,10 +147,7 @@ const Label = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn(
-      "txt-compact-xsmall-plus text-ui-fg-subtle px-3 py-2",
-      className,
-    )}
+    className={cn("text-ui-fg-subtle px-3 py-2 text-xs", className)}
     {...props}
   />
 ));
@@ -166,14 +163,9 @@ const Item = React.forwardRef<
     <SelectPrimitive.Item
       ref={ref}
       className={cn(
-        "txt-compact-medium bg-ui-bg-base grid cursor-pointer grid-cols-[20px_1fr] gap-x-2 rounded-md px-3 py-2 outline-none transition-colors",
+        "bg-ui-bg-base grid cursor-pointer grid-cols-[20px_1fr] gap-x-2 rounded-md px-3 py-2 text-sm outline-none transition-colors",
         "hover:bg-ui-bg-base-hover focus:bg-ui-bg-base-hover",
-        {
-          "txt-compact-medium data-[state=checked]:txt-compact-medium-plus":
-            size === "base",
-          "txt-compact-small data-[state=checked]:txt-compact-medium-plus":
-            size === "small",
-        },
+        "text-sm data-[state=checked]:font-medium",
         className,
       )}
       {...props}

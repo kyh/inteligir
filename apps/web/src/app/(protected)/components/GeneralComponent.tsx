@@ -3,7 +3,7 @@
 import ConfirmSettingsCard from "@/app/(protected)/components/ConfirmSettingsCard";
 import SettingsCard from "@/app/(protected)/components/SettingsCard";
 import { Input } from "ui/components/input";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { useSupabase } from "@/components/supabase-provider";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";

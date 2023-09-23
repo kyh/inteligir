@@ -3,8 +3,7 @@
 import { Logo } from "ui/components/logo";
 import { Button } from "ui/components/button";
 import { Input } from "ui/components/input";
-import { useSupabase } from "@/components/providers/supabase-provider";
-import { Loader2 } from "ui/icons";
+import { useSupabase } from "@/components/supabase-provider";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useState } from "react";
 
@@ -70,8 +69,7 @@ export default function SignInPage() {
               onChange={updateEmail}
             />
           </div>
-          <Button className="w-full" disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          <Button className="w-full" loading={isLoading}>
             Email sign in link
           </Button>
         </form>

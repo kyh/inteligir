@@ -17,6 +17,11 @@ export default async function LandingPage() {
       />
       <Hero>
         <WaitlistForm defaultEmail={email} />
+        {email && (
+          <div className="mt-2 text-xs text-green-800">
+            You are on the waitlist
+          </div>
+        )}
       </Hero>
       <LogoCloud />
       <Steps />

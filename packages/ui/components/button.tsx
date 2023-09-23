@@ -35,10 +35,10 @@ const buttonVariants = cva(
         ),
       },
       size: {
-        sm: "txt-compact-xsmall-plus gap-x-0.5 px-[7px] py-[1px]",
-        md: "txt-compact-small-plus gap-x-1.5 px-[11px] py-[5px]",
-        lg: "txt-compact-medium-plus gap-x-2 px-[15px] py-[9px]",
-        xl: "txt-compact-large-plus gap-x-2 px-[19px] py-[13px]",
+        sm: "gap-x-0.5 px-[7px] py-[1px] text-xs",
+        md: "gap-x-1.5 px-[11px] py-[5px] text-xs",
+        lg: "gap-x-2 px-[15px] py-[9px] text-sm",
+        xl: "gap-x-2 px-[19px] py-[13px] text-base",
       },
       format: {
         default: "",

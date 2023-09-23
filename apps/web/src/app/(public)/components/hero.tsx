@@ -2,10 +2,10 @@ export const Hero = ({ children }: { children: React.ReactNode }) => {
   return (
     <section className="relative overflow-hidden">
       <div className="h-42 absolute inset-x-0 ml-auto w-32 justify-center rounded-lg bg-gradient-to-r from-brand-50 via-brand-200 to-brand-600 opacity-50 blur-3xl lg:-top-64 lg:h-96 lg:w-96"></div>
-      <div className="relative mx-auto max-w-6xl px-8 py-24 lg:py-56">
+      <div className="container relative max-w-6xl py-24 lg:py-56">
         <div>
           <h1 className="bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text pb-2 font-display text-4xl font-normal tracking-tight text-transparent sm:text-6xl">
-            Build a data-informed team
+            Build data-informed teams
             <span className="lg:block">with weekly metrics reports</span>
           </h1>
           <p className="mt-4 max-w-xl text-brand-300">

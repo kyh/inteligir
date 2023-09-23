@@ -8,16 +8,14 @@ import { toMarkdown } from "mdast-util-to-markdown";
 import { mdxToMarkdown } from "mdast-util-mdx";
 import { bundleMDX } from "mdx-bundler";
 import remarkGfm from "remark-gfm";
-import * as fs from "node:fs/promises";
 import type { DocumentGen } from "contentlayer/core";
-import path from "node:path";
 import rehypePrettyCode from "rehype-pretty-code";
 import rehypeSlug from "rehype-slug";
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 
 // /** @type {import('contentlayer/source-files').ComputedFields} */
 const computedSlugFields = defineComputedFields<
-  "Page" | "Doc" | "Guide" | "Post" | "Author" | "Log"
+  "Page" | "Doc" | "Guide" | "Integration"
 >({
   slug: {
     type: "string",
@@ -32,47 +30,15 @@ const computedSlugFields = defineComputedFields<
   },
 });
 
-export const Changelog = defineDocumentType(() => ({
-  name: "Changelog",
+export const Integration = defineDocumentType(() => ({
+  name: "Integration",
   contentType: "mdx",
-  filePathPattern: `changelog/*.mdx`,
+  filePathPattern: `integrations/*.mdx`,
   fields: {
     title: { type: "string", required: true },
-    author: { type: "string", required: true },
-    heroImage: { type: "string", required: true },
-    createdAt: { type: "date", required: true },
-    updatedAt: { type: "date", required: false },
-  },
-  computedFields: {
-    ...computedSlugFields,
-  },
-}));
-
-export const Post = defineDocumentType(() => ({
-  name: "Post",
-  contentType: "mdx",
-  filePathPattern: `blog/*.mdx`,
-  fields: {
-    title: { type: "string", required: true },
-    author: { type: "string", required: true },
     brief: { type: "string", required: true },
     heroImage: { type: "string", required: true },
-    readTimeInMinutes: { type: "number", required: true },
     createdAt: { type: "date", required: true },
-    updatedAt: { type: "date", required: false },
-  },
-  computedFields: {
-    ...computedSlugFields,
-  },
-}));
-
-export const Author = defineDocumentType(() => ({
-  name: "Author",
-  contentType: "mdx",
-  filePathPattern: `authors/*.mdx`,
-  fields: {
-    name: { type: "string", required: true },
-    image: { type: "string", required: true },
   },
   computedFields: {
     ...computedSlugFields,
@@ -87,6 +53,21 @@ export const Legal = defineDocumentType(() => ({
     title: { type: "string", required: true },
     createdAt: { type: "date", required: true },
     updatedAt: { type: "date", required: false },
+  },
+  computedFields: {
+    ...computedSlugFields,
+  },
+}));
+
+export const Template = defineDocumentType(() => ({
+  name: "Template",
+  contentType: "mdx",
+  filePathPattern: `templates/*.mdx`,
+  fields: {
+    title: { type: "string", required: true },
+    brief: { type: "string", required: true },
+    heroImage: { type: "string", required: true },
+    createdAt: { type: "date", required: true },
   },
   computedFields: {
     ...computedSlugFields,
@@ -111,15 +92,6 @@ export const computeUrlFromFilePath = (doc: DocumentGen): string => {
     .map((x) => x.name)
     .join("/");
 };
-
-export const getLastEditedDate =
-  (contentDirPath: string) =>
-  async (doc: DocumentGen): Promise<Date> => {
-    const stats = await fs.stat(
-      path.join(contentDirPath, doc._raw.sourceFilePath),
-    );
-    return stats.mtime;
-  };
 
 export type DocHeading = { level: 1 | 2 | 3; title: string };
 
@@ -153,11 +125,8 @@ export const Documentation = defineDocumentType(() => ({
       resolve: (doc) =>
         doc._raw.flattenedPath
           .split("/")
-          // skip `/docs` prefix
           .slice(1)
-          .map((dirName) => {
-            return extractOrderFromWord(dirName);
-          }),
+          .map((dirName) => extractOrderFromWord(dirName)),
     },
     headings: {
       type: "json",
@@ -168,7 +137,7 @@ export const Documentation = defineDocumentType(() => ({
           source: doc.body.raw,
           mdxOptions: (opts) => {
             opts.remarkPlugins = [
-              ...(opts.remarkPlugins ?? []),
+              ...((opts.remarkPlugins ?? []) as any),
               tocPlugin(headings),
             ];
 
@@ -179,7 +148,6 @@ export const Documentation = defineDocumentType(() => ({
         return [{ level: 1, title: doc.title }, ...headings];
       },
     },
-    last_edited: { type: "date", resolve: getLastEditedDate("content") },
   },
   extensions: {},
 }));
@@ -210,12 +178,12 @@ const tocPlugin =
 
 export default makeSource({
   contentDirPath: "content",
-  documentTypes: [Post, Author, Changelog, Documentation, Legal],
+  documentTypes: [Template, Integration, Legal],
   mdx: {
     remarkPlugins: [remarkGfm],
     rehypePlugins: [
       rehypeSlug,
-      [rehypePrettyCode, { theme: "github-dark", keepBackground: true }],
+      [rehypePrettyCode as any, { theme: "github-dark", keepBackground: true }],
       [
         rehypeAutolinkHeadings,
         {

@@ -1,5 +1,5 @@
 import IconCircle from "@/app/(protected)/components/IconCircle";
-import { Button } from "ui/components/button";
+import { buttonVariants } from "ui/components/button";
 import { ArrowLeft, Mail } from "ui/icons";
 import Link from "next/link";
 
@@ -16,11 +16,9 @@ export default async function CheckPage() {
             We emailed a sign-in link to you.
           </span>
         </p>
-        <Link href={"/login"}>
-          <Button variant="link">
-            <ArrowLeft className="mr-2 w-4" />
-            <span>Back to sign in</span>
-          </Button>
+        <Link className={buttonVariants()} href={"/login"}>
+          <ArrowLeft className="mr-2 w-4" />
+          <span>Back to sign in</span>
         </Link>
       </div>
     </div>

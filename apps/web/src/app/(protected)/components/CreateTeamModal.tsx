@@ -1,7 +1,7 @@
 import { Box, Loader2 } from "ui/icons";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { useSupabase } from "@/components/supabase-provider";
 import { Button } from "ui/components/button";
 import {
   Dialog,

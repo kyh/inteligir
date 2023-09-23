@@ -32,8 +32,8 @@ const innerVariants = cva("aspect-square object-cover object-center", {
       rounded: "rounded-full",
     },
     size: {
-      md: "txt-compact-small-plus h-6 w-6",
-      lg: "txt-compact-medium-plus h-8 w-8",
+      md: "h-6 w-6 text-xs",
+      lg: "h-8 w-8 text-sm",
     },
   },
   defaultVariants: {

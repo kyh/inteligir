@@ -13,7 +13,7 @@ export function Header({ session }: { session?: Session | null }) {
 
   return (
     <section className="relatve fixed top-0 z-50 w-full overflow-hidden backdrop-blur-2xl">
-      <div className="mx-auto flex max-w-6xl flex-col px-8 py-5 md:flex-row md:items-center md:justify-between">
+      <div className="container flex max-w-6xl flex-col py-5 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-row items-center justify-between text-white lg:justify-start">
           <Link href="/" className="inline-flex items-center gap-3">
             <Logo />
@@ -33,15 +33,15 @@ export function Header({ session }: { session?: Session | null }) {
         >
           <Link
             className="px-2 py-2 text-sm font-normal text-brand-300 transition hover:text-white md:px-3 lg:ml-auto lg:px-6"
-            href="/docs"
+            href="/templates"
           >
-            Documentation
+            Templates
           </Link>
           <Link
             className="px-2 py-2 text-sm font-normal text-brand-300 transition hover:text-white md:px-3 lg:px-6"
-            href="/blog"
+            href="/integrations"
           >
-            Blog
+            Integrations
           </Link>
           <Button className="ml-2 md:ml-4" variant="secondary" asChild>
             <Link href={session ? "/start" : "/login"}>

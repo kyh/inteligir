@@ -19,7 +19,7 @@ import { Loader2, MoreHorizontal, Plus } from "ui/icons";
 import { useCallback, useState } from "react";
 import { Input } from "ui/components/input";
 import { Button } from "ui/components/button";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { useSupabase } from "@/components/supabase-provider";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 

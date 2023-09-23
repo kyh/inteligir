@@ -5,7 +5,6 @@ import { theme } from "./tokens/theme";
 import { colors } from "./tokens/colors";
 import { components } from "./tokens/components";
 import { effects } from "./tokens/effects";
-import { typography } from "./tokens/typography";
 
 const customPlugin = plugin(
   ({ addBase, addComponents, config }) => {
@@ -20,7 +19,6 @@ const customPlugin = plugin(
     });
 
     addComponents(components);
-    addComponents(typography);
 
     addBase({
       ":root": { ...colors.light, ...effects.light },

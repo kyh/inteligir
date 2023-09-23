@@ -1,7 +1,7 @@
 "use client";
 import IconCircle from "./IconCircle";
 import { Button } from "ui/components/button";
-import { useSupabase } from "@/components/providers/supabase-provider";
+import { useSupabase } from "@/components/supabase-provider";
 
 import { ArrowRight, Home } from "ui/icons";
 import Link from "next/link";
