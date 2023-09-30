@@ -7,7 +7,7 @@ import { Spinner } from "./spinner";
 const buttonVariants = cva(
   cn(
     "relative inline-flex w-fit items-center justify-center overflow-hidden rounded-md border outline-none transition-fg",
-    "disabled:border-ui-border-base disabled:bg-ui-bg-disabled disabled:text-ui-fg-disabled disabled:!shadow-none disabled:after:hidden",
+    "disabled:!shadow-none disabled:after:hidden",
     "after:absolute after:inset-0 after:content-['']",
   ),
   {
@@ -15,26 +15,26 @@ const buttonVariants = cva(
       variant: {
         primary: cn(
           "border-ui-border-loud bg-ui-button-inverted text-ui-fg-on-inverted shadow-buttons-colored after:button-inverted-gradient",
-          "hover:after:button-inverted-hover-gradient hover:bg-ui-button-inverted-hover",
+          "enabled:hover:after:button-inverted-hover-gradient enabled:hover:bg-ui-button-inverted-hover",
           "active:after:button-inverted-pressed-gradient active:bg-ui-button-inverted-pressed",
           "focus:!shadow-buttons-colored-focus",
         ),
         secondary: cn(
           "border-ui-border-base bg-ui-button-neutral text-ui-fg-base shadow-buttons-neutral after:button-neutral-gradient",
-          "hover:after:button-neutral-hover-gradient hover:bg-ui-button-neutral-hover",
+          "enabled:hover:after:button-neutral-hover-gradient enabled:hover:bg-ui-button-neutral-hover",
           "active:after:button-neutral-pressed-gradient active:bg-ui-button-neutral-pressed",
           "focus:shadow-buttons-neutral-focus",
         ),
         transparent: cn(
           "border-ui-border-transparent bg-ui-button-transparent text-ui-fg-base",
-          "hover:bg-ui-button-transparent-hover",
+          "enabled:hover:bg-ui-button-transparent-hover",
           "active:border-ui-border-base active:bg-ui-button-transparent-pressed",
           "focus:border-ui-border-base focus:bg-ui-bg-base focus:shadow-borders-focus",
           "disabled:!border-none disabled:!bg-transparent disabled:!shadow-none",
         ),
         danger: cn(
           "border-ui-border-danger bg-ui-button-danger text-ui-fg-on-color shadow-buttons-neutral after:button-danger-gradient",
-          "hover:after:button-danger-hover-gradient hover:bg-ui-button-danger-hover",
+          "enabled:hover:after:button-danger-hover-gradient enabled:hover:bg-ui-button-danger-hover",
           "active:after:button-danger-pressed-gradient active:bg-ui-button-danger-pressed",
           "focus:shadow-buttons-neutral-focus",
         ),
@@ -83,18 +83,18 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const renderInner = () => {
       if (isLoading) {
         return (
-          <span className="pointer-events-none">
+          <span className="pointer-events-none duration-300 animate-in fade-in">
             <div
               className={cn(
-                "absolute inset-0 flex items-center justify-center rounded-md bg-ui-bg-disabled",
+                "absolute inset-0 flex items-center justify-center rounded-md",
               )}
             >
               <Spinner
                 size="sm"
-                color={!variant || variant === "primary" ? "black" : "white"}
+                color={variant === "primary" ? "white" : "black"}
               />
             </div>
-            {children}
+            <span className="opacity-0">{children}</span>
           </span>
         );
       }

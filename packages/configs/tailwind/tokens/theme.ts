@@ -23,10 +23,25 @@ export const theme = {
         from: { height: "var(--radix-accordion-content-height)" },
         to: { height: "0px" },
       },
+      "atom-spinner-animation-1": {
+        to: { transform: "rotateZ(120deg) rotateX(66deg) rotateZ(360deg)" },
+      },
+      "atom-spinner-animation-2": {
+        to: { transform: "rotateZ(240deg) rotateX(66deg) rotateZ(360deg)" },
+      },
+      "atom-spinner-animation-3": {
+        to: { transform: "rotateZ(360deg) rotateX(66deg) rotateZ(360deg)" },
+      },
     },
     animation: {
       "accordion-down": "accordion-down 0.2s ease-out",
       "accordion-up": "accordion-up 0.2s ease-out",
+      "atom-spinner-animation-1":
+        "atom-spinner-animation-1 1.2s linear infinite",
+      "atom-spinner-animation-2":
+        "atom-spinner-animation-2 1.2s linear infinite",
+      "atom-spinner-animation-3":
+        "atom-spinner-animation-3 1.2s linear infinite",
     },
     container: {
       center: true,
