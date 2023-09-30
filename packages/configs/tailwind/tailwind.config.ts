@@ -42,7 +42,7 @@ const customPlugin = plugin(
 );
 
 const config: Config = {
-  darkMode: ["class"],
+  darkMode: ["class", '[data-mode="dark"]'],
   content: [],
   plugins: [
     customPlugin,
