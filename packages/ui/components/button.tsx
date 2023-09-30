@@ -2,96 +2,72 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "../lib/cn";
-import { Spinner, type SpinnerProps } from "./spinner";
+import { Spinner } from "./spinner";
 
 const buttonVariants = cva(
-  "transition-fg relative inline-flex w-fit items-center justify-center overflow-hidden rounded-lg border outline-none after:absolute after:inset-0 after:content-[''] disabled:text-transparent disabled:!shadow-none disabled:after:hidden",
+  cn(
+    "relative inline-flex w-fit items-center justify-center overflow-hidden rounded-md border outline-none transition-fg",
+    "disabled:border-ui-border-base disabled:bg-ui-bg-disabled disabled:text-ui-fg-disabled disabled:!shadow-none disabled:after:hidden",
+    "after:absolute after:inset-0 after:content-['']",
+  ),
   {
     variants: {
       variant: {
         primary: cn(
-          "shadow-buttons-colored text-ui-fg-on-inverted border-ui-border-loud bg-ui-button-inverted after:button-inverted-gradient",
-          "hover:bg-ui-button-inverted-hover hover:after:button-inverted-hover-gradient",
-          "active:bg-ui-button-inverted-pressed active:after:button-inverted-pressed-gradient",
+          "border-ui-border-loud bg-ui-button-inverted text-ui-fg-on-inverted shadow-buttons-colored after:button-inverted-gradient",
+          "hover:after:button-inverted-hover-gradient hover:bg-ui-button-inverted-hover",
+          "active:after:button-inverted-pressed-gradient active:bg-ui-button-inverted-pressed",
           "focus:!shadow-buttons-colored-focus",
         ),
         secondary: cn(
-          "shadow-buttons-neutral text-ui-fg-base border-ui-border-base bg-ui-button-neutral after:button-neutral-gradient",
-          "hover:bg-ui-button-neutral-hover hover:after:button-neutral-hover-gradient",
-          "active:bg-ui-button-neutral-pressed active:after:button-neutral-pressed-gradient",
+          "border-ui-border-base bg-ui-button-neutral text-ui-fg-base shadow-buttons-neutral after:button-neutral-gradient",
+          "hover:after:button-neutral-hover-gradient hover:bg-ui-button-neutral-hover",
+          "active:after:button-neutral-pressed-gradient active:bg-ui-button-neutral-pressed",
           "focus:shadow-buttons-neutral-focus",
         ),
         transparent: cn(
-          "text-ui-fg-base border-ui-border-transparent bg-ui-button-transparent",
+          "border-ui-border-transparent bg-ui-button-transparent text-ui-fg-base",
           "hover:bg-ui-button-transparent-hover",
-          "active:bg-ui-button-transparent-pressed active:border-ui-border-base",
-          "focus:shadow-borders-focus focus:bg-ui-bg-base focus:border-ui-border-base",
+          "active:border-ui-border-base active:bg-ui-button-transparent-pressed",
+          "focus:border-ui-border-base focus:bg-ui-bg-base focus:shadow-borders-focus",
+          "disabled:!border-none disabled:!bg-transparent disabled:!shadow-none",
         ),
         danger: cn(
-          "shadow-buttons-neutral text-ui-fg-on-color border-ui-border-danger bg-ui-button-danger after:button-danger-gradient",
-          "hover:bg-ui-button-danger-hover hover:after:button-danger-hover-gradient",
-          "active:bg-ui-button-danger-pressed active:after:button-danger-pressed-gradient",
+          "border-ui-border-danger bg-ui-button-danger text-ui-fg-on-color shadow-buttons-neutral after:button-danger-gradient",
+          "hover:after:button-danger-hover-gradient hover:bg-ui-button-danger-hover",
+          "active:after:button-danger-pressed-gradient active:bg-ui-button-danger-pressed",
           "focus:shadow-buttons-neutral-focus",
         ),
       },
       size: {
-        sm: "gap-x-0.5 px-[7px] py-[1px] text-xs",
-        md: "gap-x-1.5 px-[11px] py-[5px] text-xs",
-        lg: "gap-x-2 px-[15px] py-[9px] text-sm",
-        xl: "gap-x-2 px-[19px] py-[13px] text-base",
-      },
-      format: {
-        default: "",
-        icon: "",
+        md: "gap-x-1 px-2 py-[5px] text-xs",
+        lg: "gap-x-1 px-3 py-[9px] text-sm",
+        xl: "gap-x-1 px-4 py-[13px] text-base",
       },
     },
     defaultVariants: {
-      variant: "primary",
       size: "md",
-      format: "default",
+      variant: "primary",
     },
-    compoundVariants: [
-      {
-        size: "sm",
-        format: "icon",
-        className: "px-px py-px",
-      },
-      {
-        size: "md",
-        format: "icon",
-        className: "px-[5px] py-[5px]",
-      },
-      {
-        size: "lg",
-        format: "icon",
-        className: "px-[9px] py-[9px]",
-      },
-      {
-        size: "xl",
-        format: "icon",
-        className: "px-[13px] py-[13px]",
-      },
-    ],
   },
 );
 
 interface ButtonProps
   extends React.ComponentPropsWithoutRef<"button">,
     VariantProps<typeof buttonVariants> {
-  loading?: boolean;
+  isLoading?: boolean;
   asChild?: boolean;
 }
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
-      size,
-      variant,
-      format,
+      variant = "primary",
+      size = "md",
       className,
       asChild = false,
       children,
-      loading = false,
+      isLoading = false,
       disabled,
       ...props
     },
@@ -100,15 +76,19 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     const Component = asChild ? Slot : "button";
 
     /**
-     * In the case of a button where asChild is true, and loading is true, we ensure that
+     * In the case of a button where asChild is true, and isLoading is true, we ensure that
      * only on element is passed as a child to the Slot component. This is because the Slot
      * component only accepts a single child.
      */
     const renderInner = () => {
-      if (loading) {
+      if (isLoading) {
         return (
           <span className="pointer-events-none">
-            <div className="absolute inset-0 z-[1] flex items-center justify-center rounded-md">
+            <div
+              className={cn(
+                "absolute inset-0 flex items-center justify-center rounded-md bg-ui-bg-disabled",
+              )}
+            >
               <Spinner
                 size="sm"
                 color={!variant || variant === "primary" ? "black" : "white"}
@@ -126,8 +106,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       <Component
         ref={ref}
         {...props}
-        className={cn(buttonVariants({ variant, size, format }), className)}
-        disabled={disabled || loading}
+        className={cn(buttonVariants({ variant, size }), className)}
+        disabled={disabled || isLoading}
       >
         {renderInner()}
       </Component>

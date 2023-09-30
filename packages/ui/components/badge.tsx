@@ -3,68 +3,72 @@ import { VariantProps, cva } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "../lib/cn";
 
-const badgeVariants = cva("inline-flex items-center gap-x-0.5 border", {
+const badgeColorVariants = cva("", {
   variants: {
-    type: {
-      default: "rounded-md",
-      rounded: "rounded-full",
-      icon: "rounded-md",
+    color: {
+      green:
+        "border-ui-tag-green-border bg-ui-tag-green-bg text-ui-tag-green-text [&_svg]:text-ui-tag-green-icon",
+      red: "border-ui-tag-red-border bg-ui-tag-red-bg text-ui-tag-red-text [&_svg]:text-ui-tag-red-icon",
+      blue: "border-ui-tag-blue-border bg-ui-tag-blue-bg text-ui-tag-blue-text [&_svg]:text-ui-tag-blue-icon",
+      orange:
+        "border-ui-tag-orange-border bg-ui-tag-orange-bg text-ui-tag-orange-text [&_svg]:text-ui-tag-orange-icon",
+      grey: "border-ui-tag-neutral-border bg-ui-tag-neutral-bg text-ui-tag-neutral-text [&_svg]:text-ui-tag-neutral-icon",
+      purple:
+        "border-ui-tag-purple-border bg-ui-tag-purple-bg text-ui-tag-purple-text [&_svg]:text-ui-tag-purple-icon",
     },
+  },
+  defaultVariants: {
+    color: "grey",
+  },
+});
+
+const badgeSizeVariants = cva("inline-flex items-center gap-x-0.5 border", {
+  variants: {
     size: {
       sm: "px-1.5 text-xs",
       md: "px-2 py-0.5 text-xs",
       lg: "px-2.5 py-1 text-sm",
     },
-    color: {
-      green:
-        "bg-ui-tag-green-bg text-ui-tag-green-text [&_svg]:text-ui-tag-green-icon border-ui-tag-green-border",
-      red: "bg-ui-tag-red-bg text-ui-tag-red-text [&_svg]:text-ui-tag-red-icon border-ui-tag-red-border",
-      blue: "bg-ui-tag-blue-bg text-ui-tag-blue-text [&_svg]:text-ui-tag-blue-icon border-ui-tag-blue-border",
-      orange:
-        "bg-ui-tag-orange-bg text-ui-tag-orange-text [&_svg]:text-ui-tag-orange-icon border-ui-tag-orange-border",
-      grey: "bg-ui-tag-neutral-bg text-ui-tag-neutral-text [&_svg]:text-ui-tag-neutral-icon border-ui-tag-neutral-border",
-      purple:
-        "bg-ui-tag-purple-bg text-ui-tag-purple-text [&_svg]:text-ui-tag-purple-icon border-ui-tag-purple-border",
+    rounded: {
+      md: "rounded-md",
+      full: "rounded-full",
     },
   },
-  compoundVariants: [
-    {
-      type: "icon",
-      size: "lg",
-      className: "p-1",
-    },
-    {
-      type: "icon",
-      size: "md",
-      className: "p-0.5",
-    },
-    {
-      type: "icon",
-      size: "sm",
-      className: "p-0.5", // Icon does not get any smaller than `md`
-    },
-  ],
   defaultVariants: {
     size: "md",
-    type: "default",
-    color: "grey",
+    rounded: "md",
   },
 });
 
 interface BadgeProps
   extends Omit<React.HTMLAttributes<HTMLSpanElement>, "color">,
-    VariantProps<typeof badgeVariants> {
+    VariantProps<typeof badgeSizeVariants>,
+    VariantProps<typeof badgeColorVariants> {
   asChild?: boolean;
 }
 
 const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
-  ({ className, size, type, color, asChild = false, ...props }, ref) => {
+  (
+    {
+      className,
+      size = "md",
+      rounded = "md",
+      color = "grey",
+      asChild = false,
+      ...props
+    },
+    ref,
+  ) => {
     const Component = asChild ? Slot : "span";
 
     return (
       <Component
         ref={ref}
-        className={cn(badgeVariants({ size, type, color }), className)}
+        className={cn(
+          badgeColorVariants({ color }),
+          badgeSizeVariants({ size, rounded }),
+          className,
+        )}
         {...props}
       />
     );
@@ -72,4 +76,4 @@ const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
 );
 Badge.displayName = "Badge";
 
-export { Badge };
+export { Badge, badgeColorVariants };

@@ -6,7 +6,7 @@ import * as React from "react";
 import { cn } from "../lib/cn";
 
 const avatarVariants = cva(
-  "border-ui-border-strong flex shrink-0 items-center justify-center overflow-hidden border",
+  "flex shrink-0 items-center justify-center overflow-hidden border border-ui-border-strong",
   {
     variants: {
       variant: {
@@ -75,7 +75,7 @@ const Avatar = React.forwardRef<
         <Primitives.Fallback
           className={cn(
             innerVariants({ variant, size }),
-            "bg-ui-bg-component text-ui-fg-subtle pointer-events-none flex select-none items-center justify-center",
+            "pointer-events-none flex select-none items-center justify-center bg-ui-bg-component text-ui-fg-subtle",
           )}
         >
           {fallback}

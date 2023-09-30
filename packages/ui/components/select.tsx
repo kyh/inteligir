@@ -8,16 +8,17 @@ import {
 } from "../icons";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import * as React from "react";
+
 import { cn } from "../lib/cn";
 import { cva } from "class-variance-authority";
 
 interface SelectProps
   extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root> {
-  size?: "base" | "sm";
+  size?: "md" | "sm";
 }
 
 type SelectContextValue = {
-  size: "base" | "sm";
+  size: "md" | "sm";
 };
 
 const SelectContext = React.createContext<SelectContextValue | null>(null);
@@ -32,7 +33,7 @@ const useSelectContext = () => {
   return context;
 };
 
-const Root = ({ children, size = "base", ...props }: SelectProps) => {
+const Root = ({ children, size = "md", ...props }: SelectProps) => {
   return (
     <SelectContext.Provider value={React.useMemo(() => ({ size }), [size])}>
       <SelectPrimitive.Root {...props}>{children}</SelectPrimitive.Root>
@@ -46,10 +47,10 @@ const Value = SelectPrimitive.Value;
 
 const triggerVariants = cva(
   cn(
-    "bg-ui-bg-field border-ui-border-base shadow-buttons-neutral transition-fg flex w-full select-none items-center justify-between rounded-md border text-sm outline-none",
-    "data-[placeholder]:text-ui-fg-muted text-ui-fg-base",
+    "flex w-full select-none items-center justify-between rounded-md border border-ui-border-base bg-ui-bg-field text-sm shadow-buttons-neutral outline-none transition-fg",
+    "text-ui-fg-base data-[placeholder]:text-ui-fg-muted",
     "hover:bg-ui-bg-field-hover",
-    "focus:shadow-borders-active focus:border-ui-border-interactive data-[state=open]:!shadow-borders-active data-[state=open]:!border-ui-border-interactive",
+    "focus:border-ui-border-interactive focus:shadow-borders-active data-[state=open]:!border-ui-border-interactive data-[state=open]:!shadow-borders-active",
     "aria-[invalid=true]:border-ui-border-error aria-[invalid=true]:shadow-borders-error",
     "invalid::border-ui-border-error invalid:shadow-borders-error",
     "disabled:!bg-ui-bg-disabled disabled:!text-ui-fg-disabled",
@@ -58,7 +59,7 @@ const triggerVariants = cva(
   {
     variants: {
       size: {
-        base: "h-10 px-3 py-[9px]",
+        md: "h-10 px-3 py-[9px]",
         sm: "h-8 px-2 py-[5px]",
       },
     },
@@ -105,7 +106,7 @@ const Content = React.forwardRef<
       <SelectPrimitive.Content
         ref={ref}
         className={cn(
-          "bg-ui-bg-base text-ui-fg-base shadow-elevation-flyout relative z-20 max-h-[200px] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg",
+          "relative max-h-[200px] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg bg-ui-bg-base text-ui-fg-base shadow-elevation-flyout",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
@@ -120,7 +121,7 @@ const Content = React.forwardRef<
         collisionPadding={collisionPadding}
         {...props}
       >
-        <SelectPrimitive.ScrollUpButton className="text-ui-fg-muted bg-ui-bg-base flex h-[25px] cursor-default items-center justify-center">
+        <SelectPrimitive.ScrollUpButton className="flex h-[25px] cursor-default items-center justify-center bg-ui-bg-base text-ui-fg-muted">
           <ChevronUpIcon />
         </SelectPrimitive.ScrollUpButton>
         <SelectPrimitive.Viewport
@@ -132,7 +133,7 @@ const Content = React.forwardRef<
         >
           {children}
         </SelectPrimitive.Viewport>
-        <SelectPrimitive.ScrollDownButton className="text-ui-fg-muted bg-ui-bg-base flex h-[25px] cursor-default items-center justify-center">
+        <SelectPrimitive.ScrollDownButton className="flex h-[25px] cursor-default items-center justify-center bg-ui-bg-base text-ui-fg-muted">
           <ChevronDownIcon />
         </SelectPrimitive.ScrollDownButton>
       </SelectPrimitive.Content>
@@ -147,7 +148,7 @@ const Label = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn("text-ui-fg-subtle px-3 py-2 text-xs", className)}
+    className={cn("px-3 py-2 text-xs text-ui-fg-subtle", className)}
     {...props}
   />
 ));
@@ -163,9 +164,12 @@ const Item = React.forwardRef<
     <SelectPrimitive.Item
       ref={ref}
       className={cn(
-        "bg-ui-bg-base grid cursor-pointer grid-cols-[20px_1fr] gap-x-2 rounded-md px-3 py-2 text-sm outline-none transition-colors",
+        "grid cursor-pointer grid-cols-[20px_1fr] gap-x-2 rounded-md bg-ui-bg-base px-3 py-2 text-sm outline-none transition-colors",
         "hover:bg-ui-bg-base-hover focus:bg-ui-bg-base-hover",
-        "text-sm data-[state=checked]:font-medium",
+        {
+          "text-sm data-[state=checked]:text-base": size === "md",
+          "text-xs data-[state=checked]:text-base": size === "sm",
+        },
         className,
       )}
       {...props}
@@ -189,7 +193,7 @@ const Separator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator
     ref={ref}
-    className={cn("bg-ui-border-base -mx-1 my-1 h-px", className)}
+    className={cn("-mx-1 my-1 h-px bg-ui-border-base", className)}
     {...props}
   />
 ));
