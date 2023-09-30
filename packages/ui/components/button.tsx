@@ -40,9 +40,10 @@ const buttonVariants = cva(
         ),
       },
       size: {
-        md: "gap-x-1 px-2 py-[5px] text-xs",
-        lg: "gap-x-1 px-3 py-[9px] text-sm",
-        xl: "gap-x-1 px-4 py-[13px] text-base",
+        sm: "gap-x-1 px-2 py-1 text-xs",
+        md: "gap-x-1 px-3 py-1 text-sm",
+        lg: "gap-x-1 px-4 py-1.5 text-sm",
+        xl: "gap-x-1 px-6 py-1.5 text-base",
       },
     },
     defaultVariants: {

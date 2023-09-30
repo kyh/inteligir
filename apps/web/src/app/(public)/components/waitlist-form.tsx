@@ -7,7 +7,7 @@ import { joinWaitlist } from "../actions";
 export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
   return (
     <form
-      className="items-center gap-2 rounded-xl border border-white/10 bg-ui-bg-component px-2 py-1 shadow-lg sm:flex sm:max-w-sm"
+      className="items-center gap-2 rounded-xl border border-white/10 bg-ui-bg-component px-2 pb-2 pt-1 shadow-lg sm:flex sm:max-w-sm sm:py-1 sm:pl-1 sm:pr-2"
       action={joinWaitlist}
     >
       <div className="min-w-0 flex-1">
@@ -15,7 +15,7 @@ export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
           Email address
         </label>
         <input
-          className="w-full border-none bg-transparent placeholder-white/50 placeholder:text-xs focus:placeholder-white/75 focus:outline-none focus:ring-0"
+          className="w-full border-none bg-transparent text-sm placeholder-white/50 focus:placeholder-white/75 focus:outline-none focus:ring-0"
           name="email"
           id="email"
           type="email"
@@ -23,7 +23,7 @@ export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
           defaultValue={defaultEmail || ""}
         />
       </div>
-      <div className="mt-4 sm:mt-0">
+      <div className="mt-1 w-full sm:mt-0 sm:w-auto">
         <ActionButton />
       </div>
     </form>
@@ -34,7 +34,7 @@ const ActionButton = () => {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" isLoading={pending}>
+    <Button className="w-full" type="submit" size="sm" isLoading={pending}>
       Join Waitlist
     </Button>
   );

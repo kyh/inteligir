@@ -7,12 +7,12 @@ export const Steps = () => {
 
   return (
     <section className="relative overflow-hidden">
-      <div className="mx-auto h-[0.080rem] max-w-3xl bg-gradient-to-r from-brand-950 via-brand-300 to-brand-950" />
+      <div className="mx-auto h-px max-w-3xl bg-gradient-to-r from-ui-bg-base via-ui-fg-base to-ui-bg-base" />
       <div className="container max-w-6xl py-12 lg:py-24">
         <div className="mx-auto max-w-2xl text-center">
-          <p className="bg-gradient-to-r from-brand-50 via-brand-300 to-brand-600 bg-clip-text pb-2 font-display text-4xl font-normal tracking-tight text-transparent sm:text-5xl">
+          <h2 className="bg-gradient-to-r from-slate-50 to-slate-600 bg-clip-text pb-2 font-display text-4xl font-normal tracking-tight text-transparent sm:text-5xl">
             AI powered <span className="lg:block">data workspace</span>
-          </p>
+          </h2>
           <p className="mx-auto mt-4 max-w-sm text-ui-fg-subtle">
             We'll handle the data reporting so you can focus on driving results
           </p>
@@ -131,10 +131,10 @@ export const Steps = () => {
               </p>
             </button>
             <div className="absolute left-0 z-10 hidden h-full w-1/2 duration-300 ease-out md:block">
-              <div className="ml-8 h-full w-12 border-b-[3px] border-brand-500" />
+              <div className="ml-8 h-full w-12 border-b-[3px] border-ui-fg-base" />
             </div>
           </div>
-          <div className="content relative hidden w-full items-center justify-center overflow-hidden border-t border-brand-700 shadow-sm md:block md:rounded-b-3xl">
+          <div className="content relative hidden w-full items-center justify-center overflow-hidden shadow-sm md:block md:rounded-b-3xl">
             {[1, 2, 3].map(
               (i) =>
                 currentTab === i && (

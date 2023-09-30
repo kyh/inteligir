@@ -1,13 +1,14 @@
 "use client";
 
 import { Logo } from "ui/components/logo";
+import { Label } from "ui/components/label";
 import { Button } from "ui/components/button";
 import { Input } from "ui/components/input";
 import { useSupabase } from "@/components/supabase-provider";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useState } from "react";
 
-export default function SignInPage() {
+export default function LoginPage() {
   const { supabase } = useSupabase();
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -57,11 +58,11 @@ export default function SignInPage() {
           onSubmit={handleSignInWithEmail}
         >
           <div className="flex flex-col">
-            <label className="mb-2 font-medium" htmlFor="email">
+            <Label className="mb-2" htmlFor="email">
               Email
-            </label>
+            </Label>
             <Input
-              className=""
+              id="email"
               type="email"
               name="email"
               placeholder="Enter your email"

@@ -20,7 +20,7 @@ const Heading = (variant: "1" | "2" | "3" | "4") => {
         })}
       >
         <Link href={`#${slug}`}>
-          <span className="absolute left-[0px] z-10 hidden text-slate-400 lg:group-hover:inline">
+          <span className="absolute left-[0px] z-10 hidden text-ui-fg-base lg:group-hover:inline">
             #
           </span>
           {children}
