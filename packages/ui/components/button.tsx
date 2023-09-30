@@ -15,26 +15,26 @@ const buttonVariants = cva(
       variant: {
         primary: cn(
           "border-ui-border-loud bg-ui-button-inverted text-ui-fg-on-inverted shadow-buttons-colored after:button-inverted-gradient",
-          "enabled:hover:after:button-inverted-hover-gradient enabled:hover:bg-ui-button-inverted-hover",
+          "hover:after:button-inverted-hover-gradient disabled:hover:after:button-inverted-gradient hover:bg-ui-button-inverted-hover disabled:hover:bg-ui-button-inverted",
           "active:after:button-inverted-pressed-gradient active:bg-ui-button-inverted-pressed",
           "focus:!shadow-buttons-colored-focus",
         ),
         secondary: cn(
           "border-ui-border-base bg-ui-button-neutral text-ui-fg-base shadow-buttons-neutral after:button-neutral-gradient",
-          "enabled:hover:after:button-neutral-hover-gradient enabled:hover:bg-ui-button-neutral-hover",
+          "hover:after:button-neutral-hover-gradient disabled:hover:after:button-neutral-gradient hover:bg-ui-button-neutral-hover disabled:hover:bg-ui-button-neutral",
           "active:after:button-neutral-pressed-gradient active:bg-ui-button-neutral-pressed",
           "focus:shadow-buttons-neutral-focus",
         ),
         transparent: cn(
           "border-ui-border-transparent bg-ui-button-transparent text-ui-fg-base",
-          "enabled:hover:bg-ui-button-transparent-hover",
+          "hover:bg-ui-button-transparent-hover disabled:hover:bg-ui-button-transparent",
           "active:border-ui-border-base active:bg-ui-button-transparent-pressed",
           "focus:border-ui-border-base focus:bg-ui-bg-base focus:shadow-borders-focus",
           "disabled:!border-none disabled:!bg-transparent disabled:!shadow-none",
         ),
         danger: cn(
           "border-ui-border-danger bg-ui-button-danger text-ui-fg-on-color shadow-buttons-neutral after:button-danger-gradient",
-          "enabled:hover:after:button-danger-hover-gradient enabled:hover:bg-ui-button-danger-hover",
+          "hover:after:button-danger-hover-gradient disabled:hover:after:button-danger-gradient hover:bg-ui-button-danger-hover disabled:hover:bg-ui-button-danger",
           "active:after:button-danger-pressed-gradient active:bg-ui-button-danger-pressed",
           "focus:shadow-buttons-neutral-focus",
         ),
@@ -91,7 +91,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
             >
               <Spinner
                 size="sm"
-                color={variant === "primary" ? "white" : "black"}
+                color={variant === "primary" ? "primary" : "inverse"}
               />
             </div>
             <span className="opacity-0">{children}</span>

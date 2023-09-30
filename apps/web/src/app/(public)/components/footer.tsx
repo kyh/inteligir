@@ -23,7 +23,9 @@ const FooterLinksSection = () => {
       </div>
       <div className="flex w-full justify-between md:w-auto md:gap-20">
         <ul>
-          <p className="mb-2 text-xs font-semibold text-brand-100">Resources</p>
+          <p className="mb-2 text-xs font-semibold text-ui-fg-base">
+            Resources
+          </p>
           <li>
             <NavLink href="/templates">Templates</NavLink>
           </li>
@@ -32,7 +34,7 @@ const FooterLinksSection = () => {
           </li>
         </ul>
         <ul>
-          <p className="mb-2 text-xs font-semibold text-brand-100">Company</p>
+          <p className="mb-2 text-xs font-semibold text-ui-fg-base">Company</p>
           <li>
             <NavLink href="/about">About</NavLink>
           </li>
@@ -44,7 +46,7 @@ const FooterLinksSection = () => {
           </li>
         </ul>
         <ul>
-          <p className="mb-2 text-xs font-semibold text-brand-100">Support</p>
+          <p className="mb-2 text-xs font-semibold text-ui-fg-base">Support</p>
           <li>
             <NavLink href="/help">Help center</NavLink>
           </li>
@@ -60,7 +62,7 @@ const FooterLinksSection = () => {
 export const SmallPrintSection = () => {
   return (
     <div className="flex flex-col items-center justify-between gap-5 border-t border-white/10 pt-8 sm:flex-row">
-      <p className="text-xs text-brand-300">
+      <p className="text-xs text-ui-fg-muted">
         &copy; Copyright {new Date().getFullYear()}. All rights reserved.
       </p>
       <div className="flex gap-4">
@@ -100,7 +102,7 @@ const NavLink = ({
   return (
     <Link
       className={cn(
-        "-mx-1 block p-1 text-xs capitalize text-brand-300 transition hover:text-white",
+        "-mx-1 block p-1 text-xs capitalize text-ui-fg-subtle transition hover:text-ui-fg-base",
         className,
       )}
       {...props}
@@ -170,7 +172,7 @@ const SocialLink = ({
   return (
     <NavLink href={href} className="group flex items-center">
       <span className="sr-only">{children}</span>
-      <Icon className="fill-brand-700 transition group-hover:fill-brand-900 dark:group-hover:fill-brand-300" />
+      <Icon className="fill-ui-fg-muted transition group-hover:fill-ui-fg-base" />
     </NavLink>
   );
 };

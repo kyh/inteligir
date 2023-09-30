@@ -7,11 +7,7 @@ import { components } from "./tokens/components";
 import { effects } from "./tokens/effects";
 
 const customPlugin = plugin(
-  ({ addBase, addComponents, config }) => {
-    const [darkMode, className = ".dark"] = ([] as string[]).concat(
-      config("darkMode", "media"),
-    );
-
+  ({ addBase, addComponents }) => {
     addBase({
       "*": {
         borderColor: "var(--border-base)",
@@ -24,17 +20,9 @@ const customPlugin = plugin(
       ":root": { ...colors.light, ...effects.light },
     });
 
-    if (darkMode === "class") {
-      addBase({
-        [className]: { ...colors.dark, ...effects.dark },
-      });
-    } else {
-      addBase({
-        "@media (prefers-color-scheme: dark)": {
-          ":root": { ...colors.dark, ...effects.dark },
-        },
-      });
-    }
+    addBase({
+      '.dark, [data-mode="dark"]': { ...colors.dark, ...effects.dark },
+    });
   },
   {
     theme,
@@ -42,7 +30,7 @@ const customPlugin = plugin(
 );
 
 const config: Config = {
-  darkMode: ["class", '[data-mode="dark"]'],
+  darkMode: "class",
   content: [],
   plugins: [
     customPlugin,

@@ -69,7 +69,7 @@ export default function SignInPage() {
               onChange={updateEmail}
             />
           </div>
-          <Button className="w-full" loading={isLoading}>
+          <Button className="w-full" isLoading={isLoading}>
             Email sign in link
           </Button>
         </form>

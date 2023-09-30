@@ -5,8 +5,8 @@ import { cn } from "../lib/cn";
 const spinnerVariants = cva("overflow-hidden", {
   variants: {
     color: {
-      white: "[--spinner-color:#fff]",
-      black: "[--spinner-color:#000]",
+      primary: "[--spinner-color:#fff] dark:[--spinner-color:#000]",
+      inverse: "[--spinner-color:#000] dark:[--spinner-color:#fff]",
     },
     size: {
       xs: "h-3 w-3",
@@ -17,7 +17,7 @@ const spinnerVariants = cva("overflow-hidden", {
     },
   },
   defaultVariants: {
-    color: "black",
+    color: "primary",
     size: "sm",
   },
 });
@@ -27,7 +27,7 @@ interface StatusBadgeProps
     VariantProps<typeof spinnerVariants> {}
 
 const Spinner = React.forwardRef<HTMLDivElement, StatusBadgeProps>(
-  ({ className, color = "black", size = "sm", ...props }, ref) => {
+  ({ className, color = "primary", size = "sm", ...props }, ref) => {
     return (
       <div
         ref={ref}

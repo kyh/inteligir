@@ -372,9 +372,6 @@ export const theme = {
       "borders-base-with-shadow": "var(--borders-base-with-shadow)",
       "borders-strong-with-shadow": "var(--borders-strong-with-shadow)",
       "details-switch-background": "var(--details-switch-background)",
-      big: "0px 7px 32px rgb(0 0 0 / 35%);",
-      massive:
-        "0px 64px 64px rgba(0, 0, 0, 0.25), 0px 32px 32px rgba(0, 0, 0, 0.25), 0px 16px 16px rgba(0, 0, 0, 0.25), 0px 8px 8px rgba(0, 0, 0, 0.25), 0px 4px 4px rgba(0, 0, 0, 0.25);",
     },
   },
 };
