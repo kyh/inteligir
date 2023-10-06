@@ -1,18 +1,19 @@
+/* eslint-disable no-nested-ternary -- expected */
 "use client";
 
-import { Tooltip } from "./tooltip";
-import { cn } from "../lib/cn";
-import { CheckCircle2Icon, CopyIcon } from "../icons";
 import { Slot } from "@radix-ui/react-slot";
 import copy from "copy-to-clipboard";
-import React, { useState } from "react";
+import React, { forwardRef, useState } from "react";
+import { CheckCircle2Icon, CopyIcon } from "../icons";
+import { cn } from "../lib/cn";
+import { Tooltip } from "./tooltip";
 
 type CopyProps = {
   content: string;
   asChild?: boolean;
 };
 
-const Copy = React.forwardRef<
+const Copy = forwardRef<
   HTMLButtonElement,
   React.HTMLAttributes<HTMLButtonElement> & CopyProps
 >(({ children, className, content, asChild = false, ...props }, ref) => {
@@ -43,16 +44,22 @@ const Copy = React.forwardRef<
   const Component = asChild ? Slot : "button";
 
   return (
-    <Tooltip content={text} open={done || open} onOpenChange={setOpen}>
+    <Tooltip content={text} onOpenChange={setOpen} open={done || open}>
       <Component
-        ref={ref}
         aria-label="Copy code snippet"
-        type="button"
         className={cn("h-fit w-fit text-ui-code-icon", className)}
         onClick={copyToClipboard}
+        ref={ref}
+        type="button"
         {...props}
       >
-        {children ? children : done ? <CheckCircle2Icon className="w-5 h-5" /> : <CopyIcon className="w-5 h-5" />}
+        {children ? (
+          children
+        ) : done ? (
+          <CheckCircle2Icon className="h-5 w-5" />
+        ) : (
+          <CopyIcon className="h-5 w-5" />
+        )}
       </Component>
     </Tooltip>
   );

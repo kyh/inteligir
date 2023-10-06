@@ -1,15 +1,15 @@
 import * as React from "react";
-import { Button } from "./button";
 import { cn } from "../lib/cn";
 import { MinusIcon } from "../icons";
+import { Button } from "./button";
 
 const Root = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
   <table
+    className={cn("w-full text-xs text-ui-fg-subtle", className)}
     ref={ref}
-    className={cn("txt-xs w-full text-ui-fg-subtle", className)}
     {...props}
   />
 ));
@@ -20,13 +20,13 @@ const Row = React.forwardRef<
   React.HTMLAttributes<HTMLTableRowElement>
 >(({ className, ...props }, ref) => (
   <tr
-    ref={ref}
     className={cn(
       "border-b border-ui-border-base bg-ui-bg-base transition-fg hover:bg-ui-bg-base-hover",
       "[&_td:last-child]:pr-8 [&_th:last-child]:pr-8",
       "[&_td:first-child]:pl-8 [&_th:first-child]:pl-8",
       className,
     )}
+    ref={ref}
     {...props}
   />
 ));
@@ -36,7 +36,7 @@ const Cell = React.forwardRef<
   HTMLTableCellElement,
   React.HTMLAttributes<HTMLTableCellElement>
 >(({ className, ...props }, ref) => (
-  <td ref={ref} className={cn("h-12 pr-3", className)} {...props} />
+  <td className={cn("h-12 pr-3", className)} ref={ref} {...props} />
 ));
 Cell.displayName = "Table.Cell";
 
@@ -45,11 +45,11 @@ const Header = React.forwardRef<
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
   <thead
-    ref={ref}
     className={cn(
       "&_tr:hover]:bg-ui-bg-base border-y border-ui-border-base text-xs font-medium",
       className,
     )}
+    ref={ref}
     {...props}
   />
 ));
@@ -59,7 +59,7 @@ const HeaderCell = React.forwardRef<
   HTMLTableCellElement,
   React.TdHTMLAttributes<HTMLTableCellElement>
 >(({ className, ...props }, ref) => (
-  <th ref={ref} className={cn("h-12 pr-3 text-left", className)} {...props} />
+  <th className={cn("h-12 pr-3 text-left", className)} ref={ref} {...props} />
 ));
 HeaderCell.displayName = "Table.HeaderCell";
 
@@ -68,14 +68,14 @@ const Body = React.forwardRef<
   React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
   <tbody
-    ref={ref}
     className={cn("border-b border-ui-border-base", className)}
+    ref={ref}
     {...props}
   />
 ));
 Body.displayName = "Table.Body";
 
-interface TablePaginationProps extends React.HTMLAttributes<HTMLDivElement> {
+type TablePaginationProps = {
   count: number;
   pageSize: number;
   pageIndex: number;
@@ -84,7 +84,7 @@ interface TablePaginationProps extends React.HTMLAttributes<HTMLDivElement> {
   canNextPage: boolean;
   previousPage: () => void;
   nextPage: () => void;
-}
+} & React.HTMLAttributes<HTMLDivElement>;
 
 const Pagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
   (
@@ -103,24 +103,24 @@ const Pagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
     ref,
   ) => {
     const { from, to } = React.useMemo(() => {
-      const from = count === 0 ? count : pageIndex * pageSize + 1;
-      const to = Math.min(count, (pageIndex + 1) * pageSize);
+      const f = count === 0 ? count : pageIndex * pageSize + 1;
+      const t = Math.min(count, (pageIndex + 1) * pageSize);
 
-      return { from, to };
+      return { from: f, to: t };
     }, [count, pageIndex, pageSize]);
 
     return (
       <div
-        ref={ref}
         className={cn(
           "flex w-full items-center justify-between px-5 pb-6 pt-4 text-xs font-medium text-ui-fg-subtle",
           className,
         )}
+        ref={ref}
         {...props}
       >
         <div className="inline-flex items-center gap-x-1 px-3 py-[5px]">
           <p>{from}</p>
-          <MinusIcon className="text-ui-fg-muted w-5 h-5" />
+          <MinusIcon className="h-5 w-5 text-ui-fg-muted" />
           <p>{`${to} of ${count} results`}</p>
         </div>
         <div className="flex items-center gap-x-2">
@@ -130,16 +130,16 @@ const Pagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
             </p>
           </div>
           <Button
-            variant={"transparent"}
-            onClick={previousPage}
             disabled={!canPreviousPage}
+            onClick={previousPage}
+            variant="transparent"
           >
             Prev
           </Button>
           <Button
-            variant={"transparent"}
-            onClick={nextPage}
             disabled={!canNextPage}
+            onClick={nextPage}
+            variant="transparent"
           >
             Next
           </Button>

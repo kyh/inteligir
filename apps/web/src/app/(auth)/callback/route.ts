@@ -15,5 +15,5 @@ export async function GET(request: Request) {
   }
 
   // URL redirect after sign in
-  return NextResponse.redirect(requestUrl.origin + "/login");
+  return NextResponse.redirect(`${requestUrl.origin}/login`);
 }

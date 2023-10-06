@@ -17,23 +17,23 @@ export const Head = ({
     <NextHead>
       {/* basic */}
       <title>{title}</title>
-      <meta name="description" content={description} />
-      <meta name="theme-color" content="#000000" />
+      <meta content={description} name="description" />
+      <meta content="#000000" name="theme-color" />
       {/* opengraph */}
-      <meta property="og:description" content={description} />
-      <meta property="og:site_name" content={title} />
-      <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://blog.inteligir.com" />
-      <meta name="image" property="og:image" content={image} />
-      <meta property="og:title" content={title} />
+      <meta content={description} property="og:description" />
+      <meta content={title} property="og:site_name" />
+      <meta content="website" property="og:type" />
+      <meta content="https://blog.inteligir.com" property="og:url" />
+      <meta content={image} name="image" property="og:image" />
+      <meta content={title} property="og:title" />
       {/* twitter */}
-      <meta property="twitter:card" content="summary_large_image" />
-      <meta property="twitter:title" content={title} />
-      <meta property="twitter:description" content={description} />
-      <meta property="twitter:image" content={image} />
+      <meta content="summary_large_image" property="twitter:card" />
+      <meta content={title} property="twitter:title" />
+      <meta content={description} property="twitter:description" />
+      <meta content={image} property="twitter:image" />
       {/* preload iamges */}
       {preloadImages.map((pli) => (
-        <link key={pli} rel="preload" as="image" href={pli} />
+        <link as="image" href={pli} key={pli} rel="preload" />
       ))}
     </NextHead>
   );

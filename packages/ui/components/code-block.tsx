@@ -2,8 +2,8 @@
 
 import { Highlight, themes } from "prism-react-renderer";
 import * as React from "react";
-import { Copy } from "./copy";
 import { cn } from "../lib/cn";
+import { Copy } from "./copy";
 
 export type CodeSnippet = {
   label: string;
@@ -88,7 +88,9 @@ const HeaderComponent = ({
               },
             )}
             key={snippet.label}
-            onClick={() => setActive(snippet)}
+            onClick={() => {
+              setActive(snippet);
+            }}
           >
             {snippet.label}
           </div>
@@ -123,11 +125,13 @@ const Body = ({
       {...props}
     >
       <Copy
-        content={active.code}
         className="absolute right-4 top-4 text-ui-code-icon"
+        content={active.code}
       />
       <div className="max-w-[90%]">
         <Highlight
+          code={active.code}
+          language={active.language}
           theme={{
             ...themes.palenight,
             plain: {
@@ -150,8 +154,6 @@ const Body = ({
               ...themes.palenight.styles,
             ],
           }}
-          code={active.code}
-          language={active.language}
         >
           {({ style, tokens, getLineProps, getTokenProps }) => (
             <pre

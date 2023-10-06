@@ -1,5 +1,6 @@
 import { Slot } from "@radix-ui/react-slot";
-import { VariantProps, cva } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "../lib/cn";
 
@@ -40,12 +41,11 @@ const badgeSizeVariants = cva("inline-flex items-center gap-x-0.5 border", {
   },
 });
 
-interface BadgeProps
-  extends Omit<React.HTMLAttributes<HTMLSpanElement>, "color">,
-    VariantProps<typeof badgeSizeVariants>,
-    VariantProps<typeof badgeColorVariants> {
+type BadgeProps = {
   asChild?: boolean;
-}
+} & Omit<React.HTMLAttributes<HTMLSpanElement>, "color"> &
+  VariantProps<typeof badgeSizeVariants> &
+  VariantProps<typeof badgeColorVariants>;
 
 const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
   (
@@ -63,12 +63,12 @@ const Badge = React.forwardRef<HTMLSpanElement, BadgeProps>(
 
     return (
       <Component
-        ref={ref}
         className={cn(
           badgeColorVariants({ color }),
           badgeSizeVariants({ size, rounded }),
           className,
         )}
+        ref={ref}
         {...props}
       />
     );

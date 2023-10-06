@@ -16,26 +16,26 @@ type InviteUserEmailProps = {
   inviteUrl: string;
 };
 
-export default function InviteEmail({
+const InviteEmail = ({
   toEmail = "jane@company.com",
   inviteUrl = "https://google.com/test-url",
-}: InviteUserEmailProps) {
+}: InviteUserEmailProps) => {
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
   const toName = toEmail.split("@")[0];
 
   return (
     <Html>
       <Head />
-      <Preview>{`Invite to Inteligir`}</Preview>
+      <Preview>Invite to Inteligir</Preview>
       <Section style={main}>
         <Container style={container}>
           <Section style={{ marginTop: "32px" }}>
             <Img
-              src={`${baseUrl}/images/logo.png`}
-              width="128"
-              height="24"
               alt="Inteligir"
+              height="24"
+              src={`${baseUrl}/images/logo.png`}
               style={logo}
+              width="128"
             />
           </Section>
           <Text style={h1}>Join Inteligir</Text>
@@ -45,7 +45,7 @@ export default function InviteEmail({
             join the team.
           </Text>
           <Section style={{ textAlign: "center" }}>
-            <Button pX={20} pY={12} style={btn} href={inviteUrl}>
+            <Button href={inviteUrl} pX={20} pY={12} style={btn}>
               Join the team
             </Button>
           </Section>
@@ -54,9 +54,9 @@ export default function InviteEmail({
             or copy and paste this URL into your browser:{" "}
             <Link
               href={inviteUrl}
-              target="_blank"
-              style={link}
               rel="noreferrer"
+              style={link}
+              target="_blank"
             >
               {inviteUrl}
             </Link>
@@ -73,7 +73,7 @@ export default function InviteEmail({
       </Section>
     </Html>
   );
-}
+};
 
 const main = {
   backgroundColor: "#ffffff",
@@ -104,10 +104,6 @@ const h1 = {
   padding: "0",
 };
 
-const avatar = {
-  borderRadius: "100%",
-};
-
 const link = {
   color: "#067df7",
   textDecoration: "none",
@@ -125,10 +121,6 @@ const black = {
   color: "black",
 };
 
-const center = {
-  verticalAlign: "middle",
-};
-
 const btn = {
   backgroundColor: "#000",
   borderRadius: "5px",
@@ -140,10 +132,6 @@ const btn = {
   lineHeight: "50px",
   textDecoration: "none",
   textAlign: "center" as const,
-};
-
-const spacing = {
-  marginBottom: "26px",
 };
 
 const hr = {
@@ -160,3 +148,5 @@ const footer = {
   fontSize: "12px",
   lineHeight: "24px",
 };
+
+export default InviteEmail;

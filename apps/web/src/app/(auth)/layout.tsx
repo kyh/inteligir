@@ -1,11 +1,11 @@
-import { getSupabaseServerClient } from "@/lib/supabase";
 import { redirect } from "next/navigation";
+import { getSupabaseServerClient } from "@/lib/supabase";
 
 export const dynamic = "force-dynamic";
 
-interface AuthLayoutProps {
+type AuthLayoutProps = {
   children: React.ReactNode;
-}
+};
 
 export default async function AuthLayout({ children }: AuthLayoutProps) {
   const supabase = getSupabaseServerClient();

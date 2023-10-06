@@ -3,9 +3,8 @@
 import * as Popover from "@radix-ui/react-popover";
 import * as Portal from "@radix-ui/react-portal";
 import * as React from "react";
-
-import { Kbd } from "./kbd";
 import { cn } from "../lib/cn";
+import { Kbd } from "./kbd";
 
 type CommandBarProps = React.PropsWithChildren<{
   open?: boolean;
@@ -23,9 +22,9 @@ const Root = ({
 }: CommandBarProps) => {
   return (
     <Popover.Root
-      open={open}
-      onOpenChange={onOpenChange}
       defaultOpen={defaultOpen}
+      onOpenChange={onOpenChange}
+      open={open}
     >
       <Portal.Root>
         <Popover.Anchor
@@ -34,16 +33,16 @@ const Root = ({
       </Portal.Root>
       <Popover.Portal>
         <Popover.Content
-          side="top"
-          sideOffset={0}
+          className={cn(
+            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
+          )}
           onOpenAutoFocus={(e) => {
             if (disableAutoFocus) {
               e.preventDefault();
             }
           }}
-          className={cn(
-            "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-          )}
+          side="top"
+          sideOffset={0}
         >
           {children}
         </Popover.Content>
@@ -59,11 +58,11 @@ const Value = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <div
-      ref={ref}
       className={cn(
-        "text-ui-contrast-fg-secondary px-3 py-2.5 text-xs",
+        "px-3 py-2.5 text-xs text-ui-contrast-fg-secondary",
         className,
       )}
+      ref={ref}
       {...props}
     />
   );
@@ -76,12 +75,12 @@ const Bar = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <div
-      ref={ref}
       className={cn(
-        "bg-ui-contrast-bg-base relative flex items-center overflow-hidden rounded-full px-1",
+        "relative flex items-center overflow-hidden rounded-full bg-ui-contrast-bg-base px-1",
         "after:pointer-events-none after:absolute after:inset-0 after:rounded-full after:shadow-elevation-flyout after:content-['']",
         className,
       )}
+      ref={ref}
       {...props}
     />
   );
@@ -94,23 +93,19 @@ const Seperator = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <div
+      className={cn("h-10 w-px bg-ui-contrast-border-base", className)}
       ref={ref}
-      className={cn("bg-ui-contrast-border-base h-10 w-px", className)}
       {...props}
     />
   );
 });
 Seperator.displayName = "CommandBar.Seperator";
 
-interface CommandProps
-  extends Omit<
-    React.ComponentPropsWithoutRef<"button">,
-    "children" | "onClick"
-  > {
+type CommandProps = {
   action: () => void | Promise<void>;
   label: string;
   shortcut: string;
-}
+} & Omit<React.ComponentPropsWithoutRef<"button">, "children" | "onClick">;
 
 const Command = React.forwardRef<HTMLButtonElement, CommandProps>(
   (
@@ -122,7 +117,7 @@ const Command = React.forwardRef<HTMLButtonElement, CommandProps>(
         if (event.key === shortcut) {
           event.preventDefault();
           event.stopPropagation();
-          action();
+          void action();
         }
       };
 
@@ -137,19 +132,19 @@ const Command = React.forwardRef<HTMLButtonElement, CommandProps>(
 
     return (
       <button
-        ref={ref}
         className={cn(
-          "bg-ui-contrast-bg-base txt-compact-small-plus text-ui-contrast-fg-primary flex items-center gap-x-2 px-3 py-2.5 outline-none transition-fg",
-          "focus:bg-ui-contrast-bg-highlight focus:hover:bg-ui-contrast-bg-base-hover hover:bg-ui-contrast-bg-base-hover active:bg-ui-contrast-bg-base-pressed focus:active:bg-ui-contrast-bg-base-pressed disabled:!bg-ui-bg-disabled disabled:!text-ui-fg-disabled",
+          "flex items-center gap-x-2 bg-ui-contrast-bg-base px-3 py-2.5 text-xs text-ui-contrast-fg-primary outline-none transition-fg",
+          "hover:bg-ui-contrast-bg-base-hover focus:bg-ui-contrast-bg-highlight focus:hover:bg-ui-contrast-bg-base-hover active:bg-ui-contrast-bg-base-pressed focus:active:bg-ui-contrast-bg-base-pressed disabled:!bg-ui-bg-disabled disabled:!text-ui-fg-disabled",
           "last-of-type:-mr-1 last-of-type:pr-4",
           className,
         )}
-        type={type}
         onClick={action}
+        ref={ref}
+        type={type}
         {...props}
       >
         <span>{label}</span>
-        <Kbd className="bg-ui-contrast-bg-subtle border-ui-contrast-border-base text-ui-contrast-fg-secondary">
+        <Kbd className="border-ui-contrast-border-base bg-ui-contrast-bg-subtle text-ui-contrast-fg-secondary">
           {shortcut.toUpperCase()}
         </Kbd>
       </button>

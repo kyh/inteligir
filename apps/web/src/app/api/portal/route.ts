@@ -1,11 +1,11 @@
-import { stripe } from "@/lib/stripe";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { stripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const { teamId } = await request.json();
+  const { teamId } = (await request.json()) as { teamId: string };
 
   const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
 

@@ -1,9 +1,9 @@
-import { VariantProps, cva } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import * as React from "react";
-
+import { Slot } from "@radix-ui/react-slot";
 import { cn } from "../lib/cn";
 import { Spinner } from "./spinner";
-import { Slot } from "@radix-ui/react-slot";
 
 const iconButtonVariants = cva(
   cn(
@@ -41,12 +41,11 @@ const iconButtonVariants = cva(
   },
 );
 
-interface IconButtonProps
-  extends React.ComponentPropsWithoutRef<"button">,
-    VariantProps<typeof iconButtonVariants> {
+type IconButtonProps = {
   asChild?: boolean;
   isLoading?: boolean;
-}
+} & React.ComponentPropsWithoutRef<"button"> &
+  VariantProps<typeof iconButtonVariants>;
 
 const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
   (
@@ -79,10 +78,10 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
               )}
             >
               <Spinner
-                size="sm"
                 color={
                   !variant || variant === "primary" ? "primary" : "inverse"
                 }
+                size="sm"
               />
             </div>
             {children}

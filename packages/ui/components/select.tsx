@@ -1,21 +1,19 @@
 "use client";
 
+import * as SelectPrimitive from "@radix-ui/react-select";
+import * as React from "react";
+import { cva } from "class-variance-authority";
+import { cn } from "../lib/cn";
 import {
   ChevronDownIcon,
   ChevronsUpDownIcon,
   ChevronUpIcon,
   MoreHorizontalIcon,
 } from "../icons";
-import * as SelectPrimitive from "@radix-ui/react-select";
-import * as React from "react";
 
-import { cn } from "../lib/cn";
-import { cva } from "class-variance-authority";
-
-interface SelectProps
-  extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root> {
+type SelectProps = {
   size?: "md" | "sm";
-}
+} & React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>;
 
 type SelectContextValue = {
   size: "md" | "sm";
@@ -74,13 +72,13 @@ const Trigger = React.forwardRef<
 
   return (
     <SelectPrimitive.Trigger
-      ref={ref}
       className={cn(triggerVariants({ size }), className)}
+      ref={ref}
       {...props}
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronsUpDownIcon className="text-ui-fg-muted group-disabled/trigger:text-ui-fg-disabled w-5 h-5" />
+        <ChevronsUpDownIcon className="h-5 w-5 text-ui-fg-muted group-disabled/trigger:text-ui-fg-disabled" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -104,7 +102,6 @@ const Content = React.forwardRef<
   ) => (
     <SelectPrimitive.Portal>
       <SelectPrimitive.Content
-        ref={ref}
         className={cn(
           "relative max-h-[200px] min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg bg-ui-bg-base text-ui-fg-base shadow-elevation-flyout",
           "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
@@ -116,13 +113,14 @@ const Content = React.forwardRef<
           },
           className,
         )}
-        position={position}
-        sideOffset={sideOffset}
         collisionPadding={collisionPadding}
+        position={position}
+        ref={ref}
+        sideOffset={sideOffset}
         {...props}
       >
         <SelectPrimitive.ScrollUpButton className="flex h-[25px] cursor-default items-center justify-center bg-ui-bg-base text-ui-fg-muted">
-          <ChevronUpIcon className="w-5 h-5" />
+          <ChevronUpIcon className="h-5 w-5" />
         </SelectPrimitive.ScrollUpButton>
         <SelectPrimitive.Viewport
           className={cn(
@@ -134,7 +132,7 @@ const Content = React.forwardRef<
           {children}
         </SelectPrimitive.Viewport>
         <SelectPrimitive.ScrollDownButton className="flex h-[25px] cursor-default items-center justify-center bg-ui-bg-base text-ui-fg-muted">
-          <ChevronDownIcon className="w-5 h-5" />
+          <ChevronDownIcon className="h-5 w-5" />
         </SelectPrimitive.ScrollDownButton>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
@@ -147,8 +145,8 @@ const Label = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Label>
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
-    ref={ref}
     className={cn("px-3 py-2 text-xs text-ui-fg-subtle", className)}
+    ref={ref}
     {...props}
   />
 ));
@@ -162,7 +160,6 @@ const Item = React.forwardRef<
 
   return (
     <SelectPrimitive.Item
-      ref={ref}
       className={cn(
         "grid cursor-pointer grid-cols-[20px_1fr] gap-x-2 rounded-md bg-ui-bg-base px-3 py-2 text-sm outline-none transition-colors",
         "hover:bg-ui-bg-base-hover focus:bg-ui-bg-base-hover",
@@ -172,11 +169,12 @@ const Item = React.forwardRef<
         },
         className,
       )}
+      ref={ref}
       {...props}
     >
       <span className="flex h-5 w-5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <MoreHorizontalIcon className="w-5 h-5" />
+          <MoreHorizontalIcon className="h-5 w-5" />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText className="flex-1 truncate">
@@ -192,8 +190,8 @@ const Separator = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Separator>
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Separator
-    ref={ref}
     className={cn("-mx-1 my-1 h-px bg-ui-border-base", className)}
+    ref={ref}
     {...props}
   />
 ));

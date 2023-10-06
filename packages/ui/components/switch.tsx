@@ -1,13 +1,13 @@
 "use client";
 
 import * as Primitives from "@radix-ui/react-switch";
-import { VariantProps, cva } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import * as React from "react";
-
 import { cn } from "../lib/cn";
 
 const switchVariants = cva(
-  "group relative inline-flex items-center rounded-full bg-ui-bg-switch-off outline-none transition-all data-[state=unchecked]:hover:after:bg-switch-off-hover-gradient before:absolute before:inset-0 before:rounded-full before:shadow-details-switch-background before:content-[''] after:absolute after:inset-0 after:rounded-full after:content-[''] hover:bg-ui-bg-switch-off-hover focus:shadow-details-switch-background-focus disabled:cursor-not-allowed disabled:!bg-ui-bg-disabled data-[state=checked]:bg-ui-bg-interactive",
+  "data-[state=unchecked]:hover:after:bg-switch-off-hover-gradient group relative inline-flex items-center rounded-full bg-ui-bg-switch-off outline-none transition-all before:absolute before:inset-0 before:rounded-full before:shadow-details-switch-background before:content-[''] after:absolute after:inset-0 after:rounded-full after:content-[''] hover:bg-ui-bg-switch-off-hover focus:shadow-details-switch-background-focus disabled:cursor-not-allowed disabled:!bg-ui-bg-disabled data-[state=checked]:bg-ui-bg-interactive",
   {
     variants: {
       size: {
@@ -36,12 +36,11 @@ const thumbVariants = cva(
   },
 );
 
-interface SwitchProps
-  extends Omit<
-      React.ComponentPropsWithoutRef<typeof Primitives.Root>,
-      "asChild"
-    >,
-    VariantProps<typeof switchVariants> {}
+type SwitchProps = Omit<
+  React.ComponentPropsWithoutRef<typeof Primitives.Root>,
+  "asChild"
+> &
+  VariantProps<typeof switchVariants>;
 
 const Switch = React.forwardRef<
   React.ElementRef<typeof Primitives.Root>,

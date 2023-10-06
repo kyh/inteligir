@@ -1,6 +1,6 @@
-import { stripe } from "@/lib/stripe";
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
 import { cookies } from "next/headers";
+import { stripe } from "@/lib/stripe";
 
 export const dynamic = "force-dynamic";
 

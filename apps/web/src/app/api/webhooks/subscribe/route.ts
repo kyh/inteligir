@@ -1,8 +1,8 @@
-import { stripe } from "@/lib/stripe";
 import { headers } from "next/headers";
-import Stripe from "stripe";
-import { Database } from "@/lib/types";
+import type Stripe from "stripe";
+import type { Database } from "database";
 import { createClient } from "@supabase/supabase-js";
+import { stripe } from "@/lib/stripe";
 
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,7 +13,7 @@ const supabase = createClient<Database>(
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
-  }
+  },
 );
 
 export const dynamic = "force-dynamic";
@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const body = await request.text();
   const headersList = headers();
-  const signature = headersList.get("stripe-signature") as string;
+  const signature = headersList.get("stripe-signature") || "";
   const signingSecret = process.env.STRIPE_WEBHOOK_SECRET!;
 
   let event: Stripe.Event;
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
   if (event.type === "customer.subscription.updated") {
     // Get subscription id
 
-    const subscriptionId = session.id as string;
+    const subscriptionId = session.id;
 
     // Retrieve the subscription details from Stripe.
     const subscription = await stripe.subscriptions.retrieve(subscriptionId);
@@ -58,14 +58,14 @@ export async function POST(request: Request) {
 
     // Get stripe customer id
 
-    const stripe_customer_id = subscription.customer as string;
+    const stripeCustomerId = subscription.customer as string;
 
     // Get team from supabase from customer id
 
     const { data, error } = await supabase
       .from("teams")
       .select("*")
-      .eq("stripe_customer_id", stripe_customer_id);
+      .eq("stripe_customer_id", stripeCustomerId);
 
     if (error) {
       return new Response(error.message, {
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
       });
     }
 
-    const team = data![0];
+    const team = data[0];
 
     // Update team's subscribed status
 

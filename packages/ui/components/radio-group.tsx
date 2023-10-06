@@ -2,9 +2,9 @@
 
 import * as Primitives from "@radix-ui/react-radio-group";
 import * as React from "react";
+import { cn } from "../lib/cn";
 import { Hint } from "./hint";
 import { Label } from "./label";
-import { cn } from "../lib/cn";
 
 const Root = React.forwardRef<
   React.ElementRef<typeof Primitives.Root>,
@@ -26,8 +26,8 @@ const Indicator = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <Primitives.Indicator
-      ref={ref}
       className={cn("flex items-center justify-center", className)}
+      ref={ref}
       {...props}
     >
       <div
@@ -46,11 +46,11 @@ const Item = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <Primitives.Item
-      ref={ref}
       className={cn(
         "group relative flex h-5 w-5 items-center justify-center outline-none",
         className,
       )}
+      ref={ref}
       {...props}
     >
       <div
@@ -69,11 +69,10 @@ const Item = React.forwardRef<
 });
 Item.displayName = "RadioGroup.Item";
 
-interface ChoiceBoxProps
-  extends React.ComponentPropsWithoutRef<typeof Primitives.Item> {
+type ChoiceBoxProps = {
   label: string;
   description: string;
-}
+} & React.ComponentPropsWithoutRef<typeof Primitives.Item>;
 
 const ChoiceBox = React.forwardRef<
   React.ElementRef<typeof Primitives.Item>,
@@ -82,6 +81,7 @@ const ChoiceBox = React.forwardRef<
   const generatedId = React.useId();
 
   if (!id) {
+    // eslint-disable-next-line no-param-reassign -- this is fine
     id = generatedId;
   }
 
@@ -89,14 +89,14 @@ const ChoiceBox = React.forwardRef<
 
   return (
     <Primitives.Item
-      ref={ref}
       className={cn(
         "group flex items-start gap-x-2 rounded-lg bg-ui-bg-base p-3 shadow-borders-base transition-fg focus:shadow-borders-interactive-with-focus disabled:cursor-not-allowed disabled:bg-ui-bg-disabled",
         className,
       )}
+      ref={ref}
       {...props}
-      id={id}
       aria-describedby={descriptionId}
+      id={id}
     >
       <div className="flex h-5 w-5 items-center justify-center">
         <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-ui-bg-base shadow-borders-base transition-fg group-hover:bg-ui-bg-base-hover group-disabled:!bg-ui-bg-disabled group-disabled:!shadow-borders-base group-data-[state=checked]:bg-ui-bg-interactive group-data-[state=checked]:shadow-borders-interactive-with-shadow">
@@ -105,15 +105,15 @@ const ChoiceBox = React.forwardRef<
       </div>
       <div className="flex flex-col items-start">
         <Label
+          className="cursor-pointer group-disabled:cursor-not-allowed group-disabled:text-ui-fg-disabled"
           htmlFor={id}
           size="md"
           weight="plus"
-          className="cursor-pointer group-disabled:cursor-not-allowed group-disabled:text-ui-fg-disabled"
         >
           {label}
         </Label>
         <Hint
-          className="txt-compact-medium text-ui-fg-subtle group-disabled:text-ui-fg-disabled"
+          className="text-sm text-ui-fg-subtle group-disabled:text-ui-fg-disabled"
           id={descriptionId}
         >
           {description}

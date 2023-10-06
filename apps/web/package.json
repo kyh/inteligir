@@ -33,6 +33,7 @@
     "@types/react-dom": "^18.2.10",
     "autoprefixer": "^10.4.16",
     "configs": "workspace:*",
+    "database": "workspace:*",
     "encoding": "^0.1.13",
     "mdast-util-mdx": "^3.0.0",
     "mdast-util-to-markdown": "^2.1.0",

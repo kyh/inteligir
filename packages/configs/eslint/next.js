@@ -40,6 +40,24 @@ module.exports = {
   ignorePatterns: ["node_modules/", "dist/"],
   // add rules configurations here
   rules: {
+    "@typescript-eslint/consistent-type-definitions": ["warn", "type"],
+    "@typescript-eslint/explicit-function-return-type": "off",
+    "import/no-extraneous-dependencies": "off",
+    "import/no-named-as-default": "off",
     "import/no-default-export": "off",
+    "no-console": "off",
+    "react/function-component-definition": [
+      "warn",
+      {
+        namedComponents: "arrow-function",
+        unnamedComponents: "arrow-function",
+      },
+    ],
+    "@typescript-eslint/no-misused-promises": [
+      "error",
+      {
+        checksVoidReturn: false,
+      },
+    ],
   },
 };

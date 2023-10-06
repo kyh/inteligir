@@ -42,15 +42,14 @@ const innerVariants = cva("aspect-square object-cover object-center", {
   },
 });
 
-interface AvatarProps
-  extends Omit<
-      React.ComponentPropsWithoutRef<typeof Primitives.Root>,
-      "asChild" | "children" | "size"
-    >,
-    VariantProps<typeof avatarVariants> {
+type AvatarProps = {
   src?: string;
   fallback: string;
-}
+} & Omit<
+  React.ComponentPropsWithoutRef<typeof Primitives.Root>,
+  "asChild" | "children" | "size"
+> &
+  VariantProps<typeof avatarVariants>;
 
 const Avatar = React.forwardRef<
   React.ElementRef<typeof Primitives.Root>,
@@ -66,12 +65,12 @@ const Avatar = React.forwardRef<
         {...props}
         className={cn(avatarVariants({ variant, size }), className)}
       >
-        {src && (
+        {src ? (
           <Primitives.Image
-            src={src}
             className={innerVariants({ variant, size })}
+            src={src}
           />
-        )}
+        ) : null}
         <Primitives.Fallback
           className={cn(
             innerVariants({ variant, size }),

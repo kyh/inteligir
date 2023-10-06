@@ -14,7 +14,7 @@ const buttonVariants = cva(
     variants: {
       variant: {
         primary: cn(
-          "shadow-buttons-inverted bg-ui-button-inverted text-ui-fg-on-inverted after:button-inverted-gradient",
+          "bg-ui-button-inverted text-ui-fg-on-inverted shadow-buttons-inverted after:button-inverted-gradient",
           "hover:after:button-inverted-hover-gradient hover:bg-ui-button-inverted-hover",
           "active:after:button-inverted-pressed-gradient active:bg-ui-button-inverted-pressed",
           "focus:!shadow-buttons-inverted-focus",
@@ -26,7 +26,7 @@ const buttonVariants = cva(
           "focus:shadow-buttons-neutral-focus",
         ),
         danger: cn(
-          "shadow-buttons-danger bg-ui-button-danger text-ui-fg-on-color shadow-buttons-colored after:button-danger-gradient",
+          "shadow-buttons-colored bg-ui-button-danger text-ui-fg-on-color shadow-buttons-danger after:button-danger-gradient",
           "hover:after:button-danger-hover-gradient hover:bg-ui-button-danger-hover",
           "active:after:button-danger-pressed-gradient active:bg-ui-button-danger-pressed",
           "focus:shadow-buttons-danger-focus",
@@ -40,7 +40,7 @@ const buttonVariants = cva(
           "disabled:!bg-transparent disabled:!shadow-none",
         ),
         outline: cn(
-          "border-ui-border-base bg-transparent shadow-buttons-colored",
+          "shadow-buttons-colored border-ui-border-base bg-transparent",
           "hover:border-ui-border-strong hover:bg-ui-button-neutral disabled:hover:border-ui-border-base disabled:hover:bg-transparent",
         ),
       },
@@ -59,12 +59,11 @@ const buttonVariants = cva(
   },
 );
 
-interface ButtonProps
-  extends React.ComponentPropsWithoutRef<"button">,
-    VariantProps<typeof buttonVariants> {
+type ButtonProps = {
   isLoading?: boolean;
   asChild?: boolean;
-}
+} & React.ComponentPropsWithoutRef<"button"> &
+  VariantProps<typeof buttonVariants>;
 
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
@@ -97,8 +96,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
               )}
             >
               <Spinner
-                size="sm"
                 color={variant === "primary" ? "primary" : "inverse"}
+                size="sm"
               />
             </div>
             <span className="opacity-0">{children}</span>

@@ -1,9 +1,9 @@
-import IconCircle from "@/app/(protected)/components/IconCircle";
 import { buttonVariants } from "ui/components/button";
 import { ArrowLeft, Mail } from "ui/icons";
 import Link from "next/link";
+import IconCircle from "@/app/(protected)/components/IconCircle";
 
-export default async function CheckPage() {
+export default function CheckPage() {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center">
       <div className="flex flex-col items-center space-y-6 ">
@@ -16,7 +16,7 @@ export default async function CheckPage() {
             We emailed a sign-in link to you.
           </span>
         </p>
-        <Link className={buttonVariants()} href={"/login"}>
+        <Link className={buttonVariants()} href="/login">
           <ArrowLeft className="mr-2 w-4" />
           <span>Back to sign in</span>
         </Link>

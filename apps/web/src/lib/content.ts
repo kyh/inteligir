@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- expected */
+/* eslint-disable @typescript-eslint/no-unsafe-argument -- expected */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access -- expected */
 export const sluggifyTitle = (title: string) => {
   const re = /[^\w\s]/g;
 

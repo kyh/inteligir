@@ -3,6 +3,11 @@
   "license": "MIT",
   "version": "0.0.0",
   "private": true,
+  "types": "src/database.types.ts",
+  "scripts": {
+    "push": "supabase db push",
+    "gen-types": "supabase gen types typescript --linked > src/database.types.ts"
+  },
   "devDependencies": {
     "supabase": "^1.100.1"
   }

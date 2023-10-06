@@ -4,13 +4,14 @@ import { Logo } from "ui/components/logo";
 import { Label } from "ui/components/label";
 import { Button } from "ui/components/button";
 import { Input } from "ui/components/input";
-import { useSupabase } from "@/components/supabase-provider";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "ui/components/card";
-import { SubmitHandler, useForm } from "react-hook-form";
+import type { SubmitHandler } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { toast } from "ui/components/toaster";
 import Link from "next/link";
+import { useSupabase } from "@/components/supabase-provider";
 
 type FormInput = {
   email: string;
@@ -58,8 +59,8 @@ export default function LoginPage() {
           </CardHeader>
           <CardContent>
             <div>
-              <Button className="w-full" variant="outline" size="lg">
-                <img src="social/google.webp" width={16} height={16} />
+              <Button className="w-full" size="lg" variant="outline">
+                <img height={16} src="social/google.webp" width={16} />
                 <span>Continue with Google</span>
               </Button>
             </div>
@@ -75,10 +76,10 @@ export default function LoginPage() {
                   Email
                 </Label>
                 <Input
+                  aria-invalid={Boolean(errors.email)}
                   id="email"
-                  type="email"
                   placeholder="Enter your email"
-                  aria-invalid={!!errors.email}
+                  type="email"
                   {...register("email", {
                     required: true,
                     pattern: {
@@ -89,9 +90,9 @@ export default function LoginPage() {
                 />
               </div>
               <Button
-                variant="secondary"
                 className="w-full"
                 isLoading={isLoading}
+                variant="secondary"
               >
                 Email sign in link
               </Button>

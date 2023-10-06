@@ -1,7 +1,7 @@
+import { Toaster } from "ui/components/toaster";
 import { SupabaseProvider } from "@/components/supabase-provider";
 import { PHProvider } from "@/components/posthog-provider";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "ui/components/toaster";
 import "./globals.css";
 
 export const metadata = {
@@ -9,11 +9,7 @@ export const metadata = {
   description: "Build a data-informed team",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <html lang="en" suppressHydrationWarning>
       <head />
@@ -27,4 +23,6 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
+};
+
+export default RootLayout;

@@ -1,9 +1,9 @@
 "use client";
 
-import { EyeIcon, EyeOffIcon, SearchIcon } from "../icons";
-import { VariantProps, cva } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import * as React from "react";
-
+import { EyeIcon, EyeOffIcon, SearchIcon } from "../icons";
 import { cn } from "../lib/cn";
 
 const inputBaseStyles = cn(
@@ -44,10 +44,8 @@ const Input = React.forwardRef<
   return (
     <div className="relative">
       <input
-        ref={ref}
-        type={isPassword ? typeState : type}
         className={cn(
-          inputVariants({ size: size }),
+          inputVariants({ size }),
           {
             "pr-11": isPassword && size === "md",
             "pl-11": isSearch && size === "md",
@@ -56,9 +54,11 @@ const Input = React.forwardRef<
           },
           className,
         )}
+        ref={ref}
+        type={isPassword ? typeState : type}
         {...props}
       />
-      {isSearch && (
+      {isSearch ? (
         <div
           className={cn(
             "absolute bottom-0 left-0 flex items-center justify-center text-ui-fg-muted",
@@ -69,10 +69,10 @@ const Input = React.forwardRef<
           )}
           role="img"
         >
-          <SearchIcon className="w-5 h-5" />
+          <SearchIcon className="h-5 w-5" />
         </div>
-      )}
-      {isPassword && (
+      ) : null}
+      {isPassword ? (
         <div
           className={cn(
             "absolute bottom-0 right-0 flex w-11 items-center justify-center",
@@ -84,18 +84,22 @@ const Input = React.forwardRef<
         >
           <button
             className="focus:shadow-borders-interactive-w-focus h-fit w-fit rounded-sm text-ui-fg-muted outline-none transition-all hover:text-ui-fg-base focus:text-ui-fg-base active:text-ui-fg-base"
-            type="button"
             onClick={() => {
               setTypeState(typeState === "password" ? "text" : "password");
             }}
+            type="button"
           >
             <span className="sr-only">
               {typeState === "password" ? "Show password" : "Hide password"}
             </span>
-            {typeState === "password" ? <EyeIcon className="w-5 h-5" /> : <EyeOffIcon className="w-5 h-5" />}
+            {typeState === "password" ? (
+              <EyeIcon className="h-5 w-5" />
+            ) : (
+              <EyeOffIcon className="h-5 w-5" />
+            )}
           </button>
         </div>
-      )}
+      ) : null}
     </div>
   );
 });

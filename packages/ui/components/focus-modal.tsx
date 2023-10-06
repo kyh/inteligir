@@ -1,12 +1,11 @@
 "use client";
 
-import { XIcon } from "../icons";
 import * as FocusModalPrimitives from "@radix-ui/react-dialog";
 import * as React from "react";
-
+import { XIcon } from "../icons";
+import { cn } from "../lib/cn";
 import { IconButton } from "./icon-button";
 import { Kbd } from "./kbd";
-import { cn } from "../lib/cn";
 
 const FocusModalRoot = (
   props: React.ComponentPropsWithoutRef<typeof FocusModalPrimitives.Root>,
@@ -36,12 +35,12 @@ const FocusModalOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <FocusModalPrimitives.Overlay
-      ref={ref}
       className={cn(
         "fixed inset-0 bg-ui-bg-overlay",
         // "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className,
       )}
+      ref={ref}
       {...props}
     />
   );
@@ -56,12 +55,12 @@ const FocusModalContent = React.forwardRef<
     <FocusModalPortal>
       <FocusModalOverlay />
       <FocusModalPrimitives.Content
-        ref={ref}
         className={cn(
           "fixed inset-2 flex flex-col overflow-hidden rounded-lg border bg-ui-bg-base shadow-elevation-modal focus:outline-none",
           // "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 duration-200",
           className,
         )}
+        ref={ref}
         {...props}
       />
     </FocusModalPortal>
@@ -75,17 +74,17 @@ const FocusModalHeader = React.forwardRef<
 >(({ children, className, ...props }, ref) => {
   return (
     <div
-      ref={ref}
       className={cn(
         "flex items-center justify-between gap-x-4 border-b border-ui-border-base px-4 py-2",
         className,
       )}
+      ref={ref}
       {...props}
     >
       <div className="flex items-center gap-x-2">
         <FocusModalPrimitives.Close asChild>
           <IconButton variant="transparent">
-            <XIcon className="w-5 h-5"/>
+            <XIcon className="h-5 w-5" />
           </IconButton>
         </FocusModalPrimitives.Close>
         <Kbd>esc</Kbd>
@@ -100,7 +99,7 @@ const FocusModalBody = React.forwardRef<
   HTMLDivElement,
   React.ComponentPropsWithoutRef<"div">
 >(({ className, ...props }, ref) => {
-  return <div ref={ref} className={cn("flex-1", className)} {...props} />;
+  return <div className={cn("flex-1", className)} ref={ref} {...props} />;
 });
 FocusModalBody.displayName = "FocusModal.Body";
 

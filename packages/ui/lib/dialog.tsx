@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-
 import { Input } from "../components/input";
 import { Label } from "../components/label";
 import { Prompt } from "../components/prompt";
@@ -75,30 +74,29 @@ const Dialog = ({
             <Prompt.Title>{title}</Prompt.Title>
             <Prompt.Description>{description}</Prompt.Description>
           </Prompt.Header>
-          {verificationText && (
+          {verificationText ? (
             <div className="mt-6 flex flex-col gap-y-4 border-y border-ui-border-base p-6">
-              <Label htmlFor="verificationText" className="text-ui-fg-subtle">
+              <Label className="text-ui-fg-subtle" htmlFor="verificationText">
                 Please type{" "}
-                <span className="txt-compact-medium-plus text-ui-fg-base">
+                <span className="text-sm text-ui-fg-base">
                   {verificationText}
                 </span>{" "}
                 to confirm.
               </Label>
               <Input
-                autoFocus
                 autoComplete="off"
                 id="verificationText"
-                placeholder={verificationText}
                 onChange={handleUserInput}
+                placeholder={verificationText}
               />
             </div>
-          )}
+          ) : null}
           <Prompt.Footer>
             <Prompt.Cancel onClick={onCancel}>{cancelText}</Prompt.Cancel>
             <Prompt.Action
               disabled={!validInput}
-              type={verificationText ? "submit" : "button"}
               onClick={verificationText ? undefined : onConfirm}
+              type={verificationText ? "submit" : "button"}
             >
               {confirmText}
             </Prompt.Action>

@@ -1,6 +1,6 @@
-import { stripe } from "@/lib/stripe";
-import { Database } from "@/lib/types";
+import type { Database } from "database";
 import { createClient } from "@supabase/supabase-js";
+import { stripe } from "@/lib/stripe";
 
 const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,7 +11,7 @@ const supabase = createClient<Database>(
       autoRefreshToken: false,
       detectSessionInUrl: false,
     },
-  }
+  },
 );
 
 export const dynamic = "force-dynamic";

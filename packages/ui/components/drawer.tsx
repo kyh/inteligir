@@ -1,11 +1,11 @@
 "use client";
 
-import { XIcon } from "../icons";
 import * as DrawerPrimitives from "@radix-ui/react-dialog";
 import * as React from "react";
+import { XIcon } from "../icons";
+import { cn } from "../lib/cn";
 import { IconButton } from "./icon-button";
 import { Kbd } from "./kbd";
-import { cn } from "../lib/cn";
 
 const DrawerRoot = (
   props: React.ComponentPropsWithoutRef<typeof DrawerPrimitives.Root>,
@@ -19,7 +19,7 @@ const DrawerTrigger = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DrawerPrimitives.Trigger>
 >(({ className, ...props }, ref) => {
   return (
-    <DrawerPrimitives.Trigger ref={ref} className={cn(className)} {...props} />
+    <DrawerPrimitives.Trigger className={cn(className)} ref={ref} {...props} />
   );
 });
 DrawerTrigger.displayName = "Drawer.Trigger";
@@ -29,7 +29,7 @@ const DrawerClose = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DrawerPrimitives.Close>
 >(({ className, ...props }, ref) => {
   return (
-    <DrawerPrimitives.Close ref={ref} className={cn(className)} {...props} />
+    <DrawerPrimitives.Close className={cn(className)} ref={ref} {...props} />
   );
 });
 DrawerClose.displayName = "Drawer.Close";
@@ -45,8 +45,8 @@ const DrawerOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <DrawerPrimitives.Overlay
-      ref={ref}
       className={cn("fixed inset-0 bg-ui-bg-overlay", className)}
+      ref={ref}
       {...props}
     />
   );
@@ -61,12 +61,12 @@ const DrawerContent = React.forwardRef<
     <DrawerPortal>
       <DrawerOverlay />
       <DrawerPrimitives.Content
-        ref={ref}
         className={cn(
           "fixed inset-y-2 right-2 flex w-full max-w-[560px] flex-1 flex-col rounded-lg border border-ui-border-base bg-ui-bg-base shadow-elevation-modal focus:outline-none",
           // "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:slide-out-to-right-1/2 data-[state=open]:slide-in-from-right-1/2 duration-200",
           className,
         )}
+        ref={ref}
         {...props}
       />
     </DrawerPortal>
@@ -80,8 +80,8 @@ const DrawerHeader = React.forwardRef<
 >(({ children, className, ...props }, ref) => {
   return (
     <div
-      ref={ref}
       className="flex items-start justify-between gap-x-4 border-b border-ui-border-base px-8 py-6"
+      ref={ref}
       {...props}
     >
       <div className={cn("flex flex-col gap-y-1", className)}>{children}</div>
@@ -89,7 +89,7 @@ const DrawerHeader = React.forwardRef<
         <Kbd>esc</Kbd>
         <DrawerPrimitives.Close asChild>
           <IconButton variant="transparent">
-            <XIcon className="w-5 h-5"/>
+            <XIcon className="h-5 w-5" />
           </IconButton>
         </DrawerPrimitives.Close>
       </div>
@@ -104,8 +104,8 @@ const DrawerBody = React.forwardRef<
 >(({ className, ...props }, ref) => {
   return (
     <div
-      ref={ref}
       className={cn("flex-1 px-8 pb-16 pt-6", className)}
+      ref={ref}
       {...props}
     />
   );
@@ -133,9 +133,9 @@ const DrawerTitle = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DrawerPrimitives.Title>
 >(({ className, children, ...props }, ref) => (
   <DrawerPrimitives.Title
-    ref={ref}
-    className={cn(className)}
     asChild
+    className={cn(className)}
+    ref={ref}
     {...props}
   >
     <h1 className="text-lg">{children}</h1>
@@ -148,9 +148,9 @@ const DrawerDescription = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DrawerPrimitives.Description>
 >(({ className, children, ...props }, ref) => (
   <DrawerPrimitives.Description
-    ref={ref}
-    className={cn(className)}
     asChild
+    className={cn(className)}
+    ref={ref}
     {...props}
   >
     {children}

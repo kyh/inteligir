@@ -1,4 +1,5 @@
-import { VariantProps, cva } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import * as React from "react";
 import { cn } from "../lib/cn";
 
@@ -22,16 +23,15 @@ const spinnerVariants = cva("overflow-hidden", {
   },
 });
 
-interface StatusBadgeProps
-  extends Omit<React.ComponentPropsWithoutRef<"span">, "color">,
-    VariantProps<typeof spinnerVariants> {}
+type StatusBadgeProps = Omit<React.ComponentPropsWithoutRef<"span">, "color"> &
+  VariantProps<typeof spinnerVariants>;
 
 const Spinner = React.forwardRef<HTMLDivElement, StatusBadgeProps>(
   ({ className, color = "primary", size = "sm", ...props }, ref) => {
     return (
       <div
-        ref={ref}
         className={cn(spinnerVariants({ color, size }), className)}
+        ref={ref}
         {...props}
       >
         <div className="relative h-full w-full">

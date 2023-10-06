@@ -2,7 +2,6 @@
 
 import * as TabsPrimitives from "@radix-ui/react-tabs";
 import * as React from "react";
-
 import { cn } from "../lib/cn";
 
 const TabsRoot = (
@@ -17,7 +16,6 @@ const TabsTrigger = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof TabsPrimitives.Trigger>
 >(({ className, children, ...props }, ref) => (
   <TabsPrimitives.Trigger
-    ref={ref}
     className={cn(
       "inline-flex items-center justify-center rounded-full border border-transparent bg-transparent px-3 py-1.5 text-xs text-ui-fg-subtle outline-none transition-fg",
       "hover:text-ui-fg-base",
@@ -25,6 +23,7 @@ const TabsTrigger = React.forwardRef<
       "data-[state=active]:bg-ui-bg-base data-[state=active]:text-ui-fg-base data-[state=active]:shadow-elevation-card-rest",
       className,
     )}
+    ref={ref}
     {...props}
   >
     {children}
@@ -37,8 +36,8 @@ const TabsList = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof TabsPrimitives.List>
 >(({ className, ...props }, ref) => (
   <TabsPrimitives.List
-    ref={ref}
     className={cn("flex items-center gap-2", className)}
+    ref={ref}
     {...props}
   />
 ));
@@ -49,8 +48,8 @@ const TabsContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof TabsPrimitives.Content>
 >(({ className, ...props }, ref) => (
   <TabsPrimitives.Content
-    ref={ref}
     className={cn("outline-none", className)}
+    ref={ref}
     {...props}
   />
 ));

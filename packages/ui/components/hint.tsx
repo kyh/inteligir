@@ -1,6 +1,7 @@
-import { VariantProps, cva } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
+import { forwardRef } from "react";
 import { AlertCircleIcon } from "../icons";
-import React from "react";
 import { cn } from "../lib/cn";
 
 const hintVariants = cva("inline-flex items-center gap-x-2 text-xs", {
@@ -18,15 +19,15 @@ const hintVariants = cva("inline-flex items-center gap-x-2 text-xs", {
 type HintProps = VariantProps<typeof hintVariants> &
   React.ComponentPropsWithoutRef<"span">;
 
-const Hint = React.forwardRef<HTMLSpanElement, HintProps>(
+const Hint = forwardRef<HTMLSpanElement, HintProps>(
   ({ className, variant = "info", children, ...props }, ref) => {
     return (
       <span
-        ref={ref}
         className={cn(hintVariants({ variant }), className)}
+        ref={ref}
         {...props}
       >
-        {variant === "error" && <AlertCircleIcon className="w-5 h-5" />}
+        {variant === "error" && <AlertCircleIcon className="h-5 w-5" />}
         {children}
       </span>
     );
