@@ -7,10 +7,10 @@ import * as React from "react";
 import { cn } from "../lib/cn";
 
 const inputBaseStyles = cn(
-  "relative w-full appearance-none rounded-md border border-ui-border-base bg-ui-bg-field text-ui-fg-base placeholder-ui-fg-muted caret-ui-fg-base shadow-buttons-neutral outline-none transition-fg hover:bg-ui-bg-field-hover",
-  "focus:border-ui-border-interactive focus:shadow-borders-active",
-  "disabled:cursor-not-allowed disabled:!border-ui-border-base disabled:!bg-ui-bg-disabled disabled:text-ui-fg-disabled disabled:placeholder-ui-fg-disabled disabled:!shadow-none",
-  "invalid:!border-ui-border-error invalid:focus:!shadow-borders-error aria-[invalid=true]:!border-ui-border-error aria-[invalid=true]:focus:!shadow-borders-error",
+  "relative w-full appearance-none rounded-md bg-ui-bg-field text-ui-fg-base placeholder-ui-fg-muted caret-ui-fg-base shadow-borders-base outline-none transition-fg hover:bg-ui-bg-field-hover",
+  "focus:shadow-borders-interactive-with-active",
+  "disabled:cursor-not-allowed disabled:!bg-ui-bg-disabled disabled:text-ui-fg-disabled disabled:placeholder-ui-fg-disabled",
+  "aria-[invalid=true]:!shadow-borders-error",
 );
 
 const inputVariants = cva(
@@ -69,7 +69,7 @@ const Input = React.forwardRef<
           )}
           role="img"
         >
-          <SearchIcon />
+          <SearchIcon className="w-5 h-5" />
         </div>
       )}
       {isPassword && (
@@ -92,7 +92,7 @@ const Input = React.forwardRef<
             <span className="sr-only">
               {typeState === "password" ? "Show password" : "Hide password"}
             </span>
-            {typeState === "password" ? <EyeIcon /> : <EyeOffIcon />}
+            {typeState === "password" ? <EyeIcon className="w-5 h-5" /> : <EyeOffIcon className="w-5 h-5" />}
           </button>
         </div>
       )}

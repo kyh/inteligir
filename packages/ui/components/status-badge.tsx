@@ -36,7 +36,7 @@ const StatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
         )}
         {...props}
       >
-        <DotIcon className="mr-0.5" />
+        <DotIcon className="mr-0.5 w-5 h-5" />
         {children}
       </span>
     );

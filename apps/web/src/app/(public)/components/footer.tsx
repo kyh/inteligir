@@ -27,7 +27,7 @@ const FooterLinksSection = () => {
             Resources
           </p>
           <li>
-            <NavLink href="/templates">Templates</NavLink>
+            <NavLink href="/examples">Examples</NavLink>
           </li>
           <li>
             <NavLink href="/integrations">Integrations</NavLink>

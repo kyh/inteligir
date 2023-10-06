@@ -7,21 +7,20 @@ import { components } from "./tokens/components";
 import { effects } from "./tokens/effects";
 
 const customPlugin = plugin(
-  ({ addBase, addComponents }) => {
-    addBase({
-      "*": {
-        borderColor: "var(--border-base)",
-      },
-    });
-
-    addComponents(components);
-
+  ({ addBase }) => {
     addBase({
       ":root": { ...colors.light, ...effects.light },
     });
 
     addBase({
       '.dark, [data-mode="dark"]': { ...colors.dark, ...effects.dark },
+    });
+
+    addBase({
+      "*": {
+        borderColor: "var(--border-base)",
+      },
+      ...components,
     });
   },
   {
@@ -32,13 +31,7 @@ const customPlugin = plugin(
 const config: Config = {
   darkMode: "class",
   content: [],
-  plugins: [
-    customPlugin,
-    require("tailwindcss-animate"),
-    require("@tailwindcss/typography"),
-    require("@tailwindcss/forms"),
-    require("@tailwindcss/aspect-ratio"),
-  ],
+  plugins: [customPlugin, require("tailwindcss-animate")],
 };
 
 export default config;

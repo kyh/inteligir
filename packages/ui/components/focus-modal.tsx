@@ -85,7 +85,7 @@ const FocusModalHeader = React.forwardRef<
       <div className="flex items-center gap-x-2">
         <FocusModalPrimitives.Close asChild>
           <IconButton variant="transparent">
-            <XIcon />
+            <XIcon className="w-5 h-5"/>
           </IconButton>
         </FocusModalPrimitives.Close>
         <Kbd>esc</Kbd>

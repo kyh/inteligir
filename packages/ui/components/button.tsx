@@ -6,44 +6,50 @@ import { Spinner } from "./spinner";
 
 const buttonVariants = cva(
   cn(
-    "relative inline-flex w-fit items-center justify-center overflow-hidden rounded-md border outline-none transition-fg",
-    "disabled:!shadow-none disabled:after:hidden",
-    "after:absolute after:inset-0 after:content-['']",
+    "relative inline-flex w-fit items-center justify-center overflow-hidden rounded-md outline-none transition-fg",
+    "disabled:border-ui-border-base disabled:bg-ui-bg-disabled disabled:text-ui-fg-disabled disabled:shadow-buttons-neutral disabled:after:hidden",
+    "after:absolute after:inset-0 after:transition-fg after:content-['']",
   ),
   {
     variants: {
       variant: {
         primary: cn(
-          "border-ui-border-loud bg-ui-button-inverted text-ui-fg-on-inverted shadow-buttons-colored after:button-inverted-gradient",
-          "hover:after:button-inverted-hover-gradient disabled:hover:after:button-inverted-gradient hover:bg-ui-button-inverted-hover disabled:hover:bg-ui-button-inverted",
+          "shadow-buttons-inverted bg-ui-button-inverted text-ui-fg-on-inverted after:button-inverted-gradient",
+          "hover:after:button-inverted-hover-gradient hover:bg-ui-button-inverted-hover",
           "active:after:button-inverted-pressed-gradient active:bg-ui-button-inverted-pressed",
-          "focus:!shadow-buttons-colored-focus",
+          "focus:!shadow-buttons-inverted-focus",
         ),
         secondary: cn(
-          "border-ui-border-base bg-ui-button-neutral text-ui-fg-base shadow-buttons-neutral after:button-neutral-gradient",
-          "hover:after:button-neutral-hover-gradient disabled:hover:after:button-neutral-gradient hover:bg-ui-button-neutral-hover disabled:hover:bg-ui-button-neutral",
+          "bg-ui-button-neutral text-ui-fg-base shadow-buttons-neutral after:button-neutral-gradient",
+          "hover:after:button-neutral-hover-gradient hover:bg-ui-button-neutral-hover",
           "active:after:button-neutral-pressed-gradient active:bg-ui-button-neutral-pressed",
           "focus:shadow-buttons-neutral-focus",
         ),
-        transparent: cn(
-          "border-ui-border-transparent bg-ui-button-transparent text-ui-fg-base",
-          "hover:bg-ui-button-transparent-hover disabled:hover:bg-ui-button-transparent",
-          "active:border-ui-border-base active:bg-ui-button-transparent-pressed",
-          "focus:border-ui-border-base focus:bg-ui-bg-base focus:shadow-borders-focus",
-          "disabled:!border-none disabled:!bg-transparent disabled:!shadow-none",
-        ),
         danger: cn(
-          "border-ui-border-danger bg-ui-button-danger text-ui-fg-on-color shadow-buttons-neutral after:button-danger-gradient",
-          "hover:after:button-danger-hover-gradient disabled:hover:after:button-danger-gradient hover:bg-ui-button-danger-hover disabled:hover:bg-ui-button-danger",
+          "shadow-buttons-danger bg-ui-button-danger text-ui-fg-on-color shadow-buttons-colored after:button-danger-gradient",
+          "hover:after:button-danger-hover-gradient hover:bg-ui-button-danger-hover",
           "active:after:button-danger-pressed-gradient active:bg-ui-button-danger-pressed",
-          "focus:shadow-buttons-neutral-focus",
+          "focus:shadow-buttons-danger-focus",
+        ),
+        transparent: cn(
+          "after:hidden",
+          "bg-ui-button-transparent text-ui-fg-base",
+          "hover:bg-ui-button-transparent-hover",
+          "active:bg-ui-button-transparent-pressed",
+          "focus:bg-ui-bg-base focus:shadow-buttons-neutral-focus",
+          "disabled:!bg-transparent disabled:!shadow-none",
+        ),
+        outline: cn(
+          "border-ui-border-base bg-transparent shadow-buttons-colored",
+          "hover:border-ui-border-strong hover:bg-ui-button-neutral disabled:hover:border-ui-border-base disabled:hover:bg-transparent",
         ),
       },
       size: {
-        sm: "gap-x-1 px-2 py-1 text-xs",
-        md: "gap-x-1 px-3 py-1 text-sm",
-        lg: "gap-x-1 px-4 py-1.5 text-sm",
-        xl: "gap-x-1 px-6 py-1.5 text-base",
+        xs: "gap-1 px-2 py-1 text-xs",
+        sm: "gap-1 px-3 py-1.5 text-xs",
+        md: "gap-1.5 px-4 py-2 text-sm",
+        lg: "gap-2 px-5 py-2.5 text-sm",
+        xl: "gap-2 px-6 py-3 text-sm",
       },
     },
     defaultVariants: {

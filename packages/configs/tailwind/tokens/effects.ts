@@ -1,25 +1,29 @@
 export const effects = {
   dark: {
-    "--borders-active": "0px 0px 0px 3px rgba(59, 130, 246, 0.25)",
-    "--borders-base-with-shadow":
-      "0px 1px 2px 0px rgba(255, 255, 255, 0.1), 0px 0px 0px 1px rgba(46, 48, 53, 1), 0px 0.5px 0px 1.5px rgba(0, 0, 0, 0.4)",
-    "--borders-base": "0px 0px 0px 1px rgba(46, 48, 53, 1)",
-    "--borders-error": "0px 0px 0px 3px rgba(225, 29, 72, 0.25)",
+    "--borders-base":
+      "0px 1px 0px 0px rgba(255, 255, 255, 0.04), 0px -1px 0px 0px rgba(255, 255, 255, 0.04), 0px 0px 0px 1px rgba(255, 255, 255, 0.12), 0px 1px 1px 0px rgba(0, 0, 0, 0.4), 0px 2px 2px 0px rgba(0, 0, 0, 0.4)",
+    "--borders-error":
+      "0px 0px 0px 1px rgba(244, 63, 94, 1), 0px 0px 0px 4px rgba(225, 29, 72, 0.25)",
     "--borders-focus":
       "0px 0px 0px 1px rgba(23, 23, 23, 1), 0px 0px 0px 3px rgba(96, 165, 250, 0.8)",
+    "--borders-interactive-with-active":
+      "0px 0px 0px 1px rgba(96, 165, 250, 1), 0px 0px 0px 4px rgba(59, 130, 246, 0.25)",
     "--borders-interactive-with-focus":
       "0px 1px 2px 0px rgba(219, 234, 254, 0.5), 0px 0px 0px 1px rgba(96, 165, 250, 1), 0px 0px 0px 2px rgba(27, 27, 31, 1), 0px 0px 0px 4px rgba(96, 165, 250, 0.8)",
     "--borders-interactive-with-shadow":
       "0px 1px 2px 0px rgba(219, 234, 254, 0.5), 0px 0px 0px 1px rgba(96, 165, 250, 1)",
-    "--borders-interactive": "0px 0px 0px 1px rgba(96, 165, 250, 1)",
-    "--buttons-colored-focus":
-      "0px 0.25px 0px 0px rgba(0, 0, 0, 0.6), 0px 0.5px 0px 0px rgba(0, 0, 0, 0.6), 0px 0px 0px 1px rgba(27, 27, 31, 1), 0px 0px 0px 3px rgba(96, 165, 250, 0.8)",
-    "--buttons-colored":
-      "0px 0.25px 0px 0px rgba(0, 0, 0, 0.6), 0px 0.5px 0px 0px rgba(0, 0, 0, 0.6)",
+    "--buttons-danger-focus":
+      "0px 1px 0px 0px rgba(190, 18, 60, 0.04), 0px -1px 0px 0px rgba(190, 18, 60, 0.04), 0px 0px 0px 1px rgba(190, 18, 60, 0.6), 0px 1px 1px 0px rgba(0, 0, 0, 0.4), 0px 2px 2px 0px rgba(0, 0, 0, 0.4), 0px 0px 0px 2px rgba(27, 27, 31, 1), 0px 0px 0px 4px rgba(96, 165, 250, 0.8)",
+    "--buttons-danger":
+      "0px 1px 0px 0px rgba(190, 18, 60, 0.04), 0px -1px 0px 0px rgba(190, 18, 60, 0.04), 0px 0px 0px 1px rgba(190, 18, 60, 0.6), 0px 1px 1px 0px rgba(0, 0, 0, 0.4), 0px 1px 1px 0px rgba(0, 0, 0, 0.4)",
+    "--buttons-inverted-focus":
+      "0px 1px 0px 0px rgba(255, 255, 255, 0.04), 0px -1px 0px 0px rgba(255, 255, 255, 0.04), 0px 0px 0px 1px rgba(255, 255, 255, 0.6), 0px 1px 1px 0px rgba(0, 0, 0, 0.4), 0px 2px 2px 0px rgba(0, 0, 0, 0.4), 0px 0px 0px 2px rgba(27, 27, 31, 1), 0px 0px 0px 4px rgba(96, 165, 250, 0.8)",
+    "--buttons-inverted":
+      "0px 1px 0px 0px rgba(255, 255, 255, 0.04), 0px -1px 0px 0px rgba(255, 255, 255, 0.04), 0px 0px 0px 1px rgba(255, 255, 255, 0.6), 0px 1px 1px 0px rgba(0, 0, 0, 0.4), 0px 2px 2px 0px rgba(0, 0, 0, 0.4)",
     "--buttons-neutral-focus":
-      "0px 0.5px 0px 0px rgba(255, 255, 255, 0.1) inset, 0px 0.25px 0px 0px rgba(0, 0, 0, 0.6), 0px 0.5px 0px 0px rgba(0, 0, 0, 0.6), 0px 0px 0px 1px rgba(27, 27, 31, 1), 0px 0px 0px 3px rgba(96, 165, 250, 0.8)",
+      "0px 1px 0px 0px rgba(255, 255, 255, 0.04), 0px -1px 0px 0px rgba(255, 255, 255, 0.04), 0px 0px 0px 1px rgba(255, 255, 255, 0.12), 0px 1px 1px 0px rgba(0, 0, 0, 0.4), 0px 2px 2px 0px rgba(0, 0, 0, 0.4), 0px 0px 0px 2px rgba(27, 27, 31, 1), 0px 0px 0px 4px rgba(96, 165, 250, 0.8)",
     "--buttons-neutral":
-      "0px 0.5px 0px 0px rgba(255, 255, 255, 0.1) inset, 0px 0.25px 0px 0px rgba(0, 0, 0, 0.6), 0px 0.5px 0px 0px rgba(0, 0, 0, 0.6)",
+      "0px 1px 0px 0px rgba(255, 255, 255, 0.04), 0px -1px 0px 0px rgba(255, 255, 255, 0.04), 0px 0px 0px 1px rgba(255, 255, 255, 0.12), 0px 1px 1px 0px rgba(0, 0, 0, 0.4), 0px 2px 2px 0px rgba(0, 0, 0, 0.4)",
     "--details-contrast-on-bg-interactive":
       "0px 1px 2px 0px rgba(30, 58, 138, 0.6)",
     "--details-switch-background-focus":
@@ -40,26 +44,30 @@ export const effects = {
       "0px 0px 0px 1px rgba(255, 255, 255, 0.1), 0px 4px 8px 0px rgba(0, 0, 0, 0.32)",
   },
   light: {
-    "--borders-active": "0px 0px 0px 3px rgba(59, 130, 246, 0.2)",
-    "--borders-base-with-shadow":
-      "0px 1px 2px 0px rgba(3, 7, 18, 0.2), 0px 0px 0px 1px rgba(229, 231, 235, 1)",
-    "--borders-base": "0px 0px 0px 1px rgba(229, 231, 235, 1)",
-    "--borders-error": "0px 0px 0px 3px rgba(225, 29, 72, 0.15)",
+    "--borders-base":
+      "0px 1px 2px 0px rgba(3, 7, 18, 0.12), 0px 0px 0px 1px rgba(3, 7, 18, 0.08)",
+    "--borders-error":
+      "0px 0px 0px 1px rgba(225, 29, 72, 1), 0px 0px 0px 3px rgba(225, 29, 72, 0.15)",
     "--borders-focus":
       "0px 0px 0px 1px rgba(255, 255, 255, 1), 0px 0px 0px 3px rgba(59, 130, 246, 0.6)",
+    "--borders-interactive-with-active":
+      "0px 0px 0px 1px rgba(59, 130, 246, 1), 0px 0px 0px 4px rgba(59, 130, 246, 0.2)",
     "--borders-interactive-with-focus":
       "0px 1px 2px 0px rgba(30, 58, 138, 0.5), 0px 0px 0px 1px rgba(59, 130, 246, 1), 0px 0px 0px 2px rgba(255, 255, 255, 1), 0px 0px 0px 4px rgba(59, 130, 246, 0.6)",
     "--borders-interactive-with-shadow":
       "0px 1px 2px 0px rgba(30, 58, 138, 0.5), 0px 0px 0px 1px rgba(59, 130, 246, 1)",
-    "--borders-interactive": "0px 0px 0px 1px rgba(59, 130, 246, 1)",
-    "--buttons-colored-focus":
-      "0px 0.75px 0px 0px rgba(255, 255, 255, 0.16) inset, 0px 0.25px 0px 0px rgba(3, 7, 18, 0.2), 0px 0.5px 0px 0px rgba(3, 7, 18, 0.2), 0px 0px 0px 1px rgba(255, 255, 255, 1), 0px 0px 0px 3px rgba(59, 130, 246, 0.6)",
-    "--buttons-colored":
-      "0px 0.75px 0px 0px rgba(255, 255, 255, 0.16) inset, 0px 0.25px 0px 0px rgba(3, 7, 18, 0.16), 0px 0.5px 0px 0px rgba(3, 7, 18, 0.16)",
+    "--buttons-danger-focus":
+      "0px 0.75px 0px 0px rgba(255, 255, 255, 0.2) inset, 0px 1px 2px 0px rgba(190, 18, 60, 0.4), 0px 0px 0px 1px rgba(190, 18, 60, 0.8), 0px 0px 0px 2px rgba(255, 255, 255, 1), 0px 0px 0px 4px rgba(59, 130, 246, 0.6)",
+    "--buttons-danger":
+      "0px 0.75px 0px 0px rgba(255, 255, 255, 0.2) inset, 0px 1px 2px 0px rgba(190, 18, 60, 0.4), 0px 0px 0px 1px rgba(190, 18, 60, 0.8)",
+    "--buttons-inverted-focus":
+      "0px 0.75px 0px 0px rgba(255, 255, 255, 0.2) inset, 0px 1px 2px 0px rgba(3, 7, 18, 0.4), 0px 0px 0px 1px rgba(3, 7, 18, 0.8), 0px 0px 0px 2px rgba(255, 255, 255, 1), 0px 0px 0px 4px rgba(59, 130, 246, 0.6)",
+    "--buttons-inverted":
+      "0px 0.75px 0px 0px rgba(255, 255, 255, 0.2) inset, 0px 1px 2px 0px rgba(3, 7, 18, 0.4), 0px 0px 0px 1px rgba(3, 7, 18, 0.8)",
     "--buttons-neutral-focus":
-      "0px 0.25px 0px 0px rgba(3, 7, 18, 0.16), 0px 0.5px 0px 0px rgba(3, 7, 18, 0.16), 0px 0px 0px 1px rgba(255, 255, 255, 1), 0px 0px 0px 3px rgba(59, 130, 246, 0.6)",
+      "0px 1px 2px 0px rgba(3, 7, 18, 0.12), 0px 0px 0px 1px rgba(3, 7, 18, 0.08), 0px 0px 0px 2px rgba(255, 255, 255, 1), 0px 0px 0px 4px rgba(59, 130, 246, 0.6)",
     "--buttons-neutral":
-      "0px 0.25px 0px 0px rgba(3, 7, 18, 0.16), 0px 0.5px 0px 0px rgba(3, 7, 18, 0.16)",
+      "0px 1px 2px 0px rgba(3, 7, 18, 0.12), 0px 0px 0px 1px rgba(3, 7, 18, 0.08)",
     "--details-contrast-on-bg-interactive":
       "0px 1px 2px 0px rgba(30, 58, 138, 0.6)",
     "--details-switch-background-focus":

@@ -89,7 +89,7 @@ const DrawerHeader = React.forwardRef<
         <Kbd>esc</Kbd>
         <DrawerPrimitives.Close asChild>
           <IconButton variant="transparent">
-            <XIcon />
+            <XIcon className="w-5 h-5"/>
           </IconButton>
         </DrawerPrimitives.Close>
       </div>

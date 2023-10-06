@@ -47,10 +47,10 @@ const Value = SelectPrimitive.Value;
 
 const triggerVariants = cva(
   cn(
-    "flex w-full select-none items-center justify-between rounded-md border border-ui-border-base bg-ui-bg-field text-sm shadow-buttons-neutral outline-none transition-fg",
+    "flex w-full select-none items-center justify-between rounded-md bg-ui-bg-field text-sm shadow-buttons-neutral outline-none transition-fg",
     "text-ui-fg-base data-[placeholder]:text-ui-fg-muted",
     "hover:bg-ui-bg-field-hover",
-    "focus:border-ui-border-interactive focus:shadow-borders-active data-[state=open]:!border-ui-border-interactive data-[state=open]:!shadow-borders-active",
+    "focus:shadow-borders-interactive-with-active data-[state=open]:!shadow-borders-interactive-with-active",
     "aria-[invalid=true]:border-ui-border-error aria-[invalid=true]:shadow-borders-error",
     "invalid::border-ui-border-error invalid:shadow-borders-error",
     "disabled:!bg-ui-bg-disabled disabled:!text-ui-fg-disabled",
@@ -80,7 +80,7 @@ const Trigger = React.forwardRef<
     >
       {children}
       <SelectPrimitive.Icon asChild>
-        <ChevronsUpDownIcon className="text-ui-fg-muted group-disabled/trigger:text-ui-fg-disabled" />
+        <ChevronsUpDownIcon className="text-ui-fg-muted group-disabled/trigger:text-ui-fg-disabled w-5 h-5" />
       </SelectPrimitive.Icon>
     </SelectPrimitive.Trigger>
   );
@@ -122,7 +122,7 @@ const Content = React.forwardRef<
         {...props}
       >
         <SelectPrimitive.ScrollUpButton className="flex h-[25px] cursor-default items-center justify-center bg-ui-bg-base text-ui-fg-muted">
-          <ChevronUpIcon />
+          <ChevronUpIcon className="w-5 h-5" />
         </SelectPrimitive.ScrollUpButton>
         <SelectPrimitive.Viewport
           className={cn(
@@ -134,7 +134,7 @@ const Content = React.forwardRef<
           {children}
         </SelectPrimitive.Viewport>
         <SelectPrimitive.ScrollDownButton className="flex h-[25px] cursor-default items-center justify-center bg-ui-bg-base text-ui-fg-muted">
-          <ChevronDownIcon />
+          <ChevronDownIcon className="w-5 h-5" />
         </SelectPrimitive.ScrollDownButton>
       </SelectPrimitive.Content>
     </SelectPrimitive.Portal>
@@ -176,7 +176,7 @@ const Item = React.forwardRef<
     >
       <span className="flex h-5 w-5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
-          <MoreHorizontalIcon />
+          <MoreHorizontalIcon className="w-5 h-5" />
         </SelectPrimitive.ItemIndicator>
       </span>
       <SelectPrimitive.ItemText className="flex-1 truncate">

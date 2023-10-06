@@ -25,7 +25,7 @@ export default function PostPage({ params }: { params: { slug: string } }) {
       />
       <div className="container mt-16 px-4 py-12">
         <Link
-          href="/templates"
+          href="/examples"
           className={buttonVariants({ variant: "transparent" })}
         >
           <ArrowLeft className="mr-1 w-4" /> Back to Templates

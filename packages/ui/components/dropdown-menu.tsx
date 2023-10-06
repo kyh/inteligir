@@ -34,7 +34,7 @@ const SubMenuTrigger = React.forwardRef<
     {...props}
   >
     {children}
-    <ChevronRightIcon className="ml-auto" />
+    <ChevronRightIcon className="ml-auto w-5 h-5" />
   </Primitives.SubTrigger>
 ));
 SubMenuTrigger.displayName = "DropdownMenu.SubMenuTrigger";
@@ -67,7 +67,7 @@ const Content = React.forwardRef<
       sideOffset={sideOffset}
       align={align}
       className={cn(
-        "min-w-[300px] overflow-hidden rounded-lg bg-ui-bg-base p-1 text-ui-fg-base shadow-elevation-flyout",
+        "max-h-[var(--radix-popper-available-height)] min-w-[220px] overflow-hidden rounded-lg bg-ui-bg-base p-1 text-ui-fg-base shadow-elevation-flyout",
         "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
         className,
       )}
@@ -84,7 +84,7 @@ const Item = React.forwardRef<
   <Primitives.Item
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md bg-ui-bg-base px-3 py-2 text-xs text-ui-fg-base outline-none transition-colors focus:bg-ui-bg-base-pressed data-[disabled]:pointer-events-none data-[disabled]:text-ui-fg-disabled",
+      "relative flex cursor-pointer select-none items-center rounded-md bg-ui-bg-base px-3 py-2 text-xs text-ui-fg-base outline-none transition-colors focus:bg-ui-bg-base-pressed data-[disabled]:pointer-events-none data-[disabled]:text-ui-fg-disabled",
       className,
     )}
     {...props}
@@ -99,7 +99,7 @@ const CheckboxItem = React.forwardRef<
   <Primitives.CheckboxItem
     ref={ref}
     className={cn(
-      "relative flex cursor-default select-none items-center rounded-md py-2 pl-10 pr-3 text-sm text-ui-fg-base outline-none transition-colors focus:bg-ui-bg-base-pressed data-[disabled]:pointer-events-none data-[disabled]:text-ui-fg-disabled",
+      "relative flex cursor-pointer select-none items-center rounded-md py-2 pl-10 pr-3 text-sm text-ui-fg-base outline-none transition-colors focus:bg-ui-bg-base-pressed data-[disabled]:pointer-events-none data-[disabled]:text-ui-fg-disabled",
       className,
     )}
     checked={checked}
@@ -107,7 +107,7 @@ const CheckboxItem = React.forwardRef<
   >
     <span className="absolute left-3 flex h-5 w-5 items-center justify-center">
       <Primitives.ItemIndicator>
-        <CheckIcon />
+        <CheckIcon className="w-5 h-5" />
       </Primitives.ItemIndicator>
     </span>
     {children}
@@ -122,14 +122,14 @@ const RadioItem = React.forwardRef<
   <Primitives.RadioItem
     ref={ref}
     className={cn(
-      "hover:bg-ui-base-hover relative flex cursor-default select-none items-center rounded-md bg-ui-bg-base py-2 pl-10 pr-3 text-sm text-xs outline-none transition-colors focus:bg-ui-bg-base-pressed data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+      "hover:bg-ui-base-hover relative flex cursor-pointer select-none items-center rounded-md bg-ui-bg-base py-2 pl-10 pr-3 text-sm outline-none transition-colors focus:bg-ui-bg-base-pressed data-[disabled]:pointer-events-none data-[state=checked]:font-medium data-[disabled]:opacity-50",
       className,
     )}
     {...props}
   >
     <span className="absolute left-3 flex h-5 w-5 items-center justify-center">
       <Primitives.ItemIndicator>
-        <MoreHorizontalIcon className="text-ui-fg-base" />
+        <MoreHorizontalIcon className="text-ui-fg-base w-5 h-5" />
       </Primitives.ItemIndicator>
     </span>
     {children}

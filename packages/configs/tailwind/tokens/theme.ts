@@ -12,7 +12,7 @@ export const theme = {
       mono: FONT_FAMILY_MONO,
     },
     transitionProperty: {
-      fg: "color, background-color, border-color, box-shadow",
+      fg: "color, background-color, border-color, box-shadow, opacity",
     },
     keyframes: {
       "accordion-down": {
@@ -62,11 +62,11 @@ export const theme = {
         button: {
           inverted: {
             DEFAULT: "var(--button-inverted)",
-            hover: {
-              DEFAULT: "var(--button-inverted-hover)",
-            },
             pressed: {
               DEFAULT: "var(--button-inverted-pressed)",
+            },
+            hover: {
+              DEFAULT: "var(--button-inverted-hover)",
             },
           },
           transparent: {
@@ -78,15 +78,6 @@ export const theme = {
               DEFAULT: "var(--button-transparent-pressed)",
             },
           },
-          danger: {
-            pressed: {
-              DEFAULT: "var(--button-danger-pressed)",
-            },
-            DEFAULT: "var(--button-danger)",
-            hover: {
-              DEFAULT: "var(--button-danger-hover)",
-            },
-          },
           neutral: {
             pressed: {
               DEFAULT: "var(--button-neutral-pressed)",
@@ -94,6 +85,15 @@ export const theme = {
             DEFAULT: "var(--button-neutral)",
             hover: {
               DEFAULT: "var(--button-neutral-hover)",
+            },
+          },
+          danger: {
+            DEFAULT: "var(--button-danger)",
+            pressed: {
+              DEFAULT: "var(--button-danger-pressed)",
+            },
+            hover: {
+              DEFAULT: "var(--button-danger-hover)",
             },
           },
         },
@@ -331,34 +331,66 @@ export const theme = {
             DEFAULT: "var(--fg-muted)",
           },
         },
+        contrast: {
+          bg: {
+            subtle: {
+              DEFAULT: "var(--contrast-bg-subtle)",
+            },
+            base: {
+              DEFAULT: "var(--contrast-bg-base)",
+              pressed: {
+                DEFAULT: "var(--contrast-bg-base-pressed)",
+              },
+              hover: {
+                DEFAULT: "var(--contrast-bg-base-hover)",
+              },
+            },
+            highlight: {
+              DEFAULT: "var(--contrast-bg-highlight)",
+            },
+          },
+          border: {
+            base: {
+              DEFAULT: "var(--contrast-border-base)",
+            },
+          },
+          fg: {
+            primary: {
+              DEFAULT: "var(--contrast-fg-primary)",
+            },
+            secondary: {
+              DEFAULT: "var(--contrast-fg-secondary)",
+            },
+          },
+        },
       },
     },
     boxShadow: {
-      "elevation-flyout": "var(--elevation-flyout)",
-      "elevation-tooltip": "var(--elevation-tooltip)",
-      "elevation-card-rest": "var(--elevation-card-rest)",
-      "borders-focus": "var(--borders-focus)",
-      "borders-interactive": "var(--borders-interactive)",
-      "borders-active": "var(--borders-active)",
-      "details-contrast-on-bg-interactive":
-        "var(--details-contrast-on-bg-interactive)",
-      "borders-error": "var(--borders-error)",
-      "borders-interactive-with-focus": "var(--borders-interactive-with-focus)",
-      "details-switch-handle": "var(--details-switch-handle)",
-      "details-switch-background-focus":
-        "var(--details-switch-background-focus)",
-      "borders-base": "var(--borders-base)",
-      "borders-interactive-with-shadow":
-        "var(--borders-interactive-with-shadow)",
       "elevation-card-hover": "var(--elevation-card-hover)",
       "elevation-modal": "var(--elevation-modal)",
-      "buttons-neutral": "var(--buttons-neutral)",
-      "buttons-colored-focus": "var(--buttons-colored-focus)",
-      "buttons-colored": "var(--buttons-colored)",
+      "buttons-inverted": "var(--buttons-inverted)",
+      "elevation-card-rest": "var(--elevation-card-rest)",
       "buttons-neutral-focus": "var(--buttons-neutral-focus)",
-      "borders-base-with-shadow": "var(--borders-base-with-shadow)",
-      "borders-strong-with-shadow": "var(--borders-strong-with-shadow)",
+      "borders-interactive-with-active":
+        "var(--borders-interactive-with-active)",
+      "buttons-danger-focus": "var(--buttons-danger-focus)",
+      "borders-base": "var(--borders-base)",
+      "buttons-danger": "var(--buttons-danger)",
+      "details-contrast-on-bg-interactive":
+        "var(--details-contrast-on-bg-interactive)",
+      "details-switch-handle": "var(--details-switch-handle)",
+      "buttons-neutral": "var(--buttons-neutral)",
+      "borders-interactive-with-focus": "var(--borders-interactive-with-focus)",
+      "details-switch-background-focus":
+        "var(--details-switch-background-focus)",
+      "borders-error": "var(--borders-error)",
+      "buttons-inverted-focus": "var(--buttons-inverted-focus)",
+      "borders-focus": "var(--borders-focus)",
       "details-switch-background": "var(--details-switch-background)",
+      "elevation-tooltip": "var(--elevation-tooltip)",
+      "borders-interactive-with-shadow":
+        "var(--borders-interactive-with-shadow)",
+      "elevation-flyout": "var(--elevation-flyout)",
     },
   },
 };

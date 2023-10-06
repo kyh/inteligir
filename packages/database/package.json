@@ -4,6 +4,6 @@
   "version": "0.0.0",
   "private": true,
   "devDependencies": {
-    "supabase": "^1.99.5"
+    "supabase": "^1.100.1"
   }
 }

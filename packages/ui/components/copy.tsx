@@ -52,7 +52,7 @@ const Copy = React.forwardRef<
         onClick={copyToClipboard}
         {...props}
       >
-        {children ? children : done ? <CheckCircle2Icon /> : <CopyIcon />}
+        {children ? children : done ? <CheckCircle2Icon className="w-5 h-5" /> : <CopyIcon className="w-5 h-5" />}
       </Component>
     </Tooltip>
   );

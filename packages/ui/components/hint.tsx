@@ -26,7 +26,7 @@ const Hint = React.forwardRef<HTMLSpanElement, HintProps>(
         className={cn(hintVariants({ variant }), className)}
         {...props}
       >
-        {variant === "error" && <AlertCircleIcon />}
+        {variant === "error" && <AlertCircleIcon className="w-5 h-5" />}
         {children}
       </span>
     );

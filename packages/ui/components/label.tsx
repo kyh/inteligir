@@ -9,10 +9,8 @@ import { cn } from "../lib/cn";
 const labelVariants = cva("font-sans", {
   variants: {
     size: {
-      xs: "text-xs",
-      sm: "text-xs",
-      md: "text-sm",
-      lg: "text-base",
+      md: "text-xs",
+      lg: "text-sm",
     },
     weight: {
       regular: "font-normal",

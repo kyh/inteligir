@@ -7,31 +7,31 @@ import { Slot } from "@radix-ui/react-slot";
 
 const iconButtonVariants = cva(
   cn(
-    "relative inline-flex w-fit items-center justify-center overflow-hidden rounded-md border outline-none transition-fg",
-    "disabled:border-ui-border-base disabled:bg-ui-bg-disabled disabled:text-ui-fg-disabled disabled:!shadow-none disabled:after:hidden",
-    "after:absolute after:inset-0 after:content-['']",
+    "relative inline-flex w-fit items-center justify-center overflow-hidden rounded-md outline-none transition-fg",
+    "disabled:bg-ui-bg-disabled disabled:text-ui-fg-disabled disabled:shadow-buttons-neutral disabled:after:hidden",
   ),
   {
     variants: {
       variant: {
         primary: cn(
-          "border-ui-border-base bg-ui-button-neutral text-ui-fg-base shadow-buttons-neutral after:button-neutral-gradient",
+          "bg-ui-button-neutral text-ui-fg-subtle shadow-buttons-neutral after:button-neutral-gradient",
           "hover:after:button-neutral-hover-gradient hover:bg-ui-button-neutral-hover",
           "active:after:button-neutral-pressed-gradient active:bg-ui-button-neutral-pressed",
           "focus:shadow-buttons-neutral-focus",
+          "after:absolute after:inset-0 after:content-['']",
         ),
         transparent: cn(
-          "border-ui-border-transparent bg-ui-button-transparent text-ui-fg-base",
+          "bg-ui-button-transparent text-ui-fg-subtle",
           "hover:bg-ui-button-transparent-hover",
-          "active:border-ui-border-base active:bg-ui-button-transparent-pressed",
-          "focus:border-ui-border-base focus:bg-ui-bg-base focus:shadow-borders-focus",
-          "disabled:!border-none disabled:!bg-transparent disabled:!shadow-none",
+          "active:bg-ui-button-transparent-pressed",
+          "focus:bg-ui-bg-base focus:shadow-buttons-neutral-focus",
+          "disabled:!bg-transparent disabled:!shadow-none",
         ),
       },
       size: {
-        md: "h-8 w-8 p-[5px]",
-        lg: "h-10 w-10 p-[9px]",
-        xl: "h-12 w-12 p-[13px]",
+        md: "h-8 w-8 p-1.5",
+        lg: "h-10 w-10 p-2.5",
+        xl: "h-12 w-12 p-3.5",
       },
     },
     defaultVariants: {
@@ -80,7 +80,9 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
             >
               <Spinner
                 size="sm"
-                color={!variant || variant === "primary" ? "black" : "white"}
+                color={
+                  !variant || variant === "primary" ? "primary" : "inverse"
+                }
               />
             </div>
             {children}

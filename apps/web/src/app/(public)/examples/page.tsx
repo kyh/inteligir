@@ -8,7 +8,7 @@ const Page = async () => {
   return (
     <>
       <Head
-        title="Inteligir Templates"
+        title="Examples"
         description="Learn how to make production ready web apps with Inteligir"
         image="https://cdn.hashnode.com/res/hashnode/image/upload/v1678913555475/TFjT1bbJa.png"
       />
@@ -23,7 +23,7 @@ const Page = async () => {
             conclaiently accessible right at your fingertips
           </p>
         </div>
-        <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-4">
+        {/* <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-4">
           <div className="flex flex-wrap items-center">
             <div>
               <label className="sr-only" htmlFor="search">
@@ -57,7 +57,7 @@ const Page = async () => {
               </li>
             ))}
           </ol>
-        </div>
+        </div> */}
         <ul className="relative mt-12 grid list-none grid-cols-1 gap-2 rounded-3xl bg-gradient-to-t from-white/20 p-2 ring-1 ring-white/10 md:grid-cols-3 lg:mt-24">
           {allTemplates.map((template) => (
             <TemplateCard template={template} />
@@ -74,9 +74,9 @@ const TemplateCard = ({ template }: { template: Template }) => {
   return (
     <li>
       <Link
-        href={`/templates/${template.slug}`}
+        href={`/examples/${template.slug}`}
         title={template.title}
-        className="bg-card/80 group flex h-full flex-col justify-between rounded-2xl p-2 shadow-massive ring-1 ring-white/10 backdrop-blur-2xl"
+        className="group flex h-full flex-col justify-between rounded-2xl bg-ui-bg-base p-2 shadow-lg ring-1 ring-white/10 backdrop-blur-2xl"
       >
         <article className="flex h-full flex-1 flex-col">
           <div className="block w-full lg:col-span-2">

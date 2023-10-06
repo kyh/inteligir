@@ -2,7 +2,8 @@
 
 import * as Primitives from "@radix-ui/react-radio-group";
 import * as React from "react";
-
+import { Hint } from "./hint";
+import { Label } from "./label";
 import { cn } from "../lib/cn";
 
 const Root = React.forwardRef<
@@ -19,6 +20,26 @@ const Root = React.forwardRef<
 });
 Root.displayName = "RadioGroup.Root";
 
+const Indicator = React.forwardRef<
+  React.ElementRef<typeof Primitives.Indicator>,
+  React.ComponentPropsWithoutRef<typeof Primitives.Indicator>
+>(({ className, ...props }, ref) => {
+  return (
+    <Primitives.Indicator
+      ref={ref}
+      className={cn("flex items-center justify-center", className)}
+      {...props}
+    >
+      <div
+        className={cn(
+          "h-1.5 w-1.5 rounded-full bg-ui-bg-base shadow-details-contrast-on-bg-interactive group-disabled:bg-ui-fg-disabled group-disabled:shadow-none",
+        )}
+      />
+    </Primitives.Indicator>
+  );
+});
+Indicator.displayName = "RadioGroup.Indicator";
+
 const Item = React.forwardRef<
   React.ElementRef<typeof Primitives.Item>,
   React.ComponentPropsWithoutRef<typeof Primitives.Item>
@@ -32,20 +53,77 @@ const Item = React.forwardRef<
       )}
       {...props}
     >
-      <div className="flex h-[14px] w-[14px] items-center justify-center rounded-full bg-ui-bg-base shadow-borders-base-with-shadow transition-all group-hover:shadow-borders-strong-with-shadow group-focus:!shadow-borders-interactive-with-focus group-disabled:!bg-ui-bg-disabled group-disabled:!shadow-borders-base group-data-[state=checked]:bg-ui-bg-interactive group-data-[state=checked]:shadow-borders-interactive">
-        <Primitives.Indicator className="flex items-center justify-center">
-          <div
-            className={cn(
-              "h-1.5 w-1.5 rounded-full bg-ui-bg-base shadow-details-contrast-on-bg-interactive group-disabled:bg-ui-fg-disabled group-disabled:shadow-none",
-            )}
-          />
-        </Primitives.Indicator>
+      <div
+        className={cn(
+          "flex h-[14px] w-[14px] items-center justify-center rounded-full bg-ui-bg-base shadow-borders-base transition-fg",
+          "group-hover:bg-ui-bg-base-hover",
+          "group-data-[state=checked]:bg-ui-bg-interactive group-data-[state=checked]:shadow-borders-interactive-with-shadow",
+          "group-focus:!shadow-borders-interactive-with-focus",
+          "group-disabled:!bg-ui-bg-disabled group-disabled:!shadow-borders-base",
+        )}
+      >
+        <Indicator />
       </div>
     </Primitives.Item>
   );
 });
 Item.displayName = "RadioGroup.Item";
 
-const RadioGroup = Object.assign(Root, { Item });
+interface ChoiceBoxProps
+  extends React.ComponentPropsWithoutRef<typeof Primitives.Item> {
+  label: string;
+  description: string;
+}
+
+const ChoiceBox = React.forwardRef<
+  React.ElementRef<typeof Primitives.Item>,
+  ChoiceBoxProps
+>(({ className, id, label, description, ...props }, ref) => {
+  const generatedId = React.useId();
+
+  if (!id) {
+    id = generatedId;
+  }
+
+  const descriptionId = `${id}-description`;
+
+  return (
+    <Primitives.Item
+      ref={ref}
+      className={cn(
+        "group flex items-start gap-x-2 rounded-lg bg-ui-bg-base p-3 shadow-borders-base transition-fg focus:shadow-borders-interactive-with-focus disabled:cursor-not-allowed disabled:bg-ui-bg-disabled",
+        className,
+      )}
+      {...props}
+      id={id}
+      aria-describedby={descriptionId}
+    >
+      <div className="flex h-5 w-5 items-center justify-center">
+        <div className="flex h-3.5 w-3.5 items-center justify-center rounded-full bg-ui-bg-base shadow-borders-base transition-fg group-hover:bg-ui-bg-base-hover group-disabled:!bg-ui-bg-disabled group-disabled:!shadow-borders-base group-data-[state=checked]:bg-ui-bg-interactive group-data-[state=checked]:shadow-borders-interactive-with-shadow">
+          <Indicator />
+        </div>
+      </div>
+      <div className="flex flex-col items-start">
+        <Label
+          htmlFor={id}
+          size="md"
+          weight="plus"
+          className="cursor-pointer group-disabled:cursor-not-allowed group-disabled:text-ui-fg-disabled"
+        >
+          {label}
+        </Label>
+        <Hint
+          className="txt-compact-medium text-ui-fg-subtle group-disabled:text-ui-fg-disabled"
+          id={descriptionId}
+        >
+          {description}
+        </Hint>
+      </div>
+    </Primitives.Item>
+  );
+});
+ChoiceBox.displayName = "RadioGroup.ChoiceBox";
+
+const RadioGroup = Object.assign(Root, { Item, ChoiceBox });
 
 export { RadioGroup };

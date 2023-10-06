@@ -1,4 +1,3 @@
-import testimonialAvatarImage from "@/public/images/testimonial-avatar.png";
 import Image from "next/image";
 
 export default function Testimonial() {
@@ -10,7 +9,7 @@ export default function Testimonial() {
       </h2>
       <div className="flex flex-col items-center space-y-1">
         <Image
-          src={testimonialAvatarImage}
+          src=""
           width={64}
           height={64}
           alt="Alex Rivera photo"

@@ -1,5 +1,4 @@
 import * as React from "react";
-
 import { Button } from "./button";
 import { cn } from "../lib/cn";
 import { MinusIcon } from "../icons";
@@ -8,13 +7,11 @@ const Root = React.forwardRef<
   HTMLTableElement,
   React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-  <div className="w-full overflow-auto">
-    <table
-      ref={ref}
-      className={cn("w-full text-xs text-ui-fg-subtle", className)}
-      {...props}
-    />
-  </div>
+  <table
+    ref={ref}
+    className={cn("txt-xs w-full text-ui-fg-subtle", className)}
+    {...props}
+  />
 ));
 Root.displayName = "Table";
 
@@ -50,7 +47,7 @@ const Header = React.forwardRef<
   <thead
     ref={ref}
     className={cn(
-      "border-y border-ui-border-base text-xs font-medium",
+      "&_tr:hover]:bg-ui-bg-base border-y border-ui-border-base text-xs font-medium",
       className,
     )}
     {...props}
@@ -123,7 +120,7 @@ const Pagination = React.forwardRef<HTMLDivElement, TablePaginationProps>(
       >
         <div className="inline-flex items-center gap-x-1 px-3 py-[5px]">
           <p>{from}</p>
-          <MinusIcon className="text-ui-fg-muted" />
+          <MinusIcon className="text-ui-fg-muted w-5 h-5" />
           <p>{`${to} of ${count} results`}</p>
         </div>
         <div className="flex items-center gap-x-2">

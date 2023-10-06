@@ -33,9 +33,9 @@ export function Header({ session }: { session?: Session | null }) {
         >
           <Link
             className="px-2 py-2 text-sm font-normal text-ui-fg-subtle transition hover:text-ui-fg-base md:px-5 lg:ml-auto"
-            href="/templates"
+            href="/examples"
           >
-            Templates
+            Examples
           </Link>
           <Link
             className="px-2 py-2 text-sm font-normal text-ui-fg-subtle transition hover:text-ui-fg-base md:px-5"
@@ -46,7 +46,7 @@ export function Header({ session }: { session?: Session | null }) {
           <Button
             className="ml-2 md:ml-4"
             variant="secondary"
-            size="lg"
+            size="sm"
             asChild
           >
             <Link href={session ? "/start" : "/login"}>
