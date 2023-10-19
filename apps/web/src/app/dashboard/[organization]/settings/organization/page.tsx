@@ -1,6 +1,6 @@
-import UpdateOrganizationForm from "./components/UpdateOrganizationForm";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/SettingsTile";
-import Trans from "ui/components/Trans";
+import UpdateOrganizationForm from "./components/update-organization-form";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import Trans from "ui/components/trans";
 import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {

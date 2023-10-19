@@ -1,7 +1,7 @@
 import { useCallback } from "react";
-import Trans from "ui/components/Trans";
-import Modal from "ui/components/Modal";
-import ReauthenticationForm from "@/app/auth/components/ReauthenticationForm";
+import Trans from "ui/components/trans";
+import Modal from "ui/components/modal";
+import ReauthenticationForm from "@/app/auth/components/reauthentication-form";
 
 const ReauthenticationModal: React.FC<{
   isOpen: boolean;

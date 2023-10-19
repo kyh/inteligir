@@ -1,16 +1,16 @@
 import type { FormEventHandler } from "react";
 import { useCallback, useEffect, useState } from "react";
 import useMutation from "swr/mutation";
-import Spinner from "ui/components/Spinner";
-import Alert from "ui/components/Alert";
-import Button from "ui/components/Button";
-import Heading from "ui/components/Heading";
-import If from "ui/components/If";
-import Trans from "ui/components/Trans";
+import Spinner from "ui/components/spinner";
+import Alert from "ui/components/alert";
+import Button from "ui/components/button";
+import Heading from "ui/components/heading";
+import If from "ui/components/if";
+import Trans from "ui/components/trans";
 import useFetchAuthFactors from "@/features/auth/use-fetch-factors";
 import useSignOut from "@/features/auth/use-sign-out";
 import useSupabase from "@/lib/supabase/use-supabase";
-import VerificationCodeInput from "./VerificationCodeInput";
+import VerificationCodeInput from "./verification-code-input";
 
 const MultiFactorChallengeContainer = ({
   onSuccess,

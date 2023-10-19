@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import useSignOut from "@/features/auth/use-sign-out";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
 import { acceptInviteAction } from "@/features/memberships/actions";
-import Button from "ui/components/Button";
-import Trans from "ui/components/Trans";
+import Button from "ui/components/button";
+import Trans from "ui/components/trans";
 
 const ExistingUserInviteForm = (
   props: React.PropsWithChildren<{

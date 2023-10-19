@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowRightMini } from "@inteligir/icons";
-import Button from "ui/components/Button";
+import Button from "ui/components/button";
 import { useCsrfToken } from "@/lib/csrf/use-csrf-token";
 import { createBillingPortalSessionAction } from "@/features/subscriptions/actions";
 

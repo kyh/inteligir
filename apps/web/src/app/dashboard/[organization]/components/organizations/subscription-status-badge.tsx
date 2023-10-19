@@ -1,7 +1,7 @@
-import Trans from "ui/components/Trans";
+import Trans from "ui/components/trans";
 import type { OrganizationSubscription } from "@/lib/organizations/types/organization-subscription";
-import { Tooltip, TooltipTrigger, TooltipContent } from "ui/components/Tooltip";
-import Badge from "ui/components/Badge";
+import { Tooltip, TooltipTrigger, TooltipContent } from "ui/components/tooltip";
+import Badge from "ui/components/badge";
 
 const SubscriptionStatusBadge = ({
   subscription,

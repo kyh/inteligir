@@ -2,10 +2,10 @@
 
 import type { FormEventHandler } from "react";
 import { useCallback } from "react";
-import If from "ui/components/If";
-import TextField from "ui/components/TextField";
-import Button from "ui/components/Button";
-import Trans from "ui/components/Trans";
+import If from "ui/components/if";
+import TextField from "ui/components/text-field";
+import Button from "ui/components/button";
+import Trans from "ui/components/trans";
 
 type ActionTypes = `link` | `signIn`;
 

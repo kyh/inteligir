@@ -6,11 +6,11 @@ import { useTranslation } from "react-i18next";
 import { useForm } from "react-hook-form";
 import type { User } from "@supabase/gotrue-js";
 import useUpdateUserMutation from "@/features/users/use-update-user-mutation";
-import Button from "ui/components/Button";
-import TextField from "ui/components/TextField";
-import If from "ui/components/If";
-import Alert from "ui/components/Alert";
-import Trans from "ui/components/Trans";
+import Button from "ui/components/button";
+import TextField from "ui/components/text-field";
+import If from "ui/components/if";
+import Alert from "ui/components/alert";
+import Trans from "ui/components/trans";
 import configuration from "@/configuration";
 
 const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {

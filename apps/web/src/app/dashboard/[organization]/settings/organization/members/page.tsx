@@ -6,7 +6,7 @@ import getSupabaseServerClient from "@/lib/supabase/server-client";
 import type UserData from "@/features/users/user-data";
 import requireSession from "@/features/auth/require-session";
 import getCurrentOrganization from "@/features/organizations/get-current-organization";
-import Trans from "ui/components/Trans";
+import Trans from "ui/components/trans";
 import {
   getMembersAuthMetadata,
   getOrganizationInvitedMembers,
@@ -14,10 +14,10 @@ import {
 } from "@/lib/organizations/database/queries";
 import configuration from "@/configuration";
 import type MembershipRole from "@/lib/organizations/types/membership-role";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/SettingsTile";
-import OrganizationMembersList from "@/app/dashboard/[organization]/settings/organization/components/OrganizationMembersList";
-import OrganizationInvitedMembersList from "@/app/dashboard/[organization]/settings/organization/components/OrganizationInvitedMembersList";
-import InviteMembersLinkButton from "@/app/dashboard/[organization]/settings/organization/components/InviteMembersLinkButton";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import OrganizationMembersList from "@/app/dashboard/[organization]/settings/organization/components/organization-members-list";
+import OrganizationInvitedMembersList from "@/app/dashboard/[organization]/settings/organization/components/organization-invited-members-list";
+import InviteMembersLinkButton from "@/app/dashboard/[organization]/settings/organization/components/invite-members-link-button";
 import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {

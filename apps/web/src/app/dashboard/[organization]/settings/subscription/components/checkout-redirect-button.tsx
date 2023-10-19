@@ -3,7 +3,7 @@
 import React from "react";
 import { ChevronRightMini } from "@inteligir/icons";
 import classNames from "clsx";
-import Button from "ui/components/Button";
+import Button from "ui/components/button";
 import { useCsrfToken } from "@/lib/csrf/use-csrf-token";
 import { createCheckoutAction } from "@/features/subscriptions/actions";
 import isBrowser from "@/lib/utils/is-browser";

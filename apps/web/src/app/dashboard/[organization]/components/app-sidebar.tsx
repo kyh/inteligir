@@ -1,6 +1,6 @@
 import React from "react";
-import AppSidebarNavigation from "./AppSidebarNavigation";
-import Sidebar from "ui/components/Sidebar";
+import AppSidebarNavigation from "./app-sidebar-navigation";
+import Sidebar from "ui/components/sidebar";
 
 const AppSidebar: React.FC<{
   organizationUid: string;

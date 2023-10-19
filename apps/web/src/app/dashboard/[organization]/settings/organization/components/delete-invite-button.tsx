@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useTransition } from "react";
-import XMarkIcon from "@heroicons/react/24/outline/XMarkIcon";
+import XMarkIcon from "@heroicons/react/24/outline/xmark-icon";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
 import { deleteMemberAction } from "@/features/memberships/actions";
-import IconButton from "ui/components/IconButton";
-import Modal from "ui/components/Modal";
-import Button from "ui/components/Button";
-import Trans from "ui/components/Trans";
+import IconButton from "ui/components/icon-button";
+import Modal from "ui/components/modal";
+import Button from "ui/components/button";
+import Trans from "ui/components/trans";
 
 const Heading = <Trans i18nKey="organization:deleteInviteModalHeading" />;
 

@@ -1,5 +1,5 @@
-import PageLoadingIndicator from "ui/components/PageLoadingIndicator";
-import Trans from "ui/components/Trans";
+import PageLoadingIndicator from "ui/components/page-loading-indicator";
+import Trans from "ui/components/trans";
 
 const Loading = () => {
   return (

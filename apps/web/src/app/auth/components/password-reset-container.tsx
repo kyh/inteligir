@@ -2,13 +2,13 @@
 
 import type { FormEvent } from "react";
 import { useCallback } from "react";
-import If from "ui/components/If";
-import Alert from "ui/components/Alert";
-import TextField from "ui/components/TextField";
-import Button from "ui/components/Button";
-import Trans from "ui/components/Trans";
+import If from "ui/components/if";
+import Alert from "ui/components/alert";
+import TextField from "ui/components/text-field";
+import Button from "ui/components/button";
+import Trans from "ui/components/trans";
 import useResetPassword from "@/features/auth/use-reset-password";
-import AuthErrorMessage from "@/app/auth/components/AuthErrorMessage";
+import AuthErrorMessage from "@/app/auth/components/auth-error-message";
 import configuration from "@/configuration";
 
 const PasswordResetContainer = () => {

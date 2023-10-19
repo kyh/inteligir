@@ -3,8 +3,8 @@
 import { Line, ResponsiveContainer, LineChart, XAxis } from "recharts";
 import { useMemo } from "react";
 import useUserSession from "@/features/user/use-user-session";
-import Tile from "ui/components/Tile";
-import Heading from "ui/components/Heading";
+import Tile from "ui/components/tile";
+import Heading from "ui/components/heading";
 import {
   Table,
   TableBody,
@@ -12,7 +12,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "ui/components/Table";
+} from "ui/components/table";
 
 export default () => {
   const mrr = useMemo(() => generateDemoData(), []);

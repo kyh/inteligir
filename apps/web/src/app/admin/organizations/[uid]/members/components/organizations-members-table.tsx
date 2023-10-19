@@ -4,17 +4,17 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { EllipsisHorizontal } from "@inteligir/icons";
-import DataTable from "ui/components/DataTable";
+import DataTable from "ui/components/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "ui/components/Dropdown";
-import IconButton from "ui/components/IconButton";
+} from "ui/components/dropdown";
+import IconButton from "ui/components/icon-button";
 import type UserData from "@/features/users/user-data";
 import type Membership from "@/lib/organizations/types/membership";
-import RoleBadge from "@/app/dashboard/[organization]/settings/organization/components/RoleBadge";
+import RoleBadge from "@/app/dashboard/[organization]/settings/organization/components/role-badge";
 
 type Data = {
   id: Membership["id"];

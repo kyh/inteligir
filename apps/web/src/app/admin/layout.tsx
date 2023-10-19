@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { cookies, headers } from "next/headers";
 import isUserSuperAdmin from "@/app/admin/utils/is-user-super-admin";
-import AdminSidebar from "@/app/admin/components/AdminSidebar";
-import AdminProviders from "@/app/admin/components/AdminProviders";
+import AdminSidebar from "@/app/admin/components/admin-sidebar";
+import AdminProviders from "@/app/admin/components/admin-providers";
 import getLanguageCookie from "@/i18n/get-language-cookie";
 
 const AdminLayout = async ({ children }: React.PropsWithChildren) => {

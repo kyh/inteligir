@@ -7,10 +7,10 @@ import useSupabase from "@/lib/supabase/use-supabase";
 import type UserData from "@/features/users/user-data";
 import type UserSession from "@/features/user/user-session";
 import useUpdateProfileMutation from "@/lib/user/hooks/use-update-profile";
-import Button from "ui/components/Button";
-import TextField from "ui/components/TextField";
-import ImageUploadInput from "ui/components/ImageUploadInput";
-import Trans from "ui/components/Trans";
+import Button from "ui/components/button";
+import TextField from "ui/components/text-field";
+import ImageUploadInput from "ui/components/image-upload-input";
+import Trans from "ui/components/trans";
 import configuration from "@/configuration";
 
 const UpdateProfileForm = ({

@@ -6,12 +6,12 @@ import useMutation from "swr/mutation";
 import { toast } from "sonner";
 import useSupabase from "@/lib/supabase/use-supabase";
 import type UserSession from "@/features/user/user-session";
-import TextField from "ui/components/TextField";
-import Trans from "ui/components/Trans";
-import If from "ui/components/If";
-import Button from "ui/components/Button";
-import Modal from "ui/components/Modal";
-import AuthErrorMessage from "@/app/auth/components/AuthErrorMessage";
+import TextField from "ui/components/text-field";
+import Trans from "ui/components/trans";
+import If from "ui/components/if";
+import Button from "ui/components/button";
+import Modal from "ui/components/modal";
+import AuthErrorMessage from "@/app/auth/components/auth-error-message";
 import configuration from "@/configuration";
 
 type UpdatePhoneNumberFormProps = {

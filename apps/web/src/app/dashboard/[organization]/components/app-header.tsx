@@ -2,14 +2,14 @@
 
 import useSignOut from "@/features/auth/use-sign-out";
 import useUserSession from "@/features/user/use-user-session";
-import AppContainer from "./AppContainer";
-import ProfileDropdown from "@/components/ProfileDropdown";
-import MobileNavigation from "@/components/MobileNavigation";
-import Heading from "ui/components/Heading";
-import OrganizationsSelector from "@/app/dashboard/[organization]/components/organizations/OrganizationsSelector";
-import HeaderSubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/HeaderSubscriptionStatusBadge";
+import AppContainer from "./app-container";
+import ProfileDropdown from "@/components/profile-dropdown";
+import MobileNavigation from "@/components/mobile-navigation";
+import Heading from "ui/components/heading";
+import OrganizationsSelector from "@/app/dashboard/[organization]/components/organizations/organizations-selector";
+import HeaderSubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/header-subscription-status-badge";
 import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
-import If from "ui/components/If";
+import If from "ui/components/if";
 
 const AppHeader: React.FCC<{
   Icon?: React.ReactNode;

@@ -1,9 +1,9 @@
 import Link from "next/link";
-import Trans from "ui/components/Trans";
-import Heading from "ui/components/Heading";
+import Trans from "ui/components/trans";
+import Heading from "ui/components/heading";
 import { withI18n } from "@/i18n/with-i18n";
 import configuration from "@/configuration";
-import SignInMethodsContainer from "@/app/auth/components/SignInMethodsContainer";
+import SignInMethodsContainer from "@/app/auth/components/sign-in-methods-container";
 
 const SIGN_UP_PATH = configuration.paths.signUp;
 

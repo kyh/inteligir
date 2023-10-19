@@ -4,13 +4,13 @@ import { headers } from "next/headers";
 import { isNotFoundError } from "next/dist/client/components/not-found";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
 import { getMembershipByInviteCode } from "@/features/memberships/queries";
-import If from "ui/components/If";
-import Heading from "ui/components/Heading";
-import Trans from "ui/components/Trans";
+import If from "ui/components/if";
+import Heading from "ui/components/heading";
+import Trans from "ui/components/trans";
 import getLogger from "@/core/logger";
-import ExistingUserInviteForm from "@/app/invite/components/ExistingUserInviteForm";
-import NewUserInviteForm from "@/app/invite/components/NewUserInviteForm";
-import InviteCsrfTokenProvider from "@/app/invite/components/InviteCsrfTokenProvider";
+import ExistingUserInviteForm from "@/app/invite/components/existing-user-invite-form";
+import NewUserInviteForm from "@/app/invite/components/new-user-invite-form";
+import InviteCsrfTokenProvider from "@/app/invite/components/invite-csrf-token-provider";
 import { withI18n } from "@/i18n/with-i18n";
 
 type Context = {

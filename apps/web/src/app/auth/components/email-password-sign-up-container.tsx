@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Trans from "ui/components/Trans";
-import If from "ui/components/If";
-import Alert from "ui/components/Alert";
+import Trans from "ui/components/trans";
+import If from "ui/components/if";
+import Alert from "ui/components/alert";
 import useSignUpWithEmailAndPasswordMutation from "@/features/auth/use-sign-up-with-email-password";
-import AuthErrorMessage from "./AuthErrorMessage";
-import EmailPasswordSignUpForm from "@/app/auth/components/EmailPasswordSignUpForm";
+import AuthErrorMessage from "./auth-error-message";
+import EmailPasswordSignUpForm from "@/app/auth/components/email-password-sign-up-form";
 import configuration from "@/configuration";
 
 const requireEmailConfirmation = configuration.auth.requireEmailConfirmation;

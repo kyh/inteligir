@@ -5,12 +5,12 @@ import { useState, useTransition } from "react";
 import type { User } from "@supabase/gotrue-js";
 import { impersonateUser } from "@/app/admin/users/@modal/[uid]/actions";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
-import ImpersonateUserAuthSetter from "../components/ImpersonateUserAuthSetter";
-import Modal from "ui/components/Modal";
-import Button from "ui/components/Button";
-import If from "ui/components/If";
-import PageLoadingIndicator from "ui/components/PageLoadingIndicator";
-import { Alert, AlertHeading } from "ui/components/Alert";
+import ImpersonateUserAuthSetter from "../components/impersonate-user-auth-setter";
+import Modal from "ui/components/modal";
+import Button from "ui/components/button";
+import If from "ui/components/if";
+import PageLoadingIndicator from "ui/components/page-loading-indicator";
+import { Alert, AlertHeading } from "ui/components/alert";
 
 const ImpersonateUserConfirmationModal = ({
   user,

@@ -1,9 +1,9 @@
 import { use } from "react";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
-import AppContainer from "@/app/dashboard/[organization]/components/AppContainer";
-import AdminHeader from "@/app/admin/components/AdminHeader";
-import AdminGuard from "@/app/admin/components/AdminGuard";
-import AdminDashboard from "@/app/admin/components/AdminDashboard";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AdminHeader from "@/app/admin/components/admin-header";
+import AdminGuard from "@/app/admin/components/admin-guard";
+import AdminDashboard from "@/app/admin/components/admin-dashboard";
 import configuration from "@/configuration";
 
 export const metadata = {

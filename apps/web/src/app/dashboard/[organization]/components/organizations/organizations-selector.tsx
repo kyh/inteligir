@@ -13,11 +13,11 @@ import {
   SelectAction,
   SelectLabel,
   SelectValue,
-} from "ui/components/Select";
-import If from "ui/components/If";
-import Trans from "ui/components/Trans";
+} from "ui/components/select";
+import If from "ui/components/if";
+import Trans from "ui/components/trans";
 import UserSessionContext from "@/features/auth/session-context";
-import CreateOrganizationModal from "./CreateOrganizationModal";
+import CreateOrganizationModal from "./create-organization-modal";
 import type Organization from "@/lib/organizations/types/organization";
 import useUserOrganizationsQuery from "@/lib/organizations/hooks/use-user-organizations-query";
 import type MembershipRole from "@/lib/organizations/types/membership-role";

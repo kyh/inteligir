@@ -1,8 +1,8 @@
-import ArrowLeftIcon from "@heroicons/react/24/outline/ArrowLeftIcon";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/SettingsTile";
-import InviteMembersForm from "@/app/dashboard/[organization]/settings/organization/components/InviteMembersForm";
-import Trans from "ui/components/Trans";
-import Button from "ui/components/Button";
+import ArrowLeftIcon from "@heroicons/react/24/outline/arrow-left-icon";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import InviteMembersForm from "@/app/dashboard/[organization]/settings/organization/components/invite-members-form";
+import Trans from "ui/components/trans";
+import Button from "ui/components/button";
 import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {

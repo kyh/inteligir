@@ -6,15 +6,15 @@ import type { Factor } from "@supabase/gotrue-js";
 import { useTranslation } from "react-i18next";
 import { XMarkMini } from "@inteligir/icons";
 import { toast } from "sonner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "ui/components/Tooltip";
-import Spinner from "ui/components/Spinner";
-import Alert from "ui/components/Alert";
-import If from "ui/components/If";
-import Button from "ui/components/Button";
-import Modal from "ui/components/Modal";
-import Badge from "ui/components/Badge";
-import IconButton from "ui/components/IconButton";
-import Trans from "ui/components/Trans";
+import { Tooltip, TooltipContent, TooltipTrigger } from "ui/components/tooltip";
+import Spinner from "ui/components/spinner";
+import Alert from "ui/components/alert";
+import If from "ui/components/if";
+import Button from "ui/components/button";
+import Modal from "ui/components/modal";
+import Badge from "ui/components/badge";
+import IconButton from "ui/components/icon-button";
+import Trans from "ui/components/trans";
 import {
   Table,
   TableBody,
@@ -22,12 +22,12 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "ui/components/Table";
+} from "ui/components/table";
 import useFactorsMutationKey from "@/features/auth/use-user-factors-mutation-key";
 import useSupabase from "@/lib/supabase/use-supabase";
 import useFetchAuthFactors from "@/features/auth/use-fetch-factors";
-import MultiFactorAuthSetupModal from "../../components/MultiFactorAuthSetupModal";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/SettingsTile";
+import MultiFactorAuthSetupModal from "../../components/multi-factor-auth-setup-modal";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
 
 const MAX_FACTOR_COUNT = 10;
 

@@ -4,16 +4,16 @@ import { useCallback, useState, useTransition } from "react";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
 import { acceptInviteAction } from "@/features/memberships/actions";
 import isBrowser from "@/lib/utils/is-browser";
-import EmailLinkAuth from "@/app/auth/components/EmailLinkAuth";
-import OAuthProviders from "@/app/auth/components/OAuthProviders";
-import PhoneNumberSignInContainer from "@/app/auth/components/PhoneNumberSignInContainer";
-import EmailPasswordSignInContainer from "@/app/auth/components/EmailPasswordSignInContainer";
-import EmailPasswordSignUpContainer from "@/app/auth/components/EmailPasswordSignUpContainer";
-import If from "ui/components/If";
-import Button from "ui/components/Button";
-import Trans from "ui/components/Trans";
+import EmailLinkAuth from "@/app/auth/components/email-link-auth";
+import OAuthProviders from "@/app/auth/components/oauth-providers";
+import PhoneNumberSignInContainer from "@/app/auth/components/phone-number-sign-in-container";
+import EmailPasswordSignInContainer from "@/app/auth/components/email-password-sign-in-container";
+import EmailPasswordSignUpContainer from "@/app/auth/components/email-password-sign-up-container";
+import If from "ui/components/if";
+import Button from "ui/components/button";
+import Trans from "ui/components/trans";
 import configuration from "@/configuration";
-import PageLoadingIndicator from "ui/components/PageLoadingIndicator";
+import PageLoadingIndicator from "ui/components/page-loading-indicator";
 
 enum Mode {
   SignUp,

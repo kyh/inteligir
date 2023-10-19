@@ -4,19 +4,19 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { EllipsisHorizontal } from "@inteligir/icons";
-import DataTable from "ui/components/DataTable";
-import { Avatar, AvatarFallback, AvatarImage } from "ui/components/Avatar";
-import { Tooltip, TooltipContent, TooltipTrigger } from "ui/components/Tooltip";
+import DataTable from "ui/components/data-table";
+import { Avatar, AvatarFallback, AvatarImage } from "ui/components/avatar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "ui/components/tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "ui/components/Dropdown";
-import IconButton from "ui/components/IconButton";
-import Badge from "ui/components/Badge";
-import If from "ui/components/If";
+} from "ui/components/dropdown";
+import IconButton from "ui/components/icon-button";
+import Badge from "ui/components/badge";
+import If from "ui/components/if";
 import type UserData from "@/features/users/user-data";
 
 type UserRow = {

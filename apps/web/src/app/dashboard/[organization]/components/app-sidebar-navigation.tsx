@@ -1,7 +1,7 @@
 "use client";
 
-import Trans from "ui/components/Trans";
-import { SidebarItem } from "ui/components/Sidebar";
+import Trans from "ui/components/trans";
+import { SidebarItem } from "ui/components/sidebar";
 import NAVIGATION_CONFIG from "@/navigation.config";
 
 const AppSidebarNavigation = ({

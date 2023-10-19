@@ -1,6 +1,6 @@
 import { AuthError } from "@supabase/gotrue-js";
-import Trans from "ui/components/Trans";
-import Alert from "ui/components/Alert";
+import Trans from "ui/components/trans";
+import Alert from "ui/components/alert";
 
 /**
  * @name AuthErrorMessage

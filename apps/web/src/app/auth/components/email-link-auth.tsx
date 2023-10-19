@@ -4,11 +4,11 @@ import type { FormEventHandler } from "react";
 import { useCallback } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
-import Trans from "ui/components/Trans";
-import TextField from "ui/components/TextField";
-import Button from "ui/components/Button";
-import If from "ui/components/If";
-import Alert from "ui/components/Alert";
+import Trans from "ui/components/trans";
+import TextField from "ui/components/text-field";
+import Button from "ui/components/button";
+import If from "ui/components/if";
+import Alert from "ui/components/alert";
 import useSignInWithOtp from "@/features/auth/use-sign-in-with-otp";
 import configuration from "@/configuration";
 

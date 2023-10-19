@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { Alert, AlertHeading } from "ui/components/Alert";
-import Button from "ui/components/Button";
+import { Alert, AlertHeading } from "ui/components/alert";
+import Button from "ui/components/button";
 
 type Params = {
   searchParams: StringObject;

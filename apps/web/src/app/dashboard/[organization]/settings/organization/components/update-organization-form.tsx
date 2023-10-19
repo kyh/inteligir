@@ -8,11 +8,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import OrganizationContext from "@/features/organizations/organization-provider";
 import useSupabase from "@/lib/supabase/use-supabase";
 import useUpdateOrganizationMutation from "@/lib/organizations/hooks/use-update-organization-mutation";
-import Button from "ui/components/Button";
-import TextField from "ui/components/TextField";
-import ImageUploadInput from "ui/components/ImageUploadInput";
-import Label from "ui/components/Label";
-import Trans from "ui/components/Trans";
+import Button from "ui/components/button";
+import TextField from "ui/components/text-field";
+import ImageUploadInput from "ui/components/image-upload-input";
+import Label from "ui/components/label";
+import Trans from "ui/components/trans";
 import type Organization from "@/lib/organizations/types/organization";
 
 const UpdateOrganizationForm = () => {

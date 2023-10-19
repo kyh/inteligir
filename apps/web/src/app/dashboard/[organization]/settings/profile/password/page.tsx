@@ -1,6 +1,6 @@
-import UpdatePasswordFormContainer from "@/app/dashboard/[organization]/settings/profile/components/UpdatePasswordFormContainer";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/SettingsTile";
-import Trans from "ui/components/Trans";
+import UpdatePasswordFormContainer from "@/app/dashboard/[organization]/settings/profile/components/update-password-form-container";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import Trans from "ui/components/trans";
 import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {

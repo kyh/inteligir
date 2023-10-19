@@ -1,10 +1,10 @@
 import React from "react";
 import { CogSixTooth } from "@inteligir/icons";
-import NavigationMenu from "ui/components/Navigation/NavigationMenu";
-import NavigationItem from "ui/components/Navigation/NavigationItem";
-import Trans from "ui/components/Trans";
-import AppHeader from "@/app/dashboard/[organization]/components/AppHeader";
-import AppContainer from "@/app/dashboard/[organization]/components/AppContainer";
+import NavigationMenu from "ui/components/navigation/navigation-menu";
+import NavigationItem from "ui/components/navigation/navigation-item";
+import Trans from "ui/components/trans";
+import AppHeader from "@/app/dashboard/[organization]/components/app-header";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 import { withI18n } from "@/i18n/with-i18n";
 import configuration from "@/configuration";
 

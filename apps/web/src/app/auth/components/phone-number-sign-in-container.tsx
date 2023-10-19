@@ -1,14 +1,14 @@
 import type { FormEventHandler } from "react";
 import React, { useCallback, useState } from "react";
-import Button from "ui/components/Button";
-import If from "ui/components/If";
-import Alert from "ui/components/Alert";
-import Trans from "ui/components/Trans";
+import Button from "ui/components/button";
+import If from "ui/components/if";
+import Alert from "ui/components/alert";
+import Trans from "ui/components/trans";
 import useSignInWithOtp from "@/features/auth/use-sign-in-with-otp";
 import useVerifyOtp from "@/features/auth/use-verify-otp";
 import configuration from "@/configuration";
-import PhoneNumberCredentialForm from "@/app/auth/components/PhoneNumberCredentialForm";
-import VerificationCodeInput from "@/app/auth/components/VerificationCodeInput";
+import PhoneNumberCredentialForm from "@/app/auth/components/phone-number-credential-form";
+import VerificationCodeInput from "@/app/auth/components/verification-code-input";
 
 enum Step {
   Phone,

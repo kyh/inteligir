@@ -1,12 +1,12 @@
 import React, { useMemo } from "react";
 import { CheckCircleMiniSolid, XMarkMini } from "@inteligir/icons";
-import Heading from "ui/components/Heading";
-import If from "ui/components/If";
-import Trans from "ui/components/Trans";
+import Heading from "ui/components/heading";
+import If from "ui/components/if";
+import Trans from "ui/components/trans";
 import type { OrganizationSubscription } from "@/lib/organizations/types/organization-subscription";
-import PricingTable from "@/components/PricingTable";
-import SubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/SubscriptionStatusBadge";
-import SubscriptionStatusAlert from "@/app/dashboard/[organization]/settings/subscription/components/SubscriptionStatusAlert";
+import PricingTable from "@/components/pricing-table";
+import SubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/subscription-status-badge";
+import SubscriptionStatusAlert from "@/app/dashboard/[organization]/settings/subscription/components/subscription-status-alert";
 import configuration from "@/configuration";
 
 const SubscriptionCard: React.FC<{

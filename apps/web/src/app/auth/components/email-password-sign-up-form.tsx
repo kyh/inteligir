@@ -1,9 +1,9 @@
 import { useForm } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import Trans from "ui/components/Trans";
-import TextField from "ui/components/TextField";
-import Button from "ui/components/Button";
-import If from "ui/components/If";
+import Trans from "ui/components/trans";
+import TextField from "ui/components/text-field";
+import Button from "ui/components/button";
+import If from "ui/components/if";
 
 const EmailPasswordSignUpForm: React.FCC<{
   onSubmit: (params: {

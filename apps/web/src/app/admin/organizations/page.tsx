@@ -2,11 +2,11 @@ import { use } from "react";
 import { getOrganizations } from "@/app/admin/organizations/queries";
 import getPageFromQueryParams from "@/app/admin/utils/get-page-from-query-param";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
-import AppContainer from "@/app/dashboard/[organization]/components/AppContainer";
-import AdminHeader from "@/app/admin/components/AdminHeader";
-import AdminGuard from "@/app/admin/components/AdminGuard";
-import OrganizationsTable from "@/app/admin/organizations/components/OrganizationsTable";
-import { TextFieldInput } from "ui/components/TextField";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AdminHeader from "@/app/admin/components/admin-header";
+import AdminGuard from "@/app/admin/components/admin-guard";
+import OrganizationsTable from "@/app/admin/organizations/components/organizations-table";
+import { TextFieldInput } from "ui/components/text-field";
 import configuration from "@/configuration";
 
 type OrganizationsAdminPageProps = {

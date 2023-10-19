@@ -3,10 +3,10 @@ import getSupabaseServerClient from "@/lib/supabase/server-client";
 import { getUsers } from "@/app/admin/users/queries";
 import type UserData from "@/features/users/user-data";
 import getPageFromQueryParams from "@/app/admin/utils/get-page-from-query-param";
-import AppContainer from "@/app/dashboard/[organization]/components/AppContainer";
-import AdminHeader from "@/app/admin/components/AdminHeader";
-import AdminGuard from "@/app/admin/components/AdminGuard";
-import UsersTable from "@/app/admin/users/components/UsersTable";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AdminHeader from "@/app/admin/components/admin-header";
+import AdminGuard from "@/app/admin/components/admin-guard";
+import UsersTable from "@/app/admin/users/components/users-table";
 import configuration from "@/configuration";
 
 type UsersAdminPageProps = {

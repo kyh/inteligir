@@ -1,10 +1,10 @@
 "use client";
 
 import useUser from "@/features/users/use-user";
-import Alert from "ui/components/Alert";
-import If from "ui/components/If";
-import Trans from "ui/components/Trans";
-import UpdatePasswordForm from "@/app/dashboard/[organization]/settings/profile/components/UpdatePasswordForm";
+import Alert from "ui/components/alert";
+import If from "ui/components/if";
+import Trans from "ui/components/trans";
+import UpdatePasswordForm from "@/app/dashboard/[organization]/settings/profile/components/update-password-form";
 
 const UpdatePasswordFormContainer = () => {
   const { data: user } = useUser();

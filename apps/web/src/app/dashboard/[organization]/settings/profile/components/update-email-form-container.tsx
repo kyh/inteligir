@@ -1,7 +1,7 @@
 "use client";
 
 import useUser from "@/features/users/use-user";
-import UpdateEmailForm from "@/app/dashboard/[organization]/settings/profile/components/UpdateEmailForm";
+import UpdateEmailForm from "@/app/dashboard/[organization]/settings/profile/components/update-email-form";
 
 const UpdateEmailFormContainer = () => {
   const { data: user } = useUser();

@@ -4,16 +4,16 @@ import {
   UserCircleMini,
   XMarkMini,
 } from "@inteligir/icons";
-import Trans from "ui/components/Trans";
+import Trans from "ui/components/trans";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "ui/components/Dropdown";
-import IconButton from "ui/components/IconButton";
-import If from "ui/components/If";
+} from "ui/components/dropdown";
+import IconButton from "ui/components/icon-button";
+import If from "ui/components/if";
 
 const OrganizationMemberActionsDropdown: React.FCC<{
   onRemoveSelected: EmptyCallback;

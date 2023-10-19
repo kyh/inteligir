@@ -1,8 +1,8 @@
 import Link from "next/link";
-import Heading from "ui/components/Heading";
-import Trans from "ui/components/Trans";
+import Heading from "ui/components/heading";
+import Trans from "ui/components/trans";
 import configuration from "@/configuration";
-import PasswordResetContainer from "@/app/auth/components/PasswordResetContainer";
+import PasswordResetContainer from "@/app/auth/components/password-reset-container";
 import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {

@@ -1,6 +1,6 @@
-import NavigationItem from "ui/components/Navigation/NavigationItem";
-import NavigationMenu from "ui/components/Navigation/NavigationMenu";
-import MobileNavigationDropdown from "ui/components/MobileNavigationDropdown";
+import NavigationItem from "ui/components/navigation/navigation-item";
+import NavigationMenu from "ui/components/navigation/navigation-menu";
+import MobileNavigationDropdown from "ui/components/mobile-navigation-dropdown";
 import configuration from "@/configuration";
 
 const getLinks = (organizationId: string) => ({

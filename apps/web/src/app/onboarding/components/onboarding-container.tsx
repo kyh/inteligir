@@ -2,10 +2,10 @@
 
 import { useCallback, useState } from "react";
 import CsrfTokenContext from "@/lib/csrf/csrf-provider";
-import type { OrganizationInfoStepData } from "./OrganizationInfoStep";
-import OrganizationInfoStep from "./OrganizationInfoStep";
-import CompleteOnboardingStep from "./CompleteOnboardingStep";
-import If from "ui/components/If";
+import type { OrganizationInfoStepData } from "./organization-info-step";
+import OrganizationInfoStep from "./organization-info-step";
+import CompleteOnboardingStep from "./complete-onboarding-step";
+import If from "ui/components/if";
 
 type Data = {
   organization: string;

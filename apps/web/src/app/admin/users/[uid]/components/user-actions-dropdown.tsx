@@ -8,8 +8,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@inteligir/ui";
-import If from "ui/components/If";
-import Button from "ui/components/Button";
+import If from "ui/components/if";
+import Button from "ui/components/button";
 
 const UserActionsDropdown = ({
   uid,

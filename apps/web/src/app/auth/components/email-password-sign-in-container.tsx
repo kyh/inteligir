@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 import useSignInWithEmailPassword from "@/features/auth/use-sign-in-with-email-password";
-import AuthErrorMessage from "@/app/auth/components/AuthErrorMessage";
-import EmailPasswordSignInForm from "@/app/auth/components/EmailPasswordSignInForm";
+import AuthErrorMessage from "@/app/auth/components/auth-error-message";
+import EmailPasswordSignInForm from "@/app/auth/components/email-password-sign-in-form";
 
 const EmailPasswordSignInContainer: React.FCC<{
   onSignIn: (userId?: string) => unknown;

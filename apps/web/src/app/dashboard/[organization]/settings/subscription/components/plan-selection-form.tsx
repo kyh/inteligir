@@ -3,13 +3,13 @@
 import React from "react";
 import { canChangeBilling } from "@/features/organizations/permissions";
 import type Organization from "@/lib/organizations/types/organization";
-import If from "ui/components/If";
-import Trans from "ui/components/Trans";
-import Alert from "ui/components/Alert";
-import PricingTable from "@/components/PricingTable";
-import IfHasPermissions from "@/components/IfHasPermissions";
-import CheckoutRedirectButton from "@/app/dashboard/[organization]/settings/subscription/components/CheckoutRedirectButton";
-import BillingPortalRedirectButton from "@/app/dashboard/[organization]/settings/subscription/components/BillingRedirectButton";
+import If from "ui/components/if";
+import Trans from "ui/components/trans";
+import Alert from "ui/components/alert";
+import PricingTable from "@/components/pricing-table";
+import IfHasPermissions from "@/components/if-has-permissions";
+import CheckoutRedirectButton from "@/app/dashboard/[organization]/settings/subscription/components/checkout-redirect-button";
+import BillingPortalRedirectButton from "@/app/dashboard/[organization]/settings/subscription/components/billing-redirect-button";
 
 const PlanSelectionForm: React.FCC<{
   organization: WithId<Organization>;

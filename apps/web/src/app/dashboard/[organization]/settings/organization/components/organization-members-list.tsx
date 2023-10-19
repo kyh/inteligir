@@ -5,13 +5,13 @@ import { useMemo } from "react";
 import { canUpdateUser } from "@/features/organizations/permissions";
 import type UserData from "@/features/users/user-data";
 import useUserId from "@/features/users/use-user-id";
-import RoleBadge from "./RoleBadge";
-import OrganizationMembersActionsContainer from "./OrganizationMembersActionsContainer";
-import Trans from "ui/components/Trans";
-import If from "ui/components/If";
-import Badge from "ui/components/Badge";
+import RoleBadge from "./role-badge";
+import OrganizationMembersActionsContainer from "./organization-members-actions-container";
+import Trans from "ui/components/trans";
+import If from "ui/components/if";
+import Badge from "ui/components/badge";
 import type MembershipRole from "@/lib/organizations/types/membership-role";
-import ProfileAvatar from "@/components/ProfileAvatar";
+import ProfileAvatar from "@/components/profile-avatar";
 
 const OrganizationMembersList = ({
   members,

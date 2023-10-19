@@ -5,11 +5,11 @@ import type { User } from "@supabase/gotrue-js";
 import UserSessionContext from "@/features/auth/session-context";
 import useUserSession from "@/features/user/use-user-session";
 import type UserData from "@/features/users/user-data";
-import UpdateProfileForm from "../components/UpdateProfileForm";
-import UpdatePhoneNumberForm from "../components/UpdatePhoneNumberForm";
-import SettingsTile from "../../components/SettingsTile";
-import Trans from "ui/components/Trans";
-import If from "ui/components/If";
+import UpdateProfileForm from "../components/update-profile-form";
+import UpdatePhoneNumberForm from "../components/update-phone-number-form";
+import SettingsTile from "../../components/settings-tile";
+import Trans from "ui/components/trans";
+import If from "ui/components/if";
 import configuration from "@/configuration";
 
 const UpdateProfileFormContainer = () => {

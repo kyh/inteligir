@@ -5,8 +5,8 @@ import { useState, useTransition } from "react";
 import type { User } from "@supabase/gotrue-js";
 import { banUser } from "@/app/admin/users/@modal/[uid]/actions";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
-import Modal from "ui/components/Modal";
-import Button from "ui/components/Button";
+import Modal from "ui/components/modal";
+import Button from "ui/components/button";
 
 const BanUserModal = ({
   user,

@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import useSupabase from "@/lib/supabase/use-supabase";
-import Spinner from "ui/components/Spinner";
+import Spinner from "ui/components/spinner";
 
 const ImpersonateUserAuthSetter = ({
   tokens,

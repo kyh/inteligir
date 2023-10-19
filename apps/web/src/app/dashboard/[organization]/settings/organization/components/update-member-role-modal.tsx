@@ -1,11 +1,11 @@
 import { useCallback, useState, useTransition } from "react";
 import { updateMemberAction } from "@/features/memberships/actions";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
-import Trans from "ui/components/Trans";
-import Button from "ui/components/Button";
-import Modal from "ui/components/Modal";
+import Trans from "ui/components/trans";
+import Button from "ui/components/button";
+import Modal from "ui/components/modal";
 import type MembershipRole from "@/lib/organizations/types/membership-role";
-import MembershipRoleSelector from "@/app/dashboard/[organization]/settings/organization/components/MembershipRoleSelector";
+import MembershipRoleSelector from "@/app/dashboard/[organization]/settings/organization/components/membership-role-selector";
 
 const Heading = <Trans i18nKey="organization:updateMemberRoleModalHeading" />;
 

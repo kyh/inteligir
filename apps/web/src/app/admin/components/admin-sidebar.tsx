@@ -1,7 +1,7 @@
 "use client";
 
 import { BuildingStorefront, UserGroup, User } from "@inteligir/icons";
-import Sidebar, { SidebarItem } from "ui/components/Sidebar";
+import Sidebar, { SidebarItem } from "ui/components/sidebar";
 
 const AdminSidebar = () => {
   return (

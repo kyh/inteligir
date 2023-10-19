@@ -9,11 +9,11 @@ import { setCookie } from "@/lib/utils/cookies";
 import type loadAppData from "@/features/global/load-app-data";
 import type UserSession from "@/features/user/user-session";
 import useCollapsible from "@/lib/hooks/use-sidebar-state";
-import AuthChangeListener from "@/components/AuthChangeListener";
+import AuthChangeListener from "@/components/auth-change-listener";
 import type Organization from "@/lib/organizations/types/organization";
-import SentryBrowserWrapper from "@/components/SentryProvider";
-import Toaster from "@/components/Toaster";
-import AppSidebar from "@/app/dashboard/[organization]/components/AppSidebar";
+import SentryBrowserWrapper from "@/components/sentry-provider";
+import Toaster from "@/components/toaster";
+import AppSidebar from "@/app/dashboard/[organization]/components/app-sidebar";
 
 const RouteShell: React.FCC<{
   data: Awaited<ReturnType<typeof loadAppData>>;

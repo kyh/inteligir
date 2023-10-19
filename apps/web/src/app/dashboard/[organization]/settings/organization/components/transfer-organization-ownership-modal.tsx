@@ -1,10 +1,10 @@
 import { useCallback, useTransition } from "react";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
 import { transferOrganizationOwnershipAction } from "@/features/organizations/actions";
-import Trans from "ui/components/Trans";
-import Button from "ui/components/Button";
-import Modal from "ui/components/Modal";
-import If from "ui/components/If";
+import Trans from "ui/components/trans";
+import Button from "ui/components/button";
+import Modal from "ui/components/modal";
+import If from "ui/components/if";
 import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
 
 const ModalHeading = <Trans i18nKey="organization:transferOwnership" />;

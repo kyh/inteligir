@@ -1,8 +1,8 @@
 import { use } from "react";
 import Link from "next/link";
 import { ChevronRight } from "@inteligir/icons";
-import { TextFieldInput, TextFieldLabel } from "ui/components/TextField";
-import Heading from "ui/components/Heading";
+import { TextFieldInput, TextFieldLabel } from "ui/components/text-field";
+import Heading from "ui/components/heading";
 import {
   Table,
   TableBody,
@@ -10,16 +10,16 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "ui/components/Table";
-import Tile from "ui/components/Tile";
-import Badge from "ui/components/Badge";
-import Label from "ui/components/Label";
+} from "ui/components/table";
+import Tile from "ui/components/tile";
+import Badge from "ui/components/badge";
+import Label from "ui/components/label";
 import { getSupabaseServerClient } from "@/lib/supabase/server-client";
-import AdminHeader from "@/app/admin/components/AdminHeader";
-import AdminGuard from "@/app/admin/components/AdminGuard";
-import AppContainer from "@/app/dashboard/[organization]/components/AppContainer";
-import RoleBadge from "@/app/dashboard/[organization]/settings/organization/components/RoleBadge";
-import UserActionsDropdown from "@/app/admin/users/[uid]/components/UserActionsDropdown";
+import AdminHeader from "@/app/admin/components/admin-header";
+import AdminGuard from "@/app/admin/components/admin-guard";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import RoleBadge from "@/app/dashboard/[organization]/settings/organization/components/role-badge";
+import UserActionsDropdown from "@/app/admin/users/[uid]/components/user-actions-dropdown";
 import configuration from "@/configuration";
 
 type Params = {

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import SidebarContext from "@/lib/contexts/sidebar-provider";
 import CsrfTokenContext from "@/lib/csrf/csrf-provider";
-import I18nProvider from "@/i18n/I18nProvider";
-import Toaster from "@/components/Toaster";
+import I18nProvider from "@/i18n/i18n-provider";
+import Toaster from "@/components/toaster";
 
 const AdminProviders = (
   props: React.PropsWithChildren<{

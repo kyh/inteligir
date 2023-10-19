@@ -3,10 +3,10 @@
 import type { FormEvent } from "react";
 import { useCallback } from "react";
 import { ArrowRightMini } from "@inteligir/icons";
-import Heading from "ui/components/Heading";
-import Button from "ui/components/Button";
-import TextField from "ui/components/TextField";
-import SubHeading from "ui/components/SubHeading";
+import Heading from "ui/components/heading";
+import Button from "ui/components/button";
+import TextField from "ui/components/text-field";
+import SubHeading from "ui/components/sub-heading";
 import useUserSession from "@/features/user/use-user-session";
 
 export type OrganizationInfoStepData = {

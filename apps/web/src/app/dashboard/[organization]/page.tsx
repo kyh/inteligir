@@ -1,8 +1,8 @@
 import loadDynamic from "next/dynamic";
 import { SquaresPlus } from "@inteligir/icons";
-import Spinner from "ui/components/Spinner";
-import AppHeader from "./components/AppHeader";
-import AppContainer from "./components/AppContainer";
+import Spinner from "ui/components/spinner";
+import AppHeader from "./components/app-header";
+import AppContainer from "./components/app-container";
 
 const DashboardDemo = loadDynamic(
   () => import("@/app/dashboard/[organization]/components/DashboardDemo"),

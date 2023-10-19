@@ -1,9 +1,9 @@
 import { useCallback, useTransition } from "react";
 import { deleteMemberAction } from "@/features/memberships/actions";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
-import Trans from "ui/components/Trans";
-import Button from "ui/components/Button";
-import Modal from "ui/components/Modal";
+import Trans from "ui/components/trans";
+import Button from "ui/components/button";
+import Modal from "ui/components/modal";
 
 const Heading = <Trans i18nKey="organization:removeMemberModalHeading" />;
 

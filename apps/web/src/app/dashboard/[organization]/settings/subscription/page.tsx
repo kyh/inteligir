@@ -1,7 +1,7 @@
-import Plans from "@/app/dashboard/[organization]/settings/subscription/components/Plans";
-import Trans from "ui/components/Trans";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/SettingsTile";
-import PlansStatusAlertContainer from "@/app/dashboard/[organization]/settings/subscription/components/PlanStatusAlertContainer";
+import Plans from "@/app/dashboard/[organization]/settings/subscription/components/plans";
+import Trans from "ui/components/trans";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import PlansStatusAlertContainer from "@/app/dashboard/[organization]/settings/subscription/components/plan-status-alert-container";
 import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {

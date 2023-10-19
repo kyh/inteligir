@@ -1,7 +1,7 @@
 import { use } from "react";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
-import BanUserModal from "../components/BanUserModal";
-import AdminGuard from "@/app/admin/components/AdminGuard";
+import BanUserModal from "../components/ban-user-modal";
+import AdminGuard from "@/app/admin/components/admin-guard";
 
 type Params = {
   params: {

@@ -1,5 +1,5 @@
 import loadAppData from "@/features/global/load-app-data";
-import AppRouteShell from "@/app/dashboard/[organization]/components/AppRouteShell";
+import AppRouteShell from "@/app/dashboard/[organization]/components/app-route-shell";
 
 const AppLayout = async ({
   children,

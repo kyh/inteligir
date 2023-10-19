@@ -1,7 +1,7 @@
 import Link from "next/link";
-import Trans from "ui/components/Trans";
-import Heading from "ui/components/Heading";
-import SignUpMethodsContainer from "@/app/auth/components/SignUpMethodsContainer";
+import Trans from "ui/components/trans";
+import Heading from "ui/components/heading";
+import SignUpMethodsContainer from "@/app/auth/components/sign-up-methods-container";
 import configuration from "@/configuration";
 import { withI18n } from "@/i18n/with-i18n";
 

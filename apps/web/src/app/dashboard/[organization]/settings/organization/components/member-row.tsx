@@ -1,8 +1,8 @@
-import MinusIcon from "@heroicons/react/24/outline/MinusIcon";
-import MembershipRoleSelector from "./MembershipRoleSelector";
+import MinusIcon from "@heroicons/react/24/outline/minus-icon";
+import MembershipRoleSelector from "./membership-role-selector";
 import type MembershipRole from "@/lib/organizations/types/membership-role";
-import Button from "ui/components/Button";
-import TextField from "ui/components/TextField";
+import Button from "ui/components/button";
+import TextField from "ui/components/text-field";
 
 type Member = {
   email: string;

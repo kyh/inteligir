@@ -1,5 +1,5 @@
 import Link from "next/link";
-import SubscriptionStatusBadge from "./SubscriptionStatusBadge";
+import SubscriptionStatusBadge from "./subscription-status-badge";
 import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
 
 const HeaderSubscriptionStatusBadge = () => {

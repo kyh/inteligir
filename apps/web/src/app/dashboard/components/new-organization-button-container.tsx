@@ -1,9 +1,9 @@
 "use client";
 
 import { PlusMini } from "@inteligir/icons";
-import CardButton from "ui/components/CardButton";
+import CardButton from "ui/components/card-button";
 import { CsrfTokenContext } from "@/lib/csrf/csrf-provider";
-import CreateOrganizationModal from "@/app/dashboard/[organization]/components/organizations/CreateOrganizationModal";
+import CreateOrganizationModal from "@/app/dashboard/[organization]/components/organizations/create-organization-modal";
 
 const NewOrganizationButtonContainer = ({
   csrfToken,

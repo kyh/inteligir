@@ -2,10 +2,10 @@ import type { FormEventHandler } from "react";
 import { useCallback, useTransition } from "react";
 import { createNewOrganizationAction } from "@/features/organizations/actions";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
-import Modal from "ui/components/Modal";
-import TextField from "ui/components/TextField";
-import Button from "ui/components/Button";
-import Trans from "ui/components/Trans";
+import Modal from "ui/components/modal";
+import TextField from "ui/components/text-field";
+import Button from "ui/components/button";
+import Trans from "ui/components/trans";
 
 const Heading = <Trans i18nKey="organization:createOrganizationModalHeading" />;
 

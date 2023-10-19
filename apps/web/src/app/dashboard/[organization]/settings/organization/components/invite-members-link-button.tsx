@@ -1,8 +1,8 @@
 "use client";
 
 import { User } from "@inteligir/icons";
-import Button from "ui/components/Button";
-import Trans from "ui/components/Trans";
+import Button from "ui/components/button";
+import Trans from "ui/components/trans";
 import useUserCanInviteUsers from "@/lib/organizations/hooks/use-user-can-invite-users";
 
 const InviteMembersLinkButton = (

@@ -1,6 +1,6 @@
 import type { OrganizationSubscription } from "@/lib/organizations/types/organization-subscription";
-import Alert from "ui/components/Alert";
-import Trans from "ui/components/Trans";
+import Alert from "ui/components/alert";
+import Trans from "ui/components/trans";
 
 const SubscriptionStatusAlert = (
   props: React.PropsWithChildren<{

@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback } from "react";
-import Trans from "ui/components/Trans";
-import AuthProviderButton from "ui/components/AuthProviderButton";
-import If from "ui/components/If";
-import PageLoadingIndicator from "ui/components/PageLoadingIndicator";
+import Trans from "ui/components/trans";
+import AuthProviderButton from "ui/components/auth-provider-button";
+import If from "ui/components/if";
+import PageLoadingIndicator from "ui/components/page-loading-indicator";
 import useSignInWithProvider from "@/features/auth/use-sign-in-with-provider";
-import AuthErrorMessage from "./AuthErrorMessage";
+import AuthErrorMessage from "./auth-error-message";
 import configuration from "@/configuration";
 
 const OAUTH_PROVIDERS = configuration.auth.providers.oAuth;

@@ -1,4 +1,4 @@
-import MultiFactorAuthenticationSettings from "./components/MultiFactorAuthenticationSettings";
+import MultiFactorAuthenticationSettings from "./components/multi-factor-authentication-settings";
 import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {

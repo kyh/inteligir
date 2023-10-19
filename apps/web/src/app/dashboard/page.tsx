@@ -2,11 +2,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 import { ChevronRight } from "@inteligir/icons";
-import LogoImage from "ui/components/Logo/LogoImage";
-import Container from "ui/components/Container";
-import If from "ui/components/If";
-import Heading from "ui/components/Heading";
-import CardButton from "ui/components/CardButton";
+import LogoImage from "ui/components/logo/logo-image";
+import Container from "ui/components/container";
+import If from "ui/components/if";
+import Heading from "ui/components/heading";
+import CardButton from "ui/components/card-button";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
 import requireSession from "@/features/auth/require-session";
 import getCurrentOrganization from "@/features/organizations/get-current-organization";
@@ -14,10 +14,10 @@ import { parseOrganizationIdCookie } from "@/features/organizations/organization
 import { getOrganizationsByUserId } from "@/lib/organizations/database/queries";
 import initializeServerI18n from "@/i18n/i18n.server";
 import getLanguageCookie from "@/i18n/get-language-cookie";
-import AppContainer from "@/app/dashboard/[organization]/components/AppContainer";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 import configuration from "@/configuration";
-import NewOrganizationButtonContainer from "@/app/dashboard/components/NewOrganizationButtonContainer";
-import I18nProvider from "@/i18n/I18nProvider";
+import NewOrganizationButtonContainer from "@/app/dashboard/components/new-organization-button-container";
+import I18nProvider from "@/i18n/i18n-provider";
 import { getUserById } from "@/lib/user/database/queries";
 
 const OrganizationsPage = async () => {

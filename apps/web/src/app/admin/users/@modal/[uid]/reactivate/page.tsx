@@ -1,8 +1,8 @@
 import { use } from "react";
 import { redirect } from "next/navigation";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
-import AdminGuard from "@/app/admin/components/AdminGuard";
-import ReactivateUserModal from "@/app/admin/users/@modal/[uid]/components/ReactivateUserModal";
+import AdminGuard from "@/app/admin/components/admin-guard";
+import ReactivateUserModal from "@/app/admin/users/@modal/[uid]/components/reactivate-user-modal";
 
 type Params = {
   params: {
