@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "ui/lib/cn";
+import { clx } from "@inteligir/ui";
 
 export const Ul: FC<React.HTMLProps<HTMLUListElement>> = ({
   children,
@@ -7,7 +7,7 @@ export const Ul: FC<React.HTMLProps<HTMLUListElement>> = ({
   ...props
 }) => {
   return (
-    <ul {...props} className={cn("list-disc pl-5", className)}>
+    <ul {...props} className={clx("list-disc pl-5", className)}>
       {children}
     </ul>
   );

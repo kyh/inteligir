@@ -1,0 +1,36 @@
+import { AuthError } from "@supabase/gotrue-js";
+import Trans from "ui/components/Trans";
+import Alert from "ui/components/Alert";
+
+/**
+ * @name AuthErrorMessage
+ * @param error This error comes from Supabase as the code returned on errors
+ * This error is mapped from the translation auth:errors.{error}
+ * To update the error messages, please update the translation file
+ * https://github.com/supabase/gotrue-js/blob/master/src/lib/errors.ts
+ * @constructor
+ */
+export default ({ error }: { error: Maybe<Error | AuthError | unknown> }) => {
+  if (!error) {
+    return null;
+  }
+
+  const DefaultError = <Trans i18nKey="auth:errors.default" />;
+  const errorCode = error instanceof AuthError ? error.message : error;
+
+  return (
+    <Alert className="w-full" type="error">
+      <Alert.Heading>
+        <Trans i18nKey="auth:errorAlertHeading" />
+      </Alert.Heading>
+
+      <p className="text-sm font-medium" data-cy="auth-error-message">
+        <Trans
+          components={{ DefaultError }}
+          defaults="<DefaultError />"
+          i18nKey={`auth:errors.${errorCode}`}
+        />
+      </p>
+    </Alert>
+  );
+};

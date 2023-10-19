@@ -21,22 +21,22 @@ export const Steps = () => {
         <div className="relative mt-12 rounded-3xl bg-gradient-to-t from-white/20 p-2 ring-1 ring-white/10">
           <div className="relative flex w-full select-none flex-col justify-center gap-2 rounded-2xl bg-ui-bg-component shadow-xl sm:inline-grid sm:grid-cols-3 md:gap-6 md:rounded-b-none md:rounded-t-3xl lg:flex-none lg:items-center">
             <button
-              type="button"
               className="relative z-20 flex w-full flex-col p-4 text-left md:p-8"
-              onClick={() => setCurrentTab(1)}
+              onClick={() => { setCurrentTab(1); }}
+              type="button"
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
                   className="h-5 w-5 text-ui-fg-subtle"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2"
-                  stroke="currentColor"
                   fill="none"
+                  stroke="currentColor"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M0 0h24v24H0z" fill="none" stroke="none" />
                   <path d="M6 17.6l-2 -1.1v-2.5" opacity="0.5" />
                   <path d="M4 10v-2.5l2 -1.1" />
                   <path d="M10 4.1l2 -1.1l2 1.1" opacity="0.5" />
@@ -61,22 +61,22 @@ export const Steps = () => {
               </p>
             </button>
             <button
-              type="button"
               className="relative z-20 flex w-full flex-col p-4 text-left md:p-8"
-              onClick={() => setCurrentTab(2)}
+              onClick={() => { setCurrentTab(2); }}
+              type="button"
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
                   className="h-5 w-5 text-ui-fg-subtle"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2"
-                  stroke="currentColor"
                   fill="none"
+                  stroke="currentColor"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M0 0h24v24H0z" fill="none" stroke="none" />
                   <path d="M4 8h4v4h-4z" />
                   <path d="M6 4l0 4" />
                   <path d="M6 12l0 8" opacity="0.5" />
@@ -97,26 +97,26 @@ export const Steps = () => {
               </p>
             </button>
             <button
-              type="button"
               className="relative z-20 flex w-full flex-col p-4 text-left md:p-8"
-              onClick={() => setCurrentTab(3)}
+              onClick={() => { setCurrentTab(3); }}
+              type="button"
             >
               <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <svg
-                  xmlns="http://www.w3.org/2000/svg"
                   className="h-5 w-5 text-ui-fg-subtle"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2"
-                  stroke="currentColor"
                   fill="none"
+                  stroke="currentColor"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                  xmlns="http://www.w3.org/2000/svg"
                 >
-                  <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+                  <path d="M0 0h24v24H0z" fill="none" stroke="none" />
                   <path d="M14 3v4a1 1 0 0 0 1 1h4" />
                   <path
-                    opacity="0.5"
                     d="M17 21h-10a2 2 0 0 1 -2 -2v-14a2 2 0 0 1 2 -2h7l5 5v11a2 2 0 0 1 -2 2z"
+                    opacity="0.5"
                   />
                   <path d="M12 17v.01" />
                   <path d="M12 14a1.5 1.5 0 1 0 -1.14 -2.474" />
@@ -142,8 +142,8 @@ export const Steps = () => {
                     <div className="w-full overflow-hidden">
                       <img
                         alt=""
-                        src={`/screenshots/chart${i}.svg`}
                         className="w-full invert"
+                        src={`/screenshots/chart${i}.svg`}
                       />
                     </div>
                   </div>

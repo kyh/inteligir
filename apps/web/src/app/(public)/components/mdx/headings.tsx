@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { cn } from "ui/lib/cn";
+import { clx } from "@inteligir/ui";
 import { getNodeText, sluggifyTitle } from "@/lib/content";
 
 const Heading = (variant: "1" | "2" | "3" | "4") => {
@@ -11,13 +11,13 @@ const Heading = (variant: "1" | "2" | "3" | "4") => {
 
     return (
       <Tag
-        id={slug}
-        className={cn("group mb-2 mt-8 scroll-mt-24 font-medium", {
+        className={clx("group mb-2 mt-8 scroll-mt-24 font-medium", {
           "text-3xl font-bold": variant === "1",
           "text-2xl font-semibold": variant === "2",
           "text-xl font-medium": variant === "3",
           "text-lg": variant === "4",
         })}
+        id={slug}
       >
         <Link href={`#${slug}`}>
           <span className="absolute left-[0px] z-10 hidden text-ui-fg-base lg:group-hover:inline">

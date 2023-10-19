@@ -1,29 +1,22 @@
-import { Head } from "ui/components/head";
 import Link from "next/link";
 import { allTemplates, type Template } from "contentlayer/generated";
 
 export const revalidate = 60;
 
-const Page = async () => {
+const Page = () => {
   return (
-    <>
-      <Head
-        title="Examples"
-        description="Learn how to make production ready web apps with Inteligir"
-        image="https://cdn.hashnode.com/res/hashnode/image/upload/v1678913555475/TFjT1bbJa.png"
-      />
-      <section className="container max-w-6xl pt-24 lg:pt-56">
-        <div>
-          <h1 className="bg-gradient-to-r from-slate-50 via-slate-300 to-slate-600 bg-clip-text pb-2 font-display text-4xl font-normal tracking-tight text-transparent sm:text-6xl">
-            Unleash your potential
-            <span className="lg:block"> through seamless online learning</span>
-          </h1>
-          <p className="mt-4 max-w-xl text-slate-300">
-            Discover a boundless realm of knowledge and personal growth, all
-            conclaiently accessible right at your fingertips
-          </p>
-        </div>
-        {/* <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-4">
+    <section className="container max-w-6xl pt-24 lg:pt-56">
+      <div>
+        <h1 className="bg-gradient-to-r from-slate-50 via-slate-300 to-slate-600 bg-clip-text pb-2 font-display text-4xl font-normal tracking-tight text-transparent sm:text-6xl">
+          Unleash your potential
+          <span className="lg:block"> through seamless online learning</span>
+        </h1>
+        <p className="mt-4 max-w-xl text-slate-300">
+          Discover a boundless realm of knowledge and personal growth, all
+          conclaiently accessible right at your fingertips
+        </p>
+      </div>
+      {/* <div className="mt-12 grid grid-cols-1 gap-8 lg:grid-cols-4">
           <div className="flex flex-wrap items-center">
             <div>
               <label className="sr-only" htmlFor="search">
@@ -58,13 +51,12 @@ const Page = async () => {
             ))}
           </ol>
         </div> */}
-        <ul className="relative mt-12 grid list-none grid-cols-1 gap-2 rounded-3xl bg-gradient-to-t from-white/20 p-2 ring-1 ring-white/10 md:grid-cols-3 lg:mt-24">
-          {allTemplates.map((template) => (
-            <TemplateCard template={template} />
-          ))}
-        </ul>
-      </section>
-    </>
+      <ul className="relative mt-12 grid list-none grid-cols-1 gap-2 rounded-3xl bg-gradient-to-t from-white/20 p-2 ring-1 ring-white/10 md:grid-cols-3 lg:mt-24">
+        {allTemplates.map((template) => (
+          <TemplateCard key={template._id} template={template} />
+        ))}
+      </ul>
+    </section>
   );
 };
 
@@ -74,19 +66,19 @@ const TemplateCard = ({ template }: { template: Template }) => {
   return (
     <li>
       <Link
+        className="group flex h-full flex-col justify-between rounded-2xl bg-ui-bg-base p-2 shadow-lg ring-1 ring-white/10 backdrop-blur-2xl"
         href={`/examples/${template.slug}`}
         title={template.title}
-        className="group flex h-full flex-col justify-between rounded-2xl bg-ui-bg-base p-2 shadow-lg ring-1 ring-white/10 backdrop-blur-2xl"
       >
         <article className="flex h-full flex-1 flex-col">
           <div className="block w-full lg:col-span-2">
-            {template.heroImage && (
+            {template.heroImage ? (
               <img
+                alt={template.title}
                 className="aspect-[384/246] h-full rounded-2xl bg-center object-cover"
                 src={template.heroImage}
-                alt={template.title}
               />
-            )}
+            ) : null}
           </div>
           <div className="mt-4 flex w-full flex-1 flex-col items-start justify-between p-4">
             <div className="w-full">

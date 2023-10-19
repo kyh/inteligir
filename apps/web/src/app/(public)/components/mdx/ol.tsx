@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "ui/lib/cn";
+import { clx } from "@inteligir/ui";
 
 export const Ol: FC<React.HTMLProps<HTMLOListElement>> = ({
   children,
@@ -7,7 +7,7 @@ export const Ol: FC<React.HTMLProps<HTMLOListElement>> = ({
   ...props
 }) => {
   return (
-    <ol {...props} className={cn("list-decimal pl-5", className)} type="1">
+    <ol {...props} className={clx("list-decimal pl-5", className)} type="1">
       {children}
     </ol>
   );

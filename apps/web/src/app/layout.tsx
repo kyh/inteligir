@@ -1,7 +1,5 @@
-import { Toaster } from "ui/components/toaster";
-import { SupabaseProvider } from "@/components/supabase-provider";
-import { PHProvider } from "@/components/posthog-provider";
-import { ThemeProvider } from "@/components/theme-provider";
+import { Toaster } from "@inteligir/ui";
+import { ThemeProvider } from "@/lib/contexts/theme-provider";
 import "./globals.css";
 
 export const metadata = {
@@ -14,11 +12,7 @@ const RootLayout = ({ children }: { children: React.ReactNode }) => {
     <html lang="en" suppressHydrationWarning>
       <head />
       <body className="bg-ui-bg-base">
-        <ThemeProvider>
-          <PHProvider>
-            <SupabaseProvider>{children}</SupabaseProvider>
-          </PHProvider>
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
         <Toaster />
       </body>
     </html>

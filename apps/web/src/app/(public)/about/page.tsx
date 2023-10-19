@@ -1,19 +1,10 @@
-import { Head } from "ui/components/head";
-
-const Page = async () => {
+const Page = () => {
   return (
-    <>
-      <Head
-        title="Inteligir About"
-        description="Learn how to make production ready web apps with Inteligir"
-        image="https://cdn.hashnode.com/res/hashnode/image/upload/v1678913555475/TFjT1bbJa.png"
-      />
-      <div className="container mt-16 max-w-6xl lg:mt-16">
-        <div className="mt-20 flex flex-col justify-between gap-4 md:mb-12 md:mt-28 md:flex-row md:items-center">
-          <h1 className="text-4xl font-bold md:text-5xl">About</h1>
-        </div>
+    <div className="container mt-16 max-w-6xl lg:mt-16">
+      <div className="mt-20 flex flex-col justify-between gap-4 md:mb-12 md:mt-28 md:flex-row md:items-center">
+        <h1 className="text-4xl font-bold md:text-5xl">About</h1>
       </div>
-    </>
+    </div>
   );
 };
 

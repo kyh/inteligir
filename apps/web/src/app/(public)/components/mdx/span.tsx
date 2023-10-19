@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "ui/lib/cn";
+import { clx } from "@inteligir/ui";
 
 export const Span: FC<React.HTMLProps<HTMLSpanElement>> = ({
   children,
@@ -7,7 +7,7 @@ export const Span: FC<React.HTMLProps<HTMLSpanElement>> = ({
   ...props
 }) => {
   return (
-    <span {...props} className={cn("", className)}>
+    <span {...props} className={clx("", className)}>
       {children}
     </span>
   );

@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "ui/lib/cn";
+import { clx } from "@inteligir/ui";
 
 export const Li: FC<React.HTMLProps<HTMLLIElement>> = ({
   children,
@@ -7,7 +7,7 @@ export const Li: FC<React.HTMLProps<HTMLLIElement>> = ({
   ...props
 }) => {
   return (
-    <li {...props} className={cn("mb-1", className)}>
+    <li {...props} className={clx("mb-1", className)}>
       {children}
     </li>
   );

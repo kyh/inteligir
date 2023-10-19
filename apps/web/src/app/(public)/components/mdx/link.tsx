@@ -1,6 +1,6 @@
 import NextLink from "next/link";
 import type { FC } from "react";
-import { ArrowUpRight } from "ui/icons";
+import { ArrowUpRightMini } from "@inteligir/icons";
 
 export const Link: FC<React.HTMLProps<HTMLAnchorElement>> = ({
   href = "",
@@ -11,16 +11,16 @@ export const Link: FC<React.HTMLProps<HTMLAnchorElement>> = ({
   return (
     <NextLink
       href={href}
-      target={isExternalUrl ? "_blank" : undefined}
       rel={isExternalUrl ? "noreferrer" : undefined}
+      target={isExternalUrl ? "_blank" : undefined}
     >
       <span className="inline-flex items-center font-medium underline">
         <span>{children}</span>
-        {isExternalUrl && (
+        {isExternalUrl ? (
           <span className="block w-4">
-            <ArrowUpRight className="w-4" />
+            <ArrowUpRightMini className="w-4" />
           </span>
-        )}
+        ) : null}
       </span>
     </NextLink>
   );

@@ -1,32 +1,32 @@
 "use client";
 
-import { cn } from "ui/lib/cn";
-import { Menu } from "ui/icons";
+import { clx, Logo, Button } from "@inteligir/ui";
+import { BarsThree } from "@inteligir/icons";
 import Link from "next/link";
 import { useState } from "react";
-import { Logo } from "ui/components/logo";
-import { Session } from "@supabase/supabase-js";
-import { Button } from "ui/components/button";
+import type { Session } from "@supabase/supabase-js";
 
-export function Header({ session }: { session?: Session | null }) {
+export const Header = ({ session }: { session?: Session | null }) => {
   const [open, setOpen] = useState(false);
 
   return (
     <section className="relatve fixed top-0 z-50 w-full overflow-hidden backdrop-blur-2xl">
       <div className="container flex max-w-6xl flex-col py-5 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-row items-center justify-between text-ui-fg-base lg:justify-start">
-          <Link href="/" className="inline-flex items-center gap-3">
+          <Link className="inline-flex items-center gap-3" href="/">
             <Logo />
           </Link>
           <button
-            onClick={() => setOpen(!open)}
             className="inline-flex items-center justify-center p-2 text-ui-fg-base hover:text-indigo-400 focus:text-ui-fg-base focus:outline-none md:hidden"
+            onClick={() => {
+              setOpen(!open);
+            }}
           >
-            <Menu className="h-6 w-6" />
+            <BarsThree className="h-6 w-6" />
           </button>
         </div>
         <nav
-          className={cn(
+          className={clx(
             open ? "flex" : "hidden",
             "flex-grow flex-col items-center md:flex md:flex-row md:justify-end md:pb-0",
           )}
@@ -43,12 +43,7 @@ export function Header({ session }: { session?: Session | null }) {
           >
             Integrations
           </Link>
-          <Button
-            className="ml-2 md:ml-4"
-            variant="secondary"
-            size="sm"
-            asChild
-          >
+          <Button asChild className="ml-2 md:ml-4" variant="secondary">
             <Link href={session ? "/start" : "/login"}>
               {session ? "Dashboard" : "Login"}
             </Link>
@@ -57,4 +52,4 @@ export function Header({ session }: { session?: Session | null }) {
       </div>
     </section>
   );
-}
+};

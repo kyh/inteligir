@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "ui/lib/cn";
+import { clx } from "@inteligir/ui";
 
 export const P: FC<React.HTMLProps<HTMLParagraphElement>> = ({
   children,
@@ -7,7 +7,7 @@ export const P: FC<React.HTMLProps<HTMLParagraphElement>> = ({
   ...props
 }) => {
   return (
-    <p {...props} className={cn("my-5 leading-relaxed", className)}>
+    <p {...props} className={clx("my-5 leading-relaxed", className)}>
       {children}
     </p>
   );

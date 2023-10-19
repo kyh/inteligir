@@ -2,8 +2,7 @@
 
 import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+import { sleep } from "@/lib/utils/min-delay";
 
 export const joinWaitlist = async (formData: FormData) => {
   await sleep(1000);

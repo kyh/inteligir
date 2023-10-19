@@ -1,152 +1,92 @@
 import {
+  Body,
   Button,
   Container,
+  Column,
   Head,
+  Heading,
   Hr,
   Html,
   Img,
   Link,
   Preview,
+  Row,
   Section,
   Text,
+  Tailwind,
+  render,
 } from "@react-email/components";
 
-type InviteUserEmailProps = {
-  toEmail: string;
-  inviteUrl: string;
+type Props = {
+  organizationName: string;
+  organizationLogo?: string;
+  inviter?: string;
+  invitedUserEmail: string;
+  link: string;
+  productName: string;
 };
 
-const InviteEmail = ({
-  toEmail = "jane@company.com",
-  inviteUrl = "https://google.com/test-url",
-}: InviteUserEmailProps) => {
-  const baseUrl = process.env.NEXT_PUBLIC_URL || "http://localhost:3000";
-  const toName = toEmail.split("@")[0];
+export default function renderInviteEmail(props: Props) {
+  const previewText = `Join ${props.invitedUserEmail} on ${props.productName}}`;
 
-  return (
+  return render(
     <Html>
       <Head />
-      <Preview>Invite to Inteligir</Preview>
-      <Section style={main}>
-        <Container style={container}>
-          <Section style={{ marginTop: "32px" }}>
-            <Img
-              alt="Inteligir"
-              height="24"
-              src={`${baseUrl}/images/logo.png`}
-              style={logo}
-              width="128"
-            />
-          </Section>
-          <Text style={h1}>Join Inteligir</Text>
-          <Text style={text}>Hello {toName},</Text>
-          <Text style={text}>
-            You have been invited to join Inteligir. Click the button below to
-            join the team.
-          </Text>
-          <Section style={{ textAlign: "center" }}>
-            <Button href={inviteUrl} pX={20} pY={12} style={btn}>
-              Join the team
-            </Button>
-          </Section>
-          <Text style={text}>
-            <br />
-            or copy and paste this URL into your browser:{" "}
-            <Link
-              href={inviteUrl}
-              rel="noreferrer"
-              style={link}
-              target="_blank"
-            >
-              {inviteUrl}
-            </Link>
-          </Text>
-          <Hr style={hr} />
-          <Text style={footer}>
-            This invitation was intended for{" "}
-            <span style={black}>{toEmail}</span>. If you were not expecting this
-            invitation, you can ignore this email. If you are concerned about
-            your account&apos;s safety, please reply to this email to get in
-            touch with us.
-          </Text>
-        </Container>
-      </Section>
-    </Html>
+      <Preview>{previewText}</Preview>
+
+      <Tailwind>
+        <Body className="mx-auto my-auto bg-gray-50 font-sans">
+          <Container className="mx-auto my-[40px] w-[465px] rounded-lg border border-solid border-[#eaeaea] bg-white p-[20px]">
+            <Heading className="mx-0 my-[30px] p-0 text-center text-[24px] font-normal text-black">
+              Join <strong>{props.organizationName}</strong> on{" "}
+              <strong>{props.productName}</strong>
+            </Heading>
+            <Text className="text-[14px] leading-[24px] text-black">
+              Hello {props.invitedUserEmail},
+            </Text>
+            <Text className="text-[14px] leading-[24px] text-black">
+              <strong>{props.inviter}</strong> has invited you to the{" "}
+              <strong>{props.organizationName}</strong> team on{" "}
+              <strong>{props.productName}</strong>.
+            </Text>
+            {props.organizationLogo ? (
+              <Section>
+                <Row>
+                  <Column align="center">
+                    <Img
+                      className="rounded-full"
+                      height="64"
+                      src={props.organizationLogo}
+                      width="64"
+                    />
+                  </Column>
+                </Row>
+              </Section>
+            ) : null}
+            <Section className="mb-[32px] mt-[32px] text-center">
+              <Button
+                className="rounded bg-[#000000] text-center text-[12px] font-semibold text-white no-underline"
+                href={props.link}
+                pX={20}
+                pY={12}
+              >
+                Join {props.organizationName}
+              </Button>
+            </Section>
+            <Text className="text-[14px] leading-[24px] text-black">
+              or copy and paste this URL into your browser:{" "}
+              <Link className="text-blue-600 no-underline" href={props.link}>
+                {props.link}
+              </Link>
+            </Text>
+            <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
+            <Text className="text-[12px] leading-[24px] text-[#666666]">
+              This invitation was intended for{" "}
+              <span className="text-black">{props.invitedUserEmail}</span>.
+            </Text>
+          </Container>
+        </Body>
+      </Tailwind>
+    </Html>,
   );
-};
-
-const main = {
-  backgroundColor: "#ffffff",
-  margin: "0 auto",
-};
-
-const container = {
-  border: "1px solid #eaeaea",
-  borderRadius: "5px",
-  margin: "40px auto",
-  padding: "20px",
-  width: "465px",
-};
-
-const logo = {
-  margin: "0 auto",
-  width: 100,
-};
-
-const h1 = {
-  color: "#000",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "24px",
-  fontWeight: "normal",
-  textAlign: "center" as const,
-  margin: "30px 0",
-  padding: "0",
-};
-
-const link = {
-  color: "#067df7",
-  textDecoration: "none",
-};
-
-const text = {
-  color: "#000",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "14px",
-  lineHeight: "24px",
-};
-
-const black = {
-  color: "black",
-};
-
-const btn = {
-  backgroundColor: "#000",
-  borderRadius: "5px",
-  color: "#fff",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "12px",
-  fontWeight: 500,
-  lineHeight: "50px",
-  textDecoration: "none",
-  textAlign: "center" as const,
-};
-
-const hr = {
-  border: "none",
-  borderTop: "1px solid #eaeaea",
-  margin: "26px 0",
-  width: "100%",
-};
-
-const footer = {
-  color: "#666666",
-  fontFamily:
-    "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif",
-  fontSize: "12px",
-  lineHeight: "24px",
-};
-
-export default InviteEmail;
+}

@@ -20,6 +20,7 @@ module.exports = {
     "@vercel/style-guide/eslint/next",
     "eslint-config-turbo",
   ].map(require.resolve),
+  plugins: ["prefer-arrow-functions"],
   parserOptions: {
     project,
   },
@@ -57,6 +58,16 @@ module.exports = {
       "error",
       {
         checksVoidReturn: false,
+      },
+    ],
+    "@typescript-eslint/no-explicit-any": "off",
+    "prefer-arrow-functions/prefer-arrow-functions": [
+      "warn",
+      {
+        classPropertiesAllowed: false,
+        disallowPrototype: false,
+        returnStyle: "unchanged",
+        singleReturnOnly: false,
       },
     ],
   },

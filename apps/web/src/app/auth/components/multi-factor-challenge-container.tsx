@@ -1,0 +1,198 @@
+import type { FormEventHandler } from "react";
+import { useCallback, useEffect, useState } from "react";
+import useMutation from "swr/mutation";
+import Spinner from "ui/components/Spinner";
+import Alert from "ui/components/Alert";
+import Button from "ui/components/Button";
+import Heading from "ui/components/Heading";
+import If from "ui/components/If";
+import Trans from "ui/components/Trans";
+import useFetchAuthFactors from "@/features/auth/use-fetch-factors";
+import useSignOut from "@/features/auth/use-sign-out";
+import useSupabase from "@/lib/supabase/use-supabase";
+import VerificationCodeInput from "./VerificationCodeInput";
+
+const MultiFactorChallengeContainer = ({
+  onSuccess,
+}: React.PropsWithChildren<{
+  onSuccess: () => void;
+}>) => {
+  const [factorId, setFactorId] = useState("");
+  const [verifyCode, setVerifyCode] = useState("");
+  const mutation = useVerifyMFAChallenge();
+
+  const onSubmitClicked: FormEventHandler<HTMLFormElement> = useCallback(
+    async (event) => {
+      event.preventDefault();
+
+      if (!factorId || !verifyCode) {
+        return;
+      }
+
+      await mutation.trigger({
+        factorId,
+        verifyCode,
+      });
+
+      onSuccess();
+    },
+    [factorId, mutation, onSuccess, verifyCode],
+  );
+
+  if (!factorId) {
+    return (
+      <FactorsListContainer onSelect={setFactorId} onSuccess={onSuccess} />
+    );
+  }
+
+  return (
+    <form onSubmit={onSubmitClicked}>
+      <div className="flex flex-col space-y-4">
+        <span className="text-sm">
+          <Trans i18nKey="profile:verifyActivationCodeDescription" />
+        </span>
+
+        <div className="flex w-full flex-col space-y-2.5">
+          <VerificationCodeInput
+            onInvalid={() => {
+              setVerifyCode("");
+            }}
+            onValid={setVerifyCode}
+          />
+
+          <If condition={mutation.error}>
+            <Alert type="error">
+              <Trans i18nKey="profile:invalidVerificationCode" />
+            </Alert>
+          </If>
+        </div>
+
+        <Button disabled={!verifyCode} loading={mutation.isMutating}>
+          {mutation.isMutating ? (
+            <Trans i18nKey="profile:verifyingCode" />
+          ) : (
+            <Trans i18nKey="profile:submitVerificationCode" />
+          )}
+        </Button>
+      </div>
+    </form>
+  );
+};
+
+export default MultiFactorChallengeContainer;
+
+const useVerifyMFAChallenge = () => {
+  const client = useSupabase();
+
+  return useMutation(
+    ["mfa-verify-challenge"],
+    async (
+      _,
+      {
+        arg,
+      }: {
+        arg: {
+          factorId: string;
+          verifyCode: string;
+        };
+      },
+    ) => {
+      const { factorId, verifyCode: code } = arg;
+
+      const response = await client.auth.mfa.challengeAndVerify({
+        factorId,
+        code,
+      });
+
+      if (response.error) {
+        throw response.error;
+      }
+
+      return response.data;
+    },
+  );
+};
+
+const FactorsListContainer = ({
+  onSuccess,
+  onSelect,
+}: React.PropsWithChildren<{
+  onSuccess: () => void;
+  onSelect: (factor: string) => void;
+}>) => {
+  const signOut = useSignOut();
+
+  const { data: factors, isLoading, error } = useFetchAuthFactors();
+
+  const isSuccess = factors && !isLoading && !error;
+
+  useEffect(() => {
+    // If there are no factors, continue
+    if (isSuccess && !factors.totp.length) {
+      onSuccess();
+    }
+  }, [factors?.totp.length, isSuccess, onSuccess]);
+
+  useEffect(() => {
+    // If there is an error, sign out
+    if (error) {
+      void signOut();
+    }
+  }, [error, signOut]);
+
+  useEffect(() => {
+    // If there is only one factor, select it automatically
+    if (isSuccess && factors.totp.length === 1) {
+      onSelect(factors.totp[0].id);
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col items-center space-y-4 py-8">
+        <Spinner />
+
+        <div>
+          <Trans i18nKey="profile:loadingFactors" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full">
+        <Alert type="error">
+          <Trans i18nKey="profile:factorsListError" />
+        </Alert>
+      </div>
+    );
+  }
+
+  const verifiedFactors = factors?.totp ?? [];
+
+  return (
+    <div className="flex flex-col space-y-4">
+      <div>
+        <Heading type={6}>
+          <Trans i18nKey="profile:selectFactor" />
+        </Heading>
+      </div>
+
+      {verifiedFactors.map((factor) => (
+        <div key={factor.id}>
+          <Button
+            block
+            className="border-gray-50"
+            onClick={() => {
+              onSelect(factor.id);
+            }}
+            variant="outline"
+          >
+            {factor.friendly_name}
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+};

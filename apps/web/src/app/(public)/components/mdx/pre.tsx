@@ -1,5 +1,5 @@
 import type { FC } from "react";
-import { cn } from "ui/lib/cn";
+import { clx } from "@inteligir/ui";
 
 export const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
   children,
@@ -9,7 +9,7 @@ export const Pre: FC<React.HTMLProps<HTMLPreElement>> = ({
   return (
     <pre
       {...props}
-      className={cn(
+      className={clx(
         "mb-2 mt-4 overflow-auto whitespace-pre rounded-md bg-gray-100 p-4 text-sm",
         className,
       )}
