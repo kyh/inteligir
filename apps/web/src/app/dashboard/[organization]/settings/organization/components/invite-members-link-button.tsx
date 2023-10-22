@@ -18,7 +18,7 @@ function InviteMembersLinkButton(
   }
 
   return (
-    <Button
+    (<Button
       size={"small"}
       className={"w-full lg:w-auto"}
       data-cy={"invite-form-link"}
@@ -29,10 +29,10 @@ function InviteMembersLinkButton(
         <UserPlusIcon className="h-5" />
 
         <span>
-          <Trans i18nKey={"organization:inviteMembersButtonLabel"} />
+          Invite Members
         </span>
       </span>
-    </Button>
+    </Button>)
   );
 }
 

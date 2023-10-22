@@ -3,7 +3,6 @@
 import React, { useState } from "react";
 import dynamic from "next/dynamic";
 import If from "@inteligir/ui/if";
-import Trans from "@inteligir/ui/trans";
 import Alert from "@inteligir/ui/alert";
 import Button from "@inteligir/ui/button";
 import ErrorBoundary from "@inteligir/ui/error-boundary";
@@ -58,10 +57,7 @@ const PlanSelectionForm: React.FCC<{
                     recommended={props.recommended}
                     stripePriceId={props.stripePriceId}
                   >
-                    <Trans
-                      defaults="Checkout"
-                      i18nKey="subscription:checkout"
-                    />
+                    Checkout
                   </CheckoutRedirectButton>
                 </ErrorBoundary>
               );
@@ -71,11 +67,12 @@ const PlanSelectionForm: React.FCC<{
           <If condition={customerId}>
             <div className="flex flex-col space-y-2">
               <BillingPortalRedirectButton customerId={customerId as string}>
-                <Trans i18nKey="subscription:manageBilling" />
+                Go to Customer Portal
               </BillingPortalRedirectButton>
 
               <span className="text-xs text-gray-500 dark:text-gray-400">
-                <Trans i18nKey="subscription:manageBillingDescription" />
+                Visit your Customer Portal to manage your subscription and
+                billing.
               </span>
             </div>
           </If>
@@ -90,21 +87,21 @@ export default PlanSelectionForm;
 const NoPermissionsAlert = () => (
   <Alert type="warn">
     <Alert.Heading>
-      <Trans i18nKey="subscription:noPermissionsAlertHeading" />
+      You don't have permissions to change the billing
     </Alert.Heading>
-
-    <Trans i18nKey="subscription:noPermissionsAlertBody" />
+    Please contact your organization owner to change the billing settings for
+    your organization.
   </Alert>
 );
 
 const CheckoutErrorMessage = ({ onRetry }: { onRetry: () => void }) => (
   <div className="flex flex-col space-y-2">
     <span className="text-sm font-medium text-red-500">
-      <Trans i18nKey="subscription:unknownErrorAlertHeading" />
+      Sorry, something went wrong
     </span>
 
     <Button onClick={onRetry} variant="ghost">
-      <Trans i18nKey="common:retry" />
+      Retry
     </Button>
   </div>
 );

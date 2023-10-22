@@ -42,12 +42,11 @@ const ProfileDropdown: React.FCC<{
   }, [user]);
 
   return (
-    <DropdownMenu>
+    (<DropdownMenu>
       <DropdownMenuTrigger className="flex cursor-pointer items-center space-x-2 focus:outline-none">
         <ProfileAvatar user={userSession} />
         <ChevronDownIcon className="hidden h-3 sm:block" />
       </DropdownMenuTrigger>
-
       <DropdownMenuContent
         className="!min-w-[15rem]"
         collisionPadding={{ right: 20 }}
@@ -71,7 +70,7 @@ const ProfileDropdown: React.FCC<{
           >
             <Squares2X2Icon className="h-5" />
             <span>
-              <Trans i18nKey="common:dashboardTabLabel" />
+              Dashboard
             </span>
           </Link>
         </DropdownMenuItem>
@@ -100,12 +99,12 @@ const ProfileDropdown: React.FCC<{
             <ArrowLeftOnRectangleIcon className="h-5" />
 
             <span>
-              <Trans i18nKey="auth:signOut" />
+              Sign out
             </span>
           </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>
+    </DropdownMenu>)
   );
 };
 

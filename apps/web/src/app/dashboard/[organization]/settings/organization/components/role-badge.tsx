@@ -1,8 +1,7 @@
 import Trans from "@inteligir/ui/trans";
 import { cva } from "cva";
-
-import MembershipRole from "@/lib/organizations/types/membership-role";
 import Badge from "@inteligir/ui/badge";
+import MembershipRole from "@/lib/organizations/types/membership-role";
 import roles from "@/lib/organizations/roles";
 
 const roleClassNameBuilder = cva("font-medium", {
@@ -23,10 +22,8 @@ const RoleBadge: React.FCC<{
   const className = roleClassNameBuilder({ role });
 
   return (
-    <Badge color={"custom"} size={"small"} className={className}>
-      <span data-cy={"member-role-badge"}>
-        <Trans i18nKey={data?.label} />
-      </span>
+    <Badge className={className} color="custom" size="small">
+      <span data-cy="member-role-badge">{data?.label}</span>
     </Badge>
   );
 };

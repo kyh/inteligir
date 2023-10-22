@@ -90,7 +90,7 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
   }, [reset, updateUserMutation.data]);
 
   return (
-    <form
+    (<form
       className={"flex flex-col space-y-4"}
       data-cy={"update-email-form"}
       onSubmit={handleSubmit(onSubmit)}
@@ -98,18 +98,15 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
       <If condition={updateUserMutation.data}>
         <Alert type={"success"}>
           <Alert.Heading>
-            <Trans i18nKey={"profile:updateEmailSuccess"} />
+            Email update request successful
           </Alert.Heading>
-
-          <Trans i18nKey={"profile:updateEmailSuccessMessage"} />
+          We sent you an email to confirm your new email address. Please check your inbox and click on the link to confirm your new email address.
         </Alert>
       </If>
-
       <div className={"flex flex-col space-y-4"}>
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={"profile:newEmail"} />
-
+            Your New Email
             <TextField.Input
               {...emailControl}
               data-cy={"profile-new-email-input"}
@@ -122,8 +119,7 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={"profile:repeatEmail"} />
-
+            Repeat Email
             <TextField.Input
               {...repeatEmailControl}
               data-cy={"profile-repeat-email-input"}
@@ -138,11 +134,11 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
             className={"w-full md:w-auto"}
             loading={updateUserMutation.isMutating}
           >
-            <Trans i18nKey={"profile:updateEmailSubmitLabel"} />
+            Update Email Address
           </Button>
         </div>
       </div>
-    </form>
+    </form>)
   );
 };
 

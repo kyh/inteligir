@@ -44,64 +44,58 @@ const NewUserInviteForm = (
     [csrfToken, props.code],
   );
 
-  return (
-    <>
-      <If condition={isSubmitting}>
-        <PageLoadingIndicator fullPage>
-          Accepting invite. Please wait...
-        </PageLoadingIndicator>
+  return (<>
+    <If condition={isSubmitting}>
+      <PageLoadingIndicator fullPage>
+        Accepting invite. Please wait...
+      </PageLoadingIndicator>
+    </If>
+    <OAuthProviders returnUrl={oAuthReturnUrl} />
+    <If condition={configuration.auth.providers.emailPassword}>
+      <If condition={mode === Mode.SignUp}>
+        <div className="flex w-full flex-col items-center space-y-4">
+          <EmailPasswordSignUpContainer onSignUp={onInviteAccepted} />
+
+          <Button
+            block
+            onClick={() => {
+              setMode(Mode.SignIn);
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            I already have an account, I want to sign in instead
+          </Button>
+        </div>
       </If>
 
-      <OAuthProviders returnUrl={oAuthReturnUrl} />
+      <If condition={mode === Mode.SignIn}>
+        <div className="flex w-full flex-col items-center space-y-4">
+          <EmailPasswordSignInContainer onSignIn={onInviteAccepted} />
 
-      <If condition={configuration.auth.providers.emailPassword}>
-        <If condition={mode === Mode.SignUp}>
-          <div className="flex w-full flex-col items-center space-y-4">
-            <EmailPasswordSignUpContainer onSignUp={onInviteAccepted} />
-
-            <Button
-              block
-              onClick={() => {
-                setMode(Mode.SignIn);
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              <Trans i18nKey="auth:alreadyHaveAccountStatement" />
-            </Button>
-          </div>
-        </If>
-
-        <If condition={mode === Mode.SignIn}>
-          <div className="flex w-full flex-col items-center space-y-4">
-            <EmailPasswordSignInContainer onSignIn={onInviteAccepted} />
-
-            <Button
-              block
-              onClick={() => {
-                setMode(Mode.SignUp);
-              }}
-              size="sm"
-              variant="ghost"
-            >
-              <Trans i18nKey="auth:doNotHaveAccountStatement" />
-            </Button>
-          </div>
-        </If>
+          <Button
+            block
+            onClick={() => {
+              setMode(Mode.SignUp);
+            }}
+            size="sm"
+            variant="ghost"
+          >
+            I do not have an account, I want to sign up instead
+          </Button>
+        </div>
       </If>
-
-      <If condition={configuration.auth.providers.phoneNumber}>
-        <PhoneNumberSignInContainer
-          mode="signUp"
-          onSuccess={onInviteAccepted}
-        />
-      </If>
-
-      <If condition={configuration.auth.providers.emailLink}>
-        <EmailLinkAuth inviteCode={props.code} />
-      </If>
-    </>
-  );
+    </If>
+    <If condition={configuration.auth.providers.phoneNumber}>
+      <PhoneNumberSignInContainer
+        mode="signUp"
+        onSuccess={onInviteAccepted}
+      />
+    </If>
+    <If condition={configuration.auth.providers.emailLink}>
+      <EmailLinkAuth inviteCode={props.code} />
+    </If>
+  </>);
 };
 
 export default NewUserInviteForm;

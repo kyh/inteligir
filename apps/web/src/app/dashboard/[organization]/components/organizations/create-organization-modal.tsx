@@ -7,7 +7,7 @@ import Trans from "@inteligir/ui/trans";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
 import { createNewOrganizationAction } from "@/features/organizations/actions";
 
-const Heading = <Trans i18nKey="organization:createOrganizationModalHeading" />;
+const Heading = Create Organization;
 
 const CreateOrganizationModal: React.FC<{
   Trigger: React.ReactNode;
@@ -39,12 +39,12 @@ const CreateOrganizationModal: React.FC<{
   );
 
   return (
-    <Modal Trigger={Trigger} heading={Heading}>
+    (<Modal Trigger={Trigger} heading={Heading}>
       <form onSubmit={onSubmit}>
         <div className="flex flex-col space-y-6">
           <TextField>
             <TextField.Label>
-              <Trans i18nKey="organization:organizationNameLabel" />
+              Organization Name
               <TextField.Input
                 data-cy="create-organization-name-input"
                 name="name"
@@ -59,12 +59,12 @@ const CreateOrganizationModal: React.FC<{
               data-cy="confirm-create-organization-button"
               loading={isSubmitting}
             >
-              <Trans i18nKey="organization:createOrganizationSubmitLabel" />
+              Create Organization
             </Button>
           </div>
         </div>
       </form>
-    </Modal>
+    </Modal>)
   );
 };
 

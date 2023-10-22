@@ -190,14 +190,7 @@ const FeaturesList = (
 ) => (
   <ul className="flex flex-col space-y-2">
     {props.features.map((feature) => {
-      return (
-        <ListItem key={feature}>
-          <Trans
-            defaults={feature}
-            i18nKey={`common:plans.features.${feature}`}
-          />
-        </ListItem>
-      );
+      return <ListItem key={feature}>{feature}</ListItem>;
     })}
   </ul>
 );
@@ -260,9 +253,7 @@ const PlansSwitcher = (
               <CheckCircleIcon className="h-4" />
             </If>
 
-            <span>
-              <Trans defaults={plan} i18nKey={`common:plans.${plan}`} />
-            </span>
+            <span>{plan}</span>
           </span>
         </Button>
       );
@@ -289,7 +280,7 @@ const DefaultCheckoutButton = (
         href={linkHref}
         variant={props.recommended ? "default" : "outline"}
       >
-        <Trans defaults={label} i18nKey={label} />
+        {label}
       </Button>
     </div>
   );

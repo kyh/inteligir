@@ -26,23 +26,22 @@ const Plans: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col space-y-4">
+    (<div className="flex flex-col space-y-4">
       <SubscriptionCard subscription={subscription} />
-
       <IfHasPermissions condition={canChangeBilling}>
         <If condition={customerId}>
           <div className="flex flex-col space-y-2">
             <BillingPortalRedirectButton customerId={customerId as string}>
-              <Trans i18nKey="subscription:manageBilling" />
+              Go to Customer Portal
             </BillingPortalRedirectButton>
 
             <span className="text-xs text-gray-500 dark:text-gray-400">
-              <Trans i18nKey="subscription:manageBillingDescription" />
+              Visit your Customer Portal to manage your subscription and billing.
             </span>
           </div>
         </If>
       </IfHasPermissions>
-    </div>
+    </div>)
   );
 };
 

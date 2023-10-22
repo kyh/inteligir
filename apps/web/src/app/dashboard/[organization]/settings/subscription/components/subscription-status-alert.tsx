@@ -60,13 +60,8 @@ const SubscriptionStatusAlert = (
 
   return (
     <Alert type={type}>
-      <Alert.Heading>
-        <Trans i18nKey={heading} />
-      </Alert.Heading>
-
-      <span className="block">
-        <Trans i18nKey={message} values={props.values} />
-      </span>
+      <Alert.Heading>{heading}</Alert.Heading>
+      <span className="block">{message}</span>
     </Alert>
   );
 };

@@ -9,12 +9,12 @@ export const metadata = {
 
 const ProfilePasswordSettingsPage = () => {
   return (
-    <SettingsTile
-      heading={<Trans i18nKey={"profile:passwordTab"} />}
-      subHeading={<Trans i18nKey={"profile:passwordTabSubheading"} />}
+    (<SettingsTile
+      heading={Password}
+      subHeading={Update your password}
     >
       <UpdatePasswordFormContainer />
-    </SettingsTile>
+    </SettingsTile>)
   );
 };
 

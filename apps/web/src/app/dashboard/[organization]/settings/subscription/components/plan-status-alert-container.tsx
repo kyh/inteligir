@@ -33,41 +33,38 @@ const PlansStatusAlert = ({
   switch (status) {
     case SubscriptionStatusQueryParams.Cancel:
       return (
-        <Alert type="warn" useCloseButton>
+        (<Alert type="warn" useCloseButton>
           <Alert.Heading>
-            <Trans i18nKey="subscription:checkOutCanceledAlertHeading" />
+            The checkout was canceled
           </Alert.Heading>
-
           <p>
-            <Trans i18nKey="subscription:checkOutCanceledAlert" />
+            The checkout was canceled. Please contact us if you're experiencing any issues.
           </p>
-        </Alert>
+        </Alert>)
       );
 
     case SubscriptionStatusQueryParams.Error:
       return (
-        <Alert type="error" useCloseButton>
+        (<Alert type="error" useCloseButton>
           <Alert.Heading>
-            <Trans i18nKey="subscription:unknownErrorAlertHeading" />
+            Sorry, something went wrong
           </Alert.Heading>
-
           <p>
-            <Trans i18nKey="subscription:unknownErrorAlert" />
+            We encountered an unknown error while processing your payment. Please try again or contact support.
           </p>
-        </Alert>
+        </Alert>)
       );
 
     case SubscriptionStatusQueryParams.Success:
       return (
-        <Alert type="success" useCloseButton>
+        (<Alert type="success" useCloseButton>
           <Alert.Heading>
-            <Trans i18nKey="subscription:checkOutCompletedAlertHeading" />
+            Checkout successfully completed
           </Alert.Heading>
-
           <p>
-            <Trans i18nKey="subscription:checkOutCompletedAlert" />
+            Yay, your payment went through!
           </p>
-        </Alert>
+        </Alert>)
       );
   }
 };

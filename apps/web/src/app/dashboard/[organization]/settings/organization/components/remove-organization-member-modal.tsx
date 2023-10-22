@@ -7,7 +7,7 @@ import Modal from "@inteligir/ui/modal";
 import { deleteMemberAction } from "@/lib/memberships/actions";
 import useCsrfToken from "@/core/hooks/use-csrf-token";
 
-const Heading = <Trans i18nKey="organization:removeMemberModalHeading" />;
+const Heading = You are removing this user;
 
 const RemoveOrganizationMemberModal: React.FCC<{
   isOpen: boolean;
@@ -26,10 +26,10 @@ const RemoveOrganizationMemberModal: React.FCC<{
   }, [csrfToken, membershipId, setIsOpen]);
 
   return (
-    <Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
+    (<Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
       <div className={"flex flex-col space-y-6"}>
         <p className={"text-sm"}>
-          <Trans i18nKey={"common:modalConfirmationQuestion"} />
+          Are you sure you want to continue?
         </p>
 
         <div className={"flex justify-end space-x-2"}>
@@ -42,11 +42,11 @@ const RemoveOrganizationMemberModal: React.FCC<{
             variant={"destructive"}
             onClick={onMemberRemoved}
           >
-            <Trans i18nKey={"organization:removeMemberSubmitLabel"} />
+            Remove User from Organization
           </Button>
         </div>
       </div>
-    </Modal>
+    </Modal>)
   );
 };
 

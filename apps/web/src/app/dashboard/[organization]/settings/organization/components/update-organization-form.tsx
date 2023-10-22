@@ -115,7 +115,7 @@ const UpdateOrganizationForm = () => {
   const logoControl = register("logoURL");
 
   return (
-    <form
+    (<form
       onSubmit={handleSubmit((value) => {
         return onSubmit(value.name, getLogoFile(value.logoURL));
       })}
@@ -124,8 +124,7 @@ const UpdateOrganizationForm = () => {
       <div className={"flex flex-col space-y-4"}>
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={"organization:organizationNameInputLabel"} />
-
+            Organization Name
             <TextField.Input
               {...nameControl}
               data-cy={"organization-name-input"}
@@ -136,15 +135,14 @@ const UpdateOrganizationForm = () => {
         </TextField>
 
         <Label>
-          <Trans i18nKey={"organization:organizationLogoInputLabel"} />
-
+          Organization Logo
           <ImageUploadInput
             {...logoControl}
             multiple={false}
             image={currentLogoUrl}
             onClear={() => setValue("logoURL", "")}
           >
-            <Trans i18nKey={"common:imageInputLabel"} />
+            Click here to upload an image
           </ImageUploadInput>
         </Label>
 
@@ -154,11 +152,11 @@ const UpdateOrganizationForm = () => {
             data-cy={"update-organization-submit-button"}
             loading={updateOrganizationMutation.isMutating}
           >
-            <Trans i18nKey={"organization:updateOrganizationSubmitLabel"} />
+            Update Organization
           </Button>
         </div>
       </div>
-    </form>
+    </form>)
   );
 };
 

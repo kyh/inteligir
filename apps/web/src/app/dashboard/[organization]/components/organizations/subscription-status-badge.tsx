@@ -68,13 +68,10 @@ const SubscriptionStatusBadge = ({
     <Tooltip>
       <TooltipTrigger>
         <Badge color={type} size="small">
-          <Trans i18nKey={label} />
+          {label}
         </Badge>
       </TooltipTrigger>
-
-      <TooltipContent>
-        <Trans i18nKey={description} values={getDates(subscription)} />
-      </TooltipContent>
+      <TooltipContent>{description}</TooltipContent>
     </Tooltip>
   );
 };

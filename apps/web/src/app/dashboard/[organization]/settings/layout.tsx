@@ -33,35 +33,32 @@ const SettingsLayout = async ({
 }>) => {
   const links = getLinks(params.organization);
 
-  return (
-    <>
-      <AppHeader>
-        <span className="flex space-x-2">
-          <Cog8ToothIcon className="w-6" />
+  return (<>
+    <AppHeader>
+      <span className="flex space-x-2">
+        <Cog8ToothIcon className="w-6" />
 
-          <span>
-            <Trans i18nKey="common:settingsTabLabel" />
-          </span>
+        <span>
+          Settings
         </span>
-      </AppHeader>
+      </span>
+    </AppHeader>
+    <AppContainer>
+      <NavigationMenu bordered>
+        {links.map((link) => (
+          <NavigationItem
+            className="flex-1 lg:flex-none"
+            key={link.path}
+            link={link}
+          />
+        ))}
+      </NavigationMenu>
 
-      <AppContainer>
-        <NavigationMenu bordered>
-          {links.map((link) => (
-            <NavigationItem
-              className="flex-1 lg:flex-none"
-              key={link.path}
-              link={link}
-            />
-          ))}
-        </NavigationMenu>
-
-        <div className="mt-4 flex h-full flex-col space-y-4 lg:mt-6 lg:flex-row lg:space-x-8 lg:space-y-0">
-          {children}
-        </div>
-      </AppContainer>
-    </>
-  );
+      <div className="mt-4 flex h-full flex-col space-y-4 lg:mt-6 lg:flex-row lg:space-x-8 lg:space-y-0">
+        {children}
+      </div>
+    </AppContainer>
+  </>);
 };
 
 export default withI18n(SettingsLayout);

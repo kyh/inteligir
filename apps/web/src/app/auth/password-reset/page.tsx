@@ -10,34 +10,31 @@ export const metadata = {
 };
 
 const PasswordResetPage = () => {
-  return (
-    <>
-      <div>
-        <Heading type={5}>
-          <Trans i18nKey="auth:passwordResetLabel" />
-        </Heading>
+  return (<>
+    <div>
+      <Heading type={5}>
+        Reset Password
+      </Heading>
+    </div>
+    <div className="flex flex-col space-y-4">
+      <PasswordResetContainer />
+
+      <div className="flex justify-center text-xs">
+        <p className="flex space-x-1">
+          <span>
+            Password recovered?
+          </span>
+
+          <Link
+            className="text-primary-800 dark:text-primary hover:underline"
+            href={configuration.paths.signIn}
+          >
+            Sign In
+          </Link>
+        </p>
       </div>
-
-      <div className="flex flex-col space-y-4">
-        <PasswordResetContainer />
-
-        <div className="flex justify-center text-xs">
-          <p className="flex space-x-1">
-            <span>
-              <Trans i18nKey="auth:passwordRecoveredQuestion" />
-            </span>
-
-            <Link
-              className="text-primary-800 dark:text-primary hover:underline"
-              href={configuration.paths.signIn}
-            >
-              <Trans i18nKey="auth:signIn" />
-            </Link>
-          </p>
-        </div>
-      </div>
-    </>
-  );
+    </div>
+  </>);
 };
 
 export default withI18n(PasswordResetPage);

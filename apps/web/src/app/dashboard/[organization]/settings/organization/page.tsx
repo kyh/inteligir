@@ -9,12 +9,12 @@ export const metadata = {
 
 const OrganizationSettingsPage = () => {
   return (
-    <SettingsTile
-      heading={<Trans i18nKey={"organization:generalTabLabel"} />}
-      subHeading={<Trans i18nKey={"organization:generalTabLabelSubheading"} />}
+    (<SettingsTile
+      heading={General}
+      subHeading={Manage your Organization}
     >
       <UpdateOrganizationForm />
-    </SettingsTile>
+    </SettingsTile>)
   );
 };
 

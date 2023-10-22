@@ -1,15 +1,11 @@
 import { useCallback, useTransition } from "react";
-
-import Trans from "@inteligir/ui/trans";
 import Button from "@inteligir/ui/button";
 import Modal from "@inteligir/ui/modal";
-import If from "@inteligir/ui/if";
 import useCsrfToken from "@/core/hooks/use-csrf-token";
-
 import { transferOrganizationOwnershipAction } from "@/lib/organizations/actions";
 import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
 
-const ModalHeading = <Trans i18nKey="organization:transferOwnership" />;
+const ModalHeading = "Transfer Ownership";
 
 const TransferOrganizationOwnershipModal: React.FC<{
   isOpen: boolean;
@@ -41,36 +37,29 @@ const TransferOrganizationOwnershipModal: React.FC<{
 
   return (
     <Modal heading={ModalHeading} isOpen={isOpen} setIsOpen={setIsOpen}>
-      <form className={"flex flex-col space-y-6 text-sm"} onSubmit={onSubmit}>
+      <form className="flex flex-col space-y-6 text-sm" onSubmit={onSubmit}>
         <p>
-          <Trans
-            i18nKey={"organization:transferOwnershipDisclaimer"}
-            values={{
-              member: targetDisplayName,
+          You are transferring ownership of the selected organization to{" "}
+          <b>{{ member }}</b>. Your new role will be{" "}
+          <b>$t(common:roles.admin.label)</b>.
+        </p>
+
+        <p>Are you sure you want to continue?</p>
+
+        <div className="flex justify-end space-x-2">
+          <Modal.CancelButton
+            onClick={() => {
+              setIsOpen(false);
             }}
-            components={{ b: <b /> }}
           />
-        </p>
-
-        <p>
-          <Trans i18nKey={"common:modalConfirmationQuestion"} />
-        </p>
-
-        <div className={"flex justify-end space-x-2"}>
-          <Modal.CancelButton onClick={() => setIsOpen(false)} />
 
           <Button
-            type={"submit"}
-            data-cy={"confirm-transfer-ownership-button"}
-            variant={"destructive"}
+            data-cy="confirm-transfer-ownership-button"
             loading={pending}
+            type="submit"
+            variant="destructive"
           >
-            <If
-              condition={pending}
-              fallback={<Trans i18nKey={"organization:transferOwnership"} />}
-            >
-              <Trans i18nKey={"organization:transferringOwnership"} />
-            </If>
+            Transfer Ownership
           </Button>
         </div>
       </form>

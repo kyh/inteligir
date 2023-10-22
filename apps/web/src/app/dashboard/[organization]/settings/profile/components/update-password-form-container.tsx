@@ -3,11 +3,10 @@
 import Alert from "@inteligir/ui/alert";
 import If from "@inteligir/ui/if";
 import Trans from "@inteligir/ui/trans";
+import UpdatePasswordForm from "@/app/dashboard/[organization]/settings/profile/components/update-password-form";
 import useUser from "@/core/hooks/use-user";
 
-import UpdatePasswordForm from "@/app/dashboard/[organization]/settings/profile/components/update-password-form";
-
-function UpdatePasswordFormContainer() {
+const UpdatePasswordFormContainer = () => {
   const { data: user } = useUser();
 
   if (!user) {
@@ -26,14 +25,12 @@ function UpdatePasswordFormContainer() {
       <UpdatePasswordForm user={user} />
     </If>
   );
-}
+};
 
 export default UpdatePasswordFormContainer;
 
-function WarnCannotUpdatePasswordAlert() {
-  return (
-    <Alert type={"warn"}>
-      <Trans i18nKey={"profile:cannotUpdatePassword"} />
-    </Alert>
-  );
-}
+const WarnCannotUpdatePasswordAlert = () => (
+  <Alert type="warn">
+    You cannot update your password because your account is not linked to any.
+  </Alert>
+);

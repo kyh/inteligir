@@ -26,7 +26,7 @@ const OrganizationMemberActionsDropdown: React.FCC<{
   isOwner: boolean;
 }> = (props) => {
   return (
-    <DropdownMenu>
+    (<DropdownMenu>
       <DropdownMenuTrigger asChild disabled={props.disabled}>
         <IconButton
           data-cy={"member-actions-dropdown"}
@@ -36,7 +36,6 @@ const OrganizationMemberActionsDropdown: React.FCC<{
           <EllipsisVerticalIcon className={"h-6"} />
         </IconButton>
       </DropdownMenuTrigger>
-
       <DropdownMenuContent collisionPadding={{ right: 50 }}>
         <DropdownMenuItem
           className={"cursor-pointer"}
@@ -47,7 +46,7 @@ const OrganizationMemberActionsDropdown: React.FCC<{
             <AdjustmentsHorizontalIcon className={"h-5"} />
 
             <span>
-              <Trans i18nKey={"organization:changeRole"} />
+              Change Role
             </span>
           </span>
         </DropdownMenuItem>
@@ -61,7 +60,7 @@ const OrganizationMemberActionsDropdown: React.FCC<{
             <span className={"flex items-center space-x-2"}>
               <UserCircleIcon className={"h-5"} />
               <span>
-                <Trans i18nKey={"organization:transferOwnership"} />
+                Transfer Ownership
               </span>
             </span>
           </DropdownMenuItem>
@@ -83,12 +82,12 @@ const OrganizationMemberActionsDropdown: React.FCC<{
           >
             <XMarkIcon className={"h-5"} />
             <span>
-              <Trans i18nKey={"organization:removeMember"} />
+              Remove
             </span>
           </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>
+    </DropdownMenu>)
   );
 };
 

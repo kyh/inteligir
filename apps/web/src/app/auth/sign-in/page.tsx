@@ -12,32 +12,28 @@ export const metadata = {
 };
 
 const SignInPage = () => {
-  return (
-    <>
-      <div>
-        <Heading type={5}>
-          <Trans i18nKey="auth:signInHeading" />
-        </Heading>
-      </div>
+  return (<>
+    <div>
+      <Heading type={5}>
+        Sign in to your account
+      </Heading>
+    </div>
+    <SignInMethodsContainer />
+    <div className="flex justify-center text-xs">
+      <p className="flex space-x-1">
+        <span>
+          Do not have an account yet?
+        </span>
 
-      <SignInMethodsContainer />
-
-      <div className="flex justify-center text-xs">
-        <p className="flex space-x-1">
-          <span>
-            <Trans i18nKey="auth:doNotHaveAccountYet" />
-          </span>
-
-          <Link
-            className="text-primary-800 dark:text-primary hover:underline"
-            href={SIGN_UP_PATH}
-          >
-            <Trans i18nKey="auth:signUp" />
-          </Link>
-        </p>
-      </div>
-    </>
-  );
+        <Link
+          className="text-primary-800 dark:text-primary hover:underline"
+          href={SIGN_UP_PATH}
+        >
+          Sign Up
+        </Link>
+      </p>
+    </div>
+  </>);
 };
 
 export default withI18n(SignInPage);

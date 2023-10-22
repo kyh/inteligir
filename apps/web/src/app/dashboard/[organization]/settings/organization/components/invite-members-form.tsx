@@ -51,7 +51,7 @@ const InviteMembersForm = () => {
   });
 
   return (
-    <form
+    (<form
       className={"flex flex-col space-y-4"}
       data-cy={"invite-members-form"}
       onSubmit={(event) => {
@@ -173,13 +173,12 @@ const InviteMembersForm = () => {
               <PlusCircleIcon className={"h-5"} />
 
               <span>
-                <Trans i18nKey={"organization:addAnotherMemberButtonLabel"} />
+                Add another one
               </span>
             </span>
           </Button>
         </div>
       </div>
-
       <div className={"flex justify-end"}>
         <Button
           className={"w-full lg:w-auto"}
@@ -188,15 +187,15 @@ const InviteMembersForm = () => {
           loading={isSubmitting}
         >
           <If condition={!isSubmitting}>
-            <Trans i18nKey={"organization:inviteMembersSubmitLabel"} />
+            Send Invites
           </If>
 
           <If condition={isSubmitting}>
-            <Trans i18nKey={"organization:inviteMembersLoading"} />
+            Inviting members...
           </If>
         </Button>
       </div>
-    </form>
+    </form>)
   );
 };
 

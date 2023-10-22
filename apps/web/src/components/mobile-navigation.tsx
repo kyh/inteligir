@@ -23,9 +23,7 @@ const MobileNavigation: React.FC<{
         >
           <item.Icon className="h-6" />
 
-          <span>
-            <Trans defaults={item.label} i18nKey={item.label} />
-          </span>
+          <span>{item.label}</span>
         </Link>
       </DropdownMenuItem>
     );

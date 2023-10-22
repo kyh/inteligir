@@ -10,16 +10,16 @@ export const metadata = {
 
 const SubscriptionSettingsPage = () => {
   return (
-    <SettingsTile
-      heading={<Trans i18nKey="common:subscriptionSettingsTabLabel" />}
-      subHeading={<Trans i18nKey="subscription:subscriptionTabSubheading" />}
+    (<SettingsTile
+      heading={Subscription}
+      subHeading={Manage your Subscription and Billing}
     >
       <div className="flex flex-col space-y-4">
         <PlansStatusAlertContainer />
 
         <Plans />
       </div>
-    </SettingsTile>
+    </SettingsTile>)
   );
 };
 

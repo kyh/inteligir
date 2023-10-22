@@ -40,7 +40,7 @@ function OrganizationMembersList({
   const userRole = currentUser.role;
 
   return (
-    <div className={"w-full space-y-10"}>
+    (<div className={"w-full space-y-10"}>
       <div className="dark:divide-dark-800 flex flex-col divide-y divide-gray-100">
         {members.map((member) => {
           const displayName = member.data.displayName
@@ -57,7 +57,7 @@ function OrganizationMembersList({
           const key = `${memberId}:${userRole}`;
 
           return (
-            <div
+            (<div
               key={key}
               data-cy={"organization-member"}
               className={
@@ -72,11 +72,10 @@ function OrganizationMembersList({
 
                 <If condition={isCurrentUser}>
                   <Badge color={"info"} size={"small"}>
-                    <Trans i18nKey={"organization:youBadgeLabel"} />
+                    You
                   </Badge>
                 </If>
               </div>
-
               <div className={"flex items-center justify-end space-x-4"}>
                 <div>
                   <RoleBadge role={member.role} />
@@ -88,11 +87,11 @@ function OrganizationMembersList({
                   currentUserRole={userRole}
                 />
               </div>
-            </div>
+            </div>)
           );
         })}
       </div>
-    </div>
+    </div>)
   );
 }
 

@@ -35,30 +35,26 @@ const OrganizationMembersPage: React.FC<{
 }> = ({ params }) => {
   const data = use(loadMembers(params.organization));
 
-  return (
-    <>
-      <div className="flex flex-1 flex-col space-y-6">
-        <SettingsTile
-          heading={<Trans i18nKey={"organization:membersTabLabel"} />}
-          subHeading={<Trans i18nKey={"organization:membersTabSubheading"} />}
-          actions={<InviteMembersLinkButton href={"members/invite"} />}
-        >
-          <OrganizationMembersList members={data.members} />
-        </SettingsTile>
+  return (<>
+    <div className="flex flex-1 flex-col space-y-6">
+      <SettingsTile
+        heading={Members}
+        subHeading={Manage and Invite members}
+        actions={<InviteMembersLinkButton href={"members/invite"} />}
+      >
+        <OrganizationMembersList members={data.members} />
+      </SettingsTile>
 
-        <SettingsTile
-          heading={<Trans i18nKey={"organization:pendingInvitesHeading"} />}
-          subHeading={
-            <Trans i18nKey={"organization:pendingInvitesSubheading"} />
-          }
-        >
-          <OrganizationInvitedMembersList
-            invitedMembers={data.invitedMembers || []}
-          />
-        </SettingsTile>
-      </div>
-    </>
-  );
+      <SettingsTile
+        heading={Pending Invites}
+        subHeading={Manage invites not yet accepted}
+      >
+        <OrganizationInvitedMembersList
+          invitedMembers={data.invitedMembers || []}
+        />
+      </SettingsTile>
+    </div>
+  </>);
 };
 
 export default withI18n(OrganizationMembersPage);

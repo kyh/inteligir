@@ -12,32 +12,28 @@ export const metadata = {
 };
 
 const SignUpPage = () => {
-  return (
-    <>
-      <div>
-        <Heading type={5}>
-          <Trans i18nKey="auth:signUpHeading" />
-        </Heading>
-      </div>
+  return (<>
+    <div>
+      <Heading type={5}>
+        Create an account
+      </Heading>
+    </div>
+    <SignUpMethodsContainer />
+    <div className="flex justify-center text-xs">
+      <p className="flex space-x-1">
+        <span>
+          Already have an account?
+        </span>
 
-      <SignUpMethodsContainer />
-
-      <div className="flex justify-center text-xs">
-        <p className="flex space-x-1">
-          <span>
-            <Trans i18nKey="auth:alreadyHaveAnAccount" />
-          </span>
-
-          <Link
-            className="text-primary-800 dark:text-primary hover:underline"
-            href={SIGN_IN_PATH}
-          >
-            <Trans i18nKey="auth:signIn" />
-          </Link>
-        </p>
-      </div>
-    </>
-  );
+        <Link
+          className="text-primary-800 dark:text-primary hover:underline"
+          href={SIGN_IN_PATH}
+        >
+          Sign In
+        </Link>
+      </p>
+    </div>
+  </>);
 };
 
 export default withI18n(SignUpPage);

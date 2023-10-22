@@ -2,10 +2,8 @@
 
 import { useForm } from "react-hook-form";
 import Link from "next/link";
-import Trans from "@inteligir/ui/trans";
 import TextField from "@inteligir/ui/text-field";
 import Button from "@inteligir/ui/button";
-import { If } from "@/components/if";
 
 const EmailPasswordSignInForm: React.FCC<{
   onSubmit: (params: { email: string; password: string }) => unknown;
@@ -26,8 +24,7 @@ const EmailPasswordSignInForm: React.FCC<{
       <div className="flex-col space-y-4">
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="common:emailAddress" />
-
+            Email Address
             <TextField.Input
               data-cy="email-input"
               placeholder="your@email.com"
@@ -40,8 +37,7 @@ const EmailPasswordSignInForm: React.FCC<{
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="common:password" />
-
+            Password
             <TextField.Input
               data-cy="password-input"
               placeholder=""
@@ -49,10 +45,9 @@ const EmailPasswordSignInForm: React.FCC<{
               type="password"
               {...passwordControl}
             />
-
             <div className="py-0.5 text-xs">
               <Link className="hover:underline" href="/auth/password-reset">
-                <Trans i18nKey="auth:passwordForgottenQuestion" />
+                Password forgotten?
               </Link>
             </div>
           </TextField.Label>
@@ -65,9 +60,7 @@ const EmailPasswordSignInForm: React.FCC<{
             loading={loading}
             type="submit"
           >
-            <If condition={loading} fallback={<Trans i18nKey="auth:signIn" />}>
-              <Trans i18nKey="auth:signingIn" />
-            </If>
+            Sign In
           </Button>
         </div>
       </div>

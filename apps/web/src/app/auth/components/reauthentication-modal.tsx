@@ -12,20 +12,19 @@ const ReauthenticationModal: React.FC<{
   }, [setIsOpen]);
 
   return (
-    <Modal
+    (<Modal
       closeButton={false}
-      heading={<Trans i18nKey="auth:reauthenticate" />}
+      heading={Reauthenticate}
       isOpen={isOpen}
       setIsOpen={setIsOpen}
     >
       <div className="my-4">
         <p>
-          <Trans i18nKey="auth:reauthenticateDescription" />
+          For security reasons, we need you to re-authenticate
         </p>
       </div>
-
       <ReauthenticationForm onSuccess={onSuccess} />
-    </Modal>
+    </Modal>)
   );
 };
 

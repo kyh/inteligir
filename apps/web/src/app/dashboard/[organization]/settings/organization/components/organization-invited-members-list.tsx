@@ -14,9 +14,9 @@ const OrganizationInvitedMembersList: React.FCC<{
 }> = ({ invitedMembers }) => {
   if (!invitedMembers?.length) {
     return (
-      <p className={"text-sm"}>
-        <Trans i18nKey={"organization:noPendingInvites"} />
-      </p>
+      (<p className={"text-sm"}>
+        No pending invites found
+      </p>)
     );
   }
 

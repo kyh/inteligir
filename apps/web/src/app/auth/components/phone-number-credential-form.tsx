@@ -28,11 +28,10 @@ const PhoneNumberCredentialForm: React.FC<{
     );
 
   return (
-    <form className="w-full" onSubmit={onLinkPhoneNumberSubmit}>
+    (<form className="w-full" onSubmit={onLinkPhoneNumberSubmit}>
       <div className="flex flex-col space-y-2">
         <TextField.Label>
-          <Trans i18nKey="profile:phoneNumberLabel" />
-
+          Phone Number
           <TextField.Input
             disabled={loading}
             name="phoneNumber"
@@ -45,15 +44,15 @@ const PhoneNumberCredentialForm: React.FC<{
 
         <Button block loading={loading} type="submit">
           <If condition={action === "link"}>
-            <Trans i18nKey="profile:verifyPhoneNumberSubmitLabel" />
+
           </If>
 
           <If condition={action === "signIn"}>
-            <Trans i18nKey="auth:signInWithPhoneNumber" />
+            Sign in with Phone Number
           </If>
         </Button>
       </div>
-    </form>
+    </form>)
   );
 };
 

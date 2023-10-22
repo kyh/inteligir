@@ -11,36 +11,31 @@ export const metadata = {
 };
 
 const OrganizationMembersInvitePage = () => {
-  return (
-    <>
-      <SettingsTile
-        heading={<Trans i18nKey={"organization:inviteMembersPageHeading"} />}
-        subHeading={
-          <Trans i18nKey={"organization:inviteMembersPageSubheading"} />
-        }
-      >
-        <InviteMembersForm />
-      </SettingsTile>
-
-      <div className={"mt-4"}>
-        <GoBackToMembersButton />
-      </div>
-    </>
-  );
+  return (<>
+    <SettingsTile
+      heading={Invite Members}
+      subHeading={Invite members to your organization}
+    >
+      <InviteMembersForm />
+    </SettingsTile>
+    <div className={"mt-4"}>
+      <GoBackToMembersButton />
+    </div>
+  </>);
 };
 
 export default withI18n(OrganizationMembersInvitePage);
 
 function GoBackToMembersButton() {
   return (
-    <Button size={"small"} variant={"ghost"} href={"../members"}>
+    (<Button size={"small"} variant={"ghost"} href={"../members"}>
       <span className={"flex items-center space-x-1"}>
         <ArrowLeftIcon className={"h-3"} />
 
         <span>
-          <Trans i18nKey={"organization:goBackToMembersPage"} />
+          Go back to members
         </span>
       </span>
-    </Button>
+    </Button>)
   );
 }

@@ -35,10 +35,10 @@ const MultiFactorAuthenticationSettings = () => {
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
 
   return (
-    <div>
+    (<div>
       <SettingsTile
-        heading={<Trans i18nKey="profile:multiFactorAuth" />}
-        subHeading={<Trans i18nKey="profile:multiFactorAuthSubheading" />}
+        heading={Multi-Factor Authentication}
+        subHeading={Set up a MFA method to secure your account}
       >
         <MultiFactorAuthFactorsList
           onEnrollRequested={() => {
@@ -46,12 +46,11 @@ const MultiFactorAuthenticationSettings = () => {
           }}
         />
       </SettingsTile>
-
       <MultiFactorAuthSetupModal
         isOpen={isMfaModalOpen}
         setIsOpen={setIsMfaModalOpen}
       />
-    </div>
+    </div>)
   );
 };
 
@@ -67,23 +66,22 @@ const MultiFactorAuthFactorsList = ({
 
   if (isLoading) {
     return (
-      <div className="flex items-center space-x-4">
+      (<div className="flex items-center space-x-4">
         <Spinner />
-
         <div>
-          <Trans i18nKey="profile:loadingFactors" />
+          Loading factors...
         </div>
-      </div>
+      </div>)
     );
   }
 
   if (error) {
     return (
-      <div>
+      (<div>
         <Alert type="error">
-          <Trans i18nKey="profile:factorsListError" />
+          Error loading factors list
         </Alert>
-      </div>
+      </div>)
     );
   }
 
@@ -91,17 +89,15 @@ const MultiFactorAuthFactorsList = ({
 
   if (!allFactors.length) {
     return (
-      <div className="flex flex-col space-y-4">
+      (<div className="flex flex-col space-y-4">
         <Alert type="info">
           <Alert.Heading>
-            <Trans i18nKey="profile:multiFactorAuthHeading" />
+            Secure your account with Multi-Factor Authentication
           </Alert.Heading>
-
-          <Trans i18nKey="profile:multiFactorAuthDescription" />
+          Enable Multi-Factor Authentication to verify your identity for an extra layer of security to your account in case your password is stolen. In addition to entering your password, it requires you confirm your identity via SMS.
         </Alert>
-
         <SetupMfaButton onClick={onEnrollRequested} />
-      </div>
+      </div>)
     );
   }
 
@@ -136,7 +132,7 @@ const SetupMfaButton = (
 ) => (
   <div>
     <Button onClick={props.onClick}>
-      <Trans i18nKey="profile:setupMfaButtonLabel" />
+      Setup a new Factor
     </Button>
   </div>
 );
@@ -168,14 +164,14 @@ const ConfirmUnenrollFactorModal = (
   );
 
   return (
-    <Modal
-      heading={<Trans i18nKey="profile:unenrollFactorModalHeading" />}
+    (<Modal
+      heading={Unenroll Factor}
       isOpen={Boolean(props.factorId)}
       setIsOpen={props.setIsModalOpen}
     >
       <div className="flex flex-col space-y-4">
         <div className="text-sm">
-          <Trans i18nKey="profile:unenrollFactorModalBody" />
+          You're about to unenroll this factor. You will not be able to use it to login to your account.
         </div>
 
         <div className="flex flex-row justify-end space-x-2">
@@ -192,11 +188,11 @@ const ConfirmUnenrollFactorModal = (
             type="button"
             variant="destructive"
           >
-            <Trans i18nKey="profile:unenrollFactorModalButtonLabel" />
+            Yes, unenroll factor
           </Button>
         </div>
       </div>
-    </Modal>
+    </Modal>)
   );
 };
 
@@ -211,13 +207,13 @@ const FactorsTable = ({
     <TableHeader>
       <TableRow>
         <TableHead>
-          <Trans i18nKey="profile:factorName" />
+          Factor Name
         </TableHead>
         <TableHead>
-          <Trans i18nKey="profile:factorType" />
+          Type
         </TableHead>
         <TableHead>
-          <Trans i18nKey="profile:factorStatus" />
+          Status
         </TableHead>
 
         <TableHead />
@@ -260,7 +256,7 @@ const FactorsTable = ({
               </TooltipTrigger>
 
               <TooltipContent>
-                <Trans i18nKey="profile:unenrollTooltip" />
+                Unenroll this factor
               </TooltipContent>
             </Tooltip>
           </TableCell>

@@ -10,7 +10,7 @@ import Trans from "@inteligir/ui/trans";
 import useCsrfToken from "@/core/hooks/use-csrf-token";
 import { deleteMemberAction } from "@/lib/memberships/actions";
 
-const Heading = <Trans i18nKey={"organization:deleteInviteModalHeading"} />;
+const Heading = Deleting Invite;
 
 const DeleteInviteButton: React.FCC<{
   membershipId: number;
@@ -26,7 +26,7 @@ const DeleteInviteButton: React.FCC<{
   }, [csrfToken, membershipId]);
 
   return (
-    <Modal
+    (<Modal
       heading={Heading}
       Trigger={
         <IconButton data-cy={"delete-invite-button"} label={"Delete Invite"}>
@@ -36,15 +36,11 @@ const DeleteInviteButton: React.FCC<{
     >
       <div className={"flex flex-col space-y-6 text-sm"}>
         <p>
-          <Trans
-            i18nKey={"organization:confirmDeletingMemberInvite"}
-            values={{ email: memberEmail }}
-            components={{ b: <b /> }}
-          />
+          You are deleting the invite to <b>{{ email }}</b>
         </p>
 
         <p>
-          <Trans i18nKey={"common:modalConfirmationQuestion"} />
+          Are you sure you want to continue?
         </p>
 
         <div className={"flex justify-end"}>
@@ -54,11 +50,11 @@ const DeleteInviteButton: React.FCC<{
             variant={"destructive"}
             onClick={onInviteDeleteRequested}
           >
-            <Trans i18nKey={"organization:deleteInviteSubmitLabel"} />
+            Delete Invite
           </Button>
         </div>
       </div>
-    </Modal>
+    </Modal>)
   );
 };
 

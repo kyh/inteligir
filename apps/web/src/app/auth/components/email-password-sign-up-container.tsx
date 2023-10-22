@@ -54,30 +54,27 @@ const EmailPasswordSignUpContainer: React.FCC<{
     [loading, onError, onSignUp, signUpMutation],
   );
 
-  return (
-    <>
-      <If condition={showVerifyEmailAlert}>
-        <Alert type="success">
-          <Alert.Heading>
-            <Trans i18nKey="auth:emailConfirmationAlertHeading" />
-          </Alert.Heading>
+  return (<>
+    <If condition={showVerifyEmailAlert}>
+      <Alert type="success">
+        <Alert.Heading>
+          We sent you a confirmation email.
+        </Alert.Heading>
 
-          <p data-cy="email-confirmation-alert">
-            <Trans i18nKey="auth:emailConfirmationAlertBody" />
-          </p>
-        </Alert>
-      </If>
+        <p data-cy="email-confirmation-alert">
+          Welcome! Please check your email and click the link to verify your account.
+        </p>
+      </Alert>
+    </If>
+    <If condition={!showVerifyEmailAlert}>
+      <AuthErrorMessage error={signUpMutation.error} />
 
-      <If condition={!showVerifyEmailAlert}>
-        <AuthErrorMessage error={signUpMutation.error} />
-
-        <EmailPasswordSignUpForm
-          loading={loading}
-          onSubmit={onSignupRequested}
-        />
-      </If>
-    </>
-  );
+      <EmailPasswordSignUpForm
+        loading={loading}
+        onSubmit={onSignupRequested}
+      />
+    </If>
+  </>);
 };
 
 export default EmailPasswordSignUpContainer;

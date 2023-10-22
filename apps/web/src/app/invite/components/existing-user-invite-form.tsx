@@ -35,15 +35,10 @@ const ExistingUserInviteForm = (
   }, [props.code, csrfToken, startTransition]);
 
   return (
-    <div className="flex flex-col space-y-4">
+    (<div className="flex flex-col space-y-4">
       <p className="text-center text-sm">
-        <Trans
-          components={{ b: <b /> }}
-          i18nKey="auth:clickToAcceptAs"
-          values={{ email: props.session.user.email }}
-        />
+        Click the button below to accept the invite with as <b>{{email}}</b>
       </p>
-
       <Button
         block
         data-cy="accept-invite-submit-button"
@@ -51,14 +46,13 @@ const ExistingUserInviteForm = (
         onClick={onInviteAccepted}
         type="submit"
       >
-        <Trans i18nKey="auth:acceptInvite" />
+        Accept invite
       </Button>
-
       <div>
         <div className="flex flex-col space-y-4">
           <p className="text-center">
             <span className="text-center text-sm text-gray-700 dark:text-gray-300">
-              <Trans i18nKey="auth:acceptInviteWithDifferentAccount" />
+              Want to accept the invite with a different account?
             </span>
           </p>
 
@@ -71,12 +65,12 @@ const ExistingUserInviteForm = (
               type="button"
               variant="ghost"
             >
-              <Trans i18nKey="auth:signOut" />
+              Sign out
             </Button>
           </div>
         </div>
       </div>
-    </div>
+    </div>)
   );
 };
 

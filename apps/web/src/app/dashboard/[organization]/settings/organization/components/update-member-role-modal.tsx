@@ -9,7 +9,7 @@ import MembershipRoleSelector from "@/app/dashboard/[organization]/settings/orga
 import { updateMemberAction } from "@/lib/memberships/actions";
 import useCsrfToken from "@/core/hooks/use-csrf-token";
 
-const Heading = <Trans i18nKey={"organization:updateMemberRoleModalHeading"} />;
+const Heading = Update Member's Role;
 
 const UpdateMemberRoleModal: React.FCC<{
   isOpen: boolean;
@@ -32,7 +32,7 @@ const UpdateMemberRoleModal: React.FCC<{
   }, [csrfToken, membershipId, role, setIsOpen]);
 
   return (
-    <Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
+    (<Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
       <div className={"flex flex-col space-y-6"}>
         <MembershipRoleSelector value={role} onChange={setRole} />
 
@@ -45,11 +45,11 @@ const UpdateMemberRoleModal: React.FCC<{
             loading={isSubmitting}
             onClick={onRoleUpdated}
           >
-            <Trans i18nKey={"organization:updateRoleSubmitLabel"} />
+            Update Role
           </Button>
         </div>
       </div>
-    </Modal>
+    </Modal>)
   );
 };
 

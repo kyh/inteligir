@@ -87,10 +87,7 @@ const RenewStatusDescription = (
       <XCircleIcon className="h-5 text-yellow-700" />
 
       <span>
-        <Trans
-          i18nKey="subscription:cancelAtPeriodEndDescription"
-          values={props.dates}
-        />
+        Your subscription is scheduled to be canceled on {{ endDate }}.
       </span>
     </If>
 
@@ -98,10 +95,7 @@ const RenewStatusDescription = (
       <CheckCircleIcon className="h-5 text-green-700" />
 
       <span>
-        <Trans
-          i18nKey="subscription:renewAtPeriodEndDescription"
-          values={props.dates}
-        />
+        Your subscription is scheduled to be renewed on {{ endDate }}
       </span>
     </If>
   </span>

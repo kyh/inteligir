@@ -32,55 +32,51 @@ const PasswordResetContainer = () => {
     [resetPasswordMutation],
   );
 
-  return (
-    <>
-      <If condition={success}>
-        <Alert type="success">
-          <Trans i18nKey="auth:passwordResetSuccessMessage" />
-        </Alert>
-      </If>
-
-      <If condition={!resetPasswordMutation.data}>
-        <>
-          <form
-            className="container mx-auto flex justify-center"
-            onSubmit={(e) => void onSubmit(e)}
-          >
-            <div className="flex-col space-y-4">
-              <div>
-                <p className="text-sm text-gray-700 dark:text-gray-400">
-                  <Trans i18nKey="auth:passwordResetSubheading" />
-                </p>
-              </div>
-
-              <div>
-                <TextField.Label>
-                  <Trans i18nKey="common:emailAddress" />
-
-                  <TextField.Input
-                    name="email"
-                    placeholder="your@email.com"
-                    required
-                    type="email"
-                  />
-                </TextField.Label>
-              </div>
-
-              <AuthErrorMessage error={error} />
-
-              <Button
-                block
-                loading={resetPasswordMutation.isMutating}
-                type="submit"
-              >
-                <Trans i18nKey="auth:passwordResetLabel" />
-              </Button>
+  return (<>
+    <If condition={success}>
+      <Alert type="success">
+        Check your Inbox! We emailed you a link for resetting your Password.
+      </Alert>
+    </If>
+    <If condition={!resetPasswordMutation.data}>
+      <>
+        <form
+          className="container mx-auto flex justify-center"
+          onSubmit={(e) => void onSubmit(e)}
+        >
+          <div className="flex-col space-y-4">
+            <div>
+              <p className="text-sm text-gray-700 dark:text-gray-400">
+                Enter your email address below. You will receive a link to reset your password.
+              </p>
             </div>
-          </form>
-        </>
-      </If>
-    </>
-  );
+
+            <div>
+              <TextField.Label>
+                Email Address
+                <TextField.Input
+                  name="email"
+                  placeholder="your@email.com"
+                  required
+                  type="email"
+                />
+              </TextField.Label>
+            </div>
+
+            <AuthErrorMessage error={error} />
+
+            <Button
+              block
+              loading={resetPasswordMutation.isMutating}
+              type="submit"
+            >
+              Reset Password
+            </Button>
+          </div>
+        </form>
+      </>
+    </If>
+  </>);
 };
 
 export default PasswordResetContainer;

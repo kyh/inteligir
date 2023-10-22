@@ -31,7 +31,7 @@ function UpdatePhoneNumberForm({
   const currentPhoneNumber = session.auth?.user?.phone ?? "";
 
   return (
-    <form
+    (<form
       onSubmit={(event) => {
         event.preventDefault();
 
@@ -54,8 +54,7 @@ function UpdatePhoneNumberForm({
       <div className={"flex flex-col space-y-4"}>
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={"profile:phoneNumberLabel"} />
-
+            Phone Number
             <TextField.Input
               name={"phoneNumber"}
               defaultValue={currentPhoneNumber}
@@ -78,11 +77,11 @@ function UpdatePhoneNumberForm({
 
         <div>
           <Button loading={isMutating}>
-            <Trans i18nKey={"profile:updatePhoneNumber"} />
+            Update Phone Number
           </Button>
         </div>
       </div>
-    </form>
+    </form>)
   );
 }
 
@@ -110,51 +109,48 @@ function RemovePhoneNumberButton({
     });
   }, [trigger, t, onSuccess]);
 
-  return (
-    <>
-      <Button
-        type={"button"}
-        variant={"ghost"}
-        size={"small"}
-        onClick={() => setIsModalOpen(true)}
-      >
-        <span className={"text-xs font-normal"}>
-          <Trans i18nKey={"profile:removePhoneNumber"} />
-        </span>
-      </Button>
-
-      <Modal
-        heading={<Trans i18nKey={"profile:removePhoneNumber"} />}
-        isOpen={isModalOpen}
-        setIsOpen={setIsModalOpen}
-      >
-        <div className={"flex flex-col space-y-2.5 text-sm"}>
-          <div>
-            <Trans i18nKey={"profile:confirmRemovePhoneNumberDescription"} />
-          </div>
-
-          <div>
-            <Trans i18nKey={"common:modalConfirmationQuestion"} />
-          </div>
-
-          <AuthErrorMessage error={error} />
-
-          <div className={"flex justify-end space-x-2"}>
-            <Modal.CancelButton onClick={() => setIsModalOpen(false)} />
-
-            <Button
-              type={"button"}
-              variant={"destructive"}
-              loading={isMutating}
-              onClick={onUnlinkPhoneNumber}
-            >
-              <Trans i18nKey={"profile:confirmRemovePhoneNumber"} />
-            </Button>
-          </div>
+  return (<>
+    <Button
+      type={"button"}
+      variant={"ghost"}
+      size={"small"}
+      onClick={() => setIsModalOpen(true)}
+    >
+      <span className={"text-xs font-normal"}>
+        Remove Phone Number
+      </span>
+    </Button>
+    <Modal
+      heading={Remove Phone Number}
+      isOpen={isModalOpen}
+      setIsOpen={setIsModalOpen}
+    >
+      <div className={"flex flex-col space-y-2.5 text-sm"}>
+        <div>
+          You're about to remove your phone number. You will not be able to use it to login to your account.
         </div>
-      </Modal>
-    </>
-  );
+
+        <div>
+          Are you sure you want to continue?
+        </div>
+
+        <AuthErrorMessage error={error} />
+
+        <div className={"flex justify-end space-x-2"}>
+          <Modal.CancelButton onClick={() => setIsModalOpen(false)} />
+
+          <Button
+            type={"button"}
+            variant={"destructive"}
+            loading={isMutating}
+            onClick={onUnlinkPhoneNumber}
+          >
+            Yes, remove phone number
+          </Button>
+        </div>
+      </div>
+    </Modal>
+  </>);
 }
 
 function useUpdatePhoneNumber() {

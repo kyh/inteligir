@@ -43,21 +43,20 @@ function UpdateProfileFormContainer() {
   }
 
   return (
-    <div className={"flex flex-col space-y-8"}>
+    (<div className={"flex flex-col space-y-8"}>
       <SettingsTile
-        heading={<Trans i18nKey={"profile:generalTab"} />}
-        subHeading={<Trans i18nKey={"profile:generalTabSubheading"} />}
+        heading={My Details}
+        subHeading={Manage your profile details}
       >
         <UpdateProfileForm
           session={session}
           onUpdateProfileData={onUpdateProfileData}
         />
       </SettingsTile>
-
       <If condition={configuration.auth.providers.phoneNumber}>
         <SettingsTile
-          heading={<Trans i18nKey={"profile:updatePhoneNumber"} />}
-          subHeading={<Trans i18nKey={"profile:updatePhoneNumberSubheading"} />}
+          heading={Update Phone Number}
+          subHeading={Link your phone number to your account}
         >
           <UpdatePhoneNumberForm
             session={session}
@@ -67,7 +66,7 @@ function UpdateProfileFormContainer() {
           />
         </SettingsTile>
       </If>
-    </div>
+    </div>)
   );
 }
 

@@ -98,7 +98,7 @@ const UpdateProfileForm = ({
   }, [currentDisplayName, currentPhotoURL, reset]);
 
   return (
-    <form
+    (<form
       data-cy="update-profile-form"
       onSubmit={handleSubmit((value) => {
         return onSubmit(value.displayName, getPhotoFile(value.photoURL));
@@ -107,8 +107,7 @@ const UpdateProfileForm = ({
       <div className="flex flex-col space-y-4">
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="profile:displayNameLabel" />
-
+            Your Name
             <TextField.Input
               {...displayNameControl}
               data-cy="profile-display-name"
@@ -120,23 +119,21 @@ const UpdateProfileForm = ({
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="profile:profilePictureLabel" />
-
+            Your Photo
             <ImageUploadInput
               {...photoURLControl}
               image={currentPhotoURL}
               multiple={false}
               onClear={onAvatarCleared}
             >
-              <Trans i18nKey="common:imageInputLabel" />
+              Click here to upload an image
             </ImageUploadInput>
           </TextField.Label>
         </TextField>
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="profile:emailLabel" />
-
+            Email Address
             <TextField.Input disabled value={email} />
           </TextField.Label>
 
@@ -148,7 +145,7 @@ const UpdateProfileForm = ({
               variant="ghost"
             >
               <span className="text-xs font-normal">
-                <Trans i18nKey="profile:updateEmailSubmitLabel" />
+                Update Email Address
               </span>
             </Button>
           </div>
@@ -159,11 +156,11 @@ const UpdateProfileForm = ({
             className="w-full md:w-auto"
             loading={updateProfileMutation.isMutating}
           >
-            <Trans i18nKey="profile:updateProfileSubmitLabel" />
+            Update Profile
           </Button>
         </div>
       </div>
-    </form>
+    </form>)
   );
 };
 

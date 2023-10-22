@@ -66,7 +66,7 @@ const PhoneNumberSignInContainer: React.FC<{
 
   if (step === Step.Otp) {
     return (
-      <form className="w-full" onSubmit={onOTPSubmit}>
+      (<form className="w-full" onSubmit={onOTPSubmit}>
         <div className="flex flex-col space-y-4">
           <If condition={verifyOtp.error}>
             <Alert type="error">
@@ -90,10 +90,10 @@ const PhoneNumberSignInContainer: React.FC<{
             loading={verifyOtp.isMutating}
             type="submit"
           >
-            <Trans i18nKey="auth:signIn" />
+            Sign In
           </Button>
         </div>
-      </form>
+      </form>)
     );
   }
 

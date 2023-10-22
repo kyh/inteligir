@@ -28,17 +28,14 @@ export const metadata = {
 };
 
 const DashboardPage = () => {
-  return (
-    <>
-      <AppHeader Icon={<SquaresPlus className="dark:text-primary h-6" />}>
-        <Trans i18nKey="common:dashboardTabLabel" />
-      </AppHeader>
-
-      <AppContainer>
-        <DashboardDemo />
-      </AppContainer>
-    </>
-  );
+  return (<>
+    <AppHeader Icon={<SquaresPlus className="dark:text-primary h-6" />}>
+      Dashboard
+    </AppHeader>
+    <AppContainer>
+      <DashboardDemo />
+    </AppContainer>
+  </>);
 };
 
 export default DashboardPage;

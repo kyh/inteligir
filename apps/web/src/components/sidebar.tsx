@@ -130,10 +130,7 @@ const CollapsibleButton = (
             <ArrowRightCircleIcon className="h-6" />
           </IconButton>
         </TooltipTrigger>
-
-        <TooltipContent>
-          <Trans i18nKey="common:expandSidebar" />
-        </TooltipContent>
+        <TooltipContent>Expand Sidebar</TooltipContent>
       </Tooltip>
     );
   }
@@ -152,9 +149,7 @@ const CollapsibleButton = (
       >
         <ArrowLeftCircleIcon className="h-6" />
 
-        <span>
-          <Trans i18nKey="common:collapseSidebar" />
-        </span>
+        <span>Collapse Sidebar</span>
       </button>
     </div>
   );

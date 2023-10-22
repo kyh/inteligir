@@ -7,8 +7,8 @@ import { useTranslation } from "react-i18next";
 import Trans from "@inteligir/ui/trans";
 import TextField from "@inteligir/ui/text-field";
 import Button from "@inteligir/ui/button";
-import { If } from "@/components/if";
 import Alert from "@inteligir/ui/alert";
+import { If } from "@/components/if";
 import useSignInWithOtp from "@/features/auth/use-sign-in-with-otp";
 import configuration from "@/configuration";
 
@@ -54,7 +54,7 @@ const EmailLinkAuth: React.FC<{
   if (signInWithOtpMutation.data) {
     return (
       <Alert type="success">
-        <Trans i18nKey="auth:sendLinkSuccess" />
+        We sent you a link to your email! Follow the link to sign in.
       </Alert>
     );
   }
@@ -64,8 +64,7 @@ const EmailLinkAuth: React.FC<{
       <div className="flex flex-col space-y-4">
         <TextField>
           <TextField.Label>
-            <Trans i18nKey="common:emailAddress" />
-
+            Email Address
             <TextField.Input
               data-cy="email-input"
               name="email"
@@ -79,16 +78,16 @@ const EmailLinkAuth: React.FC<{
         <Button loading={signInWithOtpMutation.isMutating}>
           <If
             condition={signInWithOtpMutation.isMutating}
-            fallback={<Trans i18nKey="auth:sendEmailLink" />}
+            fallback="Send Email Link"
           >
-            <Trans i18nKey="auth:sendingEmailLink" />
+            Sending Email Link...
           </If>
         </Button>
       </div>
-
       <If condition={signInWithOtpMutation.error}>
         <Alert type="error">
-          <Trans i18nKey="auth:errors.link" />
+          Sorry, we encountered an error while sending your link. Please try
+          again.
         </Alert>
       </If>
     </form>

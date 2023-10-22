@@ -48,17 +48,14 @@ const SuccessSessionStatus = ({
 
       <Heading type={3}>
         <span className="mr-4 font-semibold">
-          <Trans i18nKey="subscription:checkoutSuccessTitle" />
+          Done! You're all set.
         </span>
         🎉
       </Heading>
 
       <div className="flex flex-col space-y-4 text-gray-500 dark:text-gray-400">
         <p>
-          <Trans
-            i18nKey="subscription:checkoutSuccessDescription"
-            values={{ customerEmail }}
-          />
+          Thank you for subscribing, we have successfully processed your subscription! A confirmation email will be sent to {{ customerEmail }}.
         </p>
       </div>
 
@@ -69,7 +66,7 @@ const SuccessSessionStatus = ({
       >
         <span className="flex items-center space-x-2.5">
           <span>
-            <Trans i18nKey="subscription:checkoutSuccessBackButton" />
+            Proceed to App
           </span>
 
           <ChevronRightIcon className="h-4" />

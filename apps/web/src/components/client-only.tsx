@@ -10,7 +10,7 @@ const ClientOnly = ({ children }: { children: ReactNode }) => {
     setMounted(true);
   }, []);
 
-  return mounted ? <Suspense fallback="">{children}</Suspense> : null;
+  return mounted ? <Suspense fallback={null}>{children}</Suspense> : null;
 };
 
 export default ClientOnly;

@@ -26,31 +26,26 @@ const SignUpMethodsContainer = () => {
     router.push(configuration.paths.onboarding);
   }, [router]);
 
-  return (
-    <>
-      <If condition={configuration.auth.providers.oAuth.length}>
-        <OAuthProviders />
+  return (<>
+    <If condition={configuration.auth.providers.oAuth.length}>
+      <OAuthProviders />
 
-        <div>
-          <span className="text-xs text-gray-400">
-            <Trans i18nKey="auth:orContinueWithEmail" />
-          </span>
-        </div>
-      </If>
-
-      <If condition={configuration.auth.providers.emailPassword}>
-        <EmailPasswordSignUpContainer onSignUp={onSignUp} />
-      </If>
-
-      <If condition={configuration.auth.providers.phoneNumber}>
-        <PhoneNumberSignInContainer mode="signUp" onSuccess={onSignUp} />
-      </If>
-
-      <If condition={configuration.auth.providers.emailLink}>
-        <EmailLinkAuth />
-      </If>
-    </>
-  );
+      <div>
+        <span className="text-xs text-gray-400">
+          or continue with email
+        </span>
+      </div>
+    </If>
+    <If condition={configuration.auth.providers.emailPassword}>
+      <EmailPasswordSignUpContainer onSignUp={onSignUp} />
+    </If>
+    <If condition={configuration.auth.providers.phoneNumber}>
+      <PhoneNumberSignInContainer mode="signUp" onSuccess={onSignUp} />
+    </If>
+    <If condition={configuration.auth.providers.emailLink}>
+      <EmailLinkAuth />
+    </If>
+  </>);
 };
 
 export default SignUpMethodsContainer;

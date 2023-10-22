@@ -38,57 +38,49 @@ const OAuthProviders: React.FCC<{
     return null;
   }
 
-  return (
-    <>
-      <If condition={loading}>
-        <PageLoadingIndicator />
-      </If>
+  return (<>
+    <If condition={loading}>
+      <PageLoadingIndicator />
+    </If>
+    <div className="flex w-full flex-1 flex-col space-y-3">
+      <div className="flex-col space-y-2">
+        {OAUTH_PROVIDERS.map((provider) => {
+          return (
+            (<AuthProviderButton
+              key={provider}
+              onClick={() => {
+                const origin = window.location.origin;
+                const callback = configuration.paths.authCallback;
 
-      <div className="flex w-full flex-1 flex-col space-y-3">
-        <div className="flex-col space-y-2">
-          {OAUTH_PROVIDERS.map((provider) => {
-            return (
-              <AuthProviderButton
-                key={provider}
-                onClick={() => {
-                  const origin = window.location.origin;
-                  const callback = configuration.paths.authCallback;
+                const returnUrlParams = props.returnUrl
+                  ? `?returnUrl=${props.returnUrl}`
+                  : "";
 
-                  const returnUrlParams = props.returnUrl
-                    ? `?returnUrl=${props.returnUrl}`
-                    : "";
+                const returnUrl = [callback, returnUrlParams].join("");
+                const redirectTo = [origin, returnUrl].join("");
 
-                  const returnUrl = [callback, returnUrlParams].join("");
-                  const redirectTo = [origin, returnUrl].join("");
+                const credentials = {
+                  provider,
+                  options: {
+                    redirectTo,
+                  },
+                };
 
-                  const credentials = {
-                    provider,
-                    options: {
-                      redirectTo,
-                    },
-                  };
-
-                  return onSignInWithProvider(() =>
-                    signInWithProviderMutation.trigger(credentials),
-                  );
-                }}
-                providerId={provider}
-              >
-                <Trans
-                  i18nKey="auth:signInWithProvider"
-                  values={{
-                    provider: getProviderName(provider),
-                  }}
-                />
-              </AuthProviderButton>
-            );
-          })}
-        </div>
-
-        <AuthErrorMessage error={signInWithProviderMutation.error} />
+                return onSignInWithProvider(() =>
+                  signInWithProviderMutation.trigger(credentials),
+                );
+              }}
+              providerId={provider}
+            >
+              Sign in with {{provider}}
+            </AuthProviderButton>)
+          );
+        })}
       </div>
-    </>
-  );
+
+      <AuthErrorMessage error={signInWithProviderMutation.error} />
+    </div>
+  </>);
 };
 
 const getProviderName = (providerId: string) => {

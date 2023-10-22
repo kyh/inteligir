@@ -116,29 +116,26 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
   const { isMutating, data } = updateUserMutation;
 
   return (
-    <form data-cy={"update-password-form"} onSubmit={handleSubmit(onSubmit)}>
+    (<form data-cy={"update-password-form"} onSubmit={handleSubmit(onSubmit)}>
       <div className={"flex flex-col space-y-4"}>
         <If condition={data}>
           <Alert type={"success"}>
             <Alert.Heading>
-              <Trans i18nKey={"profile:updatePasswordSuccess"} />
+              Password update request successful
             </Alert.Heading>
-
-            <Trans i18nKey={"profile:updatePasswordSuccessMessage"} />
+            Your password has been successfully updated!
           </Alert>
         </If>
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={"profile:newPassword"} />
-
+            New Password
             <TextField.Input
               data-cy={"new-password"}
               required
               type={"password"}
               {...newPasswordControl}
             />
-
             <TextField.Error
               data-cy={"new-password-error"}
               error={errors.newPassword?.message}
@@ -148,15 +145,13 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={"profile:repeatPassword"} />
-
+            Repeat New Password
             <TextField.Input
               data-cy={"repeat-new-password"}
               required
               type={"password"}
               {...repeatPasswordControl}
             />
-
             <TextField.Error
               data-cy={"repeat-password-error"}
               error={errors.repeatPassword?.message}
@@ -166,11 +161,11 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
         <div>
           <Button className={"w-full md:w-auto"} loading={isMutating}>
-            <Trans i18nKey={"profile:updatePasswordSubmitLabel"} />
+            Update Password
           </Button>
         </div>
       </div>
-    </form>
+    </form>)
   );
 };
 

@@ -1,5 +1,4 @@
 import Trans from "@inteligir/ui/trans";
-
 import {
   Select,
   SelectItem,
@@ -7,11 +6,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@inteligir/ui/select";
-
+import IfHasPermissions from "@/components/if-has-permissions";
 import type MembershipRole from "@/lib/organizations/types/membership-role";
 import roles from "@/lib/organizations/roles";
 import { canInviteUser } from "@/lib/organizations/permissions";
-import IfHasPermissions from "@/components/if-has-permissions";
 
 const MembershipRoleSelector: React.FCC<{
   value?: MembershipRole;
@@ -21,12 +19,12 @@ const MembershipRoleSelector: React.FCC<{
 
   return (
     <Select
-      value={selectedRole.value.toString()}
       onValueChange={(value) => {
-        onChange && onChange(Number(value));
+        onChange?.(Number(value));
       }}
+      value={selectedRole.value.toString()}
     >
-      <SelectTrigger data-cy={"role-selector-trigger"}>
+      <SelectTrigger data-cy="role-selector-trigger">
         <SelectValue />
       </SelectTrigger>
 
@@ -34,18 +32,16 @@ const MembershipRoleSelector: React.FCC<{
         {roles.map((role) => {
           return (
             <IfHasPermissions
-              key={role.value}
               condition={(currentUserRole) =>
                 canInviteUser(currentUserRole, role.value)
               }
+              key={role.value}
             >
               <SelectItem
                 data-cy={`role-item-${role.value}`}
                 value={role.value.toString()}
               >
-                <span className={"text-sm"}>
-                  <Trans i18nKey={role.label} />
-                </span>
+                <span className="text-sm">{role.label}</span>
               </SelectItem>
             </IfHasPermissions>
           );
@@ -55,7 +51,7 @@ const MembershipRoleSelector: React.FCC<{
   );
 };
 
-function getSelectedRoleModel(currentRole: MembershipRole | undefined) {
+const getSelectedRoleModel = (currentRole: MembershipRole | undefined) => {
   const memberRole = roles[2];
 
   return (
@@ -63,6 +59,6 @@ function getSelectedRoleModel(currentRole: MembershipRole | undefined) {
       return role.value === currentRole;
     }) ?? memberRole
   );
-}
+};
 
 export default MembershipRoleSelector;

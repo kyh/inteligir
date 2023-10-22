@@ -36,7 +36,7 @@ const OrganizationsSelector = () => {
   const { data, isLoading } = useUserOrganizationsQuery(userId);
 
   return (
-    <Select
+    (<Select
       onValueChange={(uuid) => {
         changeOrganization(uuid);
       }}
@@ -54,7 +54,6 @@ const OrganizationsSelector = () => {
           </span>
         </span>
       </SelectTrigger>
-
       <SelectContent position="popper">
         <SelectArrow />
 
@@ -83,14 +82,14 @@ const OrganizationsSelector = () => {
               >
                 <PlusMini className="h-5" />
                 <span>
-                  <Trans i18nKey="organization:createOrganizationDropdownLabel" />
+                  New organization
                 </span>
               </SelectAction>
             }
           />
         </SelectGroup>
       </SelectContent>
-    </Select>
+    </Select>)
   );
 };
 

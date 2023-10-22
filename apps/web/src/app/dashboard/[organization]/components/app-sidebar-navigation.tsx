@@ -19,7 +19,7 @@ const AppSidebarNavigation = ({
             key={item.path}
             path={item.path}
           >
-            <Trans defaults={item.label} i18nKey={item.label} />
+            {item.label}
           </SidebarItem>
         );
       })}

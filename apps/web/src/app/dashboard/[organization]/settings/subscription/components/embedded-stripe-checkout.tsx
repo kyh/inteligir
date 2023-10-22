@@ -70,7 +70,7 @@ const EmbeddedCheckoutPopup = ({
   };
 
   return (
-    <Dialog
+    (<Dialog
       defaultOpen
       onOpenChange={(open) => {
         if (!open && onClose) {
@@ -92,7 +92,7 @@ const EmbeddedCheckoutPopup = ({
               <LogoImage />
 
               <Button onClick={close} variant="outline">
-                <Trans i18nKey="common:cancel" />
+                Cancel
               </Button>
             </div>
           </div>
@@ -107,7 +107,7 @@ const EmbeddedCheckoutPopup = ({
             >
               <XMarkIcon className="h-6 text-gray-900" />
               <span className="sr-only">
-                <Trans i18nKey="common:cancel" />
+                Cancel
               </span>
             </IconButton>
           </DialogPrimitiveClose>
@@ -121,6 +121,6 @@ const EmbeddedCheckoutPopup = ({
           {children}
         </div>
       </DialogContent>
-    </Dialog>
+    </Dialog>)
   );
 };
