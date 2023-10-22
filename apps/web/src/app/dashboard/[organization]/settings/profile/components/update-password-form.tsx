@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect } from 'react';
-import type { User } from '@supabase/gotrue-js';
+import { useCallback, useEffect } from "react";
+import type { User } from "@supabase/gotrue-js";
 
-import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next';
-import { useForm } from 'react-hook-form';
+import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import { useForm } from "react-hook-form";
 
-import useUpdateUserMutation from '~/core/hooks/use-update-user-mutation';
+import useUpdateUserMutation from "@/core/hooks/use-update-user-mutation";
 
-import Button from "~/core/ui/button";
-import TextField from "~/core/ui/text-field";
-import Alert from "~/core/ui/alert";
-import If from "~/core/ui/if";
-import Trans from "~/core/ui/trans";
-import configuration from '~/configuration';
+import Button from "@inteligir/ui/button";
+import TextField from "@inteligir/ui/text-field";
+import Alert from "@inteligir/ui/alert";
+import If from "@inteligir/ui/if";
+import Trans from "@inteligir/ui/trans";
+import configuration from "@/configuration";
 
 const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
   const { t } = useTranslation();
@@ -22,16 +22,16 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
   const { register, handleSubmit, reset, getValues, formState } = useForm({
     defaultValues: {
-      currentPassword: '',
-      newPassword: '',
-      repeatPassword: '',
+      currentPassword: "",
+      newPassword: "",
+      repeatPassword: "",
     },
   });
 
   const errors = formState.errors;
 
-  const newPasswordControl = register('newPassword', {
-    value: '',
+  const newPasswordControl = register("newPassword", {
+    value: "",
     required: true,
     minLength: {
       value: 6,
@@ -39,14 +39,14 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
     },
     validate: (value) => {
       // current password cannot be the same as the current one
-      if (value === getValues('currentPassword')) {
+      if (value === getValues("currentPassword")) {
         return t(`profile:passwordNotChanged`);
       }
     },
   });
 
-  const repeatPasswordControl = register('repeatPassword', {
-    value: '',
+  const repeatPasswordControl = register("repeatPassword", {
+    value: "",
     required: true,
     minLength: {
       value: 6,
@@ -54,7 +54,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
     },
     validate: (value) => {
       // new password and repeat new password must match
-      if (value !== getValues('newPassword')) {
+      if (value !== getValues("newPassword")) {
         return t(`profile:passwordNotMatching`);
       }
     },
@@ -65,7 +65,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
       const redirectTo = [
         window.location.origin,
         configuration.paths.authCallback,
-      ].join('');
+      ].join("");
 
       const promise = updateUserMutation.trigger({ password, redirectTo });
 
@@ -116,31 +116,31 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
   const { isMutating, data } = updateUserMutation;
 
   return (
-    <form data-cy={'update-password-form'} onSubmit={handleSubmit(onSubmit)}>
-      <div className={'flex flex-col space-y-4'}>
+    <form data-cy={"update-password-form"} onSubmit={handleSubmit(onSubmit)}>
+      <div className={"flex flex-col space-y-4"}>
         <If condition={data}>
-          <Alert type={'success'}>
+          <Alert type={"success"}>
             <Alert.Heading>
-              <Trans i18nKey={'profile:updatePasswordSuccess'} />
+              <Trans i18nKey={"profile:updatePasswordSuccess"} />
             </Alert.Heading>
 
-            <Trans i18nKey={'profile:updatePasswordSuccessMessage'} />
+            <Trans i18nKey={"profile:updatePasswordSuccessMessage"} />
           </Alert>
         </If>
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={'profile:newPassword'} />
+            <Trans i18nKey={"profile:newPassword"} />
 
             <TextField.Input
-              data-cy={'new-password'}
+              data-cy={"new-password"}
               required
-              type={'password'}
+              type={"password"}
               {...newPasswordControl}
             />
 
             <TextField.Error
-              data-cy={'new-password-error'}
+              data-cy={"new-password-error"}
               error={errors.newPassword?.message}
             />
           </TextField.Label>
@@ -148,25 +148,25 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={'profile:repeatPassword'} />
+            <Trans i18nKey={"profile:repeatPassword"} />
 
             <TextField.Input
-              data-cy={'repeat-new-password'}
+              data-cy={"repeat-new-password"}
               required
-              type={'password'}
+              type={"password"}
               {...repeatPasswordControl}
             />
 
             <TextField.Error
-              data-cy={'repeat-password-error'}
+              data-cy={"repeat-password-error"}
               error={errors.repeatPassword?.message}
             />
           </TextField.Label>
         </TextField>
 
         <div>
-          <Button className={'w-full md:w-auto'} loading={isMutating}>
-            <Trans i18nKey={'profile:updatePasswordSubmitLabel'} />
+          <Button className={"w-full md:w-auto"} loading={isMutating}>
+            <Trans i18nKey={"profile:updatePasswordSubmitLabel"} />
           </Button>
         </div>
       </div>

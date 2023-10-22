@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect } from 'react';
-import { toast } from 'sonner';
-import { useTranslation } from 'react-i18next';
-import { useForm } from 'react-hook-form';
-import type { User } from '@supabase/gotrue-js';
+import { useCallback, useEffect } from "react";
+import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
+import { useForm } from "react-hook-form";
+import type { User } from "@supabase/gotrue-js";
 
-import Button from "~/core/ui/button";
-import TextField from "~/core/ui/text-field";
-import If from "~/core/ui/if";
-import Alert from "~/core/ui/alert";
-import Trans from "~/core/ui/trans";
+import Button from "@inteligir/ui/button";
+import TextField from "@inteligir/ui/text-field";
+import If from "@inteligir/ui/if";
+import Alert from "@inteligir/ui/alert";
+import Trans from "@inteligir/ui/trans";
 
-import useUpdateUserMutation from '~/core/hooks/use-update-user-mutation';
+import useUpdateUserMutation from "@/core/hooks/use-update-user-mutation";
 
-import configuration from '~/configuration';
+import configuration from "@/configuration";
 
 const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
   const { t } = useTranslation();
@@ -25,7 +25,7 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
       const redirectTo = [
         window.location.origin,
         configuration.paths.authCallback,
-      ].join('');
+      ].join("");
 
       // then, we update the user's email address
       const promise = updateUserMutation.trigger({ email, redirectTo });
@@ -45,8 +45,8 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
 
   const { register, handleSubmit, reset } = useForm({
     defaultValues: {
-      email: '',
-      repeatEmail: '',
+      email: "",
+      repeatEmail: "",
     },
   });
 
@@ -72,13 +72,13 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
     [currentEmail, updateEmail, t],
   );
 
-  const emailControl = register('email', {
-    value: '',
+  const emailControl = register("email", {
+    value: "",
     required: true,
   });
 
-  const repeatEmailControl = register('repeatEmail', {
-    value: '',
+  const repeatEmailControl = register("repeatEmail", {
+    value: "",
     required: true,
   });
 
@@ -91,54 +91,54 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
 
   return (
     <form
-      className={'flex flex-col space-y-4'}
-      data-cy={'update-email-form'}
+      className={"flex flex-col space-y-4"}
+      data-cy={"update-email-form"}
       onSubmit={handleSubmit(onSubmit)}
     >
       <If condition={updateUserMutation.data}>
-        <Alert type={'success'}>
+        <Alert type={"success"}>
           <Alert.Heading>
-            <Trans i18nKey={'profile:updateEmailSuccess'} />
+            <Trans i18nKey={"profile:updateEmailSuccess"} />
           </Alert.Heading>
 
-          <Trans i18nKey={'profile:updateEmailSuccessMessage'} />
+          <Trans i18nKey={"profile:updateEmailSuccessMessage"} />
         </Alert>
       </If>
 
-      <div className={'flex flex-col space-y-4'}>
+      <div className={"flex flex-col space-y-4"}>
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={'profile:newEmail'} />
+            <Trans i18nKey={"profile:newEmail"} />
 
             <TextField.Input
               {...emailControl}
-              data-cy={'profile-new-email-input'}
+              data-cy={"profile-new-email-input"}
               required
-              type={'email'}
-              placeholder={''}
+              type={"email"}
+              placeholder={""}
             />
           </TextField.Label>
         </TextField>
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={'profile:repeatEmail'} />
+            <Trans i18nKey={"profile:repeatEmail"} />
 
             <TextField.Input
               {...repeatEmailControl}
-              data-cy={'profile-repeat-email-input'}
+              data-cy={"profile-repeat-email-input"}
               required
-              type={'email'}
+              type={"email"}
             />
           </TextField.Label>
         </TextField>
 
         <div>
           <Button
-            className={'w-full md:w-auto'}
+            className={"w-full md:w-auto"}
             loading={updateUserMutation.isMutating}
           >
-            <Trans i18nKey={'profile:updateEmailSubmitLabel'} />
+            <Trans i18nKey={"profile:updateEmailSubmitLabel"} />
           </Button>
         </div>
       </div>

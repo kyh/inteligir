@@ -1,8 +1,8 @@
 import MultiFactorAuthenticationSettings from "./components/multi-factor-authentication-settings";
-import { withI18n } from '~/i18n/with-i18n';
+import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {
-  title: 'Authentication',
+  title: "Authentication",
 };
 
 function AuthenticationPage() {

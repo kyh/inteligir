@@ -2,10 +2,10 @@
 
 import type { Stripe } from "stripe";
 import { CheckIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
-import Heading from "~/core/ui/heading";
-import Button from "~/core/ui/button";
-import Trans from "~/core/ui/trans";
-import configuration from "~/configuration";
+import Heading from "@inteligir/ui/heading";
+import Button from "@inteligir/ui/button";
+import Trans from "@inteligir/ui/trans";
+import configuration from "@/configuration";
 
 /**
  * Retrieves the session status for a Stripe checkout session.

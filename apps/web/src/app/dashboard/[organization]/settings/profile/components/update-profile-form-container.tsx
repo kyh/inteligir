@@ -2,16 +2,16 @@
 
 import { useCallback, useContext } from "react";
 
-import UserSessionContext from "~/core/session/contexts/user-session";
-import useUserSession from "~/core/hooks/use-user-session";
-import UserData from "~/core/session/types/user-data";
+import UserSessionContext from "@/core/session/contexts/user-session";
+import useUserSession from "@/core/hooks/use-user-session";
+import UserData from "@/core/session/types/user-data";
 import UpdateProfileForm from "./update-profile-form";
-import Trans from "~/core/ui/trans";
+import Trans from "@inteligir/ui/trans";
 
 import UpdatePhoneNumberForm from "./update-phone-number-form";
 import SettingsTile from "../../components/settings-tile";
-import If from "~/core/ui/if";
-import configuration from "~/configuration";
+import If from "@inteligir/ui/if";
+import configuration from "@/configuration";
 
 import { refreshSessionAction } from "../actions";
 

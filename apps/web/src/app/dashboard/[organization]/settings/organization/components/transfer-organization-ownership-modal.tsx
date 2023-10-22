@@ -1,13 +1,13 @@
-import { useCallback, useTransition } from 'react';
+import { useCallback, useTransition } from "react";
 
-import Trans from "~/core/ui/trans";
-import Button from "~/core/ui/button";
-import Modal from "~/core/ui/modal";
-import If from "~/core/ui/if";
-import useCsrfToken from '~/core/hooks/use-csrf-token';
+import Trans from "@inteligir/ui/trans";
+import Button from "@inteligir/ui/button";
+import Modal from "@inteligir/ui/modal";
+import If from "@inteligir/ui/if";
+import useCsrfToken from "@/core/hooks/use-csrf-token";
 
-import { transferOrganizationOwnershipAction } from '~/lib/organizations/actions';
-import useCurrentOrganization from '~/lib/organizations/hooks/use-current-organization';
+import { transferOrganizationOwnershipAction } from "@/lib/organizations/actions";
+import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
 
 const ModalHeading = <Trans i18nKey="organization:transferOwnership" />;
 
@@ -19,7 +19,7 @@ const TransferOrganizationOwnershipModal: React.FC<{
 }> = ({ isOpen, setIsOpen, targetDisplayName, membershipId }) => {
   const csrfToken = useCsrfToken();
   const organization = useCurrentOrganization();
-  const organizationUid = organization?.uuid ?? '';
+  const organizationUid = organization?.uuid ?? "";
   const [pending, startTransition] = useTransition();
 
   const onSubmit = useCallback(
@@ -41,10 +41,10 @@ const TransferOrganizationOwnershipModal: React.FC<{
 
   return (
     <Modal heading={ModalHeading} isOpen={isOpen} setIsOpen={setIsOpen}>
-      <form className={'flex flex-col space-y-6 text-sm'} onSubmit={onSubmit}>
+      <form className={"flex flex-col space-y-6 text-sm"} onSubmit={onSubmit}>
         <p>
           <Trans
-            i18nKey={'organization:transferOwnershipDisclaimer'}
+            i18nKey={"organization:transferOwnershipDisclaimer"}
             values={{
               member: targetDisplayName,
             }}
@@ -53,23 +53,23 @@ const TransferOrganizationOwnershipModal: React.FC<{
         </p>
 
         <p>
-          <Trans i18nKey={'common:modalConfirmationQuestion'} />
+          <Trans i18nKey={"common:modalConfirmationQuestion"} />
         </p>
 
-        <div className={'flex justify-end space-x-2'}>
+        <div className={"flex justify-end space-x-2"}>
           <Modal.CancelButton onClick={() => setIsOpen(false)} />
 
           <Button
-            type={'submit'}
-            data-cy={'confirm-transfer-ownership-button'}
-            variant={'destructive'}
+            type={"submit"}
+            data-cy={"confirm-transfer-ownership-button"}
+            variant={"destructive"}
             loading={pending}
           >
             <If
               condition={pending}
-              fallback={<Trans i18nKey={'organization:transferOwnership'} />}
+              fallback={<Trans i18nKey={"organization:transferOwnership"} />}
             >
-              <Trans i18nKey={'organization:transferringOwnership'} />
+              <Trans i18nKey={"organization:transferringOwnership"} />
             </If>
           </Button>
         </div>

@@ -1,16 +1,13 @@
-'use client';
+"use client";
 
-import useCurrentOrganization from '~/lib/organizations/hooks/use-current-organization';
-
-import If from "~/core/ui/if";
-import Trans from "~/core/ui/trans";
-
+import If from "@inteligir/ui/if";
+import Trans from "@inteligir/ui/trans";
+import PlanSelectionForm from "@/app/dashboard/[organization]/settings/subscription/components/plan-selection-form";
+import IfHasPermissions from "@/components/if-has-permissions";
+import BillingPortalRedirectButton from "@/app/dashboard/[organization]/settings/subscription/components/billing-redirect-button";
 import SubscriptionCard from "./subscription-card";
-
-import { canChangeBilling } from '~/lib/organizations/permissions';
-import PlanSelectionForm from "~/app/dashboard/[organization]/settings/subscription/components/plan-selection-form";
-import IfHasPermissions from "~/components/if-has-permissions";
-import BillingPortalRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/billing-redirect-button";
+import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
+import { canChangeBilling } from "@/lib/organizations/permissions";
 
 const Plans: React.FC = () => {
   const organization = useCurrentOrganization();
@@ -29,18 +26,18 @@ const Plans: React.FC = () => {
   }
 
   return (
-    <div className={'flex flex-col space-y-4'}>
+    <div className="flex flex-col space-y-4">
       <SubscriptionCard subscription={subscription} />
 
       <IfHasPermissions condition={canChangeBilling}>
         <If condition={customerId}>
-          <div className={'flex flex-col space-y-2'}>
+          <div className="flex flex-col space-y-2">
             <BillingPortalRedirectButton customerId={customerId as string}>
-              <Trans i18nKey={'subscription:manageBilling'} />
+              <Trans i18nKey="subscription:manageBilling" />
             </BillingPortalRedirectButton>
 
-            <span className={'text-xs text-gray-500 dark:text-gray-400'}>
-              <Trans i18nKey={'subscription:manageBillingDescription'} />
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              <Trans i18nKey="subscription:manageBillingDescription" />
             </span>
           </div>
         </If>

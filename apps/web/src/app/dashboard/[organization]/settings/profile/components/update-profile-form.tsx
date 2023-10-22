@@ -1,45 +1,40 @@
-import { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
-import { useForm } from 'react-hook-form';
+import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
+import { useForm } from "react-hook-form";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import Button from "@inteligir/ui/button";
+import TextField from "@inteligir/ui/text-field";
+import ImageUploadInput from "@inteligir/ui/image-upload-input";
+import Trans from "@inteligir/ui/trans";
+import useUpdateProfileMutation from "@/lib/user/hooks/use-update-profile";
+import useSupabase from "@/core/hooks/use-supabase";
+import type UserSession from "@/core/session/types/user-session";
+import type UserData from "@/core/session/types/user-data";
+import configuration from "@/configuration";
 
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-import useUpdateProfileMutation from '~/lib/user/hooks/use-update-profile';
-
-import Button from "~/core/ui/button";
-import TextField from "~/core/ui/text-field";
-import ImageUploadInput from "~/core/ui/image-upload-input";
-import Trans from "~/core/ui/trans";
-import useSupabase from '~/core/hooks/use-supabase';
-
-import type UserSession from '~/core/session/types/user-session';
-import type UserData from '~/core/session/types/user-data';
-
-import configuration from '~/configuration';
-
-function UpdateProfileForm({
+const UpdateProfileForm = ({
   session,
   onUpdateProfileData,
 }: {
   session: UserSession;
   onUpdateProfileData: (user: Partial<UserData>) => void;
-}) {
+}) => {
   const updateProfileMutation = useUpdateProfileMutation();
 
   const client = useSupabase();
   const { t } = useTranslation();
 
-  const currentPhotoURL = session.data?.photoUrl ?? '';
-  const currentDisplayName = session?.data?.displayName ?? '';
+  const currentPhotoURL = session.data?.photoUrl ?? "";
+  const currentDisplayName = session?.data?.displayName ?? "";
 
   const user = session.auth?.user;
-  const email = user?.email ?? '';
+  const email = user?.email ?? "";
 
   const { register, handleSubmit, reset, setValue } = useForm({
     defaultValues: {
       displayName: currentDisplayName,
-      photoURL: '',
+      photoURL: "",
     },
   });
 
@@ -47,7 +42,7 @@ function UpdateProfileForm({
 
   const onAvatarCleared = useCallback(() => {
     setAvatarIsDirty(true);
-    setValue('photoURL', '');
+    setValue("photoURL", "");
   }, [setValue]);
 
   const onSubmit = async (displayName: string, photoFile: Maybe<File>) => {
@@ -66,7 +61,7 @@ function UpdateProfileForm({
     const info = {
       id: user.id,
       displayName,
-      photoUrl: isAvatarRemoved ? '' : photoUrl,
+      photoUrl: isAvatarRemoved ? "" : photoUrl,
     };
 
     // delete existing photo if different
@@ -89,71 +84,71 @@ function UpdateProfileForm({
     });
   };
 
-  const displayNameControl = register('displayName', {
+  const displayNameControl = register("displayName", {
     value: currentDisplayName,
   });
 
-  const photoURLControl = register('photoURL');
+  const photoURLControl = register("photoURL");
 
   useEffect(() => {
     reset({
-      displayName: currentDisplayName ?? '',
-      photoURL: currentPhotoURL ?? '',
+      displayName: currentDisplayName ?? "",
+      photoURL: currentPhotoURL ?? "",
     });
   }, [currentDisplayName, currentPhotoURL, reset]);
 
   return (
     <form
-      data-cy={'update-profile-form'}
+      data-cy="update-profile-form"
       onSubmit={handleSubmit((value) => {
         return onSubmit(value.displayName, getPhotoFile(value.photoURL));
       })}
     >
-      <div className={'flex flex-col space-y-4'}>
+      <div className="flex flex-col space-y-4">
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={'profile:displayNameLabel'} />
+            <Trans i18nKey="profile:displayNameLabel" />
 
             <TextField.Input
               {...displayNameControl}
-              data-cy={'profile-display-name'}
+              data-cy="profile-display-name"
               minLength={2}
-              placeholder={''}
+              placeholder=""
             />
           </TextField.Label>
         </TextField>
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={'profile:profilePictureLabel'} />
+            <Trans i18nKey="profile:profilePictureLabel" />
 
             <ImageUploadInput
               {...photoURLControl}
+              image={currentPhotoURL}
               multiple={false}
               onClear={onAvatarCleared}
-              image={currentPhotoURL}
             >
-              <Trans i18nKey={'common:imageInputLabel'} />
+              <Trans i18nKey="common:imageInputLabel" />
             </ImageUploadInput>
           </TextField.Label>
         </TextField>
 
         <TextField>
           <TextField.Label>
-            <Trans i18nKey={'profile:emailLabel'} />
+            <Trans i18nKey="profile:emailLabel" />
 
             <TextField.Input disabled value={email} />
           </TextField.Label>
 
           <div>
             <Button
-              type={'button'}
-              variant={'ghost'}
-              size={'small'}
-              href={'../' + configuration.paths.settings.email}
+              href={`../${configuration.paths.settings.email}`}
+              size="small"
+              type="button"
+              variant="ghost"
             >
-              <span className={'text-xs font-normal'}>
-                <Trans i18nKey={'profile:updateEmailSubmitLabel'} />
+              <span className="text-xs font-normal">
+                <Trans i18nKey="profile:updateEmailSubmitLabel" />
               </span>
             </Button>
           </div>
@@ -161,16 +156,16 @@ function UpdateProfileForm({
 
         <div>
           <Button
-            className={'w-full md:w-auto'}
+            className="w-full md:w-auto"
             loading={updateProfileMutation.isMutating}
           >
-            <Trans i18nKey={'profile:updateProfileSubmitLabel'} />
+            <Trans i18nKey="profile:updateProfileSubmitLabel" />
           </Button>
         </div>
       </div>
     </form>
   );
-}
+};
 
 /**
  * @name getPhotoFile
@@ -178,22 +173,22 @@ function UpdateProfileForm({
  * @description Returns the file of the photo when submitted
  * It returns undefined when the user hasn't selected a file
  */
-function getPhotoFile(value: string | null | FileList) {
-  if (!value || typeof value === 'string') {
+const getPhotoFile = (value: string | null | FileList) => {
+  if (!value || typeof value === "string") {
     return;
   }
 
   return value.item(0) ?? undefined;
-}
+};
 
-async function uploadUserProfilePhoto(
+const uploadUserProfilePhoto = async (
   client: SupabaseClient,
   photoFile: File,
   userId: string,
-) {
+) => {
   const bytes = await photoFile.arrayBuffer();
-  const bucket = client.storage.from('avatars');
-  const extension = photoFile.name.split('.').pop();
+  const bucket = client.storage.from("avatars");
+  const extension = photoFile.name.split(".").pop();
   const fileName = `${userId}.${extension}`;
 
   const result = await bucket.upload(fileName, bytes, {
@@ -205,12 +200,12 @@ async function uploadUserProfilePhoto(
   }
 
   throw result.error;
-}
+};
 
-function deleteProfilePhoto(client: SupabaseClient, url: string) {
-  const bucket = client.storage.from('logos');
+const deleteProfilePhoto = (client: SupabaseClient, url: string) => {
+  const bucket = client.storage.from("logos");
 
   return bucket.remove([url]);
-}
+};
 
 export default UpdateProfileForm;

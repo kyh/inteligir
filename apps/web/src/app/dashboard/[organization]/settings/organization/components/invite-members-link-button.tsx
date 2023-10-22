@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { UserPlusIcon } from '@heroicons/react/24/outline';
+import { UserPlusIcon } from "@heroicons/react/24/outline";
 
-import useUserCanInviteUsers from '~/lib/organizations/hooks/use-user-can-invite-users';
-import Button from "~/core/ui/button";
-import Trans from "~/core/ui/trans";
+import useUserCanInviteUsers from "@/lib/organizations/hooks/use-user-can-invite-users";
+import Button from "@inteligir/ui/button";
+import Trans from "@inteligir/ui/trans";
 
 function InviteMembersLinkButton(
   props: React.PropsWithChildren<{
     href: string;
-  }>
+  }>,
 ) {
   const canInviteUsers = useUserCanInviteUsers();
 
@@ -19,9 +19,9 @@ function InviteMembersLinkButton(
 
   return (
     <Button
-      size={'small'}
-      className={'w-full lg:w-auto'}
-      data-cy={'invite-form-link'}
+      size={"small"}
+      className={"w-full lg:w-auto"}
+      data-cy={"invite-form-link"}
       type="button"
       href={props.href}
     >
@@ -29,7 +29,7 @@ function InviteMembersLinkButton(
         <UserPlusIcon className="h-5" />
 
         <span>
-          <Trans i18nKey={'organization:inviteMembersButtonLabel'} />
+          <Trans i18nKey={"organization:inviteMembersButtonLabel"} />
         </span>
       </span>
     </Button>

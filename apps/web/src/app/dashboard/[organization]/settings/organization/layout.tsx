@@ -1,8 +1,8 @@
-import OrganizationSettingsTabs from "~/app/dashboard/[organization]/settings/organization/components/organization-settings-tabs";
-import SettingsContentContainer from "~/app/dashboard/[organization]/settings/components/settings-content-container";
-import initializeServerI18n from '~/i18n/i18n.server';
-import getLanguageCookie from '~/i18n/get-language-cookie';
-import { withI18n } from '~/i18n/with-i18n';
+import OrganizationSettingsTabs from "@/app/dashboard/[organization]/settings/organization/components/organization-settings-tabs";
+import SettingsContentContainer from "@/app/dashboard/[organization]/settings/components/settings-content-container";
+import initializeServerI18n from "@/i18n/i18n.server";
+import getLanguageCookie from "@/i18n/get-language-cookie";
+import { withI18n } from "@/i18n/with-i18n";
 
 async function OrganizationSettingsLayout({
   children,

@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import Trans from "~/core/ui/trans";
-import type { User } from '@supabase/gotrue-js';
-import { useMemo } from 'react';
+import Trans from "@inteligir/ui/trans";
+import type { User } from "@supabase/gotrue-js";
+import { useMemo } from "react";
 
-import If from "~/core/ui/if";
-import Badge from "~/core/ui/badge";
+import If from "@inteligir/ui/if";
+import Badge from "@inteligir/ui/badge";
 import RoleBadge from "./role-badge";
 
-import { canUpdateUser } from '~/lib/organizations/permissions';
+import { canUpdateUser } from "@/lib/organizations/permissions";
 import OrganizationMembersActionsContainer from "./organization-members-actions-container";
-import type UserData from '~/core/session/types/user-data';
-import type MembershipRole from '~/lib/organizations/types/membership-role';
-import ProfileAvatar from "~/components/profile-avatar";
-import useUserId from '~/core/hooks/use-user-id';
+import type UserData from "@/core/session/types/user-data";
+import type MembershipRole from "@/lib/organizations/types/membership-role";
+import ProfileAvatar from "@/components/profile-avatar";
+import useUserId from "@/core/hooks/use-user-id";
 
 function OrganizationMembersList({
   members,
@@ -40,8 +40,8 @@ function OrganizationMembersList({
   const userRole = currentUser.role;
 
   return (
-    <div className={'w-full space-y-10'}>
-      <div className="flex flex-col divide-y divide-gray-100 dark:divide-dark-800">
+    <div className={"w-full space-y-10"}>
+      <div className="dark:divide-dark-800 flex flex-col divide-y divide-gray-100">
         {members.map((member) => {
           const displayName = member.data.displayName
             ? member.data.displayName
@@ -59,25 +59,25 @@ function OrganizationMembersList({
           return (
             <div
               key={key}
-              data-cy={'organization-member'}
+              data-cy={"organization-member"}
               className={
-                'flex flex-col py-2 lg:flex-row lg:items-center lg:space-x-2' +
-                ' justify-between space-y-2 lg:space-y-0'
+                "flex flex-col py-2 lg:flex-row lg:items-center lg:space-x-2" +
+                " justify-between space-y-2 lg:space-y-0"
               }
             >
-              <div className={'flex flex-auto items-center space-x-4'}>
+              <div className={"flex flex-auto items-center space-x-4"}>
                 <ProfileAvatar text={displayName} />
 
-                <div className={'block truncate text-sm'}>{displayName}</div>
+                <div className={"block truncate text-sm"}>{displayName}</div>
 
                 <If condition={isCurrentUser}>
-                  <Badge color={'info'} size={'small'}>
-                    <Trans i18nKey={'organization:youBadgeLabel'} />
+                  <Badge color={"info"} size={"small"}>
+                    <Trans i18nKey={"organization:youBadgeLabel"} />
                   </Badge>
                 </If>
               </div>
 
-              <div className={'flex items-center justify-end space-x-4'}>
+              <div className={"flex items-center justify-end space-x-4"}>
                 <div>
                   <RoleBadge role={member.role} />
                 </div>

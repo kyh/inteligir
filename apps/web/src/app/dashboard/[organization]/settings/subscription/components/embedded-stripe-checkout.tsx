@@ -6,17 +6,17 @@ import {
   EmbeddedCheckoutProvider,
   EmbeddedCheckout,
 } from "@stripe/react-stripe-js";
-import classNames from "clsx";
+import { clx } from "@inteligir/ui";
 import { XMarkIcon } from "@heroicons/react/24/outline";
 import { Close as DialogPrimitiveClose } from "@radix-ui/react-dialog";
-import { StripeCheckoutDisplayMode } from "~/lib/stripe/types";
-import configuration from "~/configuration";
-import { Dialog, DialogContent } from "~/core/ui/dialog";
-import IconButton from "~/core/ui/icon-button";
-import If from "~/core/ui/if";
-import LogoImage from "~/core/ui/logo/logo-image";
-import Button from "~/core/ui/button";
-import Trans from "~/core/ui/trans";
+import { Dialog, DialogContent } from "@inteligir/ui/dialog";
+import IconButton from "@inteligir/ui/icon-button";
+import If from "@inteligir/ui/if";
+import LogoImage from "@inteligir/ui/logo/logo-image";
+import Button from "@inteligir/ui/button";
+import Trans from "@inteligir/ui/trans";
+import configuration from "@/configuration";
+import { StripeCheckoutDisplayMode } from "@/lib/stripe/types";
 
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 
@@ -54,7 +54,7 @@ const EmbeddedCheckoutPopup = ({
   const isPopup = displayMode === StripeCheckoutDisplayMode.Popup;
   const isOverlay = displayMode === StripeCheckoutDisplayMode.Overlay;
 
-  const className = classNames({
+  const className = clx({
     [`bg-white p-4 max-h-[98vh] overflow-y-auto shadow-transparent border border-gray-200 dark:border-dark-700`]:
       isPopup,
     [`bg-background !flex flex-col flex-1 fixed top-0 !max-h-full !max-w-full left-0 w-screen h-screen border-transparent shadow-transparent py-4 px-8`]:
@@ -114,7 +114,7 @@ const EmbeddedCheckoutPopup = ({
         </If>
 
         <div
-          className={classNames({
+          className={clx({
             [`flex-1 rounded-xl bg-white p-8`]: isOverlay,
           })}
         >

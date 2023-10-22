@@ -1,21 +1,21 @@
-import Image from 'next/image';
+import Image from "next/image";
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { toast } from 'sonner';
+import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
-import useSupabase from '~/core/hooks/use-supabase';
-import useMutation from 'swr/mutation';
+import useSupabase from "@/core/hooks/use-supabase";
+import useMutation from "swr/mutation";
 
-import Button from "~/core/ui/button";
-import Alert from "~/core/ui/alert";
-import TextField from "~/core/ui/text-field";
-import Modal from "~/core/ui/modal";
-import If from "~/core/ui/if";
-import Trans from "~/core/ui/trans";
+import Button from "@inteligir/ui/button";
+import Alert from "@inteligir/ui/alert";
+import TextField from "@inteligir/ui/text-field";
+import Modal from "@inteligir/ui/modal";
+import If from "@inteligir/ui/if";
+import Trans from "@inteligir/ui/trans";
 
-import useFactorsMutationKey from '~/core/hooks/use-user-factors-mutation-key';
-import VerificationCodeInput from "~/app/auth/components/verification-code-input";
+import useFactorsMutationKey from "@/core/hooks/use-user-factors-mutation-key";
+import VerificationCodeInput from "@/app/auth/components/verification-code-input";
 
 function MultiFactorAuthSetupModal(
   props: React.PropsWithChildren<{
@@ -34,7 +34,7 @@ function MultiFactorAuthSetupModal(
   return (
     <Modal
       closeButton={false}
-      heading={<Trans i18nKey={'profile:setupMfaButtonLabel'} />}
+      heading={<Trans i18nKey={"profile:setupMfaButtonLabel"} />}
       isOpen={props.isOpen}
       setIsOpen={props.setIsOpen}
     >
@@ -55,23 +55,23 @@ function MultiFactorAuthSetupForm({
 }>) {
   const { trigger: verifyCode } = useVerifyCodeMutation();
   const [factorId, setFactorId] = useState<string | undefined>();
-  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationCode, setVerificationCode] = useState("");
 
   const [state, setState] = useState({
     loading: false,
-    error: '',
+    error: "",
   });
 
   const onSubmit = useCallback(async () => {
     setState({
       loading: true,
-      error: '',
+      error: "",
     });
 
     if (!factorId || !verificationCode) {
       return setState({
         loading: false,
-        error: 'No factor ID or verification code found',
+        error: "No factor ID or verification code found",
       });
     }
 
@@ -80,7 +80,7 @@ function MultiFactorAuthSetupForm({
 
       setState({
         loading: false,
-        error: '',
+        error: "",
       });
 
       onEnrolled();
@@ -96,9 +96,9 @@ function MultiFactorAuthSetupForm({
 
   if (state.error) {
     return (
-      <div className={'flex flex-col space-y-4'}>
-        <Alert type={'error'}>
-          <Trans i18nKey={'profile:multiFactorSetupError'} />
+      <div className={"flex flex-col space-y-4"}>
+        <Alert type={"error"}>
+          <Trans i18nKey={"profile:multiFactorSetupError"} />
         </Alert>
 
         <Modal.CancelButton onClick={onCancel} />
@@ -107,8 +107,8 @@ function MultiFactorAuthSetupForm({
   }
 
   return (
-    <div className={'flex flex-col space-y-4'}>
-      <div className={'flex justify-center'}>
+    <div className={"flex flex-col space-y-4"}>
+      <div className={"flex justify-center"}>
         <FactorQrCode onCancel={onCancel} onSetFactorId={setFactorId} />
       </div>
 
@@ -119,34 +119,34 @@ function MultiFactorAuthSetupForm({
 
             return onSubmit();
           }}
-          className={'w-full'}
+          className={"w-full"}
         >
-          <div className={'flex flex-col space-y-4'}>
+          <div className={"flex flex-col space-y-4"}>
             <TextField.Label>
-              <Trans i18nKey={'profile:verificationCode'} />
+              <Trans i18nKey={"profile:verificationCode"} />
 
               <VerificationCodeInput
-                onInvalid={() => setVerificationCode('')}
+                onInvalid={() => setVerificationCode("")}
                 onValid={setVerificationCode}
               />
 
               <TextField.Hint>
-                <Trans i18nKey={'profile:verifyActivationCodeDescription'} />
+                <Trans i18nKey={"profile:verifyActivationCodeDescription"} />
               </TextField.Hint>
             </TextField.Label>
 
-            <div className={'flex justify-end space-x-2'}>
-              <Modal.CancelButton type={'button'} onClick={onCancel} />
+            <div className={"flex justify-end space-x-2"}>
+              <Modal.CancelButton type={"button"} onClick={onCancel} />
 
               <Button
                 disabled={!verificationCode}
                 loading={state.loading}
-                type={'submit'}
+                type={"submit"}
               >
                 {state.loading ? (
-                  <Trans i18nKey={'profile:verificationCodeLoading'} />
+                  <Trans i18nKey={"profile:verificationCodeLoading"} />
                 ) : (
-                  <Trans i18nKey={'profile:enableMfaFactor'} />
+                  <Trans i18nKey={"profile:enableMfaFactor"} />
                 )}
               </Button>
             </div>
@@ -168,8 +168,8 @@ function FactorQrCode({
   const [error, setError] = useState(false);
 
   const [factor, setFactor] = useState({
-    name: '',
-    qrCode: '',
+    name: "",
+    qrCode: "",
   });
 
   const factorName = factor.name;
@@ -205,9 +205,9 @@ function FactorQrCode({
 
   if (error) {
     return (
-      <div className={'flex w-full flex-col space-y-2'}>
-        <Alert type={'error'}>
-          <Trans i18nKey={'profile:qrCodeError'} />
+      <div className={"flex w-full flex-col space-y-2"}>
+        <Alert type={"error"}>
+          <Trans i18nKey={"profile:qrCodeError"} />
         </Alert>
 
         <Modal.CancelButton onClick={onCancel} />
@@ -227,14 +227,14 @@ function FactorQrCode({
   }
 
   return (
-    <div className={'flex flex-col space-y-4'}>
+    <div className={"flex flex-col space-y-4"}>
       <p>
-        <span className={'text-base'}>
-          <Trans i18nKey={'profile:multiFactorModalHeading'} />
+        <span className={"text-base"}>
+          <Trans i18nKey={"profile:multiFactorModalHeading"} />
         </span>
       </p>
 
-      <div className={'flex justify-center'}>
+      <div className={"flex justify-center"}>
         <QrImage src={factor.qrCode} />
       </div>
     </div>
@@ -247,11 +247,11 @@ function FactorNameForm(
     onCancel: () => void;
   }>,
 ) {
-  const inputName = 'factorName';
+  const inputName = "factorName";
 
   return (
     <form
-      className={'w-full'}
+      className={"w-full"}
       onSubmit={(event) => {
         event.preventDefault();
 
@@ -261,22 +261,22 @@ function FactorNameForm(
         props.onSetFactorName(name);
       }}
     >
-      <div className={'flex flex-col space-y-4'}>
+      <div className={"flex flex-col space-y-4"}>
         <TextField.Label>
-          <Trans i18nKey={'profile:factorNameLabel'} />
+          <Trans i18nKey={"profile:factorNameLabel"} />
 
-          <TextField.Input autoComplete={'off'} required name={inputName} />
+          <TextField.Input autoComplete={"off"} required name={inputName} />
 
           <TextField.Hint>
-            <Trans i18nKey={'profile:factorNameHint'} />
+            <Trans i18nKey={"profile:factorNameHint"} />
           </TextField.Hint>
         </TextField.Label>
 
-        <div className={'flex justify-end space-x-2'}>
+        <div className={"flex justify-end space-x-2"}>
           <Modal.CancelButton onClick={props.onCancel} />
 
-          <Button type={'submit'}>
-            <Trans i18nKey={'profile:factorNameSubmitLabel'} />
+          <Button type={"submit"}>
+            <Trans i18nKey={"profile:factorNameSubmitLabel"} />
           </Button>
         </div>
       </div>
@@ -285,7 +285,7 @@ function FactorNameForm(
 }
 
 function QrImage({ src }: { src: string }) {
-  return <Image alt={'QR Code'} src={src} width={160} height={160} />;
+  return <Image alt={"QR Code"} src={src} width={160} height={160} />;
 }
 
 export default MultiFactorAuthSetupModal;
@@ -297,7 +297,7 @@ function useEnrollFactor() {
   return useMutation(key, async (_, { arg: factorName }: { arg: string }) => {
     const { data, error } = await client.auth.mfa.enroll({
       friendlyName: factorName,
-      factorType: 'totp',
+      factorType: "totp",
     });
 
     if (error) {

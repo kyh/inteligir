@@ -1,4 +1,4 @@
-import { StripeCheckoutDisplayMode } from "~/lib/stripe/types";
+import { StripeCheckoutDisplayMode } from "@/lib/stripe/types";
 
 const production = process.env.NODE_ENV === "production";
 

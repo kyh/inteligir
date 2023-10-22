@@ -1,4 +1,4 @@
-import Trans from "~/core/ui/trans";
+import Trans from "@inteligir/ui/trans";
 
 import {
   Select,
@@ -6,12 +6,12 @@ import {
   SelectContent,
   SelectTrigger,
   SelectValue,
-} from "~/core/ui/select";
+} from "@inteligir/ui/select";
 
-import type MembershipRole from '~/lib/organizations/types/membership-role';
-import roles from '~/lib/organizations/roles';
-import { canInviteUser } from '~/lib/organizations/permissions';
-import IfHasPermissions from "~/components/if-has-permissions";
+import type MembershipRole from "@/lib/organizations/types/membership-role";
+import roles from "@/lib/organizations/roles";
+import { canInviteUser } from "@/lib/organizations/permissions";
+import IfHasPermissions from "@/components/if-has-permissions";
 
 const MembershipRoleSelector: React.FCC<{
   value?: MembershipRole;
@@ -26,7 +26,7 @@ const MembershipRoleSelector: React.FCC<{
         onChange && onChange(Number(value));
       }}
     >
-      <SelectTrigger data-cy={'role-selector-trigger'}>
+      <SelectTrigger data-cy={"role-selector-trigger"}>
         <SelectValue />
       </SelectTrigger>
 
@@ -43,7 +43,7 @@ const MembershipRoleSelector: React.FCC<{
                 data-cy={`role-item-${role.value}`}
                 value={role.value.toString()}
               >
-                <span className={'text-sm'}>
+                <span className={"text-sm"}>
                   <Trans i18nKey={role.label} />
                 </span>
               </SelectItem>

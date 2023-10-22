@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { User } from "@supabase/gotrue-js";
 
-import MembershipRole from "~/lib/organizations/types/membership-role";
-import type UserData from "~/core/session/types/user-data";
-import If from "~/core/ui/if";
+import MembershipRole from "@/lib/organizations/types/membership-role";
+import type UserData from "@/core/session/types/user-data";
+import If from "@inteligir/ui/if";
 
 import OrganizationMemberActionsDropdown from "./organization-member-actions-dropdown";
 import RemoveOrganizationMemberModal from "./remove-organization-member-modal";

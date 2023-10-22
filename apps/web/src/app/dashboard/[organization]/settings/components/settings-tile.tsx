@@ -1,5 +1,5 @@
-import Heading from "~/core/ui/heading";
-import If from "~/core/ui/if";
+import Heading from "@inteligir/ui/heading";
+import If from "@inteligir/ui/if";
 
 const SettingsTile: React.FCC<{
   heading?: string | React.ReactNode;
@@ -7,22 +7,22 @@ const SettingsTile: React.FCC<{
   actions?: React.ReactNode;
 }> = ({ children, heading, subHeading, actions }) => {
   return (
-    <div className={'flex w-full flex-col space-y-6'}>
-      <div className={'flex flex-col space-y-1.5'}>
+    <div className={"flex w-full flex-col space-y-6"}>
+      <div className={"flex flex-col space-y-1.5"}>
         <div
           className={
-            'flex flex-col space-y-4 lg:flex-row lg:space-y-0' +
-            ' lg:items-center lg:justify-between'
+            "flex flex-col space-y-4 lg:flex-row lg:space-y-0" +
+            " lg:items-center lg:justify-between"
           }
         >
           <If condition={heading}>
-            <div className={'flex flex-col space-y-1'}>
+            <div className={"flex flex-col space-y-1"}>
               <Heading type={4}>
-                <span className={'font-medium'}>{heading}</span>
+                <span className={"font-medium"}>{heading}</span>
               </Heading>
 
               <If condition={subHeading}>
-                <p className={'text-gray-500 dark:text-gray-400'}>
+                <p className={"text-gray-500 dark:text-gray-400"}>
                   {subHeading}
                 </p>
               </If>
@@ -35,7 +35,7 @@ const SettingsTile: React.FCC<{
 
       <div
         className={
-          'rounded-lg border border-gray-50 p-2.5 dark:border-dark-800 lg:p-6 shadow-sm'
+          "dark:border-dark-800 rounded-lg border border-gray-50 p-2.5 shadow-sm lg:p-6"
         }
       >
         {children}

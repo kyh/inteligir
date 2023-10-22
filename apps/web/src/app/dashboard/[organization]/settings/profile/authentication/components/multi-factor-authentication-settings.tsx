@@ -1,29 +1,20 @@
-'use client';
+"use client";
 
-import { useCallback, useState } from 'react';
-import useMutation from 'swr/mutation';
-import { Factor } from '@supabase/gotrue-js';
-import { useTranslation } from 'react-i18next';
-import { XMarkIcon } from '@heroicons/react/24/outline';
-import { toast } from 'sonner';
-
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/tooltip";
-
-import useFetchAuthFactors from '~/core/hooks/use-fetch-factors';
-import Spinner from "~/core/ui/spinner";
-import Alert from "~/core/ui/alert";
-import If from "~/core/ui/if";
-import Button from "~/core/ui/button";
-import Modal from "~/core/ui/modal";
-import Badge from "~/core/ui/badge";
-import IconButton from "~/core/ui/icon-button";
-import Trans from "~/core/ui/trans";
-
-import useSupabase from '~/core/hooks/use-supabase';
-import useFactorsMutationKey from '~/core/hooks/use-user-factors-mutation-key';
-
-import SettingsTile from "~/app/dashboard/[organization]/settings/components/settings-tile";
-import MultiFactorAuthSetupModal from "../../components/multi-factor-auth-setup-modal";
+import { useCallback, useState } from "react";
+import useMutation from "swr/mutation";
+import type { Factor } from "@supabase/gotrue-js";
+import { useTranslation } from "react-i18next";
+import { XMarkIcon } from "@heroicons/react/24/outline";
+import { toast } from "sonner";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@inteligir/ui/tooltip";
+import Spinner from "@inteligir/ui/spinner";
+import Alert from "@inteligir/ui/alert";
+import If from "@inteligir/ui/if";
+import Button from "@inteligir/ui/button";
+import Modal from "@inteligir/ui/modal";
+import Badge from "@inteligir/ui/badge";
+import IconButton from "@inteligir/ui/icon-button";
+import Trans from "@inteligir/ui/trans";
 import {
   Table,
   TableBody,
@@ -31,21 +22,28 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "~/core/ui/table";
+} from "@inteligir/ui/table";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import MultiFactorAuthSetupModal from "../../components/multi-factor-auth-setup-modal";
+import useSupabase from "@/core/hooks/use-supabase";
+import useFactorsMutationKey from "@/core/hooks/use-user-factors-mutation-key";
+import useFetchAuthFactors from "@/core/hooks/use-fetch-factors";
 
 const MAX_FACTOR_COUNT = 10;
 
-function MultiFactorAuthenticationSettings() {
+const MultiFactorAuthenticationSettings = () => {
   const [isMfaModalOpen, setIsMfaModalOpen] = useState(false);
 
   return (
     <div>
       <SettingsTile
-        heading={<Trans i18nKey={'profile:multiFactorAuth'} />}
-        subHeading={<Trans i18nKey={'profile:multiFactorAuthSubheading'} />}
+        heading={<Trans i18nKey="profile:multiFactorAuth" />}
+        subHeading={<Trans i18nKey="profile:multiFactorAuthSubheading" />}
       >
         <MultiFactorAuthFactorsList
-          onEnrollRequested={() => setIsMfaModalOpen(true)}
+          onEnrollRequested={() => {
+            setIsMfaModalOpen(true);
+          }}
         />
       </SettingsTile>
 
@@ -55,25 +53,25 @@ function MultiFactorAuthenticationSettings() {
       />
     </div>
   );
-}
+};
 
 export default MultiFactorAuthenticationSettings;
 
-function MultiFactorAuthFactorsList({
+const MultiFactorAuthFactorsList = ({
   onEnrollRequested,
 }: React.PropsWithChildren<{
   onEnrollRequested: () => void;
-}>) {
+}>) => {
   const { data: factors, isLoading, error } = useFetchAuthFactors();
   const [unEnrolling, setUnenrolling] = useState<string>();
 
   if (isLoading) {
     return (
-      <div className={'flex items-center space-x-4'}>
+      <div className="flex items-center space-x-4">
         <Spinner />
 
         <div>
-          <Trans i18nKey={'profile:loadingFactors'} />
+          <Trans i18nKey="profile:loadingFactors" />
         </div>
       </div>
     );
@@ -82,8 +80,8 @@ function MultiFactorAuthFactorsList({
   if (error) {
     return (
       <div>
-        <Alert type={'error'}>
-          <Trans i18nKey={'profile:factorsListError'} />
+        <Alert type="error">
+          <Trans i18nKey="profile:factorsListError" />
         </Alert>
       </div>
     );
@@ -93,13 +91,13 @@ function MultiFactorAuthFactorsList({
 
   if (!allFactors.length) {
     return (
-      <div className={'flex flex-col space-y-4'}>
-        <Alert type={'info'}>
+      <div className="flex flex-col space-y-4">
+        <Alert type="info">
           <Alert.Heading>
-            <Trans i18nKey={'profile:multiFactorAuthHeading'} />
+            <Trans i18nKey="profile:multiFactorAuthHeading" />
           </Alert.Heading>
 
-          <Trans i18nKey={'profile:multiFactorAuthDescription'} />
+          <Trans i18nKey="profile:multiFactorAuthDescription" />
         </Alert>
 
         <SetupMfaButton onClick={onEnrollRequested} />
@@ -110,7 +108,7 @@ function MultiFactorAuthFactorsList({
   const canAddNewFactors = allFactors.length < MAX_FACTOR_COUNT;
 
   return (
-    <div className={'flex flex-col space-y-4'}>
+    <div className="flex flex-col space-y-4">
       <FactorsTable factors={allFactors} setUnenrolling={setUnenrolling} />
 
       <If condition={canAddNewFactors}>
@@ -121,34 +119,34 @@ function MultiFactorAuthFactorsList({
         {(factorId) => (
           <ConfirmUnenrollFactorModal
             factorId={factorId}
-            setIsModalOpen={() => setUnenrolling(undefined)}
+            setIsModalOpen={() => {
+              setUnenrolling(undefined);
+            }}
           />
         )}
       </If>
     </div>
   );
-}
+};
 
-function SetupMfaButton(
+const SetupMfaButton = (
   props: React.PropsWithChildren<{
     onClick: () => void;
   }>,
-) {
-  return (
-    <div>
-      <Button onClick={props.onClick}>
-        <Trans i18nKey={'profile:setupMfaButtonLabel'} />
-      </Button>
-    </div>
-  );
-}
+) => (
+  <div>
+    <Button onClick={props.onClick}>
+      <Trans i18nKey="profile:setupMfaButtonLabel" />
+    </Button>
+  </div>
+);
 
-function ConfirmUnenrollFactorModal(
+const ConfirmUnenrollFactorModal = (
   props: React.PropsWithChildren<{
     factorId: string;
     setIsModalOpen: (isOpen: boolean) => void;
   }>,
-) {
+) => {
   const { t } = useTranslation();
   const unEnroll = useUnenrollFactor();
 
@@ -171,104 +169,108 @@ function ConfirmUnenrollFactorModal(
 
   return (
     <Modal
-      heading={<Trans i18nKey={'profile:unenrollFactorModalHeading'} />}
-      isOpen={!!props.factorId}
+      heading={<Trans i18nKey="profile:unenrollFactorModalHeading" />}
+      isOpen={Boolean(props.factorId)}
       setIsOpen={props.setIsModalOpen}
     >
-      <div className={'flex flex-col space-y-4'}>
-        <div className={'text-sm'}>
-          <Trans i18nKey={'profile:unenrollFactorModalBody'} />
+      <div className="flex flex-col space-y-4">
+        <div className="text-sm">
+          <Trans i18nKey="profile:unenrollFactorModalBody" />
         </div>
 
-        <div className={'flex flex-row justify-end space-x-2'}>
+        <div className="flex flex-row justify-end space-x-2">
           <Modal.CancelButton
             disabled={unEnroll.isMutating}
-            onClick={() => props.setIsModalOpen(false)}
+            onClick={() => {
+              props.setIsModalOpen(false);
+            }}
           />
 
           <Button
-            type={'button'}
             loading={unEnroll.isMutating}
-            variant={'destructive'}
             onClick={() => onUnenrollRequested(props.factorId)}
+            type="button"
+            variant="destructive"
           >
-            <Trans i18nKey={'profile:unenrollFactorModalButtonLabel'} />
+            <Trans i18nKey="profile:unenrollFactorModalButtonLabel" />
           </Button>
         </div>
       </div>
     </Modal>
   );
-}
+};
 
-function FactorsTable({
+const FactorsTable = ({
   setUnenrolling,
   factors,
 }: React.PropsWithChildren<{
   setUnenrolling: (factorId: string) => void;
   factors: Factor[];
-}>) {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>
-            <Trans i18nKey={'profile:factorName'} />
-          </TableHead>
-          <TableHead>
-            <Trans i18nKey={'profile:factorType'} />
-          </TableHead>
-          <TableHead>
-            <Trans i18nKey={'profile:factorStatus'} />
-          </TableHead>
+}>) => (
+  <Table>
+    <TableHeader>
+      <TableRow>
+        <TableHead>
+          <Trans i18nKey="profile:factorName" />
+        </TableHead>
+        <TableHead>
+          <Trans i18nKey="profile:factorType" />
+        </TableHead>
+        <TableHead>
+          <Trans i18nKey="profile:factorStatus" />
+        </TableHead>
 
-          <TableHead />
+        <TableHead />
+      </TableRow>
+    </TableHeader>
+
+    <TableBody>
+      {factors.map((factor) => (
+        <TableRow key={factor.id}>
+          <TableCell>
+            <span className="block truncate">{factor.friendly_name}</span>
+          </TableCell>
+
+          <TableCell>
+            <Badge className="inline-flex uppercase" size="small">
+              {factor.factor_type}
+            </Badge>
+          </TableCell>
+
+          <TableCell>
+            <Badge
+              className="inline-flex capitalize"
+              color={factor.status === "verified" ? "success" : "normal"}
+              size="small"
+            >
+              {factor.status}
+            </Badge>
+          </TableCell>
+
+          <TableCell className="flex justify-end">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <IconButton
+                  onClick={() => {
+                    setUnenrolling(factor.id);
+                  }}
+                >
+                  <XMarkIcon className="h-4" />
+                </IconButton>
+              </TooltipTrigger>
+
+              <TooltipContent>
+                <Trans i18nKey="profile:unenrollTooltip" />
+              </TooltipContent>
+            </Tooltip>
+          </TableCell>
         </TableRow>
-      </TableHeader>
+      ))}
+    </TableBody>
+  </Table>
+);
 
-      <TableBody>
-        {factors.map((factor) => (
-          <TableRow key={factor.id}>
-            <TableCell>
-              <span className={'block truncate'}>{factor.friendly_name}</span>
-            </TableCell>
-
-            <TableCell>
-              <Badge size={'small'} className={'inline-flex uppercase'}>
-                {factor.factor_type}
-              </Badge>
-            </TableCell>
-
-            <TableCell>
-              <Badge
-                size={'small'}
-                className={'inline-flex capitalize'}
-                color={factor.status === 'verified' ? 'success' : 'normal'}
-              >
-                {factor.status}
-              </Badge>
-            </TableCell>
-
-            <TableCell className={'flex justify-end'}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <IconButton onClick={() => setUnenrolling(factor.id)}>
-                    <XMarkIcon className={'h-4'} />
-                  </IconButton>
-                </TooltipTrigger>
-
-                <TooltipContent>
-                  <Trans i18nKey={'profile:unenrollTooltip'} />
-                </TooltipContent>
-              </Tooltip>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-}
-
-function useUnenrollFactor() {
+const useUnenrollFactor = () => {
   const client = useSupabase();
   const key = useFactorsMutationKey();
 
@@ -283,4 +285,4 @@ function useUnenrollFactor() {
 
     return data;
   });
-}
+};

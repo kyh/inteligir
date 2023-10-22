@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import Alert from "~/core/ui/alert";
-import If from "~/core/ui/if";
-import Trans from "~/core/ui/trans";
-import useUser from '~/core/hooks/use-user';
+import Alert from "@inteligir/ui/alert";
+import If from "@inteligir/ui/if";
+import Trans from "@inteligir/ui/trans";
+import useUser from "@/core/hooks/use-user";
 
-import UpdatePasswordForm from "~/app/dashboard/[organization]/settings/profile/components/update-password-form";
+import UpdatePasswordForm from "@/app/dashboard/[organization]/settings/profile/components/update-password-form";
 
 function UpdatePasswordFormContainer() {
   const { data: user } = useUser();
@@ -15,7 +15,7 @@ function UpdatePasswordFormContainer() {
   }
 
   const canUpdatePassword = user.identities?.some(
-    (item) => item.provider === `email`
+    (item) => item.provider === `email`,
   );
 
   return (
@@ -32,8 +32,8 @@ export default UpdatePasswordFormContainer;
 
 function WarnCannotUpdatePasswordAlert() {
   return (
-    <Alert type={'warn'}>
-      <Trans i18nKey={'profile:cannotUpdatePassword'} />
+    <Alert type={"warn"}>
+      <Trans i18nKey={"profile:cannotUpdatePassword"} />
     </Alert>
   );
 }

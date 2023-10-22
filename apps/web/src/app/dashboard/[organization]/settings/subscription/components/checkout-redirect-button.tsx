@@ -6,11 +6,11 @@ import {
 } from "react-dom";
 import { useEffect } from "react";
 import { ChevronRightIcon } from "@heroicons/react/24/outline";
-import classNames from "clsx";
-import Button from "~/core/ui/button";
-import isBrowser from "~/core/generic/is-browser";
-import useCsrfToken from "~/core/hooks/use-csrf-token";
-import { createCheckoutAction } from "~/lib/stripe/actions";
+import { clx } from "@inteligir/ui";
+import Button from "@inteligir/ui/button";
+import isBrowser from "@/core/generic/is-browser";
+import useCsrfToken from "@/core/hooks/use-csrf-token";
+import { createCheckoutAction } from "@/lib/stripe/actions";
 
 const CheckoutRedirectButton: React.FCC<{
   disabled?: boolean;
@@ -59,7 +59,7 @@ const SubmitCheckoutButton = (
   return (
     <Button
       block
-      className={classNames({
+      className={clx({
         "text-primary-foreground bg-primary dark:bg-white dark:text-gray-900":
           props.recommended,
       })}

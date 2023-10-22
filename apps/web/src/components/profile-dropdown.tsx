@@ -7,12 +7,7 @@ import {
   ChevronDownIcon,
   ArrowLeftOnRectangleIcon,
   Squares2X2Icon,
-  PaintBrushIcon,
-  SunIcon,
-  ComputerDesktopIcon,
-  MoonIcon,
   BuildingLibraryIcon,
-  CheckCircleIcon,
 } from "@heroicons/react/24/outline";
 import {
   DropdownMenu,
@@ -20,21 +15,11 @@ import {
   DropdownMenuTrigger,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubTrigger,
-  DropdownMenuSubContent,
-} from "@inteligir/ui/dropdown";
+} from "@inteligir/ui";
 import ProfileAvatar from "@/components/profile-avatar";
 import { If } from "@/components/if";
 import configuration from "@/configuration";
 import type UserSession from "@/lib/session/types/user-session";
-import {
-  setTheme,
-  DARK_THEME_CLASSNAME,
-  LIGHT_THEME_CLASSNAME,
-  SYSTEM_THEME_CLASSNAME,
-  getStoredTheme,
-} from "@/lib/theming";
 import GlobalRole from "@/lib/session/types/global-role";
 import useUser from "@/lib/hooks/use-user";
 
@@ -91,13 +76,8 @@ const ProfileDropdown: React.FCC<{
           </Link>
         </DropdownMenuItem>
 
-        <If condition={configuration.enableThemeSwitcher}>
-          <ThemeSelectorSubMenu />
-        </If>
-
         <If condition={isSuperAdmin}>
           <DropdownMenuSeparator />
-
           <DropdownMenuItem asChild>
             <Link
               className="flex h-full w-full items-center space-x-2"
@@ -126,85 +106,6 @@ const ProfileDropdown: React.FCC<{
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-  );
-};
-
-const ThemeSelectorSubMenu = () => {
-  const currentTheme = useMemo(() => getStoredTheme(), []);
-
-  const Wrapper: React.FCC = ({ children }) => (
-    <span className="flex items-center space-x-2.5">{children}</span>
-  );
-
-  return (
-    <>
-      <DropdownMenuSeparator className="hidden lg:flex" />
-
-      <DropdownMenuSub>
-        <DropdownMenuSubTrigger className="hidden lg:flex">
-          <Wrapper>
-            <PaintBrushIcon className="h-5" />
-
-            <span>
-              <Trans i18nKey="common:theme" />
-            </span>
-          </Wrapper>
-        </DropdownMenuSubTrigger>
-
-        <DropdownMenuSubContent>
-          <DropdownMenuItem
-            className="flex cursor-pointer items-center justify-between"
-            onClick={() => setTheme(LIGHT_THEME_CLASSNAME)}
-          >
-            <Wrapper>
-              <SunIcon className="h-4" />
-
-              <span>
-                <Trans i18nKey="common:lightTheme" />
-              </span>
-            </Wrapper>
-
-            <If condition={currentTheme === LIGHT_THEME_CLASSNAME}>
-              <CheckCircleIcon className="h-5" />
-            </If>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            className="flex cursor-pointer items-center justify-between"
-            onClick={() => setTheme(DARK_THEME_CLASSNAME)}
-          >
-            <Wrapper>
-              <MoonIcon className="h-4" />
-
-              <span>
-                <Trans i18nKey="common:darkTheme" />
-              </span>
-            </Wrapper>
-
-            <If condition={currentTheme === DARK_THEME_CLASSNAME}>
-              <CheckCircleIcon className="h-5" />
-            </If>
-          </DropdownMenuItem>
-
-          <DropdownMenuItem
-            className="flex cursor-pointer items-center justify-between"
-            onClick={() => setTheme(SYSTEM_THEME_CLASSNAME)}
-          >
-            <Wrapper>
-              <ComputerDesktopIcon className="h-4" />
-
-              <span>
-                <Trans i18nKey="common:systemTheme" />
-              </span>
-            </Wrapper>
-
-            <If condition={currentTheme === SYSTEM_THEME_CLASSNAME}>
-              <CheckCircleIcon className="h-5" />
-            </If>
-          </DropdownMenuItem>
-        </DropdownMenuSubContent>
-      </DropdownMenuSub>
-    </>
   );
 };
 

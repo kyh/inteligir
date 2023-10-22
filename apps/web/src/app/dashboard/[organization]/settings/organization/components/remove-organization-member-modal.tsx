@@ -1,11 +1,11 @@
-import { useCallback, useTransition } from 'react';
+import { useCallback, useTransition } from "react";
 
-import Trans from "~/core/ui/trans";
-import Button from "~/core/ui/button";
-import Modal from "~/core/ui/modal";
+import Trans from "@inteligir/ui/trans";
+import Button from "@inteligir/ui/button";
+import Modal from "@inteligir/ui/modal";
 
-import { deleteMemberAction } from '~/lib/memberships/actions';
-import useCsrfToken from '~/core/hooks/use-csrf-token';
+import { deleteMemberAction } from "@/lib/memberships/actions";
+import useCsrfToken from "@/core/hooks/use-csrf-token";
 
 const Heading = <Trans i18nKey="organization:removeMemberModalHeading" />;
 
@@ -27,22 +27,22 @@ const RemoveOrganizationMemberModal: React.FCC<{
 
   return (
     <Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
-      <div className={'flex flex-col space-y-6'}>
-        <p className={'text-sm'}>
-          <Trans i18nKey={'common:modalConfirmationQuestion'} />
+      <div className={"flex flex-col space-y-6"}>
+        <p className={"text-sm"}>
+          <Trans i18nKey={"common:modalConfirmationQuestion"} />
         </p>
 
-        <div className={'flex justify-end space-x-2'}>
+        <div className={"flex justify-end space-x-2"}>
           <Modal.CancelButton onClick={() => setIsOpen(false)} />
 
           <Button
-            type={'button'}
+            type={"button"}
             loading={isSubmitting}
-            data-cy={'confirm-remove-member'}
-            variant={'destructive'}
+            data-cy={"confirm-remove-member"}
+            variant={"destructive"}
             onClick={onMemberRemoved}
           >
-            <Trans i18nKey={'organization:removeMemberSubmitLabel'} />
+            <Trans i18nKey={"organization:removeMemberSubmitLabel"} />
           </Button>
         </div>
       </div>

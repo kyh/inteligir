@@ -1,11 +1,11 @@
-import Spinner from "~/core/ui/spinner";
+import Spinner from "@inteligir/ui/spinner";
 
 const LoadingMembersSpinner: React.FCC = ({ children }) => {
   return (
-    <div className={'flex flex-row items-center space-x-4'}>
+    <div className="flex flex-row items-center space-x-4">
       <Spinner />
 
-      <span className={'text-sm'}>{children}</span>
+      <span className="text-sm">{children}</span>
     </div>
   );
 };

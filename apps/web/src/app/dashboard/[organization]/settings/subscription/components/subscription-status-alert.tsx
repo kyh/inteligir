@@ -1,58 +1,57 @@
-import type { OrganizationSubscription } from '~/lib/organizations/types/organization-subscription';
+import Alert from "@inteligir/ui/alert";
+import Trans from "@inteligir/ui/trans";
+import type { OrganizationSubscription } from "@/lib/organizations/types/organization-subscription";
 
-import Alert from "~/core/ui/alert";
-import Trans from "~/core/ui/trans";
-
-function SubscriptionStatusAlert(
+const SubscriptionStatusAlert = (
   props: React.PropsWithChildren<{
     subscription: OrganizationSubscription;
     values: {
       endDate: string;
       trialEndDate: string | null;
     };
-  }>
-) {
+  }>,
+) => {
   const status = props.subscription.status;
 
-  let message = '';
-  let heading = '';
-  let type: 'success' | 'error' | 'warn' | 'info';
+  let message = "";
+  let heading = "";
+  let type: "success" | "error" | "warn" | "info";
 
   switch (status) {
-    case 'active':
-      heading = 'subscription:status.active.heading';
-      message = 'subscription:status.active.description';
-      type = 'success';
+    case "active":
+      heading = "subscription:status.active.heading";
+      message = "subscription:status.active.description";
+      type = "success";
       break;
-    case 'trialing':
-      heading = 'subscription:status.trialing.heading';
-      message = 'subscription:status.trialing.description';
-      type = 'success';
+    case "trialing":
+      heading = "subscription:status.trialing.heading";
+      message = "subscription:status.trialing.description";
+      type = "success";
       break;
-    case 'canceled':
-      heading = 'subscription:status.canceled.heading';
-      message = 'subscription:status.canceled.description';
-      type = 'warn';
+    case "canceled":
+      heading = "subscription:status.canceled.heading";
+      message = "subscription:status.canceled.description";
+      type = "warn";
       break;
-    case 'incomplete':
-      heading = 'subscription:status.incomplete.heading';
-      message = 'subscription:status.incomplete.description';
-      type = 'warn';
+    case "incomplete":
+      heading = "subscription:status.incomplete.heading";
+      message = "subscription:status.incomplete.description";
+      type = "warn";
       break;
-    case 'incomplete_expired':
-      heading = 'subscription:status.incomplete_expired.heading';
-      message = 'subscription:status.incomplete_expired.description';
-      type = 'error';
+    case "incomplete_expired":
+      heading = "subscription:status.incomplete_expired.heading";
+      message = "subscription:status.incomplete_expired.description";
+      type = "error";
       break;
-    case 'unpaid':
-      heading = 'subscription:status.unpaid.heading';
-      message = 'subscription:status.unpaid.description';
-      type = 'error';
+    case "unpaid":
+      heading = "subscription:status.unpaid.heading";
+      message = "subscription:status.unpaid.description";
+      type = "error";
       break;
-    case 'past_due':
-      heading = 'subscription:status.past_due.heading';
-      heading = 'subscription:status.past_due.description';
-      type = 'error';
+    case "past_due":
+      heading = "subscription:status.past_due.heading";
+      heading = "subscription:status.past_due.description";
+      type = "error";
 
       break;
     default:
@@ -65,11 +64,11 @@ function SubscriptionStatusAlert(
         <Trans i18nKey={heading} />
       </Alert.Heading>
 
-      <span className={'block'}>
+      <span className="block">
         <Trans i18nKey={message} values={props.values} />
       </span>
     </Alert>
   );
-}
+};
 
 export default SubscriptionStatusAlert;

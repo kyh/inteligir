@@ -1,31 +1,31 @@
-'use client';
+"use client";
 
-import { useTranslation } from 'react-i18next';
-import { Fragment, useTransition } from 'react';
-import { useFieldArray, useForm } from 'react-hook-form';
-import { toast } from 'sonner';
+import { useTranslation } from "react-i18next";
+import { Fragment, useTransition } from "react";
+import { useFieldArray, useForm } from "react-hook-form";
+import { toast } from "sonner";
 
-import { XMarkIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
+import { XMarkIcon, PlusCircleIcon } from "@heroicons/react/24/outline";
 
-import MembershipRole from '~/lib/organizations/types/membership-role';
+import MembershipRole from "@/lib/organizations/types/membership-role";
 
-import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/tooltip";
-import If from "~/core/ui/if";
-import TextField from "~/core/ui/text-field";
-import Button from "~/core/ui/button";
-import IconButton from "~/core/ui/icon-button";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@inteligir/ui/tooltip";
+import If from "@inteligir/ui/if";
+import TextField from "@inteligir/ui/text-field";
+import Button from "@inteligir/ui/button";
+import IconButton from "@inteligir/ui/icon-button";
 
 import MembershipRoleSelector from "./membership-role-selector";
-import useUserSession from '~/core/hooks/use-user-session';
-import Trans from "~/core/ui/trans";
-import { inviteMembersToOrganizationAction } from '~/lib/organizations/actions';
-import useCsrfToken from '~/core/hooks/use-csrf-token';
-import useCurrentOrganization from '~/lib/organizations/hooks/use-current-organization';
+import useUserSession from "@/core/hooks/use-user-session";
+import Trans from "@inteligir/ui/trans";
+import { inviteMembersToOrganizationAction } from "@/lib/organizations/actions";
+import useCsrfToken from "@/core/hooks/use-csrf-token";
+import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
 
 type InviteModel = ReturnType<typeof memberFactory>;
 
 const InviteMembersForm = () => {
-  const { t } = useTranslation('organization');
+  const { t } = useTranslation("organization");
   const user = useUserSession();
   const organization = useCurrentOrganization();
 
@@ -37,11 +37,11 @@ const InviteMembersForm = () => {
 
   const { fields, append, remove } = useFieldArray({
     control,
-    name: 'members',
+    name: "members",
     shouldUnregister: true,
   });
 
-  const watchFieldArray = watch('members');
+  const watchFieldArray = watch("members");
 
   const controlledFields = fields.map((field, index) => {
     return {
@@ -52,8 +52,8 @@ const InviteMembersForm = () => {
 
   return (
     <form
-      className={'flex flex-col space-y-4'}
-      data-cy={'invite-members-form'}
+      className={"flex flex-col space-y-4"}
+      data-cy={"invite-members-form"}
       onSubmit={(event) => {
         handleSubmit((data) => {
           startTransition(async () => {
@@ -61,7 +61,7 @@ const InviteMembersForm = () => {
               return;
             }
 
-            const id = toast.loading(t('organization:inviteMembersLoading'));
+            const id = toast.loading(t("organization:inviteMembersLoading"));
 
             try {
               await inviteMembersToOrganizationAction({
@@ -70,11 +70,11 @@ const InviteMembersForm = () => {
                 organizationUid: organization.uuid,
               });
 
-              toast.success(t('organization:inviteMembersSuccess'), {
+              toast.success(t("organization:inviteMembersSuccess"), {
                 id,
               });
             } catch (e) {
-              toast.error(t('organization:inviteMembersError'), {
+              toast.error(t("organization:inviteMembersError"), {
                 id,
               });
             }
@@ -114,18 +114,18 @@ const InviteMembersForm = () => {
 
           return (
             <Fragment key={field.id}>
-              <div className={'flex items-center space-x-0.5 md:space-x-2'}>
-                <div className={'w-7/12'}>
+              <div className={"flex items-center space-x-0.5 md:space-x-2"}>
+                <div className={"w-7/12"}>
                   <TextField.Input
                     {...emailControl}
-                    data-cy={'invite-email-input'}
+                    data-cy={"invite-email-input"}
                     placeholder="member@email.com"
                     type="email"
                     required
                   />
                 </div>
 
-                <div className={'w-4/12'}>
+                <div className={"w-4/12"}>
                   <MembershipRoleSelector
                     value={field.role}
                     onChange={(role) => {
@@ -134,25 +134,25 @@ const InviteMembersForm = () => {
                   />
                 </div>
 
-                <div className={'w-[60px] flex justify-end'}>
-                  <Tooltip className={'flex justify-center'}>
+                <div className={"flex w-[60px] justify-end"}>
+                  <Tooltip className={"flex justify-center"}>
                     <TooltipTrigger asChild>
                       <IconButton
-                        type={'button'}
+                        type={"button"}
                         disabled={fields.length <= 1}
-                        data-cy={'remove-invite-button'}
-                        label={t('removeInviteButtonLabel')}
+                        data-cy={"remove-invite-button"}
+                        label={t("removeInviteButtonLabel")}
                         onClick={() => {
                           remove(index);
                           clearErrors(emailInputName);
                         }}
                       >
-                        <XMarkIcon className={'h-4 lg:h-5'} />
+                        <XMarkIcon className={"h-4 lg:h-5"} />
                       </IconButton>
                     </TooltipTrigger>
 
                     <TooltipContent>
-                      {t('removeInviteButtonLabel')}
+                      {t("removeInviteButtonLabel")}
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -163,36 +163,36 @@ const InviteMembersForm = () => {
 
         <div>
           <Button
-            data-cy={'append-new-invite-button'}
-            type={'button'}
-            variant={'ghost'}
-            size={'sm'}
+            data-cy={"append-new-invite-button"}
+            type={"button"}
+            variant={"ghost"}
+            size={"sm"}
             onClick={() => append(memberFactory())}
           >
-            <span className={'flex items-center space-x-2'}>
-              <PlusCircleIcon className={'h-5'} />
+            <span className={"flex items-center space-x-2"}>
+              <PlusCircleIcon className={"h-5"} />
 
               <span>
-                <Trans i18nKey={'organization:addAnotherMemberButtonLabel'} />
+                <Trans i18nKey={"organization:addAnotherMemberButtonLabel"} />
               </span>
             </span>
           </Button>
         </div>
       </div>
 
-      <div className={'flex justify-end'}>
+      <div className={"flex justify-end"}>
         <Button
-          className={'w-full lg:w-auto'}
-          data-cy={'send-invites-button'}
-          type={'submit'}
+          className={"w-full lg:w-auto"}
+          data-cy={"send-invites-button"}
+          type={"submit"}
           loading={isSubmitting}
         >
           <If condition={!isSubmitting}>
-            <Trans i18nKey={'organization:inviteMembersSubmitLabel'} />
+            <Trans i18nKey={"organization:inviteMembersSubmitLabel"} />
           </If>
 
           <If condition={isSubmitting}>
-            <Trans i18nKey={'organization:inviteMembersLoading'} />
+            <Trans i18nKey={"organization:inviteMembersLoading"} />
           </If>
         </Button>
       </div>
@@ -202,7 +202,7 @@ const InviteMembersForm = () => {
 
 function memberFactory() {
   return {
-    email: '',
+    email: "",
     role: MembershipRole.Member,
   };
 }

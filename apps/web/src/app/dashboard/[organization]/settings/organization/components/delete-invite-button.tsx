@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useCallback, useTransition } from 'react';
+import { useCallback, useTransition } from "react";
 import XMarkIcon from "@heroicons/react/24/outline/xmark-icon";
 
-import IconButton from "~/core/ui/icon-button";
-import Modal from "~/core/ui/modal";
-import Button from "~/core/ui/button";
-import Trans from "~/core/ui/trans";
-import useCsrfToken from '~/core/hooks/use-csrf-token';
-import { deleteMemberAction } from '~/lib/memberships/actions';
+import IconButton from "@inteligir/ui/icon-button";
+import Modal from "@inteligir/ui/modal";
+import Button from "@inteligir/ui/button";
+import Trans from "@inteligir/ui/trans";
+import useCsrfToken from "@/core/hooks/use-csrf-token";
+import { deleteMemberAction } from "@/lib/memberships/actions";
 
-const Heading = <Trans i18nKey={'organization:deleteInviteModalHeading'} />;
+const Heading = <Trans i18nKey={"organization:deleteInviteModalHeading"} />;
 
 const DeleteInviteButton: React.FCC<{
   membershipId: number;
@@ -29,32 +29,32 @@ const DeleteInviteButton: React.FCC<{
     <Modal
       heading={Heading}
       Trigger={
-        <IconButton data-cy={'delete-invite-button'} label={'Delete Invite'}>
-          <XMarkIcon className={'h-6'} />
+        <IconButton data-cy={"delete-invite-button"} label={"Delete Invite"}>
+          <XMarkIcon className={"h-6"} />
         </IconButton>
       }
     >
-      <div className={'flex flex-col space-y-6 text-sm'}>
+      <div className={"flex flex-col space-y-6 text-sm"}>
         <p>
           <Trans
-            i18nKey={'organization:confirmDeletingMemberInvite'}
+            i18nKey={"organization:confirmDeletingMemberInvite"}
             values={{ email: memberEmail }}
             components={{ b: <b /> }}
           />
         </p>
 
         <p>
-          <Trans i18nKey={'common:modalConfirmationQuestion'} />
+          <Trans i18nKey={"common:modalConfirmationQuestion"} />
         </p>
 
-        <div className={'flex justify-end'}>
+        <div className={"flex justify-end"}>
           <Button
             loading={isSubmitting}
-            data-cy={'confirm-delete-invite-button'}
-            variant={'destructive'}
+            data-cy={"confirm-delete-invite-button"}
+            variant={"destructive"}
             onClick={onInviteDeleteRequested}
           >
-            <Trans i18nKey={'organization:deleteInviteSubmitLabel'} />
+            <Trans i18nKey={"organization:deleteInviteSubmitLabel"} />
           </Button>
         </div>
       </div>

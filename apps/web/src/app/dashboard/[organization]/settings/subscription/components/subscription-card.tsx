@@ -1,24 +1,20 @@
-import React, { useMemo } from 'react';
-import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
-
-import type { OrganizationSubscription } from '~/lib/organizations/types/organization-subscription';
-
-import Heading from "~/core/ui/heading";
-import If from "~/core/ui/if";
-import Trans from "~/core/ui/trans";
-
-import PricingTable from "~/components/pricing-table";
-import SubscriptionStatusBadge from "~/app/dashboard/[organization]/components/organizations/subscription-status-badge";
-import SubscriptionStatusAlert from "~/app/dashboard/[organization]/settings/subscription/components/subscription-status-alert";
-
-import configuration from '~/configuration';
+import React, { useMemo } from "react";
+import { CheckCircleIcon, XCircleIcon } from "@heroicons/react/24/outline";
+import Heading from "@inteligir/ui/heading";
+import If from "@inteligir/ui/if";
+import Trans from "@inteligir/ui/trans";
+import PricingTable from "@/components/pricing-table";
+import SubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/subscription-status-badge";
+import SubscriptionStatusAlert from "@/app/dashboard/[organization]/settings/subscription/components/subscription-status-alert";
+import type { OrganizationSubscription } from "@/lib/organizations/types/organization-subscription";
+import configuration from "@/configuration";
 
 const SubscriptionCard: React.FC<{
   subscription: OrganizationSubscription;
 }> = ({ subscription }) => {
   const details = useSubscriptionDetails(subscription.priceId);
   const cancelAtPeriodEnd = subscription.cancelAtPeriodEnd;
-  const isActive = subscription.status === 'active';
+  const isActive = subscription.status === "active";
 
   const dates = useMemo(() => {
     return {
@@ -35,31 +31,31 @@ const SubscriptionCard: React.FC<{
 
   return (
     <div
-      className={'flex flex-col space-y-6'}
-      data-cy={'subscription-card'}
+      className="flex flex-col space-y-6"
+      data-cy="subscription-card"
       data-cy-status={subscription.status}
     >
-      <div className={'flex flex-col space-y-2'}>
-        <div className={'flex items-center space-x-4'}>
+      <div className="flex flex-col space-y-2">
+        <div className="flex items-center space-x-4">
           <Heading type={3}>
-            <span data-cy={'subscription-name'}>{details.product.name}</span>
+            <span data-cy="subscription-name">{details.product.name}</span>
           </Heading>
 
           <SubscriptionStatusBadge subscription={subscription} />
         </div>
 
         <Heading type={6}>
-          <span className={'text-gray-500 dark:text-gray-400'}>
+          <span className="text-gray-500 dark:text-gray-400">
             {details.product.description}
           </span>
         </Heading>
       </div>
 
       <div>
-        <span className={'flex items-end'}>
+        <span className="flex items-end">
           <PricingTable.Price>{details.plan.price}</PricingTable.Price>
 
-          <span className={'lowercase text-gray-500 dark:text-gray-400'}>
+          <span className="lowercase text-gray-500 dark:text-gray-400">
             /{details.plan.name}
           </span>
         </span>
@@ -69,15 +65,15 @@ const SubscriptionCard: React.FC<{
 
       <If condition={isActive}>
         <RenewStatusDescription
-          dates={dates}
           cancelAtPeriodEnd={cancelAtPeriodEnd}
+          dates={dates}
         />
       </If>
     </div>
   );
 };
 
-function RenewStatusDescription(
+const RenewStatusDescription = (
   props: React.PropsWithChildren<{
     cancelAtPeriodEnd: boolean;
     dates: {
@@ -85,35 +81,33 @@ function RenewStatusDescription(
       trialEndDate: string | null;
     };
   }>,
-) {
-  return (
-    <span className={'flex items-center space-x-1.5 text-sm'}>
-      <If condition={props.cancelAtPeriodEnd}>
-        <XCircleIcon className={'h-5 text-yellow-700'} />
+) => (
+  <span className="flex items-center space-x-1.5 text-sm">
+    <If condition={props.cancelAtPeriodEnd}>
+      <XCircleIcon className="h-5 text-yellow-700" />
 
-        <span>
-          <Trans
-            i18nKey={'subscription:cancelAtPeriodEndDescription'}
-            values={props.dates}
-          />
-        </span>
-      </If>
+      <span>
+        <Trans
+          i18nKey="subscription:cancelAtPeriodEndDescription"
+          values={props.dates}
+        />
+      </span>
+    </If>
 
-      <If condition={!props.cancelAtPeriodEnd}>
-        <CheckCircleIcon className={'h-5 text-green-700'} />
+    <If condition={!props.cancelAtPeriodEnd}>
+      <CheckCircleIcon className="h-5 text-green-700" />
 
-        <span>
-          <Trans
-            i18nKey={'subscription:renewAtPeriodEndDescription'}
-            values={props.dates}
-          />
-        </span>
-      </If>
-    </span>
-  );
-}
+      <span>
+        <Trans
+          i18nKey="subscription:renewAtPeriodEndDescription"
+          values={props.dates}
+        />
+      </span>
+    </If>
+  </span>
+);
 
-function useSubscriptionDetails(priceId: string) {
+const useSubscriptionDetails = (priceId: string) => {
   const products = configuration.stripe.products;
 
   return useMemo(() => {
@@ -125,6 +119,6 @@ function useSubscriptionDetails(priceId: string) {
       }
     }
   }, [products, priceId]);
-}
+};
 
 export default SubscriptionCard;

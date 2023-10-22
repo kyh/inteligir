@@ -1,30 +1,30 @@
-'use client';
+"use client";
 
-import React, { useMemo } from 'react';
+import React, { useMemo } from "react";
 
-import NavigationItem from "~/core/ui/navigation/navigation-item";
-import NavigationMenu from "~/core/ui/navigation/navigation-menu";
-import MobileNavigationDropdown from "~/core/ui/mobile-navigation-dropdown";
+import NavigationItem from "@inteligir/ui/navigation/navigation-item";
+import NavigationMenu from "@inteligir/ui/navigation/navigation-menu";
+import MobileNavigationDropdown from "@inteligir/ui/mobile-navigation-dropdown";
 
-import useUser from '~/core/hooks/use-user';
-import configuration from '~/configuration';
+import useUser from "@/core/hooks/use-user";
+import configuration from "@/configuration";
 
 const profileTabLinks = (organizationId: string) => ({
   General: {
     path: getPath(organizationId, `profile`),
-    label: 'profile:generalTab',
+    label: "profile:generalTab",
   },
   Authentication: {
     path: getPath(organizationId, `profile/authentication`),
-    label: 'profile:authenticationTab',
+    label: "profile:authenticationTab",
   },
   Email: {
     path: getPath(organizationId, `profile/email`),
-    label: 'profile:emailTab',
+    label: "profile:emailTab",
   },
   Password: {
     path: getPath(organizationId, `profile/password`),
-    label: 'profile:passwordTab',
+    label: "profile:passwordTab",
   },
 });
 
@@ -36,12 +36,12 @@ const ProfileSettingsTabs: React.FC<{
   const canEditPassword = useCanUpdatePassword();
   const links = useMemo(
     () => profileTabLinks(organizationId),
-    [organizationId]
+    [organizationId],
   );
 
   return (
     <>
-      <div className={'hidden min-w-[12rem] lg:flex'}>
+      <div className={"hidden min-w-[12rem] lg:flex"}>
         <NavigationMenu vertical pill>
           <NavigationItem
             depth={0}
@@ -64,7 +64,7 @@ const ProfileSettingsTabs: React.FC<{
         </NavigationMenu>
       </div>
 
-      <div className={'block w-full lg:hidden'}>
+      <div className={"block w-full lg:hidden"}>
         <MobileNavigationDropdown links={Object.values(links)} />
       </div>
     </>
@@ -88,7 +88,7 @@ function useCanUpdatePassword() {
       return false;
     }
 
-    const emailProviderId = 'email';
+    const emailProviderId = "email";
     const identities = user.identities ?? [];
 
     return identities.some((identity) => {

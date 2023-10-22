@@ -1,16 +1,16 @@
-import NavigationItem from "~/core/ui/navigation/navigation-item";
-import NavigationMenu from "~/core/ui/navigation/navigation-menu";
-import MobileNavigationDropdown from "~/core/ui/mobile-navigation-dropdown";
-import configuration from '~/configuration';
+import NavigationItem from "@inteligir/ui/navigation/navigation-item";
+import NavigationMenu from "@inteligir/ui/navigation/navigation-menu";
+import MobileNavigationDropdown from "@inteligir/ui/mobile-navigation-dropdown";
+import configuration from "@/configuration";
 
 const getLinks = (organizationId: string) => ({
   General: {
-    path: getPath(organizationId, 'organization'),
-    label: 'organization:generalTabLabel',
+    path: getPath(organizationId, "organization"),
+    label: "organization:generalTabLabel",
   },
   Members: {
-    path: getPath(organizationId, 'organization/members'),
-    label: 'organization:membersTabLabel',
+    path: getPath(organizationId, "organization/members"),
+    label: "organization:membersTabLabel",
   },
 });
 
@@ -22,7 +22,7 @@ const OrganizationSettingsTabs: React.FC<{
 
   return (
     <>
-      <div className={'hidden h-full min-w-[12rem] lg:flex'}>
+      <div className={"hidden h-full min-w-[12rem] lg:flex"}>
         <NavigationMenu vertical pill>
           <NavigationItem
             depth={0}
@@ -34,7 +34,7 @@ const OrganizationSettingsTabs: React.FC<{
         </NavigationMenu>
       </div>
 
-      <div className={'block w-full lg:hidden'}>
+      <div className={"block w-full lg:hidden"}>
         <MobileNavigationDropdown links={Object.values(links)} />
       </div>
     </>

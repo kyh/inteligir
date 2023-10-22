@@ -1,31 +1,31 @@
-import { redirect } from 'next/navigation';
-import { use } from 'react';
+import { redirect } from "next/navigation";
+import { use } from "react";
 
-import type { User } from '@supabase/gotrue-js';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import Trans from "~/core/ui/trans";
+import type { User } from "@supabase/gotrue-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import Trans from "@inteligir/ui/trans";
 
 import {
   getMembersAuthMetadata,
   getOrganizationInvitedMembers,
   getOrganizationMembers,
-} from '~/lib/organizations/database/queries';
+} from "@/lib/organizations/database/queries";
 
-import configuration from '~/configuration';
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import type MembershipRole from '~/lib/organizations/types/membership-role';
-import type UserData from '~/core/session/types/user-data';
+import configuration from "@/configuration";
+import getSupabaseServerClient from "@/core/supabase/server-client";
+import type MembershipRole from "@/lib/organizations/types/membership-role";
+import type UserData from "@/core/session/types/user-data";
 
-import requireSession from '~/lib/user/require-session';
-import SettingsTile from "~/app/dashboard/[organization]/settings/components/settings-tile";
-import OrganizationMembersList from "~/app/dashboard/[organization]/settings/organization/components/organization-members-list";
-import OrganizationInvitedMembersList from "~/app/dashboard/[organization]/settings/organization/components/organization-invited-members-list";
-import InviteMembersLinkButton from "~/app/dashboard/[organization]/settings/organization/components/invite-members-link-button";
-import getCurrentOrganization from '~/lib/server/organizations/get-current-organization';
-import { withI18n } from '~/i18n/with-i18n';
+import requireSession from "@/lib/user/require-session";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import OrganizationMembersList from "@/app/dashboard/[organization]/settings/organization/components/organization-members-list";
+import OrganizationInvitedMembersList from "@/app/dashboard/[organization]/settings/organization/components/organization-invited-members-list";
+import InviteMembersLinkButton from "@/app/dashboard/[organization]/settings/organization/components/invite-members-link-button";
+import getCurrentOrganization from "@/lib/server/organizations/get-current-organization";
+import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {
-  title: 'Members',
+  title: "Members",
 };
 
 const OrganizationMembersPage: React.FC<{
@@ -39,17 +39,17 @@ const OrganizationMembersPage: React.FC<{
     <>
       <div className="flex flex-1 flex-col space-y-6">
         <SettingsTile
-          heading={<Trans i18nKey={'organization:membersTabLabel'} />}
-          subHeading={<Trans i18nKey={'organization:membersTabSubheading'} />}
-          actions={<InviteMembersLinkButton href={'members/invite'} />}
+          heading={<Trans i18nKey={"organization:membersTabLabel"} />}
+          subHeading={<Trans i18nKey={"organization:membersTabSubheading"} />}
+          actions={<InviteMembersLinkButton href={"members/invite"} />}
         >
           <OrganizationMembersList members={data.members} />
         </SettingsTile>
 
         <SettingsTile
-          heading={<Trans i18nKey={'organization:pendingInvitesHeading'} />}
+          heading={<Trans i18nKey={"organization:pendingInvitesHeading"} />}
           subHeading={
-            <Trans i18nKey={'organization:pendingInvitesSubheading'} />
+            <Trans i18nKey={"organization:pendingInvitesSubheading"} />
           }
         >
           <OrganizationInvitedMembersList

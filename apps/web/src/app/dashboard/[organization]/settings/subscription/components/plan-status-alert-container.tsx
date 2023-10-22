@@ -1,84 +1,84 @@
-'use client';
+"use client";
 
-import React from 'react';
-import { ReadonlyURLSearchParams, useSearchParams } from 'next/navigation';
-
-import If from "~/core/ui/if";
-import Alert from "~/core/ui/alert";
-import Trans from "~/core/ui/trans";
+import React from "react";
+import type { ReadonlyURLSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import If from "@inteligir/ui/if";
+import Alert from "@inteligir/ui/alert";
+import Trans from "@inteligir/ui/trans";
 
 enum SubscriptionStatusQueryParams {
-  Success = 'success',
-  Cancel = 'cancel',
-  Error = 'error',
+  Success = "success",
+  Cancel = "cancel",
+  Error = "error",
 }
 
-function PlansStatusAlertContainer() {
+const PlansStatusAlertContainer = () => {
   const status = useSubscriptionStatus();
 
   return (
     <If condition={status !== undefined}>
-      <PlansStatusAlert status={status as SubscriptionStatusQueryParams} />
+      <PlansStatusAlert status={status!} />
     </If>
   );
-}
+};
 
 export default PlansStatusAlertContainer;
 
-function PlansStatusAlert({
+const PlansStatusAlert = ({
   status,
 }: {
   status: SubscriptionStatusQueryParams;
-}) {
+}) => {
   switch (status) {
     case SubscriptionStatusQueryParams.Cancel:
       return (
-        <Alert type={'warn'} useCloseButton={true}>
+        <Alert type="warn" useCloseButton>
           <Alert.Heading>
-            <Trans i18nKey={'subscription:checkOutCanceledAlertHeading'} />
+            <Trans i18nKey="subscription:checkOutCanceledAlertHeading" />
           </Alert.Heading>
 
           <p>
-            <Trans i18nKey={'subscription:checkOutCanceledAlert'} />
+            <Trans i18nKey="subscription:checkOutCanceledAlert" />
           </p>
         </Alert>
       );
 
     case SubscriptionStatusQueryParams.Error:
       return (
-        <Alert type={'error'} useCloseButton={true}>
+        <Alert type="error" useCloseButton>
           <Alert.Heading>
-            <Trans i18nKey={'subscription:unknownErrorAlertHeading'} />
+            <Trans i18nKey="subscription:unknownErrorAlertHeading" />
           </Alert.Heading>
 
           <p>
-            <Trans i18nKey={'subscription:unknownErrorAlert'} />
+            <Trans i18nKey="subscription:unknownErrorAlert" />
           </p>
         </Alert>
       );
 
     case SubscriptionStatusQueryParams.Success:
       return (
-        <Alert type={'success'} useCloseButton={true}>
+        <Alert type="success" useCloseButton>
           <Alert.Heading>
-            <Trans i18nKey={'subscription:checkOutCompletedAlertHeading'} />
+            <Trans i18nKey="subscription:checkOutCompletedAlertHeading" />
           </Alert.Heading>
 
           <p>
-            <Trans i18nKey={'subscription:checkOutCompletedAlert'} />
+            <Trans i18nKey="subscription:checkOutCompletedAlert" />
           </p>
         </Alert>
       );
   }
-}
+};
 
-function useSubscriptionStatus() {
+const useSubscriptionStatus = () => {
   const params = useSearchParams();
 
   return getStatus(params);
-}
+};
 
-function getStatus(params: ReadonlyURLSearchParams | null) {
+const getStatus = (params: ReadonlyURLSearchParams | null) => {
   if (!params) {
     return;
   }
@@ -94,4 +94,4 @@ function getStatus(params: ReadonlyURLSearchParams | null) {
   } else if (error) {
     return SubscriptionStatusQueryParams.Error;
   }
-}
+};

@@ -1,10 +1,9 @@
-'use client';
+"use client";
 
-import { ArrowRightIcon } from '@heroicons/react/24/outline';
-
-import Button from "~/core/ui/button";
-import useCsrfToken from '~/core/hooks/use-csrf-token';
-import { createBillingPortalSessionAction } from '~/lib/stripe/actions';
+import { ArrowRightIcon } from "@heroicons/react/24/outline";
+import Button from "@inteligir/ui/button";
+import useCsrfToken from "@/core/hooks/use-csrf-token";
+import { createBillingPortalSessionAction } from "@/lib/stripe/actions";
 
 const BillingPortalRedirectButton: React.FCC<{
   customerId: string;
@@ -12,29 +11,29 @@ const BillingPortalRedirectButton: React.FCC<{
 }> = ({ children, customerId, className }) => {
   return (
     <form action={createBillingPortalSessionAction}>
-      <input type={'hidden'} name={'customerId'} value={customerId} />
+      <input name="customerId" type="hidden" value={customerId} />
 
       <CsrfTokenInput />
 
       <Button
-        data-cy={'manage-billing-redirect-button'}
-        variant={'secondary'}
         className={className}
+        data-cy="manage-billing-redirect-button"
+        variant="secondary"
       >
-        <span className={'flex items-center space-x-2'}>
+        <span className="flex items-center space-x-2">
           <span>{children}</span>
 
-          <ArrowRightIcon className={'h-5'} />
+          <ArrowRightIcon className="h-5" />
         </span>
       </Button>
     </form>
   );
 };
 
-function CsrfTokenInput() {
+const CsrfTokenInput = () => {
   const csrfToken = useCsrfToken();
 
-  return <input type="hidden" name={'csrfToken'} defaultValue={csrfToken} />;
-}
+  return <input defaultValue={csrfToken} name="csrfToken" type="hidden" />;
+};
 
 export default BillingPortalRedirectButton;

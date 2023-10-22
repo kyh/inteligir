@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import useUser from '~/core/hooks/use-user';
-import UpdateEmailForm from "~/app/dashboard/[organization]/settings/profile/components/update-email-form";
+import useUser from "@/core/hooks/use-user";
+import UpdateEmailForm from "@/app/dashboard/[organization]/settings/profile/components/update-email-form";
 
 function UpdateEmailFormContainer() {
   const { data: user } = useUser();

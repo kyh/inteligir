@@ -1,15 +1,15 @@
-import { useCallback, useState, useTransition } from 'react';
-import Trans from "~/core/ui/trans";
+import { useCallback, useState, useTransition } from "react";
+import Trans from "@inteligir/ui/trans";
 
-import Button from "~/core/ui/button";
-import Modal from "~/core/ui/modal";
+import Button from "@inteligir/ui/button";
+import Modal from "@inteligir/ui/modal";
 
-import type MembershipRole from '~/lib/organizations/types/membership-role';
-import MembershipRoleSelector from "~/app/dashboard/[organization]/settings/organization/components/membership-role-selector";
-import { updateMemberAction } from '~/lib/memberships/actions';
-import useCsrfToken from '~/core/hooks/use-csrf-token';
+import type MembershipRole from "@/lib/organizations/types/membership-role";
+import MembershipRoleSelector from "@/app/dashboard/[organization]/settings/organization/components/membership-role-selector";
+import { updateMemberAction } from "@/lib/memberships/actions";
+import useCsrfToken from "@/core/hooks/use-csrf-token";
 
-const Heading = <Trans i18nKey={'organization:updateMemberRoleModalHeading'} />;
+const Heading = <Trans i18nKey={"organization:updateMemberRoleModalHeading"} />;
 
 const UpdateMemberRoleModal: React.FCC<{
   isOpen: boolean;
@@ -33,19 +33,19 @@ const UpdateMemberRoleModal: React.FCC<{
 
   return (
     <Modal heading={Heading} isOpen={isOpen} setIsOpen={setIsOpen}>
-      <div className={'flex flex-col space-y-6'}>
+      <div className={"flex flex-col space-y-6"}>
         <MembershipRoleSelector value={role} onChange={setRole} />
 
-        <div className={'flex justify-end space-x-2'}>
+        <div className={"flex justify-end space-x-2"}>
           <Modal.CancelButton onClick={() => setIsOpen(false)} />
 
           <Button
-            type={'button'}
-            data-cy={'confirm-update-member-role'}
+            type={"button"}
+            data-cy={"confirm-update-member-role"}
             loading={isSubmitting}
             onClick={onRoleUpdated}
           >
-            <Trans i18nKey={'organization:updateRoleSubmitLabel'} />
+            <Trans i18nKey={"organization:updateRoleSubmitLabel"} />
           </Button>
         </div>
       </div>

@@ -6,21 +6,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { RedirectType } from "next/dist/client/components/redirect";
-import getLogger from "~/core/logger";
-import getApiRefererPath from "~/core/generic/get-api-referer-path";
-import createStripeCheckout from "~/lib/stripe/create-checkout";
-import { canChangeBilling } from "~/lib/organizations/permissions";
-import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
-import requireSession from "~/lib/user/require-session";
-import getSupabaseServerClient from "~/core/supabase/server-client";
+import createStripeCheckout from "@/lib/stripe/create-checkout";
+import createBillingPortalSession from "@/lib/stripe/create-billing-portal-session";
+import getLogger from "@/core/logger";
+import getApiRefererPath from "@/core/generic/get-api-referer-path";
+import { canChangeBilling } from "@/lib/organizations/permissions";
+import { getUserMembershipByOrganization } from "@/lib/memberships/queries";
+import requireSession from "@/lib/user/require-session";
+import getSupabaseServerClient from "@/core/supabase/server-client";
 import {
   getOrganizationByCustomerId,
   getOrganizationByUid,
-} from "~/lib/organizations/database/queries";
-import configuration from "~/configuration";
-import createBillingPortalSession from "~/lib/stripe/create-billing-portal-session";
-import verifyCsrfToken from "~/core/verify-csrf-token";
-import { withSession } from "~/core/generic/actions-utils";
+} from "@/lib/organizations/database/queries";
+import configuration from "@/configuration";
+import verifyCsrfToken from "@/core/verify-csrf-token";
+import { withSession } from "@/core/generic/actions-utils";
 
 export const createCheckoutAction = withSession(
   async (_, formData: FormData) => {

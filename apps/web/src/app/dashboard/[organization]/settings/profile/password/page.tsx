@@ -1,17 +1,17 @@
-import UpdatePasswordFormContainer from "~/app/dashboard/[organization]/settings/profile/components/update-password-form-container";
-import SettingsTile from "~/app/dashboard/[organization]/settings/components/settings-tile";
-import Trans from "~/core/ui/trans";
-import { withI18n } from '~/i18n/with-i18n';
+import UpdatePasswordFormContainer from "@/app/dashboard/[organization]/settings/profile/components/update-password-form-container";
+import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import Trans from "@inteligir/ui/trans";
+import { withI18n } from "@/i18n/with-i18n";
 
 export const metadata = {
-  title: 'Update Password',
+  title: "Update Password",
 };
 
 const ProfilePasswordSettingsPage = () => {
   return (
     <SettingsTile
-      heading={<Trans i18nKey={'profile:passwordTab'} />}
-      subHeading={<Trans i18nKey={'profile:passwordTabSubheading'} />}
+      heading={<Trans i18nKey={"profile:passwordTab"} />}
+      subHeading={<Trans i18nKey={"profile:passwordTabSubheading"} />}
     >
       <UpdatePasswordFormContainer />
     </SettingsTile>
