@@ -1,44 +1,45 @@
-import { NextRequest, NextResponse } from 'next/server';
-import csrf from 'edge-csrf';
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import csrf from "edge-csrf";
+import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
+import { HttpStatusCode } from "@/lib/utils/http-status-code";
 
-import HttpStatusCode from '~/core/generic/http-status-code.enum';
-import configuration from '~/configuration';
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
-
-const CSRF_TOKEN_HEADER = 'X-CSRF-Token';
-const CSRF_SECRET_COOKIE = 'csrfSecret';
-const CSRF_TOKEN_BODY_FIELD = 'csrfToken';
-const NEXT_ACTION_HEADER = 'next-action';
-const NEXT_ACTION_REDIRECT_HEADER = 'x-action-redirect';
+const CSRF_TOKEN_HEADER = "X-CSRF-Token";
+const CSRF_SECRET_COOKIE = "csrfSecret";
+const CSRF_TOKEN_BODY_FIELD = "csrfToken";
+const NEXT_ACTION_HEADER = "next-action";
+const NEXT_ACTION_REDIRECT_HEADER = "x-action-redirect";
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|locales|assets|api/stripe/webhook).*)',
+    "/((?!_next/static|_next/image|favicon.ico|locales|assets|api/stripe/webhook).*)",
   ],
 };
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const csrfMiddleware = csrf({
   cookie: {
-    secure: configuration.production,
+    secure: isProduction,
     name: CSRF_SECRET_COOKIE,
   },
 });
 
-export async function middleware(request: NextRequest) {
+export const middleware = async (request: NextRequest) => {
   const response = await withCsrfMiddleware(request);
 
   return sessionMiddleware(request, response);
-}
+};
 
-async function sessionMiddleware(req: NextRequest, res: NextResponse) {
+const sessionMiddleware = async (req: NextRequest, res: NextResponse) => {
   const supabase = createMiddlewareClient({ req, res });
 
   await supabase.auth.getSession();
 
   return res;
-}
+};
 
-async function withCsrfMiddleware(request: NextRequest) {
+const withCsrfMiddleware = async (request: NextRequest) => {
   const csrfResponse = NextResponse.next();
 
   // If the request is a Next action
@@ -57,7 +58,7 @@ async function withCsrfMiddleware(request: NextRequest) {
   const csrfError = await csrfMiddleware(request, csrfResponse);
 
   if (csrfError) {
-    return NextResponse.json('Invalid CSRF token', {
+    return NextResponse.json("Invalid CSRF token", {
       status: HttpStatusCode.Forbidden,
     });
   }
@@ -73,13 +74,13 @@ async function withCsrfMiddleware(request: NextRequest) {
     });
 
     const nextCsrfSecret =
-      csrfResponse.cookies.get(CSRF_SECRET_COOKIE)?.value ?? '';
+      csrfResponse.cookies.get(CSRF_SECRET_COOKIE)?.value ?? "";
 
     if (nextCsrfSecret) {
       response.cookies.set(CSRF_SECRET_COOKIE, nextCsrfSecret, {
-        secure: configuration.production,
-        path: '/',
-        sameSite: 'lax',
+        secure: isProduction,
+        path: "/",
+        sameSite: "lax",
         httpOnly: true,
       });
     }
@@ -88,29 +89,20 @@ async function withCsrfMiddleware(request: NextRequest) {
   }
 
   return csrfResponse;
-}
+};
 
-/**
- * Check if the request is a Next action
- * Also check if the request is not a redirect from a Next action
- * @param request
- */
-function isNextAction(request: NextRequest) {
+const isNextAction = (request: NextRequest) => {
   const headers = new Headers(request.headers);
 
   return (
     headers.has(NEXT_ACTION_HEADER) && !headers.has(NEXT_ACTION_REDIRECT_HEADER)
   );
-}
+};
 
-/**
- * Decorate the headers with the CSRF token passed in the body
- * @param request
- */
-async function decorateHeadersWithCsrfToken(request: NextRequest) {
+const decorateHeadersWithCsrfToken = async (request: NextRequest) => {
   const { data, type } = await parsePayload(request);
 
-  if (type === 'json') {
+  if (type === "json") {
     if (!Array.isArray(data) || data.length === 0) {
       return false;
     }
@@ -125,18 +117,13 @@ async function decorateHeadersWithCsrfToken(request: NextRequest) {
   }
 
   return false;
-}
+};
 
-/**
- * @name parsePayload
- * @description Parse the payload of the request
- * @param request
- */
-async function parsePayload(request: NextRequest) {
+const parsePayload = async (request: NextRequest) => {
   const clone = request.clone();
 
   try {
-    const type = 'json';
+    const type = "json";
     const data = await clone.json();
 
     return {
@@ -149,4 +136,4 @@ async function parsePayload(request: NextRequest) {
       data: null,
     };
   }
-}
+};

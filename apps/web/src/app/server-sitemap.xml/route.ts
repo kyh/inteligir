@@ -1,23 +1,18 @@
-import { join } from 'path';
-import { getServerSideSitemap } from 'next-sitemap';
-import { allPosts } from 'contentlayer/generated';
-import configuration from '~/configuration';
+import { join } from "node:path";
+import { getServerSideSitemap } from "next-sitemap";
+import { allTemplates } from "contentlayer/generated";
 
-const siteUrl = configuration.site.siteUrl as string;
+const siteUrl = "https://inteligir.com";
 
-if (!siteUrl) {
-  throw new Error(`Invalid "siteUrl", please fix in configuration.ts`);
-}
-
-export async function GET() {
+export const GET = () => {
   const urls = getSiteUrls();
-  const posts = getPostsSitemap();
+  const posts = getTemplatesSitemap();
 
   return getServerSideSitemap([...urls, ...posts]);
-}
+};
 
-function getSiteUrls() {
-  const urls = ['', 'faq', 'pricing'];
+const getSiteUrls = () => {
+  const urls = [""];
 
   return urls.map((url) => {
     return {
@@ -25,13 +20,11 @@ function getSiteUrls() {
       lastmod: new Date().toISOString(),
     };
   });
-}
+};
 
-function getPostsSitemap() {
-  return allPosts.map((post) => {
+const getTemplatesSitemap = () => allTemplates.map((post) => {
     return {
-      loc: join(siteUrl, post.url),
+      loc: join(siteUrl, post._id),
       lastmod: new Date().toISOString(),
     };
   });
-}

@@ -1,7 +1,7 @@
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import { USERS_TABLE } from '~/lib/db-tables';
+import getSupabaseServerClient from "@/lib/supabase/server-client";
+import { USERS_TABLE } from "@/lib/db-tables";
 
-export async function getUsers(ids: string[]) {
+export const getUsers = async (ids: string[]) => {
   const client = getSupabaseServerClient({ admin: true });
 
   const { data: users, error } = await client
@@ -14,11 +14,11 @@ export async function getUsers(ids: string[]) {
       onboarded
     `,
     )
-    .in('id', ids);
+    .in("id", ids);
 
   if (error) {
     throw error;
   }
 
   return users;
-}
+};

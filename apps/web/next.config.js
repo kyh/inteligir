@@ -1,39 +1,19 @@
-const withAnalyzer = require('@next/bundle-analyzer');
-const { withContentlayer } = require('next-contentlayer');
-
-const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const { withContentlayer } = require("next-contentlayer");
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  reactStrictMode: true,
+  transpilePackages: ["ui"],
   experimental: {
     serverActions: true,
   },
   images: {
-    remotePatterns: getRemotePatterns(),
-  },
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.resolve.fallback.fs = false;
-    }
-
-    return config;
+    remotePatterns: [
+      { hostname: "files.stripe.com" },
+      { hostname: "framerusercontent.com" },
+      { hostname: "res.cloudinary.com" },
+    ],
   },
 };
 
-module.exports = withAnalyzer({
-  enabled: process.env.ANALYZE === 'true',
-})(withContentlayer(nextConfig));
-
-function getRemotePatterns() {
-  // add here the remote patterns for your images
-  const remotePatterns = [];
-
-  return IS_PRODUCTION
-    ? remotePatterns
-    : [
-        {
-          protocol: 'http',
-          hostname: '127.0.0.1',
-        },
-      ];
-}
+module.exports = withContentlayer(nextConfig);

@@ -1,37 +1,37 @@
-import loadDynamic from 'next/dynamic';
-import { Squares2X2Icon } from '@heroicons/react/24/outline';
+import loadDynamic from "next/dynamic";
+import { SquaresPlus } from "@inteligir/icons";
+import Spinner from "@inteligir/ui/spinner";
+import AppHeader from "./components/app-header";
+import AppContainer from "./components/app-container";
 
-import AppHeader from './components/AppHeader';
-import AppContainer from './components/AppContainer';
-import { withI18n } from '~/i18n/with-i18n';
-import Spinner from '~/core/ui/Spinner';
-import Trans from '~/core/ui/Trans';
+const DashboardDemo = loadDynamic(
+  () => import("@/app/dashboard/[organization]/components/DashboardDemo"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className={
+          "flex min-h-full flex-1 flex-col items-center justify-center" +
+          " space-y-4"
+        }
+      >
+        <Spinner className="text-primary" />
 
-const DashboardDemo = loadDynamic(() => import('./components/DashboardDemo'), {
-  ssr: false,
-  loading: () => (
-    <div
-      className={
-        'flex flex-1 items-center min-h-full justify-center flex-col' +
-        ' space-y-4'
-      }
-    >
-      <Spinner className={'text-primary'} />
-
-      <div>Loading dashboard...</div>
-    </div>
-  ),
-});
+        <div>Loading dashboard...</div>
+      </div>
+    ),
+  },
+);
 
 export const metadata = {
-  title: 'Dashboard',
+  title: "Dashboard",
 };
 
-function DashboardPage() {
+const DashboardPage = () => {
   return (
     <>
-      <AppHeader Icon={<Squares2X2Icon className={'h-6 dark:text-primary'} />}>
-        <Trans i18nKey={'common:dashboardTabLabel'} />
+      <AppHeader Icon={<SquaresPlus className="dark:text-primary h-6" />}>
+        <Trans i18nKey="common:dashboardTabLabel" />
       </AppHeader>
 
       <AppContainer>
@@ -39,6 +39,6 @@ function DashboardPage() {
       </AppContainer>
     </>
   );
-}
+};
 
-export default withI18n(DashboardPage);
+export default DashboardPage;

@@ -1,25 +1,23 @@
-import { use } from 'react';
-import { notFound, redirect } from 'next/navigation';
-import { headers } from 'next/headers';
-import { isNotFoundError } from 'next/dist/client/components/not-found';
-import If from '~/core/ui/If';
-import Heading from '~/core/ui/Heading';
-import Trans from '~/core/ui/Trans';
+import { use } from "react";
+import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { isNotFoundError } from "next/dist/client/components/not-found";
+import getSupabaseServerClient from "@/lib/supabase/server-client";
+import { getMembershipByInviteCode } from "@/features/memberships/queries";
+import { If } from "@/components/if";
+import Heading from "@inteligir/ui/heading";
+import Trans from "@inteligir/ui/trans";
+import getLogger from "@/core/logger";
+import ExistingUserInviteForm from "@/app/invite/components/existing-user-invite-form";
+import NewUserInviteForm from "@/app/invite/components/new-user-invite-form";
+import InviteCsrfTokenProvider from "@/app/invite/components/invite-csrf-token-provider";
+import { withI18n } from "@/i18n/with-i18n";
 
-import getLogger from '~/core/logger';
-import getSupabaseServerClient from '~/core/supabase/server-client';
-
-import { getMembershipByInviteCode } from '~/lib/memberships/queries';
-import ExistingUserInviteForm from '~/app/invite/components/ExistingUserInviteForm';
-import NewUserInviteForm from '~/app/invite/components/NewUserInviteForm';
-import InviteCsrfTokenProvider from '~/app/invite/components/InviteCsrfTokenProvider';
-import { withI18n } from '~/i18n/with-i18n';
-
-interface Context {
+type Context = {
   params: {
     code: string;
   };
-}
+};
 
 export const metadata = {
   title: `Join Organization`,
@@ -35,7 +33,7 @@ const InvitePage = ({ params }: Context) => {
     <>
       <Heading type={4}>
         <Trans
-          i18nKey={'auth:joinOrganizationHeading'}
+          i18nKey="auth:joinOrganizationHeading"
           values={{
             organization: organization.name,
           }}
@@ -43,19 +41,19 @@ const InvitePage = ({ params }: Context) => {
       </Heading>
 
       <div>
-        <p className={'text-center'}>
+        <p className="text-center">
           <Trans
-            i18nKey={'auth:joinOrganizationSubHeading'}
+            components={{ b: <b /> }}
+            i18nKey="auth:joinOrganizationSubHeading"
             values={{
               organization: organization.name,
             }}
-            components={{ b: <b /> }}
           />
         </p>
 
-        <p className={'text-center'}>
+        <p className="text-center">
           <If condition={!data.session}>
-            <Trans i18nKey={'auth:signUpToAcceptInvite'} />
+            <Trans i18nKey="auth:signUpToAcceptInvite" />
           </If>
         </p>
       </div>
@@ -76,7 +74,7 @@ const InvitePage = ({ params }: Context) => {
 
 export default withI18n(InvitePage);
 
-async function loadInviteData(code: string) {
+const loadInviteData = async (code: string) => {
   const logger = getLogger();
   const client = getSupabaseServerClient();
 
@@ -117,8 +115,8 @@ async function loadInviteData(code: string) {
     }
 
     const { data: userSession } = await client.auth.getSession();
-    const session = userSession?.session;
-    const csrfToken = headers().get('x-csrf-token');
+    const session = userSession.session;
+    const csrfToken = headers().get("x-csrf-token");
 
     return {
       csrfToken,
@@ -136,6 +134,6 @@ async function loadInviteData(code: string) {
       `Error encountered while fetching invite. Redirecting to home page...`,
     );
 
-    redirect('/');
+    redirect("/");
   }
-}
+};

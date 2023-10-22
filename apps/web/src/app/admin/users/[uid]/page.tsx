@@ -1,15 +1,8 @@
-import { use } from 'react';
-import Link from 'next/link';
-
-import { ChevronRightIcon } from '@heroicons/react/24/outline';
-
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import AdminHeader from '~/app/admin/components/AdminHeader';
-import AdminGuard from '~/app/admin/components/AdminGuard';
-import AppContainer from '~/app/dashboard/[organization]/components/AppContainer';
-import { TextFieldInput, TextFieldLabel } from '~/core/ui/TextField';
-import Heading from '~/core/ui/Heading';
-
+import { use } from "react";
+import Link from "next/link";
+import { ChevronRight } from "@inteligir/icons";
+import { TextFieldInput, TextFieldLabel } from "@inteligir/ui/text-field";
+import Heading from "@inteligir/ui/heading";
 import {
   Table,
   TableBody,
@@ -17,69 +10,70 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '~/core/ui/Table';
+} from "@inteligir/ui/table";
+import Tile from "@inteligir/ui/tile";
+import Badge from "@inteligir/ui/badge";
+import Label from "@inteligir/ui/label";
+import { getSupabaseServerClient } from "@/lib/supabase/server-client";
+import AdminHeader from "@/app/admin/components/admin-header";
+import AdminGuard from "@/app/admin/components/admin-guard";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import RoleBadge from "@/app/dashboard/[organization]/settings/organization/components/role-badge";
+import UserActionsDropdown from "@/app/admin/users/[uid]/components/user-actions-dropdown";
+import configuration from "@/configuration";
 
-import RoleBadge from '~/app/dashboard/[organization]/settings/organization/components/RoleBadge';
-import UserActionsDropdown from '~/app/admin/users/[uid]/components/UserActionsDropdown';
-
-import Tile from '~/core/ui/Tile';
-import Badge from '~/core/ui/Badge';
-import Label from '~/core/ui/Label';
-
-import configuration from '~/configuration';
-
-interface Params {
+type Params = {
   params: {
     uid: string;
   };
-}
+};
 
 export const metadata = {
   title: `Manage User | ${configuration.site.siteName}`,
 };
 
-function AdminUserPage({ params }: Params) {
+const AdminUserPage = ({ params }: Params) => {
   const uid = params.uid;
 
   const { auth, user, organizations } = use(loadData(uid));
   const displayName = user?.displayName;
-  const authUser = auth?.user;
+  const authUser = auth.user;
   const email = authUser?.email;
   const phone = authUser?.phone;
 
   const isBanned = Boolean(
-    authUser && 'banned_until' in authUser && authUser.banned_until !== 'none',
+    authUser && "banned_until" in authUser && authUser.banned_until !== "none",
   );
 
   return (
-    <div className={'flex flex-col flex-1'}>
+    <div className="flex flex-1 flex-col">
       <AdminHeader>Manage User</AdminHeader>
 
       <AppContainer>
-        <div className={'flex flex-col space-y-6'}>
-          <div className={'flex justify-between'}>
-            <Breadcrumbs displayName={displayName ?? email ?? ''} />
+        <div className="flex flex-col space-y-6">
+          <div className="flex justify-between">
+            <Breadcrumbs displayName={displayName ?? email ?? ""} />
 
             <div>
-              <UserActionsDropdown uid={uid} isBanned={isBanned} />
+              <UserActionsDropdown isBanned={isBanned} uid={uid} />
             </div>
           </div>
 
           <Tile>
             <Heading type={4}>User Details</Heading>
 
-            <div className={'flex space-x-2 items-center'}>
+            <div className="flex items-center space-x-2">
               <div>
                 <Label>Status</Label>
               </div>
 
-              <div className={'inline-flex'}>
+              <div className="inline-flex">
                 {isBanned ? (
-                  <Badge size={'small'} color={'error'}>
+                  <Badge color="error" size="small">
                     Banned
                   </Badge>
                 ) : (
-                  <Badge size={'small'} color={'success'}>
+                  <Badge color="success" size="small">
                     Active
                   </Badge>
                 )}
@@ -89,8 +83,8 @@ function AdminUserPage({ params }: Params) {
             <TextFieldLabel>
               Display name
               <TextFieldInput
-                className={'max-w-sm'}
-                defaultValue={displayName ?? ''}
+                className="max-w-sm"
+                defaultValue={displayName ?? ""}
                 disabled
               />
             </TextFieldLabel>
@@ -98,8 +92,8 @@ function AdminUserPage({ params }: Params) {
             <TextFieldLabel>
               Email
               <TextFieldInput
-                className={'max-w-sm'}
-                defaultValue={email ?? ''}
+                className="max-w-sm"
+                defaultValue={email ?? ""}
                 disabled
               />
             </TextFieldLabel>
@@ -107,8 +101,8 @@ function AdminUserPage({ params }: Params) {
             <TextFieldLabel>
               Phone number
               <TextFieldInput
-                className={'max-w-sm'}
-                defaultValue={phone ?? ''}
+                className="max-w-sm"
+                defaultValue={phone ?? ""}
                 disabled
               />
             </TextFieldLabel>
@@ -133,7 +127,7 @@ function AdminUserPage({ params }: Params) {
                       <TableCell>{membership.organization.name}</TableCell>
 
                       <TableCell>
-                        <div className={'inline-flex'}>
+                        <div className="inline-flex">
                           <RoleBadge role={membership.role} />
                         </div>
                       </TableCell>
@@ -147,16 +141,16 @@ function AdminUserPage({ params }: Params) {
       </AppContainer>
     </div>
   );
-}
+};
 
 export default AdminGuard(AdminUserPage);
 
-async function loadData(uid: string) {
+const loadData = async (uid: string) => {
   const client = getSupabaseServerClient({ admin: true });
   const authUser = client.auth.admin.getUserById(uid);
 
   const userData = client
-    .from('users')
+    .from("users")
     .select(
       `
       id,
@@ -165,11 +159,11 @@ async function loadData(uid: string) {
       onboarded
   `,
     )
-    .eq('id', uid)
+    .eq("id", uid)
     .single();
 
   const organizationsQuery = client
-    .from('memberships')
+    .from("memberships")
     .select(
       `
       id,
@@ -177,7 +171,7 @@ async function loadData(uid: string) {
       role
   `,
     )
-    .eq('user_id', uid);
+    .eq("user_id", uid);
 
   const [auth, user, organizations] = await Promise.all([
     authUser,
@@ -190,20 +184,20 @@ async function loadData(uid: string) {
     user: user.data,
     organizations: organizations.data,
   };
-}
+};
 
-function Breadcrumbs(
+const Breadcrumbs = (
   props: React.PropsWithChildren<{
     displayName: string;
   }>,
-) {
+) => {
   return (
-    <div className={'flex space-x-1 items-center text-xs p-2'}>
-      <Link href={'/admin'}>Admin</Link>
-      <ChevronRightIcon className={'w-3'} />
-      <Link href={'/admin/users'}>Users</Link>
-      <ChevronRightIcon className={'w-3'} />
+    <div className="flex items-center space-x-1 p-2 text-xs">
+      <Link href="/admin">Admin</Link>
+      <ChevronRight className="w-3" />
+      <Link href="/admin/users">Users</Link>
+      <ChevronRight className="w-3" />
       <span>{props.displayName}</span>
     </div>
   );
-}
+};

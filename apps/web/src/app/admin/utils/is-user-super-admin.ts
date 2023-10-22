@@ -1,7 +1,7 @@
-import { cache } from 'react';
-import type { SupabaseClient } from '@supabase/supabase-js';
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import GlobalRole from '~/core/session/types/global-role';
+import { cache } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { getSupabaseServerClient } from "@/lib/supabase/server-client";
+import { GlobalRole } from "@/features/users/global-role";
 
 /**
  * @name ENFORCE_MFA
@@ -39,8 +39,8 @@ const isUserSuperAdmin = cache(
       }
     }
 
-    const adminMetadata = data.user?.app_metadata;
-    const role = adminMetadata?.role;
+    const adminMetadata = data.user.app_metadata;
+    const role = adminMetadata.role;
 
     return role === GlobalRole.SuperAdmin;
   },
@@ -48,7 +48,7 @@ const isUserSuperAdmin = cache(
 
 export default isUserSuperAdmin;
 
-async function verifyIsMultiFactorAuthenticated(client: SupabaseClient) {
+const verifyIsMultiFactorAuthenticated = async (client: SupabaseClient) => {
   const { data, error } =
     await client.auth.mfa.getAuthenticatorAssuranceLevel();
 
@@ -56,5 +56,5 @@ async function verifyIsMultiFactorAuthenticated(client: SupabaseClient) {
     return false;
   }
 
-  return data.currentLevel === 'aal2';
-}
+  return data.currentLevel === "aal2";
+};

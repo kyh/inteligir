@@ -1,20 +1,20 @@
-'use client';
+"use client";
 
-import Alert from '~/core/ui/Alert';
-import AppContainer from '~/app/dashboard/[organization]/components/AppContainer';
+import { Alert, AlertDescription, AlertTitle } from "@inteligir/ui";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 
-function UsersAdminPageError() {
+const UsersAdminPageError = () => {
   return (
     <AppContainer>
-      <Alert type={'error'}>
-        <Alert.Heading>Could not load users</Alert.Heading>
-        <p>
+      <Alert>
+        <AlertTitle>Could not load users</AlertTitle>
+        <AlertDescription>
           There was an error loading the users. Please check your console
           errors.
-        </p>
+        </AlertDescription>
       </Alert>
     </AppContainer>
   );
-}
+};
 
 export default UsersAdminPageError;

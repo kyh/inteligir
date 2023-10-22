@@ -1,9 +1,8 @@
-'use server';
+"use server";
 
-import { revalidatePath } from 'next/cache';
-
-import getSupabaseServerActionClient from '~/core/supabase/action-client';
-import { withAdminSession } from '~/core/generic/actions-utils';
+import { revalidatePath } from "next/cache";
+import getSupabaseServerActionClient from "@/lib/supabase/action-client";
+import { withAdminSession } from "@/lib/utils/actions-utils";
 
 const getClient = () => getSupabaseServerActionClient({ admin: true });
 
@@ -34,7 +33,7 @@ export const impersonateUser = withAdminSession(async ({ userId }) => {
   }
 
   const { error: linkError, data } = await getClient().auth.admin.generateLink({
-    type: 'magiclink',
+    type: "magiclink",
     email,
     options: {
       redirectTo: `/`,
@@ -45,12 +44,12 @@ export const impersonateUser = withAdminSession(async ({ userId }) => {
     throw new Error(`Error generating magic link`);
   }
 
-  const response = await fetch(data.properties?.action_link, {
-    method: 'GET',
-    redirect: 'manual',
+  const response = await fetch(data.properties.action_link, {
+    method: "GET",
+    redirect: "manual",
   });
 
-  const location = response.headers.get('Location');
+  const location = response.headers.get("Location");
 
   if (!location) {
     throw new Error(`Error generating magic link. Location header not found`);
@@ -58,8 +57,8 @@ export const impersonateUser = withAdminSession(async ({ userId }) => {
 
   const hash = new URL(location).hash.substring(1);
   const query = new URLSearchParams(hash);
-  const accessToken = query.get('access_token');
-  const refreshToken = query.get('refresh_token');
+  const accessToken = query.get("access_token");
+  const refreshToken = query.get("refresh_token");
 
   if (!accessToken || !refreshToken) {
     throw new Error(
@@ -73,10 +72,10 @@ export const impersonateUser = withAdminSession(async ({ userId }) => {
   };
 });
 
-async function setBanDuration(userId: string, banDuration: string) {
+const setBanDuration = async (userId: string, banDuration: string) => {
   await getClient().auth.admin.updateUserById(userId, {
     ban_duration: banDuration,
   });
 
-  revalidatePath('/admin/users');
-}
+  revalidatePath("/admin/users");
+};

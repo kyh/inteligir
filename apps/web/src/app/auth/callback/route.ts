@@ -1,22 +1,19 @@
-import { cookies } from 'next/headers';
-import type { NextRequest } from 'next/server';
-import { redirect } from 'next/navigation';
+import { cookies } from "next/headers";
+import type { NextRequest } from "next/server";
+import { redirect } from "next/navigation";
+import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs";
+import type { Database } from "database";
+import { acceptInviteToOrganization } from "@/features/memberships/mutations";
+import getSupabaseServerActionClient from "@/lib/supabase/action-client";
+import getLogger from "@/core/logger";
+import configuration from "@/configuration";
 
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-
-import { acceptInviteToOrganization } from '~/lib/memberships/mutations';
-import getSupabaseServerActionClient from '~/core/supabase/action-client';
-
-import { Database } from '~/database.types';
-import getLogger from '~/core/logger';
-import configuration from '~/configuration';
-
-export async function GET(request: NextRequest) {
+export const GET = async (request: NextRequest) => {
   const requestUrl = new URL(request.url);
   const logger = getLogger();
 
-  const authCode = requestUrl.searchParams.get('code');
-  const inviteCode = requestUrl.searchParams.get('inviteCode');
+  const authCode = requestUrl.searchParams.get("code");
+  const inviteCode = requestUrl.searchParams.get("inviteCode");
 
   const onError = (error?: string) => {
     logger.error(`An error occurred while signing user in`, error);
@@ -49,8 +46,8 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return redirect(configuration.paths.appHome);
-}
+  return redirect("/dashboard");
+};
 
 /**
  * @name acceptInviteFromEmailLink
@@ -58,10 +55,10 @@ export async function GET(request: NextRequest) {
  * received from the email link method
  * @param params
  */
-async function acceptInviteFromEmailLink(params: {
+const acceptInviteFromEmailLink = async (params: {
   inviteCode: string;
   userId: Maybe<string>;
-}) {
+}) => {
   const logger = getLogger();
 
   if (!params.userId) {
@@ -80,4 +77,4 @@ async function acceptInviteFromEmailLink(params: {
   });
 
   logger.info(params, `Invite successfully accepted`);
-}
+};

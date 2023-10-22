@@ -1,20 +1,14 @@
-'use server';
+"use server";
 
-import { z } from 'zod';
-
-import { cookies } from 'next/headers';
-import { redirect } from 'next/navigation';
-import { RedirectType } from 'next/dist/client/components/redirect';
-
-import getLogger from '~/core/logger';
-import requireSession from '~/lib/user/require-session';
-import completeOnboarding from '~/lib/server/onboarding/complete-onboarding';
-
-import getSupabaseServerActionClient from '~/core/supabase/action-client';
-import { createOrganizationIdCookie } from '~/lib/server/cookies/organization.cookie';
-import { withSession } from '~/core/generic/actions-utils';
-
-import configuration from '~/configuration';
+import { z } from "zod";
+import { cookies } from "next/headers";
+import { RedirectType, redirect } from "next/navigation";
+import { requireSession } from "@/features/auth/require-session";
+import { completeOnboarding } from "@/features/onboarding/complete-onboarding";
+import { getSupabaseServerActionClient } from "@/lib/supabase/action-client";
+import { createOrganizationIdCookie } from "@/features/organizations/organization-cookie";
+import { withSession } from "@/lib/utils/actions-utils";
+import { getLogger } from "@/lib/utils/logger";
 
 export const handleOnboardingCompleteAction = withSession(
   async (data: z.infer<ReturnType<typeof getBodySchema>>) => {
@@ -69,17 +63,14 @@ export const handleOnboardingCompleteAction = withSession(
 
     cookies().set(createOrganizationIdCookie({ userId, organizationUid }));
 
-    const redirectPath = [configuration.paths.appPrefix, organizationUid].join(
-      '/',
-    );
+    const redirectPath = ["/dashboard", organizationUid].join("/");
 
     return redirect(redirectPath, RedirectType.replace);
   },
 );
 
-function getBodySchema() {
-  return z.object({
+const getBodySchema = () =>
+  z.object({
     organization: z.string().trim().min(1),
     csrfToken: z.string(),
   });
-}

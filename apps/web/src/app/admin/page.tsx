@@ -1,61 +1,58 @@
-import AppContainer from '~/app/dashboard/[organization]/components/AppContainer';
-import AdminHeader from '~/app/admin/components/AdminHeader';
-import AdminGuard from '~/app/admin/components/AdminGuard';
-import AdminDashboard from '~/app/admin/components/AdminDashboard';
-import getSupabaseServerClient from '~/core/supabase/server-client';
-
-import configuration from '~/configuration';
+import { getSupabaseServerClient } from "@/lib/supabase/server-client";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AdminHeader from "@/app/admin/components/admin-header";
+import AdminGuard from "@/app/admin/components/admin-guard";
+import AdminDashboard from "@/app/admin/components/admin-dashboard";
 
 export const metadata = {
-  title: `Admin | ${configuration.site.siteName}`,
+  title: `Admin | Inteligir`,
 };
 
-async function AdminPage() {
+const AdminPage = async () => {
   const data = await loadData();
 
   return (
-    <div className={'flex flex-col flex-1'}>
+    <div className="flex flex-1 flex-col">
       <AdminHeader>Admin</AdminHeader>
-
       <AppContainer>
         <AdminDashboard data={data} />
       </AppContainer>
     </div>
   );
-}
+};
 
 export default AdminGuard(AdminPage);
 
-async function loadData() {
+const loadData = async () => {
   const client = getSupabaseServerClient({ admin: true });
 
-  const { count: usersCount } = await client.from('users').select('*', {
-    count: 'exact',
+  const { count: usersCount } = await client.from("users").select("*", {
+    count: "exact",
     head: true,
   });
 
   const { count: organizationsCount } = await client
-    .from('organizations')
-    .select('*', {
-      count: 'exact',
+    .from("organizations")
+    .select("*", {
+      count: "exact",
       head: true,
     });
 
   const { count: activeSubscriptions } = await client
-    .from('subscriptions')
+    .from("subscriptions")
     .select(`*`, {
-      count: 'exact',
+      count: "exact",
       head: true,
     })
-    .eq('status', 'active');
+    .eq("status", "active");
 
   const { count: trialSubscriptions } = await client
-    .from('subscriptions')
+    .from("subscriptions")
     .select(`*`, {
-      count: 'exact',
+      count: "exact",
       head: true,
     })
-    .eq('status', 'trialing');
+    .eq("status", "trialing");
 
   return {
     usersCount: usersCount || 0,
@@ -63,4 +60,4 @@ async function loadData() {
     activeSubscriptions: activeSubscriptions || 0,
     trialSubscriptions: trialSubscriptions || 0,
   };
-}
+};

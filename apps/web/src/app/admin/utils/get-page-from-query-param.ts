@@ -3,7 +3,7 @@
  * @name getPageFromQueryParams
  * @param pageParam
  */
-function getPageFromQueryParams(pageParam: string | undefined) {
+const getPageFromQueryParams = (pageParam: string | undefined) => {
   const page = pageParam ? parseInt(pageParam) : 1;
 
   if (Number.isNaN(page) || page <= 0) {
@@ -11,6 +11,6 @@ function getPageFromQueryParams(pageParam: string | undefined) {
   }
 
   return page;
-}
+};
 
 export default getPageFromQueryParams;

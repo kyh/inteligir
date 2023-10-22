@@ -1,28 +1,24 @@
-import { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { MEMBERSHIPS_TABLE, ORGANIZATIONS_TABLE } from "@/lib/db-tables";
+import type { UserOrganizationData } from "@/lib/organizations/database/queries";
+import type MembershipRole from "@/lib/organizations/types/membership-role";
 
-import { MEMBERSHIPS_TABLE, ORGANIZATIONS_TABLE } from '~/lib/db-tables';
-import { UserOrganizationData } from '~/lib/organizations/database/queries';
-import MembershipRole from '~/lib/organizations/types/membership-role';
-import { Database } from '~/database.types';
-
-type Client = SupabaseClient<Database>;
-
-export async function getOrganizations(
-  client: Client,
+export const getOrganizations = async (
+  client: SupabaseClient,
   search: string,
   page = 1,
   perPage = 20,
-) {
+) => {
   const startOffset = (page - 1) * perPage;
   const endOffset = startOffset + perPage;
 
   let query = client.from(ORGANIZATIONS_TABLE).select<
     string,
-    UserOrganizationData['organization'] & {
-      memberships: Array<{
+    UserOrganizationData["organization"] & {
+      memberships: {
         userId: string;
         role: MembershipRole;
-      }>;
+      }[];
     }
   >(
     `
@@ -39,25 +35,22 @@ export async function getOrganizations(
         data: subscription_id (
           id,
           status,
-          currency,
-          interval,
-          cancelAtPeriodEnd: cancel_at_period_end,
-          intervalCount: interval_count,
-          priceId: price_id,
+          billingAnchor: billing_anchor,
+          variantId: variant_id,
           createdAt: created_at,
-          periodStartsAt: period_starts_at,
-          periodEndsAt: period_ends_at,
+          endsAt: ends_at,
+          renewsAt: renews_at,
           trialStartsAt: trial_starts_at,
           trialEndsAt: trial_ends_at
         )
       )`,
     {
-      count: 'exact',
+      count: "exact",
     },
   );
 
   if (search) {
-    query = query.ilike('name', `%${search}%`);
+    query = query.ilike("name", `%${search}%`);
   }
 
   const {
@@ -74,16 +67,16 @@ export async function getOrganizations(
     organizations,
     count,
   };
-}
+};
 
-export async function getMembershipsByOrganizationUid(
-  client: Client,
+export const getMembershipsByOrganizationUid = async (
+  client: SupabaseClient,
   params: {
     uid: string;
     page: number;
     perPage: number;
   },
-) {
+) => {
   const startOffset = (params.page - 1) * params.perPage;
   const endOffset = startOffset + params.perPage;
 
@@ -114,10 +107,10 @@ export async function getMembershipsByOrganizationUid(
         uuid
       )`,
       {
-        count: 'exact',
+        count: "exact",
       },
     )
-    .eq('organization.uuid', params.uid)
+    .eq("organization.uuid", params.uid)
     .range(startOffset, endOffset);
 
   if (error) {
@@ -125,4 +118,4 @@ export async function getMembershipsByOrganizationUid(
   }
 
   return { data, count };
-}
+};

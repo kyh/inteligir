@@ -1,3 +1,7 @@
-import GlobalLoadingIndicator from '~/components/GlobalLoadingIndicator';
+import GlobalLoadingIndicator from "@/components/global-loading-indicator";
 
-export default GlobalLoadingIndicator;
+const Loading = () => {
+  return <GlobalLoadingIndicator />;
+};
+
+export default Loading;

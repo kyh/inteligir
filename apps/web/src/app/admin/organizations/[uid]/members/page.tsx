@@ -1,17 +1,15 @@
-import { use } from 'react';
-import Link from 'next/link';
-import { ChevronRightIcon } from '@heroicons/react/24/outline';
+import { use } from "react";
+import Link from "next/link";
+import { ChevronRightMini } from "@inteligir/icons";
+import { getMembershipsByOrganizationUid } from "@/app/admin/organizations/queries";
+import { getSupabaseServerClient } from "@/lib/supabase/server-client";
+import getPageFromQueryParams from "@/app/admin/utils/get-page-from-query-param";
+import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AdminHeader from "@/app/admin/components/admin-header";
+import OrganizationsMembersTable from "@/app/admin/organizations/[uid]/members/components/organizations-members-table";
+import configuration from "@/configuration";
 
-import AppContainer from '~/app/dashboard/[organization]/components/AppContainer';
-import AdminHeader from '~/app/admin/components/AdminHeader';
-import { getMembershipsByOrganizationUid } from '~/app/admin/organizations/queries';
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import OrganizationsMembersTable from '~/app/admin/organizations/[uid]/members/components/OrganizationsMembersTable';
-import getPageFromQueryParams from '~/app/admin/utils/get-page-from-query-param';
-
-import configuration from '~/configuration';
-
-interface AdminMembersPageParams {
+type AdminMembersPageParams = {
   params: {
     uid: string;
   };
@@ -19,13 +17,13 @@ interface AdminMembersPageParams {
   searchParams: {
     page?: string;
   };
-}
+};
 
 export const metadata = {
   title: `Members | ${configuration.site.siteName}`,
 };
 
-function AdminMembersPage(params: AdminMembersPageParams) {
+const AdminMembersPage = (params: AdminMembersPageParams) => {
   const adminClient = getSupabaseServerClient({ admin: true });
   const uid = params.params.uid;
   const perPage = 20;
@@ -38,41 +36,41 @@ function AdminMembersPage(params: AdminMembersPageParams) {
   const pageCount = count ? Math.ceil(count / perPage) : 0;
 
   return (
-    <div className={'flex flex-col flex-1'}>
+    <div className="flex flex-1 flex-col">
       <AdminHeader>Manage Members</AdminHeader>
 
       <AppContainer>
-        <div className={'flex flex-col space-y-4'}>
+        <div className="flex flex-col space-y-4">
           <Breadcrumbs />
 
           <OrganizationsMembersTable
-            page={page}
-            perPage={perPage}
-            pageCount={pageCount}
             memberships={memberships}
+            page={page}
+            pageCount={pageCount}
+            perPage={perPage}
           />
         </div>
       </AppContainer>
     </div>
   );
-}
+};
 
 export default AdminMembersPage;
 
-function Breadcrumbs() {
+const Breadcrumbs = () => {
   return (
-    <div className={'flex space-x-2 items-center p-2 text-xs'}>
-      <div className={'flex space-x-1.5 items-center'}>
-        <Link href={'/admin'}>Admin</Link>
+    <div className="flex items-center space-x-2 p-2 text-xs">
+      <div className="flex items-center space-x-1.5">
+        <Link href="/admin">Admin</Link>
       </div>
 
-      <ChevronRightIcon className={'w-3'} />
+      <ChevronRightMini className="w-3" />
 
-      <Link href={'/admin/organizations'}>Organizations</Link>
+      <Link href="/admin/organizations">Organizations</Link>
 
-      <ChevronRightIcon className={'w-3'} />
+      <ChevronRightMini className="w-3" />
 
       <span>Members</span>
     </div>
   );
-}
+};

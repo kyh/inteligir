@@ -1,10 +1,10 @@
-import loadAuthPageData from '~/lib/server/loaders/load-auth-page-data';
-import AuthPageShell from '~/app/auth/components/AuthPageShell';
+import { loadAuthPageData } from "@/features/global/load-auth-page-data";
+import AuthPageShell from "./components/auth-page-shell";
 
-async function AuthLayout({ children }: React.PropsWithChildren) {
-  const data = await loadAuthPageData();
+const AuthLayout = async ({ children }: React.PropsWithChildren) => {
+  await loadAuthPageData();
 
-  return <AuthPageShell language={data.language}>{children}</AuthPageShell>;
-}
+  return <AuthPageShell>{children}</AuthPageShell>;
+};
 
 export default AuthLayout;

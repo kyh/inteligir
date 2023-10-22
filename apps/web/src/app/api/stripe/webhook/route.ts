@@ -1,35 +1,30 @@
-import type { Stripe } from 'stripe';
-import type { SupabaseClient } from '@supabase/supabase-js';
-
-import { headers } from 'next/headers';
-import { NextResponse } from 'next/server';
-
-import getStripeInstance from '~/core/stripe/get-stripe';
-import StripeWebhooks from '~/core/stripe/stripe-webhooks.enum';
-import getLogger from '~/core/logger';
-
-import {
-  throwBadRequestException,
-  throwInternalServerErrorException,
-} from '~/core/http-exceptions';
-
+import type { Stripe } from "stripe";
+import { headers } from "next/headers";
+import { NextResponse } from "next/server";
+import type { SupabaseClient } from "@/lib/supabase/client";
+import getStripeInstance from "@/features/subscriptions/get-stripe";
+import StripeWebhooks from "@/features/subscriptions/stripe-webhooks.enum";
 import {
   addSubscription,
   deleteSubscription,
   updateSubscriptionById,
-} from '~/lib/subscriptions/mutations';
+} from "@/features/subscriptions/mutations";
+import getSupabaseServerClient from "@/lib/supabase/server-client";
+import { setOrganizationSubscriptionData } from "@/lib/organizations/database/mutations";
+import {
+  throwBadRequestException,
+  throwInternalServerErrorException,
+} from "@/core/http-exceptions";
+import getLogger from "@/core/logger";
 
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import { setOrganizationSubscriptionData } from '~/lib/organizations/database/mutations';
+const STRIPE_SIGNATURE_HEADER = "stripe-signature";
 
-const STRIPE_SIGNATURE_HEADER = 'stripe-signature';
-
-const webhookSecretKey = process.env.STRIPE_WEBHOOK_SECRET as string;
+const webhookSecretKey = process.env.STRIPE_WEBHOOK_SECRET!;
 
 /**
  * @description Handle the webhooks from Stripe related to checkouts
  */
-export async function POST(request: Request) {
+export const POST = async (request: Request) => {
   const logger = getLogger();
   const signature = headers().get(STRIPE_SIGNATURE_HEADER);
 
@@ -37,7 +32,7 @@ export async function POST(request: Request) {
 
   if (!webhookSecretKey) {
     return throwInternalServerErrorException(
-      `The variable STRIPE_WEBHOOK_SECRET is unset. Please add the STRIPE_WEBHOOK_SECRET environment variable`
+      `The variable STRIPE_WEBHOOK_SECRET is unset. Please add the STRIPE_WEBHOOK_SECRET environment variable`,
     );
   }
 
@@ -59,14 +54,14 @@ export async function POST(request: Request) {
     const event = stripe.webhooks.constructEvent(
       rawBody,
       signature,
-      webhookSecretKey
+      webhookSecretKey,
     );
 
     logger.info(
       {
         type: event.type,
       },
-      `[Stripe] Processing Stripe Webhook...`
+      `[Stripe] Processing Stripe Webhook...`,
     );
 
     switch (event.type) {
@@ -74,9 +69,8 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
         const subscriptionId = session.subscription as string;
 
-        const subscription = await stripe.subscriptions.retrieve(
-          subscriptionId
-        );
+        const subscription =
+          await stripe.subscriptions.retrieve(subscriptionId);
 
         await onCheckoutCompleted(client, session, subscription);
 
@@ -106,23 +100,19 @@ export async function POST(request: Request) {
       {
         error,
       },
-      `[Stripe] Webhook handling failed`
+      `[Stripe] Webhook handling failed`,
     );
 
     return throwInternalServerErrorException();
   }
-}
+};
 
 /**
  * @description When the checkout is completed, we store the order. The
  * subscription is only activated if the order was paid successfully.
  * Otherwise, we have to wait for a further webhook
  */
-async function onCheckoutCompleted(
-  client: SupabaseClient,
-  session: Stripe.Checkout.Session,
-  subscription: Stripe.Subscription
-) {
+const onCheckoutCompleted = async (client: SupabaseClient, session: Stripe.Checkout.Session, subscription: Stripe.Subscription) => {
   const organizationUid = getOrganizationUidFromClientReference(session);
   const customerId = session.customer as string;
 
@@ -135,7 +125,7 @@ async function onCheckoutCompleted(
 
   if (error) {
     return Promise.reject(
-      `Failed to add subscription to the database: ${error}`
+      `Failed to add subscription to the database: ${error}`,
     );
   }
 
@@ -144,15 +134,11 @@ async function onCheckoutCompleted(
     customerId,
     subscriptionId: data.id,
   });
-}
+};
 
 /**
  * @name getOrganizationUidFromClientReference
  * @description Get the organization UUID from the client reference ID
  * @param session
  */
-function getOrganizationUidFromClientReference(
-  session: Stripe.Checkout.Session
-) {
-  return session.client_reference_id as string;
-}
+const getOrganizationUidFromClientReference = (session: Stripe.Checkout.Session) => session.client_reference_id!;

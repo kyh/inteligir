@@ -1,8 +1,6 @@
-function UserLayout(
-  props: React.PropsWithChildren<{
+const UserLayout = (props: React.PropsWithChildren<{
     modal: React.ReactNode;
-  }>,
-) {
+  }>) => {
   return (
     <>
       {props.modal}

@@ -1,16 +1,15 @@
-import { use } from 'react';
+import { use } from "react";
+import getSupabaseServerClient from "@/lib/supabase/server-client";
+import BanUserModal from "../components/ban-user-modal";
+import AdminGuard from "@/app/admin/components/admin-guard";
 
-import BanUserModal from '../components/BanUserModal';
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import AdminGuard from '~/app/admin/components/AdminGuard';
-
-interface Params {
+type Params = {
   params: {
     uid: string;
   };
-}
+};
 
-function BanUserModalPage({ params }: Params) {
+const BanUserModalPage = ({ params }: Params) => {
   const client = getSupabaseServerClient({ admin: true });
   const { data, error } = use(client.auth.admin.getUserById(params.uid));
 
@@ -19,13 +18,13 @@ function BanUserModalPage({ params }: Params) {
   }
 
   const user = data.user;
-  const isBanned = 'banned_until' in user && user.banned_until !== 'none';
+  const isBanned = "banned_until" in user && user.banned_until !== "none";
 
   if (isBanned) {
     throw new Error(`The user is already banned`);
   }
 
   return <BanUserModal user={user} />;
-}
+};
 
 export default AdminGuard(BanUserModalPage);
