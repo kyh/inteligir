@@ -3,13 +3,13 @@ import type { User } from "@supabase/gotrue-js";
 
 import MembershipRole from "~/lib/organizations/types/membership-role";
 import type UserData from "~/core/session/types/user-data";
-import If from "~/core/ui/If";
+import If from "~/core/ui/if";
 
-import OrganizationMemberActionsDropdown from "./OrganizationMemberActionsDropdown";
-import RemoveOrganizationMemberModal from "./RemoveOrganizationMemberModal";
-import UpdateMemberRoleModal from "./UpdateMemberRoleModal";
+import OrganizationMemberActionsDropdown from "./organization-member-actions-dropdown";
+import RemoveOrganizationMemberModal from "./remove-organization-member-modal";
+import UpdateMemberRoleModal from "./update-member-role-modal";
 
-import TransferOrganizationOwnershipModal from "./TransferOrganizationOwnershipModal";
+import TransferOrganizationOwnershipModal from "./transfer-organization-ownership-modal";
 
 const OrganizationMembersActionsContainer: React.FCC<{
   targetMember: {

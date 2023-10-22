@@ -9,15 +9,15 @@ import { XMarkIcon, PlusCircleIcon } from '@heroicons/react/24/outline';
 
 import MembershipRole from '~/lib/organizations/types/membership-role';
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/core/ui/Tooltip';
-import If from '~/core/ui/If';
-import TextField from '~/core/ui/TextField';
-import Button from '~/core/ui/Button';
-import IconButton from '~/core/ui/IconButton';
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/tooltip";
+import If from "~/core/ui/if";
+import TextField from "~/core/ui/text-field";
+import Button from "~/core/ui/button";
+import IconButton from "~/core/ui/icon-button";
 
-import MembershipRoleSelector from './MembershipRoleSelector';
+import MembershipRoleSelector from "./membership-role-selector";
 import useUserSession from '~/core/hooks/use-user-session';
-import Trans from '~/core/ui/Trans';
+import Trans from "~/core/ui/trans";
 import { inviteMembersToOrganizationAction } from '~/lib/organizations/actions';
 import useCsrfToken from '~/core/hooks/use-csrf-token';
 import useCurrentOrganization from '~/lib/organizations/hooks/use-current-organization';

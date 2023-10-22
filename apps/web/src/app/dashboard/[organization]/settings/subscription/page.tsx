@@ -1,8 +1,8 @@
-import Trans from '~/core/ui/Trans';
+import Trans from "~/core/ui/trans";
 
-import SettingsTile from '~/app/dashboard/[organization]/settings/components/SettingsTile';
-import Plans from '~/app/dashboard/[organization]/settings/subscription/components/Plans';
-import PlansStatusAlertContainer from '~/app/dashboard/[organization]/settings/subscription/components/PlanStatusAlertContainer';
+import SettingsTile from "~/app/dashboard/[organization]/settings/components/settings-tile";
+import Plans from "~/app/dashboard/[organization]/settings/subscription/components/plans";
+import PlansStatusAlertContainer from "~/app/dashboard/[organization]/settings/subscription/components/plan-status-alert-container";
 import { withI18n } from '~/i18n/with-i18n';
 
 export const metadata = {

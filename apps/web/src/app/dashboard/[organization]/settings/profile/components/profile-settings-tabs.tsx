@@ -2,9 +2,9 @@
 
 import React, { useMemo } from 'react';
 
-import NavigationItem from '~/core/ui/Navigation/NavigationItem';
-import NavigationMenu from '~/core/ui/Navigation/NavigationMenu';
-import MobileNavigationDropdown from '~/core/ui/MobileNavigationDropdown';
+import NavigationItem from "~/core/ui/navigation/navigation-item";
+import NavigationMenu from "~/core/ui/navigation/navigation-menu";
+import MobileNavigationDropdown from "~/core/ui/mobile-navigation-dropdown";
 
 import useUser from '~/core/hooks/use-user';
 import configuration from '~/configuration';

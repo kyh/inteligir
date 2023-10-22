@@ -2,124 +2,165 @@
 
 import { join } from "node:path";
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { RedirectType } from "next/dist/client/components/redirect";
-import type { SupabaseClient } from "@/lib/supabase/client";
-import getApiRefererPath from "@/lib/utils/get-api-referer-path";
-import createStripeCheckout from "@/features/subscriptions/create-checkout";
-import { canChangeBilling } from "@/features/organizations/permissions";
-import { getUserMembershipByOrganization } from "@/features/memberships/queries";
-import { requireSession } from "@/features/auth/require-session";
-import { getSupabaseServerClient } from "@/lib/supabase/server-client";
-import { createBillingPortalSession } from "@/features/subscriptions/create-billing-portal-session";
-import { withSession } from "@/lib/utils/actions-utils";
-import { getLogger } from "@/lib/utils/logger";
+import getLogger from "~/core/logger";
+import getApiRefererPath from "~/core/generic/get-api-referer-path";
+import createStripeCheckout from "~/lib/stripe/create-checkout";
+import { canChangeBilling } from "~/lib/organizations/permissions";
+import { getUserMembershipByOrganization } from "~/lib/memberships/queries";
+import requireSession from "~/lib/user/require-session";
+import getSupabaseServerClient from "~/core/supabase/server-client";
 import {
   getOrganizationByCustomerId,
   getOrganizationByUid,
-} from "@/features/organizations/queries";
-import { verifyCsrfToken } from "@/lib/csrf/verify-csrf-token";
+} from "~/lib/organizations/database/queries";
+import configuration from "~/configuration";
+import createBillingPortalSession from "~/lib/stripe/create-billing-portal-session";
+import verifyCsrfToken from "~/core/verify-csrf-token";
+import { withSession } from "~/core/generic/actions-utils";
 
-export const createCheckoutAction = withSession(async (formData: FormData) => {
-  const logger = getLogger();
-  const body = Object.fromEntries(formData);
-  const bodyResult = await getCheckoutBodySchema().safeParseAsync(body);
+export const createCheckoutAction = withSession(
+  async (_, formData: FormData) => {
+    const logger = getLogger();
 
-  const redirectToErrorPage = (error?: string) => {
-    const referer = getApiRefererPath(headers());
-    const url = join(referer, `?error=true`);
-
-    logger.error({ error }, `Could not create Stripe Checkout session`);
-
-    return redirect(url);
-  };
-
-  // Validate the body schema
-  if (!bodyResult.success) {
-    return redirectToErrorPage(`Invalid request body`);
-  }
-
-  const { organizationUid, priceId, customerId, returnUrl, csrfToken } =
-    bodyResult.data;
-
-  // check CSRF token is valid
-  await verifyCsrfToken(csrfToken);
-
-  // create the Supabase client
-  const client = getSupabaseServerClient();
-
-  // require the user to be logged in
-  const sessionResult = await requireSession(client);
-  const userId = sessionResult.user.id;
-  const customerEmail = sessionResult.user.email;
-
-  const { error } = await getOrganizationByUid(client, organizationUid);
-
-  if (error) {
-    return redirectToErrorPage(`Organization not found`);
-  }
-
-  const plan = getPlanByPriceId(priceId);
-
-  // check if the plan exists in the configuration.
-  if (!plan) {
-    console.warn(
-      `Plan not found for price ID "${priceId}". Did you forget to add it to the configuration? If the Price ID is incorrect, the checkout will be rejected. Please check the Stripe dashboard`,
+    const bodyResult = await getCheckoutBodySchema().safeParseAsync(
+      Object.fromEntries(formData),
     );
-  }
 
-  // check the user's role has access to the checkout
-  const canChangeBilling = await getUserCanAccessCheckout(client, {
-    organizationUid,
-    userId,
-  });
+    const redirectToErrorPage = (error?: string) => {
+      const referer = getApiRefererPath(headers());
+      const url = join(referer, `?error=true`);
 
-  // disallow if the user doesn't have permissions to change
-  // billing settings based on its role. To change the logic, please update
-  // {@link canChangeBilling}
-  if (!canChangeBilling) {
-    logger.debug(
+      logger.error({ error }, `Could not create Stripe Checkout session`);
+
+      return redirect(url);
+    };
+
+    // Validate the body schema
+    if (!bodyResult.success) {
+      return redirectToErrorPage(`Invalid request body`);
+    }
+
+    const { organizationUid, priceId, returnUrl, csrfToken } = bodyResult.data;
+
+    // check CSRF token is valid
+    await verifyCsrfToken(csrfToken);
+
+    // create the Supabase client
+    const client = getSupabaseServerClient();
+
+    // require the user to be logged in
+    const sessionResult = await requireSession(client);
+    const userId = sessionResult.user.id;
+    const customerEmail = sessionResult.user.email;
+
+    const { error, data } = await getOrganizationByUid(client, organizationUid);
+
+    if (error) {
+      return redirectToErrorPage(`Organization not found`);
+    }
+
+    const customerId = data?.subscription?.customerId;
+
+    if (customerId) {
+      logger.info({ customerId }, `Customer ID found for organization`);
+    }
+
+    const plan = getPlanByPriceId(priceId);
+
+    // check if the plan exists in the configuration.
+    if (!plan) {
+      console.warn(
+        `Plan not found for price ID "${priceId}". Did you forget to add it to the configuration? If the Price ID is incorrect, the checkout will be rejected. Please check the Stripe dashboard`,
+      );
+    }
+
+    // check the user's role has access to the checkout
+    const canChangeBilling = await getUserCanAccessCheckout(client, {
+      organizationUid,
+      userId,
+    });
+
+    // disallow if the user doesn't have permissions to change
+    // billing settings based on its role. To change the logic, please update
+    // {@link canChangeBilling}
+    if (!canChangeBilling) {
+      logger.debug(
+        {
+          userId,
+          organizationUid,
+        },
+        `User attempted to access checkout but lacked permissions`,
+      );
+
+      return redirectToErrorPage(
+        `You do not have permission to access this page`,
+      );
+    }
+
+    const trialPeriodDays =
+      plan && "trialPeriodDays" in plan
+        ? (plan.trialPeriodDays as number)
+        : undefined;
+
+    const embedded = configuration.stripe.embedded;
+
+    // create the Stripe Checkout session
+    const session = await createStripeCheckout({
+      returnUrl,
+      organizationUid,
+      priceId,
+      customerId,
+      trialPeriodDays,
+      customerEmail,
+      embedded,
+    }).catch((e) => {
+      logger.error(e, `Stripe Checkout error`);
+    });
+
+    // if there was an error, redirect to the error page
+    if (!session) {
+      return redirectToErrorPage();
+    }
+
+    logger.info(
       {
-        userId,
+        id: session.id,
         organizationUid,
       },
-      `User attempted to access checkout but lacked permissions`,
+      `Created Stripe Checkout session`,
     );
 
-    return redirectToErrorPage(
-      `You do not have permission to access this page`,
-    );
-  }
+    // if the checkout is embedded, we need to render the checkout
+    // therefore, we send the clientSecret back to the client
+    if (embedded) {
+      logger.info(
+        { id: session.id },
+        `Using embedded checkout mode. Sending client secret back to client.`,
+      );
 
-  const trialPeriodDays =
-    plan && "trialPeriodDays" in plan
-      ? (plan.trialPeriodDays as number)
-      : undefined;
+      return {
+        clientSecret: session.client_secret,
+      };
+    }
 
-  // create the Stripe Checkout session
-  const response = await createStripeCheckout({
-    returnUrl,
-    organizationUid,
-    priceId,
-    customerId,
-    trialPeriodDays,
-    customerEmail,
-  }).catch((e) => {
-    logger.error(e, `Stripe Checkout error`);
-  });
+    // retrieve the Checkout Portal URL
+    if (!session.url) {
+      logger.error(
+        { id: session.id },
+        `Could not retrieve Stripe Checkout URL`,
+      );
 
-  // if there was an error, redirect to the error page
-  if (!response) {
-    return redirectToErrorPage();
-  }
+      return redirectToErrorPage();
+    }
 
-  // retrieve the Checkout Portal URL
-  const portalUrl = getCheckoutPortalUrl(response.url, returnUrl);
-
-  // redirect user back based on the response
-  return redirect(portalUrl, RedirectType.replace);
-});
+    // redirect user back based on the response
+    return redirect(session.url, RedirectType.replace);
+  },
+);
 
 /**
  * @name getUserCanAccessCheckout
@@ -183,7 +224,7 @@ export const createBillingPortalSessionAction = withSession(
 
     const referer = headers().get("referer");
     const origin = headers().get("origin");
-    const returnUrl = referer || origin || "/dashboard";
+    const returnUrl = referer || origin || configuration.paths.appHome;
 
     // get the Stripe Billing Portal session
     const { url } = await createBillingPortalSession({
@@ -262,7 +303,6 @@ const getCheckoutBodySchema = () =>
     csrfToken: z.string().min(1),
     organizationUid: z.string().uuid(),
     priceId: z.string().min(1),
-    customerId: z.string().optional(),
     returnUrl: z.string().min(1),
   });
 
@@ -278,32 +318,6 @@ const getPlanByPriceId = (priceId: string) => {
 
     return product.plans.find(({ stripePriceId }) => stripePriceId === priceId);
   }, undefined);
-};
-
-/**
- *
- * @param portalUrl
- * @param returnUrl
- * @description return the URL of the Checkout Portal
- * if running in emulator mode and the portal URL is undefined (as
- * stripe-mock does) then return the returnUrl (i.e. it redirects back to
- * the subscriptions page)
- */
-const getCheckoutPortalUrl = (portalUrl: string | null, returnUrl: string) => {
-  if (isTestingMode() && !portalUrl) {
-    return [returnUrl, "success=true"].join("?");
-  }
-
-  return portalUrl!;
-};
-
-/**
- * @description detect if Stripe is running in emulator mode
- */
-const isTestingMode = () => {
-  const enableStripeTesting = process.env.ENABLE_STRIPE_TESTING;
-
-  return enableStripeTesting === "true";
 };
 
 const redirectToErrorPage = (referrerPath: string) => {

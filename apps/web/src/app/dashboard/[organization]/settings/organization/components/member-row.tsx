@@ -1,10 +1,10 @@
-import MinusIcon from '@heroicons/react/24/outline/MinusIcon';
+import MinusIcon from "@heroicons/react/24/outline/minus-icon";
 
 import type MembershipRole from '~/lib/organizations/types/membership-role';
-import Button from '~/core/ui/Button';
-import TextField from '~/core/ui/TextField';
+import Button from "~/core/ui/button";
+import TextField from "~/core/ui/text-field";
 
-import MembershipRoleSelector from './MembershipRoleSelector';
+import MembershipRoleSelector from "./membership-role-selector";
 
 interface Member {
   email: string;

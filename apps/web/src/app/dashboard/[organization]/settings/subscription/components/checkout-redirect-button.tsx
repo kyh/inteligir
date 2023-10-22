@@ -1,19 +1,16 @@
-'use client';
+"use client";
 
-// @ts-ignore
-import { experimental_useFormState as useFormState } from 'react-dom';
-// @ts-ignore
-import { experimental_useFormStatus as useFormStatus } from 'react-dom';
-
-import { useEffect } from 'react';
-
-import { ChevronRightIcon } from '@heroicons/react/24/outline';
-import classNames from 'clsx';
-
-import Button from '~/core/ui/Button';
-import isBrowser from '~/core/generic/is-browser';
-import useCsrfToken from '~/core/hooks/use-csrf-token';
-import { createCheckoutAction } from '~/lib/stripe/actions';
+import {
+  experimental_useFormState as useFormState,
+  experimental_useFormStatus as useFormStatus,
+} from "react-dom";
+import { useEffect } from "react";
+import { ChevronRightIcon } from "@heroicons/react/24/outline";
+import classNames from "clsx";
+import Button from "~/core/ui/button";
+import isBrowser from "~/core/generic/is-browser";
+import useCsrfToken from "~/core/hooks/use-csrf-token";
+import { createCheckoutAction } from "~/lib/stripe/actions";
 
 const CheckoutRedirectButton: React.FCC<{
   disabled?: boolean;
@@ -23,7 +20,7 @@ const CheckoutRedirectButton: React.FCC<{
   onCheckoutCreated?: (clientSecret: string) => void;
 }> = ({ children, onCheckoutCreated, ...props }) => {
   const [state, formAction] = useFormState(createCheckoutAction, {
-    clientSecret: '',
+    clientSecret: "",
   });
 
   useEffect(() => {
@@ -33,7 +30,7 @@ const CheckoutRedirectButton: React.FCC<{
   }, [state.clientSecret, onCheckoutCreated]);
 
   return (
-    <form data-cy={'checkout-form'} action={formAction}>
+    <form action={formAction} data-cy="checkout-form">
       <CheckoutFormData
         organizationUid={props.organizationUid}
         priceId={props.stripePriceId}
@@ -51,59 +48,58 @@ const CheckoutRedirectButton: React.FCC<{
 
 export default CheckoutRedirectButton;
 
-function SubmitCheckoutButton(
+const SubmitCheckoutButton = (
   props: React.PropsWithChildren<{
     recommended?: boolean;
     disabled?: boolean;
   }>,
-) {
+) => {
   const { pending } = useFormStatus();
 
   return (
     <Button
       block
       className={classNames({
-        'text-primary-foreground bg-primary dark:bg-white dark:text-gray-900':
+        "text-primary-foreground bg-primary dark:bg-white dark:text-gray-900":
           props.recommended,
       })}
-      variant={props.recommended ? 'custom' : 'outline'}
       disabled={props.disabled}
       loading={pending}
+      variant={props.recommended ? "custom" : "outline"}
     >
-      <span className={'flex items-center space-x-2'}>
+      <span className="flex items-center space-x-2">
         <span>{props.children}</span>
 
-        <ChevronRightIcon className={'h-4'} />
+        <ChevronRightIcon className="h-4" />
       </span>
     </Button>
   );
-}
+};
 
-function CheckoutFormData(
+const CheckoutFormData = (
   props: React.PropsWithChildren<{
     organizationUid: Maybe<string>;
     priceId: Maybe<string>;
   }>,
-) {
+) => {
   const csrfToken = useCsrfToken();
 
   return (
     <>
       <input
-        type="hidden"
-        name={'organizationUid'}
         defaultValue={props.organizationUid}
+        name="organizationUid"
+        type="hidden"
       />
 
-      <input type="hidden" name={'csrfToken'} defaultValue={csrfToken} />
-      <input type="hidden" name={'returnUrl'} defaultValue={getReturnUrl()} />
-      <input type="hidden" name={'priceId'} defaultValue={props.priceId} />
+      <input defaultValue={csrfToken} name="csrfToken" type="hidden" />
+      <input defaultValue={getReturnUrl()} name="returnUrl" type="hidden" />
+      <input defaultValue={props.priceId} name="priceId" type="hidden" />
     </>
   );
-}
+};
 
-function getReturnUrl() {
-  return isBrowser()
-    ? [window.location.origin, window.location.pathname].join('')
+const getReturnUrl = () =>
+  isBrowser()
+    ? [window.location.origin, window.location.pathname].join("")
     : undefined;
-}

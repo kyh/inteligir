@@ -6,11 +6,11 @@ import { useTranslation } from 'react-i18next';
 import { useForm } from 'react-hook-form';
 import type { User } from '@supabase/gotrue-js';
 
-import Button from '~/core/ui/Button';
-import TextField from '~/core/ui/TextField';
-import If from '~/core/ui/If';
-import Alert from '~/core/ui/Alert';
-import Trans from '~/core/ui/Trans';
+import Button from "~/core/ui/button";
+import TextField from "~/core/ui/text-field";
+import If from "~/core/ui/if";
+import Alert from "~/core/ui/alert";
+import Trans from "~/core/ui/trans";
 
 import useUpdateUserMutation from '~/core/hooks/use-update-user-mutation';
 

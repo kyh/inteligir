@@ -1,18 +1,18 @@
 'use client';
 
-import Trans from '~/core/ui/Trans';
+import Trans from "~/core/ui/trans";
 import type { User } from '@supabase/gotrue-js';
 import { useMemo } from 'react';
 
-import If from '~/core/ui/If';
-import Badge from '~/core/ui/Badge';
-import RoleBadge from './RoleBadge';
+import If from "~/core/ui/if";
+import Badge from "~/core/ui/badge";
+import RoleBadge from "./role-badge";
 
 import { canUpdateUser } from '~/lib/organizations/permissions';
-import OrganizationMembersActionsContainer from './OrganizationMembersActionsContainer';
+import OrganizationMembersActionsContainer from "./organization-members-actions-container";
 import type UserData from '~/core/session/types/user-data';
 import type MembershipRole from '~/lib/organizations/types/membership-role';
-import ProfileAvatar from '~/components/ProfileAvatar';
+import ProfileAvatar from "~/components/profile-avatar";
 import useUserId from '~/core/hooks/use-user-id';
 
 function OrganizationMembersList({

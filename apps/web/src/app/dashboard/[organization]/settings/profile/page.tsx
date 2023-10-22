@@ -1,4 +1,4 @@
-import UpdateProfileFormContainer from '~/app/dashboard/[organization]/settings/profile/components/UpdateProfileFormContainer';
+import UpdateProfileFormContainer from "~/app/dashboard/[organization]/settings/profile/components/update-profile-form-container";
 import { withI18n } from '~/i18n/with-i18n';
 
 export const metadata = {

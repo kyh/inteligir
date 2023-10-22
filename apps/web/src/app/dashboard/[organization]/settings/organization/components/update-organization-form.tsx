@@ -9,11 +9,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import OrganizationContext from '~/lib/contexts/organization';
 import useUpdateOrganizationMutation from '~/lib/organizations/hooks/use-update-organization-mutation';
 
-import Button from '~/core/ui/Button';
-import TextField from '~/core/ui/TextField';
-import ImageUploadInput from '~/core/ui/ImageUploadInput';
-import Label from '~/core/ui/Label';
-import Trans from '~/core/ui/Trans';
+import Button from "~/core/ui/button";
+import TextField from "~/core/ui/text-field";
+import ImageUploadInput from "~/core/ui/image-upload-input";
+import Label from "~/core/ui/label";
+import Trans from "~/core/ui/trans";
 
 import useSupabase from '~/core/hooks/use-supabase';
 import type Organization from '~/lib/organizations/types/organization';

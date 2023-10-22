@@ -6,13 +6,13 @@ import useMutation from 'swr/mutation';
 import { toast } from 'sonner';
 
 import UserSession from '~/core/session/types/user-session';
-import TextField from '~/core/ui/TextField';
-import Trans from '~/core/ui/Trans';
-import If from '~/core/ui/If';
+import TextField from "~/core/ui/text-field";
+import Trans from "~/core/ui/trans";
+import If from "~/core/ui/if";
 
-import Button from '~/core/ui/Button';
-import Modal from '~/core/ui/Modal';
-import AuthErrorMessage from '~/app/auth/components/AuthErrorMessage';
+import Button from "~/core/ui/button";
+import Modal from "~/core/ui/modal";
+import AuthErrorMessage from "~/app/auth/components/auth-error-message";
 import useSupabase from '~/core/hooks/use-supabase';
 
 import configuration from '~/configuration';

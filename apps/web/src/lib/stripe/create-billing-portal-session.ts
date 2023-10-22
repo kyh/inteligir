@@ -1,4 +1,4 @@
-import { getStripe } from "@/features/subscriptions/get-stripe";
+import { getStripe } from "@/lib/stripe/get-stripe";
 
 export const createBillingPortalSession = async (params: {
   customerId: string;

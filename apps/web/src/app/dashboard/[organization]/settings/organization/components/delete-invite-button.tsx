@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useTransition } from 'react';
-import XMarkIcon from '@heroicons/react/24/outline/XMarkIcon';
+import XMarkIcon from "@heroicons/react/24/outline/xmark-icon";
 
-import IconButton from '~/core/ui/IconButton';
-import Modal from '~/core/ui/Modal';
-import Button from '~/core/ui/Button';
-import Trans from '~/core/ui/Trans';
+import IconButton from "~/core/ui/icon-button";
+import Modal from "~/core/ui/modal";
+import Button from "~/core/ui/button";
+import Trans from "~/core/ui/trans";
 import useCsrfToken from '~/core/hooks/use-csrf-token';
 import { deleteMemberAction } from '~/lib/memberships/actions';
 

@@ -9,11 +9,11 @@ import { useForm } from 'react-hook-form';
 
 import useUpdateUserMutation from '~/core/hooks/use-update-user-mutation';
 
-import Button from '~/core/ui/Button';
-import TextField from '~/core/ui/TextField';
-import Alert from '~/core/ui/Alert';
-import If from '~/core/ui/If';
-import Trans from '~/core/ui/Trans';
+import Button from "~/core/ui/button";
+import TextField from "~/core/ui/text-field";
+import Alert from "~/core/ui/alert";
+import If from "~/core/ui/if";
+import Trans from "~/core/ui/trans";
 import configuration from '~/configuration';
 
 const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {

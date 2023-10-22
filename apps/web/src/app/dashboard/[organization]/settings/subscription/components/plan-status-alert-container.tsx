@@ -3,9 +3,9 @@
 import React from 'react';
 import { ReadonlyURLSearchParams, useSearchParams } from 'next/navigation';
 
-import If from '~/core/ui/If';
-import Alert from '~/core/ui/Alert';
-import Trans from '~/core/ui/Trans';
+import If from "~/core/ui/if";
+import Alert from "~/core/ui/alert";
+import Trans from "~/core/ui/trans";
 
 enum SubscriptionStatusQueryParams {
   Success = 'success',

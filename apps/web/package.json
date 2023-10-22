@@ -1,6 +1,6 @@
 {
   "name": "web",
-  "version": "0.6.18",
+  "version": "0.7.4",
   "private": true,
   "scripts": {
     "dev": "next dev | pino-pretty",

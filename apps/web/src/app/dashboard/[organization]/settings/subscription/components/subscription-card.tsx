@@ -3,13 +3,13 @@ import { CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline';
 
 import type { OrganizationSubscription } from '~/lib/organizations/types/organization-subscription';
 
-import Heading from '~/core/ui/Heading';
-import If from '~/core/ui/If';
-import Trans from '~/core/ui/Trans';
+import Heading from "~/core/ui/heading";
+import If from "~/core/ui/if";
+import Trans from "~/core/ui/trans";
 
-import PricingTable from '~/components/PricingTable';
-import SubscriptionStatusBadge from '~/app/dashboard/[organization]/components/organizations/SubscriptionStatusBadge';
-import SubscriptionStatusAlert from '~/app/dashboard/[organization]/settings/subscription/components/SubscriptionStatusAlert';
+import PricingTable from "~/components/pricing-table";
+import SubscriptionStatusBadge from "~/app/dashboard/[organization]/components/organizations/subscription-status-badge";
+import SubscriptionStatusAlert from "~/app/dashboard/[organization]/settings/subscription/components/subscription-status-alert";
 
 import configuration from '~/configuration';
 

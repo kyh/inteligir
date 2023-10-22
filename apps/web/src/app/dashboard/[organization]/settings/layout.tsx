@@ -1,11 +1,11 @@
 import React from 'react';
 import { Cog8ToothIcon } from '@heroicons/react/24/outline';
 
-import NavigationMenu from '~/core/ui/Navigation/NavigationMenu';
-import NavigationItem from '~/core/ui/Navigation/NavigationItem';
-import AppHeader from '~/app/dashboard/[organization]/components/AppHeader';
-import AppContainer from '~/app/dashboard/[organization]/components/AppContainer';
-import Trans from '~/core/ui/Trans';
+import NavigationMenu from "~/core/ui/navigation/navigation-menu";
+import NavigationItem from "~/core/ui/navigation/navigation-item";
+import AppHeader from "~/app/dashboard/[organization]/components/app-header";
+import AppContainer from "~/app/dashboard/[organization]/components/app-container";
+import Trans from "~/core/ui/trans";
 import { withI18n } from '~/i18n/with-i18n';
 import configuration from '~/configuration';
 

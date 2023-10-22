@@ -5,12 +5,12 @@ import { useCallback, useContext } from "react";
 import UserSessionContext from "~/core/session/contexts/user-session";
 import useUserSession from "~/core/hooks/use-user-session";
 import UserData from "~/core/session/types/user-data";
-import UpdateProfileForm from "./UpdateProfileForm";
-import Trans from "~/core/ui/Trans";
+import UpdateProfileForm from "./update-profile-form";
+import Trans from "~/core/ui/trans";
 
-import UpdatePhoneNumberForm from "./UpdatePhoneNumberForm";
-import SettingsTile from "../../components/SettingsTile";
-import If from "~/core/ui/If";
+import UpdatePhoneNumberForm from "./update-phone-number-form";
+import SettingsTile from "../../components/settings-tile";
+import If from "~/core/ui/if";
 import configuration from "~/configuration";
 
 import { refreshSessionAction } from "../actions";

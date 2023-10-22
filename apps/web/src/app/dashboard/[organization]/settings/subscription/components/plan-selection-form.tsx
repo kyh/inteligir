@@ -6,17 +6,17 @@ import dynamic from "next/dynamic";
 import type Organization from "~/lib/organizations/types/organization";
 import { canChangeBilling } from "~/lib/organizations/permissions";
 
-import If from "~/core/ui/If";
-import Trans from "~/core/ui/Trans";
-import Alert from "~/core/ui/Alert";
+import If from "~/core/ui/if";
+import Trans from "~/core/ui/trans";
+import Alert from "~/core/ui/alert";
 
-import PricingTable from "~/components/PricingTable";
-import IfHasPermissions from "~/components/IfHasPermissions";
-import CheckoutRedirectButton from "./CheckoutRedirectButton";
-import BillingPortalRedirectButton from "./BillingRedirectButton";
+import PricingTable from "~/components/pricing-table";
+import IfHasPermissions from "~/components/if-has-permissions";
+import CheckoutRedirectButton from "./checkout-redirect-button";
+import BillingPortalRedirectButton from "./billing-redirect-button";
 
-import Button from "~/core/ui/Button";
-import ErrorBoundary from "~/core/ui/ErrorBoundary";
+import Button from "~/core/ui/button";
+import ErrorBoundary from "~/core/ui/error-boundary";
 
 const EmbeddedStripeCheckout = dynamic(
   () => import("./EmbeddedStripeCheckout"),

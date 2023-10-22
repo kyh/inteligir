@@ -1,5 +1,5 @@
-import Heading from '~/core/ui/Heading';
-import If from '~/core/ui/If';
+import Heading from "~/core/ui/heading";
+import If from "~/core/ui/if";
 
 const SettingsTile: React.FCC<{
   heading?: string | React.ReactNode;

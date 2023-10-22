@@ -1,8 +1,8 @@
-import Trans from '~/core/ui/Trans';
+import Trans from "~/core/ui/trans";
 import { cva } from 'cva';
 
 import MembershipRole from '~/lib/organizations/types/membership-role';
-import Badge from '~/core/ui/Badge';
+import Badge from "~/core/ui/badge";
 import roles from '~/lib/organizations/roles';
 
 const roleClassNameBuilder = cva('font-medium', {

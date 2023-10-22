@@ -1,11 +1,11 @@
 import { useCallback, useState, useTransition } from 'react';
-import Trans from '~/core/ui/Trans';
+import Trans from "~/core/ui/trans";
 
-import Button from '~/core/ui/Button';
-import Modal from '~/core/ui/Modal';
+import Button from "~/core/ui/button";
+import Modal from "~/core/ui/modal";
 
 import type MembershipRole from '~/lib/organizations/types/membership-role';
-import MembershipRoleSelector from '~/app/dashboard/[organization]/settings/organization/components/MembershipRoleSelector';
+import MembershipRoleSelector from "~/app/dashboard/[organization]/settings/organization/components/membership-role-selector";
 import { updateMemberAction } from '~/lib/memberships/actions';
 import useCsrfToken from '~/core/hooks/use-csrf-token';
 

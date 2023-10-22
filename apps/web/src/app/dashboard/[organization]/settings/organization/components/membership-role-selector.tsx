@@ -1,4 +1,4 @@
-import Trans from '~/core/ui/Trans';
+import Trans from "~/core/ui/trans";
 
 import {
   Select,
@@ -6,12 +6,12 @@ import {
   SelectContent,
   SelectTrigger,
   SelectValue,
-} from '~/core/ui/Select';
+} from "~/core/ui/select";
 
 import type MembershipRole from '~/lib/organizations/types/membership-role';
 import roles from '~/lib/organizations/roles';
 import { canInviteUser } from '~/lib/organizations/permissions';
-import IfHasPermissions from '~/components/IfHasPermissions';
+import IfHasPermissions from "~/components/if-has-permissions";
 
 const MembershipRoleSelector: React.FCC<{
   value?: MembershipRole;

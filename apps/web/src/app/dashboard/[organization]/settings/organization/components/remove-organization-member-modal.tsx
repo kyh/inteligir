@@ -1,8 +1,8 @@
 import { useCallback, useTransition } from 'react';
 
-import Trans from '~/core/ui/Trans';
-import Button from '~/core/ui/Button';
-import Modal from '~/core/ui/Modal';
+import Trans from "~/core/ui/trans";
+import Button from "~/core/ui/button";
+import Modal from "~/core/ui/modal";
 
 import { deleteMemberAction } from '~/lib/memberships/actions';
 import useCsrfToken from '~/core/hooks/use-csrf-token';

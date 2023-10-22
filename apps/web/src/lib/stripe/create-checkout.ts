@@ -1,6 +1,5 @@
-import { URL } from "node:url";
 import type { Stripe } from "stripe";
-import { getStripe } from "@/features/subscriptions/get-stripe";
+import { getStripe } from "./get-stripe";
 
 type CreateCheckoutParams = {
   returnUrl: string;
@@ -9,6 +8,7 @@ type CreateCheckoutParams = {
   customerId?: string;
   trialPeriodDays?: Maybe<number>;
   customerEmail?: string;
+  embedded: boolean;
 };
 
 /**
@@ -17,14 +17,6 @@ type CreateCheckoutParams = {
  * checkout page
  */
 export const createCheckout = async (params: CreateCheckoutParams) => {
-  const successUrl = getUrlWithParams(params.returnUrl, {
-    success: "true",
-  });
-
-  const cancelUrl = getUrlWithParams(params.returnUrl, {
-    cancel: "true",
-  });
-
   // in MakerKit, a subscription belongs to an organization,
   // rather than to a user
   // if you wish to change it, use the current user ID instead
@@ -52,33 +44,36 @@ export const createCheckout = async (params: CreateCheckoutParams) => {
       trial_period_days: params.trialPeriodDays,
     };
 
+  const urls = getUrls({
+    embedded: params.embedded,
+    returnUrl: params.returnUrl,
+  });
+
+  const uiMode = params.embedded ? "embedded" : "hosted";
+
   return stripe.checkout.sessions.create({
     mode,
+    ui_mode: uiMode,
     customer,
     line_items: [lineItem],
-    success_url: successUrl,
-    cancel_url: cancelUrl,
     client_reference_id: clientReferenceId.toString(),
     subscription_data: subscriptionData,
     customer_email: params.customerEmail,
+    ...urls,
   });
 };
 
-const getUrlWithParams = (origin: string, params: StringObject) => {
-  const url = new URL(origin);
-  const returnUrl = cleanParams(url);
+const getUrls = (params: { returnUrl: string; embedded?: boolean }) => {
+  const successUrl = `${params.returnUrl}?success=true`;
+  const cancelUrl = `${params.returnUrl}?cancel=true`;
+  const returnUrl = `${params.returnUrl}/return?session_id={CHECKOUT_SESSION_ID}`;
 
-  for (const param in params) {
-    returnUrl.searchParams.set(param, params[param]);
-  }
-
-  return returnUrl.toString();
-};
-
-const cleanParams = (returnUrl: URL) => {
-  returnUrl.searchParams.delete("cancel");
-  returnUrl.searchParams.delete("success");
-  returnUrl.searchParams.delete("error");
-
-  return returnUrl;
+  return params.embedded
+    ? {
+        return_url: returnUrl,
+      }
+    : {
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+      };
 };

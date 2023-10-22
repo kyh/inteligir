@@ -1,12 +1,11 @@
-'use client';
+"use client";
 
-import type { Stripe } from 'stripe';
-import { CheckIcon, ChevronRightIcon } from '@heroicons/react/24/outline';
-
-import Heading from '~/core/ui/Heading';
-import Button from '~/core/ui/Button';
-import Trans from '~/core/ui/Trans';
-import configuration from '~/configuration';
+import type { Stripe } from "stripe";
+import { CheckIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
+import Heading from "~/core/ui/heading";
+import Button from "~/core/ui/button";
+import Trans from "~/core/ui/trans";
+import configuration from "~/configuration";
 
 /**
  * Retrieves the session status for a Stripe checkout session.
@@ -18,74 +17,64 @@ import configuration from '~/configuration';
  *
  * @returns {ReactElement} - The component to render based on the session status.
  */
-export function StripeSessionStatus({
+export const StripeSessionStatus = ({
   customerEmail,
 }: React.PropsWithChildren<{
-  status: Stripe.Checkout.Session['status'];
+  status: Stripe.Checkout.Session["status"];
   customerEmail: string;
-}>) {
-  return <SuccessSessionStatus customerEmail={customerEmail} />;
-}
+}>) => <SuccessSessionStatus customerEmail={customerEmail} />;
 
-function SuccessSessionStatus({
+const SuccessSessionStatus = ({
   customerEmail,
 }: React.PropsWithChildren<{
   customerEmail: string;
-}>) {
-  return (
-    <section
-      data-cy={'payment-return-success'}
-      className={
-        'max-w-xl mx-auto rounded-xl p-16 fade-in xl:drop-shadow-sm border' +
-        ' border-gray-100 dark:border-dark-800' +
-        ' bg-background animate-in ease-out slide-in-from-bottom-8' +
-        ' zoom-in-50 duration-1000 dark:shadow-primary/40 dark:shadow-2xl'
-      }
-    >
-      <div
+}>) => (
+  <section
+    className={
+      "mx-auto max-w-xl rounded-xl border p-16 fade-in xl:drop-shadow-sm" +
+      " dark:border-dark-800 border-gray-100" +
+      " bg-background ease-out animate-in slide-in-from-bottom-8" +
+      " dark:shadow-primary/40 duration-1000 zoom-in-50 dark:shadow-2xl"
+    }
+    data-cy="payment-return-success"
+  >
+    <div className="flex flex-col items-center justify-center space-y-4 text-center">
+      <CheckIcon
         className={
-          'flex flex-col space-y-4 items-center justify-center text-center'
+          "w-16 rounded-full bg-green-500 p-1 text-white ring-8" +
+          " ring-green-500/30 dark:ring-green-500/50"
         }
-      >
-        <CheckIcon
-          className={
-            'w-16 bg-green-500 p-1 text-white rounded-full ring-8' +
-            ' ring-green-500/30 dark:ring-green-500/50'
-          }
-        />
+      />
 
-        <Heading type={3}>
-          <span className={'font-semibold mr-4'}>
-            <Trans i18nKey={'subscription:checkoutSuccessTitle'} />
-          </span>
-          🎉
-        </Heading>
+      <Heading type={3}>
+        <span className="mr-4 font-semibold">
+          <Trans i18nKey="subscription:checkoutSuccessTitle" />
+        </span>
+        🎉
+      </Heading>
 
-        <div
-          className={'flex flex-col space-y-4 text-gray-500 dark:text-gray-400'}
-        >
-          <p>
-            <Trans
-              i18nKey={'subscription:checkoutSuccessDescription'}
-              values={{ customerEmail }}
-            />
-          </p>
-        </div>
-
-        <Button
-          data-cy={'checkout-success-back-button'}
-          href={configuration.paths.appHome}
-          variant={'outline'}
-        >
-          <span className={'flex space-x-2.5 items-center'}>
-            <span>
-              <Trans i18nKey={'subscription:checkoutSuccessBackButton'} />
-            </span>
-
-            <ChevronRightIcon className={'h-4'} />
-          </span>
-        </Button>
+      <div className="flex flex-col space-y-4 text-gray-500 dark:text-gray-400">
+        <p>
+          <Trans
+            i18nKey="subscription:checkoutSuccessDescription"
+            values={{ customerEmail }}
+          />
+        </p>
       </div>
-    </section>
-  );
-}
+
+      <Button
+        data-cy="checkout-success-back-button"
+        href={configuration.paths.appHome}
+        variant="outline"
+      >
+        <span className="flex items-center space-x-2.5">
+          <span>
+            <Trans i18nKey="subscription:checkoutSuccessBackButton" />
+          </span>
+
+          <ChevronRightIcon className="h-4" />
+        </span>
+      </Button>
+    </div>
+  </section>
+);

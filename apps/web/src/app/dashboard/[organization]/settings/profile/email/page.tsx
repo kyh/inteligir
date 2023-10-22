@@ -1,6 +1,6 @@
-import SettingsTile from '../../components/SettingsTile';
-import UpdateEmailFormContainer from '../components/UpdateEmailFormContainer';
-import Trans from '~/core/ui/Trans';
+import SettingsTile from "../../components/settings-tile";
+import UpdateEmailFormContainer from "../components/update-email-form-container";
+import Trans from "~/core/ui/trans";
 import { withI18n } from '~/i18n/with-i18n';
 
 export const metadata = {

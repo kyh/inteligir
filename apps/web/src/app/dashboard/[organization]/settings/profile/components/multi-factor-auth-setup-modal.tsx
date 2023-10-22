@@ -7,15 +7,15 @@ import { toast } from 'sonner';
 import useSupabase from '~/core/hooks/use-supabase';
 import useMutation from 'swr/mutation';
 
-import Button from '~/core/ui/Button';
-import Alert from '~/core/ui/Alert';
-import TextField from '~/core/ui/TextField';
-import Modal from '~/core/ui/Modal';
-import If from '~/core/ui/If';
-import Trans from '~/core/ui/Trans';
+import Button from "~/core/ui/button";
+import Alert from "~/core/ui/alert";
+import TextField from "~/core/ui/text-field";
+import Modal from "~/core/ui/modal";
+import If from "~/core/ui/if";
+import Trans from "~/core/ui/trans";
 
 import useFactorsMutationKey from '~/core/hooks/use-user-factors-mutation-key';
-import VerificationCodeInput from '~/app/auth/components/VerificationCodeInput';
+import VerificationCodeInput from "~/app/auth/components/verification-code-input";
 
 function MultiFactorAuthSetupModal(
   props: React.PropsWithChildren<{

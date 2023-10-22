@@ -1,4 +1,4 @@
-import Trans from '~/core/ui/Trans';
+import Trans from "~/core/ui/trans";
 
 import {
   AdjustmentsHorizontalIcon,
@@ -13,10 +13,10 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from '~/core/ui/Dropdown';
+} from "~/core/ui/dropdown";
 
-import IconButton from '~/core/ui/IconButton';
-import If from '~/core/ui/If';
+import IconButton from "~/core/ui/icon-button";
+import If from "~/core/ui/if";
 
 const OrganizationMemberActionsDropdown: React.FCC<{
   onRemoveSelected: EmptyCallback;

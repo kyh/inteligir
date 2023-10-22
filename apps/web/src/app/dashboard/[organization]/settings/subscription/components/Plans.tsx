@@ -2,15 +2,15 @@
 
 import useCurrentOrganization from '~/lib/organizations/hooks/use-current-organization';
 
-import If from '~/core/ui/If';
-import Trans from '~/core/ui/Trans';
+import If from "~/core/ui/if";
+import Trans from "~/core/ui/trans";
 
-import SubscriptionCard from './SubscriptionCard';
+import SubscriptionCard from "./subscription-card";
 
 import { canChangeBilling } from '~/lib/organizations/permissions';
-import PlanSelectionForm from '~/app/dashboard/[organization]/settings/subscription/components/PlanSelectionForm';
-import IfHasPermissions from '~/components/IfHasPermissions';
-import BillingPortalRedirectButton from '~/app/dashboard/[organization]/settings/subscription/components/BillingRedirectButton';
+import PlanSelectionForm from "~/app/dashboard/[organization]/settings/subscription/components/plan-selection-form";
+import IfHasPermissions from "~/components/if-has-permissions";
+import BillingPortalRedirectButton from "~/app/dashboard/[organization]/settings/subscription/components/billing-redirect-button";
 
 const Plans: React.FC = () => {
   const organization = useCurrentOrganization();

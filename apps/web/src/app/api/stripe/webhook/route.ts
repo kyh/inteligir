@@ -2,7 +2,7 @@ import type { Stripe } from "stripe";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@/lib/supabase/client";
-import getStripeInstance from "@/features/subscriptions/get-stripe";
+import getStripeInstance from "@/lib/stripe/get-stripe";
 import StripeWebhooks from "@/features/subscriptions/stripe-webhooks.enum";
 import {
   addSubscription,
@@ -112,7 +112,11 @@ export const POST = async (request: Request) => {
  * subscription is only activated if the order was paid successfully.
  * Otherwise, we have to wait for a further webhook
  */
-const onCheckoutCompleted = async (client: SupabaseClient, session: Stripe.Checkout.Session, subscription: Stripe.Subscription) => {
+const onCheckoutCompleted = async (
+  client: SupabaseClient,
+  session: Stripe.Checkout.Session,
+  subscription: Stripe.Subscription,
+) => {
   const organizationUid = getOrganizationUidFromClientReference(session);
   const customerId = session.customer as string;
 
@@ -141,4 +145,6 @@ const onCheckoutCompleted = async (client: SupabaseClient, session: Stripe.Check
  * @description Get the organization UUID from the client reference ID
  * @param session
  */
-const getOrganizationUidFromClientReference = (session: Stripe.Checkout.Session) => session.client_reference_id!;
+const getOrganizationUidFromClientReference = (
+  session: Stripe.Checkout.Session,
+) => session.client_reference_id!;

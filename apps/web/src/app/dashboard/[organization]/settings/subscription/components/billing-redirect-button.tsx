@@ -2,7 +2,7 @@
 
 import { ArrowRightIcon } from '@heroicons/react/24/outline';
 
-import Button from '~/core/ui/Button';
+import Button from "~/core/ui/button";
 import useCsrfToken from '~/core/hooks/use-csrf-token';
 import { createBillingPortalSessionAction } from '~/lib/stripe/actions';
 

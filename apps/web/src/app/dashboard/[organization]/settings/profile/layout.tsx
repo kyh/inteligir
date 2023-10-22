@@ -1,5 +1,5 @@
-import ProfileSettingsTabs from './components/ProfileSettingsTabs';
-import SettingsContentContainer from '../components/SettingsContentContainer';
+import ProfileSettingsTabs from "./components/profile-settings-tabs";
+import SettingsContentContainer from "../components/settings-content-container";
 import { withI18n } from '~/i18n/with-i18n';
 
 function ProfileSettingsLayout({

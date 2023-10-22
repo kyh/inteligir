@@ -7,10 +7,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import useUpdateProfileMutation from '~/lib/user/hooks/use-update-profile';
 
-import Button from '~/core/ui/Button';
-import TextField from '~/core/ui/TextField';
-import ImageUploadInput from '~/core/ui/ImageUploadInput';
-import Trans from '~/core/ui/Trans';
+import Button from "~/core/ui/button";
+import TextField from "~/core/ui/text-field";
+import ImageUploadInput from "~/core/ui/image-upload-input";
+import Trans from "~/core/ui/trans";
 import useSupabase from '~/core/hooks/use-supabase';
 
 import type UserSession from '~/core/session/types/user-session';

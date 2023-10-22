@@ -1,9 +1,9 @@
 import { useCallback, useTransition } from 'react';
 
-import Trans from '~/core/ui/Trans';
-import Button from '~/core/ui/Button';
-import Modal from '~/core/ui/Modal';
-import If from '~/core/ui/If';
+import Trans from "~/core/ui/trans";
+import Button from "~/core/ui/button";
+import Modal from "~/core/ui/modal";
+import If from "~/core/ui/if";
 import useCsrfToken from '~/core/hooks/use-csrf-token';
 
 import { transferOrganizationOwnershipAction } from '~/lib/organizations/actions';

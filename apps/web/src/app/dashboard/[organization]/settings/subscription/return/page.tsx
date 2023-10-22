@@ -1,19 +1,18 @@
-import { notFound, redirect } from 'next/navigation';
+import { notFound, redirect } from "next/navigation";
+import { StripeSessionStatus } from "./components/stripe-session-status";
+import RecoverStripeCheckout from "./components/recover-stripe-checkout";
+import requireSession from "~/lib/user/require-session";
+import getSupabaseServerClient from "~/core/supabase/server-client";
+import getStripeInstance from "~/core/stripe/get-stripe";
+import { withI18n } from "~/i18n/with-i18n";
 
-import requireSession from '~/lib/user/require-session';
-import getSupabaseServerClient from '~/core/supabase/server-client';
-import getStripeInstance from '~/core/stripe/get-stripe';
-import { StripeSessionStatus } from './components/StripeSessionStatus';
-import RecoverStripeCheckout from './components/RecoverStripeCheckout';
-import { withI18n } from '~/i18n/with-i18n';
-
-interface SessionPageProps {
+type SessionPageProps = {
   searchParams: {
     session_id: string;
   };
-}
+};
 
-async function ReturnStripeSessionPage({ searchParams }: SessionPageProps) {
+const ReturnStripeSessionPage = async ({ searchParams }: SessionPageProps) => {
   const { status, customerEmail, clientSecret } = await loadStripeSession(
     searchParams.session_id,
   );
@@ -24,26 +23,25 @@ async function ReturnStripeSessionPage({ searchParams }: SessionPageProps) {
 
   return (
     <>
-      <div className={'fixed left-0 top-48 w-full mx-auto z-50'}>
+      <div className="fixed left-0 top-48 z-50 mx-auto w-full">
         <StripeSessionStatus
+          customerEmail={customerEmail ?? ""}
           status={status}
-          customerEmail={customerEmail ?? ''}
         />
       </div>
-
       <div
         className={
-          'bg-background/30 backdrop-blur-sm fixed top-0 left-0 w-full' +
-          ' h-full !m-0'
+          "bg-background/30 fixed left-0 top-0 w-full backdrop-blur-sm" +
+          " !m-0 h-full"
         }
       />
     </>
   );
-}
+};
 
 export default withI18n(ReturnStripeSessionPage);
 
-export async function loadStripeSession(sessionId: string) {
+export const loadStripeSession = async (sessionId: string) => {
   await requireSession(getSupabaseServerClient());
 
   // now we fetch the session from Stripe
@@ -58,9 +56,9 @@ export async function loadStripeSession(sessionId: string) {
     notFound();
   }
 
-  const isSessionOpen = session.status === 'open';
+  const isSessionOpen = session.status === "open";
   const clientSecret = isSessionOpen ? session.client_secret : null;
-  const isEmbeddedMode = session.ui_mode === 'embedded';
+  const isEmbeddedMode = session.ui_mode === "embedded";
 
   // if the session is still open, we redirect the user to the checkout page
   // in Stripe self hosted mode
@@ -75,4 +73,4 @@ export async function loadStripeSession(sessionId: string) {
     customerEmail: session.customer_details?.email,
     clientSecret,
   };
-}
+};

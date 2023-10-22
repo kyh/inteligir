@@ -7,23 +7,23 @@ import { useTranslation } from 'react-i18next';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import { toast } from 'sonner';
 
-import { Tooltip, TooltipContent, TooltipTrigger } from '~/core/ui/Tooltip';
+import { Tooltip, TooltipContent, TooltipTrigger } from "~/core/ui/tooltip";
 
 import useFetchAuthFactors from '~/core/hooks/use-fetch-factors';
-import Spinner from '~/core/ui/Spinner';
-import Alert from '~/core/ui/Alert';
-import If from '~/core/ui/If';
-import Button from '~/core/ui/Button';
-import Modal from '~/core/ui/Modal';
-import Badge from '~/core/ui/Badge';
-import IconButton from '~/core/ui/IconButton';
-import Trans from '~/core/ui/Trans';
+import Spinner from "~/core/ui/spinner";
+import Alert from "~/core/ui/alert";
+import If from "~/core/ui/if";
+import Button from "~/core/ui/button";
+import Modal from "~/core/ui/modal";
+import Badge from "~/core/ui/badge";
+import IconButton from "~/core/ui/icon-button";
+import Trans from "~/core/ui/trans";
 
 import useSupabase from '~/core/hooks/use-supabase';
 import useFactorsMutationKey from '~/core/hooks/use-user-factors-mutation-key';
 
-import SettingsTile from '~/app/dashboard/[organization]/settings/components/SettingsTile';
-import MultiFactorAuthSetupModal from '../../components/MultiFactorAuthSetupModal';
+import SettingsTile from "~/app/dashboard/[organization]/settings/components/settings-tile";
+import MultiFactorAuthSetupModal from "../../components/multi-factor-auth-setup-modal";
 import {
   Table,
   TableBody,
@@ -31,7 +31,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '~/core/ui/Table';
+} from "~/core/ui/table";
 
 const MAX_FACTOR_COUNT = 10;
 

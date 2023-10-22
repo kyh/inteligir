@@ -1,3 +1,6 @@
+import type { Options } from "nodemailer/lib/smtp-transport";
+import configuration from "@/lib/configuration";
+
 type SendEmailParams = {
   from: string;
   to: string;
@@ -6,36 +9,35 @@ type SendEmailParams = {
   html?: string;
 };
 
-export const sendEmail = async (config: SendEmailParams) => {
-  const transporter = await getTransporter();
+export default async (config: SendEmailParams) => {
+  const transporter = await getSMTPTransporter();
 
   return transporter.sendMail(config);
 };
 
-const getTransporter = () => {
-  if (isTest()) {
-    return getMockMailTransporter();
-  }
-
-  if (process.env.NODE_ENV !== "production") {
-    return getEtherealMailTransporter();
-  }
-
-  return getSMTPTransporter();
-};
-
 /**
- * SMTP Transporter for production use. Add your favorite email
+ * @description SMTP Transporter for production use. Add your favorite email
  * API details (Mailgun, Sendgrid, etc.) to the configuration.
  */
 const getSMTPTransporter = async () => {
   const nodemailer = await import("nodemailer");
 
+  return nodemailer.createTransport(getSMTPConfiguration());
+};
+
+const getSMTPConfiguration = (): Options => {
+  if (configuration.production) {
+    return getProductionSMTPConfiguration();
+  }
+
+  return getInBucketSMTPConfiguration();
+};
+
+const getProductionSMTPConfiguration = () => {
   const user = process.env.EMAIL_USER;
   const pass = process.env.EMAIL_PASSWORD;
   const host = process.env.EMAIL_HOST;
   const port = Number(process.env.EMAIL_PORT);
-
   const secure = port === 465 && !configuration.production;
 
   // validate that we have all the required configuration
@@ -50,85 +52,20 @@ const getSMTPTransporter = async () => {
     );
   }
 
-  return nodemailer.createTransport({
+  return {
     host,
     port,
     secure,
     auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
-  });
-};
-
-/**
- * @description Dev transport for https://ethereal.email that you can use to
- * debug your emails for free. It's the default for the dev environment
- */
-const getEtherealMailTransporter = async () => {
-  const nodemailer = await import("nodemailer");
-  const testAccount = await getEtherealTestAccount();
-
-  const host = "smtp.ethereal.email";
-  const port = 587;
-
-  return nodemailer.createTransport({
-    host,
-    port,
-    secure: false,
-    auth: {
-      user: testAccount.user,
-      pass: testAccount.pass,
-    },
-  });
-};
-
-const getMockMailTransporter = () => ({
-  sendMail: (params: SendEmailParams) => {
-    console.log(
-      `Using mock email transporter with params`,
-      JSON.stringify(params, null, 2),
-    );
-  },
-});
-
-const getEtherealTestAccount = async () => {
-  const user = process.env.ETHEREAL_EMAIL;
-  const pass = process.env.ETHEREAL_PASSWORD;
-
-  // if we have added an Ethereal account, we reuse these credentials to
-  // send the email
-  if (user && pass) {
-    console.log(`Sending email with Ethereal test account...`);
-
-    return {
       user,
       pass,
-    };
-  }
-
-  // Otherwise, we create a new account and recommend to add the credentials
-  // to the configuration file
-  return createEtherealTestAccount();
+    },
+  };
 };
 
-const createEtherealTestAccount = async () => {
-  const nodemailer = await import("nodemailer");
-  const newAccount = await nodemailer.createTestAccount();
-
-  console.warn(`
-    Configuration property "emailEtherealTestAccount" was not found! 
-    Consider adding a fixed Ethereal account so that you don't need to update the credentials each time you use it.
-    To do so, please use the guide at https://makerkit.dev/docs/email
-  `);
-
-  console.log(
-    `Created Ethereal test account: ${JSON.stringify(newAccount, null, 2)}`,
-  );
-
-  console.log(`Consider adding these credentials to your configuration file`);
-
-  return newAccount;
-};
-
-const isTest = () => process.env.IS_CI === "true";
+const getInBucketSMTPConfiguration = () => ({
+  host: "0.0.0.0",
+  port: 54325,
+  secure: false,
+  auth: {},
+});

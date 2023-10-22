@@ -1,5 +1,5 @@
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { permanentRedirect } from "next/navigation";
 import Image from "next/image";
 import { ChevronRight } from "@inteligir/icons";
 import LogoImage from "@inteligir/ui/logo/logo-image";
@@ -14,10 +14,7 @@ import { parseOrganizationIdCookie } from "@/features/organizations/organization
 import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 import NewOrganizationButtonContainer from "@/app/dashboard/components/new-organization-button-container";
 import { getOrganizationsByUserId } from "@/lib/organizations/database/queries";
-import initializeServerI18n from "@/i18n/i18n.server";
-import getLanguageCookie from "@/i18n/get-language-cookie";
 import configuration from "@/configuration";
-import I18nProvider from "@/i18n/i18n-provider";
 import { getUserById } from "@/lib/user/database/queries";
 
 const OrganizationsPage = async () => {
@@ -27,7 +24,7 @@ const OrganizationsPage = async () => {
   const { data: user } = await getUserById(client, userId);
 
   if (!user?.onboarded) {
-    redirect(configuration.paths.onboarding);
+    permanentRedirect(configuration.paths.onboarding);
   }
 
   const organizationUidCookie = await parseOrganizationIdCookie(userId);
@@ -41,7 +38,7 @@ const OrganizationsPage = async () => {
       .catch(() => null);
 
     if (currentOrganizationResponse) {
-      redirect(getAppHomeUrl(organizationUidCookie));
+      permanentRedirect(getAppHomeUrl(organizationUidCookie));
     }
   }
 
@@ -51,7 +48,6 @@ const OrganizationsPage = async () => {
     throw error;
   }
 
-  const i18n = await initializeServerI18n(getLanguageCookie());
   const csrfToken = headers().get("X-CSRF-Token") ?? "";
 
   const organizations = data.map((item) => item.organization);
@@ -60,60 +56,58 @@ const OrganizationsPage = async () => {
     const organization = organizations[0];
     const href = getAppHomeUrl(organization.uuid);
 
-    return redirect(href);
+    return permanentRedirect(href);
   }
 
   return (
-    <I18nProvider lang={i18n.language}>
-      <div className="flex flex-col space-y-8">
-        <OrganizationsPageHeader />
+    <div className="flex flex-col space-y-8">
+      <OrganizationsPageHeader />
 
-        <AppContainer>
-          <Container>
-            <div className="lg:grid-col-3 grid grid-cols-1 gap-4 xl:grid-cols-4 xl:gap-6">
-              <NewOrganizationButtonContainer csrfToken={csrfToken} />
+      <AppContainer>
+        <Container>
+          <div className="lg:grid-col-3 grid grid-cols-1 gap-4 xl:grid-cols-4 xl:gap-6">
+            <NewOrganizationButtonContainer csrfToken={csrfToken} />
 
-              {organizations.map((organization) => {
-                const href = getAppHomeUrl(organization.uuid);
+            {organizations.map((organization) => {
+              const href = getAppHomeUrl(organization.uuid);
 
-                return (
-                  <CardButton
-                    className="relative"
-                    href={href}
-                    key={organization.id}
+              return (
+                <CardButton
+                  className="relative"
+                  href={href}
+                  key={organization.id}
+                >
+                  <span
+                    className={
+                      "absolute left-6 top-4 flex justify-start" +
+                      " h-full w-full items-center space-x-4"
+                    }
                   >
-                    <span
-                      className={
-                        "absolute left-6 top-4 flex justify-start" +
-                        " h-full w-full items-center space-x-4"
-                      }
-                    >
-                      <If condition={organization.logoURL}>
-                        {(logo) => (
-                          <Image
-                            alt={`${organization.name} Logo`}
-                            className="contain rounded-full"
-                            height={36}
-                            src={logo}
-                            width={36}
-                          />
-                        )}
-                      </If>
+                    <If condition={organization.logoURL}>
+                      {(logo) => (
+                        <Image
+                          alt={`${organization.name} Logo`}
+                          className="contain rounded-full"
+                          height={36}
+                          src={logo}
+                          width={36}
+                        />
+                      )}
+                    </If>
 
-                      <span className="flex items-center space-x-2.5 text-base font-medium">
-                        <span>{organization.name}</span>
+                    <span className="flex items-center space-x-2.5 text-base font-medium">
+                      <span>{organization.name}</span>
 
-                        <ChevronRight className="h-4" />
-                      </span>
+                      <ChevronRight className="h-4" />
                     </span>
-                  </CardButton>
-                );
-              })}
-            </div>
-          </Container>
-        </AppContainer>
-      </div>
-    </I18nProvider>
+                  </span>
+                </CardButton>
+              );
+            })}
+          </div>
+        </Container>
+      </AppContainer>
+    </div>
   );
 };
 
