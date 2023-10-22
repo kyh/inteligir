@@ -5,7 +5,7 @@ import { useState, useTransition } from "react";
 import type { User } from "@supabase/gotrue-js";
 import { impersonateUser } from "@/app/admin/users/@modal/[uid]/actions";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
-import ImpersonateUserAuthSetter from "../components/impersonate-user-auth-setter";
+import ImpersonateUserAuthSetter from "./impersonate-user-auth-setter";
 import Modal from "ui/components/modal";
 import Button from "ui/components/button";
 import If from "ui/components/if";

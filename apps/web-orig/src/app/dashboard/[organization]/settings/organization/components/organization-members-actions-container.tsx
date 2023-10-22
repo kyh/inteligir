@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { User } from "@supabase/gotrue-js";
 import type UserData from "@/features/users/user-data";
-import TransferOrganizationOwnershipModal from "../components/transfer-organization-ownership-modal";
+import TransferOrganizationOwnershipModal from "./transfer-organization-ownership-modal";
 import OrganizationMemberActionsDropdown from "./organization-member-actions-dropdown";
 import RemoveOrganizationMemberModal from "./remove-organization-member-modal";
 import UpdateMemberRoleModal from "./update-member-role-modal";

@@ -47,6 +47,7 @@ module.exports = {
     "import/no-named-as-default": "off",
     "import/no-default-export": "off",
     "no-console": "off",
+    "no-undef": "off",
     "react/function-component-definition": [
       "warn",
       {
