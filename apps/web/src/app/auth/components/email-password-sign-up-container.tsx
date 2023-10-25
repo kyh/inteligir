@@ -1,13 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import Trans from "@inteligir/ui/trans";
-import { If } from "@/components/if";
 import Alert from "@inteligir/ui/alert";
+import { If } from "@/components/if";
 import useSignUpWithEmailAndPasswordMutation from "@/features/auth/use-sign-up-with-email-password";
-import AuthErrorMessage from "./auth-error-message";
 import EmailPasswordSignUpForm from "@/app/auth/components/email-password-sign-up-form";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
+import AuthErrorMessage from "./auth-error-message";
 
 const requireEmailConfirmation = configuration.auth.requireEmailConfirmation;
 
@@ -54,27 +53,28 @@ const EmailPasswordSignUpContainer: React.FCC<{
     [loading, onError, onSignUp, signUpMutation],
   );
 
-  return (<>
-    <If condition={showVerifyEmailAlert}>
-      <Alert type="success">
-        <Alert.Heading>
-          We sent you a confirmation email.
-        </Alert.Heading>
+  return (
+    <>
+      <If condition={showVerifyEmailAlert}>
+        <Alert type="success">
+          <Alert.Heading>We sent you a confirmation email.</Alert.Heading>
 
-        <p data-cy="email-confirmation-alert">
-          Welcome! Please check your email and click the link to verify your account.
-        </p>
-      </Alert>
-    </If>
-    <If condition={!showVerifyEmailAlert}>
-      <AuthErrorMessage error={signUpMutation.error} />
+          <p data-cy="email-confirmation-alert">
+            Welcome! Please check your email and click the link to verify your
+            account.
+          </p>
+        </Alert>
+      </If>
+      <If condition={!showVerifyEmailAlert}>
+        <AuthErrorMessage error={signUpMutation.error} />
 
-      <EmailPasswordSignUpForm
-        loading={loading}
-        onSubmit={onSignupRequested}
-      />
-    </If>
-  </>);
+        <EmailPasswordSignUpForm
+          loading={loading}
+          onSubmit={onSignupRequested}
+        />
+      </If>
+    </>
+  );
 };
 
 export default EmailPasswordSignUpContainer;

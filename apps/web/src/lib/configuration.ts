@@ -2,18 +2,15 @@ import { StripeCheckoutDisplayMode } from "@/lib/stripe/types";
 
 const production = process.env.NODE_ENV === "production";
 
-const configuration = {
+export const configuration = {
   site: {
     name: "Awesomely - Your SaaS Title",
     description: "Your SaaS Description",
-    themeColor: "#ffffff",
-    themeColorDark: "#0a0a0a",
     siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
     siteName: "Awesomely",
     twitterHandle: "",
     githubHandle: "",
     convertKitFormId: "",
-    locale: process.env.NEXT_PUBLIC_DEFAULT_LOCALE,
   },
   auth: {
     // ensure this is the same as your Supabase project. By default - it's true
@@ -107,8 +104,6 @@ const configuration = {
     ],
   },
 };
-
-export default configuration;
 
 // Validate Stripe configuration
 // as this is a new requirement, we throw an error if the key is not defined

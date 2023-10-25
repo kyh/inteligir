@@ -11,7 +11,7 @@ import useUpdateProfileMutation from "@/lib/user/hooks/use-update-profile";
 import useSupabase from "@/core/hooks/use-supabase";
 import type UserSession from "@/core/session/types/user-session";
 import type UserData from "@/core/session/types/user-data";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const UpdateProfileForm = ({
   session,
@@ -98,7 +98,7 @@ const UpdateProfileForm = ({
   }, [currentDisplayName, currentPhotoURL, reset]);
 
   return (
-    (<form
+    <form
       data-cy="update-profile-form"
       onSubmit={handleSubmit((value) => {
         return onSubmit(value.displayName, getPhotoFile(value.photoURL));
@@ -144,9 +144,7 @@ const UpdateProfileForm = ({
               type="button"
               variant="ghost"
             >
-              <span className="text-xs font-normal">
-                Update Email Address
-              </span>
+              <span className="text-xs font-normal">Update Email Address</span>
             </Button>
           </div>
         </TextField>
@@ -160,7 +158,7 @@ const UpdateProfileForm = ({
           </Button>
         </div>
       </div>
-    </form>)
+    </form>
   );
 };
 

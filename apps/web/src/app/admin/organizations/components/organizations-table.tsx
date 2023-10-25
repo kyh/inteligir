@@ -15,7 +15,7 @@ import {
 import IconButton from "@inteligir/ui/icon-button";
 import type { getOrganizations } from "@/app/admin/organizations/queries";
 import SubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/subscription-status-badge";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 type Response = Awaited<ReturnType<typeof getOrganizations>>;
 type Organizations = Response["organizations"];

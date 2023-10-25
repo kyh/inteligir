@@ -1,12 +1,16 @@
 import { redirect } from "next/navigation";
 import { Alert, AlertTitle, Button } from "@inteligir/ui";
+import Link from "next/link";
+import { ResendLinkForm } from "./resend-link-form";
 
 type Params = {
-  searchParams: StringObject;
+  searchParams: {
+    error: string;
+  };
 };
 
 const AuthCallbackErrorPage = ({ searchParams }: Params) => {
-  const error = searchParams.error;
+  const { error } = searchParams;
 
   // if there is no error, redirect the user to the sign-in page
   if (!error) {
@@ -14,15 +18,20 @@ const AuthCallbackErrorPage = ({ searchParams }: Params) => {
   }
 
   return (
-    <div className="flex flex-col space-y-6 py-4">
-      <Alert variant="destructive">
-        <AlertTitle>Authentication Error</AlertTitle>
-        Unfortunately, there was an error authenticating your account. Please
-        try again.
-      </Alert>
-      <Button>
-        <a href="/auth/sign-in">Sign In</a>
-      </Button>
+    <div className="flex flex-col space-y-4 py-4">
+      <div>
+        <Alert variant="destructive">
+          <AlertTitle>Authentication Error</AlertTitle>
+          Unfortunately, there was an error authenticating your account. Please
+          try again.
+        </Alert>
+      </div>
+      <ResendLinkForm />
+      <div className="flex flex-col space-y-2">
+        <Button asChild>
+          <Link href="/auth/sign-in">Sign In</Link>
+        </Button>
+      </div>
     </div>
   );
 };

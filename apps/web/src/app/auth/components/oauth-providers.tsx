@@ -3,11 +3,11 @@
 import { useCallback } from "react";
 import { If } from "@/components/if";
 import { useSignInWithProvider } from "@/features/auth/use-sign-in-with-provider";
+import { configuration } from "@/lib/configuration";
 import AuthErrorMessage from "./auth-error-message";
 import Trans from "@/components/trans";
 import AuthProviderButton from "@/components/auth-provider-button";
 import PageLoadingIndicator from "@/components/page-loading-indicator";
-import configuration from "@/configuration";
 
 const OAUTH_PROVIDERS = configuration.auth.providers.oAuth;
 
@@ -34,53 +34,55 @@ const OAuthProviders: React.FCC<{
     [],
   );
 
-  if (!OAUTH_PROVIDERS?.length) {
+  if (!OAUTH_PROVIDERS.length) {
     return null;
   }
 
-  return (<>
-    <If condition={loading}>
-      <PageLoadingIndicator />
-    </If>
-    <div className="flex w-full flex-1 flex-col space-y-3">
-      <div className="flex-col space-y-2">
-        {OAUTH_PROVIDERS.map((provider) => {
-          return (
-            (<AuthProviderButton
-              key={provider}
-              onClick={() => {
-                const origin = window.location.origin;
-                const callback = configuration.paths.authCallback;
+  return (
+    <>
+      <If condition={loading}>
+        <PageLoadingIndicator />
+      </If>
+      <div className="flex w-full flex-1 flex-col space-y-3">
+        <div className="flex-col space-y-2">
+          {OAUTH_PROVIDERS.map((provider) => {
+            return (
+              <AuthProviderButton
+                key={provider}
+                onClick={() => {
+                  const origin = window.location.origin;
+                  const callback = configuration.paths.authCallback;
 
-                const returnUrlParams = props.returnUrl
-                  ? `?returnUrl=${props.returnUrl}`
-                  : "";
+                  const returnUrlParams = props.returnUrl
+                    ? `?returnUrl=${props.returnUrl}`
+                    : "";
 
-                const returnUrl = [callback, returnUrlParams].join("");
-                const redirectTo = [origin, returnUrl].join("");
+                  const returnUrl = [callback, returnUrlParams].join("");
+                  const redirectTo = [origin, returnUrl].join("");
 
-                const credentials = {
-                  provider,
-                  options: {
-                    redirectTo,
-                  },
-                };
+                  const credentials = {
+                    provider,
+                    options: {
+                      redirectTo,
+                    },
+                  };
 
-                return onSignInWithProvider(() =>
-                  signInWithProviderMutation.trigger(credentials),
-                );
-              }}
-              providerId={provider}
-            >
-              Sign in with {{provider}}
-            </AuthProviderButton>)
-          );
-        })}
+                  return onSignInWithProvider(() =>
+                    signInWithProviderMutation.trigger(credentials),
+                  );
+                }}
+                providerId={provider}
+              >
+                Sign in with {{ provider }}
+              </AuthProviderButton>
+            );
+          })}
+        </div>
+
+        <AuthErrorMessage error={signInWithProviderMutation.error} />
       </div>
-
-      <AuthErrorMessage error={signInWithProviderMutation.error} />
-    </div>
-  </>);
+    </>
+  );
 };
 
 const getProviderName = (providerId: string) => {

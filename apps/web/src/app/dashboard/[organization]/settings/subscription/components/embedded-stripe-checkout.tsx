@@ -15,7 +15,7 @@ import If from "@inteligir/ui/if";
 import LogoImage from "@inteligir/ui/logo/logo-image";
 import Button from "@inteligir/ui/button";
 import Trans from "@inteligir/ui/trans";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 import { StripeCheckoutDisplayMode } from "@/lib/stripe/types";
 
 const STRIPE_PUBLISHABLE_KEY = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
@@ -70,7 +70,7 @@ const EmbeddedCheckoutPopup = ({
   };
 
   return (
-    (<Dialog
+    <Dialog
       defaultOpen
       onOpenChange={(open) => {
         if (!open && onClose) {
@@ -106,9 +106,7 @@ const EmbeddedCheckoutPopup = ({
               onClick={close}
             >
               <XMarkIcon className="h-6 text-gray-900" />
-              <span className="sr-only">
-                Cancel
-              </span>
+              <span className="sr-only">Cancel</span>
             </IconButton>
           </DialogPrimitiveClose>
         </If>
@@ -121,6 +119,6 @@ const EmbeddedCheckoutPopup = ({
           {children}
         </div>
       </DialogContent>
-    </Dialog>)
+    </Dialog>
   );
 };

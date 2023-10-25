@@ -7,7 +7,7 @@ import { getMembershipByInviteCode } from "@/features/memberships/queries";
 import { If } from "@/components/if";
 import Heading from "@inteligir/ui/heading";
 import Trans from "@inteligir/ui/trans";
-import getLogger from "@/core/logger";
+import {getLogger} from "@/lib/utils/logger";
 import ExistingUserInviteForm from "@/app/invite/components/existing-user-invite-form";
 import NewUserInviteForm from "@/app/invite/components/new-user-invite-form";
 import InviteCsrfTokenProvider from "@/app/invite/components/invite-csrf-token-provider";

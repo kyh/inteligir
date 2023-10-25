@@ -1,12 +1,12 @@
 import type { FormEventHandler } from "react";
 import React, { useCallback, useState } from "react";
 import Button from "@inteligir/ui/button";
-import { If } from "@/components/if";
 import Alert from "@inteligir/ui/alert";
 import Trans from "@inteligir/ui/trans";
+import { If } from "@/components/if";
 import useSignInWithOtp from "@/features/auth/use-sign-in-with-otp";
 import useVerifyOtp from "@/features/auth/use-verify-otp";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 import PhoneNumberCredentialForm from "@/app/auth/components/phone-number-credential-form";
 import VerificationCodeInput from "@/app/auth/components/verification-code-input";
 
@@ -66,7 +66,7 @@ const PhoneNumberSignInContainer: React.FC<{
 
   if (step === Step.Otp) {
     return (
-      (<form className="w-full" onSubmit={onOTPSubmit}>
+      <form className="w-full" onSubmit={onOTPSubmit}>
         <div className="flex flex-col space-y-4">
           <If condition={verifyOtp.error}>
             <Alert type="error">
@@ -93,7 +93,7 @@ const PhoneNumberSignInContainer: React.FC<{
             Sign In
           </Button>
         </div>
-      </form>)
+      </form>
     );
   }
 

@@ -7,7 +7,7 @@ import getPageFromQueryParams from "@/app/admin/utils/get-page-from-query-param"
 import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 import AdminHeader from "@/app/admin/components/admin-header";
 import OrganizationsMembersTable from "@/app/admin/organizations/[uid]/members/components/organizations-members-table";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 type AdminMembersPageParams = {
   params: {

@@ -258,10 +258,8 @@ const sendInviteEmail = async (props: {
 };
 
 /**
- * @name getInvitePageFullUrl
- * @description Return the full URL to the invite page link. For example,
- * makerkit.dev/invite/{INVITE_CODE}
- * @param code
+ * Return the full URL to the invite page link. For example,
+ * inteligir.com/invite/{INVITE_CODE}
  */
 const getInvitePageFullUrl = (code: string) => {
   let siteUrl = configuration.site.siteUrl;
@@ -278,7 +276,7 @@ const getInvitePageFullUrl = (code: string) => {
 const assertSiteUrl = (siteUrl: Maybe<string>): asserts siteUrl is string => {
   if (!siteUrl && configuration.production) {
     throw new Error(
-      `Please configure the "siteUrl" property in the configuration file @/configuration.ts`,
+      `Please configure the "siteUrl" property in the configuration file @/lib/configuration.ts`,
     );
   }
 };

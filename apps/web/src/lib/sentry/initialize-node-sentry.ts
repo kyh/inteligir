@@ -5,7 +5,7 @@ import * as Sentry from "@sentry/node";
 import "@sentry/tracing";
 
 import isBrowser from "@/lib/utils/is-browser";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 export const initializeNodeSentry = () => {
   const dsn = configuration.sentry.dsn;

@@ -20,7 +20,7 @@ import AdminGuard from "@/app/admin/components/admin-guard";
 import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 import RoleBadge from "@/app/dashboard/[organization]/settings/organization/components/role-badge";
 import UserActionsDropdown from "@/app/admin/users/[uid]/components/user-actions-dropdown";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 type Params = {
   params: {

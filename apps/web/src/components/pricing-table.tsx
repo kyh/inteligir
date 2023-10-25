@@ -4,7 +4,7 @@ import { useState } from "react";
 import { clx, Heading, Button } from "@inteligir/ui";
 import { CheckCircleIcon, SparklesIcon } from "@heroicons/react/24/outline";
 import { If } from "@/components/if";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 type CheckoutButtonProps = {
   readonly stripePriceId?: string;

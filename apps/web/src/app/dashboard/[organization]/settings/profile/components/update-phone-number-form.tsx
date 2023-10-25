@@ -15,7 +15,7 @@ import Modal from "@inteligir/ui/modal";
 import AuthErrorMessage from "@/app/auth/components/auth-error-message";
 import useSupabase from "@/core/hooks/use-supabase";
 
-import configuration from "@/configuration";
+import {configuration} from "@/lib/configuration";
 
 interface UpdatePhoneNumberFormProps {
   session: UserSession;

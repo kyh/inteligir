@@ -2,28 +2,25 @@ import type { Stripe } from "stripe";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@/lib/supabase/client";
-import getStripeInstance from "@/lib/stripe/get-stripe";
-import StripeWebhooks from "@/features/subscriptions/stripe-webhooks.enum";
+import { getStripe } from "@/lib/stripe/get-stripe";
+import { StripeWebhooks } from "@/lib/stripe/stripe-webhooks.enum";
 import {
   addSubscription,
   deleteSubscription,
   updateSubscriptionById,
 } from "@/features/subscriptions/mutations";
-import getSupabaseServerClient from "@/lib/supabase/server-client";
-import { setOrganizationSubscriptionData } from "@/lib/organizations/database/mutations";
+import { getSupabaseServerClient } from "@/lib/supabase/server-client";
+import { getLogger } from "@/lib/utils/logger";
 import {
   throwBadRequestException,
   throwInternalServerErrorException,
-} from "@/core/http-exceptions";
-import getLogger from "@/core/logger";
+} from "@/lib/utils/http-exceptions";
+import { setOrganizationSubscriptionData } from "@/features/organizations/mutations";
 
 const STRIPE_SIGNATURE_HEADER = "stripe-signature";
 
 const webhookSecretKey = process.env.STRIPE_WEBHOOK_SECRET!;
 
-/**
- * @description Handle the webhooks from Stripe related to checkouts
- */
 export const POST = async (request: Request) => {
   const logger = getLogger();
   const signature = headers().get(STRIPE_SIGNATURE_HEADER);
@@ -42,7 +39,7 @@ export const POST = async (request: Request) => {
   }
 
   const rawBody = await request.text();
-  const stripe = await getStripeInstance();
+  const stripe = await getStripe();
 
   // create an Admin client to write to the subscriptions table
   const client = getSupabaseServerClient({
@@ -66,7 +63,7 @@ export const POST = async (request: Request) => {
 
     switch (event.type) {
       case StripeWebhooks.Completed: {
-        const session = event.data.object as Stripe.Checkout.Session;
+        const session = event.data.object;
         const subscriptionId = session.subscription as string;
 
         const subscription =
@@ -78,7 +75,7 @@ export const POST = async (request: Request) => {
       }
 
       case StripeWebhooks.SubscriptionDeleted: {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object;
 
         await deleteSubscription(client, subscription.id);
 
@@ -86,7 +83,7 @@ export const POST = async (request: Request) => {
       }
 
       case StripeWebhooks.SubscriptionUpdated: {
-        const subscription = event.data.object as Stripe.Subscription;
+        const subscription = event.data.object;
 
         await updateSubscriptionById(client, subscription);
 
@@ -141,9 +138,7 @@ const onCheckoutCompleted = async (
 };
 
 /**
- * @name getOrganizationUidFromClientReference
- * @description Get the organization UUID from the client reference ID
- * @param session
+ * Get the organization UUID from the client reference ID
  */
 const getOrganizationUidFromClientReference = (
   session: Stripe.Checkout.Session,

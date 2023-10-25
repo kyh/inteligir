@@ -13,8 +13,8 @@ import getCurrentOrganization from "@/features/organizations/get-current-organiz
 import { parseOrganizationIdCookie } from "@/features/organizations/organization-cookie";
 import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 import NewOrganizationButtonContainer from "@/app/dashboard/components/new-organization-button-container";
+import { configuration } from "@/lib/configuration";
 import { getOrganizationsByUserId } from "@/lib/organizations/database/queries";
-import configuration from "@/configuration";
 import { getUserById } from "@/lib/user/database/queries";
 
 const OrganizationsPage = async () => {

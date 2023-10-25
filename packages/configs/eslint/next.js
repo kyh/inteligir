@@ -71,5 +71,6 @@ module.exports = {
         singleReturnOnly: false,
       },
     ],
+    "turbo/no-undeclared-env-vars": "off",
   },
 };

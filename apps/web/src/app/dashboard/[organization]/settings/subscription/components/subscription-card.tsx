@@ -7,7 +7,7 @@ import PricingTable from "@/components/pricing-table";
 import SubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/subscription-status-badge";
 import SubscriptionStatusAlert from "@/app/dashboard/[organization]/settings/subscription/components/subscription-status-alert";
 import type { OrganizationSubscription } from "@/lib/organizations/types/organization-subscription";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const SubscriptionCard: React.FC<{
   subscription: OrganizationSubscription;
@@ -94,9 +94,7 @@ const RenewStatusDescription = (
     <If condition={!props.cancelAtPeriodEnd}>
       <CheckCircleIcon className="h-5 text-green-700" />
 
-      <span>
-        Your subscription is scheduled to be renewed on {{ endDate }}
-      </span>
+      <span>Your subscription is scheduled to be renewed on {{ endDate }}</span>
     </If>
   </span>
 );

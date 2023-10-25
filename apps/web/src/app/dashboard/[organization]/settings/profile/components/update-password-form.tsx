@@ -14,7 +14,7 @@ import TextField from "@inteligir/ui/text-field";
 import Alert from "@inteligir/ui/alert";
 import If from "@inteligir/ui/if";
 import Trans from "@inteligir/ui/trans";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
   const { t } = useTranslation();
@@ -116,13 +116,11 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
   const { isMutating, data } = updateUserMutation;
 
   return (
-    (<form data-cy={"update-password-form"} onSubmit={handleSubmit(onSubmit)}>
+    <form data-cy={"update-password-form"} onSubmit={handleSubmit(onSubmit)}>
       <div className={"flex flex-col space-y-4"}>
         <If condition={data}>
           <Alert type={"success"}>
-            <Alert.Heading>
-              Password update request successful
-            </Alert.Heading>
+            <Alert.Heading>Password update request successful</Alert.Heading>
             Your password has been successfully updated!
           </Alert>
         </If>
@@ -165,7 +163,7 @@ const UpdatePasswordForm: React.FCC<{ user: User }> = ({ user }) => {
           </Button>
         </div>
       </div>
-    </form>)
+    </form>
   );
 };
 

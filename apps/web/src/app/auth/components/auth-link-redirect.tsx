@@ -3,7 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 import useSupabase from "@/lib/supabase/use-supabase";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const AuthLinkRedirect = () => {
   const params = useSearchParams();

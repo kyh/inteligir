@@ -1,5 +1,5 @@
 import type { Options } from "nodemailer/lib/smtp-transport";
-import configuration from "@/lib/configuration";
+import { configuration } from "@/lib/configuration";
 
 type SendEmailParams = {
   from: string;
@@ -9,14 +9,14 @@ type SendEmailParams = {
   html?: string;
 };
 
-export default async (config: SendEmailParams) => {
+const sendEmail = async (config: SendEmailParams) => {
   const transporter = await getSMTPTransporter();
 
   return transporter.sendMail(config);
 };
 
 /**
- * @description SMTP Transporter for production use. Add your favorite email
+ * SMTP Transporter for production use. Add your favorite email
  * API details (Mailgun, Sendgrid, etc.) to the configuration.
  */
 const getSMTPTransporter = async () => {

@@ -11,7 +11,7 @@ import {
   getOrganizationMembers,
 } from "@/lib/organizations/database/queries";
 
-import configuration from "@/configuration";
+import {configuration} from "@/lib/configuration";
 import getSupabaseServerClient from "@/core/supabase/server-client";
 import type MembershipRole from "@/lib/organizations/types/membership-role";
 import type UserData from "@/core/session/types/user-data";

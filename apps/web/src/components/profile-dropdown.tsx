@@ -18,7 +18,7 @@ import {
 } from "@inteligir/ui";
 import ProfileAvatar from "@/components/profile-avatar";
 import { If } from "@/components/if";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 import type UserSession from "@/lib/session/types/user-session";
 import GlobalRole from "@/lib/session/types/global-role";
 import useUser from "@/lib/hooks/use-user";
@@ -42,7 +42,7 @@ const ProfileDropdown: React.FCC<{
   }, [user]);
 
   return (
-    (<DropdownMenu>
+    <DropdownMenu>
       <DropdownMenuTrigger className="flex cursor-pointer items-center space-x-2 focus:outline-none">
         <ProfileAvatar user={userSession} />
         <ChevronDownIcon className="hidden h-3 sm:block" />
@@ -69,9 +69,7 @@ const ProfileDropdown: React.FCC<{
             href={configuration.paths.appHome}
           >
             <Squares2X2Icon className="h-5" />
-            <span>
-              Dashboard
-            </span>
+            <span>Dashboard</span>
           </Link>
         </DropdownMenuItem>
 
@@ -98,13 +96,11 @@ const ProfileDropdown: React.FCC<{
           <span className="flex w-full items-center space-x-2">
             <ArrowLeftOnRectangleIcon className="h-5" />
 
-            <span>
-              Sign out
-            </span>
+            <span>Sign out</span>
           </span>
         </DropdownMenuItem>
       </DropdownMenuContent>
-    </DropdownMenu>)
+    </DropdownMenu>
   );
 };
 

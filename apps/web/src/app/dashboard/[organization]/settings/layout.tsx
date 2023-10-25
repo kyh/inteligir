@@ -5,8 +5,8 @@ import NavigationItem from "@inteligir/ui/navigation/navigation-item";
 import Trans from "@inteligir/ui/trans";
 import AppContainer from "@/app/dashboard/[organization]/components/app-container";
 import AppHeader from "@/app/dashboard/[organization]/components/app-header";
+import { configuration } from "@/lib/configuration";
 import { withI18n } from "@/i18n/with-i18n";
-import configuration from "@/configuration";
 
 const getLinks = (organizationId: string) => [
   {
@@ -33,32 +33,32 @@ const SettingsLayout = async ({
 }>) => {
   const links = getLinks(params.organization);
 
-  return (<>
-    <AppHeader>
-      <span className="flex space-x-2">
-        <Cog8ToothIcon className="w-6" />
+  return (
+    <>
+      <AppHeader>
+        <span className="flex space-x-2">
+          <Cog8ToothIcon className="w-6" />
 
-        <span>
-          Settings
+          <span>Settings</span>
         </span>
-      </span>
-    </AppHeader>
-    <AppContainer>
-      <NavigationMenu bordered>
-        {links.map((link) => (
-          <NavigationItem
-            className="flex-1 lg:flex-none"
-            key={link.path}
-            link={link}
-          />
-        ))}
-      </NavigationMenu>
+      </AppHeader>
+      <AppContainer>
+        <NavigationMenu bordered>
+          {links.map((link) => (
+            <NavigationItem
+              className="flex-1 lg:flex-none"
+              key={link.path}
+              link={link}
+            />
+          ))}
+        </NavigationMenu>
 
-      <div className="mt-4 flex h-full flex-col space-y-4 lg:mt-6 lg:flex-row lg:space-x-8 lg:space-y-0">
-        {children}
-      </div>
-    </AppContainer>
-  </>);
+        <div className="mt-4 flex h-full flex-col space-y-4 lg:mt-6 lg:flex-row lg:space-x-8 lg:space-y-0">
+          {children}
+        </div>
+      </AppContainer>
+    </>
+  );
 };
 
 export default withI18n(SettingsLayout);

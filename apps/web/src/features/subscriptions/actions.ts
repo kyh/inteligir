@@ -8,7 +8,8 @@ import { headers } from "next/headers";
 import { RedirectType } from "next/dist/client/components/redirect";
 import createStripeCheckout from "@/lib/stripe/create-checkout";
 import createBillingPortalSession from "@/lib/stripe/create-billing-portal-session";
-import getLogger from "@/core/logger";
+import { configuration } from "@/lib/configuration";
+import { getLogger } from "@/lib/utils/logger";
 import getApiRefererPath from "@/core/generic/get-api-referer-path";
 import { canChangeBilling } from "@/lib/organizations/permissions";
 import { getUserMembershipByOrganization } from "@/lib/memberships/queries";
@@ -18,7 +19,6 @@ import {
   getOrganizationByCustomerId,
   getOrganizationByUid,
 } from "@/lib/organizations/database/queries";
-import configuration from "@/configuration";
 import verifyCsrfToken from "@/core/verify-csrf-token";
 import { withSession } from "@/core/generic/actions-utils";
 

@@ -1,7 +1,7 @@
 import NavigationItem from "@inteligir/ui/navigation/navigation-item";
 import NavigationMenu from "@inteligir/ui/navigation/navigation-menu";
 import MobileNavigationDropdown from "@inteligir/ui/mobile-navigation-dropdown";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const getLinks = (organizationId: string) => ({
   General: {

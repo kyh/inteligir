@@ -7,7 +7,7 @@ import AppContainer from "@/app/dashboard/[organization]/components/app-containe
 import AdminHeader from "@/app/admin/components/admin-header";
 import AdminGuard from "@/app/admin/components/admin-guard";
 import UsersTable from "@/app/admin/users/components/users-table";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 type UsersAdminPageProps = {
   searchParams: {

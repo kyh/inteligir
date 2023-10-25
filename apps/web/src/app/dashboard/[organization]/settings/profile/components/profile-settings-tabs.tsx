@@ -7,7 +7,7 @@ import NavigationMenu from "@inteligir/ui/navigation/navigation-menu";
 import MobileNavigationDropdown from "@inteligir/ui/mobile-navigation-dropdown";
 
 import useUser from "@/core/hooks/use-user";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const profileTabLinks = (organizationId: string) => ({
   General: {

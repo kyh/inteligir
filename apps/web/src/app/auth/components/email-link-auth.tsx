@@ -10,7 +10,7 @@ import Button from "@inteligir/ui/button";
 import Alert from "@inteligir/ui/alert";
 import { If } from "@/components/if";
 import useSignInWithOtp from "@/features/auth/use-sign-in-with-otp";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const EmailLinkAuth: React.FC<{
   inviteCode?: string;

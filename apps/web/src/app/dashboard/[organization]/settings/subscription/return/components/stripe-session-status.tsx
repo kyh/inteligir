@@ -5,7 +5,7 @@ import { CheckIcon, ChevronRightIcon } from "@heroicons/react/24/outline";
 import Heading from "@inteligir/ui/heading";
 import Button from "@inteligir/ui/button";
 import Trans from "@inteligir/ui/trans";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 /**
  * Retrieves the session status for a Stripe checkout session.
@@ -47,15 +47,15 @@ const SuccessSessionStatus = ({
       />
 
       <Heading type={3}>
-        <span className="mr-4 font-semibold">
-          Done! You're all set.
-        </span>
+        <span className="mr-4 font-semibold">Done! You're all set.</span>
         🎉
       </Heading>
 
       <div className="flex flex-col space-y-4 text-gray-500 dark:text-gray-400">
         <p>
-          Thank you for subscribing, we have successfully processed your subscription! A confirmation email will be sent to {{ customerEmail }}.
+          Thank you for subscribing, we have successfully processed your
+          subscription! A confirmation email will be sent to {{ customerEmail }}
+          .
         </p>
       </div>
 
@@ -65,9 +65,7 @@ const SuccessSessionStatus = ({
         variant="outline"
       >
         <span className="flex items-center space-x-2.5">
-          <span>
-            Proceed to App
-          </span>
+          <span>Proceed to App</span>
 
           <ChevronRightIcon className="h-4" />
         </span>

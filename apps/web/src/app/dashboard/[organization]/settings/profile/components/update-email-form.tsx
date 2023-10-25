@@ -14,7 +14,7 @@ import Trans from "@inteligir/ui/trans";
 
 import useUpdateUserMutation from "@/core/hooks/use-update-user-mutation";
 
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
   const { t } = useTranslation();
@@ -90,17 +90,16 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
   }, [reset, updateUserMutation.data]);
 
   return (
-    (<form
+    <form
       className={"flex flex-col space-y-4"}
       data-cy={"update-email-form"}
       onSubmit={handleSubmit(onSubmit)}
     >
       <If condition={updateUserMutation.data}>
         <Alert type={"success"}>
-          <Alert.Heading>
-            Email update request successful
-          </Alert.Heading>
-          We sent you an email to confirm your new email address. Please check your inbox and click on the link to confirm your new email address.
+          <Alert.Heading>Email update request successful</Alert.Heading>
+          We sent you an email to confirm your new email address. Please check
+          your inbox and click on the link to confirm your new email address.
         </Alert>
       </If>
       <div className={"flex flex-col space-y-4"}>
@@ -138,7 +137,7 @@ const UpdateEmailForm: React.FC<{ user: User }> = ({ user }) => {
           </Button>
         </div>
       </div>
-    </form>)
+    </form>
   );
 };
 

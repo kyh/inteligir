@@ -22,7 +22,7 @@ import type Organization from "@/lib/organizations/types/organization";
 import useUserOrganizationsQuery from "@/lib/organizations/hooks/use-user-organizations-query";
 import type MembershipRole from "@/lib/organizations/types/membership-role";
 import useCurrentOrganization from "@/lib/organizations/hooks/use-current-organization";
-import configuration from "@/configuration";
+import { configuration } from "@/lib/configuration";
 
 const OrganizationsSelector = () => {
   const changeOrganization = useChangeOrganization();
@@ -36,7 +36,7 @@ const OrganizationsSelector = () => {
   const { data, isLoading } = useUserOrganizationsQuery(userId);
 
   return (
-    (<Select
+    <Select
       onValueChange={(uuid) => {
         changeOrganization(uuid);
       }}
@@ -81,15 +81,13 @@ const OrganizationsSelector = () => {
                 data-cy="create-organization-button"
               >
                 <PlusMini className="h-5" />
-                <span>
-                  New organization
-                </span>
+                <span>New organization</span>
               </SelectAction>
             }
           />
         </SelectGroup>
       </SelectContent>
-    </Select>)
+    </Select>
   );
 };
 
