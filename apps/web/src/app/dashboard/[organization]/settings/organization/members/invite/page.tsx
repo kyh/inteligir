@@ -1,6 +1,6 @@
 import ArrowLeftIcon from "@heroicons/react/24/outline/arrow-left-icon";
 
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import SettingsTile from "@/app/dashboard/components/settings-tile";
 import InviteMembersForm from "@/app/dashboard/[organization]/settings/organization/components/invite-members-form";
 import Trans from "@inteligir/ui/trans";
 import Button from "@inteligir/ui/button";

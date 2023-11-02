@@ -9,6 +9,6 @@
     "gen-types": "supabase gen types typescript --linked > src/database.types.ts"
   },
   "devDependencies": {
-    "supabase": "^1.106.1"
+    "supabase": "^1.110.1"
   }
 }

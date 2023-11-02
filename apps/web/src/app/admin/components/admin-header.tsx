@@ -1,7 +1,7 @@
 import { ArrowLeft } from "@inteligir/icons";
 import { Button, Heading } from "@inteligir/ui";
 import Link from "next/link";
-import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AppContainer from "@/app/dashboard/components/app-container";
 
 const AdminHeader = ({ children }: React.PropsWithChildren) => {
   return (

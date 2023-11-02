@@ -4,17 +4,17 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { usePathname, useRouter } from "next/navigation";
 import { EllipsisHorizontal } from "@inteligir/icons";
 import Link from "next/link";
-import DataTable from "@inteligir/ui/data-table";
+import { DataTable } from "@/components/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@inteligir/ui/dropdown";
+} from "@inteligir/ui";
 import IconButton from "@inteligir/ui/icon-button";
 import type { getOrganizations } from "@/app/admin/organizations/queries";
-import SubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/subscription-status-badge";
+import SubscriptionStatusBadge from "@/app/dashboard/components/subscription-status-badge";
 import { configuration } from "@/lib/configuration";
 
 type Response = Awaited<ReturnType<typeof getOrganizations>>;

@@ -1,33 +1,52 @@
 import useMutation from "swr/mutation";
+import type {
+  AuthError,
+  SignInWithPasswordlessCredentials,
+} from "@supabase/gotrue-js";
 import { useSupabase } from "@/lib/supabase/use-supabase";
+import { configuration } from "@/lib/configuration";
 
-export const useSignInWithOtp = () => {
+export function useSignInWithOtp() {
   const client = useSupabase();
   const key = ["auth", "sign-in-with-otp"];
 
   return useMutation(
     key,
-    (
+    async (
       _,
       {
         arg: credentials,
-      }: { arg: Parameters<typeof client.auth.signInWithOtp>[0] },
+      }: {
+        arg: SignInWithPasswordlessCredentials;
+      },
     ) => {
-      return client.auth.signInWithOtp(credentials).then((result) => {
-        if (result.error) {
-          if (process.env.NODE_ENV !== "production") {
-            console.warn(
-              `Ignoring error during development: ${result.error.message}`,
-            );
+      const result = await client.auth.signInWithOtp(credentials);
 
-            return {};
-          }
+      if (result.error) {
+        if (shouldIgnoreError(result.error)) {
+          console.warn(
+            `Ignoring error during development: ${result.error.message}`,
+          );
 
-          throw result.error;
+          return {} as never;
         }
 
-        return result.data;
-      });
+        throw result.error.message;
+      }
+
+      return result.data;
     },
   );
-};
+}
+
+export default useSignInWithOtp;
+
+function shouldIgnoreError(error: AuthError) {
+  return !configuration.production && isSmsProviderNotSetupError(error);
+}
+
+function isSmsProviderNotSetupError(error: AuthError) {
+  return (
+    error.message === `Error sending sms: sms Provider  could not be found`
+  );
+}

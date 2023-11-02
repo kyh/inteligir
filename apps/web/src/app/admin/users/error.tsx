@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert, AlertDescription, AlertTitle } from "@inteligir/ui";
-import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AppContainer from "@/app/dashboard/components/app-container";
 
 const UsersAdminPageError = () => {
   return (

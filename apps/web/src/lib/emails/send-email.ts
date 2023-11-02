@@ -9,7 +9,7 @@ type SendEmailParams = {
   html?: string;
 };
 
-const sendEmail = async (config: SendEmailParams) => {
+export const sendEmail = async (config: SendEmailParams) => {
   const transporter = await getSMTPTransporter();
 
   return transporter.sendMail(config);

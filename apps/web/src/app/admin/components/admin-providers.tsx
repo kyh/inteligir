@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { SidebarContext } from "@/lib/contexts/sidebar-provider";
 import { CsrfTokenContext } from "@/lib/csrf/csrf-provider";
-import Toaster from "@/components/toaster";
+import { Toaster } from "@inteligir/ui";
 
 type AdminProvidersProps = {
   collapsed: boolean;

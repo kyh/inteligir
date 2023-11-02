@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { cookies, headers } from "next/headers";
-import isUserSuperAdmin from "@/app/admin/utils/is-user-super-admin";
+import isUserSuperAdmin from "@/features/auth/is-user-super-admin";
 import AdminSidebar from "@/app/admin/components/admin-sidebar";
 import AdminProviders from "@/app/admin/components/admin-providers";
 

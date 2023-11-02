@@ -3,11 +3,9 @@
 import type { FormEventHandler } from "react";
 import { useCallback } from "react";
 import { toast } from "sonner";
-import { useTranslation } from "react-i18next";
-import Trans from "@inteligir/ui/trans";
 import TextField from "@inteligir/ui/text-field";
 import Button from "@inteligir/ui/button";
-import Alert from "@inteligir/ui/alert";
+import { Alert, Button, Label } from "@inteligir/ui";
 import { If } from "@/components/if";
 import useSignInWithOtp from "@/features/auth/use-sign-in-with-otp";
 import { configuration } from "@/lib/configuration";
@@ -15,7 +13,6 @@ import { configuration } from "@/lib/configuration";
 const EmailLinkAuth: React.FC<{
   inviteCode?: string;
 }> = ({ inviteCode }) => {
-  const { t } = useTranslation();
   const signInWithOtpMutation = useSignInWithOtp();
 
   const onSubmit: FormEventHandler<HTMLFormElement> = useCallback(
@@ -42,7 +39,7 @@ const EmailLinkAuth: React.FC<{
         },
       });
 
-      await toast.promise(promise, {
+      toast.promise(promise, {
         loading: t("auth:sendingEmailLink"),
         success: t(`auth:sendLinkSuccessToast`),
         error: t(`auth:errors.link`),

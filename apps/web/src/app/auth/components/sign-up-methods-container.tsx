@@ -2,13 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback } from "react";
-import Trans from "@inteligir/ui/trans";
 import { If } from "@/components/if";
 import EmailPasswordSignUpContainer from "@/app/auth/components/email-password-sign-up-container";
 import PhoneNumberSignInContainer from "@/app/auth/components/phone-number-sign-in-container";
 import EmailLinkAuth from "@/app/auth/components/email-link-auth";
 import OAuthProviders from "@/app/auth/components/oauth-providers";
 import { configuration } from "@/lib/configuration";
+import { EmailOtpContainer } from "./email-otp-container";
 
 const SignUpMethodsContainer = () => {
   const router = useRouter();
@@ -23,7 +23,7 @@ const SignUpMethodsContainer = () => {
     }
 
     // Otherwise, we redirect them to the onboarding page
-    router.push(configuration.paths.onboarding);
+    router.push("/onboarding");
   }, [router]);
 
   return (
@@ -43,6 +43,9 @@ const SignUpMethodsContainer = () => {
       </If>
       <If condition={configuration.auth.providers.emailLink}>
         <EmailLinkAuth />
+      </If>
+      <If condition={configuration.auth.providers.emailOtp}>
+        <EmailOtpContainer shouldCreateUser />
       </If>
     </>
   );

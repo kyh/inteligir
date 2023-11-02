@@ -9,7 +9,7 @@ import UpdateProfileForm from "./update-profile-form";
 import Trans from "@inteligir/ui/trans";
 
 import UpdatePhoneNumberForm from "./update-phone-number-form";
-import SettingsTile from "../../components/settings-tile";
+import SettingsTile from "../../../../components/settings-tile";
 import If from "@inteligir/ui/if";
 import {configuration} from "@/lib/configuration";
 

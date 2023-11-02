@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { Alert, AlertTitle, Button } from "@inteligir/ui";
 import Link from "next/link";
-import { ResendLinkForm } from "./resend-link-form";
+import { ResendLinkForm } from "../../components/resend-link-form";
 
 type Params = {
   searchParams: {

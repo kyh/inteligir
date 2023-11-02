@@ -1,5 +1,5 @@
 import Trans from "@inteligir/ui/trans";
-import SettingsTile from "../../components/settings-tile";
+import SettingsTile from "../../../../components/settings-tile";
 import UpdateEmailFormContainer from "../components/update-email-form-container";
 import { withI18n } from "@/i18n/with-i18n";
 

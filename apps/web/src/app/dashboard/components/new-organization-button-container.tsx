@@ -3,7 +3,7 @@
 import { PlusMini } from "@inteligir/icons";
 import CardButton from "@inteligir/ui/card-button";
 import { CsrfTokenContext } from "@/lib/csrf/csrf-provider";
-import CreateOrganizationModal from "@/app/dashboard/[organization]/components/organizations/create-organization-modal";
+import CreateOrganizationModal from "@/app/dashboard/components/create-organization-modal";
 
 const NewOrganizationButtonContainer = ({
   csrfToken,

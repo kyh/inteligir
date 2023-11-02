@@ -22,6 +22,7 @@ export const configuration = {
       emailPassword: true,
       phoneNumber: false,
       emailLink: false,
+      emailOtp: false,
       oAuth: ["google"],
     },
   },

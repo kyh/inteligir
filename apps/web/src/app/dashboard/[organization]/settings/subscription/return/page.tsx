@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { StripeSessionStatus } from "./components/stripe-session-status";
-import RecoverStripeCheckout from "./components/recover-stripe-checkout";
+import { StripeSessionStatus } from "../components/stripe-session-status";
+import RecoverStripeCheckout from "../components/recover-stripe-checkout";
 import requireSession from "@/lib/user/require-session";
 import getSupabaseServerClient from "@/core/supabase/server-client";
 import getStripeInstance from "@/core/stripe/get-stripe";

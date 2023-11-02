@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { requireSession } from "@/features/auth/require-session";
 import { getSupabaseServerActionClient } from "@/lib/supabase/action-client";
-import isUserSuperAdmin from "@/app/admin/utils/is-user-super-admin";
+import isUserSuperAdmin from "@/features/auth/is-user-super-admin";
 
 export const withSession =
   <Args extends any[], Response>(fn: (...params: Args) => Response) =>

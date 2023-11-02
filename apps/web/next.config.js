@@ -3,10 +3,6 @@ const { withContentlayer } = require("next-contentlayer");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["ui"],
-  experimental: {
-    serverActions: true,
-  },
   images: {
     remotePatterns: [
       { hostname: "files.stripe.com" },

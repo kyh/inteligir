@@ -1,9 +1,6 @@
 "use client";
 
-import {
-  experimental_useFormState as useFormState,
-  experimental_useFormStatus as useFormStatus,
-} from "react-dom";
+import { useFormState, useFormStatus } from "react-dom";
 import { useEffect } from "react";
 import { ChevronRightIcon } from "@heroicons/react/24/outline";
 import { clx } from "@inteligir/ui";

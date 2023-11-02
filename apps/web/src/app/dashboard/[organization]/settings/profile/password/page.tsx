@@ -1,5 +1,5 @@
 import UpdatePasswordFormContainer from "@/app/dashboard/[organization]/settings/profile/components/update-password-form-container";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import SettingsTile from "@/app/dashboard/components/settings-tile";
 import Trans from "@inteligir/ui/trans";
 import { withI18n } from "@/i18n/with-i18n";
 

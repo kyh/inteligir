@@ -1,7 +1,7 @@
 import { use } from "react";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
 import AdminGuard from "@/app/admin/components/admin-guard";
-import ImpersonateUserConfirmationModal from "@/app/admin/users/@modal/[uid]/components/impersonate-user-confirmation-modal";
+import ImpersonateUserConfirmationModal from "@/app/admin/components/impersonate-user-confirmation-modal";
 
 type Params = {
   params: {

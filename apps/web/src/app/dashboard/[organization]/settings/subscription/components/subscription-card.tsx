@@ -4,7 +4,7 @@ import Heading from "@inteligir/ui/heading";
 import If from "@inteligir/ui/if";
 import Trans from "@inteligir/ui/trans";
 import PricingTable from "@/components/pricing-table";
-import SubscriptionStatusBadge from "@/app/dashboard/[organization]/components/organizations/subscription-status-badge";
+import SubscriptionStatusBadge from "@/app/dashboard/components/subscription-status-badge";
 import SubscriptionStatusAlert from "@/app/dashboard/[organization]/settings/subscription/components/subscription-status-alert";
 import type { OrganizationSubscription } from "@/lib/organizations/types/organization-subscription";
 import { configuration } from "@/lib/configuration";

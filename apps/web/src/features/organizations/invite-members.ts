@@ -79,7 +79,7 @@ export const inviteMembers = async (params: Params) => {
       continue;
     }
 
-    let inviterDisplayName = inviter.displayName;
+    let inviterDisplayName = inviter.displayName || "";
 
     // when the inviter has no name in its record,
     // we fall back to their email
@@ -87,7 +87,7 @@ export const inviteMembers = async (params: Params) => {
       const { data: inviterEmail, error } =
         await adminClient.auth.admin.getUserById(inviter.id);
 
-      if (!error) {
+      if (!error && inviterEmail.user.email) {
         inviterDisplayName = inviterEmail.user.email;
       }
     }

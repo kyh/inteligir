@@ -2,11 +2,11 @@ import { use } from "react";
 import getSupabaseServerClient from "@/lib/supabase/server-client";
 import { getUsers } from "@/app/admin/users/queries";
 import type UserData from "@/features/users/user-data";
-import getPageFromQueryParams from "@/app/admin/utils/get-page-from-query-param";
-import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import getPageFromQueryParams from "@/lib/utils/get-page-from-query-param";
+import AppContainer from "@/app/dashboard/components/app-container";
 import AdminHeader from "@/app/admin/components/admin-header";
 import AdminGuard from "@/app/admin/components/admin-guard";
-import UsersTable from "@/app/admin/users/components/users-table";
+import UsersTable from "@/app/admin/components/users-table";
 import { configuration } from "@/lib/configuration";
 
 type UsersAdminPageProps = {

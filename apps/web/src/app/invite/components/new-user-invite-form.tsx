@@ -2,7 +2,6 @@
 
 import { useCallback, useState, useTransition } from "react";
 import Button from "@inteligir/ui/button";
-import Trans from "@inteligir/ui/trans";
 import PageLoadingIndicator from "@inteligir/ui/page-loading-indicator";
 import useCsrfToken from "@/lib/csrf/use-csrf-token";
 import { acceptInviteAction } from "@/features/memberships/actions";
@@ -14,6 +13,7 @@ import EmailPasswordSignInContainer from "@/app/auth/components/email-password-s
 import EmailPasswordSignUpContainer from "@/app/auth/components/email-password-sign-up-container";
 import { If } from "@/components/if";
 import { configuration } from "@/lib/configuration";
+import { EmailOtpContainer } from "@/app/auth/components/email-otp-container";
 
 enum Mode {
   SignUp,
@@ -95,6 +95,12 @@ const NewUserInviteForm = (
       </If>
       <If condition={configuration.auth.providers.emailLink}>
         <EmailLinkAuth inviteCode={props.code} />
+      </If>
+      <If condition={configuration.auth.providers.emailOtp}>
+        <EmailOtpContainer
+          shouldCreateUser={true}
+          onSuccess={onInviteAccepted}
+        />
       </If>
     </>
   );

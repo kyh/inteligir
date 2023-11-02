@@ -23,8 +23,8 @@ import {
   TableHeader,
   TableRow,
 } from "@inteligir/ui/table";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
-import MultiFactorAuthSetupModal from "../../components/multi-factor-auth-setup-modal";
+import SettingsTile from "@/app/dashboard/components/settings-tile";
+import MultiFactorAuthSetupModal from "../components/multi-factor-auth-setup-modal";
 import useSupabase from "@/core/hooks/use-supabase";
 import useFactorsMutationKey from "@/core/hooks/use-user-factors-mutation-key";
 import useFetchAuthFactors from "@/core/hooks/use-fetch-factors";

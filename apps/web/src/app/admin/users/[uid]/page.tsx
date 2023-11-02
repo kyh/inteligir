@@ -17,9 +17,9 @@ import Label from "@inteligir/ui/label";
 import { getSupabaseServerClient } from "@/lib/supabase/server-client";
 import AdminHeader from "@/app/admin/components/admin-header";
 import AdminGuard from "@/app/admin/components/admin-guard";
-import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AppContainer from "@/app/dashboard/components/app-container";
 import RoleBadge from "@/app/dashboard/[organization]/settings/organization/components/role-badge";
-import UserActionsDropdown from "@/app/admin/users/[uid]/components/user-actions-dropdown";
+import UserActionsDropdown from "@/app/admin/components/user-actions-dropdown";
 import { configuration } from "@/lib/configuration";
 
 type Params = {

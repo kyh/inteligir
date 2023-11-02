@@ -17,7 +17,7 @@ import type MembershipRole from "@/lib/organizations/types/membership-role";
 import type UserData from "@/core/session/types/user-data";
 
 import requireSession from "@/lib/user/require-session";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import SettingsTile from "@/app/dashboard/components/settings-tile";
 import OrganizationMembersList from "@/app/dashboard/[organization]/settings/organization/components/organization-members-list";
 import OrganizationInvitedMembersList from "@/app/dashboard/[organization]/settings/organization/components/organization-invited-members-list";
 import InviteMembersLinkButton from "@/app/dashboard/[organization]/settings/organization/components/invite-members-link-button";

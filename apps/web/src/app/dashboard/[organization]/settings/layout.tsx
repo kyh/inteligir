@@ -3,8 +3,8 @@ import { Cog8ToothIcon } from "@heroicons/react/24/outline";
 import NavigationMenu from "@inteligir/ui/navigation/navigation-menu";
 import NavigationItem from "@inteligir/ui/navigation/navigation-item";
 import Trans from "@inteligir/ui/trans";
-import AppContainer from "@/app/dashboard/[organization]/components/app-container";
-import AppHeader from "@/app/dashboard/[organization]/components/app-header";
+import AppContainer from "@/app/dashboard/components/app-container";
+import AppHeader from "@/app/dashboard/components/app-header";
 import { configuration } from "@/lib/configuration";
 import { withI18n } from "@/i18n/with-i18n";
 

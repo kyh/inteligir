@@ -11,7 +11,7 @@ import getSupabaseServerClient from "@/lib/supabase/server-client";
 import requireSession from "@/features/auth/require-session";
 import getCurrentOrganization from "@/features/organizations/get-current-organization";
 import { parseOrganizationIdCookie } from "@/features/organizations/organization-cookie";
-import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import AppContainer from "@/app/dashboard/components/app-container";
 import NewOrganizationButtonContainer from "@/app/dashboard/components/new-organization-button-container";
 import { configuration } from "@/lib/configuration";
 import { getOrganizationsByUserId } from "@/lib/organizations/database/queries";

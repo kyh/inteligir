@@ -3,10 +3,10 @@ import Link from "next/link";
 import { ChevronRightMini } from "@inteligir/icons";
 import { getMembershipsByOrganizationUid } from "@/app/admin/organizations/queries";
 import { getSupabaseServerClient } from "@/lib/supabase/server-client";
-import getPageFromQueryParams from "@/app/admin/utils/get-page-from-query-param";
-import AppContainer from "@/app/dashboard/[organization]/components/app-container";
+import getPageFromQueryParams from "@/lib/utils/get-page-from-query-param";
+import AppContainer from "@/app/dashboard/components/app-container";
 import AdminHeader from "@/app/admin/components/admin-header";
-import OrganizationsMembersTable from "@/app/admin/organizations/[uid]/members/components/organizations-members-table";
+import OrganizationsMembersTable from "@/app/admin/components/organizations-members-table";
 import { configuration } from "@/lib/configuration";
 
 type AdminMembersPageParams = {

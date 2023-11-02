@@ -1,5 +1,5 @@
 import Trans from "@inteligir/ui/trans";
-import SettingsTile from "@/app/dashboard/[organization]/settings/components/settings-tile";
+import SettingsTile from "@/app/dashboard/components/settings-tile";
 import Plans from "@/app/dashboard/[organization]/settings/subscription/components/plans";
 import PlansStatusAlertContainer from "@/app/dashboard/[organization]/settings/subscription/components/plan-status-alert-container";
 import { withI18n } from "@/i18n/with-i18n";
