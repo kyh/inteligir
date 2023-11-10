@@ -9,7 +9,7 @@
     }
   },
   "include": [
-    "global.d.ts",
+    "types/index.d.ts",
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
