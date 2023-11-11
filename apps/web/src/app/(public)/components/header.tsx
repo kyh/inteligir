@@ -1,23 +1,23 @@
 "use client";
 
-import { clx, Logo, Button } from "@inteligir/ui";
-import { BarsThree } from "@inteligir/icons";
-import Link from "next/link";
 import { useState } from "react";
-import type { Session } from "@supabase/supabase-js";
+import Link from "next/link";
 
-export const Header = ({ session }: { session?: Session | null }) => {
+import { BarsThree } from "@inteligir/icons";
+import { Button, clx, Logo } from "@inteligir/ui";
+
+export const Header = ({ session }: { session?: any | null }) => {
   const [open, setOpen] = useState(false);
 
   return (
     <section className="relatve fixed top-0 z-50 w-full overflow-hidden backdrop-blur-2xl">
       <div className="container flex max-w-6xl flex-col py-5 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-row items-center justify-between text-ui-fg-base lg:justify-start">
+        <div className="text-ui-fg-base flex flex-row items-center justify-between lg:justify-start">
           <Link className="inline-flex items-center gap-3" href="/">
             <Logo />
           </Link>
           <button
-            className="inline-flex items-center justify-center p-2 text-ui-fg-base hover:text-indigo-400 focus:text-ui-fg-base focus:outline-none md:hidden"
+            className="text-ui-fg-base focus:text-ui-fg-base inline-flex items-center justify-center p-2 hover:text-indigo-400 focus:outline-none md:hidden"
             onClick={() => {
               setOpen(!open);
             }}
@@ -32,13 +32,13 @@ export const Header = ({ session }: { session?: Session | null }) => {
           )}
         >
           <Link
-            className="px-2 py-2 text-sm font-normal text-ui-fg-subtle transition hover:text-ui-fg-base md:px-5 lg:ml-auto"
+            className="text-ui-fg-subtle hover:text-ui-fg-base px-2 py-2 text-sm font-normal transition md:px-5 lg:ml-auto"
             href="/examples"
           >
             Examples
           </Link>
           <Link
-            className="px-2 py-2 text-sm font-normal text-ui-fg-subtle transition hover:text-ui-fg-base md:px-5"
+            className="text-ui-fg-subtle hover:text-ui-fg-base px-2 py-2 text-sm font-normal transition md:px-5"
             href="/integrations"
           >
             Integrations

@@ -1,14 +1,14 @@
 import type { ReactNode } from "react";
-import { clx } from "@inteligir/ui";
 import {
-  ExclamationCircle,
   CheckCircleSolid,
+  ExclamationCircle,
   QuestionMarkCircle,
 } from "@inteligir/icons";
+import { clx } from "@inteligir/ui";
 
 export const Callout: React.FC<{
   children: ReactNode;
-  className?: string | "";
+  className?: string;
   variant: "info" | "success" | "warning" | "danger";
 }> = ({ children, variant, className }) => {
   return (

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button, Logo, Input, clx } from "@inteligir/ui";
+import { Button, clx, Input, Logo } from "@inteligir/ui";
 
 export const Footer = () => {
   return (
@@ -20,7 +20,7 @@ const FooterLinksSection = () => {
       </div>
       <div className="flex w-full justify-between md:w-auto md:gap-20">
         <ul>
-          <p className="mb-2 text-xs font-semibold text-ui-fg-base">
+          <p className="text-ui-fg-base mb-2 text-xs font-semibold">
             Resources
           </p>
           <li>
@@ -31,7 +31,7 @@ const FooterLinksSection = () => {
           </li>
         </ul>
         <ul>
-          <p className="mb-2 text-xs font-semibold text-ui-fg-base">Company</p>
+          <p className="text-ui-fg-base mb-2 text-xs font-semibold">Company</p>
           <li>
             <NavLink href="/about">About</NavLink>
           </li>
@@ -43,7 +43,7 @@ const FooterLinksSection = () => {
           </li>
         </ul>
         <ul>
-          <p className="mb-2 text-xs font-semibold text-ui-fg-base">Support</p>
+          <p className="text-ui-fg-base mb-2 text-xs font-semibold">Support</p>
           <li>
             <NavLink href="/help">Help center</NavLink>
           </li>
@@ -59,7 +59,7 @@ const FooterLinksSection = () => {
 export const SmallPrintSection = () => {
   return (
     <div className="flex flex-col items-center justify-between gap-5 border-t border-white/10 pt-8 sm:flex-row">
-      <p className="text-xs text-ui-fg-muted">
+      <p className="text-ui-fg-muted text-xs">
         &copy; Copyright {new Date().getFullYear()}. All rights reserved.
       </p>
       <div className="flex gap-4">
@@ -99,7 +99,7 @@ const NavLink = ({
   return (
     <Link
       className={clx(
-        "-mx-1 block p-1 text-xs capitalize text-ui-fg-subtle transition hover:text-ui-fg-base",
+        "text-ui-fg-subtle hover:text-ui-fg-base -mx-1 block p-1 text-xs capitalize transition",
         className,
       )}
       {...props}
@@ -163,13 +163,13 @@ const SocialLink = ({
   children,
 }: {
   href: string;
-  icon: any;
+  icon: React.ElementType;
   children: React.ReactNode;
 }) => {
   return (
     <NavLink className="group flex items-center" href={href}>
       <span className="sr-only">{children}</span>
-      <Icon className="fill-ui-fg-muted transition group-hover:fill-ui-fg-base" />
+      <Icon className="fill-ui-fg-muted group-hover:fill-ui-fg-base transition" />
     </NavLink>
   );
 };

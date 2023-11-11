@@ -4,7 +4,7 @@ import { LogoCloud } from "./components/logo-cloud";
 import { Hero } from "./components/hero";
 import { WaitlistForm } from "./components/waitlist-form";
 
-const LandingPage = () => {
+const Page = () => {
   const email = cookies().get("registered_waitlist")?.value;
 
   return (
@@ -23,4 +23,4 @@ const LandingPage = () => {
   );
 };
 
-export default LandingPage;
+export default Page;

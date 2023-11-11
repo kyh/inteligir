@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { clx } from "@inteligir/ui";
+
 import { getNodeText, sluggifyTitle } from "@/lib/content";
 
 const Heading = (variant: "1" | "2" | "3" | "4") => {
@@ -20,7 +21,7 @@ const Heading = (variant: "1" | "2" | "3" | "4") => {
         id={slug}
       >
         <Link href={`#${slug}`}>
-          <span className="absolute left-[0px] z-10 hidden text-ui-fg-base lg:group-hover:inline">
+          <span className="text-ui-fg-base absolute left-[0px] z-10 hidden lg:group-hover:inline">
             #
           </span>
           {children}

@@ -1,14 +1,15 @@
 "use client";
 
 import { Button } from "@inteligir/ui";
-import { experimental_useFormStatus as useFormStatus } from "react-dom";
+import { useFormStatus } from "react-dom";
+
 import { joinWaitlist } from "../actions";
 
 export const WaitlistForm = ({ defaultEmail }: { defaultEmail?: string }) => {
   return (
     <form
       action={joinWaitlist}
-      className="items-center gap-2 rounded-xl border border-white/10 bg-ui-bg-component px-2 pb-2 pt-1 shadow-lg sm:flex sm:max-w-sm sm:py-1 sm:pl-1 sm:pr-2"
+      className="bg-ui-bg-component items-center gap-2 rounded-xl border border-white/10 px-2 pb-2 pt-1 shadow-lg sm:flex sm:max-w-sm sm:py-1 sm:pl-1 sm:pr-2"
     >
       <div className="min-w-0 flex-1">
         <label className="sr-only" htmlFor="email">
