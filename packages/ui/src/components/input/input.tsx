@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { Eye, EyeSlash, MagnifyingGlassMini } from "@inteligir/icons";
-import { cva, VariantProps } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 
 import { clx } from "../../utils/clx";
 

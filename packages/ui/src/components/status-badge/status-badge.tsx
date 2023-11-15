@@ -10,10 +10,9 @@ import {
 
 import { clx } from "../../utils/clx";
 
-interface StatusBadgeProps
-  extends Omit<React.ComponentPropsWithoutRef<"span">, "color"> {
+type StatusBadgeProps = {
   color?: "green" | "red" | "blue" | "orange" | "grey" | "purple";
-}
+} & Omit<React.ComponentPropsWithoutRef<"span">, "color">
 
 const StatusBadge = React.forwardRef<HTMLSpanElement, StatusBadgeProps>(
   ({ children, className, color = "grey", ...props }, ref) => {

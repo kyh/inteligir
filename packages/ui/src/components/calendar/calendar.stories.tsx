@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react"
 import * as React from "react"
 
 import { Text } from "@/components/text"
-import { DateRange } from "react-day-picker"
+import type { DateRange } from "react-day-picker"
 import { Calendar } from "./calendar"
 
 const Demo = ({ mode, ...args }: Parameters<typeof Calendar>[0]) => {
@@ -15,7 +15,7 @@ const Demo = ({ mode, ...args }: Parameters<typeof Calendar>[0]) => {
     <div className="flex flex-col items-center gap-y-4">
       <Calendar
         {...(args as any)}
-        mode={mode as "single" | "range"}
+        mode={mode}
         selected={mode === "single" ? date : dateRange}
         onSelect={mode === "single" ? setDate : setDateRange}
       />

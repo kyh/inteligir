@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import * as Primitives from "@radix-ui/react-label";
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva  } from "class-variance-authority";
+import type {VariantProps} from "class-variance-authority";
 
 import { clx } from "../../utils/clx";
 
@@ -25,9 +26,7 @@ const labelVariants = cva("font-sans", {
   },
 });
 
-interface LabelProps
-  extends React.ComponentPropsWithoutRef<"label">,
-    VariantProps<typeof labelVariants> {}
+type LabelProps = {} & React.ComponentPropsWithoutRef<"label"> & VariantProps<typeof labelVariants>
 
 const Label = React.forwardRef<HTMLLabelElement, LabelProps>(
   ({ className, size = "base", weight = "regular", ...props }, ref) => {

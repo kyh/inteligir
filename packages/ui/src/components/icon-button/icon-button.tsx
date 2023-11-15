@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
-import { cva, VariantProps } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 
 import { clx } from "../../utils/clx";
 import { Spinner } from "../spinner";
@@ -41,12 +42,10 @@ const iconButtonVariants = cva(
   },
 );
 
-interface IconButtonProps
-  extends React.ComponentPropsWithoutRef<"button">,
-    VariantProps<typeof iconButtonVariants> {
+type IconButtonProps = {
   asChild?: boolean;
   isLoading?: boolean;
-}
+} & React.ComponentPropsWithoutRef<"button"> & VariantProps<typeof iconButtonVariants>
 
 const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
   (
@@ -93,7 +92,7 @@ const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
         ref={ref}
         {...props}
         className={clx(iconButtonVariants({ variant, size }), className)}
-        disabled={disabled || isLoading}
+        disabled={disabled ?? isLoading}
       >
         {renderInner()}
       </Component>

@@ -11,9 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@auth/core": "0.18.0",
+    "@auth/drizzle-adapter": "^0.3.6",
     "@inteligir/db": "workspace:*",
-    "@auth/core": "^0.18.0",
-    "@auth/drizzle-adapter": "^0.3.5",
     "@t3-oss/env-nextjs": "^0.7.1",
     "next-auth": "5.0.0-beta.3"
   },
@@ -22,7 +22,7 @@
     "@inteligir/prettier-config": "workspace:*",
     "@inteligir/tsconfig": "workspace:*",
     "eslint": "^8.53.0",
-    "prettier": "^3.0.3",
+    "prettier": "^3.1.0",
     "typescript": "^5.2.2"
   },
   "eslintConfig": {

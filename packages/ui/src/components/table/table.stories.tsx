@@ -50,7 +50,7 @@ const lastNames = [
 ]
 const currencies = ["USD", "EUR", "GBP", "JPY"]
 
-function makeDate(x: number): Order[] {
+const makeDate = (x: number): Order[] => {
   // get random name
   const getRandomName = () => {
     const firstName = firstNames[Math.floor(Math.random() * firstNames.length)]
@@ -89,7 +89,7 @@ function makeDate(x: number): Order[] {
   }))
 
   return orders
-}
+};
 
 type UseFakeOrdersProps = {
   limit: number

@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
-import { cva, VariantProps } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 
 import { clx } from "../../utils/clx";
 
@@ -86,12 +87,10 @@ const textVariants = cva("", {
   ],
 });
 
-interface TextProps
-  extends React.ComponentPropsWithoutRef<"p">,
-    VariantProps<typeof textVariants> {
+type TextProps = {
   asChild?: boolean;
   as?: "p" | "span" | "div";
-}
+} & React.ComponentPropsWithoutRef<"p"> & VariantProps<typeof textVariants>
 
 const Text = React.forwardRef<HTMLParagraphElement, TextProps>(
   (

@@ -70,11 +70,10 @@ const Item = React.forwardRef<
 });
 Item.displayName = "RadioGroup.Item";
 
-interface ChoiceBoxProps
-  extends React.ComponentPropsWithoutRef<typeof Primitives.Item> {
+type ChoiceBoxProps = {
   label: string;
   description: string;
-}
+} & React.ComponentPropsWithoutRef<typeof Primitives.Item>
 
 const ChoiceBox = React.forwardRef<
   React.ElementRef<typeof Primitives.Item>,

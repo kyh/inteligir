@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import * as Primitives from "@radix-ui/react-switch";
-import { cva, VariantProps } from "class-variance-authority";
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 
 import { clx } from "../../utils/clx";
 
@@ -37,12 +38,10 @@ const thumbVariants = cva(
   },
 );
 
-interface SwitchProps
-  extends Omit<
+type SwitchProps = {} & Omit<
       React.ComponentPropsWithoutRef<typeof Primitives.Root>,
       "asChild"
-    >,
-    VariantProps<typeof switchVariants> {}
+    > & VariantProps<typeof switchVariants>
 
 const Switch = React.forwardRef<
   React.ElementRef<typeof Primitives.Root>,

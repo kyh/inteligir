@@ -1,4 +1,5 @@
-import { RenderResult, fireEvent, render } from "@testing-library/react"
+import type { RenderResult} from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react"
 import * as React from "react"
 
 import { usePrompt } from "./use-prompt"

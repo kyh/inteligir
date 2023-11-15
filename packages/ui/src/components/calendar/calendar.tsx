@@ -4,11 +4,12 @@ import * as React from "react";
 import { ChevronLeftMini, ChevronRightMini } from "@inteligir/icons";
 import {
   DayPicker,
-  useDayRender,
-  type DayPickerRangeProps,
-  type DayPickerSingleProps,
-  type DayProps,
+  useDayRender
+  
+  
+  
 } from "react-day-picker";
+import type {DayPickerRangeProps, DayPickerSingleProps, DayProps} from "react-day-picker";
 
 import { clx } from "../../utils/clx";
 import { iconButtonVariants } from "../icon-button";

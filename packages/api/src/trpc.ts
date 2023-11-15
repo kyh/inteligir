@@ -23,7 +23,7 @@ import { db } from "@inteligir/db";
  * processing a request
  *
  */
-interface CreateContextOptions {
+type CreateContextOptions = {
   session: Session | null;
 }
 
@@ -70,16 +70,14 @@ export const createTRPCContext = async (opts: {
  */
 const t = initTRPC.context<typeof createTRPCContext>().create({
   transformer: superjson,
-  errorFormatter({ shape, error }) {
-    return {
+  errorFormatter: ({ shape, error }) => ({
       ...shape,
       data: {
         ...shape.data,
         zodError:
           error.cause instanceof ZodError ? error.cause.flatten() : null,
       },
-    };
-  },
+    }),
 });
 
 /**

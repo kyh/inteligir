@@ -5,17 +5,15 @@ import * as Primitives from "@radix-ui/react-tooltip";
 
 import { clx } from "../../utils/clx";
 
-interface TooltipProps
-  extends Omit<Primitives.TooltipContentProps, "content" | "onClick">,
-    Pick<
-      Primitives.TooltipProps,
-      "open" | "defaultOpen" | "onOpenChange" | "delayDuration"
-    > {
+type TooltipProps = {
   content: React.ReactNode;
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
   side?: "bottom" | "left" | "top" | "right";
   maxWidth?: number;
-}
+} & Omit<Primitives.TooltipContentProps, "content" | "onClick"> & Pick<
+      Primitives.TooltipProps,
+      "open" | "defaultOpen" | "onOpenChange" | "delayDuration"
+    >
 
 const Tooltip = ({
   children,

@@ -7,10 +7,9 @@ import { cva } from "class-variance-authority";
 
 import { clx } from "../../utils/clx";
 
-interface SelectProps
-  extends React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root> {
+type SelectProps = {
   size?: "base" | "small";
-}
+} & React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>
 
 type SelectContextValue = {
   size: "base" | "small";
