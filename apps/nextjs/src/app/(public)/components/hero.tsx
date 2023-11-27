@@ -5,11 +5,11 @@ export const Hero = ({ children }: { children: React.ReactNode }) => {
       <div className="container relative max-w-6xl py-24 lg:py-56">
         <div>
           <h1 className="font-display bg-gradient-to-r from-slate-50 to-slate-600 bg-clip-text pb-2 text-4xl font-normal tracking-tight text-transparent sm:text-6xl">
-            Convert data into Insights{" "}
-            <span className="lg:block">automagically</span>
+            Data insight discovery
+            <span className="lg:block">on autopilot</span>
           </h1>
           <p className="text-ui-fg-subtle mt-4 max-w-xl">
-            Generate comprehensive metrics reports and actionable insights, all
+            Generate comprehensive metrics reports with actionable insights, all
             on autopilot, so that you can make data-informed decisions
           </p>
           <div className="mt-12">{children}</div>

@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
-import { Toaster } from "@inteligir/ui";
-
-import { ThemeProvider, TRPCReactProvider } from "./providers";
+import { Inter } from "next/font/google";
 
 import "./globals.css";
 
-/**
- * Since we're passing `headers()` to the `TRPCReactProvider` we need to
- * make the entire app dynamic. You can move the `TRPCReactProvider` further
- * down the tree (e.g. /dashboard and onwards) to make part of the app statically rendered.
- */
-export const dynamic = "force-dynamic";
+import { cache } from "react";
+import { headers } from "next/headers";
+import { Toaster } from "@inteligir/ui";
+
+import { ThemeProvider } from "@/components/theme-provider";
+import { TRPCReactProvider } from "@/lib/trpc/react";
+
+const fontSans = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+});
 
 export const metadata: Metadata = {
   title: "Inteligir",
@@ -29,11 +31,16 @@ export const metadata: Metadata = {
   },
 };
 
+// Lazy load headers
+const getHeaders = cache(async () => {
+  return headers();
+});
+
 const Layout = (props: { children: React.ReactNode }) => (
   <html lang="en">
-    <body className="bg-ui-bg-base">
+    <body className={["font-sans", fontSans.variable].join(" ")}>
       <ThemeProvider>
-        <TRPCReactProvider headers={headers()}>
+        <TRPCReactProvider headersPromise={getHeaders()}>
           {props.children}
         </TRPCReactProvider>
       </ThemeProvider>

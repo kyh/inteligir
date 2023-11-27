@@ -1,4 +1,0 @@
-{
-  "extends": "@inteligir/tsconfig/base.json",
-  "include": ["routes"]
-}

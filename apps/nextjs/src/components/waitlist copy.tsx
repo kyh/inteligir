@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 
-import { api } from "@/lib/api";
-import type { RouterOutputs } from "@/lib/api";
+import { api } from "@/lib/trpc/react";
+import type { RouterOutputs } from "@/lib/trpc/react";
 
 export const JoinWaitlistForm = () => {
   const utils = api.useUtils();
@@ -52,9 +52,9 @@ export const JoinWaitlistForm = () => {
 };
 
 export const WaitlistList = () => {
-  const [waitlist] = api.waitlist.all.useSuspenseQuery();
+  const { data: waitlist } = api.waitlist.all.useQuery();
 
-  if (waitlist.length === 0) {
+  if (waitlist?.length === 0) {
     return (
       <div className="relative flex w-full flex-col gap-4">
         <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/10">
@@ -66,7 +66,7 @@ export const WaitlistList = () => {
 
   return (
     <div className="flex w-full flex-col gap-4">
-      {waitlist.map((w) => {
+      {waitlist?.map((w) => {
         return <WaitlistCard key={w.id} waitlist={w} />;
       })}
     </div>
