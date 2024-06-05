@@ -10,9 +10,8 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
-import { auth } from "@inteligir/auth";
-import type { Session } from "@inteligir/auth";
-import { db } from "@inteligir/db";
+import type { Database } from "@init/db/database.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**
  * 1. CONTEXT
@@ -28,16 +27,26 @@ import { db } from "@inteligir/db";
  */
 export const createTRPCContext = async (opts: {
   headers: Headers;
-  session: Session | null;
+  supabase: SupabaseClient<Database>;
 }) => {
-  const session = opts.session ?? (await auth());
+  // React Native will pass their token through headers,
+  // browsers will have the session cookie set
+  const token = opts.headers.get("authorization");
+
+  const { data } = token
+    ? await opts.supabase.auth.getUser(token)
+    : await opts.supabase.auth.getUser();
+
+  const supabase = opts.supabase;
+
   const source = opts.headers.get("x-trpc-source") ?? "unknown";
 
-  console.log(">>> tRPC Request from", source, "by", session?.user);
+  console.log(">>> tRPC Request from", source, "by", data.user?.email);
 
   return {
-    session,
-    db,
+    headers: opts.headers,
+    user: data.user,
+    supabase,
   };
 };
 
@@ -57,6 +66,12 @@ const t = initTRPC.context<typeof createTRPCContext>().create({
     },
   }),
 });
+
+/**
+ * Create a server-side caller
+ * @see https://trpc.io/docs/server/server-side-calls
+ */
+export const createCallerFactory = t.createCallerFactory;
 
 /**
  * 3. ROUTER & PROCEDURE (THE IMPORTANT BIT)
@@ -81,28 +96,42 @@ export const createTRPCRouter = t.router;
 export const publicProcedure = t.procedure;
 
 /**
- * Reusable middleware that enforces users are logged in before running the
- * procedure
+ * Protected (authenticated) procedure
+ *
+ * If you want a query or mutation to ONLY be accessible to logged in users, use this. It verifies
+ * the session is valid and guarantees `ctx.session.user` is not null.
+ *
+ * @see https://trpc.io/docs/procedures
  */
-const enforceUserIsAuthed = t.middleware(({ ctx, next }) => {
-  if (!ctx.session?.user) {
+export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
+  if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
+
   return next({
     ctx: {
-      // infers the `session` as non-nullable
-      session: { ...ctx.session, user: ctx.session.user },
+      // infers the `user` as non-nullable
+      user: ctx.user,
     },
   });
 });
 
 /**
- * Protected (authed) procedure
+ * Super Admin procedure
  *
- * If you want a query or mutation to ONLY be accessible to logged in users, use
- * this. It verifies the session is valid and guarantees ctx.session.user is not
- * null
- *
- * @see https://trpc.io/docs/procedures
+ * If you want a query or mutation to ONLY be accessible to super admins.
  */
-export const protectedProcedure = t.procedure.use(enforceUserIsAuthed);
+export const superAdminProcedure = t.procedure.use(({ ctx, next }) => {
+  const role = ctx.user?.app_metadata.role;
+
+  if (!role || role !== "super-admin") {
+    throw new TRPCError({ code: "UNAUTHORIZED" });
+  }
+
+  return next({
+    ctx: {
+      // infers the `user` as non-nullable
+      user: ctx.user,
+    },
+  });
+});

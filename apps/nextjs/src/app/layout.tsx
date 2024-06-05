@@ -1,52 +1,101 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
+import { ThemeProvider } from "@init/ui/theme";
+import { Toaster } from "@init/ui/toast";
+import { cn } from "@init/ui/utils";
+
+import { siteConfig } from "@/lib/config";
+import { TRPCReactProvider } from "@/trpc/react";
 
 import "./globals.css";
 
-import { cache } from "react";
-import { headers } from "next/headers";
-import { Toaster } from "@inteligir/ui";
+export const metadata: Metadata = {
+  metadataBase: new URL(siteConfig.url),
+  title: {
+    default: siteConfig.name,
+    template: `%s | ${siteConfig.name}`,
+  },
+  description: siteConfig.description,
+  openGraph: {
+    locale: "en-US",
+    type: "website",
+    url: siteConfig.url,
+    title: siteConfig.name,
+    description: siteConfig.description,
+    siteName: siteConfig.name,
+    images: [
+      {
+        url: `${siteConfig.url}/og.jpg`,
+        width: 1920,
+        height: 1080,
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteConfig.name,
+    description: siteConfig.description,
+    images: [
+      {
+        url: `${siteConfig.url}/og.jpg`,
+        width: 1920,
+        height: 1080,
+      },
+    ],
+    creator: siteConfig.twitter,
+  },
+  icons: [
+    {
+      rel: "apple-touch-icon",
+      sizes: "180x180",
+      url: `${siteConfig.url}/favicon/apple-touch-icon.png`,
+    },
+    {
+      rel: "icon",
+      sizes: "32x32",
+      url: `${siteConfig.url}/favicon/favicon-32x32.png`,
+    },
+    {
+      rel: "icon",
+      sizes: "16x16",
+      url: `${siteConfig.url}/favicon/favicon-16x16.png`,
+    },
+    {
+      rel: "mask-icon",
+      color: "#000000",
+      url: `${siteConfig.url}/favicon/safari-pinned-tab.svg`,
+    },
+  ],
+};
 
-import { ThemeProvider } from "@/components/theme-provider";
-import { TRPCReactProvider } from "@/lib/trpc/react";
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "white" },
+    { media: "(prefers-color-scheme: dark)", color: "black" },
+  ],
+};
 
 const fontSans = Inter({
   subsets: ["latin"],
   variable: "--font-sans",
 });
 
-export const metadata: Metadata = {
-  title: "Inteligir",
-  description: "",
-  openGraph: {
-    title: "Inteligir",
-    description: "",
-    url: "https://inteligir.com",
-    siteName: "Inteligir",
-  },
-  twitter: {
-    card: "summary_large_image",
-    site: "@kaiyuhsu",
-    creator: "@kaiyuhsu",
-  },
+const Layout = ({ children }: { children: React.ReactNode }) => {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <body
+        className={cn(
+          "bg-background font-sans text-foreground antialiased",
+          fontSans.variable,
+        )}
+      >
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <TRPCReactProvider>{children}</TRPCReactProvider>
+          <Toaster />
+        </ThemeProvider>
+      </body>
+    </html>
+  );
 };
-
-// Lazy load headers
-const getHeaders = cache(async () => {
-  return headers();
-});
-
-const Layout = (props: { children: React.ReactNode }) => (
-  <html lang="en">
-    <body className={["font-sans", fontSans.variable].join(" ")}>
-      <ThemeProvider>
-        <TRPCReactProvider headersPromise={getHeaders()}>
-          {props.children}
-        </TRPCReactProvider>
-      </ThemeProvider>
-      <Toaster />
-    </body>
-  </html>
-);
 
 export default Layout;

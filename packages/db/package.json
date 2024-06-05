@@ -1,38 +1,48 @@
 {
-  "name": "@inteligir/db",
+  "name": "@init/db",
   "version": "0.1.0",
   "private": true,
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",
-    "lint": "eslint .",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "push": "drizzle-kit push:pg",
-    "studio": "drizzle-kit studio",
+    "lint": "eslint . && supabase db lint",
+    "supabase": "supabase",
+    "start": "supabase status || supabase start",
+    "stop": "supabase stop",
+    "reset": "supabase db reset",
+    "status": "supabase status",
+    "test": "supabase db test",
+    "deploy": "supabase link --project-ref $SUPABASE_PROJECT_REF && supabase db push",
+    "typegen": "supabase gen types typescript --local > src/database.types.ts",
+    "dump": "supabase db dump --local --data-only",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@vercel/postgres": "^0.5.1",
-    "drizzle-orm": "^0.29.0",
-    "nanoid": "^5.0.3"
+    "@supabase/ssr": "^0.3.0",
+    "@supabase/supabase-js": "^2.43.4",
+    "next": "^14.2.3",
+    "react": "^18.3.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@inteligir/eslint-config": "workspace:*",
-    "@inteligir/prettier-config": "workspace:*",
-    "@inteligir/tsconfig": "workspace:*",
-    "dotenv-cli": "^7.3.0",
-    "drizzle-kit": "^0.20.6",
-    "eslint": "^8.54.0",
-    "pg": "^8.11.3",
-    "prettier": "^3.1.0",
-    "typescript": "^5.3.2"
+    "@kyh/eslint-config": "^0.1.8",
+    "@kyh/prettier-config": "^0.1.8",
+    "@kyh/tsconfig": "^0.1.8",
+    "@types/react": "^18.3.3",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.0",
+    "supabase": "^1.172.2",
+    "typescript": "^5.4.5"
   },
   "eslintConfig": {
     "root": true,
     "extends": [
-      "@inteligir/eslint-config/base"
+      "@kyh/eslint-config/base"
     ]
   },
-  "prettier": "@inteligir/prettier-config"
+  "prettier": "@kyh/prettier-config"
 }

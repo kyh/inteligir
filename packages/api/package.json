@@ -1,36 +1,37 @@
 {
-  "name": "@inteligir/api",
+  "name": "@init/api",
   "version": "0.1.0",
   "private": true,
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
   "scripts": {
     "clean": "rm -rf .turbo node_modules",
-    "lint": "eslint .",
     "format": "prettier --check . --ignore-path ../../.gitignore",
+    "lint": "eslint .",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@inteligir/auth": "workspace:*",
-    "@inteligir/db": "workspace:*",
-    "@trpc/client": "next",
-    "@trpc/server": "next",
+    "@init/db": "workspace:latest",
+    "@trpc/server": "11.0.0-next-beta.294",
     "superjson": "^2.2.1",
-    "zod": "^3.22.4"
+    "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@inteligir/eslint-config": "workspace:*",
-    "@inteligir/prettier-config": "workspace:*",
-    "@inteligir/tsconfig": "workspace:*",
-    "eslint": "^8.54.0",
-    "prettier": "^3.1.0",
-    "typescript": "^5.3.2"
+    "@kyh/eslint-config": "^0.1.8",
+    "@kyh/prettier-config": "^0.1.8",
+    "@kyh/tsconfig": "^0.1.8",
+    "eslint": "^8.57.0",
+    "prettier": "^3.3.0",
+    "typescript": "^5.4.5"
   },
   "eslintConfig": {
     "root": true,
     "extends": [
-      "@inteligir/eslint-config/base"
+      "@kyh/eslint-config/base"
     ]
   },
-  "prettier": "@inteligir/prettier-config"
+  "prettier": "@kyh/prettier-config"
 }

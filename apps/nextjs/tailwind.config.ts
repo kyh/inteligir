@@ -1,12 +1,13 @@
-import sharedConfig from "@inteligir/tailwind-config";
 import type { Config } from "tailwindcss";
+import baseConfig from "@init/tailwind-config/web";
 
-const config: Config = {
+export default {
+  // We need to append the path to the UI package to the content array so that
+  // those classes are included correctly.
   content: [
-    "./src/**/*.{js,ts,jsx,tsx,mdx}",
-    "../../packages/ui/src/**/*.{js,ts,jsx,tsx,mdx}",
+    ...baseConfig.content,
+    "../../packages/ui/**/*.{ts,tsx}",
+    "../../packages/mdx/**/*.{ts,tsx}",
   ],
-  presets: [sharedConfig],
-};
-
-export default config;
+  presets: [baseConfig],
+} satisfies Config;

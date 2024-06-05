@@ -1,8 +1,10 @@
 {
-  "extends": "@inteligir/tsconfig/base.json",
+  "extends": "@kyh/tsconfig/nextjs.json",
   "compilerOptions": {
     "baseUrl": ".",
-    "paths": { "@/*": ["./src/*"] },
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "plugins": [{ "name": "next" }],
     "tsBuildInfoFile": "node_modules/.cache/tsbuildinfo.json"
   },
