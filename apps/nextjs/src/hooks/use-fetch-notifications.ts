@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { RouterOutputs } from "@init/api";
+import { RouterOutputs } from "@inteligir/api";
 
 import { api } from "@/trpc/react";
 import { useNotificationsStream } from "./use-notifications-stream";

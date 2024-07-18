@@ -1,8 +1,8 @@
-import { getProductPlanPairByVariantId } from "@init/api/billing/billing-util";
+import { getProductPlanPairByVariantId } from "@inteligir/api/billing/billing-util";
 import { CircleCheckIcon } from "lucide-react";
 
-import type { BillingConfig } from "@init/api/billing/billing-schema";
-import type { Database } from "@init/db/database.types";
+import type { BillingConfig } from "@inteligir/api/billing/billing-schema";
+import type { Database } from "@inteligir/db/database.types";
 import { CurrentPlanBadge } from "./current-plan-badge";
 import { LineItemDetails } from "./line-item-details";
 

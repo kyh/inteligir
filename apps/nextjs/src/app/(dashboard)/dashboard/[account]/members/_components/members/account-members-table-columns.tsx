@@ -1,19 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { Badge } from "@init/ui/badge";
-import { Button } from "@init/ui/button";
+import { Badge } from "@inteligir/ui/badge";
+import { Button } from "@inteligir/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
-import { If } from "@init/ui/if";
-import { ProfileAvatar } from "@init/ui/profile-avatar";
+} from "@inteligir/ui/dropdown-menu";
+import { If } from "@inteligir/ui/if";
+import { ProfileAvatar } from "@inteligir/ui/profile-avatar";
 import { MoreHorizontalIcon } from "lucide-react";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 import type { ColumnDef } from "@tanstack/react-table";
 import { RoleBadge } from "../../../../[account]/members/_components/role-badge";
 import { RemoveMemberDialog } from "./remove-member-dialog";

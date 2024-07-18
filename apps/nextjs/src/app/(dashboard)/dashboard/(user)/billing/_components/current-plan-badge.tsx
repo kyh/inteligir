@@ -1,6 +1,6 @@
-import { Badge } from "@init/ui/badge";
+import { Badge } from "@inteligir/ui/badge";
 
-import type { Database } from "@init/db/database.types";
+import type { Database } from "@inteligir/db/database.types";
 
 type Status =
   | Database["public"]["Enums"]["subscription_status"]

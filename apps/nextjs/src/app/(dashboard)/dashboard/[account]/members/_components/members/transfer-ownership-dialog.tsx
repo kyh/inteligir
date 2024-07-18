@@ -1,6 +1,6 @@
 "use client";
 
-import { transferOwnershipInput } from "@init/api/team/team-schema";
+import { transferOwnershipInput } from "@inteligir/api/team/team-schema";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -9,8 +9,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@init/ui/alert-dialog";
-import { Button } from "@init/ui/button";
+} from "@inteligir/ui/alert-dialog";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -20,10 +20,10 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { If } from "@init/ui/if";
-import { Input } from "@init/ui/input";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { If } from "@inteligir/ui/if";
+import { Input } from "@inteligir/ui/input";
+import { toast } from "@inteligir/ui/toast";
 
 import { api } from "@/trpc/react";
 

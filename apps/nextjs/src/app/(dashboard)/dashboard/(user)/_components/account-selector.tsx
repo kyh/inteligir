@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 
 import { CreateTeamAccountDialog } from "@/components/accounts/create-team-account-dialog";
 import { api } from "@/trpc/react";

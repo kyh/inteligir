@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -10,11 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@init/ui/dialog";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/dialog";
+import { toast } from "@inteligir/ui/toast";
 import { TrashIcon } from "lucide-react";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 import { api } from "@/trpc/react";
 
 type Tasks = RouterOutputs["task"]["retrieve"]["data"];

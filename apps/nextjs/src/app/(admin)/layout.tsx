@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Logo } from "@init/ui/logo";
+import { Logo } from "@inteligir/ui/logo";
 import { LayoutDashboardIcon, User2Icon } from "lucide-react";
 
 import { NavLink } from "@/components/nav";

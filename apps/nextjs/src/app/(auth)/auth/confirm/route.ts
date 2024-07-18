@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
-import { createAuthCallbackService } from "@init/api/auth/auth-callback-service";
-import { getSupabaseServerClient } from "@init/db/supabase-server-client";
+import { createAuthCallbackService } from "@inteligir/api/auth/auth-callback-service";
+import { getSupabaseServerClient } from "@inteligir/db/supabase-server-client";
 
 export const GET = async (request: NextRequest) => {
   const service = createAuthCallbackService(getSupabaseServerClient());

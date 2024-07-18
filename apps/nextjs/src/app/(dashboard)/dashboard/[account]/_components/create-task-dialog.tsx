@@ -6,8 +6,8 @@ import {
   TaskLabels,
   TaskPriorites,
   TaskStatuses,
-} from "@init/api/task/task-schema";
-import { Button } from "@init/ui/button";
+} from "@inteligir/api/task/task-schema";
+import { Button } from "@inteligir/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -17,7 +17,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@init/ui/dialog";
+} from "@inteligir/ui/dialog";
 import {
   Form,
   FormControl,
@@ -26,7 +26,7 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
+} from "@inteligir/ui/form";
 import {
   Select,
   SelectContent,
@@ -34,12 +34,12 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@init/ui/select";
-import { Textarea } from "@init/ui/textarea";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/select";
+import { Textarea } from "@inteligir/ui/textarea";
+import { toast } from "@inteligir/ui/toast";
 import { PlusIcon } from "lucide-react";
 
-import type { CreateInput } from "@init/api/task/task-schema";
+import type { CreateInput } from "@inteligir/api/task/task-schema";
 import { api } from "@/trpc/react";
 
 export const CreateTaskDialog = ({ accountId }: { accountId: string }) => {

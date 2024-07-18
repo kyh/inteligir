@@ -1,6 +1,6 @@
 import dynamic from "next/dynamic";
 import { notFound, redirect } from "next/navigation";
-import { BlurryBackdrop } from "@init/ui/blurry-backdrop";
+import { BlurryBackdrop } from "@inteligir/ui/blurry-backdrop";
 
 import { api } from "@/trpc/server";
 import { BillingSessionStatus } from "../_components/billing-session-status";

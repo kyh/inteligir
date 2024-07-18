@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "@init/ui/utils";
+import { cn } from "@inteligir/ui/utils";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import {
   ArrowUpDownIcon,

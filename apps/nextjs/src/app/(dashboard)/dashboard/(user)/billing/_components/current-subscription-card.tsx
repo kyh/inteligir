@@ -1,11 +1,11 @@
-import { getProductPlanPairByVariantId } from "@init/api/billing/billing-util";
-import { Alert, AlertDescription, AlertTitle } from "@init/ui/alert";
-import { If } from "@init/ui/if";
+import { getProductPlanPairByVariantId } from "@inteligir/api/billing/billing-util";
+import { Alert, AlertDescription, AlertTitle } from "@inteligir/ui/alert";
+import { If } from "@inteligir/ui/if";
 import { formatDate } from "date-fns";
 import { CircleCheckIcon } from "lucide-react";
 
-import type { BillingConfig } from "@init/api/billing/billing-schema";
-import type { Database } from "@init/db/database.types";
+import type { BillingConfig } from "@inteligir/api/billing/billing-schema";
+import type { Database } from "@inteligir/db/database.types";
 import { CurrentPlanAlert } from "./current-plan-alert";
 import { CurrentPlanBadge } from "./current-plan-badge";
 import { LineItemDetails } from "./line-item-details";

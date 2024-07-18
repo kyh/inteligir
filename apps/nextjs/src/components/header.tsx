@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import {
   CommandDialog,
   CommandEmpty,
@@ -11,7 +11,7 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@init/ui/command";
+} from "@inteligir/ui/command";
 import { SearchIcon } from "lucide-react";
 import { useHotkeys } from "react-hotkeys-hook";
 

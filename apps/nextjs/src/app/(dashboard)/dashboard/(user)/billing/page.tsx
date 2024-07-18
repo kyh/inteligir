@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { If } from "@init/ui/if";
+import { If } from "@inteligir/ui/if";
 import { z } from "zod";
 
 import { billingConfig } from "@/config/billing.config";

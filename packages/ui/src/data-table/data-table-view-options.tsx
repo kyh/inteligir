@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -8,7 +8,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
+} from "@inteligir/ui/dropdown-menu";
 import { EyeIcon } from "lucide-react";
 
 import type { Table } from "@tanstack/react-table";

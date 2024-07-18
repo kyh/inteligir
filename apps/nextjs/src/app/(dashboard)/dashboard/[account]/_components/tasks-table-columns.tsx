@@ -5,12 +5,12 @@ import {
   TaskLabels,
   TaskPriorites,
   TaskStatuses,
-} from "@init/api/task/task-schema";
-import { formatDate } from "@init/api/task/task-util";
-import { Badge } from "@init/ui/badge";
-import { Button } from "@init/ui/button";
-import { Checkbox } from "@init/ui/checkbox";
-import { DataTableColumnHeader } from "@init/ui/data-table/data-table-column-header";
+} from "@inteligir/api/task/task-schema";
+import { formatDate } from "@inteligir/api/task/task-util";
+import { Badge } from "@inteligir/ui/badge";
+import { Button } from "@inteligir/ui/button";
+import { Checkbox } from "@inteligir/ui/checkbox";
+import { DataTableColumnHeader } from "@inteligir/ui/data-table/data-table-column-header";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,11 +23,11 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/dropdown-menu";
+import { toast } from "@inteligir/ui/toast";
 import { MoreHorizontalIcon } from "lucide-react";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 import type { ColumnDef } from "@tanstack/react-table";
 import { api } from "@/trpc/react";
 import { getPriorityIcon, getStatusIcon } from "../_lib/utils";

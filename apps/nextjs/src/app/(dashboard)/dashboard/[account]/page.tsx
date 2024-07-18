@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import type { RetrieveInput } from "@init/api/task/task-schema";
+import type { RetrieveInput } from "@inteligir/api/task/task-schema";
 import { PageHeader } from "@/components/header";
 import { api } from "@/trpc/server";
 import { TasksTable } from "./_components/tasks-table";

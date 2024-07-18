@@ -3,8 +3,8 @@ import type { ForwardRefExoticComponent, RefAttributes } from "react";
 import React from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Avatar, AvatarFallback, AvatarImage } from "@init/ui/avatar";
-import { Button } from "@init/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@inteligir/ui/avatar";
+import { Button } from "@inteligir/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,9 +14,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
-import { Logo } from "@init/ui/logo";
-import { cn, getInitials } from "@init/ui/utils";
+} from "@inteligir/ui/dropdown-menu";
+import { Logo } from "@inteligir/ui/logo";
+import { cn, getInitials } from "@inteligir/ui/utils";
 import { CheckCircleIcon, PlusIcon, UserIcon } from "lucide-react";
 
 import { NavLink } from "@/components/nav";

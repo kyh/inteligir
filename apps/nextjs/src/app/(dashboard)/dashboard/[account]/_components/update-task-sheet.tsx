@@ -6,8 +6,8 @@ import {
   TaskPriorites,
   TaskStatuses,
   updateInput,
-} from "@init/api/task/task-schema";
-import { Button } from "@init/ui/button";
+} from "@inteligir/api/task/task-schema";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -16,7 +16,7 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
+} from "@inteligir/ui/form";
 import {
   Select,
   SelectContent,
@@ -24,7 +24,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@init/ui/select";
+} from "@inteligir/ui/select";
 import {
   Sheet,
   SheetClose,
@@ -33,12 +33,12 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@init/ui/sheet";
-import { Textarea } from "@init/ui/textarea";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/sheet";
+import { Textarea } from "@inteligir/ui/textarea";
+import { toast } from "@inteligir/ui/toast";
 
-import type { RouterOutputs } from "@init/api";
-import type { UpdateInput } from "@init/api/task/task-schema";
+import type { RouterOutputs } from "@inteligir/api";
+import type { UpdateInput } from "@inteligir/api/task/task-schema";
 import { api } from "@/trpc/react";
 
 type Task = RouterOutputs["task"]["retrieve"]["data"][0];

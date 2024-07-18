@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { If } from "@init/ui/if";
+import { If } from "@inteligir/ui/if";
 
 import { api } from "@/trpc/server";
 import { AccountInvitationsTable } from "./_components/invitations/account-invitations-table";

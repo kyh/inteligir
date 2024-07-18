@@ -1,8 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { updateTeamAccountNameInput } from "@init/api/team/team-schema";
-import { Button } from "@init/ui/button";
+import { updateTeamAccountNameInput } from "@inteligir/api/team/team-schema";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -10,9 +10,9 @@ import {
   FormItem,
   FormLabel,
   useForm,
-} from "@init/ui/form";
-import { Input } from "@init/ui/input";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { Input } from "@inteligir/ui/input";
+import { toast } from "@inteligir/ui/toast";
 
 import { api } from "@/trpc/react";
 

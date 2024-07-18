@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-
-import { BarsThree } from "@inteligir/icons";
-import { Button, clx, Logo } from "@inteligir/ui";
+import { Button } from "@inteligir/ui/button";
+import { Logo } from "@inteligir/ui/logo";
+import { cn } from "@inteligir/ui/utils";
 
 export const Header = ({ session }: { session?: any | null }) => {
   const [open, setOpen] = useState(false);
@@ -22,11 +22,11 @@ export const Header = ({ session }: { session?: any | null }) => {
               setOpen(!open);
             }}
           >
-            <BarsThree className="h-6 w-6" />
+            ...
           </button>
         </div>
         <nav
-          className={clx(
+          className={cn(
             open ? "flex" : "hidden",
             "flex-grow flex-col items-center md:flex md:flex-row md:justify-end md:pb-0",
           )}

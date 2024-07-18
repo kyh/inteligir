@@ -1,5 +1,5 @@
 {
-  "name": "@init/api",
+  "name": "@inteligir/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@init/db": "workspace:latest",
+    "@inteligir/db": "workspace:latest",
     "@trpc/server": "11.0.0-rc.441",
     "superjson": "^2.2.1",
     "stripe": "^16.2.0",

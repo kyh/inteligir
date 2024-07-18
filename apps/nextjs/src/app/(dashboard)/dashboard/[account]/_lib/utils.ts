@@ -9,7 +9,7 @@ import {
   Clock10Icon,
 } from "lucide-react";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 
 type Task = RouterOutputs["task"]["retrieve"]["data"][0];
 

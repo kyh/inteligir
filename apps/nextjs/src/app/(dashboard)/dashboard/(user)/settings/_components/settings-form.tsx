@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@init/ui/button";
-import { Checkbox } from "@init/ui/checkbox";
+import { Button } from "@inteligir/ui/button";
+import { Checkbox } from "@inteligir/ui/checkbox";
 import {
   Form,
   FormControl,
@@ -10,9 +10,9 @@ import {
   FormItem,
   FormLabel,
   useForm,
-} from "@init/ui/form";
-import { Switch } from "@init/ui/switch";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { Switch } from "@inteligir/ui/switch";
+import { toast } from "@inteligir/ui/toast";
 import * as z from "zod";
 
 const settingsFormSchema = z.object({

@@ -1,5 +1,5 @@
-import { Button } from "@init/ui/button";
-import { Heading } from "@init/ui/heading";
+import { Button } from "@inteligir/ui/button";
+import { Heading } from "@inteligir/ui/heading";
 import { CheckIcon, ChevronRightIcon } from "lucide-react";
 
 /**

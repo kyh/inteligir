@@ -1,9 +1,9 @@
-import { Alert, AlertDescription, AlertTitle } from "@init/ui/alert";
-import { Badge } from "@init/ui/badge";
-import { Button } from "@init/ui/button";
-import { Heading } from "@init/ui/heading";
-import { If } from "@init/ui/if";
-import { ProfileAvatar } from "@init/ui/profile-avatar";
+import { Alert, AlertDescription, AlertTitle } from "@inteligir/ui/alert";
+import { Badge } from "@inteligir/ui/badge";
+import { Button } from "@inteligir/ui/button";
+import { Heading } from "@inteligir/ui/heading";
+import { If } from "@inteligir/ui/if";
+import { ProfileAvatar } from "@inteligir/ui/profile-avatar";
 import {
   Table,
   TableBody,
@@ -11,10 +11,10 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@init/ui/table";
+} from "@inteligir/ui/table";
 import { BadgeX, Ban, ShieldPlus, VenetianMask } from "lucide-react";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 import { api } from "@/trpc/server";
 import { AdminBanUserDialog } from "./[id]/admin-ban-user-dialog";
 import { AdminDeleteAccountDialog } from "./[id]/admin-delete-account-dialog";

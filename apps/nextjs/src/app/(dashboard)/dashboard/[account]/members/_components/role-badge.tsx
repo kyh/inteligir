@@ -1,4 +1,4 @@
-import { Badge } from "@init/ui/badge";
+import { Badge } from "@inteligir/ui/badge";
 import { cva } from "class-variance-authority";
 
 type Role = string;

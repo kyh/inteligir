@@ -4,7 +4,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@init/ui/select";
+} from "@inteligir/ui/select";
 
 type Role = string;
 

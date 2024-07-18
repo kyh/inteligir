@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage } from "@init/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@inteligir/ui/avatar";
 
 type SessionProps = {
   displayName: string | null;

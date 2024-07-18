@@ -6,9 +6,9 @@ import {
   getPlanIntervals,
   getPrimaryLineItem,
   getProductPlanPair,
-} from "@init/api/billing/billing-util";
-import { Badge } from "@init/ui/badge";
-import { Button } from "@init/ui/button";
+} from "@inteligir/api/billing/billing-util";
+import { Badge } from "@inteligir/ui/badge";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -17,24 +17,24 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { Heading } from "@init/ui/heading";
-import { If } from "@init/ui/if";
-import { Label } from "@init/ui/label";
+} from "@inteligir/ui/form";
+import { Heading } from "@inteligir/ui/heading";
+import { If } from "@inteligir/ui/if";
+import { Label } from "@inteligir/ui/label";
 import {
   RadioGroup,
   RadioGroupItem,
   RadioGroupItemLabel,
-} from "@init/ui/radio-group";
-import { Separator } from "@init/ui/separator";
-import { cn } from "@init/ui/utils";
+} from "@inteligir/ui/radio-group";
+import { Separator } from "@inteligir/ui/separator";
+import { cn } from "@inteligir/ui/utils";
 import { ArrowRightIcon, CircleCheckIcon } from "lucide-react";
 import { z } from "zod";
 
 import type {
   BillingConfig,
   LineItemSchema,
-} from "@init/api/billing/billing-schema";
+} from "@inteligir/api/billing/billing-schema";
 import { LineItemDetails } from "./line-item-details";
 
 export const PlanPicker = (

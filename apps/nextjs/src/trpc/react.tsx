@@ -11,7 +11,7 @@ import {
 import { createTRPCReact } from "@trpc/react-query";
 import SuperJSON from "superjson";
 
-import type { AppRouter } from "@init/api";
+import type { AppRouter } from "@inteligir/api";
 import type { QueryClient } from "@tanstack/react-query";
 import { createQueryClient } from "./query-client";
 

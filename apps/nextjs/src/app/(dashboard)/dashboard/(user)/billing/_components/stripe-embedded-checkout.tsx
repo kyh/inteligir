@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { stripeClientEnvSchema } from "@init/api/billing/stripe/stripe-schema";
-import { Dialog, DialogContent } from "@init/ui/dialog";
+import { stripeClientEnvSchema } from "@inteligir/api/billing/stripe/stripe-schema";
+import { Dialog, DialogContent } from "@inteligir/ui/dialog";
 import {
   EmbeddedCheckout,
   EmbeddedCheckoutProvider,

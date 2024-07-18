@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -7,11 +7,11 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
-import { If } from "@init/ui/if";
+} from "@inteligir/ui/dropdown-menu";
+import { If } from "@inteligir/ui/if";
 import { MoreHorizontalIcon } from "lucide-react";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 import type { ColumnDef } from "@tanstack/react-table";
 import { AdminDeleteAccountDialog } from "./[id]/admin-delete-account-dialog";
 import { AdminDeleteUserDialog } from "./[id]/admin-delete-user-dialog";

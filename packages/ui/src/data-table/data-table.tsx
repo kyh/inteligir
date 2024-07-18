@@ -6,8 +6,8 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@init/ui/table";
-import { cn } from "@init/ui/utils";
+} from "@inteligir/ui/table";
+import { cn } from "@inteligir/ui/utils";
 import { flexRender } from "@tanstack/react-table";
 
 import type { Table as TanstackTable } from "@tanstack/react-table";

@@ -1,11 +1,11 @@
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@init/ui/select";
+} from "@inteligir/ui/select";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,

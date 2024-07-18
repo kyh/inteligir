@@ -1,6 +1,6 @@
-import { Alert, AlertDescription, AlertTitle } from "@init/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@inteligir/ui/alert";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 
 export function CurrentPlanAlert(
   props: React.PropsWithoutRef<{

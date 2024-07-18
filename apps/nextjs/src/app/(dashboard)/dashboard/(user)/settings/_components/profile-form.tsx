@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -10,9 +10,9 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { Input } from "@init/ui/input";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { Input } from "@inteligir/ui/input";
+import { toast } from "@inteligir/ui/toast";
 import * as z from "zod";
 
 const profileFormSchema = z.object({

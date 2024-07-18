@@ -8,9 +8,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@init/ui/alert-dialog";
-import { Button } from "@init/ui/button";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/alert-dialog";
+import { Button } from "@inteligir/ui/button";
+import { toast } from "@inteligir/ui/toast";
 
 import { api } from "@/trpc/react";
 

@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import Link from "next/link";
-import { ProfileAvatar } from "@init/ui/profile-avatar";
+import { ProfileAvatar } from "@inteligir/ui/profile-avatar";
 import {
   Table,
   TableBody,
@@ -10,14 +10,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@init/ui/table";
+} from "@inteligir/ui/table";
 import {
   flexRender,
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 import type { ColumnDef } from "@tanstack/react-table";
 
 type Members = RouterOutputs["admin"]["getMembers"];

@@ -1,12 +1,12 @@
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
-import { cn } from "@init/ui/utils";
+} from "@inteligir/ui/dropdown-menu";
+import { cn } from "@inteligir/ui/utils";
 import {
   ArrowDownIcon,
   ArrowUpDownIcon,

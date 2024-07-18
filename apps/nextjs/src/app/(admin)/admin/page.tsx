@@ -4,7 +4,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@init/ui/card";
+} from "@inteligir/ui/card";
 
 import { PageHeader } from "@/components/header";
 import { api } from "@/trpc/server";

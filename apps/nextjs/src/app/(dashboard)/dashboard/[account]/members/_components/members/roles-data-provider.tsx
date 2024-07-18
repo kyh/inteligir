@@ -1,6 +1,6 @@
 "use client";
 
-import { Spinner } from "@init/ui/spinner";
+import { Spinner } from "@inteligir/ui/spinner";
 
 import { api } from "@/trpc/react";
 

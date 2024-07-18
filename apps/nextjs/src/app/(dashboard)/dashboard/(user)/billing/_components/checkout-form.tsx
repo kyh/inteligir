@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import dynamic from "next/dynamic";
-import { getProductPlanPair } from "@init/api/billing/billing-util";
-import { toast } from "@init/ui/toast";
+import { getProductPlanPair } from "@inteligir/api/billing/billing-util";
+import { toast } from "@inteligir/ui/toast";
 
 import { billingConfig } from "@/config/billing.config";
 import { api } from "@/trpc/react";

@@ -2,8 +2,8 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { createTeamAccountInput } from "@init/api/team/team-schema";
-import { Button } from "@init/ui/button";
+import { createTeamAccountInput } from "@inteligir/api/team/team-schema";
+import { Button } from "@inteligir/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@init/ui/dialog";
+} from "@inteligir/ui/dialog";
 import {
   Form,
   FormControl,
@@ -21,9 +21,9 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { Input } from "@init/ui/input";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { Input } from "@inteligir/ui/input";
+import { toast } from "@inteligir/ui/toast";
 
 import { api } from "@/trpc/react";
 

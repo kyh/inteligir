@@ -1,4 +1,4 @@
-import { createBillingSchema } from "@init/api/billing/billing-schema";
+import { createBillingSchema } from "@inteligir/api/billing/billing-schema";
 
 export const billingConfig = createBillingSchema({
   products: [

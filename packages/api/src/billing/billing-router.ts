@@ -1,5 +1,5 @@
 import type { Stripe } from "stripe";
-import { getSupabaseServerClient } from "@init/db/supabase-server-client";
+import { getSupabaseServerClient } from "@inteligir/db/supabase-server-client";
 
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {

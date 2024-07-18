@@ -1,9 +1,9 @@
 import { cache } from "react";
 import { headers } from "next/headers";
-import { createCaller, createTRPCContext } from "@init/api";
+import { createCaller, createTRPCContext } from "@inteligir/api";
 import { createHydrationHelpers } from "@trpc/react-query/rsc";
 
-import type { AppRouter } from "@init/api";
+import type { AppRouter } from "@inteligir/api";
 import { createQueryClient } from "./query-client";
 
 /**

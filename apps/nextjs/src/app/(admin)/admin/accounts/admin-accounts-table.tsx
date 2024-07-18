@@ -2,9 +2,15 @@
 
 import { useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { DataTable } from "@init/ui/data-table/data-table";
-import { Form, FormControl, FormField, FormItem, useForm } from "@init/ui/form";
-import { Input } from "@init/ui/input";
+import { DataTable } from "@inteligir/ui/data-table/data-table";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  useForm,
+} from "@inteligir/ui/form";
+import { Input } from "@inteligir/ui/input";
 import {
   Select,
   SelectContent,
@@ -13,10 +19,10 @@ import {
   SelectLabel,
   SelectTrigger,
   SelectValue,
-} from "@init/ui/select";
+} from "@inteligir/ui/select";
 import { z } from "zod";
 
-import type { GetAccountsInput } from "@init/api/admin/admin-schema";
+import type { GetAccountsInput } from "@inteligir/api/admin/admin-schema";
 import { useDataTable } from "@/hooks/use-data-table";
 import { api } from "@/trpc/react";
 import { getColumns } from "./admin-accounts-table-columns";

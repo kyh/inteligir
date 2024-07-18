@@ -1,5 +1,5 @@
 {
-  "name": "@init/mdx",
+  "name": "@inteligir/mdx",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -14,7 +14,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@init/ui": "workspace:latest",
+    "@inteligir/ui": "workspace:latest",
     "@mdx-js/react": "^3.0.1",
     "@sindresorhus/slugify": "^2.2.1",
     "mdast-util-to-string": "^4.0.0",

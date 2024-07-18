@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { impersonateUserInput } from "@init/api/admin/admin-schema";
+import { impersonateUserInput } from "@inteligir/api/admin/admin-schema";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -11,8 +11,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@init/ui/alert-dialog";
-import { Button } from "@init/ui/button";
+} from "@inteligir/ui/alert-dialog";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -22,8 +22,8 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { Input } from "@init/ui/input";
+} from "@inteligir/ui/form";
+import { Input } from "@inteligir/ui/input";
 
 import { api } from "@/trpc/react";
 

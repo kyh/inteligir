@@ -9,8 +9,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@init/ui/alert-dialog";
-import { Button } from "@init/ui/button";
+} from "@inteligir/ui/alert-dialog";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -20,10 +20,10 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { Input } from "@init/ui/input";
-import { Spinner } from "@init/ui/spinner";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { Input } from "@inteligir/ui/input";
+import { Spinner } from "@inteligir/ui/spinner";
+import { toast } from "@inteligir/ui/toast";
 import { z } from "zod";
 
 import { api } from "@/trpc/react";

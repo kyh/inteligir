@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
-import { checkRequiresMultiFactorAuthentication } from "@init/api/auth/check-requires-mfa";
-import { requireUser } from "@init/api/auth/require-user";
-import { getSupabaseServerClient } from "@init/db/supabase-server-client";
+import { checkRequiresMultiFactorAuthentication } from "@inteligir/api/auth/check-requires-mfa";
+import { requireUser } from "@inteligir/api/auth/require-user";
+import { getSupabaseServerClient } from "@inteligir/db/supabase-server-client";
 
 import { MultiFactorAuthForm } from "@/app/(auth)/auth-form";
 

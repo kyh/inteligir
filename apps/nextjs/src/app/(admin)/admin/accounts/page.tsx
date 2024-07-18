@@ -1,4 +1,4 @@
-import type { GetAccountsInput } from "@init/api/admin/admin-schema";
+import type { GetAccountsInput } from "@inteligir/api/admin/admin-schema";
 import { PageHeader } from "@/components/header";
 import { api } from "@/trpc/server";
 import { AdminAccountsTable } from "./admin-accounts-table";

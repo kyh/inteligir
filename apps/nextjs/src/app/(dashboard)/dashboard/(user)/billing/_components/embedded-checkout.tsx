@@ -1,6 +1,6 @@
 import { forwardRef, lazy, memo, Suspense, useMemo } from "react";
-import { BlurryBackdrop } from "@init/ui/blurry-backdrop";
-import { Spinner } from "@init/ui/spinner";
+import { BlurryBackdrop } from "@inteligir/ui/blurry-backdrop";
+import { Spinner } from "@inteligir/ui/spinner";
 
 const Fallback = (
   <div className="flex flex-col items-center justify-center p-4">

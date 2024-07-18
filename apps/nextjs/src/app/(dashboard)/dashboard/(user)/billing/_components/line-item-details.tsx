@@ -1,10 +1,10 @@
 import type { z } from "zod";
-import { formatCurrency } from "@init/api/billing/billing-util";
-import { If } from "@init/ui/if";
-import { cn } from "@init/ui/utils";
+import { formatCurrency } from "@inteligir/api/billing/billing-util";
+import { If } from "@inteligir/ui/if";
+import { cn } from "@inteligir/ui/utils";
 import { PlusIcon } from "lucide-react";
 
-import type { LineItemSchema } from "@init/api/billing/billing-schema";
+import type { LineItemSchema } from "@inteligir/api/billing/billing-schema";
 
 const className = "flex text-secondary-foreground items-center text-sm";
 

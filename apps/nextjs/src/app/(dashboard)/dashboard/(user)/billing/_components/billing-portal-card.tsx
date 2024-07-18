@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Button } from "@init/ui/button";
+import { Button } from "@inteligir/ui/button";
 import { ExternalLinkIcon } from "lucide-react";
 
 import { api } from "@/trpc/react";

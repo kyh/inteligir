@@ -1,14 +1,14 @@
 "use client";
 
-import { role } from "@init/api/team/team-schema";
-import { Button } from "@init/ui/button";
+import { role } from "@inteligir/api/team/team-schema";
+import { Button } from "@inteligir/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@init/ui/dialog";
+} from "@inteligir/ui/dialog";
 import {
   Form,
   FormControl,
@@ -18,8 +18,8 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { toast } from "@inteligir/ui/toast";
 
 import { api } from "@/trpc/react";
 import { MembershipRoleSelector } from "../../../../[account]/members/_components/membership-role-selector";

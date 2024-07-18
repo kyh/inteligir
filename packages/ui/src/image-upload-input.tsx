@@ -3,10 +3,10 @@
 import type { FormEvent, MouseEventHandler } from "react";
 import { forwardRef, useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { Button } from "@init/ui/button";
-import { If } from "@init/ui/if";
-import { Label } from "@init/ui/label";
-import { cn } from "@init/ui/utils";
+import { Button } from "@inteligir/ui/button";
+import { If } from "@inteligir/ui/if";
+import { Label } from "@inteligir/ui/label";
+import { cn } from "@inteligir/ui/utils";
 import { UploadIcon, XIcon } from "lucide-react";
 
 type Props = Omit<React.InputHTMLAttributes<unknown>, "value"> & {
@@ -137,8 +137,7 @@ export const ImageUploadInput = forwardRef<React.ElementRef<"input">, Props>(
     return (
       <label
         id={"image-upload-input"}
-        className={`relative flex h-10 w-full cursor-pointer rounded-md border border-dashed border-input
-         bg-background px-3 py-2 text-sm outline-none ring-primary ring-offset-2 ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
+        className={`relative flex h-10 w-full cursor-pointer rounded-md border border-dashed border-input bg-background px-3 py-2 text-sm outline-none ring-primary ring-offset-2 ring-offset-background transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus:ring-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50`}
       >
         <Input />
 

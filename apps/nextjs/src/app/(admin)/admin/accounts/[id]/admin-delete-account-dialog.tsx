@@ -1,6 +1,6 @@
 "use client";
 
-import { deleteAccountInput } from "@init/api/admin/admin-schema";
+import { deleteAccountInput } from "@inteligir/api/admin/admin-schema";
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -10,8 +10,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@init/ui/alert-dialog";
-import { Button } from "@init/ui/button";
+} from "@inteligir/ui/alert-dialog";
+import { Button } from "@inteligir/ui/button";
 import {
   Form,
   FormControl,
@@ -20,9 +20,9 @@ import {
   FormItem,
   FormLabel,
   useForm,
-} from "@init/ui/form";
-import { Input } from "@init/ui/input";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { Input } from "@inteligir/ui/input";
+import { toast } from "@inteligir/ui/toast";
 
 import { api } from "@/trpc/react";
 

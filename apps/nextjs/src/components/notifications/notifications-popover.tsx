@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RouterOutputs } from "@init/api";
-import { Button } from "@init/ui/button";
-import { Divider } from "@init/ui/divider";
-import { If } from "@init/ui/if";
-import { Popover, PopoverContent, PopoverTrigger } from "@init/ui/popover";
-import { cn } from "@init/ui/utils";
+import { RouterOutputs } from "@inteligir/api";
+import { Button } from "@inteligir/ui/button";
+import { Divider } from "@inteligir/ui/divider";
+import { If } from "@inteligir/ui/if";
+import { Popover, PopoverContent, PopoverTrigger } from "@inteligir/ui/popover";
+import { cn } from "@inteligir/ui/utils";
 import { Bell, CircleAlert, Info, TriangleAlert, XIcon } from "lucide-react";
 
 import { useFetchNotifications } from "@/hooks/use-fetch-notifications";

@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { RouterOutputs } from "@init/api";
-import { getSupabaseBrowserClient } from "@init/db/supabase-browser-client";
+import { RouterOutputs } from "@inteligir/api";
+import { getSupabaseBrowserClient } from "@inteligir/db/supabase-browser-client";
 import { useQuery } from "@tanstack/react-query";
 
 import { api } from "@/trpc/react";

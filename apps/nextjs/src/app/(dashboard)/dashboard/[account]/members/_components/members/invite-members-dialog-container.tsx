@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { inviteMembers } from "@init/api/team/team-schema";
-import { Button } from "@init/ui/button";
+import { inviteMembers } from "@inteligir/api/team/team-schema";
+import { Button } from "@inteligir/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@init/ui/dialog";
+} from "@inteligir/ui/dialog";
 import {
   Form,
   FormControl,
@@ -20,16 +20,16 @@ import {
   FormMessage,
   useFieldArray,
   useForm,
-} from "@init/ui/form";
-import { If } from "@init/ui/if";
-import { Input } from "@init/ui/input";
-import { toast } from "@init/ui/toast";
+} from "@inteligir/ui/form";
+import { If } from "@inteligir/ui/if";
+import { Input } from "@inteligir/ui/input";
+import { toast } from "@inteligir/ui/toast";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@init/ui/tooltip";
+} from "@inteligir/ui/tooltip";
 import { PlusIcon, XIcon } from "lucide-react";
 
 import { api } from "@/trpc/react";

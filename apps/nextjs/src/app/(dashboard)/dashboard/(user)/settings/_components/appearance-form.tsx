@@ -1,7 +1,7 @@
 "use client";
 
-import { RadioGroup, RadioGroupItem } from "@init/ui/radio-group";
-import { useTheme } from "@init/ui/theme";
+import { RadioGroup, RadioGroupItem } from "@inteligir/ui/radio-group";
+import { useTheme } from "@inteligir/ui/theme";
 
 export const AppearanceForm = () => {
   const { theme, setTheme } = useTheme();

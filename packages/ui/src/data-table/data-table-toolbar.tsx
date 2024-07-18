@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "@init/ui/utils";
+import { cn } from "@inteligir/ui/utils";
 
 import type { Table } from "@tanstack/react-table";
 import { DataTableViewOptions } from "./data-table-view-options";

@@ -9,14 +9,14 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@init/ui/table";
+} from "@inteligir/ui/table";
 import {
   flexRender,
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
 
-import type { RouterOutputs } from "@init/api";
+import type { RouterOutputs } from "@inteligir/api";
 import type { ColumnDef } from "@tanstack/react-table";
 
 type Memberships = RouterOutputs["admin"]["getMemberships"];

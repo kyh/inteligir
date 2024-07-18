@@ -1,5 +1,5 @@
 import { isRedirectError } from "next/dist/client/components/redirect";
-import { toast } from "@init/ui/toast";
+import { toast } from "@inteligir/ui/toast";
 import { z } from "zod";
 
 export const getErrorMessage = (err: unknown) => {
