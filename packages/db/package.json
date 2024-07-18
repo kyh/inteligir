@@ -16,27 +16,28 @@
     "reset": "supabase db reset",
     "status": "supabase status",
     "test": "supabase db test",
-    "deploy": "supabase link --project-ref $SUPABASE_PROJECT_REF && supabase db push",
+    "push": "supabase link --project-ref $SUPABASE_PROJECT_REF && supabase db push",
     "typegen": "supabase gen types typescript --local > src/database.types.ts",
     "dump": "supabase db dump --local --data-only",
+    "migrate": "supabase db migrate",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.3.0",
-    "@supabase/supabase-js": "^2.43.4",
-    "next": "^14.2.3",
+    "@supabase/ssr": "^0.4.0",
+    "@supabase/supabase-js": "^2.44.4",
+    "next": "^14.2.5",
     "react": "^18.3.1",
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@kyh/eslint-config": "^0.1.8",
-    "@kyh/prettier-config": "^0.1.8",
-    "@kyh/tsconfig": "^0.1.8",
-    "@types/react": "^18.3.3",
-    "eslint": "^8.57.0",
-    "prettier": "^3.3.1",
-    "supabase": "^1.172.2",
-    "typescript": "^5.4.5"
+    "@kyh/eslint-config": "catalog:",
+    "@kyh/prettier-config": "catalog:",
+    "@kyh/tsconfig": "catalog:",
+    "@types/react": "catalog:",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "supabase": "^1.183.5",
+    "typescript": "catalog:"
   },
   "eslintConfig": {
     "root": true,
