@@ -10,7 +10,7 @@
     "cssVariables": true
   },
   "aliases": {
-    "utils": "@inteligir/ui/utils",
+    "utils": "@init/ui/utils",
     "components": "src/",
     "ui": "src/"
   }

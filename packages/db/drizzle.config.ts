@@ -1,18 +1,18 @@
-import * as dotenv from "dotenv";
 import type { Config } from "drizzle-kit";
 
-dotenv.config({
-  path: "../../.env",
-});
-
 if (!process.env.POSTGRES_URL) {
-  throw new Error("POSTGRES_URL is not set");
+  throw new Error("Missing POSTGRES_URL");
 }
+
+const nonPoolingUrl = process.env.POSTGRES_URL.replace(":6543", ":5432");
 
 export default {
   schema: "./src/schema.ts",
-  driver: "pg",
+  out: "./supabase/migrations",
+  dialect: "postgresql",
   dbCredentials: {
-    connectionString: process.env.POSTGRES_URL,
+    url: nonPoolingUrl,
   },
+  schemaFilter: ["public"],
+  casing: "snake_case",
 } satisfies Config;

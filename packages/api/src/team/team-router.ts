@@ -1,308 +1,293 @@
-import { addDays, formatISO } from "date-fns";
+import { and, eq } from "@init/db";
+import { invitations, teamMembers, teams } from "@init/db/schema";
+import { TRPCError } from "@trpc/server";
 
+import type { TRPCContext } from "../trpc";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import {
-  createTeamAccountInput,
-  deleteInvitationInput,
-  deleteTeamAccountInput,
-  invitationsInput,
-  leaveTeamAccountInput,
-  membersInput,
-  removeMemberInput,
-  renewInvitationInput,
-  sendInvitationsInput,
-  teamWorkspaceInput,
-  transferOwnershipInput,
-  updateInvitationInput,
-  updateMemberRoleInput,
-  updateTeamAccountNameInput,
+  createTeamInput,
+  createTeamInvitationsInput,
+  createTeamMemberInput,
+  deleteTeamInput,
+  deleteTeamInvitationInput,
+  deleteTeamMemberInput,
+  getTeamInput,
+  getTeamInvitationInput,
+  getTeamMemberInput,
+  updateTeamInput,
+  updateTeamInvitationInput,
+  updateTeamMemberInput,
 } from "./team-schema";
 
 export const teamRouter = createTRPCRouter({
-  teamWorkspace: protectedProcedure
-    .input(teamWorkspaceInput)
-    .query(async ({ ctx, input }) => {
-      const response = await ctx.supabase.rpc("team_account_workspace", {
-        account_slug: input.slug,
-      });
+  createTeam: protectedProcedure
+    .input(createTeamInput)
+    .mutation(async ({ ctx, input }) => {
+      let teamSlug = input.name.toLowerCase().replace(/\s/g, "-");
+      let counter = 1;
 
-      if (response.error) {
-        throw response.error;
+      while (
+        await ctx.db.query.teams.findFirst({
+          where: (teams, { eq }) => eq(teams.slug, teamSlug),
+        })
+      ) {
+        teamSlug = `${input.name.toLowerCase().replace(/\s/g, "-")}-${counter}`;
+        counter++;
       }
 
+      const [created] = await ctx.db
+        .insert(teams)
+        .values({
+          slug: teamSlug,
+          ...input,
+        })
+        .returning();
+
+      if (!created) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Failed to create team",
+        });
+      }
+
+      await ctx.db.insert(teamMembers).values({
+        teamId: created.id,
+        userId: ctx.user.id,
+        role: "owner",
+      });
+
       return {
-        account: response.data[0],
-        user: ctx.user,
+        team: created,
       };
     }),
 
-  createTeamAccount: protectedProcedure
-    .input(createTeamAccountInput)
-    .mutation(async ({ ctx, input }) => {
-      const response = await ctx.supabase.rpc("create_team_account", {
-        account_name: input.name,
-      });
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    }),
-
-  updateTeamAccountName: protectedProcedure
-    .input(updateTeamAccountNameInput)
-    .mutation(async ({ ctx, input }) => {
-      const response = await ctx.supabase
-        .from("accounts")
-        .update({
-          name: input.name,
-          slug: input.slug,
-        })
-        .match({
-          slug: input.slug,
-        })
-        .select("slug")
-        .single();
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    }),
-
-  deleteTeamAccount: protectedProcedure
-    .input(deleteTeamAccountInput)
-    .mutation(async ({ ctx, input }) => {
-      const accountResponse = await ctx.supabase
-        .from("accounts")
-        .select("id")
-        .eq("primary_owner_user_id", ctx.user.id)
-        .eq("is_personal_account", false)
-        .eq("id", input.accountId);
-
-      if (accountResponse.error ?? !accountResponse.data) {
-        throw new Error("Account not found");
-      }
-
-      const deleteResponse = await ctx.adminSupabase
-        .from("accounts")
-        .delete()
-        .eq("id", input.accountId);
-
-      if (deleteResponse.error) {
-        throw deleteResponse.error;
-      }
-
-      return deleteResponse.data;
-    }),
-
-  leaveTeamAccount: protectedProcedure
-    .input(leaveTeamAccountInput)
-    .mutation(async ({ ctx, input }) => {
-      const response = await ctx.adminSupabase
-        .from("accounts_memberships")
-        .delete()
-        .match({
-          account_id: input.accountId,
-          user_id: ctx.user.id,
-        });
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    }),
-
-  members: protectedProcedure
-    .input(membersInput)
+  getTeam: protectedProcedure
+    .input(getTeamInput)
     .query(async ({ ctx, input }) => {
-      const response = await ctx.supabase.rpc("get_account_members", {
-        account_slug: input.slug,
-      });
+      const team = await checkTeamAuth(ctx, input);
 
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data ?? [];
+      return {
+        team,
+      };
     }),
 
-  invitations: protectedProcedure
-    .input(invitationsInput)
+  updateTeam: protectedProcedure
+    .input(updateTeamInput)
+    .mutation(async ({ ctx, input }) => {
+      await checkTeamAuth(ctx, { id: input.id });
+
+      const [updated] = await ctx.db
+        .update(teams)
+        .set(input)
+        .where(eq(teams.id, input.id))
+        .returning();
+
+      return {
+        team: updated,
+      };
+    }),
+
+  deleteTeam: protectedProcedure
+    .input(deleteTeamInput)
+    .mutation(async ({ ctx, input }) => {
+      await checkTeamAuth(ctx, { id: input.id });
+
+      const [deleted] = await ctx.db
+        .delete(teams)
+        .where(eq(teams.id, input.id))
+        .returning();
+
+      return {
+        team: deleted,
+      };
+    }),
+
+  createTeamInvitations: protectedProcedure
+    .input(createTeamInvitationsInput)
+    .mutation(async ({ ctx, input }) => {
+      if (!input.teamInvitations[0]) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "No invitations provided",
+        });
+      }
+
+      await checkTeamAuth(ctx, { id: input.teamInvitations[0].teamId });
+
+      const createdInvitations = (
+        await Promise.all(
+          input.teamInvitations.map(async (invitation) => {
+            const [created] = await ctx.db
+              .insert(invitations)
+              .values({ ...invitation, invitedBy: ctx.user.id })
+              .returning();
+
+            return created;
+          }),
+        )
+      ).filter((i) => !!i);
+
+      return {
+        invitations: createdInvitations,
+      };
+    }),
+
+  getTeamInvitation: protectedProcedure
+    .input(getTeamInvitationInput)
     .query(async ({ ctx, input }) => {
-      const response = await ctx.supabase.rpc("get_account_invitations", {
-        account_slug: input.slug,
+      const invitation = await ctx.db.query.invitations.findFirst({
+        where: eq(invitations.id, input.id),
       });
 
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data ?? [];
+      return {
+        invitation,
+      };
     }),
 
-  removeMember: protectedProcedure
-    .input(removeMemberInput)
+  updateTeamInvitation: protectedProcedure
+    .input(updateTeamInvitationInput)
     .mutation(async ({ ctx, input }) => {
-      const response = await ctx.supabase
-        .from("accounts_memberships")
-        .delete()
-        .match({
-          account_id: input.accountId,
-          user_id: input.userId,
-        });
+      await checkTeamAuth(ctx, { id: input.teamId });
 
-      if (response.error) {
-        throw response.error;
-      }
+      const [updated] = await ctx.db
+        .update(invitations)
+        .set(input)
+        .where(eq(invitations.id, input.id))
+        .returning();
 
-      return response.data;
+      return {
+        invitation: updated,
+      };
     }),
 
-  updateMemberRole: protectedProcedure
-    .input(updateMemberRoleInput)
+  deleteTeamInvitation: protectedProcedure
+    .input(deleteTeamInvitationInput)
     .mutation(async ({ ctx, input }) => {
-      const { data: canActionAccountMember, error: accountError } =
-        await ctx.supabase.rpc("can_action_account_member", {
-          target_user_id: input.userId,
-          target_team_account_id: input.accountId,
-        });
+      const [deleted] = await ctx.db
+        .delete(invitations)
+        .where(eq(invitations.id, input.id))
+        .returning();
 
-      if (accountError ?? !canActionAccountMember) {
-        throw new Error(`Failed to validate permissions to update member role`);
-      }
-
-      const response = await ctx.adminSupabase
-        .from("accounts_memberships")
-        .update({
-          account_role: input.role,
-        })
-        .match({
-          account_id: input.accountId,
-          user_id: input.userId,
-        });
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
+      return {
+        invitation: deleted,
+      };
     }),
 
-  transferOwnership: protectedProcedure
-    .input(transferOwnershipInput)
-    .mutation(async ({ ctx, input }) => {
-      const { data: isOwner, error } = await ctx.supabase.rpc(
-        "is_account_owner",
-        {
-          account_id: input.accountId,
-        },
+  getTeamMember: protectedProcedure
+    .input(getTeamMemberInput)
+    .query(async ({ ctx, input }) => {
+      const team = await checkTeamAuth(ctx, { id: input.teamId });
+
+      const member = team.teamMembers.find(
+        (member) => member.userId === input.userId,
       );
 
-      if (error ?? !isOwner) {
-        throw new Error(
-          `You must be the owner of the account to transfer ownership`,
-        );
-      }
-
-      const response = await ctx.adminSupabase.rpc(
-        "transfer_team_account_ownership",
-        {
-          target_account_id: input.accountId,
-          new_owner_id: input.userId,
-        },
-      );
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
+      return {
+        teamMember: member,
+      };
     }),
 
-  sendInvitations: protectedProcedure
-    .input(sendInvitationsInput)
+  createTeamMember: protectedProcedure
+    .input(createTeamMemberInput)
     .mutation(async ({ ctx, input }) => {
-      const accountResponse = await ctx.supabase
-        .from("accounts")
-        .select("name")
-        .eq("slug", input.accountSlug)
-        .single();
+      await checkTeamAuth(ctx, { id: input.teamId });
 
-      if (!accountResponse.data) {
-        throw new Error("Account not found");
-      }
+      const [created] = await ctx.db
+        .insert(teamMembers)
+        .values(input)
+        .returning();
 
-      const response = await ctx.supabase.rpc("add_invitations_to_account", {
-        invitations: input.invitations,
-        account_slug: input.accountSlug,
-      });
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      const responseInvitations = Array.isArray(response.data)
-        ? response.data
-        : [response.data];
-
-      return responseInvitations;
+      return {
+        teamMember: created,
+      };
     }),
 
-  updateInvitation: protectedProcedure
-    .input(updateInvitationInput)
+  updateTeamMember: protectedProcedure
+    .input(updateTeamMemberInput)
     .mutation(async ({ ctx, input }) => {
-      const response = await ctx.supabase
-        .from("invitations")
-        .update({
-          role: input.role,
-        })
-        .match({
-          id: input.invitationId,
-        });
+      await checkTeamAuth(ctx, { id: input.teamId });
 
-      if (response.error) {
-        throw response.error;
-      }
+      const [updated] = await ctx.db
+        .update(teamMembers)
+        .set(input)
+        .where(
+          and(
+            eq(teamMembers.teamId, input.teamId),
+            eq(teamMembers.userId, input.userId),
+          ),
+        )
+        .returning();
 
-      return response.data;
+      return {
+        teamMember: updated,
+      };
     }),
 
-  renewInvitation: protectedProcedure
-    .input(renewInvitationInput)
+  deleteTeamMember: protectedProcedure
+    .input(deleteTeamMemberInput)
     .mutation(async ({ ctx, input }) => {
-      const sevenDaysFromNow = formatISO(addDays(new Date(), 7));
+      await checkTeamAuth(ctx, { id: input.teamId });
 
-      const response = await ctx.supabase
-        .from("invitations")
-        .update({
-          expires_at: sevenDaysFromNow,
-        })
-        .match({
-          id: input.invitationId,
-        });
+      const [deleted] = await ctx.db
+        .delete(teamMembers)
+        .where(
+          and(
+            eq(teamMembers.teamId, input.teamId),
+            eq(teamMembers.userId, input.userId),
+          ),
+        )
+        .returning();
 
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
-    }),
-
-  deleteInvitation: protectedProcedure
-    .input(deleteInvitationInput)
-    .mutation(async ({ ctx, input }) => {
-      const response = await ctx.supabase.from("invitations").delete().match({
-        id: input.invitationId,
-      });
-
-      if (response.error) {
-        throw response.error;
-      }
-
-      return response.data;
+      return {
+        teamMember: deleted,
+      };
     }),
 });
+
+const whereIdOrSlug = (input: { id?: string; slug?: string }) => {
+  const whereClause = input.id
+    ? eq(teams.id, input.id)
+    : input.slug
+      ? eq(teams.slug, input.slug)
+      : undefined;
+
+  if (!whereClause) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "Either ID or Slug must be provided",
+    });
+  }
+
+  return whereClause;
+};
+
+export const checkTeamAuth = async (
+  ctx: TRPCContext,
+  input: { id?: string; slug?: string },
+) => {
+  const whereClause = whereIdOrSlug(input);
+  const team = await ctx.db.query.teams.findFirst({
+    // updated db reference
+    where: whereClause,
+    with: {
+      teamMembers: {
+        with: { user: true },
+      },
+      invitations: true,
+    },
+  });
+
+  if (!team) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Team not found" });
+  }
+
+  // Check if the current user is a member of the team
+  const isMember = team.teamMembers.some(
+    (member) => member.userId === ctx.user?.id,
+  );
+  if (!isMember) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not a team member" });
+  }
+
+  return team;
+};

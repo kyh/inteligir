@@ -1,3 +1,6 @@
+import { TRPCError } from "@trpc/server";
+
+import type { UserMetadata } from "../user/user-schema";
 import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
 import {
   requestPasswordResetInput,
@@ -10,6 +13,26 @@ import {
 } from "./auth-schema";
 
 export const authRouter = createTRPCRouter({
+  workspace: publicProcedure.query(async ({ ctx }) => {
+    const teamMembers = ctx.user
+      ? await ctx.db.query.teamMembers.findMany({
+          where: (teamMembers, { eq }) =>
+            eq(teamMembers.userId, ctx.user?.id ?? ""),
+          with: {
+            team: true,
+          },
+        })
+      : [];
+
+    const userMetadata = ctx.user?.user_metadata as UserMetadata | undefined;
+
+    return {
+      user: ctx.user,
+      userMetadata,
+      defaultTeamSlug: userMetadata?.defaultTeamSlug ?? teamMembers[0]?.team.id,
+      teams: teamMembers.map((tm) => ({ ...tm.team, userRole: tm.role })),
+    };
+  }),
   signUp: publicProcedure
     .input(signUpInput)
     .mutation(async ({ ctx, input }) => {
@@ -26,10 +49,20 @@ export const authRouter = createTRPCRouter({
 
       // if the user has no identities, it means that the email is taken
       if (identities.length === 0) {
-        throw new Error("User already registered");
+        throw new TRPCError({
+          code: "CONFLICT",
+          message: "User already registered",
+        });
       }
 
-      return response.data;
+      if (!user) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Unable to create user",
+        });
+      }
+
+      return { user };
     }),
   signInWithPassword: publicProcedure
     .input(signInWithPasswordInput)

@@ -1,34 +1,15 @@
 # Init
 
-A comprehensive boilerplate to build, launch, and scale your next project.
-
-Built off [t3 turbo](https://github.com/t3-oss/create-t3-turbo) + [supabase](https://supabase.com).
-
-## Features
-
-- [ ] Authentication
-- [ ] CRUD
-- [ ] CMS
-- [ ] User Profile
-- [ ] Multi Tenancy
-- [ ] Billing
-- [ ] Submit Feedback System
-- [ ] Notifications System
-- [ ] Admin Dashboard
-- [ ] Search
-- [ ] Analytics
-- [ ] Native Mobile App
-- [ ] Native Desktop App
-- [ ] Something something AI
-- [ ] CLI generator
-- [ ] [Taking Submissions](https://github.com/kyh/init/issues/new?assignees=&labels=%E2%9C%A8+enhancement&projects=&template=feature_request.yml&title=feat%3A+)
+An AI native starter kit to build, launch, and scale your next project.
 
 ## Stack
 
-- Next.js
-- Tailwind CSS
-- Supabase
-- TypeScript
+- [Next.js](https://nextjs.org)
+- [Expo](https://expo.dev)
+- [Tailwind CSS](https://tailwindcss.com)
+- [TRPC](https://trpc.io)
+- [Drizzle](https://orm.drizzle.team)
+- [Supabase](https://supabase.com)
 
 ## Running Locally
 

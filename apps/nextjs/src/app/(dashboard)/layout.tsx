@@ -1,14 +1,23 @@
-import type { Metadata } from "next";
-import React from "react";
+import { HydrateClient, prefetch, trpc } from "@/trpc/server";
+import { Sidebar } from "./_components/sidebar";
 
-import { HydrateClient } from "@/trpc/server";
+export const dynamic = "force-dynamic";
 
-export const metadata: Metadata = {
-  title: "Dashboard",
+type LayoutProps = {
+  children: React.ReactNode;
 };
 
-const Layout = async ({ children }: React.PropsWithChildren) => {
-  return <HydrateClient>{children}</HydrateClient>;
+const Layout = (props: LayoutProps) => {
+  prefetch(trpc.auth.workspace.queryOptions());
+
+  return (
+    <HydrateClient>
+      <div className="flex min-h-dvh">
+        <Sidebar />
+        {props.children}
+      </div>
+    </HydrateClient>
+  );
 };
 
 export default Layout;

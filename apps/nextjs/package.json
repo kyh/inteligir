@@ -1,71 +1,55 @@
 {
-  "name": "@inteligir/nextjs",
+  "name": "@init/nextjs",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "build": "pnpm with-env next build",
-    "clean": "git clean -xdf .next .turbo node_modules",
+    "clean": "git clean -xdf .cache .next .turbo node_modules",
     "dev": "pnpm with-env next dev",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "lint": "dotenv -v SKIP_ENV_VALIDATION=1 next lint",
+    "lint": "eslint",
     "start": "pnpm with-env next start",
     "typecheck": "tsc --noEmit",
     "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
-    "@edge-csrf/nextjs": "^2.2.2",
-    "@inteligir/api": "workspace:latest",
-    "@inteligir/db": "workspace:latest",
-    "@inteligir/mdx": "workspace:latest",
-    "@inteligir/ui": "workspace:latest",
-    "@mdx-js/loader": "^3.0.1",
-    "@mdx-js/react": "^3.0.1",
-    "@next/mdx": "^14.2.5",
-    "@stripe/react-stripe-js": "^2.7.3",
-    "@stripe/stripe-js": "^4.1.0",
-    "@tanstack/react-query": "^5.51.5",
-    "@tanstack/react-table": "^8.19.3",
-    "@trpc/client": "11.0.0-rc.441",
-    "@trpc/react-query": "11.0.0-rc.441",
-    "@trpc/server": "11.0.0-rc.441",
-    "next": "^14.2.5",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-hotkeys-hook": "^4.5.0",
-    "superjson": "^2.2.1",
-    "zod": "^3.23.8"
+    "@ai-sdk/openai": "^1.2.1",
+    "@ai-sdk/react": "^1.1.21",
+    "@edge-csrf/nextjs": "2.5.3-cloudflare-rc1",
+    "@init/api": "workspace:^",
+    "@init/db": "workspace:^",
+    "@init/mdx": "workspace:^",
+    "@init/ui": "workspace:^",
+    "@stripe/react-stripe-js": "^3.3.0",
+    "@stripe/stripe-js": "^5.10.0",
+    "@tanstack/react-query": "catalog:",
+    "@trpc/client": "catalog:",
+    "@trpc/server": "catalog:",
+    "@trpc/tanstack-react-query": "catalog:",
+    "ai": "^4.1.54",
+    "marked": "^15.0.7",
+    "next": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-markdown": "^10.1.0",
+    "superjson": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
-    "@inteligir/tailwind-config": "workspace:latest",
     "@kyh/eslint-config": "catalog:",
     "@kyh/prettier-config": "catalog:",
     "@kyh/tsconfig": "catalog:",
-    "@types/mdx": "^2.0.13",
+    "@tailwindcss/postcss": "^4.0.12",
+    "@tailwindcss/typography": "^0.5.16",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "eslint": "catalog:",
+    "postcss": "^8.5.3",
     "prettier": "catalog:",
-    "tailwindcss": "catalog:",
+    "tailwindcss": "^4.0.12",
     "typescript": "catalog:"
-  },
-  "eslintConfig": {
-    "root": true,
-    "extends": [
-      "@kyh/eslint-config/base",
-      "@kyh/eslint-config/nextjs",
-      "@kyh/eslint-config/react"
-    ],
-    "rules": {
-      "react/jsx-curly-brace-presence": [
-        "error",
-        {
-          "props": "never",
-          "children": "never"
-        }
-      ]
-    }
   },
   "prettier": "@kyh/prettier-config"
 }

@@ -6,7 +6,8 @@
  * tl;dr - this is where all the tRPC server stuff is created and plugged in.
  * The pieces you will need to use are documented accordingly near the end
  */
-import { getSupabaseServerClient } from "@inteligir/db/supabase-server-client";
+import { db } from "@init/db/drizzle-client";
+import { getSupabaseServerClient } from "@init/db/supabase-server-client";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
@@ -25,7 +26,7 @@ import { ZodError } from "zod";
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
   const supabase = getSupabaseServerClient();
-  const adminSupabase = getSupabaseServerClient({ admin: true });
+
   // React Native will pass their token through headers,
   // browsers will have the session cookie set
   const token = opts.headers.get("authorization");
@@ -42,9 +43,11 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
     headers: opts.headers,
     user: data.user,
     supabase,
-    adminSupabase,
+    db,
   };
 };
+
+export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 
 /**
  * 2. INITIALIZATION
@@ -52,7 +55,7 @@ export const createTRPCContext = async (opts: { headers: Headers }) => {
  * This is where the trpc api is initialized, connecting the context and
  * transformer
  */
-const t = initTRPC.context<typeof createTRPCContext>().create({
+const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
   errorFormatter: ({ shape, error }) => ({
     ...shape,
@@ -101,7 +104,7 @@ export const publicProcedure = t.procedure;
  */
 export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
   if (!ctx.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not logged in" });
   }
 
   return next({
@@ -118,14 +121,13 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
  * If you want a query or mutation to ONLY be accessible to super admins.
  */
 export const superAdminProcedure = t.procedure.use(({ ctx, next }) => {
-  const role = ctx.user?.app_metadata.role;
-
-  if (!role || role !== "super-admin") {
+  if (!ctx.user) {
     throw new TRPCError({ code: "UNAUTHORIZED" });
   }
 
-  if (!ctx.user) {
-    throw new TRPCError({ code: "UNAUTHORIZED" });
+  const role = ctx.user.app_metadata.role;
+  if (!role || role !== "super-admin") {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Not a super admin" });
   }
 
   return next({

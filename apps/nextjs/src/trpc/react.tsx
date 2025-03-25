@@ -3,19 +3,18 @@
 import { useState } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import {
+  createTRPCClient,
   httpBatchLink,
   loggerLink,
   splitLink,
   unstable_httpBatchStreamLink,
 } from "@trpc/client";
-import { createTRPCReact } from "@trpc/react-query";
+import { createTRPCContext } from "@trpc/tanstack-react-query";
 import SuperJSON from "superjson";
 
-import type { AppRouter } from "@inteligir/api";
+import type { AppRouter } from "@init/api";
 import type { QueryClient } from "@tanstack/react-query";
 import { createQueryClient } from "./query-client";
-
-export type { TRPCError } from "@trpc/server";
 
 let clientQueryClientSingleton: QueryClient | undefined = undefined;
 const getQueryClient = () => {
@@ -28,32 +27,13 @@ const getQueryClient = () => {
   }
 };
 
-export const api = createTRPCReact<AppRouter>({
-  overrides: {
-    useMutation: {
-      /**
-       * This function is called whenever a `.useMutation` succeeds
-       **/
-      onSuccess: async (opts) => {
-        /**
-         * @note that order here matters:
-         * The order here allows route changes in `onSuccess` without
-         * having a flash of content change whilst redirecting.
-         **/
-        // Calls the `onSuccess` defined in the `useQuery()`-options:
-        await opts.originalFn();
-        // Invalidate all queries in the react-query cache:
-        await opts.queryClient.invalidateQueries();
-      },
-    },
-  },
-});
+export const { useTRPC, TRPCProvider } = createTRPCContext<AppRouter>();
 
 export const TRPCReactProvider = (props: { children: React.ReactNode }) => {
   const queryClient = getQueryClient();
 
   const [trpcClient] = useState(() =>
-    api.createClient({
+    createTRPCClient<AppRouter>({
       links: [
         loggerLink({
           enabled: (op) =>
@@ -61,25 +41,25 @@ export const TRPCReactProvider = (props: { children: React.ReactNode }) => {
             (op.direction === "down" && op.result instanceof Error),
         }),
         splitLink({
-          condition: (op) => {
+          condition: (_op) => {
             // return op.path.startsWith("auth.");
             return true;
           },
           true: httpBatchLink({
             transformer: SuperJSON,
             url: `${getBaseUrl()}/api/trpc`,
-            headers: async () => {
+            headers: () => {
               const headers = new Headers();
-              headers.set("x-trpc-source", "nextjs-react-batch");
+              headers.set("x-trpc-source", "nextjs-client");
               return headers;
             },
           }),
           false: unstable_httpBatchStreamLink({
             transformer: SuperJSON,
             url: `${getBaseUrl()}/api/trpc`,
-            headers: async () => {
+            headers: () => {
               const headers = new Headers();
-              headers.set("x-trpc-source", "nextjs-react-batch-stream");
+              headers.set("x-trpc-source", "nextjs-client-batch-stream");
               return headers;
             },
           }),
@@ -90,9 +70,9 @@ export const TRPCReactProvider = (props: { children: React.ReactNode }) => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <api.Provider client={trpcClient} queryClient={queryClient}>
+      <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
         {props.children}
-      </api.Provider>
+      </TRPCProvider>
     </QueryClientProvider>
   );
 };

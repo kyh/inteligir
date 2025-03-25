@@ -1,49 +1,53 @@
 {
-  "name": "@inteligir/db",
+  "name": "@init/db",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "clean": "rm -rf .turbo node_modules",
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "lint": "eslint . && supabase db lint",
-    "supabase": "supabase",
-    "start": "supabase status || supabase start",
-    "stop": "supabase stop",
-    "reset": "supabase db reset",
-    "status": "supabase status",
-    "test": "supabase db test",
-    "push": "supabase link --project-ref $SUPABASE_PROJECT_REF && supabase db push",
-    "typegen": "supabase gen types typescript --local > src/database.types.ts",
-    "dump": "supabase db dump --local --data-only",
-    "migrate": "supabase db migrate",
-    "typecheck": "tsc --noEmit"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false",
+    "supabase": "pnpm with-env supabase",
+    "drizzle-kit": "pnpm with-env drizzle-kit",
+    "seed": "pnpm with-env tsx src/seed/initial.ts",
+    "start": "pnpm with-env supabase status || supabase start",
+    "stop": "pnpm with-env supabase stop",
+    "reset": "pnpm with-env supabase db reset && pnpm push",
+    "status": "pnpm with-env supabase status",
+    "test": "pnpm with-env supabase db test",
+    "typegen": "pnpm with-env supabase gen types typescript --local > src/types/database.types.ts",
+    "push": "pnpm with-env drizzle-kit push",
+    "push-remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
+    "studio": "pnpm with-env drizzle-kit studio",
+    "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.4.0",
-    "@supabase/supabase-js": "^2.44.4",
-    "next": "^14.2.5",
-    "react": "^18.3.1",
-    "zod": "^3.23.8"
+    "@supabase/ssr": "^0.5.2",
+    "@supabase/supabase-js": "^2.49.1",
+    "drizzle-orm": "^0.40.0",
+    "next": "catalog:",
+    "postgres": "^3.4.5",
+    "react": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
+    "@faker-js/faker": "^9.6.0",
     "@kyh/eslint-config": "catalog:",
     "@kyh/prettier-config": "catalog:",
     "@kyh/tsconfig": "catalog:",
     "@types/react": "catalog:",
+    "drizzle-kit": "^0.30.5",
     "eslint": "catalog:",
     "prettier": "catalog:",
-    "supabase": "^1.183.5",
+    "supabase": "^2.15.8",
     "typescript": "catalog:"
-  },
-  "eslintConfig": {
-    "root": true,
-    "extends": [
-      "@kyh/eslint-config/base"
-    ]
   },
   "prettier": "@kyh/prettier-config"
 }

@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
-import { ThemeProvider } from "@inteligir/ui/theme";
-import { Toaster } from "@inteligir/ui/toast";
-import { cn } from "@inteligir/ui/utils";
+import { GlobalAlertDialog } from "@init/ui/alert-dialog";
+import { ThemeProvider } from "@init/ui/theme";
+import { GlobalToaster } from "@init/ui/toast";
+import { TooltipProvider } from "@init/ui/tooltip";
 
-import { siteConfig } from "@/config/site.config";
+import { siteConfig } from "@/lib/site-config";
 import { TRPCReactProvider } from "@/trpc/react";
 
-import "./globals.css";
+import "./styles/globals.css";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -75,27 +75,24 @@ export const viewport: Viewport = {
   ],
 };
 
-const fontSans = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans",
-});
+type LayoutProps = {
+  children: React.ReactNode;
+};
 
-const Layout = ({ children }: { children: React.ReactNode }) => {
+const RootLayout = (props: LayoutProps) => {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body
-        className={cn(
-          "bg-background font-sans text-foreground antialiased",
-          fontSans.variable,
-        )}
-      >
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <TRPCReactProvider>{children}</TRPCReactProvider>
-          <Toaster />
+      <body className="bg-background text-foreground font-sans antialiased">
+        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+          <TooltipProvider>
+            <TRPCReactProvider>{props.children}</TRPCReactProvider>
+            <GlobalToaster />
+            <GlobalAlertDialog />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>
   );
 };
 
-export default Layout;
+export default RootLayout;

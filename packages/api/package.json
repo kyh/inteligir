@@ -1,5 +1,5 @@
 {
-  "name": "@inteligir/api",
+  "name": "@init/api",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -8,18 +8,19 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "clean": "rm -rf .turbo node_modules",
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
     "format": "prettier --check . --ignore-path ../../.gitignore",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@inteligir/db": "workspace:latest",
-    "@trpc/server": "11.0.0-rc.441",
-    "superjson": "^2.2.1",
-    "stripe": "^16.2.0",
-    "zod": "^3.23.8",
-    "zod-form-data": "^2.0.2"
+    "@init/db": "workspace:^",
+    "@trpc/server": "catalog:",
+    "stripe": "^17.7.0",
+    "superjson": "catalog:",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@kyh/eslint-config": "catalog:",
@@ -28,12 +29,6 @@
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"
-  },
-  "eslintConfig": {
-    "root": true,
-    "extends": [
-      "@kyh/eslint-config/base"
-    ]
   },
   "prettier": "@kyh/prettier-config"
 }

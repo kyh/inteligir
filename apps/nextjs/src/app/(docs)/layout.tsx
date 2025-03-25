@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Logo } from "@inteligir/ui/logo";
+import { allDocs } from "@init/mdx/content";
+import { Logo } from "@init/ui/logo";
 
 import { NavLink } from "@/components/nav";
 
@@ -7,105 +8,39 @@ export const metadata: Metadata = {
   title: "Docs",
 };
 
-const Layout = ({ children }: { children: React.ReactNode }) => (
+type LayoutProps = {
+  children: React.ReactNode;
+};
+
+const Layout = (props: LayoutProps) => (
   <section className="flex min-h-dvh">
     <Sidebar />
-    <section className="flex-1 px-10 py-16">{children}</section>
+    <main className="prose dark:prose-invert flex-1 px-10 py-16">
+      {props.children}
+    </main>
   </section>
 );
 
 export default Layout;
 
-const navLinks = {
-  overview: {
-    label: "Overview",
-    children: [
-      { id: "introduction", href: "/docs", label: "Introduction" },
-      {
-        id: "installation",
-        href: "/docs/installation",
-        label: "Getting Started",
-      },
-      {
-        id: "local-development",
-        href: "/docs/local-development",
-        label: "Local Development",
-      },
-    ],
-  },
-  architecture: {
-    label: "Architecture",
-    children: [
-      {
-        id: "architecture",
-        href: "/docs/architecture",
-        label: "Architecture and Folder Structure",
-      },
-      { id: "auth", href: "/docs/auth", label: "Authentication" },
-    ],
-  },
-  development: {
-    label: "Build",
-    children: [
-      { id: "data-model", href: "/docs/data-model", label: "Data Modelling" },
-      { id: "query", href: "/docs/queries", label: "Data Fetching" },
-      { id: "mutations", href: "/docs/mutations", label: "Data Mutations" },
-      { id: "production", href: "/docs/production", label: "Launch Checklist" },
-      { id: "styling", href: "/docs/styling", label: "Styling" },
-      { id: "routes", href: "/docs/routes", label: "Routes" },
-    ],
-  },
-  launch: {
-    label: "Launch",
-    children: [
-      { id: "deployment", href: "/docs/deployment", label: "Deployment" },
-      { id: "monitoring", href: "/docs/monitoring", label: "Monitoring" },
-    ],
-  },
-  scale: {
-    label: "Scale",
-    children: [
-      {
-        id: "growth",
-        href: "/docs/user-growth",
-        label: "Growth Strategies",
-      },
-      {
-        id: "feedback",
-        href: "/docs/user-feedback",
-        label: "User Feedback",
-      },
-      {
-        id: "analytics",
-        href: "/docs/user-analytics",
-        label: "User Analytics",
-      },
-      {
-        id: "performance",
-        href: "/docs/performance",
-        label: "App Performance",
-      },
-    ],
-  },
-  community: {
-    label: "Community",
-    children: [
-      { id: "github", href: "https://github.com/kyh/init", label: "Github" },
-      { id: "twitter", href: "https://twitter.com/kaiyuhsu", label: "Twitter" },
-      {
-        id: "discord",
-        href: "https://discord.gg/x2xDwExFFv",
-        label: "Discord",
-      },
-    ],
-  },
-} as const;
-
-const navLinkEntries = Object.entries(navLinks);
-
 const Sidebar = () => {
+  const docByGroup = allDocs.reduce(
+    (acc, doc) => {
+      const group = doc._meta.path.split("/")[0];
+      if (!group) return acc;
+
+      if (!acc[group]) {
+        acc[group] = [];
+      }
+
+      acc[group].push(doc);
+      return acc;
+    },
+    {} as Record<string, typeof allDocs>,
+  );
+
   return (
-    <aside className="sticky top-0 max-h-dvh w-64 overflow-y-auto border-r border-border">
+    <aside className="border-border sticky top-0 max-h-dvh w-64 overflow-y-auto border-r">
       <div className="p-5">
         <NavLink href="/">
           <Logo className="size-10" />
@@ -113,27 +48,64 @@ const Sidebar = () => {
       </div>
       <nav className="pb-5 text-sm">
         <ul className="space-y-4">
-          {navLinkEntries.map(([key, group]) => (
-            <li key={key}>
-              <h4 className="px-6 py-2 text-xs font-light text-muted-foreground">
-                {group.label}
+          {Object.entries(docByGroup).map(([group, docs]) => (
+            <li key={group}>
+              <h4 className="text-muted-foreground px-6 py-2 text-xs font-light capitalize">
+                {group.replace(/-/g, " ")}
               </h4>
               <ul>
-                {group.children.map((link) => (
-                  <li key={link.id}>
+                {docs.map((doc) => (
+                  <li key={doc._meta.fileName}>
                     <NavLink
-                      href={link.href}
-                      className="block px-6 py-2 transition hover:text-muted-foreground"
+                      href={`/docs/${doc._meta.path}`}
+                      className="hover:text-muted-foreground block px-6 py-2 capitalize transition"
                       activeClassName="bg-muted hover:text-foreground"
                       exact
                     >
-                      {link.label}
+                      {doc._meta.fileName
+                        .replace(/\.mdx$/, "")
+                        .replace(/-/g, " ")}
                     </NavLink>
                   </li>
                 ))}
               </ul>
             </li>
           ))}
+          <li>
+            <h4 className="text-muted-foreground px-6 py-2 text-xs font-light">
+              Community
+            </h4>
+            <ul>
+              {[
+                {
+                  id: "github",
+                  href: "https://github.com/kyh/init",
+                  label: "Github",
+                },
+                {
+                  id: "twitter",
+                  href: "https://twitter.com/kaiyuhsu",
+                  label: "Twitter",
+                },
+                {
+                  id: "discord",
+                  href: "https://discord.gg/x2xDwExFFv",
+                  label: "Discord",
+                },
+              ].map((link) => (
+                <li key={link.id}>
+                  <NavLink
+                    href={link.href}
+                    className="hover:text-muted-foreground block px-6 py-2 transition"
+                    activeClassName="bg-muted hover:text-foreground"
+                    exact
+                  >
+                    {link.label}
+                  </NavLink>
+                </li>
+              ))}
+            </ul>
+          </li>
         </ul>
       </nav>
     </aside>
