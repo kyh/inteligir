@@ -1,6 +1,6 @@
 import type { Components } from "react-markdown";
 import { memo, useEffect, useId, useMemo, useState } from "react";
-import { cn } from "@init/ui/utils";
+import { cn } from "@kyh/ui/utils";
 import { marked } from "marked";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -29,7 +29,7 @@ const INITIAL_COMPONENTS: Partial<Components> = {
   code: function CodeComponent({ className, children, ...props }) {
     const isInline =
       !props.node?.position?.start.line ||
-      props.node?.position?.start.line === props.node?.position?.end.line;
+      props.node.position.start.line === props.node.position.end.line;
 
     if (isInline) {
       return (

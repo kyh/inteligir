@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { createTeamInput } from "@init/api/team/team-schema";
-import { ProfileAvatar } from "@init/ui/avatar";
-import { Button } from "@init/ui/button";
+import { createTeamInput } from "@kyh/api/team/team-schema";
+import { ProfileAvatar } from "@kyh/ui/avatar";
+import { Button } from "@kyh/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@init/ui/dialog";
+} from "@kyh/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +24,7 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
+} from "@kyh/ui/dropdown-menu";
 import {
   Form,
   FormControl,
@@ -33,11 +33,11 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@init/ui/form";
-import { Input } from "@init/ui/input";
-import { Logo } from "@init/ui/logo";
-import { toast } from "@init/ui/toast";
-import { cn } from "@init/ui/utils";
+} from "@kyh/ui/form";
+import { Input } from "@kyh/ui/input";
+import { Logo } from "@kyh/ui/logo";
+import { toast } from "@kyh/ui/toast";
+import { cn } from "@kyh/ui/utils";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import {
   CheckIcon,

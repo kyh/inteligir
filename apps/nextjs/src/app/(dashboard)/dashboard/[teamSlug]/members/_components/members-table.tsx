@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import { teamMemberRoles } from "@init/api/team/team-schema";
-import { alertDialog } from "@init/ui/alert-dialog";
-import { ProfileAvatar } from "@init/ui/avatar";
-import { Badge } from "@init/ui/badge";
-import { Button } from "@init/ui/button";
+import { teamMemberRoles } from "@kyh/api/team/team-schema";
+import { alertDialog } from "@kyh/ui/alert-dialog";
+import { ProfileAvatar } from "@kyh/ui/avatar";
+import { Badge } from "@kyh/ui/badge";
+import { Button } from "@kyh/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,15 +16,15 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@init/ui/dropdown-menu";
-import { AutoTable } from "@init/ui/table";
+} from "@kyh/ui/dropdown-menu";
+import { AutoTable } from "@kyh/ui/table";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { MoreHorizontalIcon } from "lucide-react";
 
-import type { RouterOutputs } from "@init/api";
-import type { TeamMemberRole } from "@init/api/team/team-schema";
-import type { UserMetadata } from "@init/api/user/user-schema";
+import type { RouterOutputs } from "@kyh/api";
+import type { TeamMemberRole } from "@kyh/api/team/team-schema";
+import type { UserMetadata } from "@kyh/api/user/user-schema";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTRPC } from "@/trpc/react";
 

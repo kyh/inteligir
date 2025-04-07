@@ -1,8 +1,8 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { Button } from "@init/ui/button";
-import { toast } from "@init/ui/toast";
+import { Button } from "@kyh/ui/button";
+import { toast } from "@kyh/ui/toast";
 import { ArrowUp, Square } from "lucide-react";
 
 import {

@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { buttonVariants } from "@init/ui/button";
-import { Logo } from "@init/ui/logo";
-import { cn } from "@init/ui/utils";
+import { buttonVariants } from "@kyh/ui/button";
+import { Logo } from "@kyh/ui/logo";
+import { cn } from "@kyh/ui/utils";
 import { useQuery } from "@tanstack/react-query";
 
 import { useTRPC } from "@/trpc/react";

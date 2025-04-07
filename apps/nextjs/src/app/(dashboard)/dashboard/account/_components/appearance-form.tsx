@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { RadioGroup, RadioGroupItem } from "@init/ui/radio-group";
-import { useTheme } from "@init/ui/theme";
+import { RadioGroup, RadioGroupItem } from "@kyh/ui/radio-group";
+import { useTheme } from "@kyh/ui/theme";
 import { Check, Minus } from "lucide-react";
 
 const items = [
