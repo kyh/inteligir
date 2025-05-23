@@ -38,11 +38,13 @@ export const Header = () => {
 
   return (
     <header className={containerClassName}>
-      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-5">
-        <Link href="/">
-          <Logo />
-        </Link>
-        <nav>
+      <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between gap-4 px-5">
+        <div className="flex-1">
+          <Link href="/">
+            <Logo />
+          </Link>
+        </div>
+        <nav className="flex flex-1 justify-center">
           <ul className="flex gap-3 md:gap-8">
             <li>
               <NavLink href="/">Home</NavLink>
@@ -55,34 +57,36 @@ export const Header = () => {
             </li>
           </ul>
         </nav>
-        {isLoading ? (
-          <span
-            className={cn(
-              buttonVariants({ variant: "secondary", size: "sm" }),
-              "ml-4 w-24 animate-pulse rounded-full px-5",
-            )}
-          />
-        ) : user ? (
-          <Link
-            className={cn(
-              buttonVariants({ variant: "secondary", size: "sm" }),
-              "ml-4 w-24 rounded-full px-5",
-            )}
-            href={`/dashboard/${metaData?.defaultTeamSlug}`}
-          >
-            Dashboard
-          </Link>
-        ) : (
-          <Link
-            className={cn(
-              buttonVariants({ variant: "secondary", size: "sm" }),
-              "ml-4 w-24 rounded-full px-5",
-            )}
-            href="/auth/sign-in"
-          >
-            Login
-          </Link>
-        )}
+        <div className="flex flex-1 justify-end">
+          {isLoading ? (
+            <span
+              className={cn(
+                buttonVariants({ variant: "secondary", size: "sm" }),
+                "ml-4 w-24 animate-pulse rounded-full px-5",
+              )}
+            />
+          ) : user ? (
+            <Link
+              className={cn(
+                buttonVariants({ variant: "secondary", size: "sm" }),
+                "ml-4 w-24 rounded-full px-5",
+              )}
+              href={`/dashboard/${metaData?.defaultTeamSlug}`}
+            >
+              Dashboard
+            </Link>
+          ) : (
+            <Link
+              className={cn(
+                buttonVariants({ variant: "secondary", size: "sm" }),
+                "ml-4 w-24 rounded-full px-5",
+              )}
+              href="/auth/sign-in"
+            >
+              Login
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

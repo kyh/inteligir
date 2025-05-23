@@ -1,8 +1,24 @@
-import { Button } from "@kyh/ui/button";
-import { Input } from "@kyh/ui/input";
-import { Logo } from "@kyh/ui/logo";
+"use client";
 
+import { joinWaitlistInput } from "@kyh/api/waitlist/waitlist-schema";
+import { Button } from "@kyh/ui/button";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+  useForm,
+} from "@kyh/ui/form";
+import { Logo } from "@kyh/ui/logo";
+import { toast } from "@kyh/ui/toast";
+import { cn } from "@kyh/ui/utils";
+import { useMutation } from "@tanstack/react-query";
+
+import type { JoinWaitlistInput } from "@kyh/api/waitlist/waitlist-schema";
 import { NavLink } from "@/components/nav";
+import { useTRPC } from "@/trpc/react";
 
 export const Footer = () => {
   return (
@@ -47,12 +63,12 @@ export const Footer = () => {
         </div>
         <div className="flex flex-col justify-between gap-5 border-t border-white/10 py-8 md:flex-row">
           <div className="w-full md:w-[30%]">
-            <p className="text-xs">
+            <p>
               Subscribe to receive our latest updates right to your inbox 🚀
             </p>
           </div>
           <div className="flex items-center gap-2 md:ml-auto">
-            <ConvertkitSignupForm />
+            <WaitlistForm />
           </div>
         </div>
         <SmallPrint />
@@ -81,21 +97,13 @@ const GitHubIcon = (props: React.SVGProps<SVGSVGElement>) => {
   );
 };
 
-const DiscordIcon = (props: React.SVGProps<SVGSVGElement>) => {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden="true" {...props}>
-      <path d="M16.238 4.515a14.842 14.842 0 0 0-3.664-1.136.055.055 0 0 0-.059.027 10.35 10.35 0 0 0-.456.938 13.702 13.702 0 0 0-4.115 0 9.479 9.479 0 0 0-.464-.938.058.058 0 0 0-.058-.027c-1.266.218-2.497.6-3.664 1.136a.052.052 0 0 0-.024.02C1.4 8.023.76 11.424 1.074 14.782a.062.062 0 0 0 .024.042 14.923 14.923 0 0 0 4.494 2.272.058.058 0 0 0 .064-.02c.346-.473.654-.972.92-1.496a.057.057 0 0 0-.032-.08 9.83 9.83 0 0 1-1.404-.669.058.058 0 0 1-.029-.046.058.058 0 0 1 .023-.05c.094-.07.189-.144.279-.218a.056.056 0 0 1 .058-.008c2.946 1.345 6.135 1.345 9.046 0a.056.056 0 0 1 .059.007c.09.074.184.149.28.22a.058.058 0 0 1 .023.049.059.059 0 0 1-.028.046 9.224 9.224 0 0 1-1.405.669.058.058 0 0 0-.033.033.056.056 0 0 0 .002.047c.27.523.58 1.022.92 1.495a.056.056 0 0 0 .062.021 14.878 14.878 0 0 0 4.502-2.272.055.055 0 0 0 .016-.018.056.056 0 0 0 .008-.023c.375-3.883-.63-7.256-2.662-10.246a.046.046 0 0 0-.023-.021Zm-9.223 8.221c-.887 0-1.618-.814-1.618-1.814s.717-1.814 1.618-1.814c.908 0 1.632.821 1.618 1.814 0 1-.717 1.814-1.618 1.814Zm5.981 0c-.887 0-1.618-.814-1.618-1.814s.717-1.814 1.618-1.814c.908 0 1.632.821 1.618 1.814 0 1-.71 1.814-1.618 1.814Z" />
-    </svg>
-  );
-};
-
 const SocialLink = ({
   href,
   icon: Icon,
   children,
 }: {
   href: string;
-  icon: any;
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   children: React.ReactNode;
 }) => {
   return (
@@ -119,38 +127,76 @@ export const SmallPrint = () => {
         <SocialLink href={""} icon={GitHubIcon}>
           Follow us on GitHub
         </SocialLink>
-        <SocialLink href={""} icon={DiscordIcon}>
-          Join our Discord server
-        </SocialLink>
       </div>
     </div>
   );
 };
 
-const ConvertkitSignupForm = () => {
-  // const action = `https://app.convertkit.com/forms/${formId}/subscriptions`;
+const WaitlistForm = () => {
+  const trpc = useTRPC();
+  const joinWaitlist = useMutation(trpc.waitlist.join.mutationOptions());
+
+  const form = useForm({
+    schema: joinWaitlistInput,
+    defaultValues: {
+      email: "",
+    },
+  });
+
+  const handleJoinWaitlist = (values: JoinWaitlistInput) => {
+    toast.promise(
+      joinWaitlist
+        .mutateAsync({ type: "app", email: values.email })
+        .then(() => {
+          form.reset({ email: "" });
+        }),
+      {
+        loading: "Submitting...",
+        success: "Waitlist joined!",
+        error: "Failed to join waitlist",
+      },
+    );
+  };
 
   return (
-    <form
-      method="POST"
-      target="_blank"
-      className="relative w-full md:w-[270px]"
-    >
-      <Input
-        type="email"
-        name="email_address"
-        aria-label="Your email address"
-        placeholder="your@email.com"
-        // shape="pill"
-        required
-      />
-      <Button
-        className="absolute top-0 right-0 text-xs"
-        variant="ghost"
-        // shape="pill"
+    <Form {...form}>
+      <form
+        onSubmit={form.handleSubmit(handleJoinWaitlist)}
+        className="border-border flex max-w-sm items-center gap-2 rounded-full border shadow-lg"
       >
-        Subscribe
-      </Button>
-    </form>
+        <FormField
+          control={form.control}
+          name="email"
+          render={({ field }) => (
+            <FormItem className="min-w-0 flex-1 space-y-0">
+              <FormLabel className="sr-only">Email</FormLabel>
+              <FormControl>
+                <input
+                  className="w-full border-none bg-transparent py-2 pl-4 text-sm placeholder-white/50 focus:placeholder-white/75 focus:ring-0 focus:outline-hidden"
+                  required
+                  type="email"
+                  placeholder="name@example.com"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  autoCorrect="off"
+                  {...field}
+                />
+              </FormControl>
+              <FormMessage className="absolute pt-1" />
+            </FormItem>
+          )}
+        />
+        <Button
+          className={cn(
+            "text-xs hover:bg-transparent",
+            joinWaitlist.isPending && "[&>:first-child]:bg-input",
+          )}
+          variant="ghost"
+          loading={joinWaitlist.isPending}
+        >
+          Subscribe
+        </Button>
+      </form>
+    </Form>
   );
 };
