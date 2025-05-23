@@ -46,8 +46,8 @@ export const GridPattern = ({
               key={`${x}-${y}`}
               width={width + 1}
               height={height + 1}
-              x={x ?? 0 * width}
-              y={y ?? 0 * height}
+              x={(x ?? 0) * width}
+              y={(y ?? 0) * height}
             />
           ))}
         </svg>
