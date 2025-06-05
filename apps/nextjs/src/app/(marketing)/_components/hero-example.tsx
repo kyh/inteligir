@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Badge } from "@kyh/ui/badge";
-import { cn } from "@kyh/ui/utils";
+import { Badge } from "@repo/ui/badge";
+import { cn } from "@repo/ui/utils";
 import {
   AnimatePresence,
   motion,

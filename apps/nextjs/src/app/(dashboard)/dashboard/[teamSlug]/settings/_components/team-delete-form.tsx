@@ -9,8 +9,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@kyh/ui/alert-dialog";
-import { Button } from "@kyh/ui/button";
+} from "@repo/ui/alert-dialog";
+import { Button } from "@repo/ui/button";
 import {
   Form,
   FormControl,
@@ -20,13 +20,13 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@kyh/ui/form";
-import { Input } from "@kyh/ui/input";
-import { toast } from "@kyh/ui/toast";
+} from "@repo/ui/form";
+import { Input } from "@repo/ui/input";
+import { toast } from "@repo/ui/toast";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { z } from "zod";
 
-import type { RouterOutputs } from "@kyh/api";
+import type { RouterOutputs } from "@repo/api";
 import { useTRPC } from "@/trpc/react";
 
 type TeamDeleteFormProps = {

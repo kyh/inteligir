@@ -3,8 +3,8 @@
 import {
   createTeamInvitationsInput,
   teamMemberRoles,
-} from "@kyh/api/team/team-schema";
-import { Button } from "@kyh/ui/button";
+} from "@repo/api/team/team-schema";
+import { Button } from "@repo/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -12,7 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@kyh/ui/dialog";
+} from "@repo/ui/dialog";
 import {
   Form,
   FormControl,
@@ -22,21 +22,21 @@ import {
   FormMessage,
   useFieldArray,
   useForm,
-} from "@kyh/ui/form";
-import { Input } from "@kyh/ui/input";
+} from "@repo/ui/form";
+import { Input } from "@repo/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@kyh/ui/select";
-import { toast } from "@kyh/ui/toast";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@kyh/ui/tooltip";
+} from "@repo/ui/select";
+import { toast } from "@repo/ui/toast";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/tooltip";
 import { useMutation, useSuspenseQuery } from "@tanstack/react-query";
 import { PlusIcon, XIcon } from "lucide-react";
 
-import type { CreateTeamInvitationsInput } from "@kyh/api/team/team-schema";
+import type { CreateTeamInvitationsInput } from "@repo/api/team/team-schema";
 import { useTRPC } from "@/trpc/react";
 
 /**

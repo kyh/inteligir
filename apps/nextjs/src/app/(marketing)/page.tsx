@@ -2,10 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
-import { GridPattern } from "@kyh/ui/grid-pattern";
-import { HighlightCard } from "@kyh/ui/highlight-card";
-import { Logo } from "@kyh/ui/logo";
-import { cn } from "@kyh/ui/utils";
+import { GridPattern } from "@repo/ui/grid-pattern";
+import { HighlightCard } from "@repo/ui/highlight-card";
+import { Logo } from "@repo/ui/logo";
+import { cn } from "@repo/ui/utils";
 import {
   ApertureIcon,
   AppWindowIcon,
@@ -98,7 +98,7 @@ const Page = () => {
           playsInline
           className="pointer-events-none absolute inset-0 w-full translate-y-10 [mask-image:linear-gradient(transparent_10%,black,transparent)] opacity-50 mix-blend-lighten hue-rotate-[250deg]"
         >
-          <source src="/assets/home-hero-bg.mov" />
+          <source src="/home-hero-bg.mov" />
         </video>
         <HeroExample />
       </div>

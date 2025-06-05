@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@kyh/ui/avatar";
-import { cn } from "@kyh/ui/utils";
+import { Avatar, AvatarFallback, AvatarImage } from "@repo/ui/avatar";
+import { cn } from "@repo/ui/utils";
 
 import { Markdown } from "./ai-chat-markdown";
 
@@ -54,7 +54,7 @@ const MessageContent = ({
   ...props
 }: MessageContentProps) => {
   const classNames = cn(
-    "text-foreground bg-secondary prose dark:prose-invert rounded-lg p-2 break-words whitespace-normal",
+    "text-foreground bg-secondary prose dark:prose-invert whitespace-normal break-words rounded-lg p-2",
     className,
   );
 

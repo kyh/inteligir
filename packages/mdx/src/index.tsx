@@ -2,7 +2,7 @@ import React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { MDXContent as RootMDXContent } from "@content-collections/mdx/react";
-import { cn } from "@kyh/ui/utils";
+import { cn } from "@repo/ui/utils";
 
 type MDXContentProps = React.ComponentProps<typeof RootMDXContent>;
 
@@ -70,13 +70,13 @@ const customComponents: MDXContentProps["components"] = {
     />
   ),
   ol: ({ className, ...props }: React.HTMLAttributes<HTMLOListElement>) => (
-    <ol className={cn("mt-2 ml-2 list-decimal", className)} {...props} />
+    <ol className={cn("ml-2 mt-2 list-decimal", className)} {...props} />
   ),
   ul: ({ className, ...props }: React.HTMLAttributes<HTMLUListElement>) => (
-    <ul className={cn("mt-2 ml-2 list-disc", className)} {...props} />
+    <ul className={cn("ml-2 mt-2 list-disc", className)} {...props} />
   ),
   li: ({ className, ...props }: React.HTMLAttributes<HTMLLIElement>) => (
-    <li className={cn("mt-2 ml-2 list-item", className)} {...props} />
+    <li className={cn("ml-2 mt-2 list-item", className)} {...props} />
   ),
 };
 

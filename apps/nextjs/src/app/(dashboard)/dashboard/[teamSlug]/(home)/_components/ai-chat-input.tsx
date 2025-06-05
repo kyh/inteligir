@@ -7,14 +7,14 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Textarea } from "@kyh/ui/textarea";
+import { Textarea } from "@repo/ui/textarea";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@kyh/ui/tooltip";
-import { cn } from "@kyh/ui/utils";
+} from "@repo/ui/tooltip";
+import { cn } from "@repo/ui/utils";
 
 type PromptInputContextType = {
   isLoading: boolean;
@@ -81,7 +81,7 @@ const PromptInput = ({
       >
         <div
           className={cn(
-            "border-input bg-background rounded-3xl border p-2 shadow-xs",
+            "border-input bg-background shadow-xs rounded-3xl border p-2",
             className,
           )}
         >

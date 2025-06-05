@@ -1,8 +1,8 @@
 "use client";
 
 import { useChat } from "@ai-sdk/react";
-import { Button } from "@kyh/ui/button";
-import { toast } from "@kyh/ui/toast";
+import { Button } from "@repo/ui/button";
+import { toast } from "@repo/ui/toast";
 import { ArrowUp, Square } from "lucide-react";
 
 import {
@@ -52,7 +52,7 @@ export const AIChatForm = ({ teamSlug }: AIFormProps) => {
 
   return (
     <>
-      <MessagesContainer className="m-auto w-full max-w-(--breakpoint-md) flex-1 space-y-4 p-4">
+      <MessagesContainer className="max-w-(--breakpoint-md) m-auto w-full flex-1 space-y-4 p-4">
         {messages.map((message) => {
           const isAssistant = message.role === "assistant";
           return (
@@ -91,7 +91,7 @@ export const AIChatForm = ({ teamSlug }: AIFormProps) => {
         value={input}
         onValueChange={setInput}
         onSubmit={handleSubmit}
-        className="m-auto w-full max-w-(--breakpoint-md)"
+        className="max-w-(--breakpoint-md) m-auto w-full"
       >
         <PromptInputTextarea placeholder="Ask me anything..." />
         <PromptInputActions className="flex items-center justify-between gap-2 pt-2">

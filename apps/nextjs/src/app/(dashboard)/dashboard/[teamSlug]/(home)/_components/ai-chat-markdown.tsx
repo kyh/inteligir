@@ -1,6 +1,6 @@
 import type { Components } from "react-markdown";
 import { memo, useEffect, useId, useMemo, useState } from "react";
-import { cn } from "@kyh/ui/utils";
+import { cn } from "@repo/ui/utils";
 import { marked } from "marked";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";

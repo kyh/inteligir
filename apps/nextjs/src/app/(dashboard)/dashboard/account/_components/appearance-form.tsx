@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { RadioGroup, RadioGroupItem } from "@kyh/ui/radio-group";
-import { useTheme } from "@kyh/ui/theme";
+import { RadioGroup, RadioGroupItem } from "@repo/ui/radio-group";
+import { useTheme } from "@repo/ui/theme";
 import { Check, Minus } from "lucide-react";
 
 const items = [
@@ -51,9 +51,9 @@ export const AppearanceForm = () => {
             alt={item.label}
             width={120}
             height={120}
-            className="border-input ring-offset-background peer-[:focus-visible]:ring-ring/70 peer-data-[state=checked]:border-ring peer-data-[state=checked]:bg-accent relative overflow-hidden rounded-lg border shadow-sm shadow-black/[.04] transition-colors peer-data-[disabled]:cursor-not-allowed peer-data-[disabled]:opacity-50 peer-[:focus-visible]:ring-2 peer-[:focus-visible]:ring-offset-2"
+            className="border-input ring-offset-background peer-[:focus-visible]:ring-ring/70 peer-data-[state=checked]:border-ring peer-data-[state=checked]:bg-accent relative overflow-hidden rounded-lg border shadow-sm shadow-black/[.04] transition-colors peer-[:focus-visible]:ring-2 peer-[:focus-visible]:ring-offset-2 peer-data-[disabled]:cursor-not-allowed peer-data-[disabled]:opacity-50"
           />
-          <span className="group peer-data-[state=unchecked]:text-muted-foreground/70 mt-2 flex items-center gap-1">
+          <span className="peer-data-[state=unchecked]:text-muted-foreground/70 group mt-2 flex items-center gap-1">
             <Check
               size={16}
               strokeWidth={2}

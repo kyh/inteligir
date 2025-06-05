@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { buttonVariants } from "@kyh/ui/button";
-import { Logo } from "@kyh/ui/logo";
-import { cn } from "@kyh/ui/utils";
+import { buttonVariants } from "@repo/ui/button";
+import { Logo } from "@repo/ui/logo";
+import { cn } from "@repo/ui/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useScroll } from "motion/react";
 

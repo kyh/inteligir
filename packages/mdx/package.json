@@ -1,5 +1,5 @@
 {
-  "name": "@kyh/mdx",
+  "name": "@repo/mdx",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -19,7 +19,7 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@kyh/ui": "workspace:^"
+    "@repo/ui": "workspace:^"
   },
   "devDependencies": {
     "@content-collections/cli": "^0.1.6",

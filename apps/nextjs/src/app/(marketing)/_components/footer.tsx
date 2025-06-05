@@ -1,7 +1,7 @@
 "use client";
 
-import { joinWaitlistInput } from "@kyh/api/waitlist/waitlist-schema";
-import { Button } from "@kyh/ui/button";
+import { joinWaitlistInput } from "@repo/api/waitlist/waitlist-schema";
+import { Button } from "@repo/ui/button";
 import {
   Form,
   FormControl,
@@ -10,20 +10,20 @@ import {
   FormLabel,
   FormMessage,
   useForm,
-} from "@kyh/ui/form";
-import { Logo } from "@kyh/ui/logo";
-import { toast } from "@kyh/ui/toast";
-import { cn } from "@kyh/ui/utils";
+} from "@repo/ui/form";
+import { Logo } from "@repo/ui/logo";
+import { toast } from "@repo/ui/toast";
+import { cn } from "@repo/ui/utils";
 import { useMutation } from "@tanstack/react-query";
 
-import type { JoinWaitlistInput } from "@kyh/api/waitlist/waitlist-schema";
+import type { JoinWaitlistInput } from "@repo/api/waitlist/waitlist-schema";
 import { NavLink } from "@/components/nav";
 import { useTRPC } from "@/trpc/react";
 
 export const Footer = () => {
   return (
     <footer className="mt-20 border-t border-white/10 sm:mt-24">
-      <div className="mx-auto max-w-5xl px-5 py-10 md:pt-16 md:pb-12">
+      <div className="mx-auto max-w-5xl px-5 py-10 md:pb-12 md:pt-16">
         <div className="flex w-full justify-between pb-10 md:pb-12">
           <div className="hidden md:block">
             <Logo />
@@ -172,7 +172,7 @@ const WaitlistForm = () => {
               <FormLabel className="sr-only">Email</FormLabel>
               <FormControl>
                 <input
-                  className="w-full border-none bg-transparent py-2 pl-4 text-sm placeholder-white/50 focus:placeholder-white/75 focus:ring-0 focus:outline-hidden"
+                  className="focus:outline-hidden w-full border-none bg-transparent py-2 pl-4 text-sm placeholder-white/50 focus:placeholder-white/75 focus:ring-0"
                   required
                   type="email"
                   placeholder="name@example.com"

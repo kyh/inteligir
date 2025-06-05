@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
-import { MDXContent } from "@kyh/mdx";
-import { allDocs } from "@kyh/mdx/content";
+import { MDXContent } from "@repo/mdx";
+import { allDocs } from "@repo/mdx/content";
 
 const homePage = "overview/introduction";
 

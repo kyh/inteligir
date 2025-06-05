@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo } from "react";
-import { teamMemberRoles } from "@kyh/api/team/team-schema";
-import { alertDialog } from "@kyh/ui/alert-dialog";
-import { Badge } from "@kyh/ui/badge";
-import { Button } from "@kyh/ui/button";
+import { teamMemberRoles } from "@repo/api/team/team-schema";
+import { alertDialog } from "@repo/ui/alert-dialog";
+import { Badge } from "@repo/ui/badge";
+import { Button } from "@repo/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,14 +15,14 @@ import {
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
-} from "@kyh/ui/dropdown-menu";
-import { AutoTable } from "@kyh/ui/table";
+} from "@repo/ui/dropdown-menu";
+import { AutoTable } from "@repo/ui/table";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { MoreHorizontalIcon } from "lucide-react";
 
-import type { RouterOutputs } from "@kyh/api";
-import type { TeamMemberRole } from "@kyh/api/team/team-schema";
+import type { RouterOutputs } from "@repo/api";
+import type { TeamMemberRole } from "@repo/api/team/team-schema";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useTRPC } from "@/trpc/react";
 
