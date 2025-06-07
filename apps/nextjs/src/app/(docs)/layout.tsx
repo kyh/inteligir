@@ -79,7 +79,7 @@ const Sidebar = () => {
               {[
                 {
                   id: "github",
-                  href: "https://github.com/kyh/init",
+                  href: "https://github.com/kyh/inteligir",
                   label: "Github",
                 },
                 {

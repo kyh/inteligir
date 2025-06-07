@@ -85,7 +85,7 @@ export const Sidebar = () => {
   ];
 
   return (
-    <nav className="sticky top-0 flex h-dvh w-[80px] flex-col items-center overflow-y-auto overflow-x-hidden px-4 py-[26px]">
+    <nav className="sticky top-0 flex h-dvh w-[80px] flex-col items-center overflow-x-hidden overflow-y-auto px-4 py-[26px]">
       <div className="flex flex-col">
         <div className="flex justify-center pb-2">
           <NavLink href={rootUrl}>
@@ -167,7 +167,7 @@ export const UserDropdown = ({ teamSlug }: { teamSlug?: string }) => {
         >
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col gap-1">
-              <p className="text-sm font-medium leading-none">
+              <p className="text-sm leading-none font-medium">
                 {userMetadata?.displayName ?? user.email}
               </p>
               {userMetadata?.displayName && (

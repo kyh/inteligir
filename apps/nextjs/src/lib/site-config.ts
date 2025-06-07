@@ -1,11 +1,10 @@
 export const siteConfig = {
-  name: "Init",
-  shortName: "Init",
-  description:
-    "An AI native starter kit to build, launch, and scale your next project.",
+  name: "Inteligir",
+  shortName: "Inteligir",
+  description: "",
   url:
     process.env.NODE_ENV === "development"
       ? "http://localhost:3000"
-      : "https://init.kyh.io",
+      : "https://inteligir.com",
   twitter: "@kaiyuhsu",
 };
