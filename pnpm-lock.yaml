@@ -28,8 +28,8 @@ catalogs:
       specifier: ^11.4.3
       version: 11.4.3
     '@types/node':
-      specifier: ^22.16.0
-      version: 22.16.0
+      specifier: ^22.16.2
+      version: 22.16.2
     '@types/react':
       specifier: ^19.1.8
       version: 19.1.8
@@ -58,8 +58,8 @@ catalogs:
       specifier: ^5.8.3
       version: 5.8.3
     zod:
-      specifier: ^3.25.74
-      version: 3.25.74
+      specifier: ^3.25.76
+      version: 3.25.76
 
 importers:
 
@@ -70,7 +70,7 @@ importers:
         version: 1.1.6
       '@turbo/gen':
         specifier: ^2.5.4
-        version: 2.5.4(@types/node@22.16.0)(typescript@5.8.3)
+        version: 2.5.4(@types/node@22.16.2)(typescript@5.8.3)
       dotenv-cli:
         specifier: ^8.0.0
         version: 8.0.0
@@ -90,11 +90,11 @@ importers:
   apps/nextjs:
     dependencies:
       '@ai-sdk/openai':
-        specifier: ^1.3.22
-        version: 1.3.22(zod@3.25.74)
+        specifier: ^1.3.23
+        version: 1.3.23(zod@3.25.76)
       '@ai-sdk/react':
         specifier: ^1.2.12
-        version: 1.2.12(react@19.1.0)(zod@3.25.74)
+        version: 1.2.12(react@19.1.0)(zod@3.25.76)
       '@repo/api':
         specifier: workspace:^
         version: link:../../packages/api
@@ -120,8 +120,8 @@ importers:
         specifier: 'catalog:'
         version: 11.4.3(@tanstack/react-query@5.81.5(react@19.1.0))(@trpc/client@11.4.3(@trpc/server@11.4.3(typescript@5.8.3))(typescript@5.8.3))(@trpc/server@11.4.3(typescript@5.8.3))(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.8.3)
       ai:
-        specifier: ^4.3.16
-        version: 4.3.16(react@19.1.0)(zod@3.25.74)
+        specifier: ^4.3.17
+        version: 4.3.17(react@19.1.0)(zod@3.25.76)
       marked:
         specifier: ^15.0.12
         version: 15.0.12
@@ -145,7 +145,7 @@ importers:
         version: 2.2.2
       zod:
         specifier: 'catalog:'
-        version: 3.25.74
+        version: 3.25.76
     devDependencies:
       '@kyh/eslint-config':
         specifier: 'catalog:'
@@ -164,7 +164,7 @@ importers:
         version: 0.5.16(tailwindcss@4.1.11)
       '@types/node':
         specifier: 'catalog:'
-        version: 22.16.0
+        version: 22.16.2
       '@types/react':
         specifier: 'catalog:'
         version: 19.1.8
@@ -200,7 +200,7 @@ importers:
         version: 2.2.2
       zod:
         specifier: 'catalog:'
-        version: 3.25.74
+        version: 3.25.76
     devDependencies:
       '@kyh/eslint-config':
         specifier: 'catalog:'
@@ -243,7 +243,7 @@ importers:
         version: 19.1.0
       zod:
         specifier: 'catalog:'
-        version: 3.25.74
+        version: 3.25.76
     devDependencies:
       '@faker-js/faker':
         specifier: ^9.9.0
@@ -368,7 +368,7 @@ importers:
         version: 1.1.2(@types/react-dom@19.1.6(@types/react@19.1.8))(@types/react@19.1.8)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       zod:
         specifier: 'catalog:'
-        version: 3.25.74
+        version: 3.25.76
     devDependencies:
       '@kyh/eslint-config':
         specifier: 'catalog:'
@@ -394,8 +394,8 @@ importers:
 
 packages:
 
-  '@ai-sdk/openai@1.3.22':
-    resolution: {integrity: sha512-QwA+2EkG0QyjVR+7h6FE7iOu2ivNqAVMm9UJZkVxxTk5OIq5fFJDTEI/zICEMuHImTTXR2JjsL6EirJ28Jc4cw==}
+  '@ai-sdk/openai@1.3.23':
+    resolution: {integrity: sha512-86U7rFp8yacUAOE/Jz8WbGcwMCqWvjK33wk5DXkfnAOEn3mx2r7tNSJdjukQFZbAK97VMXGPPHxF+aEARDXRXQ==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.0.0
@@ -2206,11 +2206,11 @@ packages:
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
 
-  '@types/node@22.15.33':
-    resolution: {integrity: sha512-wzoocdnnpSxZ+6CjW4ADCK1jVmd1S/J3ArNWfn8FDDQtRm8dkDg7TA+mvek2wNrfCgwuZxqEOiB9B1XCJ6+dbw==}
-
   '@types/node@22.16.0':
     resolution: {integrity: sha512-B2egV9wALML1JCpv3VQoQ+yesQKAmNMBIAY7OteVrikcOcAkWm+dGL6qpeCktPjAv6N1JLnhbNiqS35UpFyBsQ==}
+
+  '@types/node@22.16.2':
+    resolution: {integrity: sha512-Cdqa/eJTvt4fC4wmq1Mcc0CPUjp/Qy2FGqLza3z3pKymsI969TcZ54diNJv8UYUgeWxyb8FSbCkhdR6WqmUFhA==}
 
   '@types/phoenix@1.6.6':
     resolution: {integrity: sha512-PIzZZlEppgrpoT2QgbnDU+MMzuR6BbCjllj0bM70lWoejMeNJAxCchxnv7J3XFkI8MpygtRpzXrIlmWUBclP5A==}
@@ -2333,8 +2333,8 @@ packages:
     resolution: {integrity: sha512-4I7Td01quW/RpocfNayFdFVk1qSuoh0E7JrbRJ16nH01HhKFQ88INq9Sd+nd72zqRySlr9BmDA8xlEJ6vJMrYA==}
     engines: {node: '>=8'}
 
-  ai@4.3.16:
-    resolution: {integrity: sha512-KUDwlThJ5tr2Vw0A1ZkbDKNME3wzWhuVfAOwIvFUzl1TPVDFAXDFTXio3p+jaKneB+dKNCvFFlolYmmgHttG1g==}
+  ai@4.3.17:
+    resolution: {integrity: sha512-uWqIQ94Nb1GTYtYElGHegJMOzv3r2mCKNFlKrqkft9xrfvIahTI5OdcnD5U9612RFGuUNGmSDTO1/YRNFXobaQ==}
     engines: {node: '>=18'}
     peerDependencies:
       react: ^18 || ^19 || ^19.0.0-rc
@@ -5243,50 +5243,50 @@ packages:
     peerDependencies:
       zod: ^3.24.1
 
-  zod@3.25.67:
-    resolution: {integrity: sha512-idA2YXwpCdqUSKRCACDE6ItZD9TZzy3OZMtpfLoh6oPR47lipysRrJfjzMqFxQ3uJuUPyUeWe1r9vLH33xO/Qw==}
-
   zod@3.25.74:
     resolution: {integrity: sha512-J8poo92VuhKjNknViHRAIuuN6li/EwFbAC8OedzI8uxpEPGiXHGQu9wemIAioIpqgfB4SySaJhdk0mH5Y4ICBg==}
+
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
 
-  '@ai-sdk/openai@1.3.22(zod@3.25.74)':
+  '@ai-sdk/openai@1.3.23(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.74)
-      zod: 3.25.74
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
+      zod: 3.25.76
 
-  '@ai-sdk/provider-utils@2.2.8(zod@3.25.74)':
+  '@ai-sdk/provider-utils@2.2.8(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
       nanoid: 3.3.11
       secure-json-parse: 2.7.0
-      zod: 3.25.74
+      zod: 3.25.76
 
   '@ai-sdk/provider@1.1.3':
     dependencies:
       json-schema: 0.4.0
 
-  '@ai-sdk/react@1.2.12(react@19.1.0)(zod@3.25.74)':
+  '@ai-sdk/react@1.2.12(react@19.1.0)(zod@3.25.76)':
     dependencies:
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.74)
-      '@ai-sdk/ui-utils': 1.2.11(zod@3.25.74)
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
+      '@ai-sdk/ui-utils': 1.2.11(zod@3.25.76)
       react: 19.1.0
       swr: 2.3.3(react@19.1.0)
       throttleit: 2.1.0
     optionalDependencies:
-      zod: 3.25.74
+      zod: 3.25.76
 
-  '@ai-sdk/ui-utils@1.2.11(zod@3.25.74)':
+  '@ai-sdk/ui-utils@1.2.11(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.74)
-      zod: 3.25.74
-      zod-to-json-schema: 3.24.5(zod@3.25.74)
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
+      zod: 3.25.76
+      zod-to-json-schema: 3.24.5(zod@3.25.76)
 
   '@alloc/quick-lru@5.2.0': {}
 
@@ -5400,7 +5400,7 @@ snapshots:
       tinyglobby: 0.2.13
       typescript: 5.8.3
       yaml: 2.7.1
-      zod: 3.25.67
+      zod: 3.25.74
 
   '@content-collections/integrations@0.2.1(@content-collections/core@0.8.2(typescript@5.8.3))':
     dependencies:
@@ -6967,7 +6967,7 @@ snapshots:
 
   '@tsconfig/node16@1.0.4': {}
 
-  '@turbo/gen@2.5.4(@types/node@22.16.0)(typescript@5.8.3)':
+  '@turbo/gen@2.5.4(@types/node@22.16.2)(typescript@5.8.3)':
     dependencies:
       '@turbo/workspaces': 2.5.4
       commander: 10.0.1
@@ -6977,7 +6977,7 @@ snapshots:
       node-plop: 0.26.3
       picocolors: 1.0.1
       proxy-agent: 6.5.0
-      ts-node: 10.9.2(@types/node@22.16.0)(typescript@5.8.3)
+      ts-node: 10.9.2(@types/node@22.16.2)(typescript@5.8.3)
       update-check: 1.5.4
       validate-npm-package-name: 5.0.1
     transitivePeerDependencies:
@@ -7016,7 +7016,7 @@ snapshots:
   '@types/glob@7.2.0':
     dependencies:
       '@types/minimatch': 5.1.2
-      '@types/node': 22.15.33
+      '@types/node': 22.16.0
 
   '@types/hast@3.0.4':
     dependencies:
@@ -7041,11 +7041,11 @@ snapshots:
 
   '@types/ms@2.1.0': {}
 
-  '@types/node@22.15.33':
+  '@types/node@22.16.0':
     dependencies:
       undici-types: 6.21.0
 
-  '@types/node@22.16.0':
+  '@types/node@22.16.2':
     dependencies:
       undici-types: 6.21.0
 
@@ -7065,7 +7065,7 @@ snapshots:
 
   '@types/through@0.0.33':
     dependencies:
-      '@types/node': 22.15.33
+      '@types/node': 22.16.0
 
   '@types/tinycolor2@1.4.6': {}
 
@@ -7075,7 +7075,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 22.15.33
+      '@types/node': 22.16.0
 
   '@typescript-eslint/eslint-plugin@8.35.0(@typescript-eslint/parser@8.35.0(eslint@9.30.1(jiti@2.4.2))(typescript@5.8.3))(eslint@9.30.1(jiti@2.4.2))(typescript@5.8.3)':
     dependencies:
@@ -7190,15 +7190,15 @@ snapshots:
       clean-stack: 2.2.0
       indent-string: 4.0.0
 
-  ai@4.3.16(react@19.1.0)(zod@3.25.74):
+  ai@4.3.17(react@19.1.0)(zod@3.25.76):
     dependencies:
       '@ai-sdk/provider': 1.1.3
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.74)
-      '@ai-sdk/react': 1.2.12(react@19.1.0)(zod@3.25.74)
-      '@ai-sdk/ui-utils': 1.2.11(zod@3.25.74)
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
+      '@ai-sdk/react': 1.2.12(react@19.1.0)(zod@3.25.76)
+      '@ai-sdk/ui-utils': 1.2.11(zod@3.25.76)
       '@opentelemetry/api': 1.9.0
       jsondiffpatch: 0.6.0
-      zod: 3.25.74
+      zod: 3.25.76
     optionalDependencies:
       react: 19.1.0
 
@@ -10471,14 +10471,14 @@ snapshots:
     dependencies:
       typescript: 5.8.3
 
-  ts-node@10.9.2(@types/node@22.16.0)(typescript@5.8.3):
+  ts-node@10.9.2(@types/node@22.16.2)(typescript@5.8.3):
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       '@tsconfig/node10': 1.0.11
       '@tsconfig/node12': 1.0.11
       '@tsconfig/node14': 1.0.3
       '@tsconfig/node16': 1.0.4
-      '@types/node': 22.16.0
+      '@types/node': 22.16.2
       acorn: 8.14.1
       acorn-walk: 8.3.4
       arg: 4.1.3
@@ -10802,12 +10802,12 @@ snapshots:
 
   yoctocolors@1.0.0: {}
 
-  zod-to-json-schema@3.24.5(zod@3.25.74):
+  zod-to-json-schema@3.24.5(zod@3.25.76):
     dependencies:
-      zod: 3.25.74
-
-  zod@3.25.67: {}
+      zod: 3.25.76
 
   zod@3.25.74: {}
+
+  zod@3.25.76: {}
 
   zwitch@2.0.4: {}
