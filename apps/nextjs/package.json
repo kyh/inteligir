@@ -18,7 +18,6 @@
     "@ai-sdk/react": "^1.2.12",
     "@repo/api": "workspace:^",
     "@repo/db": "workspace:^",
-    "@repo/mdx": "workspace:^",
     "@repo/ui": "workspace:^",
     "@tanstack/react-query": "catalog:",
     "@trpc/client": "catalog:",

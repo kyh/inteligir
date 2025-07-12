@@ -1,18 +1,9 @@
-import { Footer } from "./_components/footer";
-import { Header } from "./_components/header";
-
 type LayoutProps = {
   children: React.ReactNode;
 };
 
 const Layout = (props: LayoutProps) => {
-  return (
-    <>
-      <Header />
-      <main className="contained-page text-center">{props.children}</main>
-      <Footer />
-    </>
-  );
+  return <main className="contained-page">{props.children}</main>;
 };
 
 export default Layout;

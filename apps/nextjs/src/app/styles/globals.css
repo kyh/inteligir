@@ -65,7 +65,7 @@
   display: grid;
   grid-template-columns:
     1fr
-    min(1024px, calc(100% - var(--viewport-padding) * 2))
+    min(576px, calc(100% - var(--viewport-padding) * 2))
     1fr;
   gap: 0 var(--viewport-padding);
 }
@@ -87,48 +87,4 @@
   ::file-selector-button {
     border-color: var(--border, currentColor);
   }
-}
-
-@keyframes tilt {
-  0%,
-  50%,
-  100% {
-    transform: rotate(0deg);
-  }
-  25% {
-    transform: rotate(2deg);
-  }
-  75% {
-    transform: rotate(-2deg);
-  }
-}
-
-@keyframes disco {
-  from {
-    transform: translateY(-50%) rotate(0deg);
-  }
-  to {
-    transform: translateY(-50%) rotate(360deg);
-  }
-}
-
-@keyframes slide-across {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(-100%);
-  }
-}
-
-.animate-tilt {
-  animation: tilt 6s linear infinite;
-}
-
-.animate-disco {
-  animation: disco 6s linear infinite;
-}
-
-.animate-slide-across {
-  animation: slide-across linear infinite;
 }
