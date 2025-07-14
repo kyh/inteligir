@@ -1,3 +1,3 @@
 # Inteligir
 
-Learn every day 📝
+Make lifelong learning as natural as checking your phone 📝

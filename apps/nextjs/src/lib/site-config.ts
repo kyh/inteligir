@@ -1,7 +1,7 @@
 export const siteConfig = {
   name: "Inteligir",
   shortName: "Inteligir",
-  description: "",
+  description: "Make lifelong learning as natural as checking your phone",
   url:
     process.env.NODE_ENV === "development"
       ? "http://localhost:3000"

@@ -7,7 +7,7 @@ import { Slot } from "radix-ui";
 import { Spinner } from "./spinner";
 
 export const buttonVariants = cva(
-  "focus-visible:ring-ring focus-visible:outline-hidden relative inline-flex cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition focus-visible:ring-1 disabled:pointer-events-none",
+  "focus-visible:ring-ring relative inline-flex cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition focus-visible:ring-1 focus-visible:outline-hidden disabled:pointer-events-none",
   {
     variants: {
       variant: {
@@ -16,14 +16,14 @@ export const buttonVariants = cva(
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/80 shadow-xs",
         outline:
-          "border-border bg-background hover:bg-accent hover:text-accent-foreground shadow-xs border",
+          "border-border bg-background hover:bg-accent hover:text-accent-foreground border shadow-xs",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 shadow-xs",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        sm: "h-8 px-3 text-xs",
+        sm: "h-7 px-3 text-xs",
         md: "h-9 px-4 py-2",
         lg: "h-10 px-8",
         icon: "size-9",
@@ -84,7 +84,7 @@ export const Button = ({
       disabled={disabled ?? loading}
       {...props}
     >
-      <span className="pointer-events-none absolute inset-0 grid place-items-center rounded-full opacity-0 transition">
+      <span className="pointer-events-none absolute inset-0 grid place-items-center opacity-0 transition">
         <Spinner className="size-4" />
       </span>
       <Slot.Slottable>{children}</Slot.Slottable>

@@ -1,9 +1,16 @@
+import { Header } from "./_components/header";
+
 type LayoutProps = {
   children: React.ReactNode;
 };
 
 const Layout = (props: LayoutProps) => {
-  return <main className="contained-page">{props.children}</main>;
+  return (
+    <div className="contained-page">
+      <Header />
+      {props.children}
+    </div>
+  );
 };
 
 export default Layout;
