@@ -9,23 +9,24 @@ const Page = () => {
         transforms trending topics from your world into engaging, bite-sized
         lessons delivered right to your phone.
       </p>
-      <p>How it works:</p>
-      <ol className="list-inside list-decimal">
-        <li>Connect your social accounts (or any news feed)</li>
-        <li>Our AI identifies trending topics you care about</li>
-        <li>Receive personalized 5-minute lessons daily</li>
-        <li>Dive deeper with curated sources and references</li>
-      </ol>
+      <div className="flex flex-col gap-2">
+        <p>Join the waitlist:</p>
+        <WaitlistForm />
+      </div>
+      <div className="mt-3">
+        <p>How it works:</p>
+        <ol className="mt-2 list-inside list-decimal">
+          <li>Connect your social accounts (or your favorite news feeds)</li>
+          <li>Our AI identifies trending topics you care about</li>
+          <li>Receive personalized deep dives on the trending topics</li>
+        </ol>
+      </div>
       <p>
         Perfect for curious minds who want to stay informed without information
         overload. Whether it's the latest AI breakthrough, market trends, or
         cultural phenomena – learn about what's happening in your world,
         explained clearly and concisely.
       </p>
-      <div className="mt-3 flex flex-col gap-2">
-        <p>Join the waitlist:</p>
-        <WaitlistForm />
-      </div>
     </main>
   );
 };
