@@ -61,8 +61,8 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
   const form = useForm({
     schema: signInWithPasswordInput,
     defaultValues: {
-      email: "im.kaiyu@gmail.com",
-      password: "testing123",
+      email: "",
+      password: "",
     },
   });
 
@@ -83,22 +83,6 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
 
   return (
     <div className={cn("grid gap-6", className)} {...props}>
-      <Button
-        variant="outline"
-        type="button"
-        loading={signInWithOAuth.isPending}
-        onClick={handleAuthWithGithub}
-      >
-        Continue with Github
-      </Button>
-      <div className="relative">
-        <div className="absolute inset-0 flex items-center">
-          <span className="w-full border-t" />
-        </div>
-        <div className="relative flex justify-center text-xs uppercase">
-          <span className="bg-background text-muted-foreground px-2">Or</span>
-        </div>
-      </div>
       <Form {...form}>
         <form
           className="grid gap-2"
