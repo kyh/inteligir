@@ -25,7 +25,7 @@ export const Header = () => {
           <span
             className={cn(
               buttonVariants({ variant: "secondary", size: "sm" }),
-              "w-16 animate-pulse",
+              "pointer-events-none w-16 animate-pulse",
             )}
           />
         ) : user ? (

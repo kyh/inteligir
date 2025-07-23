@@ -1,6 +1,5 @@
-import type { Message } from "ai";
-import { openai } from "@ai-sdk/openai";
-import { streamText } from "ai";
+import type { UIMessage } from "ai";
+import { convertToModelMessages, smoothStream, streamText } from "ai";
 
 import { caller } from "@/trpc/server";
 
@@ -8,7 +7,7 @@ export const maxDuration = 30;
 
 export async function POST(request: Request) {
   const { messages, teamSlug } = (await request.json()) as {
-    messages: Message[];
+    messages: UIMessage[];
     teamSlug: string;
   };
 
@@ -16,14 +15,10 @@ export async function POST(request: Request) {
   await caller.team.getTeam({ slug: teamSlug });
 
   const result = streamText({
-    model: openai("gpt-4o-mini"),
-    messages,
+    model: "gpt-4o-mini",
+    messages: convertToModelMessages(messages),
+    experimental_transform: smoothStream({ chunking: "word" }),
   });
 
-  return result.toDataStreamResponse({
-    getErrorMessage: (error) => {
-      console.error(error);
-      return "An error occurred while processing the messages";
-    },
-  });
+  return result.toUIMessageStreamResponse();
 }

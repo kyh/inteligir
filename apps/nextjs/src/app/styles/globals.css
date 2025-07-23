@@ -1,8 +1,8 @@
 @import "tailwindcss" source("../../../../../");
-@import "./animations.css";
-@import "./shiki.css";
+@import "fumadocs-ui/css/black.css";
+@import "fumadocs-ui/css/preset.css";
 
-@plugin "@tailwindcss/typography";
+@import "./animations.css";
 
 :root {
   --background: hsl(240 10% 3.9%);

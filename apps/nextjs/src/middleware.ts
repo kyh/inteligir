@@ -63,7 +63,7 @@ const getPatterns = () => [
       // This should never happen, but just in case.
       if (!user || error) {
         return NextResponse.redirect(
-          new URL("/auth/sign-in", request.nextUrl.origin).href,
+          new URL("/auth/login", request.nextUrl.origin).href,
         );
       }
 
@@ -120,7 +120,7 @@ const getPatterns = () => [
 
       // If user is not logged in, redirect to sign in page.
       if (!user || error) {
-        const signIn = "/auth/sign-in";
+        const signIn = "/auth/login";
         const redirectPath = `${signIn}?next=${next}`;
 
         return NextResponse.redirect(new URL(redirectPath, origin).href);
