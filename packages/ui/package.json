@@ -16,8 +16,8 @@
     "gen:ui": "pnpm dlx shadcn@latest add && prettier src --write --list-different"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.1.1",
-    "@icons-pack/react-simple-icons": "^13.6.0",
+    "@hookform/resolvers": "^5.2.0",
+    "@icons-pack/react-simple-icons": "^13.7.0",
     "@shikijs/transformers": "^3.8.1",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
@@ -26,8 +26,8 @@
     "lucide-react": "^0.525.0",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.4.2",
-    "react-day-picker": "^9.8.0",
-    "react-hook-form": "^7.60.0",
+    "react-day-picker": "^9.8.1",
+    "react-hook-form": "^7.61.1",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
     "shiki": "^3.8.1",
