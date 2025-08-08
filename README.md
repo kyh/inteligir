@@ -1,3 +1,3 @@
 # Inteligir
 
-Make lifelong learning as natural as checking your phone 📝
+The next gen of docs
