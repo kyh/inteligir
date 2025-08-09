@@ -79,7 +79,7 @@ export const WaitlistForm = () => {
           variant="ghost"
           loading={joinWaitlist.isPending}
         >
-          Subscribe
+          Join Waitlist
         </Button>
       </form>
     </Form>
