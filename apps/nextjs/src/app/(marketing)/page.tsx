@@ -6,8 +6,8 @@ const Page = () => {
       <h1>The next gen of docs.</h1>
       <p>
         An adaptive and intelligent block-based editor that connects with your
-        proprietary data and helps you generate content, charts, and custom
-        interfaces.
+        proprietary data and helps you generate content, visualizations, and
+        custom interfaces.
       </p>
       <WaitlistForm />
     </main>
