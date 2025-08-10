@@ -18,7 +18,7 @@
   "dependencies": {
     "@hookform/resolvers": "^5.2.1",
     "@icons-pack/react-simple-icons": "^13.7.0",
-    "@shikijs/transformers": "^3.9.1",
+    "@shikijs/transformers": "^3.9.2",
     "@tanstack/react-table": "^8.21.3",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
@@ -30,8 +30,8 @@
     "react-hook-form": "^7.62.0",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
-    "shiki": "^3.9.1",
-    "sonner": "^2.0.6",
+    "shiki": "^3.9.2",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.3.1",
     "use-stick-to-bottom": "^1.1.1",
     "vaul": "^1.1.2"
