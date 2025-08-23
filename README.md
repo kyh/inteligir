@@ -1,3 +1,3 @@
 # Inteligir
 
-Make lifelong learning as natural as checking your phone 📝
+> Make lifelong learning as natural as checking your phone
