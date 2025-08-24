@@ -44,7 +44,7 @@ export const Header = () => {
               buttonVariants({ variant: "secondary", size: "sm" }),
               "w-16",
             )}
-            href="/auth/sign-in"
+            href="/auth/login"
           >
             Login
           </Link>
