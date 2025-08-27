@@ -9,10 +9,7 @@ const Page = () => {
         transforms trending topics from your world into engaging, bite-sized
         lessons delivered right to your phone.
       </p>
-      <div className="flex flex-col gap-2">
-        <p>Join the waitlist:</p>
-        <WaitlistForm />
-      </div>
+      <WaitlistForm />
       <div className="mt-3">
         <p>How it works:</p>
         <ol className="mt-2 list-inside list-decimal">
