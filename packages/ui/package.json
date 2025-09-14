@@ -16,7 +16,7 @@
     "gen:ui": "pnpm dlx shadcn@latest add && prettier src --write --list-different"
   },
   "dependencies": {
-    "@hookform/resolvers": "^5.2.1",
+    "@hookform/resolvers": "^5.2.2",
     "@icons-pack/react-simple-icons": "^13.7.0",
     "@shikijs/transformers": "^3.12.2",
     "@tanstack/react-table": "^8.21.3",
