@@ -1,7 +1,7 @@
 export const siteConfig = {
-  name: "Inteligir",
-  shortName: "Inteligir",
-  description: "Make lifelong learning as natural as checking your phone.",
+  name: "OpenWebsets",
+  shortName: "OpenWebsets",
+  description: "Open source alternative to Exa Websets - Create, manage, and share web search collections.",
   url:
     process.env.NODE_ENV === "development"
       ? "http://localhost:3000"
