@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  potion_pg:
+    container_name: potion_pg
+    image: postgres:latest
+    ports:
+      - '5555:5432'
+    restart: always
+    env_file:
+      - .env.local
+    volumes:
+      - potion_pg_data:/data/postgres
+
+volumes:
+  potion_pg_data:
