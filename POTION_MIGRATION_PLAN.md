@@ -1,392 +1,106 @@
 # Potion Template Migration Plan
 
-## Overview
+## Objectives & Guardrails
+- Deliver the Notion-like editor, commenting, versioning, and workspace UX from `apps/template-potion` inside `apps/nextjs` without regressing the marketing/docs experience already there.
+- Move all shared server logic into packages: TRPC routers/handlers into `packages/api`, relational schema into `packages/db`, shared UI into `packages/ui`, while keeping Better Auth as the single source of authentication.
+- Preserve existing monorepo conventions (pnpm workspace, turbo pipeline, Drizzle ORM, TRPC, Better Auth) and keep streaming-only APIs as Next.js route handlers.
+- Avoid breaking existing waitlist/organization flows during migration; use feature flags or route gating so we can merge iteratively.
+
+## Phase 1 – Discovery & Alignment
+- Create a living inventory of critical features in `apps/template-potion` (documents, comments, versions, files, AI helpers, admin/export flows) and map each to the target location in `apps/nextjs`, `packages/api`, and `packages/db`.
+- Review current `apps/nextjs` structure (`(dashboard)`, `registry`, `components`, `trpc`, `providers`) to confirm placeholders that expect editor features.
+- Identify configuration deltas (Tailwind setup, env handling, Next config, fonts, analytics) between the template and `apps/nextjs`.
+- Confirm operational requirements (Redis, UploadThing, AI providers) and note which services must be provisioned per environment.
+
+## Phase 2 – Tooling & Dependency Baseline
+- List all runtime and dev dependencies unique to `apps/template-potion/package.json`; group them into: shared (move to root `package.json` or `packages/ui`), app-only (add to `apps/nextjs`), server-only (add to `packages/api`).
+- Add missing catalog entries if version pinning is required (e.g., `@platejs/*`, `hono`, `uploadthing`, `@upstash/ratelimit`).
+- Align PostCSS/Tailwind setup: merge template’s config into `apps/nextjs/postcss.config.mjs` and ensure Tailwind 4-compatible usage across editor styles.
+- Ensure TypeScript path aliases used in the template exist in `apps/nextjs/tsconfig.json` and workspace `tsconfig` chain.
+
+## Phase 3 – Database Migration (Prisma → Drizzle)
+- Translate `apps/template-potion/prisma/schema.prisma` models (User, Document, DocumentVersion, Discussion, Comment, File, Session, OAuthAccount) into Drizzle tables under `packages/db/src`:
+  - Extend `drizzle-schema-auth.ts` to capture additional Better Auth fields (e.g., `username`, `profileImageUrl`, `role`, `uploadLimit`, Stripe metadata) while keeping compatibility with Better Auth adapters.
+  - Create new application tables in `drizzle-schema.ts`: documents hierarchy, versions, discussions/comments, files, enums as `pgEnum` equivalents.
+  - Model foreign keys, unique constraints (`@@unique([userId, templateId])`), self-referential relations, indexes, and cascading deletes.
+- Add Drizzle relation helpers and update `packages/db/src/index.ts` exports if new helpers are needed.
+- Introduce migration scripts (Drizzle kit or SQL snapshots) and document how to apply them (`pnpm db:migrate`) for dev/prod.
+- Backfill seeds or dev fixtures that existed in Prisma (see `.prisma/seed.ts`) using Drizzle + `Better Auth` APIs.
+- Update README/ops docs with new env vars required for Postgres/Redis/Uploadting.
+
+## Phase 4 – Server Utilities & Context
+- Recreate shared Redis, rate limiting, and storage clients from `apps/template-potion/src/server` inside packages:
+  - Port `ratelimit.ts`, `redis.ts`, `pg.ts` into `packages/api/src/utils` or `packages/db` as appropriate, replacing Prisma-specific code.
+  - Convert `nid`, slug helpers, and generic utils into reusable functions (place in `packages/api/src/utils` or `packages/ui` if client-side).
+- Expand `createTRPCContext` in `packages/api/src/trpc.ts` to inject the new utilities: `db`, `ratelimit`, Better Auth session, active organization, optional cookies.
+- Provide server-only helper functions (e.g., `getViewer`, `requireDocumentAccess`) in `packages/api/src/server` for reuse in routers and Next route handlers.
+
+## Phase 5 – TRPC Routers & Procedures
+- Move each template router (`comment`, `document`, `file`, `layout`, `user`, `version`) from `apps/template-potion/src/server/api/routers` into `packages/api/src`:
+  - Replace Prisma client calls with Drizzle queries using helper functions; ensure pagination/cursor logic (`getNextCursor`) translates correctly.
+  - Recreate middleware layers (authorization, logging, ratelimiting) using the existing `protectedProcedure`/`publicProcedure` pattern in `packages/api/src/trpc.ts`.
+  - Add input/output schemas (`zod`) and share them with the app via generated types.
+  - Update `packages/api/src/root-router.ts` to register the new routers and expose typed callers.
+- Ensure router composition aligns with `appRouter.createCaller` usage in `apps/nextjs/src/trpc/server.tsx` and update the client hooks as needed.
+
+## Phase 6 – Auth Alignment (Better Auth + Template Needs)
+- Audit template auth flows (`src/server/auth/*`) and map features (admin roles, session cookies, `SUPERADMIN`, dev login, OAuth providers).
+- Configure Better Auth to support username, role, upload limits, active org, and stripe IDs by updating `packages/api/src/auth/auth.ts` hooks and types.
+- Recreate helper functions (`getAuthUser`, `getDevUser`, `findOrCreateUser`) using Better Auth APIs instead of Lucia, exposing them via `packages/api`.
+- Align cookie/session usage in the TRPC context and Next route handlers with `better-auth/react` client used in `apps/nextjs/src/auth`.
+- Ensure admin gating, impersonation, and organization membership checks mirror template behavior.
+
+## Phase 7 – File Handling & Uploads
+- Port `uploadthing` router (`apps/template-potion/src/app/api/uploadthing/route.ts` and supporting `components/editor/uploadthing-app`) into `apps/nextjs/src/app/api/uploadthing`.
+- Move file storage utilities (`lib/storage/images`, `use-file-picker` helpers) into `apps/nextjs/src/lib/storage` and `packages/ui` as appropriate.
+- Update TRPC `file` router to integrate with UploadThing callbacks, Drizzle `files` table, and Better Auth user quotas (`uploadLimit`).
+- Document required env vars (UPLOADTHING_TOKEN, storage buckets) and ensure they are wired via `@t3-oss/env` configuration shared across packages.
+
+## Phase 8 – AI & Streaming Endpoints
+- Recreate Hono routes under `apps/nextjs/src/app/api` using Next Route Handlers:
+  - `/api/ai/*` → Next streaming routes powered by `ai` SDK, reusing ratelimit + TRPC helpers for permissions.
+  - `/api/export` and `/api/auth` flows either become TRPC mutations or Next route handlers depending on method (non-streaming logic should be TRPC).
+- Move shared AI utilities (prompt templates, transforms, `use-chat` hooks) to `apps/nextjs/src/registry` / `components/editor` and ensure imports resolve without `@/` path conflicts.
+- Verify streaming responses remain edge-compatible if required; update route runtime config accordingly.
+
+## Phase 9 – Next.js App Structure & Routing
+- Merge template routes into `apps/nextjs/src/app`:
+  - Translate `(dynamic)` layout stack into existing `(dashboard)` and `(auth)` segments, reconciling marketing/docs pages.
+  - Implement editor pages (`documents/[documentId]`, `documents/trash`, `editor`, public document view, admin screens) with server components calling new TRPC queries.
+  - Integrate not-found/error boundaries and template’s `global-error.tsx` logic into Next app.
+- Bring over global CSS (`globals.css`), fonts, and metadata settings; ensure they coexist with existing marketing styles under `styles/`.
+- Update `apps/nextjs/next.config.js` and `turbo.json` if new experimental flags or static asset handling is required (e.g., tailwind registry).
+
+## Phase 10 – Client State, Providers & UI Composition
+- Copy provider tree (`components/providers/*`, `AppProvider`, `TailwindProvider`, `ThemeProvider`) into `apps/nextjs`, hooking into Better Auth session fetchers and React Query hydration.
+- Migrate Jotai stores, custom hooks (`hooks/*`), and utils to the correct locations (`apps/nextjs/src/hooks`, `apps/nextjs/src/lib`). Remove unused ones or adapt to monorepo patterns.
+- Port UI components (`components/editor`, `components/sidebar`, `components/context-panel`, etc.) ensuring shared primitives live in `packages/ui` where possible to avoid duplication.
+- Rebuild `registry/components/editor` entries so Plate editor demos continue to work and align with existing registry usage in `apps/nextjs`.
+- Ensure client components explicitly opt-in to `"use client"` and server components remain async-friendly.
+
+## Phase 11 – Supporting Services & Observability
+- Recreate instrumentation (Sentry, analytics, logging) from template if needed, wiring to environment-specific configs in Next.
+- Bring over cron/scripts (`scripts/*`) that sync template assets if still relevant; convert to pnpm workspace scripts under the root package.
+- Ensure Docker/dev containers align with current monorepo tooling or document alternative local stack instructions.
+
+## Phase 12 – Testing & Validation
+- Add unit tests for new Drizzle repositories and TRPC routers using existing test harnesses or create new ones in `packages/api/tests`.
+- Write integration tests for document lifecycle (create/update/archive/restore), comments, file uploads, and AI command flows (mock LLM responses).
+- Leverage Playwright or Cypress (if available) to cover critical user journeys (login, create doc, comment, export).
+- Verify type safety across app/packaged boundaries by running `pnpm typecheck` in workspace and ensure `eslint` rules pass after imports move.
+- Update CI pipeline (turbo tasks) so affected packages run lint/test/build in the right order.
+
+## Phase 13 – Rollout Strategy & Cleanup
+- Stage deployment behind a feature flag or sub-route to allow internal testing before replacing the current dashboard experience.
+- Plan database migration rollout: create reversible migrations, snapshot existing data, communicate downtime (if any).
+- Document manual verification checklist (auth, document CRUD, uploads, AI, export) for QA/UAT.
+- Once stable, retire `apps/template-potion` by extracting any remaining shared assets to packages, update workspace configs, and remove redundant dependencies/scripts.
+- Update project documentation (`README.md`, onboarding docs) to reflect the new architecture and operational steps.
+
+## Deliverables & References
+- Updated `POTION_MIGRATION_PLAN.md` (this file) tracked with progress notes.
+- Schema documentation for new Drizzle tables and ERD snapshot.
+- API reference (routers, procedures, route handlers) published or linked from internal docs.
+- Updated environment variable matrix covering app/api/db packages.
+- QA checklist and regression test results before decommissioning the template app.
 
-This document outlines the comprehensive plan to migrate the Notion-like functionality from `apps/template-potion` to the existing `apps/nextjs` application, following the current monorepo conventions and architecture.
-
-## Current Architecture Analysis
-
-### Template-Potion App Features
-
-- **Rich Text Editor**: Plate.js-based editor with extensive plugins
-- **Document Management**: Create, read, update, delete documents with hierarchical structure
-- **Collaboration**: Comments, discussions, and version control
-- **File Uploads**: Media handling with UploadThing integration
-- **AI Integration**: OpenAI-powered features and copilot functionality
-- **Authentication**: Better-auth with GitHub OAuth
-- **Database**: PostgreSQL with Prisma ORM
-
-### Current Monorepo Structure
-
-- **apps/nextjs**: Next.js app with Fumadocs integration
-- **packages/api**: tRPC API layer with Better-auth
-- **packages/db**: Drizzle ORM with Supabase integration
-- **packages/ui**: Shared UI components
-
-## Migration Strategy
-
-### Phase 1: Database Schema Migration
-
-#### 1.1 Convert Prisma Schema to Drizzle
-
-**Target**: `packages/db/src/drizzle-schema.ts`
-
-**Tables to migrate**:
-
-- `Document` (new)
-- `DocumentVersion` (new)
-- `Discussion` (new)
-- `Comment` (new)
-- `File` (new)
-- Note: User, OauthAccount, and Session tables are already handled by better-auth
-
-**Key considerations**:
-
-- Convert Prisma enums to Drizzle enums
-- Maintain foreign key relationships
-- Add proper indexes for performance
-- Ensure compatibility with existing auth schema
-
-#### 1.2 Update Database Types
-
-**Target**: `packages/db/src/database.types.ts`
-
-- Generate new types for document-related tables
-- Maintain existing Supabase types
-- Ensure type safety across the application
-
-### Phase 2: API Layer Migration
-
-#### 2.1 Create Document Router
-
-**Target**: `packages/api/src/document/document-router.ts`
-
-**Endpoints to migrate**:
-
-- `document.document` - Get single document
-- `document.documents` - List documents with pagination
-- `document.create` - Create new document
-- `document.update` - Update document
-- `document.delete` - Delete document
-- `document.archive` - Archive document
-- `document.restore` - Restore archived document
-- `document.trash` - List archived documents
-
-#### 2.2 Create Comment Router
-
-**Target**: `packages/api/src/comment/comment-router.ts`
-
-**Endpoints to migrate**:
-
-- `comment.discussions` - Get discussions for document
-- `comment.createComment` - Create comment
-- `comment.createDiscussion` - Create discussion
-- `comment.createDiscussionWithComment` - Create discussion with initial comment
-- `comment.updateComment` - Update comment
-- `comment.deleteComment` - Delete comment
-- `comment.removeDiscussion` - Remove discussion
-- `comment.resolveDiscussion` - Resolve discussion
-
-#### 2.3 Create Version Router
-
-**Target**: `packages/api/src/version/version-router.ts`
-
-**Endpoints to migrate**:
-
-- `version.documentVersions` - Get document versions
-- `version.documentVersion` - Get single version
-- `version.createVersion` - Create version
-- `version.deleteVersion` - Delete version
-- `version.restoreVersion` - Restore version
-
-#### 2.4 Create File Router
-
-**Target**: `packages/api/src/file/file-router.ts`
-
-**Endpoints to migrate**:
-
-- File upload handling
-- File management
-- Integration with UploadThing
-
-#### 2.5 Update Root Router
-
-**Target**: `packages/api/src/root-router.ts`
-
-- Add new routers to the main app router
-- Maintain existing organization and waitlist routers
-
-### Phase 3: Frontend Migration
-
-#### 3.1 Editor Components Migration
-
-**Target**: `apps/nextjs/src/components/editor/`
-
-**Components to migrate**:
-
-- Editor kit configuration
-- Plate.js plugins and extensions
-- Custom editor components
-- Template system
-- AI integration components
-- Comment system components
-
-#### 3.2 Document Management Pages
-
-**Target**: `apps/nextjs/src/app/(dashboard)/`
-
-**Pages to create**:
-
-- `documents/page.tsx` - Document list/workspace
-- `documents/[documentId]/page.tsx` - Document editor
-- `documents/[documentId]/settings/page.tsx` - Document settings
-- `documents/trash/page.tsx` - Archived documents
-
-#### 3.3 Layout Updates
-
-**Target**: `apps/nextjs/src/app/(dashboard)/layout.tsx`
-
-- Add document navigation
-- Integrate editor layout
-- Add collaboration features
-
-#### 3.4 State Management
-
-**Target**: `apps/nextjs/src/lib/`
-
-- Document state management
-- Editor state persistence
-- Real-time collaboration state
-
-### Phase 4: Authentication Integration
-
-#### 4.1 User Context Integration
-
-**Target**: `packages/api/src/auth/`
-
-- Ensure existing better-auth user context works with document operations
-- Document ownership validation will use existing user ID from auth context
-- No schema changes needed - better-auth handles all authentication
-
-### Phase 5: Dependencies and Configuration
-
-#### 5.1 Package Dependencies
-
-**Target**: `apps/nextjs/package.json`
-
-**New dependencies to add**:
-
-- `platejs` - Rich text editor
-- `@platejs/plate-*` - Editor plugins
-- `@ai-sdk/react` - AI integration
-- `uploadthing` - File uploads
-- `jotai` - State management
-- `lodash` - Utility functions
-
-#### 5.2 Environment Variables
-
-**Target**: `.env` files
-
-**New variables**:
-
-- `UPLOADTHING_TOKEN`
-- `UPLOADTHING_APP_ID`
-- `OPENAI_API_KEY`
-- `NEXT_PUBLIC_SITE_URL`
-
-#### 5.3 Next.js Configuration
-
-**Target**: `apps/nextjs/next.config.js`
-
-- Add transpile packages for Plate.js
-- Configure file upload handling
-- Update image domains
-
-### Phase 6: UI Components Integration
-
-#### 6.1 Shared Components
-
-**Target**: `packages/ui/src/`
-
-**Components to add**:
-
-- Document card components
-- Editor toolbar components
-- Comment system components
-- File upload components
-
-#### 6.2 Styling Integration
-
-**Target**: `apps/nextjs/src/app/styles/`
-
-- Integrate editor styles
-- Add document-specific styles
-- Maintain design system consistency
-
-## Implementation Order
-
-### Week 1: Database Foundation
-
-1. Convert Prisma schema to Drizzle
-2. Create database migrations
-3. Update database types
-4. Test database operations
-
-### Week 2: API Layer
-
-1. Create document router
-2. Create comment router
-3. Create version router
-4. Create file router
-5. Update root router
-6. Test API endpoints
-
-### Week 3: Core Frontend
-
-1. Set up editor configuration
-2. Create document pages
-3. Implement basic document CRUD
-4. Add document navigation
-
-### Week 4: Advanced Features
-
-1. Implement comment system
-2. Add version control
-3. Integrate file uploads
-4. Add AI features
-
-### Week 5: Polish and Testing
-
-1. Add real-time collaboration
-2. Implement advanced editor features
-3. Add comprehensive testing
-4. Performance optimization
-
-Note: Authentication integration is simplified since better-auth handles everything - just use existing user context
-
-## Technical Considerations
-
-### Database Migration Strategy
-
-- Use Drizzle migrations for schema changes
-- Maintain data integrity during migration
-- Create rollback procedures
-- Test with production-like data
-
-### API Compatibility
-
-- Maintain existing API contracts
-- Use consistent error handling
-- Implement proper rate limiting
-- Add comprehensive logging
-
-### Frontend Integration
-
-- Preserve existing routing structure
-- Maintain design system consistency
-- Ensure responsive design
-- Optimize bundle size
-
-### Performance Considerations
-
-- Implement proper caching strategies
-- Use React Query for data fetching
-- Optimize editor performance
-- Implement lazy loading
-
-### Security Considerations
-
-- Validate all user inputs
-- Implement proper authorization
-- Secure file uploads
-- Protect against XSS attacks
-
-## Testing Strategy
-
-### Unit Tests
-
-- Test all API endpoints
-- Test database operations
-- Test editor functionality
-- Test authentication flows
-
-### Integration Tests
-
-- Test document creation workflow
-- Test comment system
-- Test file uploads
-- Test version control
-
-### E2E Tests
-
-- Test complete user workflows
-- Test collaboration features
-- Test error scenarios
-- Test performance
-
-## Rollback Plan
-
-### Database Rollback
-
-- Keep Prisma schema as backup
-- Create rollback migrations
-- Document rollback procedures
-
-### API Rollback
-
-- Maintain API versioning
-- Keep old endpoints during transition
-- Implement feature flags
-
-### Frontend Rollback
-
-- Use feature flags for new features
-- Maintain separate routes during transition
-- Keep old components as fallback
-
-## Success Metrics
-
-### Functional Requirements
-
-- [ ] All document CRUD operations working
-- [ ] Comment system fully functional
-- [ ] Version control working
-- [ ] File uploads working
-- [ ] AI features integrated
-- [ ] Real-time collaboration working
-
-### Performance Requirements
-
-- [ ] Page load times < 2s
-- [ ] Editor responsiveness < 100ms
-- [ ] API response times < 500ms
-- [ ] Bundle size increase < 50%
-
-### Quality Requirements
-
-- [ ] 90%+ test coverage
-- [ ] Zero critical security vulnerabilities
-- [ ] Accessibility compliance
-- [ ] Cross-browser compatibility
-
-## Risk Mitigation
-
-### Technical Risks
-
-- **Editor Performance**: Implement virtualization and optimization
-- **Bundle Size**: Use code splitting and lazy loading
-- **Database Performance**: Add proper indexes and query optimization
-- **Real-time Features**: Use WebSocket connections efficiently
-
-### Integration Risks
-
-- **Breaking Changes**: Use feature flags and gradual rollout
-- **Data Loss**: Implement comprehensive backups
-- **User Experience**: Maintain consistent UI/UX patterns
-- **Third-party Dependencies**: Pin versions and test thoroughly
-
-## Conclusion
-
-This migration plan provides a comprehensive roadmap for integrating the Potion template functionality into the existing nextjs application while maintaining the current architecture and conventions. The phased approach ensures minimal disruption to existing functionality while gradually introducing new features.
-
-The success of this migration depends on careful planning, thorough testing, and maintaining consistency with the existing codebase patterns. Regular reviews and adjustments to the plan will be necessary as the migration progresses.
