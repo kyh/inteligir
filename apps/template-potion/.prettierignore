@@ -1,9 +1,0 @@
-dist
-node_modules
-.next
-build
-bun.lockb
-pnpm-lock.yaml
-prisma/json-schema/json-schema.json
-public
-src/server

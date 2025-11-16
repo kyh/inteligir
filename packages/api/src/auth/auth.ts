@@ -18,6 +18,35 @@ const baseUrl =
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000";
 
+const generateAvailableUsername = async (slug: string, attempt = 0): Promise<string> => {
+  const candidate = attempt === 0 ? slug : `${slug}${attempt + 1}`;
+
+  const existing = await db.query.user.findFirst({
+    where: (u, { eq }) => eq(u.username, candidate),
+  });
+
+  if (existing) {
+    return generateAvailableUsername(slug, attempt + 1);
+  }
+
+  return candidate;
+};
+
+const ensureUsername = async (user: User) => {
+  const base = slugify(
+    user.name ??
+      user.email ??
+      `user-${Math.random().toString(36).slice(2, 8)}`,
+  );
+
+  const username = await generateAvailableUsername(base);
+
+  await db
+    .update(userSchema)
+    .set({ username })
+    .where(eq(userSchema.id, user.id));
+};
+
 export const auth: ReturnType<typeof betterAuth> = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
@@ -48,6 +77,7 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          await ensureUsername(user);
           await createDefaultOrganization(user);
         },
       },
