@@ -20,8 +20,11 @@
     "@repo/db": "workspace:^",
     "@trpc/server": "catalog:",
     "better-auth": "^1.4.9",
+    "drizzle-orm": "^0.44.7",
     "drizzle-zod": "^0.8.3",
     "nanoid": "5.1.5",
+    "next": "catalog:",
+    "react": "catalog:",
     "stripe": "^18.5.0",
     "superjson": "catalog:",
     "zod": "catalog:"
@@ -30,6 +33,8 @@
     "@kyh/eslint-config": "catalog:",
     "@kyh/prettier-config": "catalog:",
     "@kyh/tsconfig": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
     "eslint": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"

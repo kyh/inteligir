@@ -22,5 +22,8 @@ catalog:
   typescript: ^5.9.3
   zod: ^4.2.1
 
-nodeLinker: hoisted
 linkWorkspacePackages: true
+
+publicHoistPattern:
+  - '@ianvs/prettier-plugin-sort-imports'
+  - prettier-plugin-tailwindcss

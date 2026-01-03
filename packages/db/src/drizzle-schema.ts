@@ -68,8 +68,7 @@ export const document = pgTable(
       columns: [table.parentDocumentId],
       foreignColumns: [table.id],
       name: "document_parent_document_id_document_id_fk",
-      onDelete: "set null",
-    }),
+    }).onDelete("set null"),
   }),
 );
 

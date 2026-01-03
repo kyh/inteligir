@@ -2,12 +2,13 @@ import type { User } from "better-auth";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { expo } from "@better-auth/expo";
+import { eq } from "@repo/db";
 import { db } from "@repo/db/drizzle-client";
 import { user as userSchema } from "@repo/db/drizzle-schema-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 import { admin, oAuthProxy, organization } from "better-auth/plugins";
-import { eq } from "drizzle-orm";
 
 import { slugify } from "./utils";
 
@@ -17,35 +18,6 @@ const baseUrl =
     : process.env.VERCEL_ENV === "preview"
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000";
-
-const generateAvailableUsername = async (slug: string, attempt = 0): Promise<string> => {
-  const candidate = attempt === 0 ? slug : `${slug}${attempt + 1}`;
-
-  const existing = await db.query.user.findFirst({
-    where: (u, { eq }) => eq(u.username, candidate),
-  });
-
-  if (existing) {
-    return generateAvailableUsername(slug, attempt + 1);
-  }
-
-  return candidate;
-};
-
-const ensureUsername = async (user: User) => {
-  const base = slugify(
-    user.name ??
-      user.email ??
-      `user-${Math.random().toString(36).slice(2, 8)}`,
-  );
-
-  const username = await generateAvailableUsername(base);
-
-  await db
-    .update(userSchema)
-    .set({ username })
-    .where(eq(userSchema.id, user.id));
-};
 
 export const auth: ReturnType<typeof betterAuth> = betterAuth({
   database: drizzleAdapter(db, {
@@ -61,23 +33,16 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
     expo(),
     organization(),
     admin(),
+    nextCookies(),
   ],
   emailAndPassword: {
     enabled: true,
-  },
-  socialProviders: {
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID ?? "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
-      redirectURI: `${baseUrl}/api/auth/callback/github`,
-    },
   },
   trustedOrigins: ["expo://"],
   databaseHooks: {
     user: {
       create: {
         after: async (user) => {
-          await ensureUsername(user);
           await createDefaultOrganization(user);
         },
       },
