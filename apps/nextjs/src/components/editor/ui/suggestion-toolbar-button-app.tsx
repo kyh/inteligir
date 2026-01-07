@@ -18,7 +18,7 @@ export function SuggestionToolbarButton() {
     <ToolbarButton
       className={cn(isSuggesting && 'text-brand/80 hover:text-brand/80')}
       onClick={() => authGuard(() => setOption('isSuggesting', !isSuggesting))}
-      onMouseDown={(e) => e.preventDefault()}
+      onMouseDown={(e: React.MouseEvent) => e.preventDefault()}
       tooltip={isSuggesting ? 'Turn off suggesting' : 'Suggestion edits'}
     >
       <PencilLineIcon />

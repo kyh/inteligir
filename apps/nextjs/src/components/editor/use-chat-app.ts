@@ -45,22 +45,23 @@ export const useChat = () => {
     api.comment.createDiscussionWithComment.useMutation({
       onError(_, __, context: any) {
         if (context?.previousDiscussions) {
-          trpc.comment.discussions.setData(
+          (trpc.comment.discussions as any).setData(
             { documentId },
             context.previousDiscussions
           );
         }
       },
       onMutate: async () => {
-        await trpc.comment.discussions.cancel();
-        const previousDiscussions = trpc.comment.discussions.getData({
+        const discussions = trpc.comment.discussions as any;
+        await discussions.cancel();
+        const previousDiscussions = discussions.getData({
           documentId,
         });
 
         return { previousDiscussions };
       },
       onSuccess: () => {
-        void trpc.comment.discussions.invalidate({ documentId });
+        void (trpc.comment.discussions as any).invalidate({ documentId });
       },
     });
   // const options = usePluginOption(aiChatPlugin, 'chatOptions');

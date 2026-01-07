@@ -50,7 +50,7 @@ export function LinkElement(props: PlateElementProps) {
   return (
     <HoverCard
       closeDelay={0}
-      onOpenChange={(open) => {
+      onOpenChange={(open: boolean) => {
         setOption('mode', open ? 'hover' : null);
         setOption('activeId', open ? element.id : null);
       }}

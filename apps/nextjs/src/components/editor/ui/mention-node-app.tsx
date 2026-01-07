@@ -18,7 +18,7 @@ import {
 } from 'platejs/react';
 import * as React from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMounted } from 'react-tweet';
+import { useMounted } from '@/registry/hooks/use-mounted';
 import { useSession } from '@/components/auth/useSession';
 import { COVER_GRADIENTS } from '@/components/cover/cover-popover';
 import { cn } from '@/lib/utils';
@@ -48,7 +48,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/registry/ui/tooltip';
-import type { RouterDocumentItem, RouterUserItem } from '@/server/api/types';
+import type { RouterDocumentItem, RouterUserItem } from '@/types';
 import { useTRPC } from '@/trpc/react';
 
 export function MentionInputElement(props: PlateElementProps) {
@@ -242,7 +242,7 @@ function PeopleComboboxGroup({
             <InlineComboboxItem
               className="text-muted-foreground"
               disabled={isLoading}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent) => {
                 e.preventDefault();
 
                 if (apiData?.nextCursor) {
@@ -353,7 +353,7 @@ function DocumentComboboxGroup({
             <InlineComboboxItem
               className="text-muted-foreground"
               disabled={isLoading}
-              onClick={(e) => {
+              onClick={(e: React.MouseEvent) => {
                 e.preventDefault();
 
                 if (apiData?.nextCursor) {

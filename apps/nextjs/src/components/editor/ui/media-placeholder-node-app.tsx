@@ -122,7 +122,7 @@ export const MediaPlaceholderPopover = ({
   const { documentId } = useLayoutParams<'/[documentId]'>();
   const createFile = api.file.createFile.useMutation();
 
-  const currentMedia = MEDIA_CONFIG[mediaType];
+  const currentMedia = MEDIA_CONFIG[mediaType] ?? MEDIA_CONFIG[KEYS.file];
 
   // const mediaConfig = api.placeholder.getMediaConfig(mediaType as MediaKeys);
   const multiple = getOption('multiple') ?? true;
@@ -162,11 +162,12 @@ export const MediaPlaceholderPopover = ({
     accept: currentMedia.accept,
     multiple,
     onFilesSelected: ({ plainFiles: updatedFiles }) => {
-      if (!updatedFiles) return;
+      if (!updatedFiles || updatedFiles.length === 0) return;
 
       const firstFile = updatedFiles[0];
       const restFiles = updatedFiles.slice(1);
 
+      if (!firstFile) return;
       replaceCurrentPlaceholder(firstFile);
 
       if (restFiles.length > 0) {
@@ -249,11 +250,11 @@ export const MediaPlaceholderPopover = ({
 
       <PopoverContent
         className="flex flex-col"
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e: React.FocusEvent) => e.preventDefault()}
         variant="media"
       >
         <Tabs className="w-full shrink-0" defaultValue="account">
-          <TabsList className="px-2" onMouseDown={(e) => e.preventDefault()}>
+          <TabsList className="px-2" onMouseDown={(e: React.MouseEvent) => e.preventDefault()}>
             <TabsTrigger value="account">Upload</TabsTrigger>
             <TabsTrigger value="password">Embed link</TabsTrigger>
           </TabsList>
@@ -271,7 +272,7 @@ export const MediaPlaceholderPopover = ({
             value="password"
           >
             <Input
-              onChange={(e) => setEmbedValue(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmbedValue(e.target.value)}
               placeholder="Paste the link..."
               value={embedValue}
             />
@@ -296,7 +297,7 @@ export const PlaceholderElement = withHOC(
     const { mediaType, progresses, progressing, setSize, updatedFiles } =
       usePlaceholderElementState();
 
-    const currentContent = CONTENT[mediaType];
+    const currentContent = CONTENT[mediaType] ?? CONTENT[KEYS.file];
 
     const isImage = mediaType === KEYS.img;
 
@@ -333,7 +334,7 @@ export const PlaceholderElement = withHOC(
               <div className="whitespace-nowrap text-muted-foreground text-sm">
                 <div>{progressing ? file?.name : currentContent.content}</div>
 
-                {progressing && !isImage && (
+                {progressing && !isImage && file && (
                   <div className="mt-1 flex items-center gap-1.5">
                     <div>{formatBytes(file.size)}</div>
                     <div>–</div>

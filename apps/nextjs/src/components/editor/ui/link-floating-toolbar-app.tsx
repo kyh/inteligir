@@ -89,7 +89,7 @@ export function LinkFloatingToolbar() {
   return (
     <Popover
       modal={false}
-      onOpenChange={(isOpen) => {
+      onOpenChange={(isOpen: boolean) => {
         setOption('mode', isOpen ? 'insert' : null);
       }}
       open={open}
@@ -103,7 +103,7 @@ export function LinkFloatingToolbar() {
       <PopoverContent
         align="center"
         onEscapeKeyDown={() => editor.tf.focus()}
-        onOpenAutoFocus={(e) => {
+        onOpenAutoFocus={(e: React.FocusEvent) => {
           if (mode === 'cursor') return e.preventDefault();
         }}
         side="bottom"
@@ -173,11 +173,11 @@ const InsertLinkCommand = ({ initialUrl }: { initialUrl: string }) => {
   return (
     <Command shouldFilter={false}>
       <CommandInput
-        onKeyDown={(e) => {
+        onKeyDown={(e: React.KeyboardEvent) => {
           if (e.key === 'Enter' && !e.nativeEvent.isComposing)
             return onUpsertLink(editor, query);
         }}
-        onValueChange={(value) => setQuery(value)}
+        onValueChange={(value: string) => setQuery(value)}
         placeholder="Paste link or search pages"
         value={query}
       />
@@ -342,11 +342,11 @@ const EditLinkCommand = ({
         <Command shouldFilter={false}>
           <CommandInput
             autoFocus
-            onKeyDown={(e) => {
+            onKeyDown={(e: React.KeyboardEvent) => {
               if (e.key === 'Enter' && !e.nativeEvent.isComposing)
                 return onEditLink(query);
             }}
-            onValueChange={(value) => setQuery(value)}
+            onValueChange={(value: string) => setQuery(value)}
             placeholder="Paste link or search pages"
             value={query}
             wrapClassName="mt-0"

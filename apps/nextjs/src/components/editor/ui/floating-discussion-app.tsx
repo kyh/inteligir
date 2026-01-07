@@ -712,12 +712,12 @@ function FloatingCommentsContent({
       {discussion.comments.length >= 3 && activeId !== discussion.id ? (
         <>
           <Comment
-            comment={discussion.comments[0]}
+            comment={discussion.comments[0]!}
             discussionLength={discussion.comments.length}
             documentContent={discussion?.documentContent}
             editingId={editingId}
             index={0}
-            key={discussion.comments[0].id}
+            key={discussion.comments[0]?.id ?? 0}
             onEditorClick={() => highlightDiscussion(editor, discussion.id)}
             setEditingId={setEditingId}
           />
@@ -780,7 +780,8 @@ const FloatingSuggestionContent = ({
   });
 
   const { api, editor, setOption } = useEditorPlugin(suggestionPlugin);
-  const nodeData = api.suggestion.suggestionData(entries[0][0]);
+  const firstEntry = entries[0];
+  const nodeData = firstEntry ? api.suggestion.suggestionData(firstEntry[0]) : undefined;
 
   const { activeId, hoverId } = usePluginOptions(
     suggestionPlugin,
@@ -854,11 +855,11 @@ const FloatingSuggestionContent = ({
       if (lineBreakData.type === 'insert') {
         newText += lineBreakData.isLineBreak
           ? BLOCK_SUGGESTION
-          : BLOCK_SUGGESTION + TYPE_TEXT_MAP[node.type](node);
+          : BLOCK_SUGGESTION + (TYPE_TEXT_MAP[node.type]?.(node) ?? '');
       } else if (lineBreakData.type === 'remove') {
         text += lineBreakData.isLineBreak
           ? BLOCK_SUGGESTION
-          : BLOCK_SUGGESTION + TYPE_TEXT_MAP[node.type](node);
+          : BLOCK_SUGGESTION + (TYPE_TEXT_MAP[node.type]?.(node) ?? '');
       }
     }
   });
@@ -1063,12 +1064,12 @@ const FloatingSuggestionContent = ({
         {suggestion.comments.length >= 3 && activeId !== id ? (
           <>
             <Comment
-              comment={suggestion.comments[0]}
+              comment={suggestion.comments[0]!}
               discussionLength={suggestion.comments.length}
               documentContent="__suggestion__"
               editingId={editingId}
               index={0}
-              key={suggestion.comments[0].id}
+              key={suggestion.comments[0]?.id ?? 0}
               setEditingId={setEditingId}
             />
             <div className="relative mb-1 ml-[26px] flex h-7 items-center rounded-md pl-1.5 text-muted-foreground text-sm hover:bg-muted">

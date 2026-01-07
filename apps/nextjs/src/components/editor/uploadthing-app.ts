@@ -3,8 +3,11 @@ import type { FileRouter } from 'uploadthing/next';
 import { createUploadthing } from 'uploadthing/next';
 import { UploadThingError } from 'uploadthing/server';
 
-import { getSession } from '@/server/auth/auth';
-import { prisma } from '@/server/db';
+import { auth } from '@repo/api/auth/auth';
+import { db } from '@repo/db/drizzle-client';
+import { file } from '@repo/db/drizzle-schema';
+import { user } from '@repo/db/drizzle-schema-auth';
+import { eq, sum } from '@repo/db';
 
 const f = createUploadthing();
 
@@ -15,38 +18,32 @@ export const ourFileRouter = {
     // Set permissions and file types for this FileRoute
     .middleware(async ({ req }) => {
       // This code runs on your server before upload
-      const sessionData = await getSession(req.headers);
-      const user = sessionData?.user;
+      const sessionData = await auth.api.getSession({ headers: req.headers });
+      const sessionUser = sessionData?.user;
 
       // If you throw, the user will not be able to upload
-      if (!user) throw new UploadThingError('Unauthorized');
+      if (!sessionUser) throw new UploadThingError('Unauthorized');
 
-      const uploaded = await prisma.user.findUnique({
-        select: {
-          files: {
-            select: {
-              size: true,
-            },
-          },
-          uploadLimit: true,
-        },
-        where: {
-          id: user.id,
-        },
-      });
+      const [userData] = await db
+        .select({ uploadLimit: user.uploadLimit })
+        .from(user)
+        .where(eq(user.id, sessionUser.id));
 
-      if (!uploaded) throw new UploadThingError('Unauthorized');
+      if (!userData) throw new UploadThingError('Unauthorized');
 
-      const { files, uploadLimit } = uploaded;
+      const [filesData] = await db
+        .select({ totalSize: sum(file.size) })
+        .from(file)
+        .where(eq(file.userId, sessionUser.id));
 
-      const uploadedBytes = files.reduce((acc, file) => acc + file.size, 0);
+      const uploadedBytes = Number(filesData?.totalSize ?? 0);
 
       // 500MB
-      if (uploadedBytes > uploadLimit)
+      if (uploadedBytes > userData.uploadLimit)
         throw new UploadThingError('Reached the maximum upload limit.');
 
       // Whatever is returned here is accessible in onUploadComplete as `metadata`
-      return { uploadedBytes, userId: user.id };
+      return { uploadedBytes, userId: sessionUser.id };
     })
     .onUploadComplete(({ file, metadata }) => {
       // This code RUNS ON YOUR SERVER after upload
