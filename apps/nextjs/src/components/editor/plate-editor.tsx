@@ -1,14 +1,13 @@
 "use client";
 
-import { AIChatPlugin } from "@platejs/ai/react";
-import { usePluginOption } from "platejs/react";
-import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef } from "react";
 
 import { cn } from "@/lib/utils";
 import { Editor, EditorContainer } from "@/registry/ui/editor";
 import { TocSidebar } from "@/registry/ui/toc-sidebar";
 import { Skeleton } from "@repo/ui/skeleton";
-import { api } from "@/trpc/react";
+import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 
 export const TEXT_STYLE_ITEMS = [
   { key: "default", label: "Default", fontFamily: "inherit" },
@@ -16,24 +15,27 @@ export const TEXT_STYLE_ITEMS = [
   { key: "mono", label: "Mono", fontFamily: "ui-monospace, monospace" },
 ];
 
-export const PlateEditor = ({
-  documentId,
-  mode,
-}: {
-  documentId: string;
-  mode?: "print";
-}) => {
-  const contentRef = usePluginOption(AIChatPlugin, "contentRef") as any;
+export const PlateEditor = ({ mode }: { mode?: "print" }) => {
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  const { data: document, isLoading } = api.document.document.useQuery(
-    { id: documentId },
-    { enabled: !!documentId }
-  );
+  const queryOptions = useDocumentQueryOptions();
 
-  const toc = document?.document?.toc ?? true;
-  const fullWidth = document?.document?.fullWidth;
-  const smallText = document?.document?.smallText;
-  const textStyle = document?.document?.textStyle;
+  const { data: toc, isLoading } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.toc ?? true,
+  });
+  const { data: fullWidth } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.fullWidth,
+  });
+  const { data: smallText } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.smallText,
+  });
+  const { data: textStyle } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.textStyle,
+  });
 
   const fontFamily = useMemo(
     () => ({

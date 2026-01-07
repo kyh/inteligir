@@ -1,46 +1,59 @@
 "use client";
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { KEYS, NodeIdPlugin, type Value } from "platejs";
 import { createPlateEditor, Plate, usePlateEditor } from "platejs/react";
 import React, { useMemo } from "react";
 
+import { useSession } from "@/components/auth/useSession";
 import { EditorKit } from "@/components/editor/editor-kit-app";
 import { useDebouncedCallback } from "@/hooks/useDebounceCallback";
 import { useInitialLocalStorage } from "@/hooks/useLocalStorage";
 import { useWarnIfUnsavedChanges } from "@/hooks/useWarnIfUnsavedChanges";
 import { BaseEditorKit } from "@/registry/components/editor/editor-base-kit";
-import { api } from "@/trpc/react";
+import { api, useTRPC } from "@/trpc/react";
+import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 import {
   getTemplateDocument,
   type TemplateDocument,
   useTemplateDocument,
 } from "./utils/useTemplateDocument";
 
-interface DocumentPlateProps {
-  children: React.ReactNode;
-  documentId: string;
-}
-
-export function DocumentPlate({ children, documentId }: DocumentPlateProps) {
+export function DocumentPlate({ children }: React.PropsWithChildren) {
+  const session = useSession();
+  const trpc = useTRPC();
   const queryClient = useQueryClient();
 
-  const { data: document } = api.document.document.useQuery(
-    { id: documentId },
-    { enabled: !!documentId }
-  );
+  const queryOptions = useDocumentQueryOptions();
+  const { data: documentId } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.id,
+  });
+  const { data: lockPage } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.lockPage,
+  });
+  const { data: isArchived } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.isArchived,
+  });
+  const { data: templateId } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.templateId,
+  });
+  const { data: contentRich } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.contentRich,
+  });
 
   const updateDocument = api.document.update.useMutation({
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["document", documentId] });
+      queryClient.invalidateQueries({
+        queryKey: trpc.document.document.queryKey({ id: documentId! }),
+      });
     },
   });
-
-  const lockPage = document?.document?.lockPage;
-  const isArchived = document?.document?.isArchived;
-  const templateId = document?.document?.templateId;
-  const contentRich = document?.document?.contentRich;
 
   const value =
     templateId && !contentRich
@@ -57,6 +70,7 @@ export function DocumentPlate({ children, documentId }: DocumentPlateProps) {
         }),
       ],
       value,
+      userId: session?.user?.id,
     },
     [documentId]
   );
@@ -134,6 +148,23 @@ export function PrintPlate({ children }: React.PropsWithChildren) {
   const searchParams = useSearchParams();
   const disableMedia = searchParams.get("disableMedia") === "true";
 
+  const queryOptions = useDocumentQueryOptions();
+
+  const { data: templateId } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.templateId,
+  });
+
+  const { data: contentRich } = useQuery({
+    ...queryOptions,
+    select: (data) => data.document?.contentRich,
+  });
+
+  const value =
+    templateId && !contentRich
+      ? getTemplateDocument(templateId)?.value
+      : (contentRich as Value);
+
   const editor = useMemo(() => {
     const e = createPlateEditor({
       override: {
@@ -146,10 +177,11 @@ export function PrintPlate({ children }: React.PropsWithChildren) {
         },
       },
       plugins: BaseEditorKit,
+      value,
     });
     e.meta.mode = "print";
     return e;
-  }, [disableMedia]);
+  }, [value, disableMedia]);
 
   return (
     <Plate editor={editor} readOnly>
