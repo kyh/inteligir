@@ -52,27 +52,30 @@ export function Comment(props: {
 
   const trpc = useTRPC();
   const { documentId } = useTParams<'/[documentId]'>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const discussions = trpc.comment.discussions as any;
   const resolveDiscussion = api.comment.resolveDiscussion.useMutation({
     onError(_, __, context: any) {
-      if (context?.previousDiscussions) {
-        trpc.comment.discussions.setData(
+      if (context?.previousDiscussions && documentId) {
+        discussions.setData(
           { documentId },
           context.previousDiscussions
         );
       }
     },
     onMutate: async (input) => {
-      await trpc.comment.discussions.cancel();
-      const previousDiscussions = trpc.comment.discussions.getData({
+      if (!documentId) return;
+      await discussions.cancel();
+      const previousDiscussions = discussions.getData({
         documentId,
       });
 
-      trpc.comment.discussions.setData({ documentId }, (old) =>
-        produce(old, (draft) => {
+      discussions.setData({ documentId }, (old: any) =>
+        produce(old, (draft: any) => {
           if (!draft) return draft;
 
           const index = draft.discussions.findIndex(
-            (comment) => comment.id === input.id
+            (comment: any) => comment.id === input.id
           );
 
           if (index === -1) return;
@@ -84,31 +87,32 @@ export function Comment(props: {
       return { previousDiscussions };
     },
     onSuccess: () => {
-      void trpc.comment.discussions.invalidate({ documentId });
+      if (documentId) void discussions.invalidate({ documentId });
     },
   });
 
   const removeDiscussion = api.comment.removeDiscussion.useMutation({
     onError(_, __, context: any) {
-      if (context?.previousDiscussions) {
-        trpc.comment.discussions.setData(
+      if (context?.previousDiscussions && documentId) {
+        discussions.setData(
           { documentId },
           context.previousDiscussions
         );
       }
     },
     onMutate: async (input) => {
-      await trpc.comment.discussions.cancel();
-      const previousDiscussions = trpc.comment.discussions.getData({
+      if (!documentId) return;
+      await discussions.cancel();
+      const previousDiscussions = discussions.getData({
         documentId,
       });
 
-      trpc.comment.discussions.setData({ documentId }, (old) =>
-        produce(old, (draft) => {
+      discussions.setData({ documentId }, (old: any) =>
+        produce(old, (draft: any) => {
           if (!draft) return draft;
 
           const index = draft.discussions.findIndex(
-            (comment) => comment.id === input.id
+            (comment: any) => comment.id === input.id
           );
 
           if (index === -1) return;
@@ -120,43 +124,44 @@ export function Comment(props: {
       return { previousDiscussions };
     },
     onSuccess: () => {
-      void trpc.comment.discussions.invalidate({ documentId });
+      if (documentId) void discussions.invalidate({ documentId });
     },
   });
 
   const updateComment = api.comment.updateComment.useMutation({
     onError(_, __, context: any) {
-      if (context?.previousDiscussions) {
-        trpc.comment.discussions.setData(
+      if (context?.previousDiscussions && documentId) {
+        discussions.setData(
           { documentId },
           context.previousDiscussions
         );
       }
     },
     onMutate: async (input) => {
-      await trpc.comment.discussions.cancel();
-      const previousDiscussions = trpc.comment.discussions.getData({
+      if (!documentId) return;
+      await discussions.cancel();
+      const previousDiscussions = discussions.getData({
         documentId,
       });
 
-      trpc.comment.discussions.setData({ documentId }, (old) =>
-        produce(old, (draft) => {
+      discussions.setData({ documentId }, (old: any) =>
+        produce(old, (draft: any) => {
           if (!draft) return draft;
 
           const discussionsIndex = draft.discussions.findIndex(
-            (discussion) => discussion.id === input.discussionId
+            (discussion: any) => discussion.id === input.discussionId
           );
 
           if (discussionsIndex === -1) return;
 
           const replyIndex = draft.discussions[
             discussionsIndex
-          ].comments.findIndex((comment) => comment.id === input.id);
+          ].comments.findIndex((comment: any) => comment.id === input.id);
 
           if (replyIndex === -1) return;
 
-          const discussions = draft.discussions[discussionsIndex];
-          const comment = discussions.comments[replyIndex];
+          const draftDiscussion = draft.discussions[discussionsIndex];
+          const comment = draftDiscussion.comments[replyIndex];
 
           comment.isEdited = true;
           comment.contentRich = input.contentRich as any;
@@ -167,7 +172,7 @@ export function Comment(props: {
       return { previousDiscussions };
     },
     onSuccess: () => {
-      void trpc.comment.discussions.invalidate({ documentId });
+      if (documentId) void discussions.invalidate({ documentId });
     },
   });
 
@@ -352,45 +357,48 @@ function CommentMoreDropdown(props: {
 
   const trpc = useTRPC();
   const { documentId } = useTParams<'/[documentId]'>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const discussionsUtils = trpc.comment.discussions as any;
   const deleteComment = api.comment.deleteComment.useMutation({
     onError(_, __, context: any) {
-      if (context?.previousDiscussions) {
-        trpc.comment.discussions.setData(
+      if (context?.previousDiscussions && documentId) {
+        discussionsUtils.setData(
           { documentId },
           context.previousDiscussions
         );
       }
     },
     onMutate: async (input) => {
-      await trpc.comment.discussions.cancel();
-      const previousDiscussions = trpc.comment.discussions.getData({
+      if (!documentId) return;
+      await discussionsUtils.cancel();
+      const previousDiscussions = discussionsUtils.getData({
         documentId,
       });
 
-      trpc.comment.discussions.setData({ documentId }, (old) =>
-        produce(old, (draft) => {
+      discussionsUtils.setData({ documentId }, (old: any) =>
+        produce(old, (draft: any) => {
           if (!draft) return draft;
 
-          const discussionId = draft.discussions.findIndex(
-            (discussion) => discussion.id === input.discussionId
+          const discussionIdx = draft.discussions.findIndex(
+            (discussion: any) => discussion.id === input.discussionId
           );
 
-          if (discussionId === -1) return;
+          if (discussionIdx === -1) return;
 
-          const discussions = draft.discussions[discussionId];
+          const draftDiscussion = draft.discussions[discussionIdx];
 
-          const replyIndex = discussions.comments.findIndex(
-            (comment) => comment.id === input.id
+          const replyIndex = draftDiscussion.comments.findIndex(
+            (comment: any) => comment.id === input.id
           );
 
-          discussions.comments.splice(replyIndex, 1);
+          draftDiscussion.comments.splice(replyIndex, 1);
         })
       );
 
       return { previousDiscussions };
     },
     onSuccess: () => {
-      void trpc.comment.discussions.invalidate({ documentId });
+      if (documentId) void discussionsUtils.invalidate({ documentId });
       onRemoveComment?.();
     },
   });
@@ -426,7 +434,7 @@ function CommentMoreDropdown(props: {
       onOpenChange={setDropdownOpen}
       open={dropdownOpen}
     >
-      <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
+      <DropdownMenuTrigger asChild onClick={(e: React.MouseEvent) => e.stopPropagation()}>
         <Button
           className="h-6 p-1 text-muted-foreground"
           tooltip="More actions"
@@ -437,7 +445,7 @@ function CommentMoreDropdown(props: {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="w-48"
-        onCloseAutoFocus={(e) => {
+        onCloseAutoFocus={(e: React.FocusEvent) => {
           if (selectedEditCommentRef.current) {
             onCloseAutoFocus?.();
             selectedEditCommentRef.current = false;
@@ -477,28 +485,31 @@ export function CommentCreateForm({
   const trpc = useTRPC();
   const current = useCurrentUser();
   const { documentId } = useTParams<'/[documentId]'>();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const discussionsHook = trpc.comment.discussions as any;
 
   const createComment = api.comment.createComment.useMutation({
     onError(_, __, context: any) {
-      if (context?.previousDiscussions) {
-        trpc.comment.discussions.setData(
+      if (context?.previousDiscussions && documentId) {
+        discussionsHook.setData(
           { documentId },
           context.previousDiscussions
         );
       }
     },
     onMutate: async (input) => {
-      await trpc.comment.discussions.cancel();
-      const previousDiscussions = trpc.comment.discussions.getData({
+      if (!documentId) return;
+      await discussionsHook.cancel();
+      const previousDiscussions = discussionsHook.getData({
         documentId,
       });
 
-      trpc.comment.discussions.setData({ documentId }, (old) =>
-        produce(old, (draft) => {
+      discussionsHook.setData({ documentId }, (old: any) =>
+        produce(old, (draft: any) => {
           if (!draft) return draft;
 
           const comments = draft.discussions.find(
-            (comment) => comment.id === input.discussionId
+            (comment: any) => comment.id === input.discussionId
           )?.comments;
 
           const newUserInfo = mergeDefined(omitNil(input), {
@@ -514,29 +525,30 @@ export function CommentCreateForm({
       return { previousDiscussions };
     },
     onSuccess: () => {
-      void trpc.comment.discussions.invalidate({ documentId });
+      if (documentId) void discussionsHook.invalidate({ documentId });
     },
   });
   const createDiscussionWithComment =
     api.comment.createDiscussionWithComment.useMutation({
       onError(_, __, context: any) {
-        if (context?.previousDiscussions) {
-          trpc.comment.discussions.setData(
+        if (context?.previousDiscussions && documentId) {
+          discussionsHook.setData(
             { documentId },
             context.previousDiscussions
           );
         }
       },
       onMutate: async () => {
-        await trpc.comment.discussions.cancel();
-        const previousDiscussions = trpc.comment.discussions.getData({
+        if (!documentId) return;
+        await discussionsHook.cancel();
+        const previousDiscussions = discussionsHook.getData({
           documentId,
         });
 
         return { previousDiscussions };
       },
       onSuccess: () => {
-        void trpc.comment.discussions.invalidate({ documentId });
+        if (documentId) void discussionsHook.invalidate({ documentId });
       },
     });
 
@@ -586,7 +598,7 @@ export function CommentCreateForm({
     const { id } = await createDiscussionWithComment.mutateAsync({
       contentRich: commentValue as any,
       documentContent,
-      documentId,
+      documentId: documentId!,
     });
 
     commentsNodeEntry.forEach(([_, path]) => {
@@ -616,7 +628,7 @@ export function CommentCreateForm({
       contentRich: commentValue as any,
       discussionId: suggestionId,
       documentContent: '__suggestion__',
-      documentId,
+      documentId: documentId!,
     });
   }, [discussionId, createDiscussionWithComment, commentValue, documentId]);
 

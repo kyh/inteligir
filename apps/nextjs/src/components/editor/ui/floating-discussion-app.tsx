@@ -42,7 +42,7 @@ import { formatCommentDate } from '@/lib/date/formatDate';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/registry/ui/avatar';
 import { Button } from '@/registry/ui/button';
-import type { RouterDiscussionItem } from '@/server/api/types';
+import type { RouterDiscussionItem } from '@/types';
 import { useTRPC } from '@/trpc/react';
 
 import {
@@ -104,10 +104,14 @@ const updateActiveBelow = (
     return topMap;
 
   const activeElement = discussionArray[activeIndex];
+  if (!activeElement) return topMap;
+
   const start = activeElement.top;
   const end = start + (domMap[activeId]?.clientHeight ?? 100);
 
   const nextElement = discussionArray[activeIndex + 1];
+  if (!nextElement) return topMap;
+
   const nextStart = nextElement.top;
 
   // Check if next element overlaps with active element
@@ -116,7 +120,8 @@ const updateActiveBelow = (
     const offset = end - nextStart + 10; // Add 10px gap
 
     for (let i = activeIndex + 1; i < discussionArray.length; i++) {
-      discussionArray[i].top += offset;
+      const el = discussionArray[i];
+      if (el) el.top += offset;
     }
 
     return Object.fromEntries(discussionArray.map((d) => [d.id, d.top]));
@@ -139,17 +144,22 @@ const updateActiveTop = (
 
   if (index === -1) return topMap;
 
-  const currentTop = discussionArray[index].top;
+  const current = discussionArray[index];
+  if (!current) return topMap;
+
+  const currentTop = current.top;
   const diff = targetTop - currentTop;
 
   // Set position of active element
-  discussionArray[index].top = targetTop;
+  current.top = targetTop;
 
   if (diff < 0) {
     // Moving up - check for overlaps with previous elements
     for (let i = index - 1; i >= 0; i--) {
       const currentElement = discussionArray[i];
       const nextElement = discussionArray[i + 1];
+      if (!currentElement || !nextElement) break;
+
       const elementHeight = domMap[currentElement.id]?.clientHeight ?? 100;
 
       // Check if current element overlaps with next element
@@ -167,11 +177,14 @@ const updateActiveTop = (
 
     // Only move elements that would overlap with active element
     for (let i = index + 1; i < discussionArray.length; i++) {
-      if (discussionArray[i].top < activeBottom) {
-        discussionArray[i].top = activeBottom;
+      const element = discussionArray[i];
+      if (!element) break;
+
+      if (element.top < activeBottom) {
+        element.top = activeBottom;
         activeBottom =
-          discussionArray[i].top +
-          (domMap[discussionArray[i].id]?.clientHeight ?? 100) +
+          element.top +
+          (domMap[element.id]?.clientHeight ?? 100) +
           10;
       } else {
         break; // No more overlaps
@@ -196,13 +209,18 @@ const updateTopCommenting = (
 
   if (index === -1) return topMap;
 
-  const targetTopDistance = discussionArray[index].topDistance;
+  const currentEntry = discussionArray[index];
+  if (!currentEntry) return topMap;
+
+  const targetTopDistance = currentEntry.topDistance;
 
   // Find if any elements need to move up or down
   let moveDistance = 0;
 
   for (let i = 0; i < discussionArray.length; i++) {
     const current = discussionArray[i];
+    if (!current) continue;
+
     const currentHeight = domMap[current.id]?.clientHeight ?? 100;
 
     if (i < index) {
@@ -219,16 +237,18 @@ const updateTopCommenting = (
   // Move elements up if needed
   if (moveDistance > 0) {
     for (let i = 0; i < index; i++) {
-      discussionArray[i].topDistance -= moveDistance;
+      const el = discussionArray[i];
+      if (el) el.topDistance -= moveDistance;
     }
   }
 
   // Check if next element overlaps with current element
-  const currentHeight = domMap[discussionArray[index].id]?.clientHeight ?? 100;
+  const currentHeight = domMap[currentEntry.id]?.clientHeight ?? 100;
   const currentBottom = targetTopDistance + currentHeight + 10;
 
   if (index + 1 < discussionArray.length) {
     const nextElement = discussionArray[index + 1];
+    if (!nextElement) return Object.fromEntries(discussionArray.map((d) => [d.id, d.topDistance]));
 
     if (nextElement.topDistance < currentBottom) {
       // Only move elements that overlap
@@ -236,6 +256,7 @@ const updateTopCommenting = (
 
       for (let i = index + 1; i < discussionArray.length; i++) {
         const element = discussionArray[i];
+        if (!element) break;
 
         if (element.topDistance < currentTop) {
           element.topDistance = currentTop;
@@ -262,6 +283,8 @@ const resolveOverlappingTop = (
   // Iterate through each discussion from top to bottom, checking for overlap with previous discussions
   for (let i = 1; i < discussionArray.length; i++) {
     const currentDiscussion = discussionArray[i];
+    if (!currentDiscussion) continue;
+
     const currentElement = domMap[currentDiscussion.id];
 
     if (!currentElement) continue;
@@ -273,6 +296,8 @@ const resolveOverlappingTop = (
     // Check for overlap with all previous discussions
     for (let j = 0; j < i; j++) {
       const previousDiscussion = discussionArray[j];
+      if (!previousDiscussion) continue;
+
       const previousElement = domMap[previousDiscussion.id];
 
       if (!previousElement) continue;
@@ -325,9 +350,10 @@ const FloatingDiscussionContent = () => {
   const updateTimestamp = usePluginOption(commentPlugin, 'updateTimestamp');
 
   const trpc = useTRPC();
-  const { data } = useQuery(
-    trpc.comment.discussions.queryOptions({ documentId })
-  );
+  const { data } = useQuery({
+    ...trpc.comment.discussions.queryOptions({ documentId: documentId ?? '' }),
+    enabled: !!documentId,
+  });
 
   const domRef = React.useRef<Record<string, HTMLDivElement | null>>({});
   const topRef = React.useRef<Record<string, number>>({});
@@ -748,9 +774,10 @@ const FloatingSuggestionContent = ({
 }: React.ComponentProps<'div'> & FloatingSuggestionContentProps) => {
   const { documentId } = useTParams<'/[documentId]'>();
   const trpc = useTRPC();
-  const { data } = useQuery(
-    trpc.comment.discussions.queryOptions({ documentId })
-  );
+  const { data } = useQuery({
+    ...trpc.comment.discussions.queryOptions({ documentId: documentId ?? '' }),
+    enabled: !!documentId,
+  });
 
   const { api, editor, setOption } = useEditorPlugin(suggestionPlugin);
   const nodeData = api.suggestion.suggestionData(entries[0][0]);

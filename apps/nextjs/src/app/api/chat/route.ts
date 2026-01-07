@@ -6,13 +6,15 @@ import { caller } from "@/trpc/server";
 export const maxDuration = 30;
 
 export async function POST(request: Request) {
-  const { messages, teamSlug } = (await request.json()) as {
+  const { messages, organizationSlug } = (await request.json()) as {
     messages: UIMessage[];
-    teamSlug: string;
+    organizationSlug?: string;
   };
 
-  // Ensure the team exists and the user has access to it
-  await caller.team.getTeam({ slug: teamSlug });
+  // Ensure the organization exists and the user has access to it if provided
+  if (organizationSlug) {
+    await caller.organization.get({ slug: organizationSlug });
+  }
 
   const result = streamText({
     model: "gpt-4o-mini",

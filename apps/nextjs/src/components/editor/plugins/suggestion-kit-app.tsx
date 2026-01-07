@@ -22,7 +22,7 @@ export type SuggestionConfig = ExtendConfig<
 
 export const suggestionPlugin = SuggestionPlugin.configure({
   render: {
-    belowNodes: SuggestionLineBreak,
+    belowNodes: SuggestionLineBreak as any,
     node: SuggestionLeaf,
   },
   useHooks: ({ setOption }) => {

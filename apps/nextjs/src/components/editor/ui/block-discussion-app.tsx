@@ -185,8 +185,8 @@ const BlockCommentsContent = ({
     <ForceUpdateContext.Provider value={forceUpdate}>
       <div className="flex w-full justify-between">
         <Popover
-          onOpenChange={(_open_) => {
-            if (!_open_ && isCommenting && draftCommentNode) {
+          onOpenChange={(open: boolean) => {
+            if (!open && isCommenting && draftCommentNode) {
               editor.tf.unsetNodes(getDraftCommentKey(), {
                 at: [],
                 mode: 'lowest',
@@ -194,7 +194,7 @@ const BlockCommentsContent = ({
               });
             }
 
-            setOpen(_open_);
+            setOpen(open);
           }}
           open={open}
         >
@@ -210,8 +210,8 @@ const BlockCommentsContent = ({
           <PopoverContent
             align="center"
             className="max-h-[min(50dvh,calc(-24px+var(--radix-popper-available-height)))] w-[380px] min-w-[130px] max-w-[calc(100vw-24px)] overflow-y-auto p-0 data-[state=closed]:opacity-0"
-            onCloseAutoFocus={(e) => e.preventDefault()}
-            onOpenAutoFocus={(e) => e.preventDefault()}
+            onCloseAutoFocus={(e: React.FocusEvent) => e.preventDefault()}
+            onOpenAutoFocus={(e: React.FocusEvent) => e.preventDefault()}
             side="bottom"
           >
             {isCommenting ? (
@@ -324,9 +324,10 @@ const useResolvedDiscussion = (
 ): RouterDiscussionItem[] => {
   const { documentId } = useTParams<'/[documentId]'>();
   const trpc = useTRPC();
-  const { data } = useQuery(
-    trpc.comment.discussions.queryOptions({ documentId })
-  );
+  const { data } = useQuery({
+    ...trpc.comment.discussions.queryOptions({ documentId: documentId ?? '' }),
+    enabled: !!documentId,
+  });
 
   const { api, getOption, setOption } = useEditorPlugin(commentPlugin);
 

@@ -12,7 +12,7 @@ import { CommentLeaf } from '@/registry/ui/comment-node';
 export const commentPlugin = CommentPlugin.configure({
   render: {
     // Instead of discussion-kit
-    aboveNodes: BlockDiscussion,
+    aboveNodes: BlockDiscussion as any,
     afterEditable: FloatingDiscussion,
     node: CommentLeaf,
   },

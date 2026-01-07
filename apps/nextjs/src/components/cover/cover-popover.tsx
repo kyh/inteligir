@@ -54,8 +54,8 @@ export function CoverPopover({ children }: { children: React.ReactNode }) {
     accept: ['image/*'],
     multiple: false,
     onFilesSelected: ({ plainFiles }) => {
-      if (!plainFiles) return;
-      const file = plainFiles[0];
+      const file = plainFiles?.[0];
+      if (!file) return;
 
       void uploadFile(file);
       toast.info('Starting to upload');
@@ -78,10 +78,10 @@ export function CoverPopover({ children }: { children: React.ReactNode }) {
 
       <PopoverContent
         className="w-[540px]"
-        onOpenAutoFocus={(e) => e.preventDefault()}
+        onOpenAutoFocus={(e: React.FocusEvent) => e.preventDefault()}
       >
         <Tabs defaultValue="gallery">
-          <TabsList onMouseDown={(e) => e.preventDefault()}>
+          <TabsList onMouseDown={(e: React.MouseEvent) => e.preventDefault()}>
             <TabsTrigger value="gallery">Gallery</TabsTrigger>
             <TabsTrigger value="upload">Upload</TabsTrigger>
             <TabsTrigger value="link">Link</TabsTrigger>

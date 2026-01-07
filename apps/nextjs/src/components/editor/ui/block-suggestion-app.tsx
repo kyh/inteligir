@@ -251,9 +251,10 @@ export const useResolveSuggestion = (
   const editor = useEditorRef();
   const { documentId } = useTParams<'/[documentId]'>();
   const trpc = useTRPC();
-  const { data } = useQuery(
-    trpc.comment.discussions.queryOptions({ documentId })
-  );
+  const { data } = useQuery({
+    ...trpc.comment.discussions.queryOptions({ documentId: documentId ?? '' }),
+    enabled: !!documentId,
+  });
 
   const { api, getOption, setOption } = useEditorPlugin(suggestionPlugin);
 
@@ -398,16 +399,19 @@ export const useResolveSuggestion = (
           if (lineBreakData.type === 'insert') {
             newText += lineBreakData.isLineBreak
               ? BLOCK_SUGGESTION
-              : BLOCK_SUGGESTION + TYPE_TEXT_MAP[node.type](node);
+              : BLOCK_SUGGESTION + (TYPE_TEXT_MAP[node.type]?.(node) ?? '');
           } else if (lineBreakData.type === 'remove') {
             text += lineBreakData.isLineBreak
               ? BLOCK_SUGGESTION
-              : BLOCK_SUGGESTION + TYPE_TEXT_MAP[node.type](node);
+              : BLOCK_SUGGESTION + (TYPE_TEXT_MAP[node.type]?.(node) ?? '');
           }
         }
       });
 
-      const nodeData = api.suggestion.suggestionData(entries[0][0]);
+      const firstEntry = entries[0];
+      if (!firstEntry) return;
+
+      const nodeData = api.suggestion.suggestionData(firstEntry[0]);
 
       if (!nodeData) return;
 

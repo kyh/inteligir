@@ -32,6 +32,7 @@ export const DocumentIconPicker = ({ children }: IconPickerProps) => {
   const updateDocument = useUpdateDocumentMutation();
 
   const onChange = (icon: string) => {
+    if (!id) return;
     authGuard(() => {
       updateDocument.mutate({
         id,
@@ -42,6 +43,7 @@ export const DocumentIconPicker = ({ children }: IconPickerProps) => {
   };
 
   const onRemove = () => {
+    if (!id) return;
     updateDocument.mutate({
       id,
       icon: null,

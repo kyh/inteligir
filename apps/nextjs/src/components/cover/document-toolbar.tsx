@@ -39,7 +39,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
     ...queryOptions,
     select: (data) => data.document?.title,
   });
-  title = queryOptions.enabled ? title : getTemplateDocument(documentId).title;
+  title = queryOptions.enabled ? title : getTemplateDocument(documentId ?? '')?.title;
 
   const { data: fullWidth } = useQuery({
     ...queryOptions,
@@ -95,7 +95,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
             </Button>
           </DocumentIconPicker>
         )}
-        {!coverImage && !readOnly && (
+        {!coverImage && !readOnly && documentId && (
           <Button
             onClick={() => {
               authGuard(() => {
@@ -116,6 +116,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
       <Input
         className="h-auto w-full resize-none break-words rounded-none bg-transparent p-0 font-bold text-4xl! text-[#3F3F3F] leading-none outline-hidden dark:text-[#CFCFCF]"
         onChange={(e) => {
+          if (!documentId) return;
           authGuard(() => {
             updateTitle({
               id: documentId,
