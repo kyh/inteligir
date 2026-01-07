@@ -7,6 +7,7 @@ import {
   httpBatchStreamLink,
   loggerLink,
 } from "@trpc/client";
+import { createTRPCReact } from "@trpc/react-query";
 import { createTRPCContext } from "@trpc/tanstack-react-query";
 import SuperJSON from "superjson";
 
@@ -24,6 +25,9 @@ const getQueryClient = () => {
     return (clientQueryClientSingleton ??= createQueryClient());
   }
 };
+
+// Legacy api export for compatibility with potion-main code
+export const api = createTRPCReact<AppRouter>();
 
 export const { useTRPC, TRPCProvider, useTRPCClient } =
   createTRPCContext<AppRouter>();
@@ -48,14 +52,36 @@ export const TRPCReactProvider = (props: { children: React.ReactNode }) => {
           },
         }),
       ],
-    }),
+    })
+  );
+
+  const [legacyTrpcClient] = useState(() =>
+    api.createClient({
+      links: [
+        loggerLink({
+          enabled: (op) =>
+            process.env.NODE_ENV === "development" ||
+            (op.direction === "down" && op.result instanceof Error),
+        }),
+        httpBatchStreamLink({
+          transformer: SuperJSON,
+          url: `${getBaseUrl()}/api/trpc`,
+          headers: () => {
+            const headers = new Headers();
+            return headers;
+          },
+        }),
+      ],
+    })
   );
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
-        {props.children}
-      </TRPCProvider>
+      <api.Provider client={legacyTrpcClient} queryClient={queryClient}>
+        <TRPCProvider trpcClient={trpcClient} queryClient={queryClient}>
+          {props.children}
+        </TRPCProvider>
+      </api.Provider>
     </QueryClientProvider>
   );
 };

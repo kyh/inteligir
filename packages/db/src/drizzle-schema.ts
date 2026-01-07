@@ -15,7 +15,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 
-import { user } from "./drizzle-schema-auth";
+import { organization, user } from "./drizzle-schema-auth";
 
 export const textStyleEnum = pgEnum("text_style", [
   "DEFAULT",
@@ -38,6 +38,9 @@ export const document = pgTable(
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
     parentDocumentId: text("parent_document_id"),
     title: text("title"),
     content: text("content"),
@@ -60,8 +63,8 @@ export const document = pgTable(
       .notNull(),
   },
   (table) => ({
-    userTemplateUnique: uniqueIndex("document_user_template_unique").on(
-      table.userId,
+    orgTemplateUnique: uniqueIndex("document_org_template_unique").on(
+      table.organizationId,
       table.templateId,
     ),
     parentFk: foreignKey({
@@ -163,6 +166,10 @@ export const documentRelations = relations(document, ({ one, many }) => ({
   user: one(user, {
     fields: [document.userId],
     references: [user.id],
+  }),
+  organization: one(organization, {
+    fields: [document.organizationId],
+    references: [organization.id],
   }),
   parent: one(document, {
     fields: [document.parentDocumentId],
