@@ -18,7 +18,7 @@
     "format-fix": "turbo run format --continue -- --write --cache --cache-location .cache/.prettiercache",
     "lint": "turbo run lint --continue -- --cache --cache-location .cache/.eslintcache",
     "lint-fix": "turbo run lint --continue -- --fix --cache --cache-location .cache/.eslintcache",
-    "lint-ws": "pnpm dlx sherif@latest -p app",
+    "lint-ws": "pnpm dlx sherif@latest",
     "postinstall": "pnpm lint-ws",
     "typecheck": "turbo run typecheck",
     "gen-ui": "pnpm -F ui gen-ui"
