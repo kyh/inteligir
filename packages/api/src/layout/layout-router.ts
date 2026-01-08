@@ -13,7 +13,6 @@ export const layoutRouter = createTRPCRouter({
         name: true,
         image: true,
         email: true,
-        username: true,
       },
     });
 

@@ -86,7 +86,7 @@ export const versionRouter = createTRPCRouter({
           user: {
             columns: {
               id: true,
-              username: true,
+              name: true,
             },
           },
         },
@@ -99,7 +99,7 @@ export const versionRouter = createTRPCRouter({
       return {
         ...version,
         userId: version.user.id,
-        username: version.user.username,
+        name: version.user.name,
       };
     }),
 
@@ -120,7 +120,7 @@ export const versionRouter = createTRPCRouter({
             columns: {
               id: true,
               image: true,
-              username: true,
+              name: true,
             },
           },
         },
@@ -131,7 +131,7 @@ export const versionRouter = createTRPCRouter({
           ...v,
           image: v.user.image,
           userId: v.user.id,
-          username: v.user.username,
+          name: v.user.name,
         })),
       };
     }),

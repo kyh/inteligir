@@ -124,7 +124,7 @@ export function VersionHistoryModal({
                     {format(version.createdAt, 'MMM d, yyyy, h:mm a')}
                   </div>
                   <div className="text-gray-500 text-xs">
-                    {version.username}
+                    {version.name}
                   </div>
                 </div>
               )

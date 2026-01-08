@@ -42,10 +42,6 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
   databaseHooks: {
     user: {
       create: {
-        before: async (user) => {
-          const username = await generateUsername(user.email);
-          return { data: { ...user, username } };
-        },
         after: async (user) => {
           await createDefaultOrganization(user);
         },
@@ -84,23 +80,6 @@ export const getOrganization = cache(
       headers: await headers(),
     }),
 );
-
-/**
- * Generates a unique username from email
- */
-const generateUsername = async (email: string) => {
-  const base = slugify(email.split("@")[0] ?? email);
-  const checkAvailable = async (username: string, attempt = 0): Promise<string> => {
-    const existing = await db.query.user.findFirst({
-      where: (user, { eq }) => eq(user.username, username),
-    });
-    if (existing) {
-      return checkAvailable(`${base}-${attempt + 1}`, attempt + 1);
-    }
-    return username;
-  };
-  return checkAvailable(base);
-};
 
 /**
  * Creates a default personal organization for a new user

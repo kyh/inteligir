@@ -15,7 +15,7 @@ export interface UserAvatarProps extends React.ComponentProps<typeof Avatar> {
   loading?: boolean;
   user?: DeepNullable<{
     image?: string;
-    username?: string;
+    name?: string;
   }>;
 }
 
@@ -43,7 +43,7 @@ export function UserAvatar({
 
   const src = user.image;
 
-  const label = user.username ? `Avatar for ${user.username}` : 'Avatar';
+  const label = user.name ? `Avatar for ${user.name}` : 'Avatar';
 
   return (
     <Avatar

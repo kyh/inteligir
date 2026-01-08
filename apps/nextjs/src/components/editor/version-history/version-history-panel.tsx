@@ -104,15 +104,15 @@ export default memo(function VersionHistoryPanel() {
               version && (
                 <div className="flex border-b px-4 pt-3" key={index}>
                   <Avatar className="mr-2 size-7">
-                    <AvatarImage alt={version.username} src={version.image!} />
-                    <AvatarFallback>{version.username}</AvatarFallback>
+                    <AvatarImage alt={version.name} src={version.image!} />
+                    <AvatarFallback>{version.name}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <div className="flex justify-between">
                       <div>
                         {currentUser?.id === version.userId
                           ? 'You'
-                          : version.username}
+                          : version.name}
                         &nbsp;saved{' '}
                         <span className="font-semibold">{document.title}</span>
                       </div>
