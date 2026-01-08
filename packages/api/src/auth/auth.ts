@@ -2,12 +2,13 @@ import type { User } from "better-auth";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { expo } from "@better-auth/expo";
+import { eq } from "@repo/db";
 import { db } from "@repo/db/drizzle-client";
 import { user as userSchema } from "@repo/db/drizzle-schema-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { nextCookies } from "better-auth/next-js";
 import { admin, oAuthProxy, organization } from "better-auth/plugins";
-import { eq } from "drizzle-orm";
 
 import { slugify } from "./utils";
 
@@ -32,16 +33,10 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
     expo(),
     organization(),
     admin(),
+    nextCookies(),
   ],
   emailAndPassword: {
     enabled: true,
-  },
-  socialProviders: {
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID ?? "",
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? "",
-      redirectURI: `${baseUrl}/api/auth/callback/github`,
-    },
   },
   trustedOrigins: ["expo://"],
   databaseHooks: {

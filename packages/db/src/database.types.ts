@@ -149,6 +149,276 @@ export type Database = {
           },
         ];
       };
+      comment: {
+        Row: {
+          content: string;
+          content_rich: Json | null;
+          created_at: string;
+          discussion_id: string;
+          id: string;
+          is_edited: boolean;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          content: string;
+          content_rich?: Json | null;
+          created_at?: string;
+          discussion_id: string;
+          id: string;
+          is_edited?: boolean;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          content?: string;
+          content_rich?: Json | null;
+          created_at?: string;
+          discussion_id?: string;
+          id?: string;
+          is_edited?: boolean;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "comment_discussion_id_discussion_id_fk";
+            columns: ["discussion_id"];
+            isOneToOne: false;
+            referencedRelation: "discussion";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "comment_user_id_user_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      discussion: {
+        Row: {
+          created_at: string;
+          document_content: string;
+          document_content_rich: Json | null;
+          document_id: string;
+          id: string;
+          is_resolved: boolean;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          created_at?: string;
+          document_content: string;
+          document_content_rich?: Json | null;
+          document_id: string;
+          id: string;
+          is_resolved?: boolean;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          created_at?: string;
+          document_content?: string;
+          document_content_rich?: Json | null;
+          document_id?: string;
+          id?: string;
+          is_resolved?: boolean;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discussion_document_id_document_id_fk";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "document";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "discussion_user_id_user_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      document: {
+        Row: {
+          content: string | null;
+          content_rich: Json | null;
+          cover_image: string | null;
+          created_at: string;
+          full_width: boolean;
+          icon: string | null;
+          id: string;
+          is_archived: boolean;
+          is_published: boolean;
+          lock_page: boolean;
+          parent_document_id: string | null;
+          small_text: boolean;
+          template_id: string | null;
+          text_style: Database["public"]["Enums"]["text_style"];
+          title: string | null;
+          toc: boolean;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          content?: string | null;
+          content_rich?: Json | null;
+          cover_image?: string | null;
+          created_at?: string;
+          full_width?: boolean;
+          icon?: string | null;
+          id: string;
+          is_archived?: boolean;
+          is_published?: boolean;
+          lock_page?: boolean;
+          parent_document_id?: string | null;
+          small_text?: boolean;
+          template_id?: string | null;
+          text_style?: Database["public"]["Enums"]["text_style"];
+          title?: string | null;
+          toc?: boolean;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          content?: string | null;
+          content_rich?: Json | null;
+          cover_image?: string | null;
+          created_at?: string;
+          full_width?: boolean;
+          icon?: string | null;
+          id?: string;
+          is_archived?: boolean;
+          is_published?: boolean;
+          lock_page?: boolean;
+          parent_document_id?: string | null;
+          small_text?: boolean;
+          template_id?: string | null;
+          text_style?: Database["public"]["Enums"]["text_style"];
+          title?: string | null;
+          toc?: boolean;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "document_parent_document_id_document_id_fk";
+            columns: ["parent_document_id"];
+            isOneToOne: false;
+            referencedRelation: "document";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "document_user_id_user_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      document_version: {
+        Row: {
+          content_rich: Json | null;
+          created_at: string;
+          document_id: string;
+          id: string;
+          title: string | null;
+          updated_at: string;
+          user_id: string;
+        };
+        Insert: {
+          content_rich?: Json | null;
+          created_at?: string;
+          document_id: string;
+          id: string;
+          title?: string | null;
+          updated_at?: string;
+          user_id: string;
+        };
+        Update: {
+          content_rich?: Json | null;
+          created_at?: string;
+          document_id?: string;
+          id?: string;
+          title?: string | null;
+          updated_at?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "document_version_document_id_document_id_fk";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "document";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "document_version_user_id_user_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
+      file: {
+        Row: {
+          app_url: string;
+          created_at: string;
+          document_id: string | null;
+          id: string;
+          size: number;
+          type: string;
+          updated_at: string;
+          url: string;
+          user_id: string;
+        };
+        Insert: {
+          app_url: string;
+          created_at?: string;
+          document_id?: string | null;
+          id: string;
+          size: number;
+          type: string;
+          updated_at?: string;
+          url: string;
+          user_id: string;
+        };
+        Update: {
+          app_url?: string;
+          created_at?: string;
+          document_id?: string | null;
+          id?: string;
+          size?: number;
+          type?: string;
+          updated_at?: string;
+          url?: string;
+          user_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "file_document_id_document_id_fk";
+            columns: ["document_id"];
+            isOneToOne: false;
+            referencedRelation: "document";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "file_user_id_user_id_fk";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "user";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       organization: {
         Row: {
           created_at: string;
@@ -229,39 +499,66 @@ export type Database = {
           ban_reason: string | null;
           banned: boolean | null;
           created_at: string;
+          deleted_at: string | null;
           email: string;
           email_verified: boolean;
+          first_name: string | null;
           id: string;
           image: string | null;
+          last_name: string | null;
           name: string;
-          role: string | null;
+          password_hash: string | null;
+          profile_image_url: string | null;
+          role: Database["public"]["Enums"]["user_role"];
+          stripe_customer_id: string | null;
           updated_at: string;
+          upload_limit: number;
+          username: string;
+          version: number;
         };
         Insert: {
           ban_expires?: string | null;
           ban_reason?: string | null;
           banned?: boolean | null;
           created_at: string;
+          deleted_at?: string | null;
           email: string;
           email_verified: boolean;
+          first_name?: string | null;
           id: string;
           image?: string | null;
+          last_name?: string | null;
           name: string;
-          role?: string | null;
+          password_hash?: string | null;
+          profile_image_url?: string | null;
+          role?: Database["public"]["Enums"]["user_role"];
+          stripe_customer_id?: string | null;
           updated_at: string;
+          upload_limit?: number;
+          username: string;
+          version?: number;
         };
         Update: {
           ban_expires?: string | null;
           ban_reason?: string | null;
           banned?: boolean | null;
           created_at?: string;
+          deleted_at?: string | null;
           email?: string;
           email_verified?: boolean;
+          first_name?: string | null;
           id?: string;
           image?: string | null;
+          last_name?: string | null;
           name?: string;
-          role?: string | null;
+          password_hash?: string | null;
+          profile_image_url?: string | null;
+          role?: Database["public"]["Enums"]["user_role"];
+          stripe_customer_id?: string | null;
           updated_at?: string;
+          upload_limit?: number;
+          username?: string;
+          version?: number;
         };
         Relationships: [];
       };
@@ -324,7 +621,10 @@ export type Database = {
     };
     Views: Record<never, never>;
     Functions: Record<never, never>;
-    Enums: Record<never, never>;
+    Enums: {
+      text_style: "DEFAULT" | "SERIF" | "MONO";
+      user_role: "USER" | "ADMIN" | "SUPERADMIN";
+    };
     CompositeTypes: Record<never, never>;
   };
   storage: {
@@ -967,7 +1267,10 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      text_style: ["DEFAULT", "SERIF", "MONO"],
+      user_role: ["USER", "ADMIN", "SUPERADMIN"],
+    },
   },
   storage: {
     Enums: {
