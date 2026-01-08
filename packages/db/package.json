@@ -19,7 +19,7 @@
     "seed": "pnpm with-env tsx src/seed/initial.ts",
     "start": "pnpm with-env supabase status || supabase start",
     "stop": "pnpm with-env supabase stop",
-    "reset": "pnpm with-env supabase db reset && pnpm push",
+    "reset": "pnpm with-env supabase db reset --debug && pnpm push",
     "status": "pnpm with-env supabase status",
     "test": "pnpm with-env supabase db test",
     "typegen": "pnpm with-env supabase gen types typescript --local > src/database.types.ts",
