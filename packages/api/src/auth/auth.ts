@@ -32,10 +32,7 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
     }),
     expo(),
     organization(),
-    admin({
-      defaultRole: "USER",
-      adminRole: "ADMIN",
-    }),
+    admin(),
     nextCookies(),
   ],
   emailAndPassword: {
