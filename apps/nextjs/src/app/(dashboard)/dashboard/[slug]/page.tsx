@@ -1,5 +1,5 @@
-import { getSession } from "@repo/api/auth/auth";
 import { redirect } from "next/navigation";
+import { getSession } from "@repo/api/auth/auth";
 
 import { Home } from "./home";
 

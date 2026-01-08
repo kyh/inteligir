@@ -17,13 +17,7 @@ export const documentRouter = createTRPCRouter({
       await ctx.db
         .update(document)
         .set({ isArchived: true })
-        .where(
-          and(
-            eq(document.id, input.id),
-            eq(document.userId, ctx.userId),
-            eq(document.organizationId, ctx.organizationId!)
-          )
-        );
+        .where(and(eq(document.id, input.id), eq(document.userId, ctx.userId)));
     }),
 
   create: protectedProcedure
@@ -60,13 +54,7 @@ export const documentRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       await ctx.db
         .delete(document)
-        .where(
-          and(
-            eq(document.id, input.id),
-            eq(document.userId, ctx.userId),
-            eq(document.organizationId, ctx.organizationId!)
-          )
-        );
+        .where(and(eq(document.id, input.id), eq(document.userId, ctx.userId)));
     }),
 
   restore: protectedProcedure
@@ -75,13 +63,7 @@ export const documentRouter = createTRPCRouter({
       await ctx.db
         .update(document)
         .set({ isArchived: false })
-        .where(
-          and(
-            eq(document.id, input.id),
-            eq(document.userId, ctx.userId),
-            eq(document.organizationId, ctx.organizationId!)
-          )
-        );
+        .where(and(eq(document.id, input.id), eq(document.userId, ctx.userId)));
     }),
 
   update: protectedProcedure
@@ -118,13 +100,7 @@ export const documentRouter = createTRPCRouter({
       await ctx.db
         .update(document)
         .set(updateData)
-        .where(
-          and(
-            eq(document.id, id),
-            eq(document.userId, ctx.userId),
-            eq(document.organizationId, ctx.organizationId!)
-          )
-        );
+        .where(and(eq(document.id, id), eq(document.userId, ctx.userId)));
     }),
 
   document: protectedProcedure

@@ -144,8 +144,6 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
             tooltip="Manage your account and settings"
           />
 
-          <NavItem href="/editor" icon={Icons.editor} label="Editor" />
-
           {mounted ? (
             <Popover>
               <PopoverTrigger
