@@ -26,7 +26,6 @@ const getQueryClient = () => {
   }
 };
 
-// Legacy api export for compatibility with potion-main code
 export const api = createTRPCReact<AppRouter>();
 
 export const { useTRPC, TRPCProvider, useTRPCClient } =

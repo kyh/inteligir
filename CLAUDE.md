@@ -23,7 +23,6 @@ This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get sta
 ```
 apps/
   nextjs/        # Main Next.js app (@repo/nextjs)
-  potion-main/   # Reference app (Plate.js editor source)
 packages/
   api/           # tRPC routers, auth (@repo/api)
   db/            # Drizzle schema, Supabase (@repo/db)
