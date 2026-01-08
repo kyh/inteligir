@@ -25,8 +25,8 @@ export const env = createEnv({
     NODE_ENV: process.env.NODE_ENV,
   },
   server: {
-    BETTER_AUTH_SECRET: z.string(),
-    DATABASE_URL: z.string(),
+    BETTER_AUTH_SECRET: z.string().default("dev-secret"),
+    DATABASE_URL: z.string().default(""),
     GITHUB_CLIENT_ID: z.string().default(""),
     GITHUB_CLIENT_SECRET: z.string().default(""),
     AI_GATEWAY_API_KEY: z.string().default(""),
