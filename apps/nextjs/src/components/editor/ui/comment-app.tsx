@@ -51,7 +51,7 @@ export function Comment(props: {
   const { user } = comment;
 
   const trpc = useTRPC();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const discussions = trpc.comment.discussions as any;
   const resolveDiscussion = api.comment.resolveDiscussion.useMutation({
@@ -356,7 +356,7 @@ function CommentMoreDropdown(props: {
   } = props;
 
   const trpc = useTRPC();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const discussionsUtils = trpc.comment.discussions as any;
   const deleteComment = api.comment.deleteComment.useMutation({
@@ -484,7 +484,7 @@ export function CommentCreateForm({
 }) {
   const trpc = useTRPC();
   const current = useCurrentUser();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const discussionsHook = trpc.comment.discussions as any;
 

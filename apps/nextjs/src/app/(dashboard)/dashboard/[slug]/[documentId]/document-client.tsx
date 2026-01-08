@@ -14,7 +14,7 @@ import { LinkButton } from "@/registry/ui/button";
 import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 
 export function DocumentClient() {
-  const { documentId } = useTParams<"/[documentId]">();
+  const { documentId, slug } = useTParams<"/dashboard/[slug]/[documentId]">();
   const { data: id, isLoading } = useQuery({
     ...useDocumentQueryOptions(),
     select: (data) => data.document?.id,
@@ -22,7 +22,7 @@ export function DocumentClient() {
   const shouldRedirect = documentId && isTemplateDocument(documentId) && id;
 
   if (shouldRedirect) {
-    redirect(`/${id}`);
+    redirect(`/dashboard/${slug}/${id}`);
   }
   if (isLoading) {
     return <DocumentSkeleton />;
@@ -34,7 +34,7 @@ export function DocumentClient() {
         <h1 className="mb-4 font-medium text-lg">
           This document does not exist
         </h1>
-        <LinkButton href="/" size="md" variant="brand">
+        <LinkButton href={`/dashboard/${slug}`} size="md" variant="brand">
           Back to my content
         </LinkButton>
       </div>

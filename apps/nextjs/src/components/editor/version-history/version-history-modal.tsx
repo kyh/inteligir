@@ -32,7 +32,7 @@ export function VersionHistoryModal({
     [activeVersionId, versions.data?.versions]
   );
 
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const updateDocument = useUpdateDocumentMutation();
 
   const onRestoreVersion = async () => {

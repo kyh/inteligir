@@ -38,7 +38,7 @@ export const DocumentList = ({
   parentDocumentId?: string;
 }) => {
   const authGuard = useAuthGuard();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const router = useRouter();
   const session = useSession();
   const trpc = useTRPC();
@@ -66,7 +66,7 @@ export const DocumentList = ({
   };
 
   const onRedirect = (documentId: string) => {
-    router.push(`/${documentId}` as Route);
+    router.push(`/dashboard/${slug}/${documentId}` as Route);
   };
 
   if (isLoading) {

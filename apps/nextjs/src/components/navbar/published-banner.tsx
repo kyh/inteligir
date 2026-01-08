@@ -15,7 +15,7 @@ export const PublishedBanner = () => {
     select: (data) => data.document?.isPublished,
   });
 
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const origin = useOrigin();
 
   if (!isPublished) {

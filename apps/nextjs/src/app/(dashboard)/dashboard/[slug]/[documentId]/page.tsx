@@ -7,7 +7,7 @@ import { PublicDocumentClient } from "./public-document-client";
 export default async function DocumentPage({
   params,
 }: {
-  params: Promise<{ documentId: string }>;
+  params: Promise<{ slug: string; documentId: string }>;
 }) {
   const { documentId } = await params;
   const session = await getSession();

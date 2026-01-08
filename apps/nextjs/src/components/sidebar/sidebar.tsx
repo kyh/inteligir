@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { useSession } from "@/components/auth/useSession";
 import { useIsDesktop } from "@/components/providers/tailwind-provider";
 import { SearchStore } from "@/components/search/SearchStore";
+import { useTParams } from "@/hooks/use-navigation";
 import { useToggleLeftPanel } from "@/hooks/useResizablePanel";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/registry/hooks/use-mounted";
@@ -28,6 +29,7 @@ import { SidebarSwitcher } from "./sidebar-switcher";
 import { TrashBox } from "./trash-box";
 
 export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
+  const { slug } = useTParams<"/dashboard/[slug]">();
   const session = useSession();
   const router = useRouter();
   const isMobile = !useIsDesktop();
@@ -52,7 +54,7 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
           ],
         })
         .then((document) => {
-          router.push(`/${document.id}` as Route);
+          router.push(`/dashboard/${slug}/${document.id}` as Route);
         });
 
       toast.promise(promise, {
@@ -101,7 +103,7 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
             tooltip="Search page"
           />
           <NavItem
-            href="/"
+            href={`/dashboard/${slug}`}
             icon={HouseIcon}
             label="Home"
             tooltip="View recent pages"
@@ -136,7 +138,7 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
             label="Settings"
             onClick={() => {
               authGuard(() => {
-                router.push("/settings");
+                router.push(`/dashboard/${slug}/settings`);
               });
             }}
             tooltip="Manage your account and settings"

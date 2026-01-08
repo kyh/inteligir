@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Icons } from "@/components/ui/icons";
 import { WithSkeleton } from "@/components/ui/skeleton";
 import { UserAvatar } from "@/components/user-avatar";
+import { useTParams } from "@/hooks/use-navigation";
 import { useTRPC } from "@/trpc/react";
 
 type Document = {
@@ -23,6 +24,7 @@ type Document = {
 };
 
 export function Home() {
+  const { slug } = useTParams<"/dashboard/[slug]">();
   const user = useAuthUser();
   const trpc = useTRPC();
   const currentUser = useCurrentUser();
@@ -89,7 +91,7 @@ export function Home() {
             isLoading={isLoading}
             key={doc.id}
           >
-            <Link href={`/${doc.id}`}>
+            <Link href={`/dashboard/${slug}/${doc.id}`}>
               <Card className="h-full overflow-hidden rounded-2xl transition-colors hover:bg-accent/50">
                 <div
                   className="relative h-11 bg-muted"

@@ -8,6 +8,7 @@ import React, { useEffect } from 'react';
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
 import { SearchStore, useSearchValue } from '@/components/search/SearchStore';
 import { Icons } from '@/components/ui/icons';
+import { useTParams } from '@/hooks/use-navigation';
 import { cn } from '@/lib/utils';
 import { useDebounce } from '@/registry/hooks/use-debounce';
 import { useMounted } from '@/registry/hooks/use-mounted';
@@ -22,6 +23,7 @@ import {
 import { useTRPC } from '@/trpc/react';
 
 export const SearchCommand = () => {
+  const { slug } = useTParams<'/dashboard/[slug]'>();
   const user = useCurrentUser();
   const router = useRouter();
 
@@ -55,7 +57,7 @@ export const SearchCommand = () => {
   }, []);
 
   const onSelect = (id: string) => {
-    router.push(`/${id}` as Route);
+    router.push(`/dashboard/${slug}/${id}` as Route);
     SearchStore.actions.onClose();
   };
 

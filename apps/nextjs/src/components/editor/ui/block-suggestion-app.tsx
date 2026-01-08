@@ -249,7 +249,7 @@ export const useResolveSuggestion = (
   blockPath: Path
 ): ResolvedSuggestion[] => {
   const editor = useEditorRef();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const trpc = useTRPC();
   const { data } = useQuery({
     ...trpc.comment.discussions.queryOptions({ documentId: documentId ?? '' }),

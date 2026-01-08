@@ -17,7 +17,7 @@ export function PublicDocumentClient() {
         <div className="text-[64px]">👀</div>
         <h1 className="mb-4 font-medium text-lg">This page does not exist</h1>
         <LinkButton href="/" size="md" variant="brand">
-          Back to my content
+          Back to home
         </LinkButton>
       </div>
     );

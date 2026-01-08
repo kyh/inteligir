@@ -15,7 +15,7 @@ import { Skeleton } from '../ui/skeleton';
 
 export const NavTitle = () => {
   const authGuard = useAuthGuard();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
 
   const queryOptions = useDocumentQueryOptions();
   const { data: _title, isLoading } = useQuery({

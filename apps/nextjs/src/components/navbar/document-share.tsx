@@ -20,7 +20,7 @@ import { Icons } from '../ui/icons';
 export const DocumentShare = () => {
   const mounted = useMounted();
   const authGuard = useAuthGuard();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const { data: isPublished } = useQuery({
     ...useDocumentQueryOptions(),
     select: (data) => data.document?.isPublished,

@@ -339,7 +339,7 @@ const FloatingDiscussionContent = () => {
   const commentApi = editor.getApi(commentPlugin);
   const suggestionApi = editor.getApi(suggestionPlugin);
 
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const activeCommentId = usePluginOption(commentPlugin, 'activeId');
   const activeSuggestionId = usePluginOption(suggestionPlugin, 'activeId');
   const activeId = activeCommentId ?? activeSuggestionId;
@@ -772,7 +772,7 @@ const FloatingSuggestionContent = ({
   ref,
   top,
 }: React.ComponentProps<'div'> & FloatingSuggestionContentProps) => {
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const trpc = useTRPC();
   const { data } = useQuery({
     ...trpc.comment.discussions.queryOptions({ documentId: documentId ?? '' }),

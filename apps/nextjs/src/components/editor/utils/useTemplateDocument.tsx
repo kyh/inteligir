@@ -119,7 +119,7 @@ export const getTemplateDocument = (documentId: string) =>
   templates[documentId];
 
 export const useTemplateDocument = () => {
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
 
   return getTemplateDocument(documentId);
 };

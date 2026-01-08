@@ -21,7 +21,7 @@ import { DocumentIconPicker } from './document-icon-picker';
 
 export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
   const authGuard = useAuthGuard();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const editor = useEditorRef();
   const queryOptions = useDocumentQueryOptions();
 

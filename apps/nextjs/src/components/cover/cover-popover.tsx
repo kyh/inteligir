@@ -27,7 +27,7 @@ export const COVER_GRADIENTS = {
 };
 
 export function CoverPopover({ children }: { children: React.ReactNode }) {
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const updateDocument = useUpdateDocumentMutation();
   const [open, setOpen] = useState(false);
 

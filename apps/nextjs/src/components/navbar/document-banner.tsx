@@ -9,7 +9,7 @@ import { Button } from '@/registry/ui/button';
 import { api, useTRPC } from '@/trpc/react';
 
 export const DocumentBanner = () => {
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const router = useRouter();
   const trpc = useTRPC();
 
@@ -17,7 +17,7 @@ export const DocumentBanner = () => {
     onSuccess: () => {
       void trpc.document.documents.invalidate();
       void trpc.document.document.invalidate({ id: documentId });
-      router.push('/');
+      router.push(`/dashboard/${slug}`);
     },
   });
 

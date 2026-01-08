@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 
 import { useCurrentUser } from '@/components/auth/useCurrentUser';
+import { useTParams } from '@/hooks/use-navigation';
 import { cn } from '@/lib/utils';
 import { useMounted } from '@/registry/hooks/use-mounted';
 import { Button } from '@/registry/ui/button';
@@ -62,6 +63,7 @@ export function NavItem({
   onClick,
   onExpand: onExpandProp,
 }: ItemProps & React.ComponentProps<'div'>) {
+  const { slug } = useTParams<'/dashboard/[slug]'>();
   const authGuard = useAuthGuard();
 
   const ChevronIcon = expanded ? Icons.chevronDown : Icons.chevronRight;
@@ -110,7 +112,7 @@ export function NavItem({
           onExpandProp?.();
         }
 
-        router.push(`/${document.id}` as Route);
+        router.push(`/dashboard/${slug}/${document.id}` as Route);
       });
 
     toast.promise(promise, {

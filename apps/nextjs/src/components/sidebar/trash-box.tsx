@@ -25,7 +25,7 @@ import { removeExpandedIdFromStorage } from './document-list';
 
 export function TrashBox() {
   const router = useRouter();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const trpc = useTRPC();
 
   const [search, setSearch] = useState('');
@@ -57,7 +57,7 @@ export function TrashBox() {
   );
 
   const onClick = (documentId: string) => {
-    router.push(`/${documentId}` as Route);
+    router.push(`/dashboard/${slug}/${documentId}` as Route);
   };
 
   const onRestore = (documentId: string) => {
@@ -80,7 +80,7 @@ export function TrashBox() {
     });
 
     if (documentId === document.id) {
-      router.push('/');
+      router.push(`/dashboard/${slug}`);
     }
   };
 

@@ -20,7 +20,7 @@ const VersionHistoryPanel = dynamic(
 export const ContextPanel = () => {
   const rightSize = useRightPanelSize();
   const rightType = useRightPanelType();
-  const { documentId } = useTParams<"/[documentId]">();
+  const { documentId } = useTParams<"/dashboard/[slug]/[documentId]">();
 
   const isOpen = useMemo(() => !!rightSize && rightSize > 0, [rightSize]);
 

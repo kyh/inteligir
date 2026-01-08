@@ -25,7 +25,7 @@ export const DocumentIconPicker = ({ children }: IconPickerProps) => {
     light: Theme.LIGHT,
   };
   const theme = themeMap[currentTheme];
-  const { documentId: id } = useTParams<'/[documentId]'>();
+  const { documentId: id } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const authGuard = useAuthGuard();
   const [open, setOpen] = useState(false);
 

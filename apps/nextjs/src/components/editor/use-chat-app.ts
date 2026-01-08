@@ -38,7 +38,7 @@ export type ToolName = 'comment' | 'edit' | 'generate';
 
 export const useChat = () => {
   const editor = useEditorRef();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
 
   const trpc = useTRPC();
   const createDiscussionWithComment =

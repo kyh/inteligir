@@ -113,7 +113,7 @@ export const DocumentMenu = React.memo(() => {
 
 function DocumentMenuContent() {
   const authGuard = useAuthGuard();
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const editor = useEditorRef();
   const queryOptions = useDocumentQueryOptions();
 
@@ -178,7 +178,7 @@ function DocumentMenuContent() {
       success: 'Note moved to trash.',
     });
 
-    router.push('/');
+    router.push(`/dashboard/${slug}`);
   };
 
   const onCustomDocument = useCallback(

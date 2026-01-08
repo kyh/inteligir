@@ -33,7 +33,7 @@ export const Panels = ({
   initialLayout,
   initialRightPanelType,
 }: PanelsProps) => {
-  const { documentId } = useTParams<'/[documentId]'>();
+  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
   const searchParams = useSearchParams();
 
   const hiddenSidebar = searchParams.get('hidden-sidebar') === 'true';
