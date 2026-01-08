@@ -1,9 +1,8 @@
 import { pgTable, text, timestamp, boolean, integer, pgEnum } from "drizzle-orm/pg-core";
 
 export const userRoleEnum = pgEnum("user_role", [
-  "USER",
-  "ADMIN",
-  "SUPERADMIN",
+  "user",
+  "admin",
 ]);
 
 export const user = pgTable("user", {
@@ -29,7 +28,7 @@ export const user = pgTable("user", {
   uploadLimit: integer("upload_limit").default(100000000).notNull(),
   version: integer("version").default(1).notNull(),
   stripeCustomerId: text("stripe_customer_id").unique(),
-  role: userRoleEnum("role").default("USER").notNull(),
+  role: userRoleEnum("role").default("user").notNull(),
   banned: boolean("banned"),
   banReason: text("ban_reason"),
   banExpires: timestamp("ban_expires"),
