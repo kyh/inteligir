@@ -1,0 +1,51 @@
+The Plate Plus Commercial License (the "Commercial License")
+Copyright (c) 2024-present Udecode
+
+With regard to the Plate Plus Software:
+
+This software and associated documentation files (the "Software") may only be
+used if you (and any entity that you represent) have agreed to,
+and are in compliance with, the Plate Plus License Terms available
+at https://pro.platejs.org/docs/license, or other agreements governing
+the use of the Software, as mutually agreed by you and Udecode ("Udecode"),
+and otherwise have a valid Plate Plus Personal or Team License ("Commercial License")
+as defined in the License Terms. For Personal Licenses, this permits one individual to access
+and use Plate Plus. For Team Licenses, this allows up to 5 Employees and Contractors of the
+Licensee to access and use Plate Plus. Subject to the foregoing, you may modify this Software and create derivative works for your own use in creating End Products, but you may not distribute such modifications or derivative works separately from an End Product. You agree
+that Udecode and/or its licensors (as applicable) retain all right, title and interest in
+and to all such modifications and/or derivative works, and all such modifications and/or
+derivative works may only be used, copied, modified, displayed, distributed, or otherwise
+exploited with a valid Commercial License.
+
+You may:
+
+- Create unlimited End Products using Plate Plus.
+- Use Plate Plus to create unlimited End Products for unlimited Clients.
+- Create End Products for sale to End Users.
+- Use Plate Plus in open-source End Products that are freely available to End Users.
+
+You may not:
+
+- Create End Products that allow End Users to build their own products using Plate Plus or its derivatives.
+- Redistribute Plate Plus or its derivatives separately from an End Product.
+- Share your access to Plate Plus with others (Personal License) or grant access to individuals who are not Employees or Contractors of the Licensee (Team License).
+- Use Plate Plus to create products that compete with Plate Plus or Udecode's business, as determined by Udecode.
+- Create End Products that are not the property of the Licensee or the Licensee's Clients (Team License).
+
+You are not granted any other rights beyond what is expressly stated herein.
+Subject to the foregoing, it is forbidden to copy, merge, publish, distribute, sublicense,
+and/or sell the Software.
+
+The full text of this Commercial License shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+For all third party components incorporated into the Plate Plus Software, those
+components are licensed under the original license provided by the owner of the
+applicable component.

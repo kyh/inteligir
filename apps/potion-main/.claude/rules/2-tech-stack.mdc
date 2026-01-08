@@ -1,0 +1,61 @@
+---
+alwaysApply: true
+---
+
+# Tech Stack Documentation
+
+_Last Updated: 2025-10-20_
+
+## Snapshot
+
+- Next.js `16.0.0-beta.0` with React `19.2.0` powers the App Router, server components, and typed route handlers.
+- Convex `1.28.0` is the unified backend for database, real-time functions, scheduled jobs, and file sync.
+- Tailwind CSS `4.1.14`, shadcn/ui, Radix primitives, and Framer Motion drive the design system and motion layer.
+- TypeScript `5.9.3` targets Node.js `22`; bun (enforced via `only-allow`) manages dependencies and scripts.
+- The AI layer uses Vercel AI SDK `2.x`, LangChain `0.3`, and Pinecone for retrieval-augmented generation.
+- Authentication runs on Better Auth (`@polar-sh/better-auth` `1.1.9`) with Polar billing; media assets live in Cloudflare R2 via `@convex-dev/r2`.
+
+## Runtime & Tooling
+
+- **Node.js 22**: Standardized through `.nvmrc` and `convex.json`; CI currently pins Node 20 for compatibility.
+- **TypeScript 5.9.3**: Bundler module resolution with selective safety flags (`strictNullChecks`, `noImplicitOverride`, etc.) to balance DX and runtime guarantees.
+- **bun**: Single-workspace setup with `only-allow` in `preinstall`, `tsx`-powered scripts, and automatic type generation in `postinstall`.
+- **Linting & Formatting**: ESLint 9 flat config (`eslint.config.mjs`) plus Prettier 3, perfectionist, unicorn, and lint-staged hooks enforced by simple-git-hooks.
+- **Testing**: Vitest 3 (`vitest.config.ts`) for unit and coverage runs; CI executes `bun lint`, `bun typecheck`, and `bun test` on pull requests.
+- **Local Dev Workflow**: `bun dev` launches `mprocs`, orchestrating Next.js, Convex, and supporting processes; `ngrok` script exposes local builds for testing.
+
+## Frontend Platform
+
+- **Next.js App Router**: Uses server and client components, streaming route handlers, and middleware for auth gating; Turbopack speeds local builds.
+- **State Management**: Jotai/Jotai-X handle persistent UI state, Hookstate powers collaborative chat UIs, and `nuqs` maintains typed URL parameters.
+- **Forms & Validation**: React Hook Form with Zod schemas for shared runtime + static validation.
+- **UI System**: Tailwind v4 with CSS-first `@theme` definitions, shadcn/ui wrappers over Radix primitives, Vaul drawers, Embla carousel, Sonner toasts, and Plate `49.x` for rich text editing and AI-assisted content.
+- **Media & Visualization**: React Dropzone for uploads, Next Image streams, Recharts for analytics, and Lucide for icons.
+
+## Backend & Data
+
+- **Convex 1.28.0**: Houses business logic, Ents-based schema (`convex/schema.ts`), query/mutation functions, scheduled jobs, and rate limiting (`@convex-dev/rate-limiter`).
+- **Better Auth Integration**: `@convex-dev/better-auth` bridges Convex functions with Better Auth session management and Polar subscription data.
+- **File Storage**: Cloudflare R2 managed through `@convex-dev/r2` with presigned upload/download helpers and S3-compatible SDK fallbacks.
+- **Streaming & Edge APIs**: Hono 4 route handlers support SSE/streaming responses alongside Next.js route handlers.
+- **Email & Notifications**: Resend provides transactional email delivery; Sonner + Convex mutations coordinate in-app notifications.
+
+## AI & Retrieval
+
+- **Vercel AI SDK 2.x**: Unified client for OpenAI and Google providers (`@ai-sdk/*`), powering chat, tool calling, and streaming completions.
+- **LangChain 0.3**: Orchestrates prompt pipelines, RAG flows, and Pinecone vector lookups for character knowledge bases.
+- **Embeddings & Storage**: Pinecone hosts vector indexes; Convex tracks metadata and synchronizes file artifacts with R2.
+- **Editor Enhancements**: `@platejs/ai` integrates AI assistance inside the Plate editor for drafting character profiles and responses.
+
+## Auth, Payments & Compliance
+
+- **Better Auth (`1.1.9`)**: Email/password and social auth with secure session cookies, passwordless options, and admin roles.
+- **Polar SDK (`0.37.x`)**: Manages subscriptions, credit balances, and customer portal flows; Convex functions reconcile usage data.
+- **Security Tooling**: `next-secure-headers`, validation via Zod, and Convex server-side access control guard APIs; rate limiting prevents abuse.
+
+## Infrastructure & Operations
+
+- **Deployment Targets**: Next.js front-end optimized for Vercel; Convex deploys through Convex cloud environments.
+- **Secrets & Env Sync**: `tooling/sync-convex-env.ts` keeps Convex and local `.env` files aligned; `convex run` scripts manage seeding/reset flows.
+- **Content & Docs**: Fumadocs drives the documentation site generation;
+- **Monitoring & Logging**: Convex dashboard for backend observability; Next.js structured logs piped through `.next/dev.log` via `dev:app`.

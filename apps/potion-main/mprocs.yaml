@@ -1,0 +1,12 @@
+procs:
+  next:
+    cmd: ['bun', 'dev:app']
+  db:
+    cmd: ['bun', 'dev:db']
+    stop:
+      send-keys: ['<C-c>']
+  yjs:
+    cmd: ['bun', 'dev:yjs']
+  typecheck:
+    cmd: ['bun', 'typecheck:watch']
+    autostart: false

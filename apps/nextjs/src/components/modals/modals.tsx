@@ -1,19 +1,11 @@
 'use client';
 
-import { useEffect } from 'react';
-
 import { LoginModal } from '@/components/auth/login-modal';
 import { VersionHistoryModal } from '@/components/editor/version-history/version-history-modal';
 import { ConfirmModal } from '@/components/modals/confirm-modal';
 import { DiscardModal } from '@/components/modals/discard-modal';
 import { createPushModal } from '@/components/modals/push-modal';
-import {
-  useAppSet,
-  useAppState,
-  useAppValue,
-} from '@/components/providers/app-provider';
 import { AlertDialog } from '@/components/ui/alert-dialog';
-import { useMounted } from '@/registry/hooks/use-mounted';
 
 import { ExportDialog } from '../navbar/export-dialog';
 import { ImportDialog } from '../navbar/import-dialog';
@@ -36,36 +28,3 @@ export const {
     VersionHistory: VersionHistoryModal,
   },
 });
-
-export const StaticModalProvider = () => {
-  const isStatic = useAppValue('isStatic');
-
-  if (!isStatic) return null;
-
-  return <ModalProvider />;
-};
-
-function DynamicModal() {
-  const mounted = useMounted();
-  const setIsDynamic = useAppSet('isDynamic');
-
-  useEffect(() => {
-    if (mounted) {
-      setIsDynamic(true);
-    }
-  }, [mounted, setIsDynamic]);
-
-  return <ModalProvider />;
-}
-
-export const DynamicModalProvider = () => {
-  const [isStatic, setIsStatic] = useAppState('isStatic');
-
-  useEffect(() => {
-    setIsStatic(false);
-  }, [setIsStatic]);
-
-  if (isStatic) return null;
-
-  return <DynamicModal />;
-};

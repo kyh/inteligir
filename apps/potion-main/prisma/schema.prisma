@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String   @id
+  email         String   @unique
+  emailVerified Boolean  @default(false)
+  name          String?
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Custom fields
+  username String   @unique
+  role     UserRole @default(USER)
+
+  // App-specific fields
+  uploadLimit Int       @default(100000000)
+  firstName   String?
+  lastName    String?
+  deletedAt   DateTime?
+
+  // Relations
+  sessions         Session[]
+  accounts         Account[]
+  documents        Document[]
+  comments         Comment[]
+  files            File[]
+  discussions      Discussion[]
+  documentVersions DocumentVersion[]
+
+  @@index([username])
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Document {
+  id         String  @id
+  templateId String?
+
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId           String
+  parentDocumentId String?
+  parentDocument   Document?  @relation("ParentChild", fields: [parentDocumentId], references: [id])
+  children         Document[] @relation("ParentChild")
+
+  title       String?
+  content     String?
+  contentRich Json?
+  yjsSnapshot Bytes?
+  coverImage  String?
+  icon        String?
+  isPublished Boolean @default(false)
+  isArchived  Boolean @default(false)
+
+  textStyle TextStyle @default(DEFAULT)
+  smallText Boolean   @default(false)
+  fullWidth Boolean   @default(false)
+  lockPage  Boolean   @default(false)
+  toc       Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  discussions      Discussion[]
+  documentVersions DocumentVersion[]
+  files            File[]
+
+  @@unique([userId, templateId])
+}
+
+model DocumentVersion {
+  id         String   @id
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title       String?
+  contentRich Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Discussion {
+  id String @id
+
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  documentContent     String
+  documentContentRich Json?
+  isResolved          Boolean   @default(false)
+  comments            Comment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model Comment {
+  id String @id
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  discussionId String
+  discussion   Discussion @relation(fields: [discussionId], references: [id], onDelete: Cascade)
+
+  content     String
+  contentRich Json?
+  isEdited    Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model File {
+  id String @id
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  documentId String?
+  document   Document? @relation(fields: [documentId], references: [id])
+
+  size   Int
+  url    String @db.Text
+  appUrl String @db.Text
+  type   String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  SUPERADMIN
+}
+
+enum TextStyle {
+  DEFAULT
+  SERIF
+  MONO
+}

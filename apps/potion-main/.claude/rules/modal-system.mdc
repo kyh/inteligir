@@ -1,0 +1,87 @@
+---
+description: Centralized modal system with Dialog, AlertDialog, and DialogFull wrappers. Use for implementing modal dialogs, confirmations, and full-screen overlays.
+alwaysApply: false
+---
+
+# Modal System
+
+## Context
+
+- When implementing new modals in the application
+- When managing modal state and interactions
+- When creating UI components that require modal dialogs
+
+## Requirements
+
+- Register all modals in `src/components/modals/modals.tsx` using `createPushModal`
+- Use appropriate modal wrappers based on the modal type (Dialog, AlertDialog, DialogFull)
+- Include callback functions as props for modal actions (onConfirm, onSubmit, etc.)
+- Call `popModal()` after actions are complete to close the modal
+- Provide cancel/close options in all modal components
+
+## Examples
+
+<example>
+// Registering modals in modals.tsx
+export const {
+  ModalProvider,
+  popAllModals,
+  popModal,
+  pushModal,
+  useOnPushModal,
+} = createPushModal({
+  modals: {
+    // Basic modal with Dialog wrapper
+    Login: LoginModal,
+    
+    // Confirmation modal with AlertDialog wrapper
+    Confirm: {
+      Component: ConfirmModal,
+      Wrapper: AlertDialog,
+    },
+    
+    // Full screen modal
+    Sheet: {
+      Component: SheetModal,
+      Wrapper: DialogFull,
+    },
+  },
+});
+</example>
+
+<example>
+// Opening a modal with props and handling actions
+pushModal('CustomModal', {
+  data: itemData,
+  onSubmit: () => {
+    handleSubmit();
+    popModal(); // Close modal after action
+  },
+});
+</example>
+
+<example type="invalid">
+// ❌ Don't create modals outside the centralized system
+function Component() {
+  const [isOpen, setIsOpen] = useState(false);
+  
+  return (
+    <>
+      <button onClick={() => setIsOpen(true)}>Open Modal</button>
+      {isOpen && <CustomModal onClose={() => setIsOpen(false)} />}
+    </>
+  );
+}
+</example>
+
+<example type="invalid">
+// ❌ Don't handle modal state manually
+function CustomModal({ onSubmit }) {
+  // Missing popModal() call after action
+  return (
+    <DialogContent>
+      <Button onClick={onSubmit}>Submit</Button>
+    </DialogContent>
+  );
+}
+</example>

@@ -1,0 +1,114 @@
+---
+alwaysApply: true
+---
+
+## **Technical Architecture**
+
+### **Frontend Architecture**
+
+- **Overview**: Built for responsiveness and interactivity.
+- **Key Aspects**:
+  - Utilizes React components for modular UI design.
+  - Employs Jotai for efficient state management.
+  - Integrates Vercel AI SDK for streaming responses and tool support.
+  - Uses React Query for data fetching and caching.
+  - Features Plate Editor for rich text input.
+  - Supports multiple display modes with optimistic updates for enhanced UX.
+
+### **Dual-Panel Architecture**
+
+- **Overview**: The application features a sophisticated dual-panel layout that provides seamless AI assistance throughout the user experience.
+- **Components**:
+  - **Main Panel** (`src/app/app-layout.tsx`): The primary application interface where users interact with core features like character management, profiles, and settings.
+  - **AI Chat Panel** (`src/components/ai/chat-panel.tsx`): A context-aware AI assistant that can be accessed from anywhere in the application.
+- **Key Features**:
+  - **Flexible Positioning**: The AI panel supports multiple positions:
+    - `panel-left`: Docked to the left side
+    - `panel-right`: Docked to the right side (default)
+    - `panel-full`: Full-width panel mode
+    - `bottom-center`: Floating at bottom center
+    - `bottom-right`: Floating at bottom right
+    - `right`: Floating on the right side
+  - **Resizable Interface**: Both panels are resizable with persisted size preferences
+  - **Persistent State**: Panel positions, sizes, and visibility are saved in cookies for consistent user experience
+  - **Floating Button**: When closed, the AI panel minimizes to a floating button for easy access
+  - **Responsive Design**: Adapts to different screen sizes with appropriate width options (sm, md, lg)
+- **Integration Benefits**:
+  - **Contextual Assistance**: AI can provide suggestions and help based on the current page context
+  - **Non-Intrusive**: Users can minimize or reposition the AI panel as needed
+  - **Always Accessible**: Available throughout the entire application for immediate assistance
+  - **Seamless Workflow**: Allows users to get AI help without leaving their current task
+
+### **Backend Services**
+
+- **Overview**: Provides robust, type-safe APIs and AI integration with real-time capabilities.
+- **Key Aspects**:
+  - Uses Convex for real-time database and type-safe backend functions.
+  - Employs Convex Ents for enhanced database operations with relationships.
+  - Implements row-level security with Convex Rules.
+  - Leverages OpenAI (GPT-4o and GPT-4o-mini) and Google Gemini for AI responses.
+  - Features a modular prompt system for flexible AI behavior.
+  - Supports HTTP endpoints via Convex for webhooks and external integrations.
+  - Real-time subscriptions and reactive queries built-in.
+
+---
+
+## **Data Management**
+
+- **Overview**: Ensures structured, efficient data handling with real-time synchronization.
+- **Key Aspects**:
+  - **Structured Storage**: Organizes data into Convex tables with relationships:
+    - Users (with authentication and subscription data)
+    - Characters (AI profiles with comprehensive CV data)
+    - Professional experiences (work, volunteer)
+    - Education records
+    - Skills & Interests (with proficiency levels)
+    - Certifications
+    - Projects
+    - Publications
+    - Awards
+    - References
+    - Chat sessions (with character associations)
+    - Messages (with branching support)
+  - **Real-Time Sync**: Automatic synchronization across all clients.
+  - **Full-Text Search**: Built-in search indexes for quick data retrieval.
+  - **Relationship Management**: Convex Ents for efficient edge traversal.
+  - **File Storage**: Integration with Convex file storage for documents.
+
+---
+
+## **Security and Privacy**
+
+- **Overview**: Prioritizes user trust and data protection.
+- **Key Measures**:
+  - Implements OAuth for secure authentication via Convex Auth.
+  - Enforces row-level security with Convex Rules.
+  - Provides granular user permissions (user, admin roles).
+  - Offers character privacy controls (public/private settings).
+  - Rate limiting on sensitive operations.
+  - Secure session management with automatic renewal.
+
+---
+
+## **Monetization Strategy**
+
+- **Overview**: Designed for sustainable revenue generation.
+- **Key Elements**:
+  - **Credit-Based System**: Charges credits for AI interactions (planned).
+  - **Monthly Credit Allowance**: Provides users with a monthly quota (planned).
+  - **Stripe Integration**: Manages payments and subscriptions.
+  - **Subscription Options**: Offers premium features and additional credits.
+
+---
+
+## **Future Considerations**
+
+- **Overview**: Outlines enhancements beyond the MVP.
+- **Planned Features**:
+  - **Learning Roadmaps**: Guided paths based on character skills and experiences.
+  - **Skill Trees**: Visual representations of skill progression.
+  - **Advanced Progression Systems**: Tools for tracking professional growth through interactions.
+
+---
+
+This document provides a high-level, comprehensive overview of the Character AI Chat Platform, serving as a foundation for future planning and development while focusing on the MVP's core capabilities.
