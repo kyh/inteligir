@@ -30,9 +30,9 @@
     "generate-auth-schema": "pnpm with-env pnpx @better-auth/cli generate --config ../api/src/auth/auth.ts --output ./src/drizzle-schema-auth.ts"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.7.0",
+    "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.91.0",
-    "drizzle-orm": "^0.44.7",
+    "drizzle-orm": "^0.45.1",
     "next": "catalog:",
     "postgres": "^3.4.8",
     "react": "catalog:",

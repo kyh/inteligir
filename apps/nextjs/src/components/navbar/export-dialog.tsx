@@ -9,7 +9,6 @@ import * as React from "react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { env } from "@/env";
 import { BaseEditorKit } from "@/registry/components/editor/editor-base-kit";
 import { downloadFile } from "@/registry/lib/download-file";
 import { Button } from "@/registry/ui/button";
@@ -80,7 +79,7 @@ export function ExportDialog() {
         },
       });
 
-      const tailwindCss = `<link rel="stylesheet" href="${env.NEXT_PUBLIC_SITE_URL}/css/tailwind.css">`;
+      const tailwindCss = `<link rel="stylesheet" href="${process.env.NEXT_PUBLIC_SITE_URL ?? ""}/css/tailwind.css">`;
       const katexCss = `<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.18/dist/katex.css" integrity="sha384-9PvLvaiSKCPkFKB1ZsEoTjgnJn+O3KvEwtsz37/XrkYft3DTk2gHdYvd9oWgW3tV" crossorigin="anonymous">`;
 
       const html = `<!DOCTYPE html>

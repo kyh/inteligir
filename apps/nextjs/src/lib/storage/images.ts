@@ -1,6 +1,4 @@
-import { env } from '@/env';
-
-const pre = env.NEXT_PUBLIC_STORAGE_PREFIX;
+const pre = process.env.NEXT_PUBLIC_STORAGE_PREFIX ?? "/images";
 
 export const images = {
   banner: `${pre}/banner.png`,

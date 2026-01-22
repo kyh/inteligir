@@ -1,4 +1,4 @@
-import { RootProvider } from "fumadocs-ui/provider";
+import { RootProvider } from "fumadocs-ui/provider/next";
 
 type LayoutProps = {
   children: React.ReactNode;
