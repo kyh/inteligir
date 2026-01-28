@@ -25,6 +25,7 @@ import { useAuthGuard } from "../auth/useAuthGuard";
 import { Icons } from "../ui/icons";
 import { DocumentList } from "./document-list";
 import { NavItem } from "./nav-item";
+import { SidebarSection } from "./sidebar-section";
 import { SidebarSwitcher } from "./sidebar-switcher";
 import { TrashBox } from "./trash-box";
 
@@ -68,7 +69,7 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
   return (
     <aside
       className={cn(
-        "group/sidebar relative z-20 flex size-full flex-col overflow-y-auto border-r",
+        "group/sidebar relative z-20 flex size-full flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar-bg",
         props.className
       )}
       {...props}
@@ -92,10 +93,11 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
         </Button>
       </div>
 
-      <div className="space-y-6 px-2">
+      <div className="space-y-4 px-2">
         <div className="space-y-0.5">
           <NavItem
             icon={Icons.search}
+            keyboardShortcut="⌘K"
             label="Search"
             onClick={() => {
               SearchStore.actions.onOpen();
@@ -110,12 +112,8 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
           />
         </div>
 
-        <div className="space-y-0.5">
-          <NavItem
-            className="text-muted-foreground/90 text-xs"
-            label={session ? "Private" : "Draft"}
-            onClick={() => {}}
-          >
+        <SidebarSection
+          action={
             <Button
               onClick={onCreate}
               size="navAction"
@@ -127,10 +125,11 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
             >
               <Icons.plus variant="muted" />
             </Button>
-          </NavItem>
-
+          }
+          title={session ? "Private" : "Documents"}
+        >
           <DocumentList />
-        </div>
+        </SidebarSection>
 
         <div className="space-y-0.5">
           <NavItem

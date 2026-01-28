@@ -10,3 +10,15 @@ export const nanoid = customAlphabet(
 export function nid(): string {
   return nanoid(16);
 }
+
+/**
+ * Filters out undefined values from an object, returning only defined entries.
+ * Useful for building partial update objects for database mutations.
+ */
+export function filterUndefined<T extends Record<string, unknown>>(
+  obj: T
+): Partial<T> {
+  return Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => value !== undefined)
+  ) as Partial<T>;
+}

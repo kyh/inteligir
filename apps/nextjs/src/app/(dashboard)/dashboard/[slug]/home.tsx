@@ -79,7 +79,7 @@ export function Home() {
         )}
       </h1>
 
-      <h2 className="mb-4 flex items-center gap-1 whitespace-nowrap font-medium text-muted-foreground text-xs max-sm:justify-center">
+      <h2 className="mb-4 flex items-center gap-1.5 whitespace-nowrap text-xs font-medium uppercase tracking-wide text-muted-foreground max-sm:justify-center">
         <ClockIcon className="size-3 shrink-0" />
         Recently visited
       </h2>
@@ -92,7 +92,7 @@ export function Home() {
             key={doc.id}
           >
             <Link href={`/dashboard/${slug}/${doc.id}`}>
-              <Card className="h-full overflow-hidden rounded-2xl transition-colors hover:bg-accent/50">
+              <Card className="h-full overflow-hidden rounded-2xl border border-border/50 shadow-sm transition-all duration-200 hover:border-muted-foreground/20 hover:shadow-md">
                 <div
                   className="relative h-11 bg-muted"
                   style={

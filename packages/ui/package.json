@@ -47,8 +47,7 @@
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "react": "catalog:",
-    "zod": "catalog:"
+    "react": "catalog:"
   },
   "prettier": "@kyh/prettier-config"
 }

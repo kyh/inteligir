@@ -1,4 +1,3 @@
-import { TRPCError } from "@trpc/server";
 import { desc, eq } from "@repo/db";
 import { comment, discussion } from "@repo/db/drizzle-schema";
 import { z } from "zod";
@@ -6,14 +5,13 @@ import { z } from "zod";
 import { createTRPCRouter, protectedProcedure } from "../trpc";
 import { nid } from "../utils";
 
-const MAX_COMMENT_LENGTH = 50_000; // 50KB for rich content
 const MAX_DOCUMENT_CONTENT_LENGTH = 1000;
 
 export const commentRouter = createTRPCRouter({
   createComment: protectedProcedure
     .input(
       z.object({
-        contentRich: z.array(z.any()).optional(),
+        contentRich: z.array(z.unknown()).optional(),
         discussionId: z.string(),
       })
     )
@@ -55,7 +53,7 @@ export const commentRouter = createTRPCRouter({
   createDiscussionWithComment: protectedProcedure
     .input(
       z.object({
-        contentRich: z.array(z.any()).optional(),
+        contentRich: z.array(z.unknown()).optional(),
         discussionId: z.string().optional(),
         documentContent: z
           .string()
@@ -110,7 +108,7 @@ export const commentRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        contentRich: z.array(z.any()).optional(),
+        contentRich: z.array(z.unknown()).optional(),
         discussionId: z.string(),
         isEdited: z.boolean().optional(),
       })

@@ -271,16 +271,17 @@ const ResizableHandle = ({
   return (
     <div
       className={cn(
-        'group absolute top-0 z-30 h-full w-[12px] cursor-col-resize border-border/60 hover:border-border',
-        isLeft ? 'right-0 pl-2' : 'left-0 border-l pr-2',
+        'group absolute top-0 z-30 h-full w-[4px] cursor-col-resize',
+        isLeft ? 'right-0' : 'left-0',
         className
       )}
       onMouseDown={onMouseDown}
     >
       <div
         className={cn(
-          'h-full opacity-0 transition-opacity group-hover:bg-border group-hover:opacity-100',
-          isDragging && 'opacity-100'
+          'h-full w-[2px] opacity-0 transition-all duration-150 group-hover:bg-primary/60 group-hover:opacity-100',
+          isLeft ? 'ml-auto' : 'mr-auto',
+          isDragging && 'bg-primary/60 opacity-100'
         )}
       />
     </div>

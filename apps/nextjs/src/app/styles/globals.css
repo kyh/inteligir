@@ -25,6 +25,26 @@
   --input: hsl(240 3.7% 15.9%);
   --ring: hsl(240 4.9% 83.9%);
   --radius: 0.3rem;
+
+  /* Sidebar tokens - dark mode */
+  --sidebar-bg: 240 10% 6%;
+  --sidebar-border: 240 4% 16%;
+  --sidebar-text: 240 5% 75%;
+  --sidebar-text-muted: 240 5% 55%;
+  --sidebar-accent: 218 86% 55%;
+  --sidebar-hover: 240 6% 10%;
+}
+
+/* Light mode sidebar tokens */
+@media (prefers-color-scheme: light) {
+  :root {
+    --sidebar-bg: 0 0% 98%;
+    --sidebar-border: 230 7% 94%;
+    --sidebar-text: 225 3% 37%;
+    --sidebar-text-muted: 225 3% 47%;
+    --sidebar-accent: 218 86% 55%;
+    --sidebar-hover: 220 10% 96%;
+  }
 }
 
 @theme inline {
@@ -57,6 +77,14 @@
   --color-ring: var(--ring);
 
   --radius-radius: var(--radius);
+
+  /* Sidebar colors */
+  --color-sidebar-bg: hsl(var(--sidebar-bg));
+  --color-sidebar-border: hsl(var(--sidebar-border));
+  --color-sidebar-text: hsl(var(--sidebar-text));
+  --color-sidebar-text-muted: hsl(var(--sidebar-text-muted));
+  --color-sidebar-accent: hsl(var(--sidebar-accent));
+  --color-sidebar-hover: hsl(var(--sidebar-hover));
 }
 
 .contained-page {

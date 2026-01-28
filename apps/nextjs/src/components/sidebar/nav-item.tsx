@@ -37,6 +37,7 @@ type ItemProps = {
   href?: Route;
   icon?: IconFC;
   isSearch?: boolean;
+  keyboardShortcut?: string;
   label?: string;
   level?: number;
   loading?: boolean;
@@ -55,6 +56,7 @@ export function NavItem({
   expanded,
   href,
   icon: Icon,
+  keyboardShortcut,
   label,
   level = 0,
   loading,
@@ -125,54 +127,60 @@ export function NavItem({
   const content = (
     <div
       className={cn(
-        'group flex min-h-[27px] cursor-pointer items-center rounded-md py-1 font-medium text-sm text-subtle-foreground hover:bg-primary/4',
-        active && 'bg-primary/4 text-primary',
+        'group relative flex min-h-[32px] cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[14px] font-medium tracking-tight text-sidebar-text transition-colors duration-200 hover:bg-sidebar-hover',
+        active && 'bg-primary/8 text-primary',
+        level > 0 && 'before:absolute before:left-[14px] before:top-0 before:h-full before:w-px before:bg-border/40',
         className
       )}
       onClick={onClick}
       role="button"
-      style={{ paddingLeft: `${(level + 1) * 8}px` }}
+      style={{ paddingLeft: level > 0 ? `${(level + 1) * 12}px` : undefined }}
     >
       {loading ? (
         <>
-          <Skeleton className="mr-2 size-4 rounded-sm" />
+          <Skeleton className="size-4 shrink-0 rounded-sm" />
           <Skeleton className="h-4 w-3/5" />
         </>
       ) : (
         <>
           {(documentIcon || Icon) && (
             <Button
-              className="relative mr-2 opacity-100"
+              className="relative shrink-0 opacity-100"
               onClick={id ? onExpand : undefined}
               size="navAction"
               variant={id ? 'navAction' : 'none'}
             >
               {documentIcon ? (
-                <div className="shrink select-none text-[18px] transition-opacity duration-200 group-hover:opacity-0">
+                <div className="shrink-0 select-none text-[18px] transition-opacity duration-200 group-hover:opacity-0">
                   {documentIcon}
                 </div>
               ) : (
                 Icon && (
                   <Icon
                     className={cn(
-                      'size-5 shrink text-muted-foreground/80 transition-opacity duration-200',
-                      !!id && 'size-4 group-hover:opacity-0'
+                      'size-4 shrink-0 text-sidebar-text-muted transition-opacity duration-200',
+                      !!id && 'group-hover:opacity-0'
                     )}
-                    variant="muted"
                   />
                 )
               )}
               {!!id && (
-                <ChevronIcon className="absolute top-0.5 left-0.5 size-4 shrink text-muted-foreground/50 opacity-0 transition-opacity duration-200 group-hover:opacity-100" />
+                <ChevronIcon className="absolute top-0.5 left-0.5 size-4 shrink-0 text-sidebar-text-muted opacity-40 transition-opacity duration-200 group-hover:opacity-100" />
               )}
             </Button>
           )}
 
-          <span className="select-none truncate">{label}</span>
+          <span className="min-w-0 flex-1 select-none truncate">{label}</span>
+
+          {keyboardShortcut && (
+            <kbd className="ml-auto shrink-0 rounded bg-muted/50 px-1.5 py-0.5 font-mono text-[10px] text-sidebar-text-muted">
+              {keyboardShortcut}
+            </kbd>
+          )}
         </>
       )}
 
-      <div className="mr-0.5 ml-auto flex items-center gap-x-1">
+      <div className="ml-auto flex shrink-0 items-center gap-x-1">
         {mounted && !!id && (
           <>
             <DropdownMenu>
@@ -256,12 +264,12 @@ export function NavItem({
 export function NavItemSkeleton({ level }: { level?: number }) {
   return (
     <div
-      className="flex gap-x-2 py-[3px] pl-2"
+      className="flex min-h-[32px] items-center gap-2 px-2 py-1.5"
       style={{
-        paddingLeft: level ? `${level * 8}px` : '8px',
+        paddingLeft: level ? `${(level + 1) * 12}px` : undefined,
       }}
     >
-      <Skeleton className="size-4" />
+      <Skeleton className="size-4 shrink-0" />
       <Skeleton className="h-4 w-[30%]" />
     </div>
   );

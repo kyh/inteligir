@@ -25,7 +25,7 @@ export function SidebarSwitcher() {
   if (!user.id) {
     return (
       <div
-        className="group mx-2 my-1.5 flex min-h-[32px] cursor-pointer items-center gap-2 rounded-md px-2 py-1 pr-0.5 font-medium text-sm text-subtle-foreground hover:bg-primary/4"
+        className="group mx-2 my-1.5 flex min-h-[32px] cursor-pointer items-center gap-2 border-b border-sidebar-border/50 px-2 py-1 pr-0.5 text-sm font-semibold text-sidebar-text transition-colors duration-200 hover:bg-sidebar-hover"
         onClick={() => {
           authGuard(() => pushModal('Login'));
         }}
@@ -33,9 +33,9 @@ export function SidebarSwitcher() {
       >
         <div className="px-0.5">
           {user.isLoading ? (
-            <Skeleton className="size-4 rounded-sm" />
+            <Skeleton className="size-5 rounded-sm" />
           ) : (
-            <Icons.user className="size-4" variant="muted" />
+            <Icons.user className="size-5 text-sidebar-text-muted" />
           )}
         </div>
         {user.isLoading ? <Skeleton className="h-4 w-3/5" /> : 'Sign in'}
@@ -47,20 +47,20 @@ export function SidebarSwitcher() {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <div
-          className="group mx-2 my-1.5 flex min-h-[32px] cursor-pointer items-center gap-2 rounded-md px-2 py-1 pr-0.5 font-medium text-sm hover:bg-primary/4"
+          className="group mx-2 my-1.5 flex min-h-[32px] cursor-pointer items-center gap-2 border-b border-sidebar-border/50 px-2 py-1 pr-0.5 text-sm font-semibold text-sidebar-text transition-colors duration-200 hover:bg-sidebar-hover"
           onClick={() => {
             pushModal('Login');
           }}
           role="button"
         >
-          <Avatar className="size-6">
+          <Avatar className="size-5">
             <AvatarImage alt={user.firstName ?? ''} src={user.image ?? ''} />
           </Avatar>
 
-          <span className="line-clamp-1 select-none text-start font-medium">
+          <span className="line-clamp-1 select-none text-start">
             {user.firstName}&apos;s Potion
           </span>
-          <Icons.chevronDown className="text-muted-foreground/80" />
+          <Icons.chevronDown className="size-3 text-sidebar-text-muted" />
         </div>
       </DropdownMenuTrigger>
 

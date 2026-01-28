@@ -1,10 +1,13 @@
-import { TRPCError } from "@trpc/server";
 import { and, desc, eq, ilike, isNull } from "@repo/db";
 import { document } from "@repo/db/drizzle-schema";
 import { z } from "zod";
 
-import { createTRPCRouter, protectedProcedure } from "../trpc";
-import { nid } from "../utils";
+import {
+  createTRPCRouter,
+  organizationProcedure,
+  protectedProcedure,
+} from "../trpc";
+import { filterUndefined, nid } from "../utils";
 
 const MAX_TITLE_LENGTH = 256;
 const MAX_CONTENT_LENGTH = 1_000_000; // 1MB of text
@@ -20,22 +23,15 @@ export const documentRouter = createTRPCRouter({
         .where(and(eq(document.id, input.id), eq(document.userId, ctx.userId)));
     }),
 
-  create: protectedProcedure
+  create: organizationProcedure
     .input(
       z.object({
-        contentRich: z.any().optional(),
+        contentRich: z.unknown().optional(),
         parentDocumentId: z.string().optional(),
         title: z.string().max(MAX_TITLE_LENGTH, "Title is too long").optional(),
       })
     )
     .mutation(async ({ ctx, input }) => {
-      if (!ctx.organizationId) {
-        throw new TRPCError({
-          code: "BAD_REQUEST",
-          message: "No active organization",
-        });
-      }
-
       const id = nid();
       await ctx.db.insert(document).values({
         id,
@@ -74,7 +70,7 @@ export const documentRouter = createTRPCRouter({
           .string()
           .max(MAX_CONTENT_LENGTH, "Content is too long")
           .optional(),
-        contentRich: z.any().optional(),
+        contentRich: z.unknown().optional(),
         coverImage: z.string().max(500).optional(),
         fullWidth: z.boolean().optional(),
         icon: z.string().max(MAX_ICON_LENGTH).nullish(),
@@ -88,14 +84,7 @@ export const documentRouter = createTRPCRouter({
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
-
-      // Filter out undefined values
-      const updateData: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(data)) {
-        if (value !== undefined) {
-          updateData[key] = value;
-        }
-      }
+      const updateData = filterUndefined(data);
 
       await ctx.db
         .update(document)
@@ -103,13 +92,13 @@ export const documentRouter = createTRPCRouter({
         .where(and(eq(document.id, id), eq(document.userId, ctx.userId)));
     }),
 
-  document: protectedProcedure
+  document: organizationProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const doc = await ctx.db.query.document.findFirst({
         where: and(
           eq(document.id, input.id),
-          eq(document.organizationId, ctx.organizationId!)
+          eq(document.organizationId, ctx.organizationId)
         ),
         columns: {
           id: true,
@@ -133,7 +122,7 @@ export const documentRouter = createTRPCRouter({
       return { document: doc };
     }),
 
-  documents: protectedProcedure
+  documents: organizationProcedure
     .input(
       z.object({
         cursor: z.string().optional(),
@@ -143,11 +132,11 @@ export const documentRouter = createTRPCRouter({
       })
     )
     .query(async ({ ctx, input }) => {
-      const { cursor, limit = 50, parentDocumentId, search } = input;
+      const { cursor: _cursor, limit = 50, parentDocumentId, search } = input;
 
       const conditions = [
         eq(document.isArchived, false),
-        eq(document.organizationId, ctx.organizationId!),
+        eq(document.organizationId, ctx.organizationId),
         parentDocumentId
           ? eq(document.parentDocumentId, parentDocumentId)
           : isNull(document.parentDocumentId),
@@ -180,12 +169,12 @@ export const documentRouter = createTRPCRouter({
       return { documents: docs, nextCursor };
     }),
 
-  trash: protectedProcedure
+  trash: organizationProcedure
     .input(z.object({ q: z.string().optional() }))
     .query(async ({ ctx, input }) => {
       const conditions = [
         eq(document.isArchived, true),
-        eq(document.organizationId, ctx.organizationId!),
+        eq(document.organizationId, ctx.organizationId),
       ];
 
       if (input.q) {

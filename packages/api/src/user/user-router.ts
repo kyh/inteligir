@@ -4,6 +4,7 @@ import { user } from "@repo/db/drizzle-schema-auth";
 import { z } from "zod";
 
 import { createTRPCRouter, protectedProcedure } from "../trpc";
+import { filterUndefined } from "../utils";
 
 const MAX_NAME_LENGTH = 100;
 const MAX_EMAIL_LENGTH = 255;
@@ -69,12 +70,7 @@ export const userRouter = createTRPCRouter({
       })
     )
     .mutation(async ({ ctx, input }) => {
-      const updateData: Record<string, unknown> = {};
-      for (const [key, value] of Object.entries(input)) {
-        if (value !== undefined) {
-          updateData[key] = value;
-        }
-      }
+      const updateData = filterUndefined(input);
 
       const [updated] = await ctx.db
         .update(user)
