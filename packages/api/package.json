@@ -16,16 +16,16 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@better-auth/expo": "^1.4.17",
+    "@better-auth/expo": "^1.4.18",
     "@repo/db": "workspace:^",
     "@trpc/server": "catalog:",
-    "better-auth": "^1.4.17",
+    "better-auth": "^1.4.18",
     "drizzle-orm": "^0.45.1",
     "drizzle-zod": "^0.8.3",
     "nanoid": "5.1.6",
     "next": "catalog:",
     "react": "catalog:",
-    "stripe": "^20.2.0",
+    "stripe": "^20.3.0",
     "superjson": "catalog:",
     "zod": "catalog:"
   },
