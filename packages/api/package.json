@@ -25,7 +25,7 @@
     "nanoid": "5.1.6",
     "next": "catalog:",
     "react": "catalog:",
-    "stripe": "^20.3.0",
+    "stripe": "^20.3.1",
     "superjson": "catalog:",
     "zod": "catalog:"
   },
