@@ -19,7 +19,7 @@ const baseUrl =
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000";
 
-export const auth: ReturnType<typeof betterAuth> = betterAuth({
+export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
@@ -58,38 +58,24 @@ export const auth: ReturnType<typeof betterAuth> = betterAuth({
 });
 
 export type Auth = typeof auth;
-export type Session = Auth["$Infer"]["Session"] & {
-  session: Auth["$Infer"]["Session"]["session"] & {
-    activeOrganizationId?: string;
-  };
-};
+export type Session = Auth["$Infer"]["Session"];
 
 /**
  * Cached function to get the current user session
  * Uses React cache to avoid unnecessary re-fetching
  * @returns Promise<Session | null> - The current user session or null if not authenticated
  */
-export const getSession = cache(async (): Promise<Session | null> =>
-  (await auth.api.getSession({ headers: await headers() })) as Session | null,
+export const getSession = cache(async () =>
+  auth.api.getSession({ headers: await headers() }),
 );
-
-type Organization = {
-  id: string;
-  name: string;
-  slug: string | null;
-  logo: string | null;
-  createdAt: Date;
-  metadata: string | null;
-};
 
 export const getOrganization = cache(
   async (query: {
     organizationId?: string | undefined;
     organizationSlug?: string | undefined;
     membersLimit?: string | number | undefined;
-  }): Promise<Organization | null> =>
-    // better-auth organization plugin methods aren't typed on auth.api
-    (auth.api as unknown as { getFullOrganization: (opts: { query: typeof query; headers: Headers }) => Promise<Organization | null> }).getFullOrganization({
+  }) =>
+    auth.api.getFullOrganization({
       query,
       headers: await headers(),
     }),
@@ -123,8 +109,7 @@ const createDefaultOrganization = async (user: User) => {
   const slug = await generateAvailableSlug(slugify(user.name));
 
   try {
-    // better-auth organization plugin methods aren't typed on auth.api
-    await (auth.api as unknown as { createOrganization: (opts: { body: { userId: string; name: string; slug: string; metadata: { personal: boolean } } }) => Promise<unknown> }).createOrganization({
+    await auth.api.createOrganization({
       body: {
         userId: user.id,
         name: "Personal Organization",
