@@ -20,7 +20,7 @@
 
 ```
 apps/
-  nextjs/        # Main Next.js app (@repo/nextjs)
+  web/           # Main Next.js app (@repo/web)
 packages/
   api/           # tRPC routers, auth (@repo/api)
   db/            # Drizzle schema, Supabase (@repo/db)
@@ -31,7 +31,7 @@ packages/
 
 ```bash
 pnpm dev              # Dev all workspaces
-pnpm dev-nextjs       # Dev nextjs app only
+pnpm dev-web          # Dev web app only
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all
