@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 /**
  * Determines the appropriate effect hook to use based on the environment. If
@@ -6,14 +6,14 @@ import { useEffect, useLayoutEffect, useRef } from 'react';
  * `useLayoutEffect` hook, otherwise, it uses the `useEffect` hook.
  */
 export const useIsomorphicLayoutEffect =
-  typeof window === 'undefined' ? useEffect : useLayoutEffect;
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 // MediaQueryList Event based useEventListener interface
 export function useEventListener<K extends keyof MediaQueryListEventMap>(
   eventName: K,
   handler: (event: MediaQueryListEventMap[K]) => void,
   element: React.RefObject<MediaQueryList>,
-  options?: AddEventListenerOptions | boolean
+  options?: AddEventListenerOptions | boolean,
 ): void;
 
 // Window Event based useEventListener interface
@@ -21,7 +21,7 @@ export function useEventListener<K extends keyof WindowEventMap>(
   eventName: K,
   handler: (event: WindowEventMap[K]) => void,
   element?: undefined,
-  options?: AddEventListenerOptions | boolean
+  options?: AddEventListenerOptions | boolean,
 ): void;
 
 // Element Event based useEventListener interface
@@ -32,7 +32,7 @@ export function useEventListener<
   eventName: K,
   handler: (event: HTMLElementEventMap[K]) => void,
   element: React.RefObject<T>,
-  options?: AddEventListenerOptions | boolean
+  options?: AddEventListenerOptions | boolean,
 ): void;
 
 // Document Event based useEventListener interface
@@ -40,7 +40,7 @@ export function useEventListener<K extends keyof DocumentEventMap>(
   eventName: K,
   handler: (event: DocumentEventMap[K]) => void,
   element: React.RefObject<Document>,
-  options?: AddEventListenerOptions | boolean
+  options?: AddEventListenerOptions | boolean,
 ): void;
 
 // https://usehooks-ts.com/react-hook/use-event-listener
@@ -52,14 +52,10 @@ export function useEventListener<
 >(
   eventName: KH | KM | KW,
   handler: (
-    event:
-      | Event
-      | HTMLElementEventMap[KH]
-      | MediaQueryListEventMap[KM]
-      | WindowEventMap[KW]
+    event: Event | HTMLElementEventMap[KH] | MediaQueryListEventMap[KM] | WindowEventMap[KW],
   ) => void,
   element?: React.RefObject<T>,
-  options?: AddEventListenerOptions | boolean
+  options?: AddEventListenerOptions | boolean,
 ) {
   // Create a ref that stores handler
   const savedHandler = useRef(handler);
@@ -103,7 +99,7 @@ type Handler = (event: MouseEvent) => void;
 export const useOnClickOutside = <T extends HTMLElement = HTMLElement>(
   ref: React.RefObject<T | null>,
   handler?: Handler,
-  mouseEvent: 'mousedown' | 'mouseup' = 'mousedown'
+  mouseEvent: "mousedown" | "mouseup" = "mousedown",
 ): void => {
   useEventListener(mouseEvent, (event) => {
     if (!handler) return;

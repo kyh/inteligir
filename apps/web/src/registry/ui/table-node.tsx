@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import { ResizeHandle } from '@platejs/resizable';
-import { useBlockSelected } from '@platejs/selection/react';
+import { ResizeHandle } from "@platejs/resizable";
+import { useBlockSelected } from "@platejs/selection/react";
 import {
   TablePlugin,
   TableProvider,
   useTableCellElement,
   useTableCellElementResizable,
   useTableElement,
-} from '@platejs/table/react';
-import { cva } from 'class-variance-authority';
-import { PlusIcon } from 'lucide-react';
-import { KEYS, type TTableCellElement } from 'platejs';
+} from "@platejs/table/react";
+import { cva } from "class-variance-authority";
+import { PlusIcon } from "lucide-react";
+import { KEYS, type TTableCellElement } from "platejs";
 import {
   PlateElement,
   type PlateElementProps,
@@ -20,127 +20,112 @@ import {
   useReadOnly,
   useSelected,
   withHOC,
-} from 'platejs/react';
-import * as React from 'react';
+} from "platejs/react";
+import * as React from "react";
 
-import { cn } from '@/lib/utils';
-import { blockSelectionVariants } from '@/registry/ui/block-selection';
+import { cn } from "@/lib/utils";
+import { blockSelectionVariants } from "@/registry/ui/block-selection";
 
-import { Button } from './button';
+import { Button } from "./button";
 
-export const TableElement = withHOC(
-  TableProvider,
-  function TableElement(props: PlateElementProps) {
-    const { editor, element } = props;
-    const { tf } = useEditorPlugin(TablePlugin);
-    const readOnly = useReadOnly();
-    const {
-      isSelectingCell,
-      marginLeft,
-      props: tableProps,
-    } = useTableElement();
+export const TableElement = withHOC(TableProvider, function TableElement(props: PlateElementProps) {
+  const { editor, element } = props;
+  const { tf } = useEditorPlugin(TablePlugin);
+  const readOnly = useReadOnly();
+  const { isSelectingCell, marginLeft, props: tableProps } = useTableElement();
 
-    const isSelectingTable = useBlockSelected(props.element.id as string);
+  const isSelectingTable = useBlockSelected(props.element.id as string);
 
-    return (
-      <PlateElement
-        {...props}
-        className="overflow-x-auto py-5"
-        style={{ paddingLeft: marginLeft }}
-      >
-        <div className="group/table relative w-fit">
-          <table
-            className={cn(
-              'mr-0 ml-px table h-px table-fixed border-collapse',
-              isSelectingCell && 'selection:bg-transparent'
-            )}
-            {...tableProps}
-          >
-            <tbody className="min-w-full">{props.children}</tbody>
-          </table>
+  return (
+    <PlateElement {...props} className="overflow-x-auto py-5" style={{ paddingLeft: marginLeft }}>
+      <div className="group/table relative w-fit">
+        <table
+          className={cn(
+            "mr-0 ml-px table h-px table-fixed border-collapse",
+            isSelectingCell && "selection:bg-transparent",
+          )}
+          {...tableProps}
+        >
+          <tbody className="min-w-full">{props.children}</tbody>
+        </table>
 
-          {!readOnly && (
-            <>
-              <div
-                className={cn(
-                  'absolute inset-x-0 bottom-[-18px] flex flex-row opacity-0 transition-opacity hover:opacity-100',
-                  'group-has-[tr:last-child:hover]/table:opacity-100 max-sm:group-has-[tr[data-selected]:last-child]/table:opacity-100'
-                )}
+        {!readOnly && (
+          <>
+            <div
+              className={cn(
+                "absolute inset-x-0 bottom-[-18px] flex flex-row opacity-0 transition-opacity hover:opacity-100",
+                "group-has-[tr:last-child:hover]/table:opacity-100 max-sm:group-has-[tr[data-selected]:last-child]/table:opacity-100",
+              )}
+            >
+              <Button
+                className="flex h-4 w-full grow items-center justify-center bg-muted"
+                onClick={() => tf.insert.tableRow({ at: editor.api.findPath(element) })}
+                onMouseDown={(e) => e.preventDefault()}
+                size="none"
+                tooltip="Add a new row"
+                tooltipContentProps={{ side: "bottom" }}
+                variant="ghost"
               >
-                <Button
-                  className="flex h-4 w-full grow items-center justify-center bg-muted"
-                  onClick={() =>
-                    tf.insert.tableRow({ at: editor.api.findPath(element) })
-                  }
-                  onMouseDown={(e) => e.preventDefault()}
-                  size="none"
-                  tooltip="Add a new row"
-                  tooltipContentProps={{ side: 'bottom' }}
-                  variant="ghost"
-                >
-                  <PlusIcon className="!size-3.5 text-muted-foreground" />
-                </Button>
-              </div>
+                <PlusIcon className="!size-3.5 text-muted-foreground" />
+              </Button>
+            </div>
 
-              <div
-                className={cn(
-                  'absolute inset-y-0 right-[-18px] flex opacity-0 transition-opacity hover:opacity-100',
-                  'group-has-[td:last-child:hover,th:last-child:hover]/table:opacity-100 max-sm:group-has-[td[data-selected]:last-child,th[data-selected]:last-child]/table:opacity-100'
-                )}
+            <div
+              className={cn(
+                "absolute inset-y-0 right-[-18px] flex opacity-0 transition-opacity hover:opacity-100",
+                "group-has-[td:last-child:hover,th:last-child:hover]/table:opacity-100 max-sm:group-has-[td[data-selected]:last-child,th[data-selected]:last-child]/table:opacity-100",
+              )}
+            >
+              <Button
+                className="flex h-full w-4 grow items-center justify-center bg-muted"
+                onClick={() =>
+                  tf.insert.tableColumn({
+                    at: editor.api.findPath(element),
+                  })
+                }
+                onMouseDown={(e) => e.preventDefault()}
+                size="none"
+                tooltip="Add a new column"
+                tooltipContentProps={{ side: "bottom" }}
+                variant="ghost"
               >
-                <Button
-                  className="flex h-full w-4 grow items-center justify-center bg-muted"
-                  onClick={() =>
+                <PlusIcon className="!size-3.5 text-muted-foreground" />
+              </Button>
+            </div>
+
+            <div
+              className={cn(
+                "absolute right-[-18px] bottom-[-18px] flex flex-row opacity-0 transition-opacity hover:opacity-100",
+                "group-has-[td:last-child:hover,th:last-child:hover]/table:group-has-[tr:last-child:hover]/table:opacity-100 max-sm:group-has-[td[data-selected]:last-child,th[data-selected]:last-child]/table:group-has-[tr[data-selected]:last-child]/table:opacity-100",
+              )}
+            >
+              <Button
+                className="flex size-4 items-center justify-center rounded-full bg-muted"
+                onClick={() => {
+                  editor.tf.withoutNormalizing(() => {
+                    tf.insert.tableRow({ at: editor.api.findPath(element) });
                     tf.insert.tableColumn({
                       at: editor.api.findPath(element),
-                    })
-                  }
-                  onMouseDown={(e) => e.preventDefault()}
-                  size="none"
-                  tooltip="Add a new column"
-                  tooltipContentProps={{ side: 'bottom' }}
-                  variant="ghost"
-                >
-                  <PlusIcon className="!size-3.5 text-muted-foreground" />
-                </Button>
-              </div>
-
-              <div
-                className={cn(
-                  'absolute right-[-18px] bottom-[-18px] flex flex-row opacity-0 transition-opacity hover:opacity-100',
-                  'group-has-[td:last-child:hover,th:last-child:hover]/table:group-has-[tr:last-child:hover]/table:opacity-100 max-sm:group-has-[td[data-selected]:last-child,th[data-selected]:last-child]/table:group-has-[tr[data-selected]:last-child]/table:opacity-100'
-                )}
-              >
-                <Button
-                  className="flex size-4 items-center justify-center rounded-full bg-muted"
-                  onClick={() => {
-                    editor.tf.withoutNormalizing(() => {
-                      tf.insert.tableRow({ at: editor.api.findPath(element) });
-                      tf.insert.tableColumn({
-                        at: editor.api.findPath(element),
-                      });
                     });
-                  }}
-                  onMouseDown={(e) => e.preventDefault()}
-                  size="none"
-                  tooltip="Add a new row and column"
-                  tooltipContentProps={{ side: 'bottom' }}
-                  variant="ghost"
-                >
-                  <PlusIcon className="!size-3.5 text-muted-foreground" />
-                </Button>
-              </div>
-            </>
-          )}
+                  });
+                }}
+                onMouseDown={(e) => e.preventDefault()}
+                size="none"
+                tooltip="Add a new row and column"
+                tooltipContentProps={{ side: "bottom" }}
+                variant="ghost"
+              >
+                <PlusIcon className="!size-3.5 text-muted-foreground" />
+              </Button>
+            </div>
+          </>
+        )}
 
-          {isSelectingTable && (
-            <div className={blockSelectionVariants()} contentEditable={false} />
-          )}
-        </div>
-      </PlateElement>
-    );
-  }
-);
+        {isSelectingTable && <div className={blockSelectionVariants()} contentEditable={false} />}
+      </div>
+    </PlateElement>
+  );
+});
 
 export function TableRowElement(props: PlateElementProps) {
   const selected = useSelected();
@@ -150,7 +135,7 @@ export function TableRowElement(props: PlateElementProps) {
       {...props}
       as="tr"
       className="h-full"
-      data-selected={selected ? 'true' : undefined}
+      data-selected={selected ? "true" : undefined}
     />
   );
 }
@@ -170,57 +155,45 @@ export function TableCellElement({
   });
   const isSelectingRow = useBlockSelected(rowId);
 
-  const {
-    borders,
+  const { borders, colIndex, colSpan, isSelectingCell, minHeight, rowIndex, selected, width } =
+    useTableCellElement();
+
+  const { bottomProps, hiddenLeft, leftProps, rightProps } = useTableCellElementResizable({
     colIndex,
     colSpan,
-    isSelectingCell,
-    minHeight,
     rowIndex,
-    selected,
-    width,
-  } = useTableCellElement();
-
-  const { bottomProps, hiddenLeft, leftProps, rightProps } =
-    useTableCellElementResizable({
-      colIndex,
-      colSpan,
-      rowIndex,
-    });
+  });
 
   return (
     <PlateElement
       {...props}
-      as={isHeader ? 'th' : 'td'}
+      as={isHeader ? "th" : "td"}
       attributes={{
         ...props.attributes,
         colSpan: api.table.getColSpan(element),
         rowSpan: api.table.getRowSpan(element),
       }}
       className={cn(
-        'h-full overflow-visible border-none bg-background p-0',
-        element.background ? 'bg-(--cellBackground)' : 'bg-background',
-        isHeader && 'text-left *:m-0',
-        'before:size-full',
-        selected && 'before:z-10 before:bg-muted',
+        "h-full overflow-visible border-none bg-background p-0",
+        element.background ? "bg-(--cellBackground)" : "bg-background",
+        isHeader && "text-left *:m-0",
+        "before:size-full",
+        selected && "before:z-10 before:bg-muted",
         "before:absolute before:box-border before:select-none before:content-['']",
-        borders.bottom?.size && 'before:border-b before:border-b-border',
-        borders.right?.size && 'before:border-r before:border-r-border',
-        borders.left?.size && 'before:border-l before:border-l-border',
-        borders.top?.size && 'before:border-t before:border-t-border'
+        borders.bottom?.size && "before:border-b before:border-b-border",
+        borders.right?.size && "before:border-r before:border-r-border",
+        borders.left?.size && "before:border-l before:border-l-border",
+        borders.top?.size && "before:border-t before:border-t-border",
       )}
       style={
         {
-          '--cellBackground': element.background,
+          "--cellBackground": element.background,
           maxWidth: width || 240,
           minWidth: width || 120,
         } as React.CSSProperties
       }
     >
-      <div
-        className="relative z-20 box-border h-full px-4 py-2"
-        style={{ minHeight }}
-      >
+      <div className="relative z-20 box-border h-full px-4 py-2" style={{ minHeight }}>
         {props.children}
       </div>
 
@@ -242,23 +215,23 @@ export function TableCellElement({
                 <ResizeHandle
                   {...leftProps}
                   className="-left-1 top-0 w-2"
-                  data-resizer-left={colIndex === 0 ? 'true' : undefined}
+                  data-resizer-left={colIndex === 0 ? "true" : undefined}
                 />
               )}
 
               <div
                 className={cn(
-                  'absolute top-0 z-30 hidden h-full w-1 bg-ring',
-                  'right-[-1.5px]',
-                  columnResizeVariants({ colIndex: colIndex as any })
+                  "absolute top-0 z-30 hidden h-full w-1 bg-ring",
+                  "right-[-1.5px]",
+                  columnResizeVariants({ colIndex: colIndex as any }),
                 )}
               />
               {colIndex === 0 && (
                 <div
                   className={cn(
-                    'absolute top-0 z-30 h-full w-1 bg-ring',
-                    'left-[-1.5px]',
-                    'fade-in hidden animate-in group-has-[[data-resizer-left]:hover]/table:block group-has-[[data-resizer-left][data-resizing="true"]]/table:block'
+                    "absolute top-0 z-30 h-full w-1 bg-ring",
+                    "left-[-1.5px]",
+                    'fade-in hidden animate-in group-has-[[data-resizer-left]:hover]/table:block group-has-[[data-resizer-left][data-resizing="true"]]/table:block',
                   )}
                 />
               )}
@@ -267,20 +240,16 @@ export function TableCellElement({
         </div>
       )}
 
-      {isSelectingRow && (
-        <div className={blockSelectionVariants()} contentEditable={false} />
-      )}
+      {isSelectingRow && <div className={blockSelectionVariants()} contentEditable={false} />}
     </PlateElement>
   );
 }
 
-export function TableCellHeaderElement(
-  props: React.ComponentProps<typeof TableCellElement>
-) {
+export function TableCellHeaderElement(props: React.ComponentProps<typeof TableCellElement>) {
   return <TableCellElement {...props} isHeader />;
 }
 
-const columnResizeVariants = cva('fade-in hidden animate-in', {
+const columnResizeVariants = cva("fade-in hidden animate-in", {
   variants: {
     colIndex: {
       0: 'group-has-[[data-col="0"]:hover]/table:block group-has-[[data-col="0"][data-resizing="true"]]/table:block',

@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import type { Route } from 'next';
-import { useRouter } from 'next/navigation';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
 
-import { pushModal } from '@/components/modals';
-import { Icons } from '@/components/ui/icons';
-import { useTParams } from '@/hooks/use-navigation';
-import { useDebounce } from '@/registry/hooks/use-debounce';
-import { Button } from '@/registry/ui/button';
+import { pushModal } from "@/components/modals";
+import { Icons } from "@/components/ui/icons";
+import { useTParams } from "@/hooks/use-navigation";
+import { useDebounce } from "@/registry/hooks/use-debounce";
+import { Button } from "@/registry/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -18,17 +18,17 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/registry/ui/command';
-import { api, useTRPC } from '@/trpc/react';
+} from "@/registry/ui/command";
+import { api, useTRPC } from "@/trpc/react";
 
-import { removeExpandedIdFromStorage } from './document-list';
+import { removeExpandedIdFromStorage } from "./document-list";
 
 export function TrashBox() {
   const router = useRouter();
-  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId, slug } = useTParams<"/dashboard/[slug]/[documentId]">();
   const trpc = useTRPC();
 
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const q = useDebounce(search, 500);
 
   const { data, isLoading } = useQuery({
@@ -53,7 +53,7 @@ export function TrashBox() {
   });
 
   const filteredDocuments = data?.documents?.filter((document) =>
-    document.title?.toLowerCase().includes(search.toLowerCase())
+    document.title?.toLowerCase().includes(search.toLowerCase()),
   );
 
   const onClick = (documentId: string) => {
@@ -64,9 +64,9 @@ export function TrashBox() {
     const promise = restoreDocument.mutateAsync({ id: documentId });
 
     toast.promise(promise, {
-      error: 'Failed to restore note!',
-      loading: 'Restoring note...',
-      success: 'Note Restored.',
+      error: "Failed to restore note!",
+      loading: "Restoring note...",
+      success: "Note Restored.",
     });
   };
 
@@ -74,9 +74,9 @@ export function TrashBox() {
     const promise = deleteDocument.mutateAsync({ id: document.id });
 
     toast.promise(promise, {
-      error: 'Failed to delete note!',
-      loading: 'Deleting note...',
-      success: 'Note Deleted.',
+      error: "Failed to delete note!",
+      loading: "Deleting note...",
+      success: "Note Deleted.",
     });
 
     if (documentId === document.id) {
@@ -105,9 +105,7 @@ export function TrashBox() {
           ) : (
             <div className="flex flex-col items-center justify-center">
               <Icons.search className="mb-2 size-8 text-muted-foreground/70" />
-              <div className="font-semibold text-muted-foreground text-sm">
-                No matches
-              </div>
+              <div className="font-semibold text-muted-foreground text-sm">No matches</div>
             </div>
           )}
         </CommandEmpty>
@@ -138,8 +136,8 @@ export function TrashBox() {
                 <Button
                   onClick={(e) => {
                     e.stopPropagation();
-                    pushModal('Confirm', {
-                      name: 'document',
+                    pushModal("Confirm", {
+                      name: "document",
                       onConfirm: () => onRemove(document),
                     });
                   }}

@@ -12,7 +12,6 @@
     "typecheck": "tsc --noEmit",
     "with-env": "dotenv -e ../../.env --"
   },
-  "prettier": "@kyh/prettier-config",
   "dependencies": {
     "@ai-sdk/react": "^3.0.118",
     "@ariakit/react": "^0.4.22",
@@ -122,5 +121,6 @@
     "postcss": "8.5.6",
     "tailwindcss": "4.1.18",
     "typescript": "catalog:"
-  }
+  },
+  "prettier": "@kyh/prettier-config"
 }

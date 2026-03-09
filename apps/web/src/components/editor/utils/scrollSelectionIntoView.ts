@@ -1,6 +1,6 @@
-import type { Editor } from 'platejs';
+import type { Editor } from "platejs";
 
-import scrollIntoView from 'scroll-into-view-if-needed';
+import scrollIntoView from "scroll-into-view-if-needed";
 
 export const scrollSelectionIntoView = (editor: Editor) => {
   const domRange: Range | null | undefined =
@@ -9,10 +9,9 @@ export const scrollSelectionIntoView = (editor: Editor) => {
   if (!domRange) return;
   if (domRange.getBoundingClientRect) {
     const leafEl = domRange.startContainer.parentElement!;
-    leafEl.getBoundingClientRect =
-      domRange.getBoundingClientRect.bind(domRange);
+    leafEl.getBoundingClientRect = domRange.getBoundingClientRect.bind(domRange);
     scrollIntoView(leafEl, {
-      scrollMode: 'if-needed',
+      scrollMode: "if-needed",
     });
 
     (leafEl as any).getBoundingClientRect = undefined;

@@ -5,9 +5,8 @@ const Page = () => {
     <main className="mt-8 flex flex-col gap-4">
       <h1>Make lifelong learning as natural as checking your phone.</h1>
       <p>
-        Turn your social feed into your personal university. Inteligir
-        transforms trending topics from your world into engaging, bite-sized
-        lessons delivered right to your phone.
+        Turn your social feed into your personal university. Inteligir transforms trending topics
+        from your world into engaging, bite-sized lessons delivered right to your phone.
       </p>
       <WaitlistForm />
       <div className="mt-3">
@@ -19,10 +18,9 @@ const Page = () => {
         </ol>
       </div>
       <p>
-        Perfect for curious minds who want to stay informed without information
-        overload. Whether it's the latest AI breakthrough, market trends, or
-        cultural phenomena – learn about what's happening in your world,
-        explained clearly and concisely.
+        Perfect for curious minds who want to stay informed without information overload. Whether
+        it's the latest AI breakthrough, market trends, or cultural phenomena – learn about what's
+        happening in your world, explained clearly and concisely.
       </p>
     </main>
   );

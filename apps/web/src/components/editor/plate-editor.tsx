@@ -39,10 +39,9 @@ export const PlateEditor = ({ mode }: { mode?: "print" }) => {
 
   const fontFamily = useMemo(
     () => ({
-      fontFamily: TEXT_STYLE_ITEMS.find((item) => item.key === textStyle)
-        ?.fontFamily,
+      fontFamily: TEXT_STYLE_ITEMS.find((item) => item.key === textStyle)?.fontFamily,
     }),
-    [textStyle]
+    [textStyle],
   );
 
   if (isLoading) {
@@ -62,9 +61,7 @@ export const PlateEditor = ({ mode }: { mode?: "print" }) => {
 
   return (
     <div className="mt-2 flex-1" ref={contentRef}>
-      {toc && mode !== "print" && (
-        <TocSidebar className="top-[130px]" topOffset={30} />
-      )}
+      {toc && mode !== "print" && <TocSidebar className="top-[130px]" topOffset={30} />}
 
       <EditorContainer>
         <Editor

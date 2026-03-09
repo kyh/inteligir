@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -10,21 +10,16 @@ export const mediaToolbarValue: any = (
     <hh2>Media Toolbar</hh2>
     <hp>
       <htext>
-        The media toolbar provides tools for managing and customizing media
-        elements in your document.
+        The media toolbar provides tools for managing and customizing media elements in your
+        document.
       </htext>
     </hp>
     <hp>How to use the media toolbar:</hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Hover over the image to reveal the controller buttons at the top right
-        corner.
-      </htext>
+      <htext>Hover over the image to reveal the controller buttons at the top right corner.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Click on the alignment icon to adjust the positioning of the media.
-      </htext>
+      <htext>Click on the alignment icon to adjust the positioning of the media.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Use the caption button to add or edit the media caption.</htext>
@@ -47,8 +42,8 @@ export const mediaToolbarValue: any = (
     </himg>
     <hcallout icon="💡" variant="info">
       <htext>
-        You can resize the image by dragging the handles on the left and right
-        sides. The caption will automatically adjust to match the image width.
+        You can resize the image by dragging the handles on the left and right sides. The caption
+        will automatically adjust to match the image width.
       </htext>
     </hcallout>
   </fragment>

@@ -1,15 +1,12 @@
-'use client';
+"use client";
 
-import type { BaseSuggestionConfig } from '@platejs/suggestion';
-import type { ExtendConfig, Path } from 'platejs';
-import { useEffect } from 'react';
+import type { BaseSuggestionConfig } from "@platejs/suggestion";
+import type { ExtendConfig, Path } from "platejs";
+import { useEffect } from "react";
 
-import { useCurrentUser } from '@/components/auth/useCurrentUser';
-import { suggestionPlugin as SuggestionPlugin } from '@/registry/components/editor/plugins/suggestion-kit';
-import {
-  SuggestionLeaf,
-  SuggestionLineBreak,
-} from '@/registry/ui/suggestion-node';
+import { useCurrentUser } from "@/components/auth/useCurrentUser";
+import { suggestionPlugin as SuggestionPlugin } from "@/registry/components/editor/plugins/suggestion-kit";
+import { SuggestionLeaf, SuggestionLineBreak } from "@/registry/ui/suggestion-node";
 
 export type SuggestionConfig = ExtendConfig<
   BaseSuggestionConfig,
@@ -31,7 +28,7 @@ export const suggestionPlugin = SuggestionPlugin.configure({
     useEffect(() => {
       if (!user?.id) return;
 
-      setOption('currentUserId', user.id);
+      setOption("currentUserId", user.id);
     }, [setOption, user]);
   },
 });

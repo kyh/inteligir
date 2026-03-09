@@ -6,10 +6,10 @@ import {
   type TElement,
   TextApi,
   type TRange,
-} from 'platejs';
-import type { PlateEditor } from 'platejs/react';
+} from "platejs";
+import type { PlateEditor } from "platejs/react";
 
-import { traverseTextNodes } from './traverseTextNodes';
+import { traverseTextNodes } from "./traverseTextNodes";
 
 export const searchRange = (
   editor: PlateEditor,
@@ -19,25 +19,23 @@ export const searchRange = (
     // from,
   }: {
     from?: Point;
-    match?: EditorNodesOptions['match'];
-  } = {}
+    match?: EditorNodesOptions["match"];
+  } = {},
 ): TRange | null => {
   if (
-    Array.isArray(search)
-      ? search[0].length === 0 || search[1].length === 0
-      : search.length === 0
+    Array.isArray(search) ? search[0].length === 0 || search[1].length === 0 : search.length === 0
   )
     return null;
 
   const [startSearch, endSearch] = Array.isArray(search)
     ? search.map((s) => s.toLowerCase())
-    : [search.toLowerCase(), ''];
+    : [search.toLowerCase(), ""];
 
   const entries = Array.from(
     editor.api.nodes<TElement>({
       at: [],
       match: match ?? ((_, p) => p.length === 1),
-    })
+    }),
   );
 
   for (const [node, path] of entries) {
@@ -64,21 +62,17 @@ export const searchRange = (
         (childNode, childPath) => {
           if (editor.api.isVoid(childNode as TElement)) return;
 
-          const textLength =
-            (TextApi.isText(childNode) ? childNode.text.length : 0) || 0;
+          const textLength = (TextApi.isText(childNode) ? childNode.text.length : 0) || 0;
           const newGlobalOffset = globalOffset + textLength;
 
           if (startPath === undefined && newGlobalOffset > searchIndex) {
             startPath = childPath;
             anchorOffset = searchIndex - globalOffset;
           }
-          if (
-            startPath !== undefined &&
-            newGlobalOffset >= searchIndex + startSearch.length
-          ) {
+          if (startPath !== undefined && newGlobalOffset >= searchIndex + startSearch.length) {
             const endSearchIndex = combinedText.indexOf(
               endSearch,
-              searchIndex + startSearch.length
+              searchIndex + startSearch.length,
             );
 
             if (endSearchIndex !== -1) {
@@ -91,7 +85,7 @@ export const searchRange = (
 
           globalOffset = newGlobalOffset;
         },
-        path
+        path,
       );
 
       if (startPath && endPath) {
@@ -114,8 +108,8 @@ export const searchRanges = (
   {
     match,
   }: {
-    match?: EditorNodesOptions['match'];
-  } = {}
+    match?: EditorNodesOptions["match"];
+  } = {},
 ) => {
   const ranges: TRange[] = [];
 
@@ -123,13 +117,13 @@ export const searchRanges = (
 
   const [startSearch, endSearch] = Array.isArray(search)
     ? search.map((s) => s.toLowerCase())
-    : [search.toLowerCase(), ''];
+    : [search.toLowerCase(), ""];
 
   const entries = Array.from(
     editor.api.nodes<TElement>({
       at: [],
       match: match ?? ((_, p) => p.length === 1),
-    })
+    }),
   );
 
   for (const [node, path] of entries) {
@@ -149,21 +143,17 @@ export const searchRanges = (
         (childNode, childPath) => {
           if (editor.api.isVoid(childNode as TElement)) return;
 
-          const textLength =
-            (TextApi.isText(childNode) ? childNode.text.length : 0) || 0;
+          const textLength = (TextApi.isText(childNode) ? childNode.text.length : 0) || 0;
           const newGlobalOffset = globalOffset + textLength;
 
           if (startPath === undefined && newGlobalOffset > searchIndex) {
             startPath = childPath;
             anchorOffset = searchIndex - globalOffset;
           }
-          if (
-            startPath !== undefined &&
-            newGlobalOffset >= searchIndex + startSearch.length
-          ) {
+          if (startPath !== undefined && newGlobalOffset >= searchIndex + startSearch.length) {
             const endSearchIndex = combinedText.indexOf(
               endSearch,
-              searchIndex + startSearch.length
+              searchIndex + startSearch.length,
             );
 
             if (endSearchIndex !== -1) {
@@ -176,7 +166,7 @@ export const searchRanges = (
 
           globalOffset = newGlobalOffset;
         },
-        path
+        path,
       );
 
       if (startPath && endPath) {

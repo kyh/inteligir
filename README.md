@@ -1,4 +1,3 @@
 # Inteligir
 
-> Lifelong learning 
-
+> Lifelong learning

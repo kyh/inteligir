@@ -31,9 +31,7 @@ export function DocumentClient() {
     return (
       <div className="mt-[12vh] flex min-h-screen flex-col items-center pt-[12vh]">
         <div className="text-[64px]">👀</div>
-        <h1 className="mb-4 font-medium text-lg">
-          This document does not exist
-        </h1>
+        <h1 className="mb-4 font-medium text-lg">This document does not exist</h1>
         <LinkButton href={`/dashboard/${slug}`} size="md" variant="brand">
           Back to my content
         </LinkButton>

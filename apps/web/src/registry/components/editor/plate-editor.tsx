@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { Plate, usePlateEditor } from 'platejs/react';
+import { Plate, usePlateEditor } from "platejs/react";
 
-import { EditorKit } from '@/registry/components/editor/editor-kit';
-import { playgroundValue } from '@/registry/examples/values/playground-value';
-import { Editor, EditorContainer } from '@/registry/ui/editor';
-import { TocSidebar } from '@/registry/ui/toc-sidebar';
+import { EditorKit } from "@/registry/components/editor/editor-kit";
+import { playgroundValue } from "@/registry/examples/values/playground-value";
+import { Editor, EditorContainer } from "@/registry/ui/editor";
+import { TocSidebar } from "@/registry/ui/toc-sidebar";
 
 export function PlateEditor() {
   const editor = usePlateEditor({

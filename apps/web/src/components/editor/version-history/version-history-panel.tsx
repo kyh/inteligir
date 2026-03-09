@@ -1,44 +1,39 @@
-import { useQuery } from '@tanstack/react-query';
-import { formatDistance } from 'date-fns';
-import { createAtomStore } from 'jotai-x';
-import { cloneDeep } from 'lodash';
-import type { Value } from 'platejs';
-import { useEditorRef } from 'platejs/react';
-import React, { memo, useEffect, useState } from 'react';
+import { useQuery } from "@tanstack/react-query";
+import { formatDistance } from "date-fns";
+import { createAtomStore } from "jotai-x";
+import { cloneDeep } from "lodash";
+import type { Value } from "platejs";
+import { useEditorRef } from "platejs/react";
+import React, { memo, useEffect, useState } from "react";
 
-import { useCurrentUser } from '@/components/auth/useCurrentUser';
-import { useDebouncedValueVersion } from '@/components/editor/utils';
-import { DiffPlate } from '@/components/editor/version-history/diff-plate';
-import { pushModal } from '@/components/modals';
-import { Empty } from '@/components/ui/empty';
-import { Icons } from '@/components/ui/icons';
-import { useLayoutParams } from '@/hooks/use-navigation';
-import { Avatar, AvatarFallback, AvatarImage } from '@/registry/ui/avatar';
-import { Button } from '@/registry/ui/button';
+import { useCurrentUser } from "@/components/auth/useCurrentUser";
+import { useDebouncedValueVersion } from "@/components/editor/utils";
+import { DiffPlate } from "@/components/editor/version-history/diff-plate";
+import { pushModal } from "@/components/modals";
+import { Empty } from "@/components/ui/empty";
+import { Icons } from "@/components/ui/icons";
+import { useLayoutParams } from "@/hooks/use-navigation";
+import { Avatar, AvatarFallback, AvatarImage } from "@/registry/ui/avatar";
+import { Button } from "@/registry/ui/button";
 import {
   useDocumentQueryOptions,
   useDocumentVersionsQueryOptions,
-} from '@/trpc/hooks/query-options';
-import { api, useTRPC } from '@/trpc/react';
+} from "@/trpc/hooks/query-options";
+import { api, useTRPC } from "@/trpc/react";
 
-import { VersionsSkeleton } from '../../context-panel/versions-skeleton';
+import { VersionsSkeleton } from "../../context-panel/versions-skeleton";
 
-export const {
-  useVersionSet,
-  useVersionState,
-  useVersionValue,
-  VersionProvider,
-} = createAtomStore(
+export const { useVersionSet, useVersionState, useVersionValue, VersionProvider } = createAtomStore(
   {
     activeVersionId: null as number | string | null,
   },
   {
-    name: 'version',
-  }
+    name: "version",
+  },
 );
 
 export default memo(function VersionHistoryPanel() {
-  const { documentId } = useLayoutParams<'/[documentId]'>();
+  const { documentId } = useLayoutParams<"/[documentId]">();
   const currentUser = useCurrentUser();
 
   // Stable timestamp for relative time calculations - initialized once on mount
@@ -64,14 +59,14 @@ export default memo(function VersionHistoryPanel() {
 
   const onDeleteVersionDialog = React.useCallback(
     (id: string) => {
-      pushModal('Confirm', {
-        name: 'version',
+      pushModal("Confirm", {
+        name: "version",
         onConfirm: () => {
           deleteVersion.mutate({ id });
         },
       });
     },
-    [deleteVersion]
+    [deleteVersion],
   );
 
   return (
@@ -110,18 +105,15 @@ export default memo(function VersionHistoryPanel() {
                   <div className="flex-1">
                     <div className="flex justify-between">
                       <div>
-                        {currentUser?.id === version.userId
-                          ? 'You'
-                          : version.name}
-                        &nbsp;saved{' '}
-                        <span className="font-semibold">{document.title}</span>
+                        {currentUser?.id === version.userId ? "You" : version.name}
+                        &nbsp;saved <span className="font-semibold">{document.title}</span>
                       </div>
 
                       <div className="shrink-0">
                         <Button
                           className="mr-2 size-6 p-1"
                           onClick={() => {
-                            pushModal('VersionHistory', {
+                            pushModal("VersionHistory", {
                               activeVersionId: version.id,
                             });
                           }}
@@ -149,15 +141,10 @@ export default memo(function VersionHistoryPanel() {
 
                     <div>
                       {index === 0 ? (
-                        <CurrentDiffPlate
-                          previous={version.contentRich as Value}
-                        />
+                        <CurrentDiffPlate previous={version.contentRich as Value} />
                       ) : (
                         <DiffPlate
-                          current={
-                            versions.data?.versions[index - 1]
-                              ?.contentRich as Value
-                          }
+                          current={versions.data?.versions[index - 1]?.contentRich as Value}
                           previous={version.contentRich as Value}
                           showDiff
                         />
@@ -165,7 +152,7 @@ export default memo(function VersionHistoryPanel() {
                     </div>
                   </div>
                 </div>
-              )
+              ),
           )
         ) : versions.data ? (
           <Empty title="No saved versions." />

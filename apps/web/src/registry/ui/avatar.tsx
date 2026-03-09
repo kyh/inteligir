@@ -1,27 +1,27 @@
-'use client';
+"use client";
 
-import type { VariantProps } from 'class-variance-authority';
-import { cva } from 'class-variance-authority';
-import { Avatar as AvatarPrimitive } from 'radix-ui';
-import * as React from 'react';
+import type { VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
+import { Avatar as AvatarPrimitive } from "radix-ui";
+import * as React from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-const avatarVariants = cva('relative flex shrink-0 overflow-hidden', {
+const avatarVariants = cva("relative flex shrink-0 overflow-hidden", {
   defaultVariants: {
-    size: 'default',
-    variant: 'default',
+    size: "default",
+    variant: "default",
   },
   variants: {
     size: {
-      default: 'size-10',
-      lg: 'size-12',
-      profile: 'size-20',
-      settings: 'size-20 md:size-28',
-      sm: 'size-6',
+      default: "size-10",
+      lg: "size-12",
+      profile: "size-20",
+      settings: "size-20 md:size-28",
+      sm: "size-6",
     },
     variant: {
-      default: 'rounded-full',
+      default: "rounded-full",
     },
   },
 });
@@ -44,7 +44,7 @@ function AvatarImage({
   onLoadingStatusChange,
   ...props
 }: React.ComponentProps<typeof AvatarPrimitive.Image> &
-  Pick<AvatarPrimitive.AvatarImageProps, 'onLoadingStatusChange'>) {
+  Pick<AvatarPrimitive.AvatarImageProps, "onLoadingStatusChange">) {
   return (
     <AvatarPrimitive.Image
       asChild
@@ -53,10 +53,7 @@ function AvatarImage({
       src={props.src}
     >
       <img
-        className={cn(
-          'aspect-square size-full select-none object-cover',
-          className
-        )}
+        className={cn("aspect-square size-full select-none object-cover", className)}
         fill="true"
         {...(props as any)}
         alt=""
@@ -65,23 +62,18 @@ function AvatarImage({
   );
 }
 
-const avatarFallbackVariants = cva(
-  'box-content flex size-full items-center justify-center',
-  {
-    defaultVariants: {
-      variant: 'default',
+const avatarFallbackVariants = cva("box-content flex size-full items-center justify-center", {
+  defaultVariants: {
+    variant: "default",
+  },
+  variants: {
+    variant: {
+      default: "rounded-full bg-muted",
     },
-    variants: {
-      variant: {
-        default: 'rounded-full bg-muted',
-      },
-    },
-  }
-);
+  },
+});
 
-type AvatarFallbackProps = React.ComponentProps<
-  typeof AvatarPrimitive.Fallback
-> &
+type AvatarFallbackProps = React.ComponentProps<typeof AvatarPrimitive.Fallback> &
   VariantProps<typeof avatarFallbackVariants>;
 
 function AvatarFallback({ className, variant, ...props }: AvatarFallbackProps) {

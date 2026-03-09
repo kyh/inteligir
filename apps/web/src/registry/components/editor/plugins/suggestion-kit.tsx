@@ -1,22 +1,11 @@
-'use client';
+"use client";
 
-import {
-  type BaseSuggestionConfig,
-  BaseSuggestionPlugin,
-} from '@platejs/suggestion';
-import {
-  type ExtendConfig,
-  isSlateEditor,
-  isSlateString,
-  type Path,
-} from 'platejs';
-import { toTPlatePlugin } from 'platejs/react';
+import { type BaseSuggestionConfig, BaseSuggestionPlugin } from "@platejs/suggestion";
+import { type ExtendConfig, isSlateEditor, isSlateString, type Path } from "platejs";
+import { toTPlatePlugin } from "platejs/react";
 
-import { discussionPlugin } from '@/registry/components/editor/plugins/discussion-kit';
-import {
-  SuggestionLeaf,
-  SuggestionLineBreak,
-} from '@/registry/ui/suggestion-node';
+import { discussionPlugin } from "@/registry/components/editor/plugins/discussion-kit";
+import { SuggestionLeaf, SuggestionLineBreak } from "@/registry/ui/suggestion-node";
 
 export type SuggestionConfig = ExtendConfig<
   BaseSuggestionConfig,
@@ -36,10 +25,10 @@ export const suggestionPlugin = toTPlatePlugin<SuggestionConfig>(
         let leaf = event.target as HTMLElement;
         let isSet = false;
 
-        const isBlockLeaf = leaf.dataset.blockSuggestion === 'true';
+        const isBlockLeaf = leaf.dataset.blockSuggestion === "true";
 
         const unsetActiveSuggestion = () => {
-          setOption('activeId', null);
+          setOption("activeId", null);
           isSet = true;
         };
 
@@ -48,7 +37,7 @@ export const suggestionPlugin = toTPlatePlugin<SuggestionConfig>(
         }
 
         while (leaf.parentElement && !isSlateEditor(leaf.parentElement)) {
-          const isBlockSuggestion = leaf.dataset.blockSuggestion === 'true';
+          const isBlockSuggestion = leaf.dataset.blockSuggestion === "true";
 
           if (leaf.classList.contains(`slate-${type}`) || isBlockSuggestion) {
             const suggestionEntry = api.suggestion!.node({
@@ -62,7 +51,7 @@ export const suggestionPlugin = toTPlatePlugin<SuggestionConfig>(
             }
 
             const id = api.suggestion!.nodeId(suggestionEntry[0]);
-            setOption('activeId', id ?? null);
+            setOption("activeId", id ?? null);
 
             isSet = true;
 
@@ -77,11 +66,11 @@ export const suggestionPlugin = toTPlatePlugin<SuggestionConfig>(
     },
     options: {
       activeId: null,
-      currentUserId: editor.getOption(discussionPlugin, 'currentUserId'),
+      currentUserId: editor.getOption(discussionPlugin, "currentUserId"),
       hoverId: null,
       uniquePathMap: new Map(),
     },
-  })
+  }),
 ).configure({
   render: {
     belowNodes: SuggestionLineBreak,

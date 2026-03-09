@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -27,10 +27,7 @@ export const mediaValue: any = (
 
     <hh2>📺 Embed</hh2>
     <hp>Embed various types of content, such as videos and tweets:</hp>
-    <hmediaembed
-      align="center"
-      url="https://www.youtube.com/watch?v=MyiBAziEWUA"
-    >
+    <hmediaembed align="center" url="https://www.youtube.com/watch?v=MyiBAziEWUA">
       <htext />
     </hmediaembed>
   </fragment>

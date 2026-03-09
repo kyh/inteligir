@@ -1,93 +1,91 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
 export const discussionValue: any = [
   {
-    children: [{ text: 'Discussions' }],
-    type: 'h2',
+    children: [{ text: "Discussions" }],
+    type: "h2",
   },
   {
     children: [
-      { text: 'Review and refine content seamlessly. Use ' },
+      { text: "Review and refine content seamlessly. Use " },
       {
         children: [
           {
             suggestion: true,
             suggestion_playground1: {
-              id: 'playground1',
+              id: "playground1",
               createdAt: Date.now(),
-              type: 'insert',
-              userId: 'alice',
+              type: "insert",
+              userId: "alice",
             },
-            text: 'suggestions',
+            text: "suggestions",
           },
         ],
-        type: 'a',
-        url: '/docs/suggestion',
+        type: "a",
+        url: "/docs/suggestion",
       },
       {
         suggestion: true,
         suggestion_playground1: {
-          id: 'playground1',
+          id: "playground1",
           createdAt: Date.now(),
-          type: 'insert',
-          userId: 'alice',
+          type: "insert",
+          userId: "alice",
         },
-        text: ' ',
+        text: " ",
       },
       {
         suggestion: true,
         suggestion_playground1: {
-          id: 'playground1',
+          id: "playground1",
           createdAt: Date.now(),
-          type: 'insert',
-          userId: 'alice',
+          type: "insert",
+          userId: "alice",
         },
-        text: 'like this added text',
+        text: "like this added text",
       },
-      { text: ' or to ' },
+      { text: " or to " },
       {
         suggestion: true,
         suggestion_playground2: {
-          id: 'playground2',
+          id: "playground2",
           createdAt: Date.now(),
-          type: 'remove',
-          userId: 'bob',
+          type: "remove",
+          userId: "bob",
         },
-        text: 'mark text for removal',
+        text: "mark text for removal",
       },
-      { text: '. Discuss changes using ' },
+      { text: ". Discuss changes using " },
       {
-        children: [
-          { comment: true, comment_discussion1: true, text: 'comments' },
-        ],
-        type: 'a',
-        url: '/docs/comment',
+        children: [{ comment: true, comment_discussion1: true, text: "comments" }],
+        type: "a",
+        url: "/docs/comment",
       },
       {
         comment: true,
         comment_discussion1: true,
-        text: ' on many text segments',
+        text: " on many text segments",
       },
-      { text: '. You can even have ' },
+      { text: ". You can even have " },
       {
         comment: true,
         comment_discussion2: true,
         suggestion: true,
         suggestion_playground3: {
-          id: 'playground3',
+          id: "playground3",
           createdAt: Date.now(),
-          type: 'insert',
-          userId: 'charlie',
+          type: "insert",
+          userId: "charlie",
         },
-        text: 'overlapping',
+        text: "overlapping",
       },
-      { text: ' annotations!' },
+      { text: " annotations!" },
     ],
-    type: 'p',
+    type: "p",
   },
 ];

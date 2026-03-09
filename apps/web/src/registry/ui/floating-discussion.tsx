@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { getDraftCommentKey } from '@platejs/comment';
-import { BlockSelectionPlugin } from '@platejs/selection/react';
+import { getDraftCommentKey } from "@platejs/comment";
+import { BlockSelectionPlugin } from "@platejs/selection/react";
 import {
   acceptSuggestion,
   getSuggestionKey,
   getTransientSuggestionKey,
   keyId2SuggestionId,
   rejectSuggestion,
-} from '@platejs/suggestion';
-import { CheckIcon, PencilLineIcon, XIcon } from 'lucide-react';
+} from "@platejs/suggestion";
+import { CheckIcon, PencilLineIcon, XIcon } from "lucide-react";
 import {
   ElementApi,
   KEYS,
@@ -22,7 +22,7 @@ import {
   type TElement,
   TextApi,
   type TSuggestionText,
-} from 'platejs';
+} from "platejs";
 import {
   type PlateEditor,
   useEditorContainerRef,
@@ -33,33 +33,26 @@ import {
   useEditorVersion,
   usePluginOption,
   usePluginOptions,
-} from 'platejs/react';
-import React, { useEffect, useReducer, useRef, useState } from 'react';
+} from "platejs/react";
+import React, { useEffect, useReducer, useRef, useState } from "react";
 
-import { cn } from '@/lib/utils';
-import { commentPlugin } from '@/registry/components/editor/plugins/comment-kit';
+import { cn } from "@/lib/utils";
+import { commentPlugin } from "@/registry/components/editor/plugins/comment-kit";
 import {
   discussionPlugin,
   type TDiscussion,
-} from '@/registry/components/editor/plugins/discussion-kit';
-import { suggestionPlugin } from '@/registry/components/editor/plugins/suggestion-kit';
-import { useDebouncedCallback } from '@/registry/hooks/use-debounce-callback';
-import { Avatar, AvatarFallback, AvatarImage } from '@/registry/ui/avatar';
-import { Button } from '@/registry/ui/button';
+} from "@/registry/components/editor/plugins/discussion-kit";
+import { suggestionPlugin } from "@/registry/components/editor/plugins/suggestion-kit";
+import { useDebouncedCallback } from "@/registry/hooks/use-debounce-callback";
+import { Avatar, AvatarFallback, AvatarImage } from "@/registry/ui/avatar";
+import { Button } from "@/registry/ui/button";
 
-import {
-  BLOCK_SUGGESTION,
-  type ResolvedSuggestion,
-  TYPE_TEXT_MAP,
-} from './block-suggestion';
-import { Comment, CommentCreateForm, formatCommentDate } from './comment';
+import { BLOCK_SUGGESTION, type ResolvedSuggestion, TYPE_TEXT_MAP } from "./block-suggestion";
+import { Comment, CommentCreateForm, formatCommentDate } from "./comment";
 
 export function FloatingDiscussion() {
   const mounted = useEditorMounted();
-  const isOverlapWithEditor = usePluginOption(
-    commentPlugin,
-    'isOverlapWithEditor'
-  );
+  const isOverlapWithEditor = usePluginOption(commentPlugin, "isOverlapWithEditor");
 
   if (!mounted || isOverlapWithEditor) return null;
 
@@ -76,7 +69,7 @@ const getCommentTop = (
     node: TCommentText | TElement | TSuggestionText;
     relativeElement: HTMLDivElement;
     topOffset?: number;
-  }
+  },
 ) => {
   const commentLeafDomNode = editor.api.toDOMNode(node);
 
@@ -94,16 +87,15 @@ const getCommentTop = (
 const updateActiveBelow = (
   topMap: Record<string, number>,
   domMap: Record<string, HTMLDivElement | null>,
-  activeId: string
+  activeId: string,
 ) => {
   const discussionArray = Object.entries(topMap)
     .map(([id, top]) => ({ id, top }))
-    .sort((a, b) => a.top - b.top);
+    .toSorted((a, b) => a.top - b.top);
 
   const activeIndex = discussionArray.findIndex(({ id }) => id === activeId);
 
-  if (activeIndex === -1 || activeIndex === discussionArray.length - 1)
-    return topMap;
+  if (activeIndex === -1 || activeIndex === discussionArray.length - 1) return topMap;
 
   const activeElement = discussionArray[activeIndex];
   const start = activeElement.top;
@@ -131,11 +123,11 @@ const updateActiveTop = (
   topMap: Record<string, number>,
   domMap: Record<string, HTMLDivElement | null>,
   activeId: string,
-  targetTop: number
+  targetTop: number,
 ) => {
   const discussionArray = Object.entries(topMap)
     .map(([id, top]) => ({ id, top }))
-    .sort((a, b) => a.top - b.top);
+    .toSorted((a, b) => a.top - b.top);
 
   const index = discussionArray.findIndex(({ id }) => id === activeId);
 
@@ -172,9 +164,7 @@ const updateActiveTop = (
       if (discussionArray[i].top < activeBottom) {
         discussionArray[i].top = activeBottom;
         activeBottom =
-          discussionArray[i].top +
-          (domMap[discussionArray[i].id]?.clientHeight ?? 100) +
-          10;
+          discussionArray[i].top + (domMap[discussionArray[i].id]?.clientHeight ?? 100) + 10;
       } else {
         break; // No more overlaps
       }
@@ -186,15 +176,13 @@ const updateActiveTop = (
 
 const updateTopCommenting = (
   topMap: Record<string, number>,
-  domMap: Record<string, HTMLDivElement | null>
+  domMap: Record<string, HTMLDivElement | null>,
 ) => {
   const discussionArray = Object.entries(topMap)
     .map(([id, topDistance]) => ({ id, topDistance }))
-    .sort((a, b) => a.topDistance - b.topDistance);
+    .toSorted((a, b) => a.topDistance - b.topDistance);
 
-  const index = discussionArray.findIndex(
-    ({ id }) => id === getDraftCommentKey()
-  );
+  const index = discussionArray.findIndex(({ id }) => id === getDraftCommentKey());
 
   if (index === -1) return topMap;
 
@@ -255,11 +243,11 @@ const updateTopCommenting = (
 
 const resolveOverlappingTop = (
   topMap: Record<string, number>,
-  domMap: Record<string, HTMLDivElement | null>
+  domMap: Record<string, HTMLDivElement | null>,
 ) => {
   const discussionArray = Object.entries(topMap)
     .map(([id, topDistance]) => ({ id, topDistance }))
-    .sort((a, b) => a.topDistance - b.topDistance);
+    .toSorted((a, b) => a.topDistance - b.topDistance);
 
   // Iterate through each discussion from top to bottom, checking for overlap with previous discussions
   for (let i = 1; i < discussionArray.length; i++) {
@@ -305,8 +293,7 @@ const useCommentingNode = () =>
     if (!editor.selection || editor.api.isExpanded()) return;
 
     return editor.api.node<TCommentText>({
-      match: (n) =>
-        TextApi.isText(n) && n[KEYS.comment] && n[getDraftCommentKey()],
+      match: (n) => TextApi.isText(n) && n[KEYS.comment] && n[getDraftCommentKey()],
     })?.[0];
   }, []);
 
@@ -316,16 +303,13 @@ function FloatingDiscussionContent() {
   const commentApi = editor.getApi(commentPlugin);
   const suggestionApi = editor.getApi(suggestionPlugin);
 
-  const activeCommentId = usePluginOption(commentPlugin, 'activeId');
-  const activeSuggestionId = usePluginOption(suggestionPlugin, 'activeId');
+  const activeCommentId = usePluginOption(commentPlugin, "activeId");
+  const activeSuggestionId = usePluginOption(suggestionPlugin, "activeId");
   const activeId = activeCommentId ?? activeSuggestionId;
-  const isOverlapWithEditor = usePluginOption(
-    commentPlugin,
-    'isOverlapWithEditor'
-  );
-  const updateTimestamp = usePluginOption(commentPlugin, 'updateTimestamp');
+  const isOverlapWithEditor = usePluginOption(commentPlugin, "isOverlapWithEditor");
+  const updateTimestamp = usePluginOption(commentPlugin, "updateTimestamp");
 
-  const discussions = usePluginOption(discussionPlugin, 'discussions');
+  const discussions = usePluginOption(discussionPlugin, "discussions");
   const domRef = React.useRef<Record<string, HTMLDivElement | null>>({});
   const topRef = React.useRef<Record<string, number>>({});
 
@@ -334,9 +318,7 @@ function FloatingDiscussionContent() {
   const commentingNode = useCommentingNode();
   const version = useEditorVersion();
 
-  const suggestionEntriesMap = useRef<
-    Record<string, NodeEntry<TElement | TSuggestionText>[]>
-  >({});
+  const suggestionEntriesMap = useRef<Record<string, NodeEntry<TElement | TSuggestionText>[]>>({});
 
   useEffect(() => {
     suggestionEntriesMap.current = {};
@@ -350,22 +332,18 @@ function FloatingDiscussionContent() {
         .flatMap(([node]) => {
           if (TextApi.isText(node)) {
             const dataList = suggestionApi.suggestion.dataList(node);
-            const includeUpdate = dataList.some(
-              (data) => data.type === 'update'
-            );
+            const includeUpdate = dataList.some((data) => data.type === "update");
 
             if (!includeUpdate) return suggestionApi.suggestion.nodeId(node);
 
-            return dataList
-              .filter((data) => data.type === 'update')
-              .map((d) => d.id);
+            return dataList.filter((data) => data.type === "update").map((d) => d.id);
           }
           if (ElementApi.isElement(node)) {
             return suggestionApi.suggestion.nodeId(node);
           }
           return null;
         })
-        .filter(Boolean)
+        .filter(Boolean),
     );
 
     suggestionIds.forEach((id) => {
@@ -374,7 +352,7 @@ function FloatingDiscussionContent() {
       const entries = [
         ...editor.api.nodes<TElement | TSuggestionText>({
           at: [],
-          mode: 'all',
+          mode: "all",
           match: (n) =>
             (n[KEYS.suggestion] && n[getSuggestionKey(id)]) ||
             suggestionApi.suggestion.nodeId(n as TElement) === id,
@@ -385,12 +363,10 @@ function FloatingDiscussionContent() {
     });
   }, [editor, suggestionApi.suggestion, version]);
 
-  const suggestionList = Object.entries(suggestionEntriesMap.current).map(
-    ([id, entries]) => ({
-      id,
-      entries,
-    })
-  );
+  const suggestionList = Object.entries(suggestionEntriesMap.current).map(([id, entries]) => ({
+    id,
+    entries,
+  }));
 
   const renderFloatingDiscussion = React.useCallback(() => {
     if (isOverlapWithEditor) return;
@@ -398,11 +374,7 @@ function FloatingDiscussionContent() {
     topRef.current = {};
 
     discussions.forEach((discussion) => {
-      if (
-        discussion.isResolved ||
-        !commentApi.comment.has({ id: discussion.id })
-      )
-        return;
+      if (discussion.isResolved || !commentApi.comment.has({ id: discussion.id })) return;
 
       const commentLeafEntry = commentApi.comment.node({
         id: discussion.id,
@@ -435,12 +407,7 @@ function FloatingDiscussionContent() {
     forceUpdate();
 
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    discussions.length,
-    suggestionList.length,
-    editorContainerRef,
-    isOverlapWithEditor,
-  ]);
+  }, [discussions.length, suggestionList.length, editorContainerRef, isOverlapWithEditor]);
 
   const renderFloatingCreateForm = React.useCallback(() => {
     if (!commentingNode || activeId !== getDraftCommentKey()) return;
@@ -457,10 +424,7 @@ function FloatingDiscussionContent() {
     forceUpdate();
   }, [activeId, commentingNode, editor, editorContainerRef]);
 
-  const debouncedUpdateFloat = useDebouncedCallback(
-    renderFloatingDiscussion,
-    500
-  );
+  const debouncedUpdateFloat = useDebouncedCallback(renderFloatingDiscussion, 500);
 
   useEffect(() => {
     if (updateTimestamp) {
@@ -480,11 +444,7 @@ function FloatingDiscussionContent() {
     if (!activeId || !domRef.current[activeId]) return;
 
     const resizeObserver = new ResizeObserver(() => {
-      topRef.current = updateActiveBelow(
-        topRef.current,
-        domRef.current,
-        activeId
-      );
+      topRef.current = updateActiveBelow(topRef.current, domRef.current, activeId);
 
       forceUpdate();
     });
@@ -516,7 +476,7 @@ function FloatingDiscussionContent() {
       getCommentTop(editor, {
         node: activeNode?.[0] || activeSuggestionNode![0],
         relativeElement: editorContainerRef.current!,
-      })
+      }),
     );
 
     forceUpdate();
@@ -587,7 +547,7 @@ function FloatingDiscussionContent() {
               }}
               top={topRef.current[discussion.id] ?? 0}
             />
-          )
+          ),
       )}
 
       {suggestionList.map(
@@ -602,7 +562,7 @@ function FloatingDiscussionContent() {
               }}
               top={topRef.current[id] ?? 0}
             />
-          )
+          ),
       )}
     </>
   );
@@ -618,30 +578,27 @@ function FloatingCommentsContent({
   discussion,
   ref,
   top,
-}: React.ComponentProps<'div'> & FloatingCommentsContentProps) {
+}: React.ComponentProps<"div"> & FloatingCommentsContentProps) {
   const editor = useEditorRef();
 
-  const { activeId, hoverId } = usePluginOptions(
-    commentPlugin,
-    ({ activeId, hoverId }) => ({
-      activeId,
-      hoverId,
-    })
-  );
+  const { activeId, hoverId } = usePluginOptions(commentPlugin, ({ activeId, hoverId }) => ({
+    activeId,
+    hoverId,
+  }));
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
 
   const setHoverId = (id: string | null) => {
     // If dropdown menu open, do not unset the active state since it will make dropdown menu open in the wrong position
     // Notion has the same issue
-    if (document.activeElement?.closest('[data-radix-menu-content]')) return;
+    if (document.activeElement?.closest("[data-radix-menu-content]")) return;
 
-    editor.setOption(commentPlugin, 'hoverId', id);
+    editor.setOption(commentPlugin, "hoverId", id);
   };
 
   const highlightDiscussion = (editor: PlateEditor, id: string) => {
-    editor.setOption(commentPlugin, 'activeId', id);
-    editor.setOption(suggestionPlugin, 'activeId', null);
+    editor.setOption(commentPlugin, "activeId", id);
+    editor.setOption(suggestionPlugin, "activeId", null);
     const leaf = editor.api.node({
       at: [],
       match: (n) =>
@@ -654,20 +611,18 @@ function FloatingCommentsContent({
 
     const parent = NodeApi.get<Node>(editor, leaf[1].slice(0, 1));
 
-    editor
-      .getApi(BlockSelectionPlugin)
-      .blockSelection.addSelectedRow(parent!.id as string, {
-        clear: false,
-        delay: 1000,
-      });
+    editor.getApi(BlockSelectionPlugin).blockSelection.addSelectedRow(parent!.id as string, {
+      clear: false,
+      delay: 1000,
+    });
   };
 
   return (
     <div
       className={cn(
-        'absolute right-20 z-10 w-72 animate-fade-in cursor-pointer rounded-lg border bg-popover p-3 transition-transform duration-200',
-        '[&[data-hover=true][data-active=false]]:-translate-x-2 [&[data-hover=true][data-active=false]]:bg-muted',
-        '[&[data-active=true]]:-translate-x-2'
+        "absolute right-20 z-10 w-72 animate-fade-in cursor-pointer rounded-lg border bg-popover p-3 transition-transform duration-200",
+        "[&[data-hover=true][data-active=false]]:-translate-x-2 [&[data-hover=true][data-active=false]]:bg-muted",
+        "[&[data-active=true]]:-translate-x-2",
       )}
       data-active={activeId === discussion.id}
       data-discussion-id={discussion.id}
@@ -694,9 +649,7 @@ function FloatingCommentsContent({
           />
           <div className="relative mb-1 ml-[26px] flex h-7 items-center rounded-md pl-1.5 text-muted-foreground text-sm hover:bg-muted">
             <div className="absolute top-[-5px] left-[-14px] h-full w-0.5 shrink-0 bg-muted" />
-            <div className="ml-2">
-              Show {discussion.comments.length - 2} replies
-            </div>
+            <div className="ml-2">Show {discussion.comments.length - 2} replies</div>
           </div>
           <Comment
             comment={discussion.comments.at(-1)!}
@@ -724,9 +677,7 @@ function FloatingCommentsContent({
         ))
       )}
 
-      {activeId === discussion.id && (
-        <CommentCreateForm discussionId={discussion.id} />
-      )}
+      {activeId === discussion.id && <CommentCreateForm discussionId={discussion.id} />}
     </div>
   );
 }
@@ -742,33 +693,28 @@ const FloatingSuggestionContent = ({
   entries,
   ref,
   top,
-}: React.ComponentProps<'div'> & FloatingSuggestionContentProps) => {
+}: React.ComponentProps<"div"> & FloatingSuggestionContentProps) => {
   const { api, editor, setOption } = useEditorPlugin(suggestionPlugin);
   const nodeData = api.suggestion.suggestionData(entries[0][0]);
 
-  const { activeId, hoverId } = usePluginOptions(
-    suggestionPlugin,
-    ({ activeId, hoverId }) => ({
-      activeId,
-      hoverId,
-    })
-  );
+  const { activeId, hoverId } = usePluginOptions(suggestionPlugin, ({ activeId, hoverId }) => ({
+    activeId,
+    hoverId,
+  }));
 
-  const userId = usePluginOption(discussionPlugin, 'currentUserId');
-  const userData = usePluginOption(discussionPlugin, 'user', userId);
-  const discussions = usePluginOption(discussionPlugin, 'discussions');
+  const userId = usePluginOption(discussionPlugin, "currentUserId");
+  const userData = usePluginOption(discussionPlugin, "user", userId);
+  const discussions = usePluginOption(discussionPlugin, "discussions");
 
   const [editingId, setEditingId] = useState<string | null>(null);
 
   if (entries.length === 0) return null;
 
   // move line break to the end
-  entries.sort(([, path1], [, path2]) =>
-    PathApi.isChild(path1, path2) ? -1 : 1
-  );
+  entries.sort(([, path1], [, path2]) => (PathApi.isChild(path1, path2) ? -1 : 1));
 
-  let newText = '';
-  let text = '';
+  let newText = "";
+  let text = "";
   let properties: any = {};
   let newProperties: any = {};
 
@@ -781,17 +727,17 @@ const FloatingSuggestionContent = ({
         if (data.id !== id) return;
 
         switch (data.type) {
-          case 'insert': {
+          case "insert": {
             newText += node.text;
 
             break;
           }
-          case 'remove': {
+          case "remove": {
             text += node.text;
 
             break;
           }
-          case 'update': {
+          case "update": {
             properties = {
               ...properties,
               ...data.properties,
@@ -807,16 +753,14 @@ const FloatingSuggestionContent = ({
         }
       });
     } else {
-      const lineBreakData = api.suggestion.isBlockSuggestion(node)
-        ? node.suggestion
-        : undefined;
+      const lineBreakData = api.suggestion.isBlockSuggestion(node) ? node.suggestion : undefined;
 
       if (lineBreakData?.id !== keyId2SuggestionId(id)) return;
-      if (lineBreakData.type === 'insert') {
+      if (lineBreakData.type === "insert") {
         newText += lineBreakData.isLineBreak
           ? BLOCK_SUGGESTION
           : BLOCK_SUGGESTION + TYPE_TEXT_MAP[node.type](node);
-      } else if (lineBreakData.type === 'remove') {
+      } else if (lineBreakData.type === "remove") {
         text += lineBreakData.isLineBreak
           ? BLOCK_SUGGESTION
           : BLOCK_SUGGESTION + TYPE_TEXT_MAP[node.type](node);
@@ -831,7 +775,7 @@ const FloatingSuggestionContent = ({
   const keyId = getSuggestionKey(id);
 
   const suggestionText2Array = (text: string) => {
-    if (text === BLOCK_SUGGESTION) return ['line breaks'];
+    if (text === BLOCK_SUGGESTION) return ["line breaks"];
 
     return text.split(BLOCK_SUGGESTION).filter(Boolean);
   };
@@ -850,7 +794,7 @@ const FloatingSuggestionContent = ({
 
   let suggestion: ResolvedSuggestion;
 
-  if (nodeData.type === 'update') {
+  if (nodeData.type === "update") {
     suggestion = {
       comments,
       createdAt,
@@ -859,7 +803,7 @@ const FloatingSuggestionContent = ({
       newText,
       properties,
       suggestionId: keyId2SuggestionId(id),
-      type: 'update',
+      type: "update",
       userId: nodeData.userId,
     };
   } else if (newText.length > 0 && text.length > 0) {
@@ -870,7 +814,7 @@ const FloatingSuggestionContent = ({
       newText,
       suggestionId: keyId2SuggestionId(id),
       text,
-      type: 'replace',
+      type: "replace",
       userId: nodeData.userId,
     };
   } else if (newText.length > 0) {
@@ -880,7 +824,7 @@ const FloatingSuggestionContent = ({
       keyId,
       newText,
       suggestionId: keyId2SuggestionId(id),
-      type: 'insert',
+      type: "insert",
       userId: nodeData.userId,
     };
   } else if (text.length > 0) {
@@ -890,7 +834,7 @@ const FloatingSuggestionContent = ({
       keyId,
       suggestionId: keyId2SuggestionId(id),
       text,
-      type: 'remove',
+      type: "remove",
       userId: nodeData.userId,
     };
   } else {
@@ -898,41 +842,38 @@ const FloatingSuggestionContent = ({
   }
 
   const highlightSuggestion = (editor: PlateEditor, id: string) => {
-    editor.setOption(suggestionPlugin, 'activeId', id);
-    editor.setOption(commentPlugin, 'activeId', null);
+    editor.setOption(suggestionPlugin, "activeId", id);
+    editor.setOption(commentPlugin, "activeId", null);
 
     const leaf = editor.api.node({
       at: [],
       match: (n) =>
-        n[KEYS.suggestion] &&
-        editor.getApi(suggestionPlugin).suggestion.nodeId(n as any) === id,
+        n[KEYS.suggestion] && editor.getApi(suggestionPlugin).suggestion.nodeId(n as any) === id,
     });
 
     if (!leaf) return;
 
     const parent = NodeApi.get<Node>(editor, leaf[1].slice(0, 1));
 
-    editor
-      .getApi(BlockSelectionPlugin)
-      .blockSelection.addSelectedRow(parent!.id as string, {
-        clear: false,
-        delay: 1000,
-      });
+    editor.getApi(BlockSelectionPlugin).blockSelection.addSelectedRow(parent!.id as string, {
+      clear: false,
+      delay: 1000,
+    });
   };
 
   return (
     <div
       className={cn(
-        'absolute right-20 z-10 w-72 animate-fade-in cursor-pointer rounded-lg border bg-popover p-3 transition-transform duration-200',
-        '[&[data-hover=true][data-active=false]]:-translate-x-2 [&[data-hover=true][data-active=false]]:bg-muted',
-        '[&[data-active=true]]:-translate-x-2'
+        "absolute right-20 z-10 w-72 animate-fade-in cursor-pointer rounded-lg border bg-popover p-3 transition-transform duration-200",
+        "[&[data-hover=true][data-active=false]]:-translate-x-2 [&[data-hover=true][data-active=false]]:bg-muted",
+        "[&[data-active=true]]:-translate-x-2",
       )}
       data-active={activeId === id}
       data-discussion-id={id}
       data-hover={hoverId === id}
       onClick={() => highlightSuggestion(editor, id)}
-      onMouseEnter={() => setOption('hoverId', id)}
-      onMouseLeave={() => setOption('hoverId', null)}
+      onMouseEnter={() => setOption("hoverId", id)}
+      onMouseLeave={() => setOption("hoverId", null)}
       ref={ref}
       style={{ top }}
     >
@@ -947,19 +888,15 @@ const FloatingSuggestionContent = ({
               <PencilLineIcon className="-bottom-2 absolute left-4 size-4 rounded-[50%] bg-brand-foreground p-0.5 text-brand/80" />
             </>
           )}
-          <h4 className="font-semibold text-sm leading-none">
-            {userData?.name}
-          </h4>
+          <h4 className="font-semibold text-sm leading-none">{userData?.name}</h4>
           <div className="ml-1.5 text-muted-foreground/80 text-xs leading-none">
-            <span className="mr-1">
-              {formatCommentDate(suggestion.createdAt)}
-            </span>
+            <span className="mr-1">{formatCommentDate(suggestion.createdAt)}</span>
           </div>
         </div>
 
         <div className="relative mt-1 mb-4 pl-[32px]">
           <div className="flex flex-col gap-2">
-            {suggestion.type === 'remove' &&
+            {suggestion.type === "remove" &&
               suggestionText2Array(suggestion.text!).map((text, index) => (
                 <div className="flex items-center gap-2" key={index}>
                   <span className="text-muted-foreground text-sm">Delete:</span>
@@ -967,52 +904,46 @@ const FloatingSuggestionContent = ({
                 </div>
               ))}
 
-            {suggestion.type === 'insert' &&
+            {suggestion.type === "insert" &&
               suggestionText2Array(suggestion.newText!).map((text, index) => (
                 <div className="flex items-center gap-2" key={index}>
                   <span className="text-muted-foreground text-sm">Add:</span>
-                  <span className="text-sm">"{text || 'line breaks'}"</span>
+                  <span className="text-sm">"{text || "line breaks"}"</span>
                 </div>
               ))}
 
-            {suggestion.type === 'replace' && (
+            {suggestion.type === "replace" && (
               <div className="flex flex-col gap-2">
-                {suggestionText2Array(suggestion.newText!).map(
-                  (text, index) => (
-                    <React.Fragment key={index}>
-                      <div className="flex items-center text-brand/80">
-                        <span className="text-sm">With:</span>
-                        <span className="text-sm">
-                          "{text || 'line breaks'}"
-                        </span>
-                      </div>
-                    </React.Fragment>
-                  )
-                )}
+                {suggestionText2Array(suggestion.newText!).map((text, index) => (
+                  <React.Fragment key={index}>
+                    <div className="flex items-center text-brand/80">
+                      <span className="text-sm">With:</span>
+                      <span className="text-sm">"{text || "line breaks"}"</span>
+                    </div>
+                  </React.Fragment>
+                ))}
 
                 {suggestionText2Array(suggestion.text!).map((text, index) => (
                   <React.Fragment key={index}>
                     <div className="flex items-center">
                       <span className="text-muted-foreground text-sm">
-                        {index === 0 ? 'Replace:' : 'Delete:'}
+                        {index === 0 ? "Replace:" : "Delete:"}
                       </span>
-                      <span className="text-sm">"{text || 'line breaks'}"</span>
+                      <span className="text-sm">"{text || "line breaks"}"</span>
                     </div>
                   </React.Fragment>
                 ))}
               </div>
             )}
 
-            {suggestion.type === 'update' && (
+            {suggestion.type === "update" && (
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground text-sm">
                   {Object.keys(suggestion.properties).map((key) => (
                     <span key={key}>Un{key}</span>
                   ))}
                   {Object.keys(suggestion.newProperties).map((key) => (
-                    <span key={key}>
-                      {key.charAt(0).toUpperCase() + key.slice(1)}
-                    </span>
+                    <span key={key}>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
                   ))}
                 </span>
                 <span className="text-sm">"{suggestion.newText}"</span>
@@ -1034,9 +965,7 @@ const FloatingSuggestionContent = ({
             />
             <div className="relative mb-1 ml-[26px] flex h-7 items-center rounded-md pl-1.5 text-muted-foreground text-sm hover:bg-muted">
               <div className="absolute top-[-5px] left-[-14px] h-full w-0.5 shrink-0 bg-muted" />
-              <div className="ml-2">
-                Show {suggestion.comments.length - 2} replies
-              </div>
+              <div className="ml-2">Show {suggestion.comments.length - 2} replies</div>
             </div>
             <Comment
               comment={suggestion.comments.at(-1)!}
@@ -1081,9 +1010,7 @@ const FloatingSuggestionContent = ({
           </div>
         )}
 
-        {activeId === id && (
-          <CommentCreateForm discussionId={suggestion.suggestionId} />
-        )}
+        {activeId === id && <CommentCreateForm discussionId={suggestion.suggestionId} />}
       </div>
     </div>
   );

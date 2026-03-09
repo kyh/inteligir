@@ -56,9 +56,7 @@ export function DocumentPlate({ children }: React.PropsWithChildren) {
   });
 
   const value =
-    templateId && !contentRich
-      ? getTemplateDocument(templateId)?.value
-      : (contentRich as Value);
+    templateId && !contentRich ? getTemplateDocument(templateId)?.value : (contentRich as Value);
 
   const editor = usePlateEditor(
     {
@@ -72,15 +70,12 @@ export function DocumentPlate({ children }: React.PropsWithChildren) {
       value,
       userId: session?.user?.id,
     },
-    [documentId]
+    [documentId],
   );
 
-  const debouncedUpdate = useDebouncedCallback(
-    (id: string, value: Value) => {
-      updateDocument.mutate({ id, contentRich: value });
-    },
-    1000
-  );
+  const debouncedUpdate = useDebouncedCallback((id: string, value: Value) => {
+    updateDocument.mutate({ id, contentRich: value });
+  }, 1000);
 
   return (
     <Plate
@@ -97,9 +92,10 @@ export function DocumentPlate({ children }: React.PropsWithChildren) {
 
 export function PublicPlate({ children }: React.PropsWithChildren) {
   const templateDocument = useTemplateDocument();
-  const [template, setTemplate] = useInitialLocalStorage<
-    TemplateDocument | undefined
-  >(`potion-2-${templateDocument?.id ?? "ai"}`, templateDocument);
+  const [template, setTemplate] = useInitialLocalStorage<TemplateDocument | undefined>(
+    `potion-2-${templateDocument?.id ?? "ai"}`,
+    templateDocument,
+  );
   const value = template?.value;
   const id = template?.id;
 
@@ -114,17 +110,14 @@ export function PublicPlate({ children }: React.PropsWithChildren) {
     value,
   });
 
-  const onDebouncedDocumentChange = useDebouncedCallback(
-    (id: string, v: Value) => {
-      setTemplate({
-        id,
-        icon: null,
-        title: template?.title ?? "",
-        value: v,
-      });
-    },
-    1000
-  );
+  const onDebouncedDocumentChange = useDebouncedCallback((id: string, v: Value) => {
+    setTemplate({
+      id,
+      icon: null,
+      title: template?.title ?? "",
+      value: v,
+    });
+  }, 1000);
 
   useWarnIfUnsavedChanges({ enabled: onDebouncedDocumentChange.isPending() });
 
@@ -161,9 +154,7 @@ export function PrintPlate({ children }: React.PropsWithChildren) {
   });
 
   const value =
-    templateId && !contentRich
-      ? getTemplateDocument(templateId)?.value
-      : (contentRich as Value);
+    templateId && !contentRich ? getTemplateDocument(templateId)?.value : (contentRich as Value);
 
   const editor = useMemo(() => {
     const e = createPlateEditor({

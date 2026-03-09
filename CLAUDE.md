@@ -53,6 +53,7 @@ pnpm gen-ui           # Add shadcn component
 ## Quality Gates
 
 Before committing:
+
 ```bash
 pnpm typecheck && pnpm lint && pnpm build
 ```

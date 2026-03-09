@@ -1,11 +1,11 @@
-import { useMounted } from '@/registry/hooks/use-mounted';
+import { useMounted } from "@/registry/hooks/use-mounted";
 
 export const useOrigin = () => {
   const mounted = useMounted();
 
   if (!mounted) {
-    return '';
+    return "";
   }
 
-  return window.location.origin ?? '';
+  return window.location.origin ?? "";
 };

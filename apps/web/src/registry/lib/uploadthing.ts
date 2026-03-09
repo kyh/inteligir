@@ -1,7 +1,7 @@
-import type { FileRouter } from 'uploadthing/next';
+import type { FileRouter } from "uploadthing/next";
 
-import { createUploadthing } from 'uploadthing/next';
-import { UploadThingError } from 'uploadthing/server';
+import { createUploadthing } from "uploadthing/next";
+import { UploadThingError } from "uploadthing/server";
 
 // Potion-only
 // import { getRequestAuth } from '@/server/auth/getRequestAuth';
@@ -11,15 +11,15 @@ const f = createUploadthing();
 
 export const ourFileRouter = {
   // Define as many FileRoutes as you like, each with a unique routeSlug
-  editorUploader: f(['image', 'text', 'blob', 'pdf', 'video', 'audio'])
+  editorUploader: f(["image", "text", "blob", "pdf", "video", "audio"])
     // Set permissions and file types for this FileRoute
     .middleware(({ req }) => {
       // Mock: get the auth user
-      const user = (req ? null : { id: '1' }) as { id: string } | null;
+      const user = (req ? null : { id: "1" }) as { id: string } | null;
       // const { user } = await getRequestAuth(req);
 
       // If you throw, the user will not be able to upload
-      if (!user) throw new UploadThingError('Unauthorized');
+      if (!user) throw new UploadThingError("Unauthorized");
 
       // Mock: fetch from db
       const uploaded = { files: [{ size: 100 }], uploadLimit: 0 };
@@ -37,7 +37,7 @@ export const ourFileRouter = {
       //   },
       // });
 
-      if (!uploaded) throw new UploadThingError('Unauthorized');
+      if (!uploaded) throw new UploadThingError("Unauthorized");
 
       const { files, uploadLimit } = uploaded;
 
@@ -45,7 +45,7 @@ export const ourFileRouter = {
 
       // 500MB
       if (uploadedBytes > uploadLimit)
-        throw new UploadThingError('Reached the maximum upload limit.');
+        throw new UploadThingError("Reached the maximum upload limit.");
 
       // Whatever is returned here is accessible in onUploadComplete as `metadata`
       return { uploadedBytes, userId: user.id };

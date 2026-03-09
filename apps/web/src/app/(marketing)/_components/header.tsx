@@ -25,20 +25,14 @@ export const Header = () => {
           />
         ) : organization ? (
           <Link
-            className={cn(
-              buttonVariants({ variant: "secondary", size: "sm" }),
-              "w-20",
-            )}
+            className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "w-20")}
             href={`/dashboard/${organization.slug}`}
           >
             Dashboard
           </Link>
         ) : (
           <Link
-            className={cn(
-              buttonVariants({ variant: "secondary", size: "sm" }),
-              "w-16",
-            )}
+            className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "w-16")}
             href="/auth/login"
           >
             Login

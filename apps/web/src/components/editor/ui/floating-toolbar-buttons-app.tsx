@@ -1,31 +1,20 @@
-'use client';
+"use client";
 
-import {
-  Bold,
-  Code2,
-  Italic,
-  type LucideProps,
-  Strikethrough,
-  Underline,
-} from 'lucide-react';
-import { KEYS } from 'platejs';
-import {
-  useEditorReadOnly,
-  useEditorRef,
-  useSelectionAcrossBlocks,
-} from 'platejs/react';
+import { Bold, Code2, Italic, type LucideProps, Strikethrough, Underline } from "lucide-react";
+import { KEYS } from "platejs";
+import { useEditorReadOnly, useEditorRef, useSelectionAcrossBlocks } from "platejs/react";
 
-import { AIToolbarButton } from '@/registry/ui/ai-toolbar-button';
-import { InlineEquationToolbarButton } from '@/registry/ui/equation-toolbar-button';
-import { FontColorToolbarButton } from '@/registry/ui/font-color-toolbar-button';
-import { LinkToolbarButton } from '@/registry/ui/link-toolbar-button';
-import { MarkToolbarButton } from '@/registry/ui/mark-toolbar-button';
-import { MoreToolbarButton } from '@/registry/ui/more-toolbar-button';
-import { ToolbarGroup } from '@/registry/ui/toolbar';
-import { TurnIntoToolbarButton } from '@/registry/ui/turn-into-toolbar-button';
+import { AIToolbarButton } from "@/registry/ui/ai-toolbar-button";
+import { InlineEquationToolbarButton } from "@/registry/ui/equation-toolbar-button";
+import { FontColorToolbarButton } from "@/registry/ui/font-color-toolbar-button";
+import { LinkToolbarButton } from "@/registry/ui/link-toolbar-button";
+import { MarkToolbarButton } from "@/registry/ui/mark-toolbar-button";
+import { MoreToolbarButton } from "@/registry/ui/more-toolbar-button";
+import { ToolbarGroup } from "@/registry/ui/toolbar";
+import { TurnIntoToolbarButton } from "@/registry/ui/turn-into-toolbar-button";
 
-import { CommentToolbarButton } from './comment-toolbar-button-app';
-import { SuggestionToolbarButton } from './suggestion-toolbar-button-app';
+import { CommentToolbarButton } from "./comment-toolbar-button-app";
+import { SuggestionToolbarButton } from "./suggestion-toolbar-button-app";
 
 export function FloatingToolbarButtons() {
   const editor = useEditorRef();
@@ -37,18 +26,14 @@ export function FloatingToolbarButtons() {
     <div
       className="flex"
       style={{
-        transform: 'translateX(calc(-1px))',
-        whiteSpace: 'nowrap',
+        transform: "translateX(calc(-1px))",
+        whiteSpace: "nowrap",
       }}
     >
       {!readOnly && (
         <>
           <ToolbarGroup>
-            <AIToolbarButton
-              className="gap-1.5"
-              shortcut="⌘+J"
-              tooltip="Edit, generate, and more"
-            >
+            <AIToolbarButton className="gap-1.5" shortcut="⌘+J" tooltip="Edit, generate, and more">
               <AIIcon className="!size-3" />
               <div className="hidden bg-[linear-gradient(120deg,#6EB6F2_10%,#a855f7,#ea580c,#eab308)] bg-clip-text text-transparent sm:inline">
                 Ask AI
@@ -63,27 +48,15 @@ export function FloatingToolbarButtons() {
           <ToolbarGroup>
             <TurnIntoToolbarButton />
 
-            <MarkToolbarButton
-              nodeType={KEYS.bold}
-              shortcut="⌘+B"
-              tooltip="Bold"
-            >
+            <MarkToolbarButton nodeType={KEYS.bold} shortcut="⌘+B" tooltip="Bold">
               <Bold />
             </MarkToolbarButton>
 
-            <MarkToolbarButton
-              nodeType={KEYS.italic}
-              shortcut="⌘+I"
-              tooltip="Italic"
-            >
+            <MarkToolbarButton nodeType={KEYS.italic} shortcut="⌘+I" tooltip="Italic">
               <Italic />
             </MarkToolbarButton>
 
-            <MarkToolbarButton
-              nodeType={KEYS.underline}
-              shortcut="⌘+U"
-              tooltip="Underline"
-            >
+            <MarkToolbarButton nodeType={KEYS.underline} shortcut="⌘+U" tooltip="Underline">
               <Underline />
             </MarkToolbarButton>
 
@@ -95,11 +68,7 @@ export function FloatingToolbarButtons() {
               <Strikethrough />
             </MarkToolbarButton>
 
-            <MarkToolbarButton
-              nodeType={KEYS.code}
-              shortcut="⌘+E"
-              tooltip="Code"
-            >
+            <MarkToolbarButton nodeType={KEYS.code} shortcut="⌘+E" tooltip="Code">
               <Code2 />
             </MarkToolbarButton>
 
@@ -109,9 +78,7 @@ export function FloatingToolbarButtons() {
 
             <FontColorToolbarButton />
           </ToolbarGroup>
-          <ToolbarGroup>
-            {!isSelectionAcrossBlocks && <MoreToolbarButton />}
-          </ToolbarGroup>
+          <ToolbarGroup>{!isSelectionAcrossBlocks && <MoreToolbarButton />}</ToolbarGroup>
         </>
       )}
     </div>

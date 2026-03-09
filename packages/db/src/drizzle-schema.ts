@@ -17,11 +17,7 @@ import {
 
 import { organization, user } from "./drizzle-schema-auth";
 
-export const textStyleEnum = pgEnum("text_style", [
-  "DEFAULT",
-  "SERIF",
-  "MONO",
-]);
+export const textStyleEnum = pgEnum("text_style", ["DEFAULT", "SERIF", "MONO"]);
 
 export const waitlist = pgTable("waitlist", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
@@ -181,19 +177,16 @@ export const documentRelations = relations(document, ({ one, many }) => ({
   versions: many(documentVersion),
 }));
 
-export const documentVersionRelations = relations(
-  documentVersion,
-  ({ one }) => ({
-    document: one(document, {
-      fields: [documentVersion.documentId],
-      references: [document.id],
-    }),
-    user: one(user, {
-      fields: [documentVersion.userId],
-      references: [user.id],
-    }),
+export const documentVersionRelations = relations(documentVersion, ({ one }) => ({
+  document: one(document, {
+    fields: [documentVersion.documentId],
+    references: [document.id],
   }),
-);
+  user: one(user, {
+    fields: [documentVersion.userId],
+    references: [user.id],
+  }),
+}));
 
 export const discussionRelations = relations(discussion, ({ one, many }) => ({
   document: one(document, {

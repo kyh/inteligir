@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEquationElement, useEquationInput } from '@platejs/math/react';
-import { BlockSelectionPlugin } from '@platejs/selection/react';
-import { CornerDownLeftIcon, RadicalIcon } from 'lucide-react';
-import type { TEquationElement } from 'platejs';
+import { useEquationElement, useEquationInput } from "@platejs/math/react";
+import { BlockSelectionPlugin } from "@platejs/selection/react";
+import { CornerDownLeftIcon, RadicalIcon } from "lucide-react";
+import type { TEquationElement } from "platejs";
 import {
   createPrimitiveComponent,
   PlateElement,
@@ -13,15 +13,15 @@ import {
   useElement,
   useReadOnly,
   useSelected,
-} from 'platejs/react';
-import React, { useEffect } from 'react';
+} from "platejs/react";
+import React, { useEffect } from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-import { BlockActionButton } from './block-context-menu';
-import { Button } from './button';
-import { Popover, PopoverContent, PopoverTrigger } from './popover';
-import { TextareaAutosize, type TextareaAutosizeProps } from './textarea';
+import { BlockActionButton } from "./block-context-menu";
+import { Button } from "./button";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover";
+import { TextareaAutosize, type TextareaAutosizeProps } from "./textarea";
 
 export function EquationElement(props: PlateElementProps) {
   const element = useElement<TEquationElement>();
@@ -34,12 +34,12 @@ export function EquationElement(props: PlateElementProps) {
     katexRef,
     options: {
       displayMode: true,
-      errorColor: '#cc0000',
+      errorColor: "#cc0000",
       fleqn: false,
       leqno: false,
-      macros: { '\\f': '#1f(#2)' },
-      output: 'htmlAndMathml',
-      strict: 'warn',
+      macros: { "\\f": "#1f(#2)" },
+      output: "htmlAndMathml",
+      strict: "warn",
       throwOnError: false,
       trust: false,
     },
@@ -51,10 +51,8 @@ export function EquationElement(props: PlateElementProps) {
         <PopoverTrigger asChild>
           <div
             className={cn(
-              'group flex cursor-pointer select-none items-center justify-center rounded-sm hover:bg-primary/10 data-[selected=true]:bg-primary/10',
-              element.texExpression.length === 0
-                ? 'bg-muted p-3 pr-9'
-                : 'px-2 py-1'
+              "group flex cursor-pointer select-none items-center justify-center rounded-sm hover:bg-primary/10 data-[selected=true]:bg-primary/10",
+              element.texExpression.length === 0 ? "bg-muted p-3 pr-9" : "px-2 py-1",
             )}
             contentEditable={false}
             data-selected={selected}
@@ -75,7 +73,7 @@ export function EquationElement(props: PlateElementProps) {
           isInline={false}
           open={open}
           placeholder={
-            'f(x) = \\begin{cases}\n  x^2, &\\quad x > 0 \\\\\n  0, &\\quad x = 0 \\\\\n  -x^2, &\\quad x < 0\n\\end{cases}'
+            "f(x) = \\begin{cases}\n  x^2, &\\quad x > 0 \\\\\n  0, &\\quad x = 0 \\\\\n  -x^2, &\\quad x < 0\n\\end{cases}"
           }
           setOpen={setOpen}
           variant="equation"
@@ -89,16 +87,11 @@ export function EquationElement(props: PlateElementProps) {
   );
 }
 
-export function InlineEquationElement(
-  props: PlateElementProps<TEquationElement>
-) {
+export function InlineEquationElement(props: PlateElementProps<TEquationElement>) {
   const element = props.element;
   const katexRef = React.useRef<HTMLDivElement | null>(null);
   const selected = useSelected();
-  const isCollapsed = useEditorSelector(
-    (editor) => editor.api.isCollapsed(),
-    []
-  );
+  const isCollapsed = useEditorSelector((editor) => editor.api.isCollapsed(), []);
   const [open, setOpen] = React.useState(selected && isCollapsed);
 
   // Sync popover open state from editor selection - valid Effect (external editor state)
@@ -114,12 +107,12 @@ export function InlineEquationElement(
     katexRef,
     options: {
       displayMode: true,
-      errorColor: '#cc0000',
+      errorColor: "#cc0000",
       fleqn: false,
       leqno: false,
-      macros: { '\\f': '#1f(#2)' },
-      output: 'htmlAndMathml',
-      strict: 'warn',
+      macros: { "\\f": "#1f(#2)" },
+      output: "htmlAndMathml",
+      strict: "warn",
       throwOnError: false,
       trust: false,
     },
@@ -135,18 +128,16 @@ export function InlineEquationElement(
           <div
             className={cn(
               'after:-top-0.5 after:-left-1 after:absolute after:inset-0 after:z-1 after:h-[calc(100%)+4px] after:w-[calc(100%+8px)] after:rounded-sm after:content-[""]',
-              'h-6',
-              ((element.texExpression.length > 0 && open) || selected) &&
-                'after:bg-brand/15',
-              element.texExpression.length === 0 &&
-                'text-muted-foreground after:bg-neutral-500/10'
+              "h-6",
+              ((element.texExpression.length > 0 && open) || selected) && "after:bg-brand/15",
+              element.texExpression.length === 0 && "text-muted-foreground after:bg-neutral-500/10",
             )}
             contentEditable={false}
           >
             <span
               className={cn(
-                element.texExpression.length === 0 && 'hidden',
-                'font-mono leading-none'
+                element.texExpression.length === 0 && "hidden",
+                "font-mono leading-none",
               )}
               ref={katexRef}
             />
@@ -207,9 +198,7 @@ function EquationPopoverContent({
     if (isInline) {
       editor.tf.select(element, { focus: true, next: true });
     } else {
-      editor
-        .getApi(BlockSelectionPlugin)
-        .blockSelection.set(element.id as string);
+      editor.getApi(BlockSelectionPlugin).blockSelection.set(element.id as string);
     }
   };
 
@@ -224,7 +213,7 @@ function EquationPopoverContent({
     >
       <EquationInput
         autoFocus
-        className={cn('grow', className)}
+        className={cn("grow", className)}
         state={{ isInline, open: true, onClose }}
         {...props}
       />

@@ -1,9 +1,9 @@
-import type { TMentionElement } from 'platejs';
-import { IS_APPLE } from 'platejs';
-import { SlateElement, type SlateElementProps } from 'platejs/static';
-import * as React from 'react';
+import type { TMentionElement } from "platejs";
+import { IS_APPLE } from "platejs";
+import { SlateElement, type SlateElementProps } from "platejs/static";
+import * as React from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
 export function MentionElementStatic({
   prefix,
@@ -18,13 +18,13 @@ export function MentionElementStatic({
       {...props}
       attributes={{
         ...props.attributes,
-        'data-slate-value': element.value,
+        "data-slate-value": element.value,
       }}
       className={cn(
-        'inline-block cursor-pointer rounded-md bg-muted px-1.5 py-0.5 align-baseline font-medium text-sm',
-        element.children[0].bold === true && 'font-bold',
-        element.children[0].italic === true && 'italic',
-        element.children[0].underline === true && 'underline'
+        "inline-block cursor-pointer rounded-md bg-muted px-1.5 py-0.5 align-baseline font-medium text-sm",
+        element.children[0].bold === true && "font-bold",
+        element.children[0].italic === true && "italic",
+        element.children[0].underline === true && "underline",
       )}
     >
       {IS_APPLE ? (

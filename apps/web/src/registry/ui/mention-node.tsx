@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { DatePlugin } from '@platejs/date/react';
-import { MentionPlugin } from '@platejs/mention/react';
-import { ArrowUpRightIcon, FileTextIcon } from 'lucide-react';
-import Image from 'next/image';
-import { IS_APPLE, type Value } from 'platejs';
+import { DatePlugin } from "@platejs/date/react";
+import { MentionPlugin } from "@platejs/mention/react";
+import { ArrowUpRightIcon, FileTextIcon } from "lucide-react";
+import Image from "next/image";
+import { IS_APPLE, type Value } from "platejs";
 import {
   PlateElement,
   type PlateElementProps,
@@ -14,18 +14,18 @@ import {
   usePlateEditor,
   useReadOnly,
   useSelected,
-} from 'platejs/react';
-import React, { useEffect, useMemo, useState } from 'react';
-import { useMounted } from 'react-tweet';
-import { cn } from '@/lib/utils';
-import { BaseEditorKit } from '@/registry/components/editor/editor-base-kit';
-import type { MyMentionElement } from '@/registry/components/editor/plate-types';
-import { insertInlineElement } from '@/registry/components/editor/transforms';
-import { useDebounce } from '@/registry/hooks/use-debounce';
+} from "platejs/react";
+import React, { useEffect, useMemo, useState } from "react";
+import { useMounted } from "react-tweet";
+import { cn } from "@/lib/utils";
+import { BaseEditorKit } from "@/registry/components/editor/editor-base-kit";
+import type { MyMentionElement } from "@/registry/components/editor/plate-types";
+import { insertInlineElement } from "@/registry/components/editor/transforms";
+import { useDebounce } from "@/registry/hooks/use-debounce";
 
-import { Avatar, AvatarFallback, AvatarImage } from './avatar';
-import { EditorStatic } from './editor-static';
-import { HoverCard, HoverCardContent, HoverCardTrigger } from './hover-card';
+import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
+import { EditorStatic } from "./editor-static";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./hover-card";
 import {
   InlineCombobox,
   InlineComboboxContent,
@@ -34,13 +34,8 @@ import {
   InlineComboboxGroupLabel,
   InlineComboboxInput,
   InlineComboboxItem,
-} from './inline-combobox';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from './tooltip';
+} from "./inline-combobox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip";
 
 type DocumentItem = {
   id: string;
@@ -61,66 +56,64 @@ type PeopleComboboxGroupProps = {
 
 export const mockMentionDocuments = [
   {
-    id: 'docs/examples/ai',
+    id: "docs/examples/ai",
     contentRich: [
       {
         children: [
           {
-            text: 'A comprehensive guide to using AI features in your documents.',
+            text: "A comprehensive guide to using AI features in your documents.",
           },
         ],
-        type: 'p',
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/ai/800/400',
-    icon: '📋',
-    title: 'AI',
+    coverImage: "https://picsum.photos/seed/ai/800/400",
+    icon: "📋",
+    title: "AI",
   },
   {
-    id: 'docs/examples/callout',
+    id: "docs/examples/callout",
     contentRich: [
       {
         children: [
           {
-            text: 'Learn how to use callouts to highlight important information.',
+            text: "Learn how to use callouts to highlight important information.",
           },
         ],
-        type: 'p',
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/callout/800/400',
-    icon: '🧰',
-    title: 'Callout',
+    coverImage: "https://picsum.photos/seed/callout/800/400",
+    icon: "🧰",
+    title: "Callout",
   },
   {
-    id: 'docs/examples/equation',
+    id: "docs/examples/equation",
     contentRich: [
       {
-        children: [
-          { text: 'Everything you need to know about mathematical equations.' },
-        ],
-        type: 'p',
+        children: [{ text: "Everything you need to know about mathematical equations." }],
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/equation/800/400',
-    icon: '🧮',
-    title: 'Equation',
+    coverImage: "https://picsum.photos/seed/equation/800/400",
+    icon: "🧮",
+    title: "Equation",
   },
   {
-    id: 'docs/examples/toc',
+    id: "docs/examples/toc",
     contentRich: [
       {
         children: [
           {
-            text: 'How to create and manage table of contents in your documents.',
+            text: "How to create and manage table of contents in your documents.",
           },
         ],
-        type: 'p',
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/toc/800/400',
-    icon: '📚',
-    title: 'Table of Contents',
+    coverImage: "https://picsum.photos/seed/toc/800/400",
+    icon: "📚",
+    title: "Table of Contents",
   },
 ];
 
@@ -133,44 +126,42 @@ type UserItem = {
 
 const mockUsers = [
   {
-    id: '1',
-    email: 'john@example.com',
-    name: 'John Doe',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
+    id: "1",
+    email: "john@example.com",
+    name: "John Doe",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=John",
   },
   {
-    id: '2',
-    email: 'jane@example.com',
-    name: 'Jane Smith',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jane',
+    id: "2",
+    email: "jane@example.com",
+    name: "Jane Smith",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jane",
   },
   {
-    id: '3',
-    email: 'bob@example.com',
-    name: 'Bob Wilson',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
+    id: "3",
+    email: "bob@example.com",
+    name: "Bob Wilson",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Bob",
   },
   {
-    id: '4',
-    email: 'alice@example.com',
-    name: 'Alice Brown',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice',
+    id: "4",
+    email: "alice@example.com",
+    name: "Alice Brown",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice",
   },
   {
-    id: '5',
-    email: 'charlie@example.com',
-    name: 'Charlie Davis',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie',
+    id: "5",
+    email: "charlie@example.com",
+    name: "Charlie Davis",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie",
   },
 ];
 
 export function MentionInputElement(props: PlateElementProps) {
-  const [placeholder, setPlaceholder] = useState(
-    'Mention a person,page,or date...'
-  );
+  const [placeholder, setPlaceholder] = useState("Mention a person,page,or date...");
 
   const { children, editor, element } = props;
-  const [search, setSearch] = React.useState('');
+  const [search, setSearch] = React.useState("");
 
   return (
     <PlateElement {...props} as="span">
@@ -183,10 +174,7 @@ export function MentionInputElement(props: PlateElementProps) {
       >
         <span className="rounded-md bg-muted px-1.5 py-0.5 align-baseline text-sm ring-ring">
           <span className="font-bold">@</span>
-          <InlineComboboxInput
-            className="min-w-[100px]"
-            placeholder={placeholder}
-          />
+          <InlineComboboxInput className="min-w-[100px]" placeholder={placeholder} />
         </span>
 
         <InlineComboboxContent variant="mention">
@@ -198,17 +186,17 @@ export function MentionInputElement(props: PlateElementProps) {
               onClick={() => {
                 insertInlineElement(editor, DatePlugin.key);
               }}
-              onFocus={() => setPlaceholder('Today')}
-              onMouseEnter={() => setPlaceholder('Today')}
+              onFocus={() => setPlaceholder("Today")}
+              onMouseEnter={() => setPlaceholder("Today")}
               value="today"
             >
               <span>Today</span>
               <span className="mx-1 text-muted-foreground">—</span>
               <span className="font-medium text-muted-foreground text-xs">
                 {new Date().toLocaleDateString(undefined, {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
                 })}
               </span>
             </InlineComboboxItem>
@@ -219,13 +207,13 @@ export function MentionInputElement(props: PlateElementProps) {
             onDocumentSelect={(document) => {
               editor.tf.insertNodes<MyMentionElement>({
                 key: `/${document.id}`,
-                children: [{ text: '' }],
+                children: [{ text: "" }],
                 coverImage: document.coverImage ?? undefined,
                 icon: document.icon ?? undefined,
                 type: MentionPlugin.key,
                 value: document.title!,
               });
-              editor.tf.move({ unit: 'offset' });
+              editor.tf.move({ unit: "offset" });
             }}
             search={search}
           />
@@ -235,11 +223,11 @@ export function MentionInputElement(props: PlateElementProps) {
             onUserSelect={(user) => {
               editor.tf.insertNodes<MyMentionElement>({
                 key: user.id,
-                children: [{ text: '' }],
+                children: [{ text: "" }],
                 type: MentionPlugin.key,
                 value: user.name ?? user.email!,
               });
-              editor.tf.move({ unit: 'offset' });
+              editor.tf.move({ unit: "offset" });
             }}
             search={search}
           />
@@ -268,9 +256,9 @@ function PeopleComboboxGroup({
       mockUsers.filter(
         (user) =>
           user.name?.toLowerCase().includes(search.toLowerCase()) ||
-          user.email?.toLowerCase().includes(search.toLowerCase())
+          user.email?.toLowerCase().includes(search.toLowerCase()),
       ),
-    [search]
+    [search],
   );
 
   if (allUsers.length === 0) {
@@ -291,9 +279,7 @@ function PeopleComboboxGroup({
         >
           <Avatar className="mr-2.5 size-5">
             <AvatarImage alt={user.name!} src={user.image!} />
-            <AvatarFallback>
-              {user.name?.charAt(0).toUpperCase()}
-            </AvatarFallback>
+            <AvatarFallback>{user.name?.charAt(0).toUpperCase()}</AvatarFallback>
           </Avatar>
 
           {user.name ?? user.email}
@@ -312,10 +298,8 @@ function DocumentComboboxGroup({
 
   const allDocuments = useMemo(
     () =>
-      mockMentionDocuments.filter((doc) =>
-        doc.title.toLowerCase().includes(search.toLowerCase())
-      ),
-    [search]
+      mockMentionDocuments.filter((doc) => doc.title.toLowerCase().includes(search.toLowerCase())),
+    [search],
   );
 
   if (allDocuments.length === 0) {
@@ -330,14 +314,12 @@ function DocumentComboboxGroup({
         <InlineComboboxItem
           key={document.id}
           onClick={() => onDocumentSelect(document as DocumentItem)}
-          onFocus={() => onDocumentHover(document.title ?? '')}
-          onMouseEnter={() => onDocumentHover(document.title ?? '')}
-          value={document.title || 'Untitled Document'}
+          onFocus={() => onDocumentHover(document.title ?? "")}
+          onMouseEnter={() => onDocumentHover(document.title ?? "")}
+          value={document.title || "Untitled Document"}
         >
-          <span className="mr-2 size-5">
-            {document.icon ?? <FileTextIcon />}
-          </span>
-          {document.title ?? 'Untitled Document'}
+          <span className="mr-2 size-5">{document.icon ?? <FileTextIcon />}</span>
+          {document.title ?? "Untitled Document"}
         </InlineComboboxItem>
       ))}
     </InlineComboboxGroup>
@@ -348,17 +330,15 @@ const openDocument = (id: string) => {
   const host = window.location.host;
   const baseUrl =
     // TODO: Remove this for demo only
-    host === 'pro.platejs.org'
-      ? 'https://potion.platejs.org'
-      : window.location.origin;
+    host === "pro.platejs.org" ? "https://potion.platejs.org" : window.location.origin;
 
-  window.open(`${baseUrl}/${id}`, '_self');
+  window.open(`${baseUrl}/${id}`, "_self");
 };
 
 function DocumentMentionElement(
   props: PlateElementProps<MyMentionElement> & {
     prefix?: string;
-  }
+  },
 ) {
   const { children } = props;
   const element = props.element;
@@ -366,7 +346,7 @@ function DocumentMentionElement(
   const focused = useFocused();
 
   useHotkeys(
-    'enter',
+    "enter",
     () => {
       if (selected && focused) {
         openDocument(element.key!.slice(1));
@@ -376,7 +356,7 @@ function DocumentMentionElement(
       enabled: selected && focused,
       enableOnContentEditable: true,
       enableOnFormTags: true,
-    }
+    },
   );
 
   return (
@@ -390,7 +370,7 @@ function DocumentMentionElement(
                 attributes={{
                   ...props.attributes,
                   contentEditable: false,
-                  'data-slate-value': element.value,
+                  "data-slate-value": element.value,
                   draggable: true,
                   onClick: () => {
                     openDocument(element.key!.slice(1));
@@ -398,8 +378,8 @@ function DocumentMentionElement(
                   onMouseDown: (e) => e.preventDefault(),
                 }}
                 className={cn(
-                  'inline-block cursor-pointer rounded px-0.5 hover:bg-muted',
-                  selected && focused && 'bg-brand/25'
+                  "inline-block cursor-pointer rounded px-0.5 hover:bg-muted",
+                  selected && focused && "bg-brand/25",
                 )}
               >
                 {props.prefix}
@@ -431,7 +411,7 @@ function MentionHoverCardContent(props: { element: MyMentionElement }) {
   const editor = useEditorRef();
   const { element } = props;
 
-  const isDocument = element.key!.startsWith('/');
+  const isDocument = element.key!.startsWith("/");
 
   // Find the document from mockDocuments
   const document = React.useMemo(() => {
@@ -455,21 +435,21 @@ function MentionHoverCardContent(props: { element: MyMentionElement }) {
         },
         {
           at: [],
-          mode: 'lowest',
+          mode: "lowest",
           match: (n) => n.type === MentionPlugin.key && n.id === element.id,
-        }
+        },
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document]);
 
   const previewEditor = useEditorPreview(
-    (document?.contentRich as Value | undefined)?.slice(0, 2) ?? []
+    (document?.contentRich as Value | undefined)?.slice(0, 2) ?? [],
   );
 
   return (
     <div className="flex flex-col overflow-hidden rounded">
-      <div className={cn('h-10 w-full')}>
+      <div className={cn("h-10 w-full")}>
         {element.coverImage && (
           <Image
             alt={element.value}
@@ -495,7 +475,7 @@ function MentionHoverCardContent(props: { element: MyMentionElement }) {
 function UserMentionElement(
   props: PlateElementProps<MyMentionElement> & {
     prefix?: string;
-  }
+  },
 ) {
   const { children } = props;
   const element = props.element;
@@ -508,15 +488,15 @@ function UserMentionElement(
       attributes={{
         ...props.attributes,
         contentEditable: false,
-        'data-slate-value': element.value,
+        "data-slate-value": element.value,
         draggable: true,
       }}
       className={cn(
-        'inline-block cursor-pointer align-baseline font-medium text-primary/65',
-        !readOnly && 'cursor-pointer',
-        (element.children[0] as any).bold === true && 'font-bold',
-        (element.children[0] as any).italic === true && 'italic',
-        (element.children[0] as any).underline === true && 'underline'
+        "inline-block cursor-pointer align-baseline font-medium text-primary/65",
+        !readOnly && "cursor-pointer",
+        (element.children[0] as any).bold === true && "font-bold",
+        (element.children[0] as any).italic === true && "italic",
+        (element.children[0] as any).underline === true && "underline",
       )}
     >
       <span className="font-semibold text-primary/45">@</span>
@@ -542,16 +522,12 @@ function UserMentionElement(
 export function MentionElement(
   props: PlateElementProps<MyMentionElement> & {
     prefix?: string;
-  }
+  },
 ) {
   const element = props.element;
-  const isDocument = element.key?.startsWith('/');
+  const isDocument = element.key?.startsWith("/");
 
-  return isDocument ? (
-    <DocumentMentionElement {...props} />
-  ) : (
-    <UserMentionElement {...props} />
-  );
+  return isDocument ? <DocumentMentionElement {...props} /> : <UserMentionElement {...props} />;
 }
 
 const useEditorPreview = (value: Value) => {
@@ -560,7 +536,7 @@ const useEditorPreview = (value: Value) => {
       plugins: BaseEditorKit,
       value,
     },
-    [value]
+    [value],
   );
 
   return editorStatic;

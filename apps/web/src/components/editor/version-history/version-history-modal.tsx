@@ -1,38 +1,36 @@
-import { useQuery } from '@tanstack/react-query';
-import { format } from 'date-fns';
-import type { Value } from 'platejs';
-import React from 'react';
+import { useQuery } from "@tanstack/react-query";
+import { format } from "date-fns";
+import type { Value } from "platejs";
+import React from "react";
 
-import { VersionPlate } from '@/components/editor/version-history/version-plate';
-import { popModal } from '@/components/modals';
-import { Icons } from '@/components/ui/icons';
-import { useTParams } from '@/hooks/use-navigation';
-import { cn } from '@/lib/utils';
-import { Button } from '@/registry/ui/button';
-import { DialogContent, DialogTitle } from '@/registry/ui/dialog';
-import { useUpdateDocumentMutation } from '@/trpc/hooks/document-hooks';
-import { useDocumentVersionsQueryOptions } from '@/trpc/hooks/query-options';
-import { api, useTRPC } from '@/trpc/react';
+import { VersionPlate } from "@/components/editor/version-history/version-plate";
+import { popModal } from "@/components/modals";
+import { Icons } from "@/components/ui/icons";
+import { useTParams } from "@/hooks/use-navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "@/registry/ui/button";
+import { DialogContent, DialogTitle } from "@/registry/ui/dialog";
+import { useUpdateDocumentMutation } from "@/trpc/hooks/document-hooks";
+import { useDocumentVersionsQueryOptions } from "@/trpc/hooks/query-options";
+import { api, useTRPC } from "@/trpc/react";
 
 export function VersionHistoryModal({
   activeVersionId: initialVersionId,
 }: {
   activeVersionId: number | string;
 }) {
-  const [activeVersionId, setActiveVersionId] =
-    React.useState(initialVersionId);
+  const [activeVersionId, setActiveVersionId] = React.useState(initialVersionId);
   const versions = useQuery(useDocumentVersionsQueryOptions());
 
   const activeVersion = React.useMemo(
     () =>
       versions.data?.versions.find(
-        (version, index) =>
-          version?.id === activeVersionId || index + 1 === activeVersionId
+        (version, index) => version?.id === activeVersionId || index + 1 === activeVersionId,
       ),
-    [activeVersionId, versions.data?.versions]
+    [activeVersionId, versions.data?.versions],
   );
 
-  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId } = useTParams<"/dashboard/[slug]/[documentId]">();
   const updateDocument = useUpdateDocumentMutation();
 
   const onRestoreVersion = async () => {
@@ -49,8 +47,7 @@ export function VersionHistoryModal({
   };
 
   const trpc = useTRPC();
-  const hasVersions =
-    versions.data?.versions && versions.data.versions.length > 0;
+  const hasVersions = versions.data?.versions && versions.data.versions.length > 0;
 
   const createVersion = api.version.createVersion.useMutation({
     onSuccess: () => {
@@ -67,9 +64,7 @@ export function VersionHistoryModal({
           <>
             <div className="flex h-[45px] items-center gap-2 pt-2.5 pl-4">
               <Icons.document className="size-5 shrink-0 text-muted-foreground" />
-              <h2 className="w-full truncate text-muted-foreground">
-                {activeVersion.title}
-              </h2>
+              <h2 className="w-full truncate text-muted-foreground">{activeVersion.title}</h2>
             </div>
 
             <div className="h-[calc(100%-45px)] overflow-y-auto px-8">
@@ -77,18 +72,13 @@ export function VersionHistoryModal({
                 {activeVersion.title}
               </h1>
 
-              <VersionPlate
-                id={activeVersion.id}
-                value={activeVersion.contentRich as Value}
-              />
+              <VersionPlate id={activeVersion.id} value={activeVersion.contentRich as Value} />
             </div>
           </>
         ) : (
           <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
             <Icons.history className="size-8 text-muted-foreground/50" />
-            <p className="text-sm">
-              This page does not have any snapshots yet.
-            </p>
+            <p className="text-sm">This page does not have any snapshots yet.</p>
             <Button
               disabled={createVersion.isPending}
               onClick={() => {
@@ -111,8 +101,8 @@ export function VersionHistoryModal({
               version && (
                 <div
                   className={cn(
-                    'mb-1 flex h-14 cursor-pointer flex-col justify-between rounded-sm p-2 hover:bg-accent',
-                    activeVersion?.id === version.id && 'bg-accent'
+                    "mb-1 flex h-14 cursor-pointer flex-col justify-between rounded-sm p-2 hover:bg-accent",
+                    activeVersion?.id === version.id && "bg-accent",
                   )}
                   key={version.id}
                   onClick={() => {
@@ -120,14 +110,10 @@ export function VersionHistoryModal({
                   }}
                   role="button"
                 >
-                  <div className="text-sm">
-                    {format(version.createdAt, 'MMM d, yyyy, h:mm a')}
-                  </div>
-                  <div className="text-gray-500 text-xs">
-                    {version.name}
-                  </div>
+                  <div className="text-sm">{format(version.createdAt, "MMM d, yyyy, h:mm a")}</div>
+                  <div className="text-gray-500 text-xs">{version.name}</div>
                 </div>
-              )
+              ),
           )}
         </div>
 

@@ -8,7 +8,7 @@ import { Icons } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { Button } from "@/registry/ui/button";
 
-const authRoutes = ["/login", "/auth/login"];
+const authRoutes = new Set(["/login", "/auth/login"]);
 
 function encodeURL(pathname: string, search: string): string {
   const url = search ? `${pathname}?${search}` : pathname;
@@ -22,21 +22,17 @@ export function LoginForm() {
 
   const computedCallbackUrl =
     callbackUrl ??
-    (!authRoutes.includes(pathname)
-      ? encodeURL(pathname, searchParams.toString())
-      : null);
+    (!authRoutes.has(pathname) ? encodeURL(pathname, searchParams.toString()) : null);
 
   const handleGithubSignIn = () => {
     authClient.signIn.social({
-      callbackURL: computedCallbackUrl
-        ? decodeURIComponent(computedCallbackUrl)
-        : "/",
+      callbackURL: computedCallbackUrl ? decodeURIComponent(computedCallbackUrl) : "/",
       provider: "github",
     });
   };
 
   return (
-    <div className={cn('mx-auto grid space-y-6 py-4')}>
+    <div className={cn("mx-auto grid space-y-6 py-4")}>
       <div className="flex flex-col gap-2 text-center">
         <Icons.logo className="mx-auto mb-3 size-8 text-foreground" />
         <div className="font-semibold text-xl">Welcome back</div>

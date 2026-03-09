@@ -1,4 +1,4 @@
-import type { VariantProps } from 'class-variance-authority';
+import type { VariantProps } from "class-variance-authority";
 import {
   Activity,
   Album,
@@ -138,14 +138,14 @@ import {
   X,
   XIcon,
   ZoomOut,
-} from 'lucide-react';
-import type React from 'react';
+} from "lucide-react";
+import type React from "react";
 
-import { GitHubIcon } from '../icons/GitHubIcon';
-import { ImageUploadIcon } from '../icons/ImageUploadIcon';
-import { LogoIcon } from '../icons/LogoIcon';
-import { TwitterXIcon } from '../icons/TwitterXIcon';
-import { createIcon, type iconVariants } from './icon';
+import { GitHubIcon } from "../icons/GitHubIcon";
+import { ImageUploadIcon } from "../icons/ImageUploadIcon";
+import { LogoIcon } from "../icons/LogoIcon";
+import { TwitterXIcon } from "../icons/TwitterXIcon";
+import { createIcon, type iconVariants } from "./icon";
 
 const iconMap = {
   add: Plus,
@@ -304,8 +304,8 @@ const iconMap = {
 export const Icons = Object.fromEntries(
   Object.entries(iconMap).map(([key, IconComponent]) => [
     key,
-    createIcon(IconComponent, key === 'spinner' ? { spin: true } : {}),
-  ])
+    createIcon(IconComponent, key === "spinner" ? { spin: true } : {}),
+  ]),
 ) as Record<IconName, ReturnType<typeof createIcon>>;
 
 export type IconFC = React.FC<IconProps>;

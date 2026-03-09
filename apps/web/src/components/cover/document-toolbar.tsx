@@ -1,27 +1,24 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { useEditorRef } from 'platejs/react';
-import React, { type ElementRef, useRef } from 'react';
+import { useQuery } from "@tanstack/react-query";
+import { useEditorRef } from "platejs/react";
+import React, { type ElementRef, useRef } from "react";
 
-import { Icons } from '@/components/ui/icons';
-import { useTParams } from '@/hooks/use-navigation';
-import { cn } from '@/lib/utils';
-import { Button } from '@/registry/ui/button';
-import { Input } from '@/registry/ui/input';
-import {
-  useUpdateDocumentMutation,
-  useUpdateDocumentTitle,
-} from '@/trpc/hooks/document-hooks';
-import { useDocumentQueryOptions } from '@/trpc/hooks/query-options';
+import { Icons } from "@/components/ui/icons";
+import { useTParams } from "@/hooks/use-navigation";
+import { cn } from "@/lib/utils";
+import { Button } from "@/registry/ui/button";
+import { Input } from "@/registry/ui/input";
+import { useUpdateDocumentMutation, useUpdateDocumentTitle } from "@/trpc/hooks/document-hooks";
+import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 
-import { useAuthGuard } from '../auth/useAuthGuard';
-import { getTemplateDocument } from '../editor/utils/useTemplateDocument';
-import { DocumentIconPicker } from './document-icon-picker';
+import { useAuthGuard } from "../auth/useAuthGuard";
+import { getTemplateDocument } from "../editor/utils/useTemplateDocument";
+import { DocumentIconPicker } from "./document-icon-picker";
 
 export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
   const authGuard = useAuthGuard();
-  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId } = useTParams<"/dashboard/[slug]/[documentId]">();
   const editor = useEditorRef();
   const queryOptions = useDocumentQueryOptions();
 
@@ -39,7 +36,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
     ...queryOptions,
     select: (data) => data.document?.title,
   });
-  title = queryOptions.enabled ? title : getTemplateDocument(documentId ?? '')?.title;
+  title = queryOptions.enabled ? title : getTemplateDocument(documentId ?? "")?.title;
 
   const { data: fullWidth } = useQuery({
     ...queryOptions,
@@ -51,7 +48,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
     select: (data) => data.document?.coverImage,
   });
 
-  const inputRef = useRef<ElementRef<'input'>>(null);
+  const inputRef = useRef<ElementRef<"input">>(null);
   const updateTitle = useUpdateDocumentTitle();
   const updateDocument = useUpdateDocumentMutation();
 
@@ -60,11 +57,11 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
   return (
     <div
       className={cn(
-        'group relative flex flex-col justify-end',
-        !coverImage && !icon && 'sm:min-h-[160px]',
-        !coverImage && icon && 'sm:min-h-[265px]',
-        'px-16 sm:px-[max(64px,calc(50%-350px))]',
-        fullWidth && 'px-16 sm:px-24'
+        "group relative flex flex-col justify-end",
+        !coverImage && !icon && "sm:min-h-[160px]",
+        !coverImage && icon && "sm:min-h-[265px]",
+        "px-16 sm:px-[max(64px,calc(50%-350px))]",
+        fullWidth && "px-16 sm:px-24",
       )}
       data-plate-selectable
     >
@@ -75,8 +72,8 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
           <DocumentIconPicker>
             <Button
               className={cn(
-                'size-[78px] text-[78px] hover:bg-accent/30',
-                coverImage && 'mt-[-42px]'
+                "size-[78px] text-[78px] hover:bg-accent/30",
+                coverImage && "mt-[-42px]",
               )}
               size="none"
               variant="ghost"
@@ -101,7 +98,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
               authGuard(() => {
                 updateDocument.mutate({
                   id: documentId,
-                  coverImage: 'misty',
+                  coverImage: "misty",
                 });
               });
             }}
@@ -125,7 +122,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
           });
         }}
         onKeyDown={(e) => {
-          if (e.key === 'Enter') {
+          if (e.key === "Enter") {
             e.preventDefault();
             editor.tf.focus();
           }
@@ -133,7 +130,7 @@ export const DocumentToolbar = ({ preview }: { preview?: boolean }) => {
         placeholder="Untitled"
         readOnly={readOnly}
         ref={inputRef}
-        value={title ?? ''}
+        value={title ?? ""}
         variant="link"
       />
     </div>

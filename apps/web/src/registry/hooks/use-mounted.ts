@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useSyncExternalStore } from 'react';
+import { useSyncExternalStore } from "react";
 
 /**
  * A custom hook that returns a boolean value indicating whether the component
@@ -11,7 +11,7 @@ export const useMounted = () => {
   return useSyncExternalStore(
     subscribe, // subscribe: no-op, never changes
     () => true, // getSnapshot (client): always true
-    () => false // getServerSnapshot (SSR): always false
+    () => false, // getServerSnapshot (SSR): always false
   );
 };
 

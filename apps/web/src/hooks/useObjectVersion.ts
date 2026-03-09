@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from "react";
 
 export const useObjectVersion = (obj: unknown): number => {
   const [version, setVersion] = useState(0);

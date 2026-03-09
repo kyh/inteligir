@@ -1,6 +1,6 @@
-import { Skeleton } from '@/components/ui/skeleton';
+import { Skeleton } from "@/components/ui/skeleton";
 
-import { CoverSkeleton } from './cover/cover';
+import { CoverSkeleton } from "./cover/cover";
 
 export const DocumentSkeleton = () => (
   <div>

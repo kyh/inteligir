@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import {
   BlockquotePlugin,
@@ -6,13 +6,13 @@ import {
   H2Plugin,
   H3Plugin,
   HorizontalRulePlugin,
-} from '@platejs/basic-nodes/react';
-import { ParagraphPlugin } from 'platejs/react';
+} from "@platejs/basic-nodes/react";
+import { ParagraphPlugin } from "platejs/react";
 
-import { BlockquoteElement } from '@/registry/ui/blockquote-node';
-import { H1Element, H2Element, H3Element } from '@/registry/ui/heading-node';
-import { HrElement } from '@/registry/ui/hr-node';
-import { ParagraphElement } from '@/registry/ui/paragraph-node';
+import { BlockquoteElement } from "@/registry/ui/blockquote-node";
+import { H1Element, H2Element, H3Element } from "@/registry/ui/heading-node";
+import { HrElement } from "@/registry/ui/hr-node";
+import { ParagraphElement } from "@/registry/ui/paragraph-node";
 
 export const BasicBlocksKit = [
   ParagraphPlugin.withComponent(ParagraphElement),
@@ -21,31 +21,31 @@ export const BasicBlocksKit = [
       component: H1Element,
     },
     rules: {
-      break: { empty: 'reset' },
+      break: { empty: "reset" },
     },
-    shortcuts: { toggle: { keys: 'mod+alt+1' } },
+    shortcuts: { toggle: { keys: "mod+alt+1" } },
   }),
   H2Plugin.configure({
     node: {
       component: H2Element,
     },
     rules: {
-      break: { empty: 'reset' },
+      break: { empty: "reset" },
     },
-    shortcuts: { toggle: { keys: 'mod+alt+2' } },
+    shortcuts: { toggle: { keys: "mod+alt+2" } },
   }),
   H3Plugin.configure({
     node: {
       component: H3Element,
     },
     rules: {
-      break: { empty: 'reset' },
+      break: { empty: "reset" },
     },
-    shortcuts: { toggle: { keys: 'mod+alt+3' } },
+    shortcuts: { toggle: { keys: "mod+alt+3" } },
   }),
   BlockquotePlugin.configure({
     node: { component: BlockquoteElement },
-    shortcuts: { toggle: { keys: 'mod+shift+period' } },
+    shortcuts: { toggle: { keys: "mod+shift+period" } },
   }),
   HorizontalRulePlugin.withComponent(HrElement),
 ];

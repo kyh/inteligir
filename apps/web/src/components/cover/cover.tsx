@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import Image from 'next/image';
-import { useState } from 'react';
+import { useQuery } from "@tanstack/react-query";
+import Image from "next/image";
+import { useState } from "react";
 
-import { Skeleton } from '@/components/ui/skeleton';
-import { cn } from '@/lib/utils';
-import { useDocumentQueryOptions } from '@/trpc/hooks/query-options';
+import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
+import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 
-import { DocumentBanner } from '../navbar/document-banner';
-import { PublishedBanner } from '../navbar/published-banner';
-import { COVER_GRADIENTS, CoverPopover } from './cover-popover';
+import { DocumentBanner } from "../navbar/document-banner";
+import { PublishedBanner } from "../navbar/published-banner";
+import { COVER_GRADIENTS, CoverPopover } from "./cover-popover";
 
 export function Cover({ preview }: { preview?: boolean; url?: string | null }) {
   const queryOptions = useDocumentQueryOptions();
@@ -32,11 +32,7 @@ export function Cover({ preview }: { preview?: boolean; url?: string | null }) {
 
   const [imageError, setImageError] = useState(false);
 
-  const banner = isArchived ? (
-    <DocumentBanner />
-  ) : isPublished ? (
-    <PublishedBanner />
-  ) : null;
+  const banner = isArchived ? <DocumentBanner /> : isPublished ? <PublishedBanner /> : null;
 
   if (!coverImage) {
     return banner;
@@ -49,11 +45,9 @@ export function Cover({ preview }: { preview?: boolean; url?: string | null }) {
       {banner}
       <div
         className={cn(
-          'group relative h-[35vh] w-full shrink-0',
-          isGradient
-            ? COVER_GRADIENTS[coverImage as keyof typeof COVER_GRADIENTS]
-            : 'bg-white',
-          window.location.toString().includes('preview') ? 'dark:bg-black' : ''
+          "group relative h-[35vh] w-full shrink-0",
+          isGradient ? COVER_GRADIENTS[coverImage as keyof typeof COVER_GRADIENTS] : "bg-white",
+          window.location.toString().includes("preview") ? "dark:bg-black" : "",
         )}
         data-plate-selectable
       >

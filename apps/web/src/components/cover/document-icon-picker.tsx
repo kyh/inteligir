@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import EmojiPicker, { Theme } from 'emoji-picker-react';
-import { useTheme } from 'next-themes';
-import { useState } from 'react';
+import EmojiPicker, { Theme } from "emoji-picker-react";
+import { useTheme } from "next-themes";
+import { useState } from "react";
 
-import { useTParams } from '@/hooks/use-navigation';
-import { Button } from '@/registry/ui/button';
-import { Popover, PopoverContent, PopoverTrigger } from '@/registry/ui/popover';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/registry/ui/tabs';
-import { useUpdateDocumentMutation } from '@/trpc/hooks/document-hooks';
+import { useTParams } from "@/hooks/use-navigation";
+import { Button } from "@/registry/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/registry/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/registry/ui/tabs";
+import { useUpdateDocumentMutation } from "@/trpc/hooks/document-hooks";
 
-import { useAuthGuard } from '../auth/useAuthGuard';
+import { useAuthGuard } from "../auth/useAuthGuard";
 
 type IconPickerProps = {
   children: React.ReactNode;
@@ -19,13 +19,13 @@ type IconPickerProps = {
 
 export const DocumentIconPicker = ({ children }: IconPickerProps) => {
   const { resolvedTheme } = useTheme();
-  const currentTheme = (resolvedTheme || 'light') as keyof typeof themeMap;
+  const currentTheme = (resolvedTheme || "light") as keyof typeof themeMap;
   const themeMap = {
     dark: Theme.DARK,
     light: Theme.LIGHT,
   };
   const theme = themeMap[currentTheme];
-  const { documentId: id } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId: id } = useTParams<"/dashboard/[slug]/[documentId]">();
   const authGuard = useAuthGuard();
   const [open, setOpen] = useState(false);
 

@@ -1,3 +1,3 @@
-'use client';
+"use client";
 
 export const DynamicModalEffect = () => null;

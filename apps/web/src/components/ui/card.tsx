@@ -57,9 +57,7 @@ const cardDescriptionVariants = cva("text-subtle-foreground", {
   },
 });
 
-export const CardDescription = withVariants("p", cardDescriptionVariants, [
-  "variant",
-]);
+export const CardDescription = withVariants("p", cardDescriptionVariants, ["variant"]);
 
 const cardContentVariants = cva("", {
   defaultVariants: {
@@ -73,9 +71,7 @@ const cardContentVariants = cva("", {
   },
 });
 
-export const CardContent = withVariants("div", cardContentVariants, [
-  "variant",
-]);
+export const CardContent = withVariants("div", cardContentVariants, ["variant"]);
 
 const cardFooterVariants = cva("flex items-center", {
   defaultVariants: {

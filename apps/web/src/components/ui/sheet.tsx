@@ -1,42 +1,36 @@
-'use client';
+"use client";
 
-import { cva, type VariantProps } from 'class-variance-authority';
-import { Dialog as SheetPrimitive } from 'radix-ui';
-import * as React from 'react';
+import { cva, type VariantProps } from "class-variance-authority";
+import { Dialog as SheetPrimitive } from "radix-ui";
+import * as React from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-import { Icons } from './icons';
+import { Icons } from "./icons";
 
 const Sheet = SheetPrimitive.Root;
 
 const SheetTrigger = SheetPrimitive.Trigger;
 
-const portalVariants = cva('fixed z-9999 flex', {
-  defaultVariants: { modal: true, position: 'right' },
+const portalVariants = cva("fixed z-9999 flex", {
+  defaultVariants: { modal: true, position: "right" },
   variants: {
     modal: {
-      true: 'inset-0',
+      true: "inset-0",
     },
     position: {
-      bottom: 'items-end',
-      left: 'justify-start',
-      right: 'justify-end',
-      top: 'items-start',
+      bottom: "items-end",
+      left: "justify-start",
+      right: "justify-end",
+      top: "items-start",
     },
   },
 });
 
 interface SheetPortalProps
-  extends SheetPrimitive.DialogPortalProps,
-    VariantProps<typeof portalVariants> {}
+  extends SheetPrimitive.DialogPortalProps, VariantProps<typeof portalVariants> {}
 
-function SheetPortal({
-  children,
-  modal,
-  position,
-  ...props
-}: SheetPortalProps) {
+function SheetPortal({ children, modal, position, ...props }: SheetPortalProps) {
   return (
     <SheetPrimitive.Portal {...props}>
       <div className={portalVariants({ modal, position })}>{children}</div>
@@ -51,38 +45,32 @@ export function SheetOverlay({
 }: React.ComponentProps<typeof SheetPrimitive.Overlay>) {
   return (
     <SheetPrimitive.Overlay
-      className={cn(
-        'fixed inset-0 z-9999 transition-all duration-100',
-        className
-      )}
+      className={cn("fixed inset-0 z-9999 transition-all duration-100", className)}
       {...props}
     />
   );
 }
 
 // Changed
-const sheetVariants = cva(
-  'fixed z-9999 gap-4 bg-background p-6 shadow-lg transition ease-in-out',
-  {
-    defaultVariants: {
-      animate: true,
-      side: 'right',
+const sheetVariants = cva("fixed z-9999 gap-4 bg-background p-6 shadow-lg transition ease-in-out", {
+  defaultVariants: {
+    animate: true,
+    side: "right",
+  },
+  variants: {
+    animate: {
+      true: "data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500",
     },
-    variants: {
-      animate: {
-        true: 'data-[state=closed]:animate-out data-[state=open]:animate-in data-[state=closed]:duration-300 data-[state=open]:duration-500',
-      },
-      side: {
-        bottom:
-          'data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 border-t',
-        left: 'data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm',
-        right:
-          'data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm',
-        top: 'data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 border-b',
-      },
+    side: {
+      bottom:
+        "data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom inset-x-0 bottom-0 border-t",
+      left: "data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left inset-y-0 left-0 h-full w-3/4 border-r sm:max-w-sm",
+      right:
+        "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right inset-y-0 right-0 h-full w-3/4 border-l sm:max-w-sm",
+      top: "data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top inset-x-0 top-0 border-b",
     },
-  }
-);
+  },
+});
 
 export function SheetContent({
   animate,
@@ -116,8 +104,8 @@ export function SheetContent({
           <SheetPrimitive.Close
             aria-label="Close"
             className={cn(
-              'focus:focus-ring absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary',
-              closeClassName
+              "focus:focus-ring absolute top-4 right-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary",
+              closeClassName,
             )}
             onClick={onClose}
           >
@@ -129,28 +117,13 @@ export function SheetContent({
   );
 }
 
-const SheetHeader = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-  <div
-    className={cn(
-      'flex flex-col space-y-2 text-center sm:text-left',
-      className
-    )}
-    {...props}
-  />
+const SheetHeader = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+  <div className={cn("flex flex-col space-y-2 text-center sm:text-left", className)} {...props} />
 );
 
-const SheetFooter = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+const SheetFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn(
-      'flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2',
-      className
-    )}
+    className={cn("flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2", className)}
     {...props}
   />
 );
@@ -161,7 +134,7 @@ export function SheetTitle({
 }: React.ComponentProps<typeof SheetPrimitive.Title>) {
   return (
     <SheetPrimitive.Title
-      className={cn('font-semibold text-foreground text-lg', className)}
+      className={cn("font-semibold text-foreground text-lg", className)}
       {...props}
     />
   );
@@ -172,10 +145,7 @@ export function SheetDescription({
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Description>) {
   return (
-    <SheetPrimitive.Description
-      className={cn('text-subtle-foreground', className)}
-      {...props}
-    />
+    <SheetPrimitive.Description className={cn("text-subtle-foreground", className)} {...props} />
   );
 }
 

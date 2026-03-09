@@ -1,13 +1,9 @@
-import {
-  type PlateElementProps,
-  type RenderNodeWrapper,
-  useEditorPlugin,
-} from 'platejs/react';
-import React, { type HTMLAttributes, type ReactNode } from 'react';
+import { type PlateElementProps, type RenderNodeWrapper, useEditorPlugin } from "platejs/react";
+import React, { type HTMLAttributes, type ReactNode } from "react";
 
-import { cn } from '@/lib/utils';
+import { cn } from "@/lib/utils";
 
-import { ChunkPlugin, type ChunkPluginConfig } from './chunk-plugin';
+import { ChunkPlugin, type ChunkPluginConfig } from "./chunk-plugin";
 
 export type TChunkProps = {
   blockCount: number;
@@ -27,19 +23,16 @@ function BlockChunkContent(props: PlateElementProps) {
   const { children, element } = props;
   const { getOptions } = useEditorPlugin<ChunkPluginConfig>(ChunkPlugin);
 
-  const { blockCount, chunkIndex, showExpandButton } =
-    element.chunkCollapsed as TChunkProps;
+  const { blockCount, chunkIndex, showExpandButton } = element.chunkCollapsed as TChunkProps;
 
-  const mappedChildren = injectNodeProps(children, { className: 'hidden' });
+  const mappedChildren = injectNodeProps(children, { className: "hidden" });
 
   return (
     <>
       {showExpandButton && (
         <ExpandChunkButton
           blockCount={blockCount}
-          onClick={() =>
-            getOptions().setExpandedChunks!((prev) => [...prev, chunkIndex])
-          }
+          onClick={() => getOptions().setExpandedChunks!((prev) => [...prev, chunkIndex])}
         />
       )}
       {mappedChildren}
@@ -47,22 +40,19 @@ function BlockChunkContent(props: PlateElementProps) {
   );
 }
 
-const mergeableProps: (keyof HTMLAttributes<HTMLElement>)[] = ['className'];
+const mergeableProps: (keyof HTMLAttributes<HTMLElement>)[] = new Set(["className"]);
 
-const injectNodeProps = (
-  children: ReactNode,
-  props: HTMLAttributes<HTMLElement>
-) =>
+const injectNodeProps = (children: ReactNode, props: HTMLAttributes<HTMLElement>) =>
   React.Children.map(children, (child) => {
     if (React.isValidElement(child)) {
       const { attributes } = child.props as PlateElementProps;
 
       Object.keys(props).forEach((key) => {
         const exists = attributes && key in attributes;
-        const mergeable = mergeableProps.includes(key as any);
+        const mergeable = mergeableProps.has(key as any);
 
         if (exists && !mergeable) {
-          console.warn('injectNodeProps: Overwriting existing node prop', key);
+          console.warn("injectNodeProps: Overwriting existing node prop", key);
         }
       });
 
@@ -77,13 +67,7 @@ const injectNodeProps = (
     return child;
   });
 
-function ExpandChunkButton({
-  blockCount,
-  onClick,
-}: {
-  blockCount: number;
-  onClick: () => void;
-}) {
+function ExpandChunkButton({ blockCount, onClick }: { blockCount: number; onClick: () => void }) {
   return (
     <button onClick={onClick} type="button">
       View {blockCount} more

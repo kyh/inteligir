@@ -1,18 +1,14 @@
-import type { DiffOperation } from '@platejs/diff';
-import type { TText } from 'platejs';
+import type { DiffOperation } from "@platejs/diff";
+import type { TText } from "platejs";
 
-import {
-  PlateLeaf,
-  type PlateLeafProps,
-  type RenderNodeWrapper,
-} from 'platejs/react';
+import { PlateLeaf, type PlateLeafProps, type RenderNodeWrapper } from "platejs/react";
 
-import { describeUpdate } from './diff-plugin';
+import { describeUpdate } from "./diff-plugin";
 
-const diffOperationColors: Record<DiffOperation['type'], string> = {
-  delete: 'bg-red-200',
-  insert: 'bg-green-200',
-  update: 'bg-blue-200',
+const diffOperationColors: Record<DiffOperation["type"], string> = {
+  delete: "bg-red-200",
+  insert: "bg-green-200",
+  update: "bg-blue-200",
 };
 
 export const BlockDiff: RenderNodeWrapper =
@@ -24,22 +20,18 @@ export const BlockDiff: RenderNodeWrapper =
       const diffOperation = element.diffOperation as DiffOperation;
 
       const label = {
-        delete: 'deletion',
-        insert: 'insertion',
-        update: 'update',
+        delete: "deletion",
+        insert: "insertion",
+        update: "update",
       }[diffOperation.type];
 
-      const Component = editor.api.isInline(element) ? 'span' : 'div';
+      const Component = editor.api.isInline(element) ? "span" : "div";
 
       return (
         <Component
           aria-label={label}
           className={diffOperationColors[diffOperation.type]}
-          title={
-            diffOperation.type === 'update'
-              ? describeUpdate(diffOperation)
-              : undefined
-          }
+          title={diffOperation.type === "update" ? describeUpdate(diffOperation) : undefined}
         >
           {children}
         </Component>
@@ -47,15 +39,13 @@ export const BlockDiff: RenderNodeWrapper =
     }
   };
 
-export function DiffLeaf(
-  props: PlateLeafProps<TText & { diffOperation: DiffOperation }>
-) {
+export function DiffLeaf(props: PlateLeafProps<TText & { diffOperation: DiffOperation }>) {
   const diffOperation = props.leaf.diffOperation;
 
   const Component = {
-    delete: 'del',
-    insert: 'ins',
-    update: 'span',
+    delete: "del",
+    insert: "ins",
+    update: "span",
   }[diffOperation.type] as any;
 
   return (
@@ -64,10 +54,7 @@ export function DiffLeaf(
       as={Component}
       attributes={{
         ...props.attributes,
-        title:
-          diffOperation.type === 'update'
-            ? describeUpdate(diffOperation)
-            : undefined,
+        title: diffOperation.type === "update" ? describeUpdate(diffOperation) : undefined,
       }}
       className={diffOperationColors[diffOperation.type]}
     />

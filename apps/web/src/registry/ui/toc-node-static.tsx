@@ -1,22 +1,22 @@
-import { BaseTocPlugin, type Heading, isHeading } from '@platejs/toc';
-import { cva } from 'class-variance-authority';
-import { KEYS, NodeApi, type SlateEditor, type TElement } from 'platejs';
-import { SlateElement, type SlateElementProps } from 'platejs/static';
-import * as React from 'react';
+import { BaseTocPlugin, type Heading, isHeading } from "@platejs/toc";
+import { cva } from "class-variance-authority";
+import { KEYS, NodeApi, type SlateEditor, type TElement } from "platejs";
+import { SlateElement, type SlateElementProps } from "platejs/static";
+import * as React from "react";
 
-import { Button } from './button';
+import { Button } from "./button";
 
 const headingItemVariants = cva(
-  'block h-auto w-full cursor-pointer truncate rounded-none px-0.5 py-1.5 text-left font-medium text-muted-foreground underline decoration-[0.5px] underline-offset-4 hover:bg-accent hover:text-muted-foreground',
+  "block h-auto w-full cursor-pointer truncate rounded-none px-0.5 py-1.5 text-left font-medium text-muted-foreground underline decoration-[0.5px] underline-offset-4 hover:bg-accent hover:text-muted-foreground",
   {
     variants: {
       depth: {
-        1: 'pl-0.5',
-        2: 'pl-[26px]',
-        3: 'pl-[50px]',
+        1: "pl-0.5",
+        2: "pl-[26px]",
+        3: "pl-[50px]",
       },
     },
-  }
+  },
 );
 
 export function TocElementStatic(props: SlateElementProps) {

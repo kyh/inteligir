@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -9,8 +9,8 @@ export const uploadValue: any = (
   <fragment>
     <hh2>Upload Files</hh2>
     <hp>
-      Our editor supports various media types for upload, including images,
-      videos, audio, and files.
+      Our editor supports various media types for upload, including images, videos, audio, and
+      files.
     </hp>
     {/* <hp>Ways to upload:</hp>
     <hp indent={1} listStyleType="decimal">
@@ -30,17 +30,14 @@ export const uploadValue: any = (
       <htext>Type "/image" to insert the image.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Upload by clicking the button or use "Embed link" to insert a URL.
-      </htext>
+      <htext>Upload by clicking the button or use "Embed link" to insert a URL.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Resize images using the vertical edge bars.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>
-        Use top-right corner options to: align, caption, expand, download, or
-        modify the block.
+        Use top-right corner options to: align, caption, expand, download, or modify the block.
       </htext>
     </hp>
     <himg
@@ -62,8 +59,7 @@ export const uploadValue: any = (
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>
-        Use top-right corner options to: align, caption, view original, or
-        modify the block.
+        Use top-right corner options to: align, caption, view original, or modify the block.
       </htext>
     </hp>
     <hvideo
@@ -82,16 +78,9 @@ export const uploadValue: any = (
       <htext>Upload or embed an audio URL.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Use the top-right corner to access the block menu and modify the audio
-        block.
-      </htext>
+      <htext>Use the top-right corner to access the block menu and modify the audio block.</htext>
     </hp>
-    <haudio
-      align="center"
-      url="https://samplelib.com/lib/preview/mp3/sample-3s.mp3"
-      width="80%"
-    >
+    <haudio align="center" url="https://samplelib.com/lib/preview/mp3/sample-3s.mp3" width="80%">
       <htext />
     </haudio>
     <hh3>Files</hh3>
@@ -102,10 +91,7 @@ export const uploadValue: any = (
       <htext>Upload or embed a file URL.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Use the top-right corner to access the block menu and modify the file
-        block.
-      </htext>
+      <htext>Use the top-right corner to access the block menu and modify the file block.</htext>
     </hp>
     <hfile
       align="center"
@@ -117,9 +103,7 @@ export const uploadValue: any = (
       <htext />
     </hfile>
     <hcallout icon="💡" variant="info">
-      <htext>
-        You can upload multiple files simultaneously to boost your productivity!
-      </htext>
+      <htext>You can upload multiple files simultaneously to boost your productivity!</htext>
     </hcallout>
   </fragment>
 );

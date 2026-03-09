@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { debounce } from 'lodash';
-import { useEditorContainerRef } from 'platejs/react';
-import { useEffect } from 'react';
+import { debounce } from "lodash";
+import { useEditorContainerRef } from "platejs/react";
+import { useEffect } from "react";
 
-import { BlockDiscussion } from '@/components/editor/ui/block-discussion-app';
-import { FloatingDiscussion } from '@/components/editor/ui/floating-discussion-app';
-import { commentPlugin as CommentPlugin } from '@/registry/components/editor/plugins/comment-kit';
-import { CommentLeaf } from '@/registry/ui/comment-node';
+import { BlockDiscussion } from "@/components/editor/ui/block-discussion-app";
+import { FloatingDiscussion } from "@/components/editor/ui/floating-discussion-app";
+import { commentPlugin as CommentPlugin } from "@/registry/components/editor/plugins/comment-kit";
+import { CommentLeaf } from "@/registry/ui/comment-node";
 
 export const commentPlugin = CommentPlugin.configure({
   render: {
@@ -17,7 +17,7 @@ export const commentPlugin = CommentPlugin.configure({
     node: CommentLeaf,
   },
   shortcuts: {
-    setDraft: { keys: 'mod+shift+m' },
+    setDraft: { keys: "mod+shift+m" },
   },
   useHooks: ({ editor, setOption }) => {
     const editorContainerRef = useEditorContainerRef();
@@ -33,14 +33,14 @@ export const commentPlugin = CommentPlugin.configure({
         const styles = window.getComputedStyle(editable);
         const isOverlap = Number.parseInt(styles.paddingRight, 10) < 80 + 288;
 
-        setOption('isOverlapWithEditor', isOverlap);
+        setOption("isOverlapWithEditor", isOverlap);
       }, 100);
 
-      window.addEventListener('resize', handleResize);
+      window.addEventListener("resize", handleResize);
       handleResize();
 
       return () => {
-        window.removeEventListener('resize', handleResize);
+        window.removeEventListener("resize", handleResize);
         handleResize.cancel();
       };
     }, [editor, editorContainerRef, setOption]);

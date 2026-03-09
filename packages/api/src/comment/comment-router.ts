@@ -13,7 +13,7 @@ export const commentRouter = createTRPCRouter({
       z.object({
         contentRich: z.array(z.unknown()).optional(),
         discussionId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const id = nid();
@@ -36,7 +36,7 @@ export const commentRouter = createTRPCRouter({
           .min(1, "Document content cannot be empty")
           .max(MAX_DOCUMENT_CONTENT_LENGTH, "Selected text is too long"),
         documentId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const id = nid();
@@ -60,7 +60,7 @@ export const commentRouter = createTRPCRouter({
           .min(1, "Document content cannot be empty")
           .max(MAX_DOCUMENT_CONTENT_LENGTH, "Selected text is too long"),
         documentId: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const discussionId = input.discussionId ?? nid();
@@ -98,10 +98,7 @@ export const commentRouter = createTRPCRouter({
   resolveDiscussion: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db
-        .update(discussion)
-        .set({ isResolved: true })
-        .where(eq(discussion.id, input.id));
+      await ctx.db.update(discussion).set({ isResolved: true }).where(eq(discussion.id, input.id));
     }),
 
   updateComment: protectedProcedure
@@ -111,7 +108,7 @@ export const commentRouter = createTRPCRouter({
         contentRich: z.array(z.unknown()).optional(),
         discussionId: z.string(),
         isEdited: z.boolean().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       await ctx.db

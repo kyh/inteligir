@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { withAIBatch } from '@platejs/ai';
+import { withAIBatch } from "@platejs/ai";
 import {
   AIChatPlugin,
   AIPlugin,
@@ -8,20 +8,20 @@ import {
   rejectAISuggestions,
   streamInsertChunk,
   useChatChunk,
-} from '@platejs/ai/react';
-import { BlockSelectionPlugin } from '@platejs/selection/react';
-import { getPluginType, KEYS, PathApi } from 'platejs';
-import { type PlateEditor, usePluginOption } from 'platejs/react';
-import type React from 'react';
-import { useEffect } from 'react';
-import { useStickToBottom } from 'use-stick-to-bottom';
+} from "@platejs/ai/react";
+import { BlockSelectionPlugin } from "@platejs/selection/react";
+import { getPluginType, KEYS, PathApi } from "platejs";
+import { type PlateEditor, usePluginOption } from "platejs/react";
+import type React from "react";
+import { useEffect } from "react";
+import { useStickToBottom } from "use-stick-to-bottom";
 
-import { CursorOverlayKit } from '@/registry/components/editor/plugins/cursor-overlay-kit';
-import { MarkdownKit } from '@/registry/components/editor/plugins/markdown-kit';
-import { AIMenu } from '@/registry/ui/ai-menu';
-import { AIAnchorElement, AILeaf } from '@/registry/ui/ai-node';
+import { CursorOverlayKit } from "@/registry/components/editor/plugins/cursor-overlay-kit";
+import { MarkdownKit } from "@/registry/components/editor/plugins/markdown-kit";
+import { AIMenu } from "@/registry/ui/ai-menu";
+import { AIAnchorElement, AILeaf } from "@/registry/ui/ai-node";
 
-import { useChat } from '../use-chat';
+import { useChat } from "../use-chat";
 
 export const aiChatPlugin = AIChatPlugin.extend({
   options: {
@@ -37,7 +37,7 @@ export const aiChatPlugin = AIChatPlugin.extend({
     afterEditable: AIMenu,
     node: AIAnchorElement,
   },
-  shortcuts: { show: { keys: 'mod+j' } },
+  shortcuts: { show: { keys: "mod+j" } },
   normalizeInitialValue: ({ editor }) => {
     const anchor = editor.getApi(AIChatPlugin).aiChat.node({ anchor: true });
 
@@ -57,8 +57,7 @@ export const aiChatPlugin = AIChatPlugin.extend({
 
         if (!anchorNode) return 0; // fallback: real bottom
 
-        const anchor = api.toDOMNode(anchorNode[0])?.parentElement
-          ?.parentElement as HTMLDivElement;
+        const anchor = api.toDOMNode(anchorNode[0])?.parentElement?.parentElement as HTMLDivElement;
 
         if (!anchor) return 0; // fallback: real bottom
 
@@ -68,8 +67,7 @@ export const aiChatPlugin = AIChatPlugin.extend({
         // Add a threshold of 100px from the bottom
         const threshold = 100;
         const isVisible =
-          anchorRect.top >= scrollRect.top &&
-          anchorRect.bottom <= scrollRect.bottom - threshold;
+          anchorRect.top >= scrollRect.top && anchorRect.bottom <= scrollRect.bottom - threshold;
 
         const anchorTop = anchor.offsetTop - scrollElement.offsetTop;
 
@@ -83,25 +81,25 @@ export const aiChatPlugin = AIChatPlugin.extend({
 
     useChat();
 
-    const mode = usePluginOption(AIChatPlugin, 'mode');
-    const toolName = usePluginOption(AIChatPlugin, 'toolName');
+    const mode = usePluginOption(AIChatPlugin, "mode");
+    const toolName = usePluginOption(AIChatPlugin, "toolName");
 
     useEffect(() => {
-      if (toolName === 'edit') {
+      if (toolName === "edit") {
         insertAIAnchorElement(editor);
       }
     }, [editor, toolName]);
 
     useChatChunk({
       onChunk: ({ chunk, isFirst, nodes, text: content }) => {
-        if (isFirst && toolName === 'generate') {
+        if (isFirst && toolName === "generate") {
           insertAIAnchorElement(editor);
         }
-        if (mode === 'insert' && nodes.length > 0) {
+        if (mode === "insert" && nodes.length > 0) {
           withAIBatch(
             editor,
             () => {
-              if (!getOption('streaming')) return;
+              if (!getOption("streaming")) return;
 
               editor.tf.withScrolling(() => {
                 streamInsertChunk(editor, chunk, {
@@ -111,10 +109,10 @@ export const aiChatPlugin = AIChatPlugin.extend({
                 });
               });
             },
-            { split: isFirst }
+            { split: isFirst },
           );
         }
-        if (toolName === 'edit' && mode === 'chat') {
+        if (toolName === "edit" && mode === "chat") {
           withAIBatch(
             editor,
             () => {
@@ -122,15 +120,15 @@ export const aiChatPlugin = AIChatPlugin.extend({
             },
             {
               split: isFirst,
-            }
+            },
           );
         }
       },
       onFinish: () => {
-        editor.setOption(AIChatPlugin, 'streaming', false);
-        editor.setOption(AIChatPlugin, '_blockChunks', '');
-        editor.setOption(AIChatPlugin, '_blockPath', null);
-        editor.setOption(AIChatPlugin, '_mdxName', null);
+        editor.setOption(AIChatPlugin, "streaming", false);
+        editor.setOption(AIChatPlugin, "_blockChunks", "");
+        editor.setOption(AIChatPlugin, "_blockPath", null);
+        editor.setOption(AIChatPlugin, "_mdxName", null);
       },
     });
   },
@@ -156,14 +154,14 @@ const insertAIAnchorElement = (editor: PlateEditor) => {
   editor.tf.withoutSaving(() => {
     editor.tf.insertNodes(
       {
-        children: [{ text: '' }],
+        children: [{ text: "" }],
         type: getPluginType(editor, KEYS.aiChat),
       },
       {
         at,
-      }
+      },
     );
   });
 
-  editor.setOption(AIChatPlugin, 'streaming', true);
+  editor.setOption(AIChatPlugin, "streaming", true);
 };

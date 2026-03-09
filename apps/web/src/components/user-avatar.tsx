@@ -1,13 +1,13 @@
-import * as React from 'react';
+import * as React from "react";
 
-import type { DeepNullable } from 'ts-essentials';
+import type { DeepNullable } from "ts-essentials";
 
-import { useCurrentUser } from '@/components/auth/useCurrentUser';
-import { cn } from '@/lib/utils';
-import { useMounted } from '@/registry/hooks/use-mounted';
-import { Avatar, AvatarFallback, AvatarImage } from '@/registry/ui/avatar';
+import { useCurrentUser } from "@/components/auth/useCurrentUser";
+import { cn } from "@/lib/utils";
+import { useMounted } from "@/registry/hooks/use-mounted";
+import { Avatar, AvatarFallback, AvatarImage } from "@/registry/ui/avatar";
 
-import { Skeleton } from './ui/skeleton';
+import { Skeleton } from "./ui/skeleton";
 
 export interface UserAvatarProps extends React.ComponentProps<typeof Avatar> {
   avatarClassName?: string;
@@ -43,16 +43,10 @@ export function UserAvatar({
 
   const src = user.image;
 
-  const label = user.name ? `Avatar for ${user.name}` : 'Avatar';
+  const label = user.name ? `Avatar for ${user.name}` : "Avatar";
 
   return (
-    <Avatar
-      className={avatarClassName}
-      key={src}
-      size={size}
-      variant={variant}
-      {...props}
-    >
+    <Avatar className={avatarClassName} key={src} size={size} variant={variant} {...props}>
       {loading || !src ? (
         <AvatarFallback variant={variant}>
           <Skeleton className="size-full bg-muted" />
@@ -60,7 +54,7 @@ export function UserAvatar({
       ) : (
         <AvatarImage
           alt={label}
-          className={cn('', className)}
+          className={cn("", className)}
           draggable={false}
           referrerPolicy="no-referrer"
           src={src}

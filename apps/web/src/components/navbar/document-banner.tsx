@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
-import { pushModal } from '@/components/modals';
-import { useTParams } from '@/hooks/use-navigation';
-import { Button } from '@/registry/ui/button';
-import { api, useTRPC } from '@/trpc/react';
+import { pushModal } from "@/components/modals";
+import { useTParams } from "@/hooks/use-navigation";
+import { Button } from "@/registry/ui/button";
+import { api, useTRPC } from "@/trpc/react";
 
 export const DocumentBanner = () => {
-  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId, slug } = useTParams<"/dashboard/[slug]/[documentId]">();
   const router = useRouter();
   const trpc = useTRPC();
 
@@ -32,9 +32,9 @@ export const DocumentBanner = () => {
     const promise = deleteDocument.mutateAsync({ id: documentId });
 
     toast.promise(promise, {
-      error: 'Failed to remove Note!',
-      loading: 'Deleting Note...',
-      success: 'Note deleted.',
+      error: "Failed to remove Note!",
+      loading: "Deleting Note...",
+      success: "Note deleted.",
     });
   };
 
@@ -42,9 +42,9 @@ export const DocumentBanner = () => {
     const promise = restoreDocument.mutateAsync({ id: documentId });
 
     toast.promise(promise, {
-      error: 'Failed to restore Note!',
-      loading: 'Restoring Note...',
-      success: 'Note Restored.',
+      error: "Failed to restore Note!",
+      loading: "Restoring Note...",
+      success: "Note Restored.",
     });
   };
 
@@ -59,8 +59,8 @@ export const DocumentBanner = () => {
 
         <Button
           onClick={() => {
-            pushModal('Confirm', {
-              name: 'page',
+            pushModal("Confirm", {
+              name: "page",
               onConfirm: onRemove,
             });
           }}

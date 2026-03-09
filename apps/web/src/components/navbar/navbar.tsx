@@ -1,28 +1,25 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import React, { useContext } from 'react';
+import { useQuery } from "@tanstack/react-query";
+import React, { useContext } from "react";
 
-import { useTemplateDocument } from '@/components/editor/utils/useTemplateDocument';
-import {
-  DocumentMenu,
-  DocumentMenuSkeleton,
-} from '@/components/navbar/document-menu';
-import { DocumentShare } from '@/components/navbar/document-share';
-import { NavTitle, NavTitleSkeleton } from '@/components/navbar/nav-title';
-import { Icons } from '@/components/ui/icons';
+import { useTemplateDocument } from "@/components/editor/utils/useTemplateDocument";
+import { DocumentMenu, DocumentMenuSkeleton } from "@/components/navbar/document-menu";
+import { DocumentShare } from "@/components/navbar/document-share";
+import { NavTitle, NavTitleSkeleton } from "@/components/navbar/nav-title";
+import { Icons } from "@/components/ui/icons";
 import {
   RightPanelType,
   useLeftPanelSize,
   useToggleLeftPanel,
   useToggleRightPanel,
-} from '@/hooks/useResizablePanel';
-import { Button } from '@/registry/ui/button';
-import { useDocumentQueryOptions } from '@/trpc/hooks/query-options';
+} from "@/hooks/useResizablePanel";
+import { Button } from "@/registry/ui/button";
+import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 
-import { useAuthGuard } from '../auth/useAuthGuard';
-import { PanelsContext } from '../ui/resizable-panel';
-import { DocumentSuggesting } from './document-suggesting';
+import { useAuthGuard } from "../auth/useAuthGuard";
+import { PanelsContext } from "../ui/resizable-panel";
+import { DocumentSuggesting } from "./document-suggesting";
 
 const DocumentHistory = () => {
   const toggleRight = useToggleRightPanel();
@@ -34,11 +31,7 @@ const DocumentHistory = () => {
       onClick={() => authGuard(() => toggleRight(RightPanelType.history, 400))}
       size="icon"
       tooltip="View all versions"
-      variant={
-        rightSize > 0 && rightPanelType === RightPanelType.history
-          ? 'ghostActive'
-          : 'ghost'
-      }
+      variant={rightSize > 0 && rightPanelType === RightPanelType.history ? "ghostActive" : "ghost"}
     >
       <Icons.history />
     </Button>
@@ -57,11 +50,7 @@ const DocumentComment = () => {
       }}
       size="icon"
       tooltip="View all comments"
-      variant={
-        rightSize > 0 && rightPanelType === RightPanelType.comment
-          ? 'ghostActive'
-          : 'ghost'
-      }
+      variant={rightSize > 0 && rightPanelType === RightPanelType.comment ? "ghostActive" : "ghost"}
     >
       <Icons.comment />
     </Button>
@@ -97,12 +86,7 @@ export const Navbar = () => {
   return (
     <nav className="relative z-10 flex h-[44px] items-center gap-x-4 bg-background px-1 py-2 sm:px-3 dark:bg-[#1f1f1f]">
       {isCollapsed && (
-        <Button
-          className="shrink-0"
-          onClick={() => toggle(250)}
-          size="icon"
-          variant="ghost"
-        >
+        <Button className="shrink-0" onClick={() => toggle(250)} size="icon" variant="ghost">
           <Icons.menu />
         </Button>
       )}

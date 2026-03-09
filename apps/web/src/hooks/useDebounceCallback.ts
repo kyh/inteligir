@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from "react";
 
 // https://github.com/xnimorz/use-debounce/blob/master/src/useDebouncedCallback.ts
 
@@ -29,8 +29,9 @@ export type ControlFunctions<ReturnT> = {
  * invocation. Note, that if there are no previous invocations you will get
  * undefined. You should check it in your code properly.
  */
-export interface DebouncedState<T extends (...args: any) => ReturnType<T>>
-  extends ControlFunctions<ReturnType<T>> {
+export interface DebouncedState<T extends (...args: any) => ReturnType<T>> extends ControlFunctions<
+  ReturnType<T>
+> {
   (...args: Parameters<T>): ReturnType<T> | undefined;
 }
 
@@ -117,7 +118,7 @@ export interface Options extends CallOptions {
 export function useDebouncedCallback<T extends (...args: any) => ReturnType<T>>(
   func: T,
   wait?: number,
-  options?: Options
+  options?: Options,
 ): DebouncedState<T> {
   const lastCallTime = useRef<any>(null);
   const lastInvokeTime = useRef(0);
@@ -138,22 +139,21 @@ export function useDebouncedCallback<T extends (...args: any) => ReturnType<T>>(
     funcRef.current = func;
   });
 
-  const isClientSize = typeof window !== 'undefined';
+  const isClientSize = typeof window !== "undefined";
   // Bypass `requestAnimationFrame` by explicitly setting `wait=0`.
   const useRAF = !wait && wait !== 0 && isClientSize;
 
-  if (typeof func !== 'function') {
-    throw new TypeError('Expected a function');
+  if (typeof func !== "function") {
+    throw new TypeError("Expected a function");
   }
 
   const waitTime = wait || 0;
   const opts = options || {};
 
   const leading = !!opts.leading;
-  const trailing = 'trailing' in opts ? !!opts.trailing : true; // `true` by default
-  const maxing = 'maxWait' in opts;
-  const debounceOnServer =
-    'debounceOnServer' in opts ? !!opts.debounceOnServer : false; // `false` by default
+  const trailing = "trailing" in opts ? !!opts.trailing : true; // `true` by default
+  const maxing = "maxWait" in opts;
+  const debounceOnServer = "debounceOnServer" in opts ? !!opts.debounceOnServer : false; // `false` by default
   const maxWait = maxing ? Math.max(opts.maxWait || 0, waitTime) : null;
 
   useEffect(() => {
@@ -189,9 +189,7 @@ export function useDebouncedCallback<T extends (...args: any) => ReturnType<T>>(
     const startTimer = (pendingFunc: () => void, wait: number) => {
       if (useRAF) cancelAnimationFrame(timerId.current);
 
-      timerId.current = useRAF
-        ? requestAnimationFrame(pendingFunc)
-        : setTimeout(pendingFunc, wait);
+      timerId.current = useRAF ? requestAnimationFrame(pendingFunc) : setTimeout(pendingFunc, wait);
     };
 
     const shouldInvoke = (time: number) => {
@@ -294,29 +292,15 @@ export function useDebouncedCallback<T extends (...args: any) => ReturnType<T>>(
       }
 
       lastInvokeTime.current = 0;
-      lastArgs.current =
-        lastCallTime.current =
-        lastThis.current =
-        timerId.current =
-          null;
+      lastArgs.current = lastCallTime.current = lastThis.current = timerId.current = null;
     };
 
     func.isPending = () => !!timerId.current;
 
-    func.flush = () =>
-      timerId.current ? trailingEdge(Date.now()) : result.current;
+    func.flush = () => (timerId.current ? trailingEdge(Date.now()) : result.current);
 
     return func;
-  }, [
-    leading,
-    maxing,
-    waitTime,
-    maxWait,
-    trailing,
-    useRAF,
-    isClientSize,
-    debounceOnServer,
-  ]);
+  }, [leading, maxing, waitTime, maxWait, trailing, useRAF, isClientSize, debounceOnServer]);
 
   return debounced;
 }

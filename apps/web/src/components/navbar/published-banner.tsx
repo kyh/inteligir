@@ -1,13 +1,13 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import React from 'react';
-import { useTParams } from '@/hooks/use-navigation';
-import { useOrigin } from '@/hooks/useOrigin';
-import { LinkButton } from '@/registry/ui/button';
-import { useDocumentQueryOptions } from '@/trpc/hooks/query-options';
+import { useQuery } from "@tanstack/react-query";
+import React from "react";
+import { useTParams } from "@/hooks/use-navigation";
+import { useOrigin } from "@/hooks/useOrigin";
+import { LinkButton } from "@/registry/ui/button";
+import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 
-import { Icons } from '../ui/icons';
+import { Icons } from "../ui/icons";
 
 export const PublishedBanner = () => {
   const { data: isPublished } = useQuery({
@@ -15,7 +15,7 @@ export const PublishedBanner = () => {
     select: (data) => data.document?.isPublished,
   });
 
-  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId } = useTParams<"/dashboard/[slug]/[documentId]">();
   const origin = useOrigin();
 
   if (!isPublished) {

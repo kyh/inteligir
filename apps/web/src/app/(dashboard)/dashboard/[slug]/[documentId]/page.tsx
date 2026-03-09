@@ -16,9 +16,5 @@ export default async function DocumentPage({
     prefetch(trpc.document.document.queryOptions({ id: documentId }));
   }
 
-  return (
-    <HydrateClient>
-      {session ? <DocumentClient /> : <PublicDocumentClient />}
-    </HydrateClient>
-  );
+  return <HydrateClient>{session ? <DocumentClient /> : <PublicDocumentClient />}</HydrateClient>;
 }

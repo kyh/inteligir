@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { MessageSquareTextIcon } from 'lucide-react';
-import { useEditorRef } from 'platejs/react';
+import { MessageSquareTextIcon } from "lucide-react";
+import { useEditorRef } from "platejs/react";
 
-import { useAuthGuard } from '@/components/auth/useAuthGuard';
-import { commentPlugin } from '@/registry/components/editor/plugins/comment-kit';
-import { ToolbarButton } from '@/registry/ui/toolbar';
+import { useAuthGuard } from "@/components/auth/useAuthGuard";
+import { commentPlugin } from "@/registry/components/editor/plugins/comment-kit";
+import { ToolbarButton } from "@/registry/ui/toolbar";
 
 export function CommentToolbarButton() {
   const editor = useEditorRef();

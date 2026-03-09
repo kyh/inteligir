@@ -1,18 +1,14 @@
-'use client';
+"use client";
 
-import {
-  type BaseCommentConfig,
-  BaseCommentPlugin,
-  getDraftCommentKey,
-} from '@platejs/comment';
+import { type BaseCommentConfig, BaseCommentPlugin, getDraftCommentKey } from "@platejs/comment";
 
-import type { ExtendConfig, Path } from 'platejs';
-import { isSlateElement, isSlateString } from 'platejs';
-import { toTPlatePlugin, useEditorContainerRef } from 'platejs/react';
-import { useEffect } from 'react';
+import type { ExtendConfig, Path } from "platejs";
+import { isSlateElement, isSlateString } from "platejs";
+import { toTPlatePlugin, useEditorContainerRef } from "platejs/react";
+import { useEffect } from "react";
 
-import { CommentLeaf } from '@/registry/ui/comment-node';
-import { FloatingDiscussion } from '@/registry/ui/floating-discussion';
+import { CommentLeaf } from "@/registry/ui/comment-node";
+import { FloatingDiscussion } from "@/registry/ui/floating-discussion";
 
 type CommentConfig = ExtendConfig<
   BaseCommentConfig,
@@ -33,7 +29,7 @@ export const commentPlugin = toTPlatePlugin<CommentConfig>(BaseCommentPlugin, {
       let isSet = false;
 
       const unsetActiveSuggestion = () => {
-        setOption('activeId', null);
+        setOption("activeId", null);
         isSet = true;
       };
 
@@ -52,7 +48,7 @@ export const commentPlugin = toTPlatePlugin<CommentConfig>(BaseCommentPlugin, {
           const id = api.comment!.nodeId(commentsEntry[0]) ?? null;
           const isDraft = commentsEntry[0][getDraftCommentKey()];
 
-          setOption('activeId', isDraft ? getDraftCommentKey() : id);
+          setOption("activeId", isDraft ? getDraftCommentKey() : id);
           isSet = true;
 
           break;
@@ -86,7 +82,7 @@ export const commentPlugin = toTPlatePlugin<CommentConfig>(BaseCommentPlugin, {
         const width = entries[0].contentRect.width;
         const isOverlap = width < 700;
 
-        setOption('isOverlapWithEditor', isOverlap);
+        setOption("isOverlapWithEditor", isOverlap);
       });
 
       observer.observe(editable);
@@ -113,51 +109,46 @@ export const commentPlugin = toTPlatePlugin<CommentConfig>(BaseCommentPlugin, {
         setDraft();
 
         editor.tf.collapse();
-        setOption('activeId', getDraftCommentKey());
-        setOption('commentingBlock', editor.selection!.focus.path.slice(0, 1));
+        setOption("activeId", getDraftCommentKey());
+        setOption("commentingBlock", editor.selection!.focus.path.slice(0, 1));
       },
-    })
+    }),
   )
-  .overrideEditor(
-    ({ editor, setOption, tf: { apply, insertBreak }, tf, type }) => ({
-      transforms: {
-        apply(operation) {
-          if (
-            operation.type !== 'set_selection' &&
-            operation.type !== 'set_node' &&
-            operation.type !== 'split_node' &&
-            operation.type !== 'merge_node'
-          ) {
-            const { newProperties, properties } = operation;
+  .overrideEditor(({ editor, setOption, tf: { apply, insertBreak }, tf, type }) => ({
+    transforms: {
+      apply(operation) {
+        if (
+          operation.type !== "set_selection" &&
+          operation.type !== "set_node" &&
+          operation.type !== "split_node" &&
+          operation.type !== "merge_node"
+        ) {
+          const { newProperties, properties } = operation;
 
-            if (
-              properties?.[getDraftCommentKey()] ||
-              newProperties?.[getDraftCommentKey()]
-            ) {
-              return;
-            }
-
-            setOption('updateTimestamp', Date.now());
+          if (properties?.[getDraftCommentKey()] || newProperties?.[getDraftCommentKey()]) {
+            return;
           }
 
-          apply(operation);
-        },
-        insertBreak() {
-          setOption('updateTimestamp', Date.now());
+          setOption("updateTimestamp", Date.now());
+        }
 
-          tf.comment.removeMark();
-          insertBreak();
-          editor.tf.unsetNodes([type], {
-            at: editor.selection?.focus,
-            mode: 'lowest',
-          });
-        },
+        apply(operation);
       },
-    })
-  )
+      insertBreak() {
+        setOption("updateTimestamp", Date.now());
+
+        tf.comment.removeMark();
+        insertBreak();
+        editor.tf.unsetNodes([type], {
+          at: editor.selection?.focus,
+          mode: "lowest",
+        });
+      },
+    },
+  }))
   .extend({
     shortcuts: {
-      setDraft: { keys: 'mod+shift+m' },
+      setDraft: { keys: "mod+shift+m" },
     },
   })
   .configure({

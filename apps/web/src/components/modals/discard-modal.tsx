@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
 import {
   AlertDialogAction,
@@ -10,8 +10,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Icons } from '@/components/ui/icons';
+} from "@/components/ui/alert-dialog";
+import { Icons } from "@/components/ui/icons";
 
 export function DiscardModal({
   onCancel: onCancelProp,
@@ -40,8 +40,8 @@ export function DiscardModal({
       <AlertDialogHeader>
         <AlertDialogTitle>Do you want to discard the content?</AlertDialogTitle>
         <AlertDialogDescription>
-          This action cannot be undone. Are you sure you want to discard your
-          this content? Your current progress will be lost.
+          This action cannot be undone. Are you sure you want to discard your this content? Your
+          current progress will be lost.
         </AlertDialogDescription>
       </AlertDialogHeader>
       <AlertDialogFooter>

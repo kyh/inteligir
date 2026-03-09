@@ -1,31 +1,29 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import type { Route } from 'next';
-import { useRouter } from 'next/navigation';
+import { useQuery } from "@tanstack/react-query";
+import type { Route } from "next";
+import { useRouter } from "next/navigation";
 
-import { useSession } from '@/components/auth/useSession';
-import { templateList } from '@/components/editor/utils/useTemplateDocument';
-import { useTParams } from '@/hooks/use-navigation';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { cn } from '@/lib/utils';
-import { useTRPC } from '@/trpc/react';
+import { useSession } from "@/components/auth/useSession";
+import { templateList } from "@/components/editor/utils/useTemplateDocument";
+import { useTParams } from "@/hooks/use-navigation";
+import { useLocalStorage } from "@/hooks/useLocalStorage";
+import { cn } from "@/lib/utils";
+import { useTRPC } from "@/trpc/react";
 
-import { useAuthGuard } from '../auth/useAuthGuard';
-import { Icons } from '../ui/icons';
-import { NavItem } from './nav-item';
+import { useAuthGuard } from "../auth/useAuthGuard";
+import { Icons } from "../ui/icons";
+import { NavItem } from "./nav-item";
 
-const STORAGE_KEY = 'sidebar-expanded-state';
+const STORAGE_KEY = "sidebar-expanded-state";
 
 export const removeExpandedIdFromStorage = (documentId: string) => {
-  const expandedIds = JSON.parse(
-    window.localStorage.getItem(STORAGE_KEY) ?? '[]'
-  ) as string[];
+  const expandedIds = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "[]") as string[];
 
   if (expandedIds) {
     window.localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify(expandedIds.filter((id) => id !== documentId))
+      JSON.stringify(expandedIds.filter((id) => id !== documentId)),
     );
   }
 };
@@ -38,7 +36,7 @@ export const DocumentList = ({
   parentDocumentId?: string;
 }) => {
   const authGuard = useAuthGuard();
-  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId, slug } = useTParams<"/dashboard/[slug]/[documentId]">();
   const router = useRouter();
   const session = useSession();
   const trpc = useTRPC();
@@ -52,16 +50,13 @@ export const DocumentList = ({
 
   const documents = session ? data?.documents : templateList;
 
-  const [expandedIds, setExpandedIds] = useLocalStorage<string[]>(
-    STORAGE_KEY,
-    []
-  );
+  const [expandedIds, setExpandedIds] = useLocalStorage<string[]>(STORAGE_KEY, []);
 
   const onExpand = (documentId: string) => {
     setExpandedIds(
       expandedIds.includes(documentId)
         ? expandedIds.filter((id) => id !== documentId)
-        : [...expandedIds, documentId]
+        : [...expandedIds, documentId],
     );
   };
 
@@ -87,15 +82,15 @@ export const DocumentList = ({
     <>
       <p
         className={cn(
-          'hidden cursor-pointer select-none py-1 font-medium text-muted-foreground/80 text-sm',
-          expandedIds.length > 0 && 'last:block',
-          level === 0 && 'hidden'
+          "hidden cursor-pointer select-none py-1 font-medium text-muted-foreground/80 text-sm",
+          expandedIds.length > 0 && "last:block",
+          level === 0 && "hidden",
         )}
         style={{
           paddingLeft: `${16 + level * 16}px`,
         }}
       >
-        {level === 0 ? 'No pages' : 'No pages inside'}
+        {level === 0 ? "No pages" : "No pages inside"}
       </p>
       {documents?.map((document) => (
         <div className="space-y-0.5" key={document.id}>
@@ -105,7 +100,7 @@ export const DocumentList = ({
             expanded={expandedIds.includes(document.id)}
             icon={Icons.document}
             id={document.id}
-            label={document.title || 'Untitled'}
+            label={document.title || "Untitled"}
             level={level}
             onClick={() => onRedirect(document.id)}
             onExpand={() => authGuard(() => onExpand(document.id))}

@@ -1,9 +1,9 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
-import { createTable } from './table-value';
+import { createTable } from "./table-value";
 
 jsx;
 
@@ -11,8 +11,7 @@ export const exportValue: any = (
   <fragment>
     <hh2>📄 Export to PDF</hh2>
     <hp>
-      Export your documents to PDF format with customizable options for a
-      professional output.
+      Export your documents to PDF format with customizable options for a professional output.
     </hp>
     <hp indent={1} listStyleType="decimal">
       <htext>Click the Export button in the top-right corner</htext>
@@ -30,9 +29,7 @@ export const exportValue: any = (
       <htext>Toggle media inclusion/exclusion</htext>
     </hp>
     <hcallout icon="💡" variant="info">
-      <htext>
-        Disable media option helps reduce PDF file size and improve export speed
-      </htext>
+      <htext>Disable media option helps reduce PDF file size and improve export speed</htext>
     </hcallout>
     <hp indent={1} listStart={3} listStyleType="decimal">
       <htext>Export features include:</htext>
@@ -47,9 +44,7 @@ export const exportValue: any = (
       <htext>Background color preservation</htext>
     </hp>
     <hp indent={2} listStyleType="disc">
-      <htext>
-        All components can be fully customized in print/export mode.
-      </htext>
+      <htext>All components can be fully customized in print/export mode.</htext>
     </hp>
 
     <hh2>🔌 Supported Components</hh2>
@@ -59,8 +54,7 @@ export const exportValue: any = (
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Rich text formatting: </htext>
-      <htext bold>bold</htext>, <htext italic>italic</htext>,{' '}
-      <htext underline>underline</htext>
+      <htext bold>bold</htext>, <htext italic>italic</htext>, <htext underline>underline</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Media (images, videos, embeds)</htext>

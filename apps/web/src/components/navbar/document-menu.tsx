@@ -22,10 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/registry/ui/dropdown-menu";
-import {
-  useArchiveDocumentMutation,
-  useUpdateDocumentMutation,
-} from "@/trpc/hooks/document-hooks";
+import { useArchiveDocumentMutation, useUpdateDocumentMutation } from "@/trpc/hooks/document-hooks";
 import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
 
 import { useAuthGuard } from "../auth/useAuthGuard";
@@ -65,24 +62,24 @@ export const TEXT_STYLE_ITEMS: {
 ];
 
 const SWITCH_ITEMS: {
-  key: 'fullWidth' | 'lockPage' | 'smallText' | 'toc';
+  key: "fullWidth" | "lockPage" | "smallText" | "toc";
   label: string;
 }[] = [
   {
-    key: 'smallText',
-    label: 'Small text',
+    key: "smallText",
+    label: "Small text",
   },
   {
-    key: 'fullWidth',
-    label: 'Full width',
+    key: "fullWidth",
+    label: "Full width",
   },
   {
-    key: 'lockPage',
-    label: 'Lock page',
+    key: "lockPage",
+    label: "Lock page",
   },
   {
-    key: 'toc',
-    label: 'Table of contents',
+    key: "toc",
+    label: "Table of contents",
   },
 ];
 
@@ -113,7 +110,7 @@ export const DocumentMenu = React.memo(() => {
 
 function DocumentMenuContent() {
   const authGuard = useAuthGuard();
-  const { documentId, slug } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId, slug } = useTParams<"/dashboard/[slug]/[documentId]">();
   const editor = useEditorRef();
   const queryOptions = useDocumentQueryOptions();
 
@@ -157,7 +154,7 @@ function DocumentMenuContent() {
       textStyle: (textStyle ?? "DEFAULT") as TextStyle,
       toc: toc ?? true,
     }),
-    [fullWidth, lockPage, smallText, textStyle, toc]
+    [fullWidth, lockPage, smallText, textStyle, toc],
   );
 
   const [exportOpen, setExportOpen] = useState(false);
@@ -173,9 +170,9 @@ function DocumentMenuContent() {
     const promise = archiveDocument.mutateAsync({ id: documentId });
 
     toast.promise(promise, {
-      error: 'Failed to archive note!',
-      loading: 'Moving to trash...',
-      success: 'Note moved to trash.',
+      error: "Failed to archive note!",
+      loading: "Moving to trash...",
+      success: "Note moved to trash.",
     });
 
     router.push(`/dashboard/${slug}`);
@@ -184,13 +181,13 @@ function DocumentMenuContent() {
   const onCustomDocument = useCallback(
     (
       e: React.MouseEvent<HTMLDivElement, MouseEvent>,
-      key: 'fullWidth' | 'lockPage' | 'smallText' | 'textStyle' | 'toc',
-      value: TextStyle | boolean
+      key: "fullWidth" | "lockPage" | "smallText" | "textStyle" | "toc",
+      value: TextStyle | boolean,
     ) => {
       e.preventDefault();
       updateDocument.mutate({ [key]: value, id: documentId });
     },
-    [documentId, updateDocument]
+    [documentId, updateDocument],
   );
 
   return (
@@ -200,21 +197,19 @@ function DocumentMenuContent() {
           <DropdownMenuItem
             asChild
             key={item.key}
-            onClick={(e) =>
-              authGuard(() => onCustomDocument(e, 'textStyle', item.key))
-            }
+            onClick={(e) => authGuard(() => onCustomDocument(e, "textStyle", item.key))}
             size="none"
           >
             <Button
               className="flex h-auto w-full flex-col justify-between px-1.5 pt-2.5 pb-1.5 text-xs"
               tooltip={item.tooltip}
-              tooltipContentProps={{ side: 'bottom' }}
+              tooltipContentProps={{ side: "bottom" }}
               variant="ghost"
             >
               <div
                 className={cn(
-                  'font-medium text-[24px] text-foreground',
-                  item.key === documentCustom.textStyle && 'text-brand'
+                  "font-medium text-[24px] text-foreground",
+                  item.key === documentCustom.textStyle && "text-brand",
                 )}
                 style={{ fontFamily: item.fontFamily }}
               >
@@ -234,9 +229,7 @@ function DocumentMenuContent() {
             className="flex items-center justify-between"
             key={item.label}
             onClick={(e) =>
-              authGuard(() =>
-                onCustomDocument(e, item.key, !documentCustom[item.key])
-              )
+              authGuard(() => onCustomDocument(e, item.key, !documentCustom[item.key]))
             }
           >
             <span>{item.label}</span>
@@ -309,9 +302,7 @@ function DocumentMenuContent() {
       <div className="space-y-1 p-3 text-muted-foreground/90 text-xs">
         <div>Word count: {wordCount}</div>
         <div>Last edited by {user?.name}</div>
-        <div>
-          {updatedAt && format(new Date(updatedAt), 'MMM d, yyyy, h:mm a')}
-        </div>
+        <div>{updatedAt && format(new Date(updatedAt), "MMM d, yyyy, h:mm a")}</div>
       </div>
     </>
   );

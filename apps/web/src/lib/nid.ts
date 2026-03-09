@@ -1,8 +1,6 @@
-import { customAlphabet } from 'nanoid';
+import { customAlphabet } from "nanoid";
 
-export const nanoid = customAlphabet(
-  '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
-);
+export const nanoid = customAlphabet("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz");
 
 /**
  * Generates a unique identifier with a typed prefix.

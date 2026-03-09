@@ -1,6 +1,6 @@
-import type { TColumnElement } from 'platejs';
-import { SlateElement, type SlateElementProps } from 'platejs/static';
-import * as React from 'react';
+import type { TColumnElement } from "platejs";
+import { SlateElement, type SlateElementProps } from "platejs/static";
+import * as React from "react";
 
 export function ColumnElementStatic(props: SlateElementProps<TColumnElement>) {
   const { width } = props.element;
@@ -8,7 +8,7 @@ export function ColumnElementStatic(props: SlateElementProps<TColumnElement>) {
   return (
     <SlateElement
       className="border border-transparent p-1.5"
-      style={{ width: width ?? '100%' }}
+      style={{ width: width ?? "100%" }}
       {...props}
     />
   );

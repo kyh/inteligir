@@ -33,29 +33,23 @@ export const userRouter = createTRPCRouter({
     return userData;
   }),
 
-  getUser: protectedProcedure
-    .input(z.object({ id: z.string() }))
-    .query(async ({ ctx, input }) => {
-      const userData = await ctx.db.query.user.findFirst({
-        where: eq(user.id, input.id),
-        columns: {
-          email: true,
-          name: true,
-          image: true,
-        },
-      });
+  getUser: protectedProcedure.input(z.object({ id: z.string() })).query(async ({ ctx, input }) => {
+    const userData = await ctx.db.query.user.findFirst({
+      where: eq(user.id, input.id),
+      columns: {
+        email: true,
+        name: true,
+        image: true,
+      },
+    });
 
-      return userData;
-    }),
+    return userData;
+  }),
 
   updateSettings: protectedProcedure
     .input(
       z.object({
-        email: z
-          .string()
-          .email()
-          .max(MAX_EMAIL_LENGTH, "Email is too long")
-          .optional(),
+        email: z.string().email().max(MAX_EMAIL_LENGTH, "Email is too long").optional(),
         name: z
           .string()
           .min(1, "Name is required")
@@ -67,7 +61,7 @@ export const userRouter = createTRPCRouter({
           .url("Invalid URL")
           .max(MAX_PROFILE_IMAGE_URL_LENGTH, "Profile image URL is too long")
           .optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const updateData = filterUndefined(input);
@@ -87,16 +81,13 @@ export const userRouter = createTRPCRouter({
         cursor: z.string().optional(),
         limit: z.number().min(1).max(100).default(10),
         search: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       const { limit, search } = input;
 
       const conditions = search
-        ? or(
-            ilike(user.name, `%${search}%`),
-            ilike(user.email, `%${search}%`)
-          )
+        ? or(ilike(user.name, `%${search}%`), ilike(user.email, `%${search}%`))
         : undefined;
 
       const users = await ctx.db.query.user.findMany({

@@ -2,11 +2,7 @@ import { and, desc, eq, ilike, isNull } from "@repo/db";
 import { document } from "@repo/db/drizzle-schema";
 import { z } from "zod";
 
-import {
-  createTRPCRouter,
-  organizationProcedure,
-  protectedProcedure,
-} from "../trpc";
+import { createTRPCRouter, organizationProcedure, protectedProcedure } from "../trpc";
 import { filterUndefined, nid } from "../utils";
 
 const MAX_TITLE_LENGTH = 256;
@@ -29,7 +25,7 @@ export const documentRouter = createTRPCRouter({
         contentRich: z.unknown().optional(),
         parentDocumentId: z.string().optional(),
         title: z.string().max(MAX_TITLE_LENGTH, "Title is too long").optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const id = nid();
@@ -66,10 +62,7 @@ export const documentRouter = createTRPCRouter({
     .input(
       z.object({
         id: z.string(),
-        content: z
-          .string()
-          .max(MAX_CONTENT_LENGTH, "Content is too long")
-          .optional(),
+        content: z.string().max(MAX_CONTENT_LENGTH, "Content is too long").optional(),
         contentRich: z.unknown().optional(),
         coverImage: z.string().max(500).optional(),
         fullWidth: z.boolean().optional(),
@@ -80,7 +73,7 @@ export const documentRouter = createTRPCRouter({
         textStyle: z.enum(["DEFAULT", "SERIF", "MONO"]).optional(),
         title: z.string().max(MAX_TITLE_LENGTH, "Title is too long").optional(),
         toc: z.boolean().optional(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       const { id, ...data } = input;
@@ -96,10 +89,7 @@ export const documentRouter = createTRPCRouter({
     .input(z.object({ id: z.string() }))
     .query(async ({ ctx, input }) => {
       const doc = await ctx.db.query.document.findFirst({
-        where: and(
-          eq(document.id, input.id),
-          eq(document.organizationId, ctx.organizationId)
-        ),
+        where: and(eq(document.id, input.id), eq(document.organizationId, ctx.organizationId)),
         columns: {
           id: true,
           contentRich: true,
@@ -129,7 +119,7 @@ export const documentRouter = createTRPCRouter({
         limit: z.number().min(1).max(100).optional(),
         parentDocumentId: z.string().optional(),
         search: z.string().optional(),
-      })
+      }),
     )
     .query(async ({ ctx, input }) => {
       const { cursor: _cursor, limit = 50, parentDocumentId, search } = input;

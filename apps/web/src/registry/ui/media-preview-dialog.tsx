@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
 import {
   PreviewImage,
   useImagePreview,
   useImagePreviewValue,
   useScaleInput,
-} from '@platejs/media/react';
+} from "@platejs/media/react";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -13,22 +13,22 @@ import {
   Minimize2,
   Minus,
   Plus,
-} from 'lucide-react';
-import { useEditorRef } from 'platejs/react';
+} from "lucide-react";
+import { useEditorRef } from "platejs/react";
 
-import { cn } from '@/lib/utils';
-import { downloadFile } from '@/registry/lib/download-file';
+import { cn } from "@/lib/utils";
+import { downloadFile } from "@/registry/lib/download-file";
 
-import { Button } from './button';
+import { Button } from "./button";
 
 const SCROLL_SPEED = 4;
 
 export function ImagePreview() {
   const editor = useEditorRef();
-  const isOpen = useImagePreviewValue('isOpen', editor.id);
-  const scale = useImagePreviewValue('scale');
-  const isEditingScale = useImagePreviewValue('isEditingScale');
-  const currentPreview = useImagePreviewValue('currentPreview');
+  const isOpen = useImagePreviewValue("isOpen", editor.id);
+  const scale = useImagePreviewValue("scale");
+  const isEditingScale = useImagePreviewValue("isEditingScale");
+  const currentPreview = useImagePreviewValue("currentPreview");
   const {
     closeProps,
     maskLayerProps,
@@ -48,8 +48,8 @@ export function ImagePreview() {
   return (
     <div
       className={cn(
-        'fade-in fixed top-0 left-0 z-50 h-screen w-screen animate-in cursor-default text-sm duration-200 ease-in-out',
-        !isOpen && 'hidden'
+        "fade-in fixed top-0 left-0 z-50 h-screen w-screen animate-in cursor-default text-sm duration-200 ease-in-out",
+        !isOpen && "hidden",
       )}
       onContextMenu={(e) => e.stopPropagation()}
       {...maskLayerProps}
@@ -60,7 +60,7 @@ export function ImagePreview() {
         <div className="relative flex max-h-screen w-full items-center">
           <PreviewImage
             className={cn(
-              'mx-auto block max-h-[calc(100vh-4rem)] w-auto select-none object-contain transition-transform'
+              "mx-auto block max-h-[calc(100vh-4rem)] w-auto select-none object-contain transition-transform",
             )}
           />
         </div>
@@ -83,11 +83,7 @@ export function ImagePreview() {
 
         {currentPreview && (
           <div className="flex rounded-sm bg-black/70">
-            <Button
-              {...zommOutProps}
-              disabled={zoomOutDisabled}
-              tooltip="Zoom out"
-            >
+            <Button {...zommOutProps} disabled={zoomOutDisabled} tooltip="Zoom out">
               <Minus className="size-4" />
             </Button>
             <div className="flex w-[46px] items-center justify-center space-x-1 text-neutral-400">
@@ -98,11 +94,7 @@ export function ImagePreview() {
               )}
               <div>%</div>
             </div>
-            <Button
-              {...zoomInProps}
-              disabled={zoomInDisabled}
-              tooltip="Zoom in"
-            >
+            <Button {...zoomInProps} disabled={zoomInDisabled} tooltip="Zoom in">
               <Plus className="size-4" />
             </Button>
             <Button
@@ -123,7 +115,7 @@ export function ImagePreview() {
   );
 }
 
-function ScaleInput(props: React.ComponentProps<'input'>) {
+function ScaleInput(props: React.ComponentProps<"input">) {
   const { props: scaleInputProps, ref } = useScaleInput();
 
   return <input {...scaleInputProps} {...props} ref={ref} />;

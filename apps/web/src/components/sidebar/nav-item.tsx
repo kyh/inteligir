@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
-import { format } from 'date-fns';
-import type { Route } from 'next';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { toast } from 'sonner';
+import { format } from "date-fns";
+import type { Route } from "next";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
-import { useCurrentUser } from '@/components/auth/useCurrentUser';
-import { useTParams } from '@/hooks/use-navigation';
-import { cn } from '@/lib/utils';
-import { useMounted } from '@/registry/hooks/use-mounted';
-import { Button } from '@/registry/ui/button';
+import { useCurrentUser } from "@/components/auth/useCurrentUser";
+import { useTParams } from "@/hooks/use-navigation";
+import { cn } from "@/lib/utils";
+import { useMounted } from "@/registry/hooks/use-mounted";
+import { Button } from "@/registry/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,14 +18,14 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/registry/ui/dropdown-menu';
-import { TooltipTC } from '@/registry/ui/tooltip';
-import { useArchiveDocumentMutation } from '@/trpc/hooks/document-hooks';
-import { api, useTRPC } from '@/trpc/react';
-import { useAuthGuard } from '../auth/useAuthGuard';
-import type { IconFC } from '../ui/icon';
-import { Icons } from '../ui/icons';
-import { Skeleton } from '../ui/skeleton';
+} from "@/registry/ui/dropdown-menu";
+import { TooltipTC } from "@/registry/ui/tooltip";
+import { useArchiveDocumentMutation } from "@/trpc/hooks/document-hooks";
+import { api, useTRPC } from "@/trpc/react";
+import { useAuthGuard } from "../auth/useAuthGuard";
+import type { IconFC } from "../ui/icon";
+import { Icons } from "../ui/icons";
+import { Skeleton } from "../ui/skeleton";
 
 type ItemProps = {
   id?: string;
@@ -64,8 +64,8 @@ export function NavItem({
   updatedAt,
   onClick,
   onExpand: onExpandProp,
-}: ItemProps & React.ComponentProps<'div'>) {
-  const { slug } = useTParams<'/dashboard/[slug]'>();
+}: ItemProps & React.ComponentProps<"div">) {
+  const { slug } = useTParams<"/dashboard/[slug]">();
   const authGuard = useAuthGuard();
 
   const ChevronIcon = expanded ? Icons.chevronDown : Icons.chevronRight;
@@ -91,9 +91,9 @@ export function NavItem({
     const promise = archiveDocument.mutateAsync({ id });
 
     toast.promise(promise, {
-      error: 'Failed to archive note!',
-      loading: 'Moving to trash...',
-      success: 'Note moved to trash.',
+      error: "Failed to archive note!",
+      loading: "Moving to trash...",
+      success: "Note moved to trash.",
     });
   };
 
@@ -107,30 +107,29 @@ export function NavItem({
 
     if (!id) return;
 
-    const promise = createDocument
-      .mutateAsync({ parentDocumentId: id })
-      .then((document) => {
-        if (!expanded) {
-          onExpandProp?.();
-        }
+    const promise = createDocument.mutateAsync({ parentDocumentId: id }).then((document) => {
+      if (!expanded) {
+        onExpandProp?.();
+      }
 
-        router.push(`/dashboard/${slug}/${document.id}` as Route);
-      });
+      router.push(`/dashboard/${slug}/${document.id}` as Route);
+    });
 
     toast.promise(promise, {
-      error: 'Failed to create a new note!',
-      loading: 'Creating a new note...',
-      success: 'New Note created.',
+      error: "Failed to create a new note!",
+      loading: "Creating a new note...",
+      success: "New Note created.",
     });
   };
 
   const content = (
     <div
       className={cn(
-        'group relative flex min-h-[32px] cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[14px] font-medium tracking-tight text-sidebar-text transition-colors duration-200 hover:bg-sidebar-hover',
-        active && 'bg-primary/8 text-primary',
-        level > 0 && 'before:absolute before:left-[14px] before:top-0 before:h-full before:w-px before:bg-border/40',
-        className
+        "group relative flex min-h-[32px] cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-[14px] font-medium tracking-tight text-sidebar-text transition-colors duration-200 hover:bg-sidebar-hover",
+        active && "bg-primary/8 text-primary",
+        level > 0 &&
+          "before:absolute before:left-[14px] before:top-0 before:h-full before:w-px before:bg-border/40",
+        className,
       )}
       onClick={onClick}
       role="button"
@@ -148,7 +147,7 @@ export function NavItem({
               className="relative shrink-0 opacity-100"
               onClick={id ? onExpand : undefined}
               size="navAction"
-              variant={id ? 'navAction' : 'none'}
+              variant={id ? "navAction" : "none"}
             >
               {documentIcon ? (
                 <div className="shrink-0 select-none text-[18px] transition-opacity duration-200 group-hover:opacity-0">
@@ -158,8 +157,8 @@ export function NavItem({
                 Icon && (
                   <Icon
                     className={cn(
-                      'size-4 shrink-0 text-sidebar-text-muted transition-opacity duration-200',
-                      !!id && 'group-hover:opacity-0'
+                      "size-4 shrink-0 text-sidebar-text-muted transition-opacity duration-200",
+                      !!id && "group-hover:opacity-0",
                     )}
                   />
                 )
@@ -190,7 +189,7 @@ export function NavItem({
                   size="navAction"
                   tooltip="Delete"
                   tooltipContentProps={{
-                    side: 'bottom',
+                    side: "bottom",
                   }}
                   variant="navAction"
                 >
@@ -199,9 +198,7 @@ export function NavItem({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start" side="right">
                 <DropdownMenuGroup>
-                  <DropdownMenuItem
-                    onClick={(e) => authGuard(() => onArchive(e))}
-                  >
+                  <DropdownMenuItem onClick={(e) => authGuard(() => onArchive(e))}>
                     <Icons.trash />
                     Move to Trash
                   </DropdownMenuItem>
@@ -212,10 +209,7 @@ export function NavItem({
                     <DropdownMenuSeparator />
                     <div className="space-y-1 p-2 text-muted-foreground/90 text-xs">
                       <div>Last edited by {user?.name}</div>
-                      <div>
-                        {updatedAt &&
-                          format(new Date(updatedAt), 'MMM d, yyyy, h:mm a')}
-                      </div>
+                      <div>{updatedAt && format(new Date(updatedAt), "MMM d, yyyy, h:mm a")}</div>
                     </div>
                   </div>
                 )}
@@ -227,7 +221,7 @@ export function NavItem({
               size="navAction"
               tooltip="Add a page inside"
               tooltipContentProps={{
-                side: 'bottom',
+                side: "bottom",
               }}
               variant="navAction"
             >
@@ -243,7 +237,7 @@ export function NavItem({
 
   const wrappedElement =
     mounted && href ? (
-      <Link href={href} target={href.startsWith('http') ? '_blank' : ''}>
+      <Link href={href} target={href.startsWith("http") ? "_blank" : ""}>
         {content}
       </Link>
     ) : (

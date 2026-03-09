@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -9,8 +9,8 @@ export const emojiValue: any = (
   <fragment>
     <hh2>😃 Emoji Input</hh2>
     <hp>
-      The Emoji Input feature allows you to easily insert emojis into your text
-      using an intuitive inline search.
+      The Emoji Input feature allows you to easily insert emojis into your text using an intuitive
+      inline search.
     </hp>
     <hp>How to use Emoji Input:</hp>
     <hp indent={1} listStyleType="disc">
@@ -26,9 +26,7 @@ export const emojiValue: any = (
       <htext>Press Enter or click to insert the selected emoji.</htext>
     </hp>
     <hp>
-      <htext>
-        Try it out! Type ":" followed by an emoji name, like "smile" or "heart".
-      </htext>
+      <htext>Try it out! Type ":" followed by an emoji name, like "smile" or "heart".</htext>
     </hp>
   </fragment>
 );

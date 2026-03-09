@@ -1,7 +1,7 @@
-import type { Value } from 'platejs';
-import type { TChunkProps } from '@/components/editor/version-history/chunk-node';
+import type { Value } from "platejs";
+import type { TChunkProps } from "@/components/editor/version-history/chunk-node";
 
-import { hasDiff } from './diff-plugin';
+import { hasDiff } from "./diff-plugin";
 
 export const collapseBlocksWithoutDiff = (
   value: Value,
@@ -9,25 +9,24 @@ export const collapseBlocksWithoutDiff = (
     expandedChunks,
   }: {
     expandedChunks: number[];
-  }
+  },
 ) => {
   const diffChunks = chunkDiffs(value, {
     hasDiff,
     paddingBlocks: 1,
   });
 
-  const collapsedValue = diffChunks.flatMap(
-    ({ blocks, hasDiff }, chunkIndex) =>
-      hasDiff || expandedChunks.includes(chunkIndex)
-        ? blocks
-        : blocks.map((block, blockIndex) => ({
-            ...block,
-            chunkCollapsed: {
-              blockCount: blocks.length,
-              chunkIndex,
-              showExpandButton: blockIndex === 0,
-            } satisfies TChunkProps,
-          }))
+  const collapsedValue = diffChunks.flatMap(({ blocks, hasDiff }, chunkIndex) =>
+    hasDiff || expandedChunks.includes(chunkIndex)
+      ? blocks
+      : blocks.map((block, blockIndex) => ({
+          ...block,
+          chunkCollapsed: {
+            blockCount: blocks.length,
+            chunkIndex,
+            showExpandButton: blockIndex === 0,
+          } satisfies TChunkProps,
+        })),
   );
 
   return collapsedValue;
@@ -52,7 +51,7 @@ type ChunkWithoutDiff<Block> = {
 
 const chunkDiffs = <Block>(
   blocks: Block[],
-  { hasDiff, paddingBlocks }: ChunkDiffOptions<Block>
+  { hasDiff, paddingBlocks }: ChunkDiffOptions<Block>,
 ): Chunk<Block>[] => {
   const chunks: Chunk<Block>[] = [];
 

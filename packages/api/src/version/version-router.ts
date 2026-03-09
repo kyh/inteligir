@@ -38,9 +38,7 @@ export const versionRouter = createTRPCRouter({
   deleteVersion: protectedProcedure
     .input(z.object({ id: z.string() }))
     .mutation(async ({ ctx, input }) => {
-      await ctx.db
-        .delete(documentVersion)
-        .where(eq(documentVersion.id, input.id));
+      await ctx.db.delete(documentVersion).where(eq(documentVersion.id, input.id));
     }),
 
   restoreVersion: protectedProcedure

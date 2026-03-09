@@ -1,9 +1,9 @@
-import { type Descendant, ElementApi, type Path } from 'platejs';
+import { type Descendant, ElementApi, type Path } from "platejs";
 
 export function traverseElementNodes(
   nodes: Descendant[],
   callback: (node: Descendant, path: Path) => boolean | void,
-  path: Path = []
+  path: Path = [],
 ) {
   for (const [index, childNode] of nodes.entries()) {
     const childPath = path.concat(index);

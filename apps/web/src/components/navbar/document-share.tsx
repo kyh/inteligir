@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { Users } from 'lucide-react';
-import React from 'react';
-import { toast } from 'sonner';
-import { useTParams } from '@/hooks/use-navigation';
-import { useOrigin } from '@/hooks/useOrigin';
-import { useCopyToClipboard } from '@/registry/hooks/use-copy-to-clipboard';
-import { useMounted } from '@/registry/hooks/use-mounted';
-import { Button, LinkButton } from '@/registry/ui/button';
-import { Input } from '@/registry/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/registry/ui/popover';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/registry/ui/tabs';
-import { useUpdateDocumentMutation } from '@/trpc/hooks/document-hooks';
-import { useDocumentQueryOptions } from '@/trpc/hooks/query-options';
-import { useAuthGuard } from '../auth/useAuthGuard';
-import { Icons } from '../ui/icons';
+import { useQuery } from "@tanstack/react-query";
+import { Users } from "lucide-react";
+import React from "react";
+import { toast } from "sonner";
+import { useTParams } from "@/hooks/use-navigation";
+import { useOrigin } from "@/hooks/useOrigin";
+import { useCopyToClipboard } from "@/registry/hooks/use-copy-to-clipboard";
+import { useMounted } from "@/registry/hooks/use-mounted";
+import { Button, LinkButton } from "@/registry/ui/button";
+import { Input } from "@/registry/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/registry/ui/popover";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/registry/ui/tabs";
+import { useUpdateDocumentMutation } from "@/trpc/hooks/document-hooks";
+import { useDocumentQueryOptions } from "@/trpc/hooks/query-options";
+import { useAuthGuard } from "../auth/useAuthGuard";
+import { Icons } from "../ui/icons";
 
 export const DocumentShare = () => {
   const mounted = useMounted();
   const authGuard = useAuthGuard();
-  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
+  const { documentId } = useTParams<"/dashboard/[slug]/[documentId]">();
   const { data: isPublished } = useQuery({
     ...useDocumentQueryOptions(),
     select: (data) => data.document?.isPublished,
@@ -44,9 +44,9 @@ export const DocumentShare = () => {
     });
 
     toast.promise(promise, {
-      error: 'Failed to publish note!',
-      loading: 'Publishing...',
-      success: 'Note published.',
+      error: "Failed to publish note!",
+      loading: "Publishing...",
+      success: "Note published.",
     });
   };
 
@@ -57,9 +57,9 @@ export const DocumentShare = () => {
     });
 
     toast.promise(promise, {
-      error: 'Failed to unpublish note!',
-      loading: 'Unpublishing...',
-      success: 'Note unpublished.',
+      error: "Failed to unpublish note!",
+      loading: "Unpublishing...",
+      success: "Note unpublished.",
     });
   };
 
@@ -115,12 +115,7 @@ export const DocumentShare = () => {
                   >
                     Unpublish
                   </Button>
-                  <LinkButton
-                    href={url}
-                    size="md"
-                    target="_blank"
-                    variant="brand"
-                  >
+                  <LinkButton href={url} size="md" target="_blank" variant="brand">
                     View site
                   </LinkButton>
                 </div>

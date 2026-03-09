@@ -1,21 +1,19 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from "@tanstack/react-query";
 
-import { Avatar, AvatarFallback, AvatarImage } from '@/registry/ui/avatar';
-import { DialogContent, DialogTitle } from '@/registry/ui/dialog';
-import { Input } from '@/registry/ui/input';
-import { Spinner } from '@/registry/ui/spinner';
-import { useTRPC } from '@/trpc/react';
+import { Avatar, AvatarFallback, AvatarImage } from "@/registry/ui/avatar";
+import { DialogContent, DialogTitle } from "@/registry/ui/dialog";
+import { Input } from "@/registry/ui/input";
+import { Spinner } from "@/registry/ui/spinner";
+import { useTRPC } from "@/trpc/react";
 
-import { Label } from '../ui/label';
-import { DeleteAccountButton } from './delete-account-button';
+import { Label } from "../ui/label";
+import { DeleteAccountButton } from "./delete-account-button";
 
 export function SettingsModal() {
   const trpc = useTRPC();
-  const { data: userSettings, isLoading } = useQuery(
-    trpc.user.getSettings.queryOptions()
-  );
+  const { data: userSettings, isLoading } = useQuery(trpc.user.getSettings.queryOptions());
 
   if (isLoading) {
     return <Spinner />;
@@ -30,17 +28,15 @@ export function SettingsModal() {
           <Avatar className="size-16">
             <AvatarImage
               alt="Profile"
-              src={userSettings?.image || 'https://github.com/ziadbenameur.png'}
+              src={userSettings?.image || "https://github.com/ziadbenameur.png"}
             />
-            <AvatarFallback>
-              {userSettings?.name?.slice(0, 2).toUpperCase() || 'ZB'}
-            </AvatarFallback>
+            <AvatarFallback>{userSettings?.name?.slice(0, 2).toUpperCase() || "ZB"}</AvatarFallback>
           </Avatar>
           <div className="space-y-2">
             <Label htmlFor="preferred-name">Display name</Label>
             <Input
               className="max-w-xs"
-              defaultValue={userSettings?.name || ''}
+              defaultValue={userSettings?.name || ""}
               id="preferred-name"
               readOnly
             />
@@ -54,9 +50,7 @@ export function SettingsModal() {
             <div className="flex items-center justify-between">
               <div>
                 <Label>Email</Label>
-                <p className="text-muted-foreground text-sm">
-                  {userSettings?.email}
-                </p>
+                <p className="text-muted-foreground text-sm">{userSettings?.email}</p>
               </div>
               {/* <Button variant="outline">Change email</Button> */}
             </div>

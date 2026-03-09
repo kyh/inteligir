@@ -3,14 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { joinWaitlistInput } from "@repo/api/waitlist/waitlist-schema";
 import { Button } from "@repo/ui/button";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@repo/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@repo/ui/form";
 import { toast } from "@repo/ui/toast";
 import { cn } from "@repo/ui/utils";
 import { useMutation } from "@tanstack/react-query";

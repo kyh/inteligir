@@ -1,42 +1,31 @@
-'use client';
+"use client";
 
-import { setMediaNode } from '@platejs/media';
+import { setMediaNode } from "@platejs/media";
 import {
   PlaceholderPlugin,
   PlaceholderProvider,
   usePlaceholderElementState,
   usePlaceholderPopoverState,
-} from '@platejs/media/react';
-import { AudioLinesIcon, FileUpIcon, FilmIcon, ImageIcon } from 'lucide-react';
-import { KEYS, nanoid } from 'platejs';
-import {
-  PlateElement,
-  type PlateElementProps,
-  useEditorPlugin,
-  withHOC,
-} from 'platejs/react';
-import type { ReactNode } from 'react';
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
-import { useFilePicker } from 'use-file-picker';
+} from "@platejs/media/react";
+import { AudioLinesIcon, FileUpIcon, FilmIcon, ImageIcon } from "lucide-react";
+import { KEYS, nanoid } from "platejs";
+import { PlateElement, type PlateElementProps, useEditorPlugin, withHOC } from "platejs/react";
+import type { ReactNode } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useFilePicker } from "use-file-picker";
 
 // Potion-only
-import { useLayoutParams } from '@/hooks/use-navigation';
-import { cn } from '@/lib/utils';
-import { useUploadFile } from '@/registry/hooks/use-upload-file';
-import { BlockActionButton } from '@/registry/ui/block-context-menu';
-import { Button } from '@/registry/ui/button';
-import { Input } from '@/registry/ui/input';
-import { Popover, PopoverContent, PopoverTrigger } from '@/registry/ui/popover';
-import { Spinner } from '@/registry/ui/spinner';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/registry/ui/tabs';
+import { useLayoutParams } from "@/hooks/use-navigation";
+import { cn } from "@/lib/utils";
+import { useUploadFile } from "@/registry/hooks/use-upload-file";
+import { BlockActionButton } from "@/registry/ui/block-context-menu";
+import { Button } from "@/registry/ui/button";
+import { Input } from "@/registry/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/registry/ui/popover";
+import { Spinner } from "@/registry/ui/spinner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/registry/ui/tabs";
 // Potion-only
-import { api } from '@/trpc/react';
+import { api } from "@/trpc/react";
 
 const CONTENT: Record<
   string,
@@ -46,19 +35,19 @@ const CONTENT: Record<
   }
 > = {
   [KEYS.audio]: {
-    content: 'Add an audio file',
+    content: "Add an audio file",
     icon: <AudioLinesIcon />,
   },
   [KEYS.file]: {
-    content: 'Add a file',
+    content: "Add a file",
     icon: <FileUpIcon />,
   },
   [KEYS.img]: {
-    content: 'Add an image',
+    content: "Add an image",
     icon: <ImageIcon />,
   },
   [KEYS.video]: {
-    content: 'Add a video',
+    content: "Add a video",
     icon: <FilmIcon />,
   },
 };
@@ -72,32 +61,28 @@ const MEDIA_CONFIG: Record<
   }
 > = {
   [KEYS.audio]: {
-    accept: ['audio/*'],
-    buttonText: 'Upload Audio',
-    embedText: 'Embed audio',
+    accept: ["audio/*"],
+    buttonText: "Upload Audio",
+    embedText: "Embed audio",
   },
   [KEYS.file]: {
-    accept: ['*'],
-    buttonText: 'Choose a file',
-    embedText: 'Embed file',
+    accept: ["*"],
+    buttonText: "Choose a file",
+    embedText: "Embed file",
   },
   [KEYS.img]: {
-    accept: ['image/*'],
-    buttonText: 'Upload file',
-    embedText: 'Embed image',
+    accept: ["image/*"],
+    buttonText: "Upload file",
+    embedText: "Embed image",
   },
   [KEYS.video]: {
-    accept: ['video/*'],
-    buttonText: 'Upload video',
-    embedText: 'Embed video',
+    accept: ["video/*"],
+    buttonText: "Upload video",
+    embedText: "Embed video",
   },
 };
 
-export const MediaPlaceholderPopover = ({
-  children,
-}: {
-  children: React.ReactNode;
-}) => {
+export const MediaPlaceholderPopover = ({ children }: { children: React.ReactNode }) => {
   const {
     api: { placeholder },
     editor,
@@ -119,32 +104,31 @@ export const MediaPlaceholderPopover = ({
   const [open, setOpen] = useState(false);
 
   // Potion-only
-  const { documentId } = useLayoutParams<'/[documentId]'>();
+  const { documentId } = useLayoutParams<"/[documentId]">();
   const createFile = api.file.createFile.useMutation();
 
   const currentMedia = MEDIA_CONFIG[mediaType] ?? MEDIA_CONFIG[KEYS.file];
 
   // const mediaConfig = api.placeholder.getMediaConfig(mediaType as MediaKeys);
-  const multiple = getOption('multiple') ?? true;
+  const multiple = getOption("multiple") ?? true;
 
-  const { isUploading, progress, uploadedFile, uploadFile, uploadingFile } =
-    useUploadFile({
-      onUploadComplete(file) {
-        try {
-          // Potion-only
-          createFile.mutate({
-            id: file.key,
-            appUrl: file.appUrl,
-            documentId,
-            size: file.size,
-            type: file.type,
-            url: file.url,
-          });
-        } catch (error) {
-          console.error(error, 'error');
-        }
-      },
-    });
+  const { isUploading, progress, uploadedFile, uploadFile, uploadingFile } = useUploadFile({
+    onUploadComplete(file) {
+      try {
+        // Potion-only
+        createFile.mutate({
+          id: file.key,
+          appUrl: file.appUrl,
+          documentId,
+          size: file.size,
+          type: file.type,
+          url: file.url,
+        });
+      } catch (error) {
+        console.error(error, "error");
+      }
+    },
+  });
 
   const replaceCurrentPlaceholder = useCallback(
     (file: File) => {
@@ -153,7 +137,7 @@ export const MediaPlaceholderPopover = ({
       placeholder.addUploadingFile(element.id as string, file);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [element.id]
+    [element.id],
   );
 
   /** Open file picker */
@@ -204,17 +188,17 @@ export const MediaPlaceholderPopover = ({
         initialHeight: size?.height,
         initialWidth: size?.width,
         isUpload: true,
-        name: mediaType === KEYS.file ? uploadedFile.name : '',
+        name: mediaType === KEYS.file ? uploadedFile.name : "",
         placeholderId: element.id as string,
         type: mediaType!,
         url: uploadedFile.url,
       },
-      { at: path }
+      { at: path },
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [uploadedFile, element.id, size]);
 
-  const [embedValue, setEmbedValue] = useState('');
+  const [embedValue, setEmbedValue] = useState("");
 
   const onEmbed = useCallback(
     (value: string) => {
@@ -223,7 +207,7 @@ export const MediaPlaceholderPopover = ({
         url: value,
       });
     },
-    [editor, mediaType]
+    [editor, mediaType],
   );
 
   useEffect(() => {
@@ -237,7 +221,7 @@ export const MediaPlaceholderPopover = ({
   }, [isUploading]);
 
   useEffect(() => {
-    setProgresses({ [uploadingFile?.name ?? '']: progress });
+    setProgresses({ [uploadingFile?.name ?? ""]: progress });
     setIsUploading(isUploading);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, progress, isUploading, uploadingFile]);
@@ -267,10 +251,7 @@ export const MediaPlaceholderPopover = ({
             </div>
           </TabsContent>
 
-          <TabsContent
-            className="w-[300px] px-3 pt-2 pb-3 text-center"
-            value="password"
-          >
+          <TabsContent className="w-[300px] px-3 pt-2 pb-3 text-center" value="password">
             <Input
               onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmbedValue(e.target.value)}
               placeholder="Paste the link..."
@@ -323,7 +304,7 @@ export const PlaceholderElement = withHOC(
           {(!progressing || !isImage) && (
             <div
               className={cn(
-                'flex cursor-pointer select-none items-center rounded-sm bg-muted p-3 pr-9 transition-bg-ease hover:bg-primary/10'
+                "flex cursor-pointer select-none items-center rounded-sm bg-muted p-3 pr-9 transition-bg-ease hover:bg-primary/10",
               )}
               contentEditable={false}
               role="button"
@@ -358,7 +339,7 @@ export const PlaceholderElement = withHOC(
         {children}
       </PlateElement>
     );
-  }
+  },
 );
 
 function ImageProgress({
@@ -377,7 +358,7 @@ function ImageProgress({
   useEffect(() => () => URL.revokeObjectURL(objectUrl), [objectUrl]);
 
   return (
-    <div className={cn('relative', className)} contentEditable={false}>
+    <div className={cn("relative", className)} contentEditable={false}>
       <img
         alt={file.name}
         className="h-auto w-full rounded-xs object-cover"
@@ -387,9 +368,7 @@ function ImageProgress({
       {progress < 100 && (
         <div className="absolute right-1 bottom-1 flex items-center space-x-2 rounded-full bg-black/50 px-1 py-0.5">
           <Spinner />
-          <span className="font-medium text-white text-xs">
-            {Math.round(progress)}%
-          </span>
+          <span className="font-medium text-white text-xs">{Math.round(progress)}%</span>
         </div>
       )}
     </div>
@@ -400,21 +379,19 @@ function formatBytes(
   bytes: number,
   opts: {
     decimals?: number;
-    sizeType?: 'accurate' | 'normal';
-  } = {}
+    sizeType?: "accurate" | "normal";
+  } = {},
 ) {
-  const { decimals = 0, sizeType = 'normal' } = opts;
+  const { decimals = 0, sizeType = "normal" } = opts;
 
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-  const accurateSizes = ['Bytes', 'KiB', 'MiB', 'GiB', 'TiB'];
+  const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+  const accurateSizes = ["Bytes", "KiB", "MiB", "GiB", "TiB"];
 
-  if (bytes === 0) return '0 Byte';
+  if (bytes === 0) return "0 Byte";
 
   const i = Math.floor(Math.log(bytes) / Math.log(1024));
 
   return `${(bytes / 1024 ** i).toFixed(decimals)} ${
-    sizeType === 'accurate'
-      ? (accurateSizes[i] ?? 'Bytest')
-      : (sizes[i] ?? 'Bytes')
+    sizeType === "accurate" ? (accurateSizes[i] ?? "Bytest") : (sizes[i] ?? "Bytes")
   }`;
 }

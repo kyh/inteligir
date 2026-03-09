@@ -1,21 +1,16 @@
-'use client';
+"use client";
 
-import { type BaseLinkConfig, BaseLinkPlugin } from '@platejs/link';
-import { CursorOverlayPlugin } from '@platejs/selection/react';
-import type { ExtendConfig } from 'platejs';
-import {
-  Key,
-  toTPlatePlugin,
-  useEditorSelector,
-  usePluginOption,
-} from 'platejs/react';
-import type { MyLinkElement } from '@/registry/components/editor/plate-types';
+import { type BaseLinkConfig, BaseLinkPlugin } from "@platejs/link";
+import { CursorOverlayPlugin } from "@platejs/selection/react";
+import type { ExtendConfig } from "platejs";
+import { Key, toTPlatePlugin, useEditorSelector, usePluginOption } from "platejs/react";
+import type { MyLinkElement } from "@/registry/components/editor/plate-types";
 
-import { getCursorOverlayElement } from '@/registry/ui/cursor-overlay';
-import { LinkElement } from '@/registry/ui/link-node';
-import { LinkFloatingToolbar } from '@/registry/ui/link-toolbar';
+import { getCursorOverlayElement } from "@/registry/ui/cursor-overlay";
+import { LinkElement } from "@/registry/ui/link-node";
+import { LinkFloatingToolbar } from "@/registry/ui/link-toolbar";
 
-export type FloatingLinkMode = 'cursor' | 'edit' | 'hover' | 'insert' | null;
+export type FloatingLinkMode = "cursor" | "edit" | "hover" | "insert" | null;
 
 export type LinkConfig = ExtendConfig<
   BaseLinkConfig,
@@ -46,28 +41,28 @@ export const linkPlugin = toTPlatePlugin<LinkConfig>(BaseLinkPlugin, {
   },
   render: { afterEditable: () => <LinkFloatingToolbar /> },
 })
-  .extendApi<Partial<LinkConfig['api']['a']>>(({ editor, setOption }) => ({
-    show({ linkElement, mode = 'insert' } = {}) {
+  .extendApi<Partial<LinkConfig["api"]["a"]>>(({ editor, setOption }) => ({
+    show({ linkElement, mode = "insert" } = {}) {
       if (linkElement) {
         editor.tf.select(linkElement);
       }
 
       editor.tf.blur();
 
-      editor.getApi(CursorOverlayPlugin).cursorOverlay.addCursor('selection', {
+      editor.getApi(CursorOverlayPlugin).cursorOverlay.addCursor("selection", {
         selection: editor.selection,
       });
 
       setTimeout(() => {
-        setOption('mode', mode);
-        setOption('anchorElement', getCursorOverlayElement() as HTMLElement);
+        setOption("mode", mode);
+        setOption("anchorElement", getCursorOverlayElement() as HTMLElement);
       }, 0);
     },
   }))
   .extend({
     shortcuts: {
       toggleLink: {
-        keys: [[Key.Mod, 'k']],
+        keys: [[Key.Mod, "k"]],
         preventDefault: true,
         handler: ({ editor }) => {
           editor.getApi(linkPlugin).a.show();
@@ -77,8 +72,8 @@ export const linkPlugin = toTPlatePlugin<LinkConfig>(BaseLinkPlugin, {
   });
 
 export const useActiveLink = () => {
-  const mode = usePluginOption(linkPlugin, 'mode');
-  const activeLinkId = usePluginOption(linkPlugin, 'activeId');
+  const mode = usePluginOption(linkPlugin, "mode");
+  const activeLinkId = usePluginOption(linkPlugin, "activeId");
 
   const editingLinkEntry = useEditorSelector(
     (editor) => {
@@ -86,16 +81,14 @@ export const useActiveLink = () => {
 
       return editor.api.node<MyLinkElement>({
         at: [],
-        mode: 'lowest',
+        mode: "lowest",
         match: (n) => n.type === linkPlugin.key && n.id === activeLinkId,
       });
     },
-    [activeLinkId]
+    [activeLinkId],
   );
 
   return editingLinkEntry;
 };
 
-export const LinkKit = [
-  linkPlugin.configure({ node: { component: LinkElement } }),
-];
+export const LinkKit = [linkPlugin.configure({ node: { component: LinkElement } })];

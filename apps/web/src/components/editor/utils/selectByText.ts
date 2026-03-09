@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import type { PlateEditor } from 'platejs/react';
+import type { PlateEditor } from "platejs/react";
 
-import { scrollSelectionIntoView } from './scrollSelectionIntoView';
-import { searchRange } from './searchRanges';
+import { scrollSelectionIntoView } from "./scrollSelectionIntoView";
+import { searchRange } from "./searchRanges";
 
 export const selectByText = (editor: PlateEditor, text: string) => {
   const range = searchRange(editor, text);

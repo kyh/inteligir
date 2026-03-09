@@ -86,11 +86,7 @@ export function Home() {
 
       <div className="flex flex-wrap gap-4 max-sm:justify-center">
         {documents.map((doc) => (
-          <WithSkeleton
-            className="size-[144px]"
-            isLoading={isLoading}
-            key={doc.id}
-          >
+          <WithSkeleton className="size-[144px]" isLoading={isLoading} key={doc.id}>
             <Link href={`/dashboard/${slug}/${doc.id}`}>
               <Card className="h-full overflow-hidden rounded-2xl border border-border/50 shadow-sm transition-all duration-200 hover:border-muted-foreground/20 hover:shadow-md">
                 <div
@@ -115,18 +111,13 @@ export function Home() {
                 </div>
                 <CardHeader className="px-3">
                   <div className="flex items-center gap-2">
-                    <CardTitle className="truncate text-sm">
-                      {doc.title || "Untitled"}
-                    </CardTitle>
+                    <CardTitle className="truncate text-sm">{doc.title || "Untitled"}</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent className="px-3">
                   <div className="flex items-center gap-1.5">
                     {user && currentUser && (
-                      <UserAvatar
-                        avatarClassName="size-4"
-                        user={currentUser}
-                      />
+                      <UserAvatar avatarClassName="size-4" user={currentUser} />
                     )}
                     {doc.updatedAt && (
                       <p className="truncate text-muted-foreground text-xs">

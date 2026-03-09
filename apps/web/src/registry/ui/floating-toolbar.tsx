@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { AIChatPlugin } from '@platejs/ai/react';
+import { AIChatPlugin } from "@platejs/ai/react";
 import {
   type FloatingToolbarState,
   flip,
@@ -8,20 +8,15 @@ import {
   shift,
   useFloatingToolbar,
   useFloatingToolbarState,
-} from '@platejs/floating';
-import { BlockSelectionPlugin } from '@platejs/selection/react';
-import {
-  useComposedRef,
-  useEditorRef,
-  useEventEditorValue,
-  usePluginOption,
-} from 'platejs/react';
-import * as React from 'react';
+} from "@platejs/floating";
+import { BlockSelectionPlugin } from "@platejs/selection/react";
+import { useComposedRef, useEditorRef, useEventEditorValue, usePluginOption } from "platejs/react";
+import * as React from "react";
 
-import { cn } from '@/lib/utils';
-import { linkPlugin } from '@/registry/components/editor/plugins/link-kit';
+import { cn } from "@/lib/utils";
+import { linkPlugin } from "@/registry/components/editor/plugins/link-kit";
 
-import { Toolbar } from './toolbar';
+import { Toolbar } from "./toolbar";
 
 export function FloatingToolbar({
   children,
@@ -32,13 +27,10 @@ export function FloatingToolbar({
   state?: FloatingToolbarState;
 }) {
   const editor = useEditorRef();
-  const focusedEditorId = useEventEditorValue('focus');
-  const isFloatingLinkOpen = !!usePluginOption(linkPlugin, 'mode');
-  const aiOpen = usePluginOption(AIChatPlugin, 'open');
-  const isSelectingSomeBlocks = usePluginOption(
-    BlockSelectionPlugin,
-    'isSelectingSome'
-  );
+  const focusedEditorId = useEventEditorValue("focus");
+  const isFloatingLinkOpen = !!usePluginOption(linkPlugin, "mode");
+  const aiOpen = usePluginOption(AIChatPlugin, "open");
+  const isSelectingSomeBlocks = usePluginOption(BlockSelectionPlugin, "isSelectingSome");
 
   const floatingToolbarState = useFloatingToolbarState({
     editorId: editor.id,
@@ -53,16 +45,11 @@ export function FloatingToolbar({
         }),
         shift({ padding: 50 }),
         flip({
-          fallbackPlacements: [
-            'top-start',
-            'top-end',
-            'bottom-start',
-            'bottom-end',
-          ],
+          fallbackPlacements: ["top-start", "top-end", "bottom-start", "bottom-end"],
           padding: 12,
         }),
       ],
-      placement: 'top-start',
+      placement: "top-start",
       ...state?.floatingOptions,
     },
   });
@@ -82,8 +69,8 @@ export function FloatingToolbar({
     <div ref={clickOutsideRef}>
       <Toolbar
         className={cn(
-          'absolute z-50 animate-zoom whitespace-nowrap rounded-lg bg-popover p-1 opacity-100 shadow-toolbar print:hidden',
-          'scrollbar-hide max-w-[80vw] overflow-x-auto'
+          "absolute z-50 animate-zoom whitespace-nowrap rounded-lg bg-popover p-1 opacity-100 shadow-toolbar print:hidden",
+          "scrollbar-hide max-w-[80vw] overflow-x-auto",
         )}
         ref={ref}
         {...rootProps}

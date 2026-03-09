@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -101,8 +101,8 @@ export const tableValue: any = (
   <fragment>
     <hh2>🏓 Table</hh2>
     <hp>
-      Create customizable tables with resizable columns and rows, allowing you
-      to design structured layouts.
+      Create customizable tables with resizable columns and rows, allowing you to design structured
+      layouts.
     </hp>
     {createTable()}
   </fragment>

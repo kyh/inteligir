@@ -1,26 +1,26 @@
-'use client';
+"use client";
 
-import { useSearchParams } from 'next/navigation';
-import React from 'react';
-import { useIsDesktop } from '@/components/providers/tailwind-provider';
-import { useTParams } from '@/hooks/use-navigation';
-import { useCookieStorage } from '@/hooks/useCookieStorage';
-import type { RightPanelType } from '@/hooks/useResizablePanel';
-import { useMounted } from '@/registry/hooks/use-mounted';
+import { useSearchParams } from "next/navigation";
+import React from "react";
+import { useIsDesktop } from "@/components/providers/tailwind-provider";
+import { useTParams } from "@/hooks/use-navigation";
+import { useCookieStorage } from "@/hooks/useCookieStorage";
+import type { RightPanelType } from "@/hooks/useResizablePanel";
+import { useMounted } from "@/registry/hooks/use-mounted";
 
-import { ContextPanel } from '../context-panel/context-panel';
-import { Navbar } from '../navbar/navbar';
-import { Sidebar } from '../sidebar/sidebar';
+import { ContextPanel } from "../context-panel/context-panel";
+import { Navbar } from "../navbar/navbar";
+import { Sidebar } from "../sidebar/sidebar";
 import {
   type Layout,
   ResizableLeftPanel,
   ResizableMidPanel,
   ResizablePanelGroup,
   ResizableRightPanel,
-} from '../ui/resizable-panel';
+} from "../ui/resizable-panel";
 
-const serverPersistenceId = 'nav';
-const serverPersistenceRightPanelType = 'right-panel-type';
+const serverPersistenceId = "nav";
+const serverPersistenceRightPanelType = "right-panel-type";
 
 type PanelsProps = {
   children: React.ReactNode;
@@ -28,27 +28,23 @@ type PanelsProps = {
   initialRightPanelType: RightPanelType;
 };
 
-export const Panels = ({
-  children,
-  initialLayout,
-  initialRightPanelType,
-}: PanelsProps) => {
-  const { documentId } = useTParams<'/dashboard/[slug]/[documentId]'>();
+export const Panels = ({ children, initialLayout, initialRightPanelType }: PanelsProps) => {
+  const { documentId } = useTParams<"/dashboard/[slug]/[documentId]">();
   const searchParams = useSearchParams();
 
-  const hiddenSidebar = searchParams.get('hidden-sidebar') === 'true';
+  const hiddenSidebar = searchParams.get("hidden-sidebar") === "true";
 
   const isMobile = !useIsDesktop();
   const mounted = useMounted();
 
   const [layout, setLayoutCookieValue] = useCookieStorage<Layout>(
     serverPersistenceId,
-    initialLayout
+    initialLayout,
   );
 
   const [, setRightPanelTypeCookieValue] = useCookieStorage<RightPanelType>(
     serverPersistenceRightPanelType,
-    initialRightPanelType
+    initialRightPanelType,
   );
 
   return (

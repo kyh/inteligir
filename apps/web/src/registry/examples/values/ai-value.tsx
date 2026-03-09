@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -92,9 +92,8 @@ export const aiValue: any = (
     </hp>
     <hcallout icon="💡" variant="info">
       <htext>
-        The AI chat keeps a history of the conversation until you accept or
-        discard the changes. Clicking outside or pressing Escape resets the
-        chat.
+        The AI chat keeps a history of the conversation until you accept or discard the changes.
+        Clicking outside or pressing Escape resets the chat.
       </htext>
     </hcallout>
   </fragment>

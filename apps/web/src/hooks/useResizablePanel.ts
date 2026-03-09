@@ -1,13 +1,13 @@
-import React from 'react';
+import React from "react";
 
-import { PanelsContext } from '@/components/ui/resizable-panel';
+import { PanelsContext } from "@/components/ui/resizable-panel";
 
 export const useToggleLeftPanel = () => {
   const context = React.useContext(PanelsContext);
 
   if (!context) {
     throw new Error(
-      `The \`useHideLeftPanel\` hook must be used inside the <ResizablePanelGroup> component's context.`
+      `The \`useHideLeftPanel\` hook must be used inside the <ResizablePanelGroup> component's context.`,
     );
   }
 
@@ -26,7 +26,7 @@ export const useToggleLeftPanel = () => {
 
       onLayout?.({ leftSize: newVal, rightSize: rightSize ?? 0 });
     },
-    [leftSize, onLayout, rightSize, setLeftSize]
+    [leftSize, onLayout, rightSize, setLeftSize],
   );
 };
 
@@ -41,7 +41,7 @@ export const useToggleRightPanel = () => {
 
   if (!context) {
     throw new Error(
-      `The \`useHideRightPanel\` hook must be used inside the <ResizablePanelGroup> component's context.`
+      `The \`useHideRightPanel\` hook must be used inside the <ResizablePanelGroup> component's context.`,
     );
   }
 
@@ -77,7 +77,7 @@ export const useToggleRightPanel = () => {
       leftSize,
       setRightSize,
       rightPanelType,
-    ]
+    ],
   );
 };
 
@@ -86,7 +86,7 @@ export const useLeftPanelSize = () => {
 
   if (!context) {
     throw new Error(
-      `The \`useLeftPanelSize\` hook must be used inside the <ResizablePanelGroup> component's context.`
+      `The \`useLeftPanelSize\` hook must be used inside the <ResizablePanelGroup> component's context.`,
     );
   }
 
@@ -100,7 +100,7 @@ export const useRightPanelSize = () => {
 
   if (!context) {
     throw new Error(
-      `The \`useRightPanelSize\` hook must be used inside the <ResizablePanelGroup> component's context.`
+      `The \`useRightPanelSize\` hook must be used inside the <ResizablePanelGroup> component's context.`,
     );
   }
 
@@ -120,7 +120,7 @@ export const useRightPanelType = () => {
 
   if (!context) {
     throw new Error(
-      `The \`useRightPanelType\` hook must be used inside the <ResizablePanelGroup> component's context.`
+      `The \`useRightPanelType\` hook must be used inside the <ResizablePanelGroup> component's context.`,
     );
   }
 

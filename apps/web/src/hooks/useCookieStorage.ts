@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import { getCookie, setCookie } from 'cookies-next/client';
-import { useCallback, useState } from 'react';
+import { getCookie, setCookie } from "cookies-next/client";
+import { useCallback, useState } from "react";
 
 export function useCookieStorage<T>(key: string, initialValue?: T) {
   const [storedValue, setStoredValue] = useState<T>(() => {
@@ -22,9 +22,7 @@ export function useCookieStorage<T>(key: string, initialValue?: T) {
     (value: Partial<T>, shouldMerge?: boolean) => {
       setStoredValue((prev) => {
         const newValue =
-          shouldMerge && typeof value === 'object'
-            ? { ...prev, ...value }
-            : (value as T);
+          shouldMerge && typeof value === "object" ? { ...prev, ...value } : (value as T);
 
         // Save to cookies
         void setCookie(key, JSON.stringify(newValue));
@@ -32,7 +30,7 @@ export function useCookieStorage<T>(key: string, initialValue?: T) {
         return newValue;
       });
     },
-    [key]
+    [key],
   );
 
   return [storedValue, setValue] as const;

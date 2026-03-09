@@ -1,15 +1,15 @@
-'use client';
+"use client";
 
-import { ChevronDownIcon } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
-import { KEYS } from 'platejs';
-import { createPlateEditor, Plate } from 'platejs/react';
-import type { PaperFormat } from 'puppeteer';
-import React, { useMemo, useState } from 'react';
+import { ChevronDownIcon } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { KEYS } from "platejs";
+import { createPlateEditor, Plate } from "platejs/react";
+import type { PaperFormat } from "puppeteer";
+import React, { useMemo, useState } from "react";
 
-import { exportValue } from '@/registry/examples/values/export-value';
-import { downloadFile } from '@/registry/lib/download-file';
-import { Button } from '@/registry/ui/button';
+import { exportValue } from "@/registry/examples/values/export-value";
+import { downloadFile } from "@/registry/lib/download-file";
+import { Button } from "@/registry/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -18,23 +18,23 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from '@/registry/ui/dialog';
+} from "@/registry/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/registry/ui/dropdown-menu';
-import { Editor, EditorContainer } from '@/registry/ui/editor';
-import { Input } from '@/registry/ui/input';
-import { Label } from '@/registry/ui/label';
-import { Spinner } from '@/registry/ui/spinner';
+} from "@/registry/ui/dropdown-menu";
+import { Editor, EditorContainer } from "@/registry/ui/editor";
+import { Input } from "@/registry/ui/input";
+import { Label } from "@/registry/ui/label";
+import { Spinner } from "@/registry/ui/spinner";
 
 export default function ExportDemo() {
   const searchParams = useSearchParams();
-  const disableMedia = searchParams.get('disableMedia') === 'true';
-  const print = searchParams.get('print') === 'true';
+  const disableMedia = searchParams.get("disableMedia") === "true";
+  const print = searchParams.get("print") === "true";
 
   const editor = useMemo(() => {
     const editor = createPlateEditor({
@@ -53,7 +53,7 @@ export default function ExportDemo() {
     });
 
     if (print) {
-      editor.meta.mode = 'print';
+      editor.meta.mode = "print";
     }
 
     return editor;
@@ -63,17 +63,17 @@ export default function ExportDemo() {
     <Plate editor={editor} readOnly={print}>
       {!print && <ExportDialog className="absolute top-10 right-10 z-10" />}
 
-      <EditorContainer variant={print ? 'default' : 'demo'}>
-        <Editor variant={print ? 'default' : 'demo'} />
+      <EditorContainer variant={print ? "default" : "demo"}>
+        <Editor variant={print ? "default" : "demo"} />
       </EditorContainer>
     </Plate>
   );
 }
 
 export function ExportDialog({ className }: { className?: string }) {
-  const [type, setType] = useState('pdf');
-  const [pageFormat, setPageFormat] = useState<PaperFormat>('a4');
-  const [scale, setScale] = useState('100');
+  const [type, setType] = useState("pdf");
+  const [pageFormat, setPageFormat] = useState<PaperFormat>("a4");
+  const [scale, setScale] = useState("100");
   const [isExporting, setIsExporting] = useState(false);
   const [disableMedia, setDisableMedia] = useState(false);
 
@@ -81,30 +81,30 @@ export function ExportDialog({ className }: { className?: string }) {
     setIsExporting(true);
 
     try {
-      const response = await fetch('/api/export/pdf', {
+      const response = await fetch("/api/export/pdf", {
         body: JSON.stringify({
           disableMedia,
           format: pageFormat,
           scale: Number(scale) / 100,
         }),
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
-        method: 'POST',
+        method: "POST",
       });
 
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || 'Export failed');
+        throw new Error(error.message || "Export failed");
       }
 
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       // Replace with the document name
-      await downloadFile(url, 'export-demo');
+      await downloadFile(url, "export-demo");
     } catch (error) {
-      console.error('Export failed:', error);
+      console.error("Export failed:", error);
     } finally {
       setIsExporting(false);
     }
@@ -131,23 +131,18 @@ export function ExportDialog({ className }: { className?: string }) {
             <Label htmlFor="format">Export format</Label>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  className="ml-auto w-fit justify-between"
-                  variant="ghost"
-                >
+                <Button className="ml-auto w-fit justify-between" variant="ghost">
                   {type.toUpperCase()}
                   <ChevronDownIcon className="ml-2 size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-full min-w-32 py-1">
-                <DropdownMenuItem onClick={() => setType('pdf')}>
-                  PDF
-                </DropdownMenuItem>
-                <DropdownMenuItem disabled onClick={() => setType('html')}>
+                <DropdownMenuItem onClick={() => setType("pdf")}>PDF</DropdownMenuItem>
+                <DropdownMenuItem disabled onClick={() => setType("html")}>
                   HTML
                   <DropdownMenuShortcut>soon</DropdownMenuShortcut>
                 </DropdownMenuItem>
-                <DropdownMenuItem disabled onClick={() => setType('markdown')}>
+                <DropdownMenuItem disabled onClick={() => setType("markdown")}>
                   Markdown
                   <DropdownMenuShortcut>soon</DropdownMenuShortcut>
                 </DropdownMenuItem>
@@ -159,11 +154,8 @@ export function ExportDialog({ className }: { className?: string }) {
             <Label htmlFor="format">Include content</Label>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  className="ml-auto w-fit justify-between"
-                  variant="ghost"
-                >
-                  {disableMedia ? 'No files or images' : 'Everything'}
+                <Button className="ml-auto w-fit justify-between" variant="ghost">
+                  {disableMedia ? "No files or images" : "Everything"}
                   <ChevronDownIcon className="ml-2 size-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -182,29 +174,17 @@ export function ExportDialog({ className }: { className?: string }) {
             <Label htmlFor="format">Page format</Label>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button
-                  className="ml-auto w-fit justify-between"
-                  variant="ghost"
-                >
-                  {pageFormat.charAt(0).toUpperCase() +
-                    pageFormat.slice(1).toLowerCase()}
+                <Button className="ml-auto w-fit justify-between" variant="ghost">
+                  {pageFormat.charAt(0).toUpperCase() + pageFormat.slice(1).toLowerCase()}
                   <ChevronDownIcon className="ml-2 size-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="w-full min-w-32 py-1">
-                <DropdownMenuItem onClick={() => setPageFormat('a4')}>
-                  A4
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPageFormat('a3')}>
-                  A3
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPageFormat('letter')}>
-                  Letter
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPageFormat('legal')}>
-                  Legal
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setPageFormat('tabloid')}>
+                <DropdownMenuItem onClick={() => setPageFormat("a4")}>A4</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPageFormat("a3")}>A3</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPageFormat("letter")}>Letter</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPageFormat("legal")}>Legal</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setPageFormat("tabloid")}>
                   Tabloid
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -236,7 +216,7 @@ export function ExportDialog({ className }: { className?: string }) {
                 Exporting...
               </>
             ) : (
-              'Export file'
+              "Export file"
             )}
           </Button>
         </DialogFooter>

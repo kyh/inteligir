@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -11,14 +11,10 @@ export const dndValue: any = (
     <hp>Easily reorganize content within your document using drag and drop.</hp>
     <hp>How to use:</hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Hover over the left side of a block to see the drag handle (six dots).
-      </htext>
+      <htext>Hover over the left side of a block to see the drag handle (six dots).</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Click and hold the handle, then drag the block to a new location.
-      </htext>
+      <htext>Click and hold the handle, then drag the block to a new location.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Release to drop the block in its new position.</htext>

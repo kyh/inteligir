@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -9,8 +9,8 @@ export const floatingToolbarValue: any = (
   <fragment>
     <hh2>Floating Toolbar</hh2>
     <hp>
-      The floating toolbar provides quick access to formatting options and
-      actions for selected text.
+      The floating toolbar provides quick access to formatting options and actions for selected
+      text.
     </hp>
     <hp>How to use the floating toolbar:</hp>
     <hp indent={1} listStyleType="disc">
@@ -27,9 +27,7 @@ export const floatingToolbarValue: any = (
       <htext>Transform the selected into an another block</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Apply text formatting: bold, italic, underline, strikethrough, code
-      </htext>
+      <htext>Apply text formatting: bold, italic, underline, strikethrough, code</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Mark text as an equation</htext>
@@ -41,9 +39,7 @@ export const floatingToolbarValue: any = (
       <htext>Open the block menu for additional options</htext>
     </hp>
     <hp>
-      <htext>
-        Try selecting some text below to see the floating toolbar in action:
-      </htext>
+      <htext>Try selecting some text below to see the floating toolbar in action:</htext>
     </hp>
     <hp>
       <htext bold>Bold text</htext>

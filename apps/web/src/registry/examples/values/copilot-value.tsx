@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -11,17 +11,11 @@ export const copilotValue: any = (
       <htext>AI Copilot</htext>
     </hh2>
     <hp>
-      <htext>
-        AI Copilot provides intelligent auto-completion suggestions as you
-        write.
-      </htext>
+      <htext>AI Copilot provides intelligent auto-completion suggestions as you write.</htext>
     </hp>
     <hp>How to use AI Copilot:</hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Position your cursor at the end of a paragraph where you want to add
-        text.
-      </htext>
+      <htext>Position your cursor at the end of a paragraph where you want to add text.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Press "Ctrl + Space" to trigger AI auto-completion.</htext>
@@ -41,28 +35,24 @@ export const copilotValue: any = (
     <hp>Additional features:</hp>
     <hp indent={1} listStyleType="disc">
       <htext>
-        Ghost text remains visible as long as you continue typing the same
-        letters as the suggestion.
+        Ghost text remains visible as long as you continue typing the same letters as the
+        suggestion.
       </htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Undo AI auto-completion:</htext>
       <hp indent={2} listStyleType="circle">
-        <htext>
-          Press "Ctrl + Z" to undo the entire suggestion if accepted with Tab.
-        </htext>
+        <htext>Press "Ctrl + Z" to undo the entire suggestion if accepted with Tab.</htext>
       </hp>
       <hp indent={2} listStyleType="circle">
         <htext>
-          Press "Ctrl + Z" to undo one word at a time if accepted with Command +
-          Right Arrow.
+          Press "Ctrl + Z" to undo one word at a time if accepted with Command + Right Arrow.
         </htext>
       </hp>
     </hp>
     <hcallout icon="💡" variant="info">
       <htext>
-        Use Command + Right Arrow to carefully review and accept parts of the
-        suggestion.
+        Use Command + Right Arrow to carefully review and accept parts of the suggestion.
       </htext>
     </hcallout>
   </fragment>

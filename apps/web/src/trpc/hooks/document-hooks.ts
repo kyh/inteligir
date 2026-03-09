@@ -13,18 +13,23 @@ export const useUpdateDocumentMutation = () => {
 
   return api.document.update.useMutation({
     onError: (_err, _vars, context) => {
-      const ctx = context as {
-        id?: string;
-        previousDocument?: unknown;
-        previousDocuments?: unknown;
-      } | undefined;
+      const ctx = context as
+        | {
+            id?: string;
+            previousDocument?: unknown;
+            previousDocuments?: unknown;
+          }
+        | undefined;
       if (ctx?.previousDocuments) {
-        trpc.document.documents.setData({}, ctx.previousDocuments as Parameters<typeof trpc.document.documents.setData>[1]);
+        trpc.document.documents.setData(
+          {},
+          ctx.previousDocuments as Parameters<typeof trpc.document.documents.setData>[1],
+        );
       }
       if (ctx?.previousDocument && ctx?.id) {
         trpc.document.document.setData(
           { id: ctx.id },
-          ctx.previousDocument as Parameters<typeof trpc.document.document.setData>[1]
+          ctx.previousDocument as Parameters<typeof trpc.document.document.setData>[1],
         );
       }
     },
@@ -44,7 +49,7 @@ export const useUpdateDocumentMutation = () => {
               omitNull: true,
             }),
           };
-        })
+        }),
       );
 
       trpc.document.documents.setData({}, (old) =>
@@ -58,7 +63,7 @@ export const useUpdateDocumentMutation = () => {
 
             return document;
           });
-        })
+        }),
       );
 
       return { id: input.id, previousDocument, previousDocuments };
@@ -70,10 +75,7 @@ export const useUpdateDocumentTitle = () => {
   const updateDocument = useUpdateDocumentMutation();
   const trpc = useTRPC();
 
-  const updateDocumentDebounced = useDebouncedCallback(
-    updateDocument.mutate,
-    500
-  );
+  const updateDocumentDebounced = useDebouncedCallback(updateDocument.mutate, 500);
 
   return useCallback(
     (input: { id: string; title: string }) => {
@@ -95,7 +97,7 @@ export const useUpdateDocumentTitle = () => {
                 }),
               };
             }
-          })
+          }),
         ),
         trpc.document.documents.setData({}, (prevData) =>
           produce(prevData, (draft) => {
@@ -108,7 +110,7 @@ export const useUpdateDocumentTitle = () => {
 
               return document;
             });
-          })
+          }),
         ),
         parentDocumentId
           ? trpc.document.documents.setData({ parentDocumentId }, (prevData) =>
@@ -122,12 +124,12 @@ export const useUpdateDocumentTitle = () => {
 
                   return document;
                 });
-              })
+              }),
             )
           : Promise.resolve(),
       ]);
     },
-    [trpc, updateDocumentDebounced]
+    [trpc, updateDocumentDebounced],
   );
 };
 
@@ -136,18 +138,23 @@ export const useArchiveDocumentMutation = () => {
 
   return api.document.archive.useMutation({
     onError: (_err, _vars, context) => {
-      const ctx = context as {
-        id?: string;
-        previousDocument?: unknown;
-        previousDocuments?: unknown;
-      } | undefined;
+      const ctx = context as
+        | {
+            id?: string;
+            previousDocument?: unknown;
+            previousDocuments?: unknown;
+          }
+        | undefined;
       if (ctx?.previousDocuments) {
-        trpc.document.documents.setData({}, ctx.previousDocuments as Parameters<typeof trpc.document.documents.setData>[1]);
+        trpc.document.documents.setData(
+          {},
+          ctx.previousDocuments as Parameters<typeof trpc.document.documents.setData>[1],
+        );
       }
       if (ctx?.previousDocument && ctx?.id) {
         trpc.document.document.setData(
           { id: ctx.id },
-          ctx.previousDocument as Parameters<typeof trpc.document.document.setData>[1]
+          ctx.previousDocument as Parameters<typeof trpc.document.document.setData>[1],
         );
       }
     },
@@ -162,10 +169,8 @@ export const useArchiveDocumentMutation = () => {
         produce(old, (draft) => {
           if (!draft) return draft;
 
-          draft.documents = draft.documents.filter(
-            (document) => document.id !== input.id
-          );
-        })
+          draft.documents = draft.documents.filter((document) => document.id !== input.id);
+        }),
       );
 
       trpc.document.document.setData({ id: input.id }, (old) =>
@@ -173,7 +178,7 @@ export const useArchiveDocumentMutation = () => {
           if (!draft?.document) return draft;
 
           draft.document.isArchived = true;
-        })
+        }),
       );
 
       return { id: input.id, previousDocument, previousDocuments };
@@ -187,10 +192,7 @@ export const useArchiveDocumentMutation = () => {
 export const useUpdateDocumentValue = () => {
   const trpc = useTRPC();
   const updateDocument = useUpdateDocumentMutation();
-  const updateDocumentDebounced = useDebouncedCallback(
-    updateDocument.mutate,
-    500
-  );
+  const updateDocumentDebounced = useDebouncedCallback(updateDocument.mutate, 500);
 
   useWarnIfUnsavedChanges({ enabled: updateDocumentDebounced.isPending() });
 
@@ -206,9 +208,9 @@ export const useUpdateDocumentValue = () => {
           if (draft?.document) {
             draft.document.contentRich = input.value;
           }
-        })
+        }),
       );
     },
-    [trpc, updateDocumentDebounced]
+    [trpc, updateDocumentDebounced],
   );
 };

@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from "react";
 
-import { useCookieStorage } from '@/hooks/useCookieStorage';
-import { RightPanelType } from '@/hooks/useResizablePanel';
-import { cn } from '@/lib/utils';
+import { useCookieStorage } from "@/hooks/useCookieStorage";
+import { RightPanelType } from "@/hooks/useResizablePanel";
+import { cn } from "@/lib/utils";
 
 export type Layout = { leftSize?: number; rightSize?: number };
 
@@ -22,9 +22,7 @@ type PanelsContextProps = {
   onRightPanelTypeChange?: (type: RightPanelType) => void;
 };
 
-export const PanelsContext = React.createContext<Partial<PanelsContextProps>>(
-  {}
-);
+export const PanelsContext = React.createContext<Partial<PanelsContextProps>>({});
 
 type ResizablePanelGroupProps = {
   initLeftSize: number;
@@ -39,11 +37,7 @@ type ResizablePanelGroupProps = {
 };
 
 export const ResizablePanelGroup = React.memo(
-  ({
-    children,
-    className,
-    ...props
-  }: React.PropsWithChildren<ResizablePanelGroupProps>) => {
+  ({ children, className, ...props }: React.PropsWithChildren<ResizablePanelGroupProps>) => {
     const {
       hiddenLeft,
       hiddenRight,
@@ -62,16 +56,14 @@ export const ResizablePanelGroup = React.memo(
 
     const [rightPanelTypeLocal] = useCookieStorage<RightPanelType>(
       serverPersistenceRightPanelType,
-      RightPanelType.comment
+      RightPanelType.comment,
     );
 
     // TODO:The layout flickers on a small screen when cookies not exit.
     // It's a bit difficult to fix, but it's the best outcome given the circumstances.
-    const [leftSize, setLeftSize] = React.useState(
-      layout.leftSize ?? initLeftSize
-    );
+    const [leftSize, setLeftSize] = React.useState(layout.leftSize ?? initLeftSize);
     const [rightSize, setRightSize] = React.useState(
-      layout.rightSize ?? (hiddenRight ? 0 : initRightSize)
+      layout.rightSize ?? (hiddenRight ? 0 : initRightSize),
     );
 
     const [rightPanelTypeState, setRightPanelType] =
@@ -93,10 +85,10 @@ export const ResizablePanelGroup = React.memo(
           onRightPanelTypeChange,
         }}
       >
-        <div className={cn('flex flex-1', className)}>{children}</div>
+        <div className={cn("flex flex-1", className)}>{children}</div>
       </PanelsContext.Provider>
     );
-  }
+  },
 );
 
 type ResizablePanelProps = {
@@ -105,26 +97,16 @@ type ResizablePanelProps = {
 };
 
 export const ResizableLeftPanel = React.memo(
-  ({
-    children,
-    maxSize,
-    minSize,
-  }: React.PropsWithChildren<ResizablePanelProps>) => {
+  ({ children, maxSize, minSize }: React.PropsWithChildren<ResizablePanelProps>) => {
     const context = React.useContext(PanelsContext);
 
     if (!context) {
       throw new Error(
-        `The \`ResizableLeftPanel\` component must be used inside the <ResizablePanelGroup> component's context.`
+        `The \`ResizableLeftPanel\` component must be used inside the <ResizablePanelGroup> component's context.`,
       );
     }
 
-    const {
-      hiddenLeft,
-      leftSize = 0,
-      rightSize,
-      setLeftSize,
-      onLayout,
-    } = context;
+    const { hiddenLeft, leftSize = 0, rightSize, setLeftSize, onLayout } = context;
 
     const [isDragging, setIsDragging] = useState(false);
 
@@ -138,10 +120,7 @@ export const ResizableLeftPanel = React.memo(
 
     return (
       <div
-        className={cn(
-          'flex h-dvh overflow-hidden',
-          !isDragging && 'transition-[width]'
-        )}
+        className={cn("flex h-dvh overflow-hidden", !isDragging && "transition-[width]")}
         style={{ width: leftSize }}
       >
         <div className="relative flex flex-1 bg-muted/50">
@@ -157,7 +136,7 @@ export const ResizableLeftPanel = React.memo(
         </div>
       </div>
     );
-  }
+  },
 );
 
 type ResizableHandleProps = {
@@ -180,7 +159,7 @@ const ResizableHandle = ({
 
   if (!context) {
     throw new Error(
-      `The \`ResizableHandle\` component must be used inside the <ResizablePanelGroup> component's context.`
+      `The \`ResizableHandle\` component must be used inside the <ResizablePanelGroup> component's context.`,
     );
   }
 
@@ -194,19 +173,19 @@ const ResizableHandle = ({
       setInitialMouseX(e.clientX);
       setInitialPanelSize(isLeft ? leftSize! : rightSize!);
 
-      document.body.style.userSelect = 'none';
-      document.body.style.pointerEvents = 'none';
-      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = "none";
+      document.body.style.pointerEvents = "none";
+      document.body.style.cursor = "col-resize";
     },
-    [isLeft, leftSize, rightSize, setIsDragging]
+    [isLeft, leftSize, rightSize, setIsDragging],
   );
 
   const onMouseUp = useCallback(() => {
     setIsDragging?.(false);
 
-    document.body.style.userSelect = '';
-    document.body.style.pointerEvents = '';
-    document.body.style.cursor = '';
+    document.body.style.userSelect = "";
+    document.body.style.pointerEvents = "";
+    document.body.style.cursor = "";
     onLayout?.({ leftSize: leftSize ?? 0, rightSize: rightSize ?? 0 });
   }, [leftSize, onLayout, rightSize, setIsDragging]);
 
@@ -250,38 +229,38 @@ const ResizableHandle = ({
       maxSize,
       setLeftSize,
       setRightSize,
-    ]
+    ],
   );
 
   useEffect(() => {
     if (isDragging) {
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
     } else {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
     }
 
     return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
     };
   }, [isDragging, onMouseMove, onMouseUp]);
 
   return (
     <div
       className={cn(
-        'group absolute top-0 z-30 h-full w-[4px] cursor-col-resize',
-        isLeft ? 'right-0' : 'left-0',
-        className
+        "group absolute top-0 z-30 h-full w-[4px] cursor-col-resize",
+        isLeft ? "right-0" : "left-0",
+        className,
       )}
       onMouseDown={onMouseDown}
     >
       <div
         className={cn(
-          'h-full w-[2px] opacity-0 transition-all duration-150 group-hover:bg-primary/60 group-hover:opacity-100',
-          isLeft ? 'ml-auto' : 'mr-auto',
-          isDragging && 'bg-primary/60 opacity-100'
+          "h-full w-[2px] opacity-0 transition-all duration-150 group-hover:bg-primary/60 group-hover:opacity-100",
+          isLeft ? "ml-auto" : "mr-auto",
+          isDragging && "bg-primary/60 opacity-100",
         )}
       />
     </div>
@@ -293,43 +272,30 @@ type ResizableMidPanelProps = {
 };
 
 export const ResizableMidPanel = React.memo(
-  ({
-    children,
-    className,
-  }: React.PropsWithChildren<ResizableMidPanelProps>) => {
+  ({ children, className }: React.PropsWithChildren<ResizableMidPanelProps>) => {
     const context = React.useContext(PanelsContext);
 
     if (!context) {
       throw new Error(
-        `The \`ResizableMidPanel\` component must be used inside the <ResizablePanelGroup> component's context.`
+        `The \`ResizableMidPanel\` component must be used inside the <ResizablePanelGroup> component's context.`,
       );
     }
 
-    return <div className={cn('flex-1', className)}>{children}</div>;
-  }
+    return <div className={cn("flex-1", className)}>{children}</div>;
+  },
 );
 
 export const ResizableRightPanel = React.memo(
-  ({
-    children,
-    maxSize,
-    minSize,
-  }: React.PropsWithChildren<ResizablePanelProps>) => {
+  ({ children, maxSize, minSize }: React.PropsWithChildren<ResizablePanelProps>) => {
     const context = React.useContext(PanelsContext);
 
     if (!context) {
       throw new Error(
-        `The \`ResizableRightPanel\` component must be used inside the <ResizablePanelGroup> component's context.`
+        `The \`ResizableRightPanel\` component must be used inside the <ResizablePanelGroup> component's context.`,
       );
     }
 
-    const {
-      hiddenRight,
-      leftSize,
-      rightSize = 0,
-      setRightSize,
-      onLayout,
-    } = context;
+    const { hiddenRight, leftSize, rightSize = 0, setRightSize, onLayout } = context;
     const [isDragging, setIsDragging] = useState(false);
 
     useEffect(() => {
@@ -342,10 +308,7 @@ export const ResizableRightPanel = React.memo(
 
     return (
       <div
-        className={cn(
-          'relative flex h-full overflow-hidden',
-          !isDragging && 'transition-[width]'
-        )}
+        className={cn("relative flex h-full overflow-hidden", !isDragging && "transition-[width]")}
         style={{ width: rightSize }}
       >
         <ResizableHandle
@@ -358,5 +321,5 @@ export const ResizableRightPanel = React.memo(
         <div className="flex-1">{children}</div>
       </div>
     );
-  }
+  },
 );

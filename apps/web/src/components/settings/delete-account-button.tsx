@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { toast } from 'sonner';
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -14,27 +14,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { Input } from '@/registry/ui/input';
-import { api, useTRPC } from '@/trpc/react';
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/registry/ui/input";
+import { api, useTRPC } from "@/trpc/react";
 
-import { Icons } from '../ui/icons';
-import { Label } from '../ui/label';
+import { Icons } from "../ui/icons";
+import { Label } from "../ui/label";
 
 export function DeleteAccountButton() {
   const trpc = useTRPC();
   const { data: userSettings } = useQuery(trpc.user.getSettings.queryOptions());
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [confirmEmail, setConfirmEmail] = useState('');
+  const [confirmEmail, setConfirmEmail] = useState("");
 
   const deleteAccountMutation = api.user.deleteAccount.useMutation({
     onError: (error) => {
       toast.error(`Failed to delete account: ${error.message}`);
     },
     onSuccess: () => {
-      toast.success('Account deleted successfully');
+      toast.success("Account deleted successfully");
       // Perform a hard refresh to the home page
-      window.location.href = '/';
+      window.location.href = "/";
     },
   });
 
@@ -54,8 +54,7 @@ export function DeleteAccountButton() {
           <div>
             <Label className="text-destructive">Delete my account</Label>
             <p className="text-muted-foreground text-sm">
-              Permanently delete the account and remove access from all
-              workspaces.
+              Permanently delete the account and remove access from all workspaces.
             </p>
           </div>
 
@@ -69,8 +68,7 @@ export function DeleteAccountButton() {
             Delete your entire account permanently?
           </AlertDialogTitle>
           <AlertDialogDescription className="text-center">
-            This action cannot be undone. This will permanently delete your
-            entire account.
+            This action cannot be undone. This will permanently delete your entire account.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <div className="space-y-4">
@@ -78,19 +76,15 @@ export function DeleteAccountButton() {
             <div className="flex items-center space-x-3">
               <Icons.user className="size-4" />
               <span className="font-medium">{userSettings?.name}</span>
-              <span className="text-muted-foreground text-sm">
-                Free Plan • 1 member
-              </span>
+              <span className="text-muted-foreground text-sm">Free Plan • 1 member</span>
             </div>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirm-email">
-              Please type in your email to confirm.
-            </Label>
+            <Label htmlFor="confirm-email">Please type in your email to confirm.</Label>
             <Input
               id="confirm-email"
               onChange={(e) => setConfirmEmail(e.target.value)}
-              placeholder={userSettings?.email ?? ''}
+              placeholder={userSettings?.email ?? ""}
               value={confirmEmail}
             />
           </div>

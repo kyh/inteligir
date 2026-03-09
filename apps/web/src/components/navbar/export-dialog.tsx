@@ -53,10 +53,9 @@ export function ExportDialog() {
 
   const fontFamily = useMemo(
     () => ({
-      fontFamily: TEXT_STYLE_ITEMS.find((item) => item.key === textStyle)
-        ?.fontFamily,
+      fontFamily: TEXT_STYLE_ITEMS.find((item) => item.key === textStyle)?.fontFamily,
     }),
-    [textStyle]
+    [textStyle],
   );
 
   const handleExportHtml = async () => {
@@ -148,12 +147,8 @@ export function ExportDialog() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent className="w-full min-w-32 py-1">
-              <DropdownMenuItem onClick={() => setType("markdown")}>
-                Markdown
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setType("html")}>
-                HTML
-              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setType("markdown")}>Markdown</DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setType("html")}>HTML</DropdownMenuItem>
               <DropdownMenuItem disabled onClick={() => setType("pdf")}>
                 PDF
                 <DropdownMenuShortcut>soon</DropdownMenuShortcut>

@@ -1,23 +1,18 @@
-import { generateReactHelpers } from '@uploadthing/react';
-import React from 'react';
-import { toast } from 'sonner';
-import type {
-  ClientUploadedFileData,
-  UploadFilesOptions,
-} from 'uploadthing/types';
-import { z } from 'zod';
-import type { OurFileRouter } from '@/registry/lib/uploadthing';
+import { generateReactHelpers } from "@uploadthing/react";
+import React from "react";
+import { toast } from "sonner";
+import type { ClientUploadedFileData, UploadFilesOptions } from "uploadthing/types";
+import { z } from "zod";
+import type { OurFileRouter } from "@/registry/lib/uploadthing";
 
-export const { uploadFiles, useUploadThing } =
-  generateReactHelpers<OurFileRouter>();
+export const { uploadFiles, useUploadThing } = generateReactHelpers<OurFileRouter>();
 
 export interface UploadedFile<T = unknown> extends ClientUploadedFileData<T> {}
 
-interface UseUploadFileProps
-  extends Pick<
-    UploadFilesOptions<OurFileRouter['editorUploader']>,
-    'headers' | 'onUploadBegin' | 'onUploadProgress' | 'skipPolling'
-  > {
+interface UseUploadFileProps extends Pick<
+  UploadFilesOptions<OurFileRouter["editorUploader"]>,
+  "headers" | "onUploadBegin" | "onUploadProgress" | "skipPolling"
+> {
   defaultUploadedFiles?: UploadedFile[];
   onUploadComplete?: (file: UploadedFile) => void;
   onUploadError?: (error: unknown) => void;
@@ -38,7 +33,7 @@ export function useUploadFile({
     setUploadingFile(file);
 
     try {
-      const res = await uploadFiles('editorUploader', {
+      const res = await uploadFiles("editorUploader", {
         ...props,
         files: [file],
         onUploadProgress: ({ progress }) => {
@@ -55,9 +50,7 @@ export function useUploadFile({
       const errorMessage = getErrorMessage(error);
 
       const message =
-        errorMessage.length > 0
-          ? errorMessage
-          : 'Something went wrong, please try again later.';
+        errorMessage.length > 0 ? errorMessage : "Something went wrong, please try again later.";
 
       toast.error(message);
 
@@ -66,7 +59,7 @@ export function useUploadFile({
       // Mock upload for unauthenticated users
       // toast.info('User not logged in. Mocking upload process.');
       const mockUploadedFile = {
-        key: 'mock-key-0',
+        key: "mock-key-0",
         appUrl: `https://mock-app-url.com/${file.name}`,
         name: file.name,
         size: file.size,
@@ -107,12 +100,12 @@ export function useUploadFile({
 }
 
 export function getErrorMessage(err: unknown) {
-  const unknownError = 'Something went wrong, please try again later.';
+  const unknownError = "Something went wrong, please try again later.";
 
   if (err instanceof z.ZodError) {
     const errors = err.issues.map((issue) => issue.message);
 
-    return errors.join('\n');
+    return errors.join("\n");
   }
   if (err instanceof Error) {
     return err.message;

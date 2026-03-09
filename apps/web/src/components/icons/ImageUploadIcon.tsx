@@ -1,5 +1,5 @@
-import type { LucideProps } from 'lucide-react';
-import React from 'react';
+import type { LucideProps } from "lucide-react";
+import React from "react";
 
 export const ImageUploadIcon = (props: LucideProps) => (
   <svg

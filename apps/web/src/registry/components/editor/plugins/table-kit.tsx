@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
 import {
   TableCellHeaderPlugin,
   TableCellPlugin,
   TablePlugin,
   TableRowPlugin,
-} from '@platejs/table/react';
+} from "@platejs/table/react";
 
 import {
   TableCellElement,
   TableCellHeaderElement,
   TableElement,
   TableRowElement,
-} from '@/registry/ui/table-node';
+} from "@/registry/ui/table-node";
 
 export const TableKit = [
   TablePlugin.withComponent(TableElement),

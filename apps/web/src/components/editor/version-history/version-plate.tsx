@@ -1,9 +1,9 @@
-import type { Value } from 'platejs';
+import type { Value } from "platejs";
 
-import { Plate, usePlateEditor } from 'platejs/react';
+import { Plate, usePlateEditor } from "platejs/react";
 
-import { EditorKit } from '@/components/editor/editor-kit-app';
-import { Editor } from '@/registry/ui/editor';
+import { EditorKit } from "@/components/editor/editor-kit-app";
+import { Editor } from "@/registry/ui/editor";
 
 export function VersionPlate({
   children,

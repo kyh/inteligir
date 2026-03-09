@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { DatePlugin } from '@platejs/date/react';
-import { MentionPlugin } from '@platejs/mention/react';
-import { useQuery } from '@tanstack/react-query';
-import { ArrowUpRightIcon, EllipsisIcon, FileTextIcon } from 'lucide-react';
-import Image from 'next/image';
-import { IS_APPLE, type Value } from 'platejs';
+import { DatePlugin } from "@platejs/date/react";
+import { MentionPlugin } from "@platejs/mention/react";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowUpRightIcon, EllipsisIcon, FileTextIcon } from "lucide-react";
+import Image from "next/image";
+import { IS_APPLE, type Value } from "platejs";
 import {
   PlateElement,
   type PlateElementProps,
@@ -15,24 +15,20 @@ import {
   usePlateEditor,
   useReadOnly,
   useSelected,
-} from 'platejs/react';
-import * as React from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useMounted } from '@/registry/hooks/use-mounted';
-import { useSession } from '@/components/auth/useSession';
-import { COVER_GRADIENTS } from '@/components/cover/cover-popover';
-import { cn } from '@/lib/utils';
-import { BaseEditorKit } from '@/registry/components/editor/editor-base-kit';
-import type { MyMentionElement } from '@/registry/components/editor/plate-types';
-import { insertInlineElement } from '@/registry/components/editor/transforms';
-import { useDebounce } from '@/registry/hooks/use-debounce';
-import { Avatar, AvatarFallback, AvatarImage } from '@/registry/ui/avatar';
-import { EditorStatic } from '@/registry/ui/editor-static';
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from '@/registry/ui/hover-card';
+} from "platejs/react";
+import * as React from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMounted } from "@/registry/hooks/use-mounted";
+import { useSession } from "@/components/auth/useSession";
+import { COVER_GRADIENTS } from "@/components/cover/cover-popover";
+import { cn } from "@/lib/utils";
+import { BaseEditorKit } from "@/registry/components/editor/editor-base-kit";
+import type { MyMentionElement } from "@/registry/components/editor/plate-types";
+import { insertInlineElement } from "@/registry/components/editor/transforms";
+import { useDebounce } from "@/registry/hooks/use-debounce";
+import { Avatar, AvatarFallback, AvatarImage } from "@/registry/ui/avatar";
+import { EditorStatic } from "@/registry/ui/editor-static";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/registry/ui/hover-card";
 import {
   InlineCombobox,
   InlineComboboxContent,
@@ -41,23 +37,16 @@ import {
   InlineComboboxGroupLabel,
   InlineComboboxInput,
   InlineComboboxItem,
-} from '@/registry/ui/inline-combobox';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/registry/ui/tooltip';
-import type { RouterDocumentItem, RouterUserItem } from '@/types';
-import { useTRPC } from '@/trpc/react';
+} from "@/registry/ui/inline-combobox";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/registry/ui/tooltip";
+import type { RouterDocumentItem, RouterUserItem } from "@/types";
+import { useTRPC } from "@/trpc/react";
 
 export function MentionInputElement(props: PlateElementProps) {
-  const [placeholder, setPlaceholder] = useState(
-    'Mention a person,page,or date...'
-  );
+  const [placeholder, setPlaceholder] = useState("Mention a person,page,or date...");
 
   const { children, editor, element } = props;
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
 
   return (
     <PlateElement
@@ -65,7 +54,7 @@ export function MentionInputElement(props: PlateElementProps) {
       as="span"
       attributes={{
         ...props.attributes,
-        'data-slate-value': element.value,
+        "data-slate-value": element.value,
       }}
     >
       <InlineCombobox
@@ -77,10 +66,7 @@ export function MentionInputElement(props: PlateElementProps) {
       >
         <span className="rounded-md bg-muted px-1.5 py-0.5 align-baseline text-sm ring-ring">
           <span className="font-bold">@</span>
-          <InlineComboboxInput
-            className="min-w-[100px]"
-            placeholder={placeholder}
-          />
+          <InlineComboboxInput className="min-w-[100px]" placeholder={placeholder} />
         </span>
 
         <InlineComboboxContent variant="mention">
@@ -92,17 +78,17 @@ export function MentionInputElement(props: PlateElementProps) {
               onClick={() => {
                 insertInlineElement(editor, DatePlugin.key);
               }}
-              onFocus={() => setPlaceholder('Today')}
-              onMouseEnter={() => setPlaceholder('Today')}
+              onFocus={() => setPlaceholder("Today")}
+              onMouseEnter={() => setPlaceholder("Today")}
               value="today"
             >
               <span>Today</span>
               <span className="mx-1 text-muted-foreground">—</span>
               <span className="font-medium text-muted-foreground text-xs">
                 {new Date().toLocaleDateString(undefined, {
-                  day: 'numeric',
-                  month: 'long',
-                  year: 'numeric',
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
                 })}
               </span>
             </InlineComboboxItem>
@@ -113,13 +99,13 @@ export function MentionInputElement(props: PlateElementProps) {
             onDocumentSelect={(document) => {
               editor.tf.insertNodes<MyMentionElement>({
                 key: `/${document.id}`,
-                children: [{ text: '' }],
+                children: [{ text: "" }],
                 coverImage: document.coverImage ?? undefined,
                 icon: document.icon ?? undefined,
                 type: MentionPlugin.key,
                 value: document.title!,
               });
-              editor.tf.move({ unit: 'offset' });
+              editor.tf.move({ unit: "offset" });
             }}
             search={search}
           />
@@ -129,11 +115,11 @@ export function MentionInputElement(props: PlateElementProps) {
             onUserSelect={(user) => {
               editor.tf.insertNodes<MyMentionElement>({
                 key: user.id,
-                children: [{ text: '' }],
+                children: [{ text: "" }],
                 type: MentionPlugin.key,
                 value: user.name ?? user.email!,
               });
-              editor.tf.move({ unit: 'offset' });
+              editor.tf.move({ unit: "offset" });
             }}
             search={search}
           />
@@ -180,9 +166,7 @@ function PeopleComboboxGroup({
     if (cursor) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- valid: syncing paginated API data
       setApiUsers((prev) => {
-        const newItems = apiData.items.filter(
-          (item) => !prev.some((user) => user.id === item.id)
-        );
+        const newItems = apiData.items.filter((item) => !prev.some((user) => user.id === item.id));
         return [...prev, ...newItems];
       });
     } else {
@@ -198,9 +182,9 @@ function PeopleComboboxGroup({
         : mockUsers.filter(
             (user) =>
               user.name?.toLowerCase().includes(search.toLowerCase()) ||
-              user.email?.toLowerCase().includes(search.toLowerCase())
+              user.email?.toLowerCase().includes(search.toLowerCase()),
           ),
-    [search, session]
+    [search, session],
   );
 
   const allUsers = session ? apiUsers : mockFilteredUsers;
@@ -230,9 +214,7 @@ function PeopleComboboxGroup({
           >
             <Avatar className="mr-2.5 size-5">
               <AvatarImage alt={user.name!} src={user.image!} />
-              <AvatarFallback>
-                {user.name?.charAt(0).toUpperCase()}
-              </AvatarFallback>
+              <AvatarFallback>{user.name?.charAt(0).toUpperCase()}</AvatarFallback>
             </Avatar>
 
             {user.name ?? user.email}
@@ -252,7 +234,7 @@ function PeopleComboboxGroup({
               value="load-more"
             >
               <EllipsisIcon className="mr-2.5 size-5!" />
-              <span>{isLoading ? 'Loading...' : 'Load more'}</span>
+              <span>{isLoading ? "Loading..." : "Load more"}</span>
             </InlineComboboxItem>
           )}
         </React.Fragment>
@@ -298,7 +280,7 @@ function DocumentComboboxGroup({
       // eslint-disable-next-line react-hooks/set-state-in-effect -- valid: syncing paginated API data
       setAllDocuments((prev) => {
         const newItems = apiData.documents.filter(
-          (item) => !prev.some((doc) => doc.id === item.id)
+          (item) => !prev.some((doc) => doc.id === item.id),
         );
         return [...prev, ...newItems];
       });
@@ -313,9 +295,9 @@ function DocumentComboboxGroup({
       session
         ? []
         : (mockMentionDocuments.filter((doc) =>
-            doc.title.toLowerCase().includes(search.toLowerCase())
+            doc.title.toLowerCase().includes(search.toLowerCase()),
           ) as unknown as RouterDocumentItem[]),
-    [search, session]
+    [search, session],
   );
 
   const documents = session ? allDocuments : mockFilteredDocs;
@@ -338,15 +320,13 @@ function DocumentComboboxGroup({
         <React.Fragment key={document.id}>
           <InlineComboboxItem
             onClick={() => onDocumentSelect(document)}
-            onFocus={() => onDocumentHover(document.title ?? '')}
-            onMouseEnter={() => onDocumentHover(document.title ?? '')}
+            onFocus={() => onDocumentHover(document.title ?? "")}
+            onMouseEnter={() => onDocumentHover(document.title ?? "")}
             ref={document.id === cursor ? firstNewItemRef : undefined}
-            value={document.title || 'Untitled Document'}
+            value={document.title || "Untitled Document"}
           >
-            <span className="mr-2 size-5">
-              {document.icon ?? <FileTextIcon />}
-            </span>
-            {document.title ?? 'Untitled Document'}
+            <span className="mr-2 size-5">{document.icon ?? <FileTextIcon />}</span>
+            {document.title ?? "Untitled Document"}
           </InlineComboboxItem>
 
           {session && index === documents.length - 1 && apiData?.nextCursor && (
@@ -363,7 +343,7 @@ function DocumentComboboxGroup({
               value="load-more"
             >
               <EllipsisIcon className="mr-2.5 size-5!" />
-              <span>{isLoading ? 'Loading...' : 'Load more'}</span>
+              <span>{isLoading ? "Loading..." : "Load more"}</span>
             </InlineComboboxItem>
           )}
         </React.Fragment>
@@ -375,106 +355,104 @@ function DocumentComboboxGroup({
 /** Only used for mock data when not logged in */
 export const mockMentionDocuments = [
   {
-    id: 'block-menu',
+    id: "block-menu",
     contentRich: [
       {
         children: [
           {
-            text: 'A comprehensive guide to using the block menu in your documents.',
+            text: "A comprehensive guide to using the block menu in your documents.",
           },
         ],
-        type: 'p',
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/block-menu/800/400',
-    icon: '📋',
-    title: 'Block Menu',
+    coverImage: "https://picsum.photos/seed/block-menu/800/400",
+    icon: "📋",
+    title: "Block Menu",
   },
   {
-    id: 'floating-toolbar',
+    id: "floating-toolbar",
     contentRich: [
       {
         children: [
           {
-            text: 'Learn how to use the floating toolbar for quick formatting.',
+            text: "Learn how to use the floating toolbar for quick formatting.",
           },
         ],
-        type: 'p',
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/floating-toolbar/800/400',
-    icon: '🧰',
-    title: 'Floating Toolbar',
+    coverImage: "https://picsum.photos/seed/floating-toolbar/800/400",
+    icon: "🧰",
+    title: "Floating Toolbar",
   },
   {
-    id: 'media-toolbar',
+    id: "media-toolbar",
     contentRich: [
       {
-        children: [
-          { text: 'Everything you need to know about the media toolbar.' },
-        ],
-        type: 'p',
+        children: [{ text: "Everything you need to know about the media toolbar." }],
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/media-toolbar/800/400',
-    icon: '🎮',
-    title: 'Media Toolbar',
+    coverImage: "https://picsum.photos/seed/media-toolbar/800/400",
+    icon: "🎮",
+    title: "Media Toolbar",
   },
   {
-    id: 'table-of-contents',
+    id: "table-of-contents",
     contentRich: [
       {
         children: [
           {
-            text: 'How to create and manage table of contents in your documents.',
+            text: "How to create and manage table of contents in your documents.",
           },
         ],
-        type: 'p',
+        type: "p",
       },
     ],
-    coverImage: 'https://picsum.photos/seed/table-of-contents/800/400',
-    icon: '📚',
-    title: 'Table of Contents',
+    coverImage: "https://picsum.photos/seed/table-of-contents/800/400",
+    icon: "📚",
+    title: "Table of Contents",
   },
 ];
 
 const mockUsers = [
   {
-    id: '1',
-    email: 'john@example.com',
-    name: 'John Doe',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=John',
+    id: "1",
+    email: "john@example.com",
+    name: "John Doe",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=John",
   },
   {
-    id: '2',
-    email: 'jane@example.com',
-    name: 'Jane Smith',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jane',
+    id: "2",
+    email: "jane@example.com",
+    name: "Jane Smith",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Jane",
   },
   {
-    id: '3',
-    email: 'bob@example.com',
-    name: 'Bob Wilson',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob',
+    id: "3",
+    email: "bob@example.com",
+    name: "Bob Wilson",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Bob",
   },
   {
-    id: '4',
-    email: 'alice@example.com',
-    name: 'Alice Brown',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice',
+    id: "4",
+    email: "alice@example.com",
+    name: "Alice Brown",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Alice",
   },
   {
-    id: '5',
-    email: 'charlie@example.com',
-    name: 'Charlie Davis',
-    image: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie',
+    id: "5",
+    email: "charlie@example.com",
+    name: "Charlie Davis",
+    image: "https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie",
   },
 ];
 
 function DocumentMentionElement(
   props: PlateElementProps<MyMentionElement> & {
     prefix?: string;
-  }
+  },
 ) {
   const { children } = props;
   const element = props.element;
@@ -482,17 +460,17 @@ function DocumentMentionElement(
   const focused = useFocused();
 
   useHotkeys(
-    'enter',
+    "enter",
     () => {
       if (selected && focused) {
-        window.open(element.key!.slice(1), '_self');
+        window.open(element.key!.slice(1), "_self");
       }
     },
     {
       enabled: selected && focused,
       enableOnContentEditable: true,
       enableOnFormTags: true,
-    }
+    },
   );
 
   return (
@@ -506,16 +484,16 @@ function DocumentMentionElement(
                 attributes={{
                   ...props.attributes,
                   contentEditable: false,
-                  'data-slate-value': element.value,
+                  "data-slate-value": element.value,
                   draggable: true,
                   onClick: () => {
-                    window.open(element.key!.slice(1), '_self');
+                    window.open(element.key!.slice(1), "_self");
                   },
                   onMouseDown: (e) => e.preventDefault(),
                 }}
                 className={cn(
-                  'inline-block cursor-pointer rounded px-0.5 hover:bg-muted',
-                  selected && focused && 'bg-brand/25'
+                  "inline-block cursor-pointer rounded px-0.5 hover:bg-muted",
+                  selected && focused && "bg-brand/25",
                 )}
               >
                 {props.prefix}
@@ -546,13 +524,12 @@ function DocumentMentionElement(
 function MentionHoverCardContent(props: { element: MyMentionElement }) {
   const editor = useEditorRef();
   const { element } = props;
-  const isGradient =
-    element.coverImage && element.coverImage in COVER_GRADIENTS;
+  const isGradient = element.coverImage && element.coverImage in COVER_GRADIENTS;
 
   const session = useSession();
   const trpc = useTRPC();
 
-  const isDocument = element.key!.startsWith('/');
+  const isDocument = element.key!.startsWith("/");
 
   // Use mock data when not logged in, fetch real data when logged in
   const { data } = useQuery({
@@ -585,25 +562,24 @@ function MentionHoverCardContent(props: { element: MyMentionElement }) {
         },
         {
           at: [],
-          mode: 'lowest',
+          mode: "lowest",
           match: (n) => n.type === MentionPlugin.key && n.id === element.id,
-        }
+        },
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [document]);
 
   const previewEditor = useEditorPreview(
-    (document?.contentRich as Value | undefined)?.slice(0, 2) ?? []
+    (document?.contentRich as Value | undefined)?.slice(0, 2) ?? [],
   );
 
   return (
     <div className="flex flex-col overflow-hidden rounded">
       <div
         className={cn(
-          'h-10 w-full',
-          isGradient &&
-            COVER_GRADIENTS[element.coverImage as keyof typeof COVER_GRADIENTS]
+          "h-10 w-full",
+          isGradient && COVER_GRADIENTS[element.coverImage as keyof typeof COVER_GRADIENTS],
         )}
       >
         {element.coverImage && !isGradient && (
@@ -618,11 +594,7 @@ function MentionHoverCardContent(props: { element: MyMentionElement }) {
       </div>
       <div className="absolute top-5 left-4 text-[30px]">{element.icon}</div>
       <h1 className="mt-5 px-4 font-bold text-lg">{element.value}</h1>
-      <EditorStatic
-        className="px-4 text-xs"
-        editor={previewEditor}
-        variant="mention"
-      />
+      <EditorStatic className="px-4 text-xs" editor={previewEditor} variant="mention" />
     </div>
   );
 }
@@ -630,7 +602,7 @@ function MentionHoverCardContent(props: { element: MyMentionElement }) {
 function UserMentionElement(
   props: PlateElementProps<MyMentionElement> & {
     prefix?: string;
-  }
+  },
 ) {
   const { children } = props;
   const element = props.element;
@@ -643,15 +615,15 @@ function UserMentionElement(
       attributes={{
         ...props.attributes,
         contentEditable: false,
-        'data-slate-value': element.value,
+        "data-slate-value": element.value,
         draggable: true,
       }}
       className={cn(
-        'inline-block cursor-pointer align-baseline font-medium text-primary/65',
-        !readOnly && 'cursor-pointer',
-        (element.children[0] as any).bold === true && 'font-bold',
-        (element.children[0] as any).italic === true && 'italic',
-        (element.children[0] as any).underline === true && 'underline'
+        "inline-block cursor-pointer align-baseline font-medium text-primary/65",
+        !readOnly && "cursor-pointer",
+        (element.children[0] as any).bold === true && "font-bold",
+        (element.children[0] as any).italic === true && "italic",
+        (element.children[0] as any).underline === true && "underline",
       )}
     >
       <span className="font-semibold text-primary/45">@</span>
@@ -677,16 +649,12 @@ function UserMentionElement(
 export function MentionElement(
   props: PlateElementProps<MyMentionElement> & {
     prefix?: string;
-  }
+  },
 ) {
   const element = props.element;
-  const isDocument = element.key?.startsWith('/');
+  const isDocument = element.key?.startsWith("/");
 
-  return isDocument ? (
-    <DocumentMentionElement {...props} />
-  ) : (
-    <UserMentionElement {...props} />
-  );
+  return isDocument ? <DocumentMentionElement {...props} /> : <UserMentionElement {...props} />;
 }
 
 const useEditorPreview = (value: Value) => {
@@ -695,7 +663,7 @@ const useEditorPreview = (value: Value) => {
       plugins: BaseEditorKit,
       value,
     },
-    [value]
+    [value],
   );
 
   return editorStatic;

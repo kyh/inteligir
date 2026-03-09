@@ -13,7 +13,7 @@ export const fileRouter = createTRPCRouter({
         size: z.number(),
         type: z.string(),
         url: z.string(),
-      })
+      }),
     )
     .mutation(async ({ ctx, input }) => {
       await ctx.db.insert(file).values({

@@ -1,47 +1,47 @@
-'use client';
+"use client";
 
-import { MarkdownPlugin } from '@platejs/markdown';
-import { useEditorRef } from 'platejs/react';
-import { getEditorDOMFromHtmlString } from 'platejs/static';
-import * as React from 'react';
-import { useState } from 'react';
-import { useFilePicker } from 'use-file-picker';
+import { MarkdownPlugin } from "@platejs/markdown";
+import { useEditorRef } from "platejs/react";
+import { getEditorDOMFromHtmlString } from "platejs/static";
+import * as React from "react";
+import { useState } from "react";
+import { useFilePicker } from "use-file-picker";
 
-import { Button } from '@/registry/ui/button';
+import { Button } from "@/registry/ui/button";
 import {
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/registry/ui/dialog';
+} from "@/registry/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuShortcut,
   DropdownMenuTrigger,
-} from '@/registry/ui/dropdown-menu';
+} from "@/registry/ui/dropdown-menu";
 
-import { popModal } from '../modals';
-import { Icons } from '../ui/icons';
-import { Label } from '../ui/label';
+import { popModal } from "../modals";
+import { Icons } from "../ui/icons";
+import { Label } from "../ui/label";
 
 export function ImportDialog() {
-  const [type, setType] = useState('html');
-  const [accept, setAccept] = useState('text/html');
+  const [type, setType] = useState("html");
+  const [accept, setAccept] = useState("text/html");
   const [isLoading, setIsLoading] = useState(false);
   const editor = useEditorRef();
 
   const getFileNodes = (text: string, fileType: string) => {
-    if (fileType === 'html') {
+    if (fileType === "html") {
       const editorNode = getEditorDOMFromHtmlString(text);
 
       return editor.api.html.deserialize({
         element: editorNode,
       });
     }
-    if (fileType === 'markdown') {
+    if (fileType === "markdown") {
       return editor.getApi(MarkdownPlugin).markdown.deserialize(text);
     }
 
@@ -60,7 +60,7 @@ export function ImportDialog() {
         const text = await plainFiles[0].text();
         const nodes = getFileNodes(text, type);
         editor.tf.insertNodes(nodes);
-        popModal('Import');
+        popModal("Import");
       } finally {
         setIsLoading(false);
       }
@@ -87,16 +87,16 @@ export function ImportDialog() {
             <DropdownMenuContent className="w-full min-w-32 py-1">
               <DropdownMenuItem
                 onClick={() => {
-                  setType('html');
-                  setAccept('text/html');
+                  setType("html");
+                  setAccept("text/html");
                 }}
               >
                 HTML
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
-                  setType('markdown');
-                  setAccept('.md');
+                  setType("markdown");
+                  setAccept(".md");
                 }}
               >
                 Markdown
@@ -123,7 +123,7 @@ export function ImportDialog() {
               Importing...
             </>
           ) : (
-            'Choose file'
+            "Choose file"
           )}
         </Button>
       </DialogFooter>

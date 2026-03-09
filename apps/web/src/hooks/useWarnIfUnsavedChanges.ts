@@ -1,13 +1,10 @@
 // https://github.com/vercel/next.js/discussions/50700#discussioncomment-10134248
 
-import type { NavigateOptions } from 'next/dist/shared/lib/app-router-context.shared-runtime';
-import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import type { NavigateOptions } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
-export const useWarnIfUnsavedChanges = (options: {
-  enabled?: boolean;
-  router?: boolean;
-}) => {
+export const useWarnIfUnsavedChanges = (options: { enabled?: boolean; router?: boolean }) => {
   const router = useRouter();
 
   const handleAnchorClick = (e: MouseEvent) => {
@@ -17,7 +14,7 @@ export const useWarnIfUnsavedChanges = (options: {
     const currentUrl = window.location.href;
 
     if (targetUrl !== currentUrl && window.onbeforeunload) {
-      const res = window.onbeforeunload(new Event('beforeunload'));
+      const res = window.onbeforeunload(new Event("beforeunload"));
 
       if (!res) e.preventDefault();
     }
@@ -25,9 +22,9 @@ export const useWarnIfUnsavedChanges = (options: {
 
   useEffect(() => {
     const addAnchorListeners = () => {
-      const anchorElements = document.querySelectorAll('a[href]');
+      const anchorElements = document.querySelectorAll("a[href]");
       anchorElements.forEach((anchor) => {
-        anchor.addEventListener('click', handleAnchorClick);
+        anchor.addEventListener("click", handleAnchorClick);
       });
     };
 
@@ -37,9 +34,9 @@ export const useWarnIfUnsavedChanges = (options: {
 
     return () => {
       mutationObserver.disconnect();
-      const anchorElements = document.querySelectorAll('a[href]');
+      const anchorElements = document.querySelectorAll("a[href]");
       anchorElements.forEach((anchor) => {
-        anchor.removeEventListener('click', handleAnchorClick);
+        anchor.removeEventListener("click", handleAnchorClick);
       });
     };
   }, []);
@@ -47,34 +44,34 @@ export const useWarnIfUnsavedChanges = (options: {
   useEffect(() => {
     const beforeUnloadHandler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
-      e.returnValue = ''; // required for Chrome
+      e.returnValue = ""; // required for Chrome
     };
 
     const handlePopState = (e: PopStateEvent) => {
       if (options.enabled) {
         // biome-ignore lint/suspicious/noAlert: intentional user confirmation
         const confirmLeave = window.confirm(
-          'You have unsaved changes. Are you sure you want to leave?'
+          "You have unsaved changes. Are you sure you want to leave?",
         );
 
         if (!confirmLeave) {
           e.preventDefault();
-          window.history.pushState(null, '', window.location.href);
+          window.history.pushState(null, "", window.location.href);
         }
       }
     };
 
     if (options.enabled) {
-      window.addEventListener('beforeunload', beforeUnloadHandler);
-      window.addEventListener('popstate', handlePopState);
+      window.addEventListener("beforeunload", beforeUnloadHandler);
+      window.addEventListener("popstate", handlePopState);
     } else {
-      window.removeEventListener('beforeunload', beforeUnloadHandler);
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
+      window.removeEventListener("popstate", handlePopState);
     }
 
     return () => {
-      window.removeEventListener('beforeunload', beforeUnloadHandler);
-      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener("beforeunload", beforeUnloadHandler);
+      window.removeEventListener("popstate", handlePopState);
     };
   }, [options.enabled]);
 
@@ -88,12 +85,9 @@ export const useWarnIfUnsavedChanges = (options: {
     router.push = ((url: string, opt?: NavigateOptions) => {
       if (options.enabled) {
         // biome-ignore lint/suspicious/noAlert: intentional user confirmation
-        const confirmLeave = window.confirm(
-          'Changes you made may not be saved.'
-        );
+        const confirmLeave = window.confirm("Changes you made may not be saved.");
 
-        if (confirmLeave)
-          originalPush(url as Parameters<typeof originalPush>[0], opt);
+        if (confirmLeave) originalPush(url as Parameters<typeof originalPush>[0], opt);
       } else {
         originalPush(url as Parameters<typeof originalPush>[0], opt);
       }

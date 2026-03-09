@@ -1,19 +1,19 @@
-import { SuggestionPlugin } from '@platejs/suggestion/react';
-import { PencilLineIcon, XIcon } from 'lucide-react';
-import { useEditorRef, usePluginOption } from 'platejs/react';
+import { SuggestionPlugin } from "@platejs/suggestion/react";
+import { PencilLineIcon, XIcon } from "lucide-react";
+import { useEditorRef, usePluginOption } from "platejs/react";
 
-import { Button } from '@/registry/ui/button';
+import { Button } from "@/registry/ui/button";
 
 export const DocumentSuggesting = () => {
   const editor = useEditorRef();
-  const isSuggesting = usePluginOption(SuggestionPlugin, 'isSuggesting');
+  const isSuggesting = usePluginOption(SuggestionPlugin, "isSuggesting");
 
   if (!isSuggesting) return null;
 
   return (
     <Button
       className="text-brand/80 hover:text-brand"
-      onClick={() => editor.setOption(SuggestionPlugin, 'isSuggesting', false)}
+      onClick={() => editor.setOption(SuggestionPlugin, "isSuggesting", false)}
       tooltip="Turn off suggesting"
       variant="ghost"
     >

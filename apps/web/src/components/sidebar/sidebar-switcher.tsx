@@ -1,21 +1,21 @@
-'use client';
+"use client";
 
-import { useCurrentUser } from '@/components/auth/useCurrentUser';
-import { useLogoutMutation } from '@/components/auth/useLogoutMutation';
-import { Avatar, AvatarImage } from '@/registry/ui/avatar';
+import { useCurrentUser } from "@/components/auth/useCurrentUser";
+import { useLogoutMutation } from "@/components/auth/useLogoutMutation";
+import { Avatar, AvatarImage } from "@/registry/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from '@/registry/ui/dropdown-menu';
-import { Spinner } from '@/registry/ui/spinner';
+} from "@/registry/ui/dropdown-menu";
+import { Spinner } from "@/registry/ui/spinner";
 
-import { useAuthGuard } from '../auth/useAuthGuard';
-import { pushModal } from '../modals';
-import { Icons } from '../ui/icons';
-import { Skeleton } from '../ui/skeleton';
+import { useAuthGuard } from "../auth/useAuthGuard";
+import { pushModal } from "../modals";
+import { Icons } from "../ui/icons";
+import { Skeleton } from "../ui/skeleton";
 
 export function SidebarSwitcher() {
   const user = useCurrentUser();
@@ -27,7 +27,7 @@ export function SidebarSwitcher() {
       <div
         className="group mx-2 my-1.5 flex min-h-[32px] cursor-pointer items-center gap-2 border-b border-sidebar-border/50 px-2 py-1 pr-0.5 text-sm font-semibold text-sidebar-text transition-colors duration-200 hover:bg-sidebar-hover"
         onClick={() => {
-          authGuard(() => pushModal('Login'));
+          authGuard(() => pushModal("Login"));
         }}
         role="button"
       >
@@ -38,7 +38,7 @@ export function SidebarSwitcher() {
             <Icons.user className="size-5 text-sidebar-text-muted" />
           )}
         </div>
-        {user.isLoading ? <Skeleton className="h-4 w-3/5" /> : 'Sign in'}
+        {user.isLoading ? <Skeleton className="h-4 w-3/5" /> : "Sign in"}
       </div>
     );
   }
@@ -49,12 +49,12 @@ export function SidebarSwitcher() {
         <div
           className="group mx-2 my-1.5 flex min-h-[32px] cursor-pointer items-center gap-2 border-b border-sidebar-border/50 px-2 py-1 pr-0.5 text-sm font-semibold text-sidebar-text transition-colors duration-200 hover:bg-sidebar-hover"
           onClick={() => {
-            pushModal('Login');
+            pushModal("Login");
           }}
           role="button"
         >
           <Avatar className="size-5">
-            <AvatarImage alt={user.firstName ?? ''} src={user.image ?? ''} />
+            <AvatarImage alt={user.firstName ?? ""} src={user.image ?? ""} />
           </Avatar>
 
           <span className="line-clamp-1 select-none text-start">
@@ -72,9 +72,7 @@ export function SidebarSwitcher() {
 
           <div className="flex flex-col items-start justify-center space-y-1 text-start">
             <p className="line-clamp-1 font-medium text-sm">{user.firstName}</p>
-            <p className="font-medium text-muted-foreground text-xs leading-none">
-              {user.email}
-            </p>
+            <p className="font-medium text-muted-foreground text-xs leading-none">{user.email}</p>
           </div>
         </div>
         <DropdownMenuSeparator />

@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import mitt, { type Handler } from 'mitt';
-import React, { Suspense, useEffect, useState } from 'react';
+import mitt, { type Handler } from "mitt";
+import React, { Suspense, useEffect, useState } from "react";
 
-import { Dialog } from '@/registry/ui/dialog';
+import { Dialog } from "@/registry/ui/dialog";
 
 type CreatePushModalOptions<T> = {
   modals: {
@@ -63,9 +63,7 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
     // Run this to ensure we remove closed modals from the state
     // Otherwise the unmount in useEffect will not be triggered until the next modal is opened
     useEffect(() => {
-      const hasClosedModals = state.some(
-        (item) => typeof item.closedAt === 'number'
-      );
+      const hasClosedModals = state.some((item) => typeof item.closedAt === "number");
       let timer: NodeJS.Timeout | undefined;
 
       if (hasClosedModals) {
@@ -82,8 +80,8 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
     }, [state]);
 
     useEffect(() => {
-      const pushHandler: Handler<EventHandlers['push']> = ({ name, props }) => {
-        emitter.emit('change', { name, open: true, props });
+      const pushHandler: Handler<EventHandlers["push"]> = ({ name, props }) => {
+        emitter.emit("change", { name, open: true, props });
         setState((p) =>
           [
             ...p,
@@ -93,10 +91,10 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
               open: true,
               props,
             },
-          ].filter(filterGarbage)
+          ].filter(filterGarbage),
         );
       };
-      const replaceHandler: Handler<EventHandlers['replace']> = ({
+      const replaceHandler: Handler<EventHandlers["replace"]> = ({
         name: replaceName,
         props: replaceProps,
       }) => {
@@ -106,14 +104,14 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
 
           if (last) {
             // if found emit close event
-            emitter.emit('change', {
+            emitter.emit("change", {
               name: last.name,
               open: false,
               props: last.props,
             });
           }
 
-          emitter.emit('change', {
+          emitter.emit("change", {
             name: replaceName,
             open: true,
             props: replaceProps,
@@ -140,20 +138,18 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
         });
       };
 
-      const popHandler: Handler<EventHandlers['pop']> = ({ name: popName }) => {
+      const popHandler: Handler<EventHandlers["pop"]> = ({ name: popName }) => {
         setState((items) => {
           // Find last index
           const index =
             popName === undefined
               ? // Pick last item if no name is provided
                 items.length - 1
-              : items.findLastIndex(
-                  (item) => item.name === popName && item.open
-                );
+              : items.findLastIndex((item) => item.name === popName && item.open);
           const match = items[index];
 
           if (match) {
-            emitter.emit('change', {
+            emitter.emit("change", {
               name: match.name,
               open: false,
               props: match.props,
@@ -161,28 +157,24 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
           }
 
           return items.map((item) =>
-            match?.key === item.key
-              ? { ...item, closedAt: Date.now(), open: false }
-              : item
+            match?.key === item.key ? { ...item, closedAt: Date.now(), open: false } : item,
           );
         });
       };
 
-      const popAllHandler: Handler<EventHandlers['popAll']> = () => {
-        setState((items) =>
-          items.map((item) => ({ ...item, closedAt: Date.now(), open: false }))
-        );
+      const popAllHandler: Handler<EventHandlers["popAll"]> = () => {
+        setState((items) => items.map((item) => ({ ...item, closedAt: Date.now(), open: false })));
       };
-      emitter.on('push', pushHandler);
-      emitter.on('replace', replaceHandler);
-      emitter.on('pop', popHandler);
-      emitter.on('popAll', popAllHandler);
+      emitter.on("push", pushHandler);
+      emitter.on("replace", replaceHandler);
+      emitter.on("pop", popHandler);
+      emitter.on("popAll", popAllHandler);
 
       return () => {
-        emitter.off('push', pushHandler);
-        emitter.off('replace', replaceHandler);
-        emitter.off('pop', popHandler);
-        emitter.off('popAll', popAllHandler);
+        emitter.off("push", pushHandler);
+        emitter.off("replace", replaceHandler);
+        emitter.off("pop", popHandler);
+        emitter.off("popAll", popAllHandler);
       };
     }, [state.length]);
 
@@ -191,10 +183,8 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
         {state.map((item) => {
           const modal = modals[item.name];
           const Component =
-            'Component' in modal
-              ? modal.Component
-              : (modal as React.ComponentType<unknown>);
-          const Root = 'Wrapper' in modal ? modal.Wrapper : Dialog;
+            "Component" in modal ? modal.Component : (modal as React.ComponentType<unknown>);
+          const Root = "Wrapper" in modal ? modal.Wrapper : Dialog;
 
           return (
             <Root
@@ -230,15 +220,10 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
           ? Q
           : never;
   type IsObject<T> =
-    Prettify<T> extends Record<number | string | symbol, unknown>
-      ? Prettify<T>
-      : never;
+    Prettify<T> extends Record<number | string | symbol, unknown> ? Prettify<T> : never;
   type HasKeys<T> = keyof T extends never ? never : T;
 
-  const pushModal = <
-    T extends StateItem['name'],
-    B extends Prettify<GetComponentProps<Modals[T]>>,
-  >(
+  const pushModal = <T extends StateItem["name"], B extends Prettify<GetComponentProps<Modals[T]>>>(
     name: T,
     ...args: HasKeys<IsObject<B>> extends never
       ? // No props provided
@@ -248,21 +233,18 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
   ) => {
     const [props] = args;
 
-    return emitter.emit('push', {
+    return emitter.emit("push", {
       name,
       props: props ?? {},
     });
   };
 
-  const popModal = (name?: StateItem['name']) =>
-    emitter.emit('pop', {
+  const popModal = (name?: StateItem["name"]) =>
+    emitter.emit("pop", {
       name,
     });
 
-  const replaceWithModal = <
-    T extends StateItem['name'],
-    B extends GetComponentProps<Modals[T]>,
-  >(
+  const replaceWithModal = <T extends StateItem["name"], B extends GetComponentProps<Modals[T]>>(
     name: T,
     ...args: HasKeys<IsObject<B>> extends never
       ? // No props provided
@@ -271,38 +253,31 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
         [props: B]
   ) => {
     const [props] = args;
-    emitter.emit('replace', {
+    emitter.emit("replace", {
       name,
       props: props ?? {},
     });
   };
 
-  const popAllModals = () => emitter.emit('popAll');
+  const popAllModals = () => emitter.emit("popAll");
 
   type EventCallback<T extends ModalKeys> = (
     open: boolean,
     props: GetComponentProps<Modals[T]>,
-    name?: T
+    name?: T,
   ) => void;
 
-  const onPushModal = <T extends ModalKeys>(
-    name: T | '*',
-    callback: EventCallback<T>
-  ) => {
-    const fn: Handler<EventHandlers['change']> = (payload) => {
+  const onPushModal = <T extends ModalKeys>(name: T | "*", callback: EventCallback<T>) => {
+    const fn: Handler<EventHandlers["change"]> = (payload) => {
       if (payload.name === name) {
-        callback(
-          payload.open,
-          payload.props as GetComponentProps<Modals[T]>,
-          payload.name as T
-        );
-      } else if (name === '*') {
+        callback(payload.open, payload.props as GetComponentProps<Modals[T]>, payload.name as T);
+      } else if (name === "*") {
         callback(payload.open, payload.props as any, payload.name as T);
       }
     };
-    emitter.on('change', fn);
+    emitter.on("change", fn);
 
-    return () => emitter.off('change', fn);
+    return () => emitter.off("change", fn);
   };
 
   return {
@@ -311,10 +286,7 @@ export function createPushModal<T>({ modals }: CreatePushModalOptions<T>) {
     popModal,
     pushModal,
     replaceWithModal,
-    useOnPushModal: <T extends ModalKeys>(
-      name: T | '*',
-      callback: EventCallback<T>
-    ) => {
+    useOnPushModal: <T extends ModalKeys>(name: T | "*", callback: EventCallback<T>) => {
       useEffect(() => onPushModal(name, callback), [name, callback]);
     },
     onPushModal,

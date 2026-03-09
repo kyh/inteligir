@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { CopilotPlugin } from '@platejs/ai/react';
-import { useElement, usePluginOption } from 'platejs/react';
-import * as React from 'react';
-import ReactMarkdown, { type Components } from 'react-markdown';
+import { CopilotPlugin } from "@platejs/ai/react";
+import { useElement, usePluginOption } from "platejs/react";
+import * as React from "react";
+import ReactMarkdown, { type Components } from "react-markdown";
 
-import { HoverCard, HoverCardContent, HoverCardTrigger } from './hover-card';
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "./hover-card";
 
 const MarkdownComponents: Components = {
   a: ({ children, href }) => (
@@ -42,11 +42,7 @@ const MarkdownComponents: Components = {
 export function GhostText() {
   const element = useElement();
 
-  const isSuggested = usePluginOption(
-    CopilotPlugin,
-    'isSuggested',
-    element.id as string
-  );
+  const isSuggested = usePluginOption(CopilotPlugin, "isSuggested", element.id as string);
 
   if (!isSuggested) return null;
 
@@ -54,8 +50,8 @@ export function GhostText() {
 }
 
 function GhostTextContent() {
-  const suggestionText = usePluginOption(CopilotPlugin, 'suggestionText');
-  const hasLeadingSpace = suggestionText?.startsWith(' ');
+  const suggestionText = usePluginOption(CopilotPlugin, "suggestionText");
+  const hasLeadingSpace = suggestionText?.startsWith(" ");
 
   return (
     <HoverCard>
@@ -65,16 +61,11 @@ function GhostTextContent() {
           e.preventDefault();
         }}
       >
-        <span
-          className="text-muted-foreground max-sm:hidden"
-          contentEditable={false}
-        >
+        <span className="text-muted-foreground max-sm:hidden" contentEditable={false}>
           {hasLeadingSpace && <span> </span>}
 
           {suggestionText && (
-            <ReactMarkdown components={MarkdownComponents}>
-              {suggestionText}
-            </ReactMarkdown>
+            <ReactMarkdown components={MarkdownComponents}>{suggestionText}</ReactMarkdown>
           )}
         </span>
       </HoverCardTrigger>
@@ -90,27 +81,19 @@ function GhostTextContent() {
       >
         <div className="mr-3 flex items-center">
           <span className="mr-1 shrink-0">Accept All:</span>
-          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">
-            Tab
-          </kbd>
+          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">Tab</kbd>
         </div>
 
         <div className="mr-3 flex items-center">
           <span className="mr-1 shrink-0">Accept Word:</span>
-          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">
-            ⌘
-          </kbd>
+          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">⌘</kbd>
           <span className="mx-px">+</span>
-          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">
-            →
-          </kbd>
+          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">→</kbd>
         </div>
 
         <div className="flex items-center">
           <span className="mr-1 shrink-0">Cancel:</span>
-          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">
-            Esc
-          </kbd>
+          <kbd className="rounded border bg-muted px-2 py-0.5 text-muted-foreground">Esc</kbd>
         </div>
       </HoverCardContent>
     </HoverCard>

@@ -24,6 +24,6 @@ export const useAuthGuard = () => {
 
       return callback ? void callback() : false;
     },
-    [isIframe, user?.id, router]
+    [isIframe, user?.id, router],
   );
 };

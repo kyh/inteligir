@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import * as React from 'react';
+import * as React from "react";
 
 import {
   AlertDialogAction,
@@ -10,8 +10,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Icons } from '@/components/ui/icons';
+} from "@/components/ui/alert-dialog";
+import { Icons } from "@/components/ui/icons";
 
 export function ConfirmModal({
   count,
@@ -33,7 +33,7 @@ export function ConfirmModal({
       <AlertDialogHeader>
         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
         <AlertDialogDescription>
-          This action cannot be undone. This will permanently delete your{' '}
+          This action cannot be undone. This will permanently delete your{" "}
           <span className="font-medium">{count}</span>
           {count === 1 ? ` ${name}` : ` ${name}s`} from our servers.
         </AlertDialogDescription>

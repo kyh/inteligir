@@ -23,8 +23,7 @@ export default memo(function DiscussionPanel() {
 
     return (
       data?.discussions.filter(
-        (discussion) =>
-          !discussion.isResolved && api.comment.has({ id: discussion.id })
+        (discussion) => !discussion.isResolved && api.comment.has({ id: discussion.id }),
       ).length === 0
     );
   }, [api.comment, data?.discussions]);
@@ -45,10 +44,7 @@ export default memo(function DiscussionPanel() {
             (discussion) =>
               !discussion.isResolved &&
               api.comment.has({ id: discussion.id }) && (
-                <div
-                  className="border-b p-4 hover:bg-accent/30"
-                  key={discussion.id}
-                >
+                <div className="border-b p-4 hover:bg-accent/30" key={discussion.id}>
                   <div className="mb-3 font-medium text-muted-foreground text-xs">
                     {formatDiscussionDate(discussion.createdAt)}
                   </div>
@@ -67,7 +63,7 @@ export default memo(function DiscussionPanel() {
                   ))}
                   <CommentCreateForm discussionId={discussion.id} />
                 </div>
-              )
+              ),
           )
         )}
       </div>

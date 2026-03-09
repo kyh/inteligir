@@ -14,11 +14,7 @@ import { useToggleLeftPanel } from "@/hooks/useResizablePanel";
 import { cn } from "@/lib/utils";
 import { useMounted } from "@/registry/hooks/use-mounted";
 import { Button } from "@/registry/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/registry/ui/popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/registry/ui/popover";
 import { api, useTRPC } from "@/trpc/react";
 
 import { useAuthGuard } from "../auth/useAuthGuard";
@@ -70,7 +66,7 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
     <aside
       className={cn(
         "group/sidebar relative z-20 flex size-full flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar-bg",
-        props.className
+        props.className,
       )}
       {...props}
     >
@@ -154,11 +150,7 @@ export function Sidebar({ ...props }: React.HTMLAttributes<HTMLElement>) {
                   }
                 }}
               >
-                <NavItem
-                  icon={Icons.trash}
-                  label="Trash"
-                  tooltip="Restore deleted pages"
-                />
+                <NavItem icon={Icons.trash} label="Trash" tooltip="Restore deleted pages" />
               </PopoverTrigger>
 
               <PopoverContent

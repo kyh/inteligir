@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -12,8 +12,8 @@ export const equationValue: any = (
     </hh2>
     <hp indent={1} listStyleType="decimal">
       <htext>
-        Equations allow you to express complex mathematical concepts in both
-        inline and block formats.
+        Equations allow you to express complex mathematical concepts in both inline and block
+        formats.
       </htext>
     </hp>
     <hp indent={1} listStart={2} listStyleType="decimal">
@@ -56,27 +56,22 @@ export const equationValue: any = (
     </hp>
     <hp indent={2} listStyleType="disc">
       <htext>
-        Click on any equation to edit it. Press Escape to close the menu without
-        editing it.
+        Click on any equation to edit it. Press Escape to close the menu without editing it.
       </htext>
     </hp>
     <hp indent={2} listStyleType="disc">
-      <htext>
-        You can navigate through the equation by using the arrow keys
-      </htext>
+      <htext>You can navigate through the equation by using the arrow keys</htext>
     </hp>
     <hp indent={2} listStyleType="disc">
       <htext>Use the slash command (/equation) to insert a new equation</htext>
     </hp>
     <hp indent={2} listStyleType="disc">
-      <htext>
-        Use the slash command (/inline equation) for inline equations
-      </htext>
+      <htext>Use the slash command (/inline equation) for inline equations</htext>
     </hp>
     <hp>
       <htext>
-        Advanced usage: Combine equations with other elements like tables or
-        code blocks for comprehensive scientific documentation. For example:
+        Advanced usage: Combine equations with other elements like tables or code blocks for
+        comprehensive scientific documentation. For example:
       </htext>
     </hp>
     <hp>
@@ -88,8 +83,8 @@ export const equationValue: any = (
     </hp>
     <hp>
       <htext>
-        Experiment with different equation types and formatting to create rich,
-        mathematical content in your documents.
+        Experiment with different equation types and formatting to create rich, mathematical content
+        in your documents.
       </htext>
     </hp>
   </fragment>

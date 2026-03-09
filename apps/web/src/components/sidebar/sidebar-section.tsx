@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
+import { useState } from "react";
 
-import { cn } from '@/lib/utils';
-import { Button } from '@/registry/ui/button';
+import { cn } from "@/lib/utils";
+import { Button } from "@/registry/ui/button";
 
-import { Icons } from '../ui/icons';
+import { Icons } from "../ui/icons";
 
 type SidebarSectionProps = {
   title: string;
@@ -31,8 +31,8 @@ export function SidebarSection({
       >
         <Icons.chevronRight
           className={cn(
-            'size-3 shrink-0 text-sidebar-text-muted transition-transform duration-200',
-            expanded && 'rotate-90'
+            "size-3 shrink-0 text-sidebar-text-muted transition-transform duration-200",
+            expanded && "rotate-90",
           )}
         />
         <span className="flex-1 select-none text-xs font-medium uppercase tracking-wide text-sidebar-text-muted">
@@ -50,8 +50,8 @@ export function SidebarSection({
 
       <div
         className={cn(
-          'grid transition-[grid-template-rows] duration-200',
-          expanded ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+          "grid transition-[grid-template-rows] duration-200",
+          expanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
         )}
       >
         <div className="overflow-hidden">{children}</div>

@@ -1,7 +1,7 @@
 /** @jsxRuntime classic */
 /** @jsx jsx */
 
-import { jsx } from '@platejs/test-utils';
+import { jsx } from "@platejs/test-utils";
 
 jsx;
 
@@ -12,8 +12,8 @@ export const slashMenuValue: any = (
     </hh2>
     <hp>
       <htext>
-        The slash menu provides quick access to various formatting options,
-        content types, and AI assistance.
+        The slash menu provides quick access to various formatting options, content types, and AI
+        assistance.
       </htext>
     </hp>
     <hp>How to use the slash menu:</hp>
@@ -21,9 +21,7 @@ export const slashMenuValue: any = (
       <htext>Type '/' anywhere in your document to open the slash menu.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
-      <htext>
-        Start typing to filter options or use arrow keys to navigate.
-      </htext>
+      <htext>Start typing to filter options or use arrow keys to navigate.</htext>
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>Press Enter or click to select an option.</htext>
@@ -37,8 +35,7 @@ export const slashMenuValue: any = (
     </hp>
     <hp indent={1} listStyleType="disc">
       <htext>
-        Basic Blocks: Text, Headings, Lists, Toggle, Code Block, Table,
-        Blockquote, Callout
+        Basic Blocks: Text, Headings, Lists, Toggle, Code Block, Table, Blockquote, Callout
       </htext>
     </hp>
     <hp indent={1} listStyleType="disc">
@@ -64,8 +61,8 @@ export const slashMenuValue: any = (
     </hp>
     <hcallout icon="💡" variant="info">
       <htext>
-        Use keywords to quickly find options. For example, type '/h1' for
-        Heading 1, '/img' for Image, or '/ai' for AI assistance.
+        Use keywords to quickly find options. For example, type '/h1' for Heading 1, '/img' for
+        Image, or '/ai' for AI assistance.
       </htext>
     </hcallout>
   </fragment>

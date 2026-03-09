@@ -1,6 +1,6 @@
-import type { TLinkElement } from 'platejs';
-import { SlateElement, type SlateElementProps } from 'platejs/static';
-import * as React from 'react';
+import type { TLinkElement } from "platejs";
+import { SlateElement, type SlateElementProps } from "platejs/static";
+import * as React from "react";
 
 export function LinkElementStatic(props: SlateElementProps<TLinkElement>) {
   return (

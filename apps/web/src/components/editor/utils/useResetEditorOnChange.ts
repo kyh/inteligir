@@ -1,10 +1,10 @@
-import type { Value } from 'platejs';
-import type { PlateEditor } from 'platejs/react';
-import { useEffect } from 'react';
+import type { Value } from "platejs";
+import type { PlateEditor } from "platejs/react";
+import { useEffect } from "react";
 
 export function useResetEditorOnChange(
   { id, editor, value }: { editor: PlateEditor; id?: string; value?: Value },
-  deps: any[]
+  deps: any[],
 ) {
   useEffect(() => {
     if (value && value !== editor.children) {
