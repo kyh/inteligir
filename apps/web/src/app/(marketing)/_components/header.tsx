@@ -1,43 +1,29 @@
-"use client";
-
 import Link from "next/link";
 import { buttonVariants } from "@repo/ui/button";
 import { Logo } from "@repo/ui/logo";
 import { cn } from "@repo/ui/utils";
 
-import { authClient } from "@/auth/auth-client";
-
 export const Header = () => {
-  const { data: organization, isPending } = authClient.useActiveOrganization();
-
   return (
     <header className="flex items-center justify-between pt-16">
       <Link href="/">
         <Logo />
       </Link>
-      <div className="flex flex-1 justify-end">
-        {isPending ? (
-          <span
-            className={cn(
-              buttonVariants({ variant: "secondary", size: "sm" }),
-              "pointer-events-none w-16 animate-pulse",
-            )}
-          />
-        ) : organization ? (
-          <Link
-            className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "w-20")}
-            href={`/dashboard/${organization.slug}`}
-          >
-            Dashboard
-          </Link>
-        ) : (
-          <Link
-            className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "w-16")}
-            href="/auth/login"
-          >
-            Login
-          </Link>
-        )}
+      <div className="flex flex-1 items-center justify-end gap-3">
+        <Link
+          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-xs")}
+          href="/docs"
+        >
+          Docs
+        </Link>
+        <Link
+          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-xs")}
+          href="https://github.com/kyh/inteligir"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          GitHub
+        </Link>
       </div>
     </header>
   );

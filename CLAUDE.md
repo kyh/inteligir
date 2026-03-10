@@ -2,25 +2,26 @@
 
 ## Project Overview
 
-**inteligir** - Turborepo monorepo with Next.js app + shared packages
+**inteligir** - Your AI Chief of Staff. A local-first AI agent with a web UI for managing tasks, coordinating workflows, and keeping everything on track.
+
+Turborepo monorepo with Next.js marketing site + shared packages. The desktop AI agent is planned — see NEXT-STEPS.md for the roadmap.
 
 ## Tech Stack
 
 - **Monorepo**: Turborepo + pnpm workspaces
 - **Frontend**: Next.js 15, React 19, Tailwind CSS 4
-- **Editor**: Plate.js (rich text editor)
 - **API**: tRPC, better-auth
 - **Database**: Supabase + Drizzle ORM + PostgreSQL
 - **UI**: shadcn/ui (Radix), lucide-react, vaul, sonner
-- **Payments**: Stripe
-- **Uploads**: uploadthing
 - **Docs**: fumadocs
+- **Desktop** (planned): Electron + electron-vite
+- **AI Agent** (planned): pi coding agent framework (RPC mode)
 
 ## Workspace Structure
 
 ```
 apps/
-  web/           # Main Next.js app (@repo/web)
+  web/           # Marketing site + docs (@repo/web)
 packages/
   api/           # tRPC routers, auth (@repo/api)
   db/            # Drizzle schema, Supabase (@repo/db)
