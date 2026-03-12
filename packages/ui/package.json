@@ -11,7 +11,7 @@
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "dev": "tsc",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false",
-    "gen-ui": "pnpm dlx shadcn@latest add && prettier src --write --list-different"
+    "gen-ui": "pnpm dlx shadcn@latest add && oxfmt --write src"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -42,6 +42,5 @@
   },
   "peerDependencies": {
     "react": "catalog:"
-  },
-  "prettier": "@kyh/prettier-config"
+  }
 }
