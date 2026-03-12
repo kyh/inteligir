@@ -1,6 +1,36 @@
 ---
-title: Hello World
-description: Your first document
+title: Inteligir
+description: Your AI Chief of Staff — a local-first AI agent with a desktop app
 ---
 
-Welcome to the docs!
+## What is Inteligir?
+
+Inteligir is a local-first AI agent that manages your tasks, coordinates your workflows, and keeps everything on track. Think of it as an AI chief of staff that runs on your machine, powered by your own API keys.
+
+Unlike CLI-based AI tools, Inteligir provides a visual desktop app for managing agent sessions, reviewing tool calls, and approving actions — so you stay in control without needing a terminal.
+
+## Architecture
+
+Inteligir is a monorepo with a Next.js marketing site and shared packages. The desktop AI agent app (coming soon) will provide the full agent experience.
+
+### Current workspace structure
+
+```
+apps/
+  web/           # Marketing site + docs
+packages/
+  api/           # tRPC routers, auth, waitlist
+  db/            # Drizzle schema, Supabase, PostgreSQL
+  ui/            # Shared UI components (shadcn/ui)
+```
+
+## Core principles
+
+- **Local-first**: Your data and API keys stay on your machine
+- **Bring your own model**: Works with Anthropic, OpenAI, Google, and other providers
+- **Human-in-the-loop**: Review and approve agent actions before they execute
+- **Open source**: Fully open, no vendor lock-in
+
+## Current status
+
+The project is in early development. The marketing site, docs, auth system, and database are in place. The desktop agent app is the next major milestone — see [NEXT-STEPS.md](https://github.com/kyh/inteligir/blob/main/NEXT-STEPS.md) for the roadmap.
