@@ -1,29 +1,45 @@
+"use client";
+
 import Link from "next/link";
-import { buttonVariants } from "@repo/ui/button";
 import { Logo } from "@repo/ui/logo";
-import { cn } from "@repo/ui/utils";
+import { useTheme } from "@repo/ui/theme";
 
 export const Header = () => {
+  const { theme, setTheme } = useTheme();
+
   return (
-    <header className="flex items-center justify-between pt-16">
-      <Link href="/">
-        <Logo />
-      </Link>
-      <div className="flex flex-1 items-center justify-end gap-3">
-        <Link
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }), "text-xs")}
-          href="/docs"
-        >
-          Docs
+    <header>
+      <div className="flex items-center justify-between py-4">
+        <Link href="/" className="flex items-center gap-2">
+          <span className="sr-only">Go to homepage</span>
+          <Logo />
         </Link>
-        <Link
-          className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "text-xs")}
-          href="https://github.com/kyh/inteligir"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          GitHub
-        </Link>
+        <nav className="flex items-center gap-4">
+          <Link
+            href="https://github.com/kyh/inteligir"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-foreground/60 hover:text-foreground"
+          >
+            GitHub
+          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setTheme("light")}
+              className={`size-2 rounded-full bg-white outline-2 outline-foreground/20 transition-all ${
+                theme === "light" ? "outline" : ""
+              }`}
+              title="Light"
+            />
+            <button
+              onClick={() => setTheme("dark")}
+              className={`size-2 rounded-full bg-black outline-2 outline-foreground/20 transition-all ${
+                theme === "dark" ? "outline" : ""
+              }`}
+              title="Dark"
+            />
+          </div>
+        </nav>
       </div>
     </header>
   );

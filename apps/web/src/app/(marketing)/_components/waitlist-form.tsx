@@ -41,7 +41,7 @@ export const WaitlistForm = () => {
         event.preventDefault();
         void form.handleSubmit();
       }}
-      className="bg-input mt-10 flex max-w-sm items-center gap-2 rounded-xl border border-white/10 shadow-lg"
+      className="mt-10 flex max-w-sm items-center gap-2 rounded-xl border border-foreground/10"
     >
       <form.Field
         name="email"
@@ -60,7 +60,7 @@ export const WaitlistForm = () => {
               <FieldContent>
                 <input
                   id="waitlist-email"
-                  className="w-full border-none bg-transparent py-3 pl-4 text-sm placeholder-white/50 focus:placeholder-white/75 focus:ring-0 focus:outline-hidden"
+                  className="w-full border-none bg-transparent py-3 pl-4 text-sm placeholder-foreground/40 focus:placeholder-foreground/60 focus:ring-0 focus:outline-hidden"
                   name={field.name}
                   value={field.state.value ?? ""}
                   onBlur={field.handleBlur}
