@@ -3,8 +3,8 @@ import { createTRPCRouter } from "./trpc";
 import { waitlistRouter } from "./waitlist/waitlist-router";
 
 export const appRouter = createTRPCRouter({
-  organization: organizationRouter,
   waitlist: waitlistRouter,
+  organization: organizationRouter,
 });
 
 // export type definition of API

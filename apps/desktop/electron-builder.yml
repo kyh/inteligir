@@ -1,0 +1,31 @@
+appId: com.inteligir.desktop
+productName: Inteligir
+directories:
+  buildResources: resources
+  output: .output/bin
+files:
+  - "!**/.vscode/*"
+  - "!src/*"
+  - "!electron.vite.config.*"
+  - "!{dev-app-update.yml,CHANGELOG.md,README.md}"
+  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+asarUnpack:
+  - resources/**
+mac:
+  artifactName: Inteligir-${version}-${arch}-mac.${ext}
+  category: public.app-category.productivity
+  icon: resources/icon.icns
+  entitlementsInherit: resources/entitlements.mac.plist
+  extendInfo:
+    - NSCameraUsageDescription: Application requests access to the device's camera.
+    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
+    - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
+  notarize: false
+dmg:
+  artifactName: Inteligir-${version}-${arch}.${ext}
+npmRebuild: false
+# Required for electron-updater — configure before shipping.
+# See: https://www.electron.build/publish
+# publish:
+#   provider: github

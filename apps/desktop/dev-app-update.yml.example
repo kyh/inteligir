@@ -1,0 +1,4 @@
+# Used by electron-updater during development.
+# See: https://www.electron.build/auto-update#debugging
+provider: generic
+url: http://localhost:8080/updates

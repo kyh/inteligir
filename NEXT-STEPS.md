@@ -5,7 +5,7 @@ Roadmap for building the Inteligir desktop AI agent app.
 ## Current state
 
 - Turborepo monorepo with pnpm workspaces
-- Next.js marketing site (`apps/web`) with waitlist form, docs (fumadocs)
+- Next.js marketing site (`apps/web`) with waitlist form
 - Auth system (better-auth), database (Supabase + Drizzle + PostgreSQL)
 - Shared packages: `@repo/api`, `@repo/db`, `@repo/ui`
 - No desktop app or AI agent integration yet

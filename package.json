@@ -1,5 +1,5 @@
 {
-  "name": "inteligir",
+  "name": "init",
   "private": true,
   "scripts": {
     "build": "turbo run build",
@@ -13,16 +13,18 @@
     "db-push-remote": "pnpm -F db push-remote",
     "dev": "turbo watch dev --continue",
     "dev-web": "turbo watch dev -F @repo/web...",
+    "dev-desktop": "turbo watch dev -F @repo/desktop...",
     "lint": "oxlint --report-unused-disable-directives",
+    "lint-fix": "oxlint --fix",
+    "format": "oxfmt",
+    "format-fix": "oxfmt --write",
     "typecheck": "turbo run typecheck",
     "gen-ui": "pnpm -F ui gen-ui",
-    "format": "oxfmt",
-    "lint-fix": "oxlint --fix",
-    "format-fix": "oxfmt --write"
+    "bootstrap": "tsx scripts/bootstrap.ts"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
-    "oxfmt": "^0.35.0",
+    "oxfmt": "^0.40.0",
     "oxlint": "^1.55.0",
     "tsx": "^4.21.0",
     "turbo": "^2.8.16",
@@ -31,9 +33,12 @@
   "packageManager": "pnpm@10.32.1",
   "pnpm": {
     "onlyBuiltDependencies": [
+      "@tailwindcss/oxide",
+      "electron",
+      "electron-winstaller",
       "esbuild",
       "sharp",
-      "supabase"
+      "spawn-sync"
     ]
   }
 }

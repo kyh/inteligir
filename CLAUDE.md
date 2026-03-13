@@ -13,7 +13,6 @@ Turborepo monorepo with Next.js marketing site + shared packages. The desktop AI
 - **API**: tRPC, better-auth
 - **Database**: Supabase + Drizzle ORM + PostgreSQL
 - **UI**: shadcn/ui (Radix), lucide-react, vaul, sonner
-- **Docs**: fumadocs
 - **Desktop** (planned): Electron + electron-vite
 - **AI Agent** (planned): pi coding agent framework (RPC mode)
 

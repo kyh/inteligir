@@ -11,7 +11,6 @@ import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 import { ZodError } from "zod";
 
-import type { Session } from "./auth/auth";
 import { auth } from "./auth/auth";
 
 /**
@@ -27,9 +26,9 @@ import { auth } from "./auth/auth";
  * @see https://trpc.io/docs/server/context
  */
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const session = (await auth.api.getSession({
+  const session = await auth.api.getSession({
     headers: opts.headers,
-  })) as Session | null;
+  });
 
   return {
     session,
@@ -99,38 +98,10 @@ export const protectedProcedure = t.procedure.use(({ ctx, next }) => {
       message: "You must be logged in to access this resource",
     });
   }
-
-  // activeOrganizationId is set by the session hook in auth.ts
-  const organizationId = ctx.session.session.activeOrganizationId;
-
   return next({
     ctx: {
       // infers the `session` as non-nullable
       session: { ...ctx.session, user: ctx.session.user },
-      userId: ctx.session.user.id,
-      organizationId,
-    },
-  });
-});
-
-/**
- * Organization-scoped procedure
- *
- * Extends protectedProcedure to also require an active organization.
- * Use this for routes that operate on organization-scoped data.
- */
-export const organizationProcedure = protectedProcedure.use(({ ctx, next }) => {
-  if (!ctx.organizationId) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: "No active organization",
-    });
-  }
-
-  return next({
-    ctx: {
-      ...ctx,
-      organizationId: ctx.organizationId,
     },
   });
 });

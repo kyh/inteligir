@@ -1,0 +1,37 @@
+{
+  "name": "@repo/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Inteligir desktop app",
+  "author": "kyh",
+  "type": "module",
+  "main": "./.output/app/main/index.js",
+  "scripts": {
+    "build": "electron-vite build",
+    "build-mac": "node --import tsx ./scripts/build-mac.ts",
+    "clean": "rm -rf .cache .output",
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@react-three/drei": "^10.7.7",
+    "@react-three/fiber": "^9.5.0",
+    "electron-updater": "^6.8.3",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "three": "^0.175.0"
+  },
+  "devDependencies": {
+    "@electron-toolkit/tsconfig": "^2.0.0",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "electron": "^41.0.1",
+    "electron-builder": "^26.8.1",
+    "electron-vite": "^5.0.0",
+    "typescript": "catalog:",
+    "vite": "catalog:"
+  }
+}

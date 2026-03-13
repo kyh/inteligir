@@ -1,10 +1,8 @@
-import { createMDX } from "fumadocs-mdx/next";
-
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
 const getRemotePatterns = () => {
-  const remotePatterns = /** @type {any[]} */ ([]);
+  const remotePatterns = [];
 
   if (SUPABASE_URL) {
     const hostname = new URL(SUPABASE_URL).hostname;
@@ -30,20 +28,28 @@ const getRemotePatterns = () => {
   return remotePatterns;
 };
 
-const transpilePackages = ["@repo/api", "@repo/db", "@repo/ui"];
+const getLocalPatterns = () => {
+  const localPatterns = [
+    {
+      pathname: "/assets/**",
+    },
+  ];
 
-const withMDX = createMDX();
+  return localPatterns;
+};
+
+const transpilePackages = ["@repo/api", "@repo/db", "@repo/ui"];
 
 /** @type {import("next").NextConfig} */
 const config = {
-  reactStrictMode: true,
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
   transpilePackages,
   images: {
     remotePatterns: getRemotePatterns(),
+    localPatterns: getLocalPatterns(),
   },
-  /** We already do typechecking as separate task in CI */
+  /** We already do linting and typechecking as separate tasks in CI */
   typescript: { ignoreBuildErrors: true },
 };
 
-export default withMDX(config);
+export default config;
