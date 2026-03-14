@@ -4,6 +4,8 @@ import type { Task } from "../shared/task";
 
 import type { Agent } from "./agent";
 import { getTasks, markTaskRun } from "./task-store";
+import { startRun, completeRun, failRun } from "./task-run-store";
+import { toErrorMessage } from "../shared/ipc";
 
 // ---------------------------------------------------------------------------
 // Task scheduler — polls tasks.json and fires agent.sendMessage()
@@ -35,6 +37,9 @@ export class TaskScheduler {
     const agent = this.getAgent();
     if (!agent) return;
 
+    const state = agent.getState();
+    if (state.status === "busy") return;
+
     const now = Date.now();
     const tasks = getTasks();
 
@@ -42,10 +47,31 @@ export class TaskScheduler {
       if (!task.enabled) continue;
       if (!shouldFire(task, now)) continue;
 
-      // Fire the task
-      markTaskRun(task.id, now);
-      const prefix = `[Scheduled task: ${task.label}]\n\n`;
-      void agent.sendMessage(prefix + task.prompt);
+      void this.fireTask(agent, task, now);
+      // Only fire one task per tick to avoid overloading
+      break;
+    }
+  }
+
+  private async fireTask(agent: Agent, task: Task, now: number): Promise<void> {
+    markTaskRun(task.id, now);
+    const run = startRun(task.id);
+    const prefix = `[Scheduled task: ${task.label}]\n\n`;
+
+    try {
+      await agent.sendMessage(prefix + task.prompt);
+      const finished = await agent.waitForIdle(5 * 60 * 1000);
+
+      if (!finished) {
+        failRun(run.id, "Agent timed out");
+        return;
+      }
+
+      const entries = agent.getMessages();
+      const last = entries.findLast((e) => e.kind === "assistant");
+      completeRun(run.id, last?.text.slice(0, 500) ?? "(no output)");
+    } catch (err) {
+      failRun(run.id, toErrorMessage(err));
     }
   }
 }

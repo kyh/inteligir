@@ -1,7 +1,4 @@
 import crypto from "node:crypto";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
 
 import {
   TasksFileSchema,
@@ -9,31 +6,24 @@ import {
   type Task,
   type CreateTaskParams,
 } from "../shared/task";
+import { inteligirPath, readJson, writeJson } from "./json-store";
 
 // ---------------------------------------------------------------------------
 // File-based task CRUD — ~/.inteligir/tasks.json
 // ---------------------------------------------------------------------------
 
-const TASKS_DIR = path.join(os.homedir(), ".inteligir");
-const TASKS_PATH = path.join(TASKS_DIR, "tasks.json");
+const TASKS_PATH = inteligirPath("tasks.json");
 
 export function getTasks(): Task[] {
-  try {
-    const raw = fs.readFileSync(TASKS_PATH, "utf8");
-    const result = TasksFileSchema.safeParse(JSON.parse(raw));
-    return result.success ? result.data.tasks : [];
-  } catch {
-    return [];
-  }
+  const file = readJson(TASKS_PATH, TasksFileSchema);
+  return file?.tasks ?? [];
 }
 
 function saveTasks(tasks: Task[]): void {
-  fs.mkdirSync(TASKS_DIR, { recursive: true });
-  fs.writeFileSync(TASKS_PATH, JSON.stringify({ tasks }, null, 2), "utf8");
+  writeJson(TASKS_PATH, { tasks });
 }
 
 export function createTask(params: CreateTaskParams): Task {
-  // Validate at boundary
   CreateTaskParamsSchema.parse(params);
 
   const task: Task = {
@@ -71,7 +61,6 @@ export function markTaskRun(id: string, timestamp: number): void {
   const task = tasks.find((t) => t.id === id);
   if (!task) return;
   task.lastRunAt = timestamp;
-  // Auto-disable once tasks after firing
   if (task.schedule.type === "once") {
     task.enabled = false;
   }

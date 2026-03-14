@@ -400,12 +400,19 @@ async function startAgent(): Promise<void> {
   }
 }
 
-function stopAgent(): void {
+/** Graceful shutdown: wait up to 5s for agent to finish, then force-stop. */
+const SHUTDOWN_TIMEOUT_MS = 5_000;
+
+async function stopAgent(): Promise<void> {
   scheduler?.stop();
   scheduler = null;
 
   if (agent) {
-    void agent.stop();
+    const idle = await agent.waitForIdle(SHUTDOWN_TIMEOUT_MS);
+    if (!idle) {
+      console.warn("[desktop] agent did not reach idle within timeout, force-stopping");
+    }
+    await agent.stop();
     agent = null;
   }
 }
@@ -477,9 +484,13 @@ function createWindow(): BrowserWindow {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (isQuitting) return;
   isQuitting = true;
-  stopAgent();
+  event.preventDefault();
+  void stopAgent().finally(() => {
+    app.quit();
+  });
 });
 
 app

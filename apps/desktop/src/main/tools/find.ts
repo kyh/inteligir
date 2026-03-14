@@ -1,10 +1,9 @@
-import path from "node:path";
 import { existsSync } from "node:fs";
 import { globSync } from "glob";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
+import { MAX_OUTPUT_BYTES, resolvePath, truncateHead } from "./util";
 
-const MAX_BYTES = 50 * 1024;
 const DEFAULT_LIMIT = 1000;
 
 const findSchema = Type.Object({
@@ -17,7 +16,7 @@ export function createFindTool(cwd: string): AgentTool<typeof findSchema> {
   return {
     name: "find",
     label: "find",
-    description: `Search for files by glob pattern. Returns matching paths relative to the search directory. Respects .gitignore. Truncated to ${DEFAULT_LIMIT} results or ${MAX_BYTES / 1024}KB.`,
+    description: `Search for files by glob pattern. Returns matching paths relative to the search directory. Respects .gitignore. Truncated to ${DEFAULT_LIMIT} results or ${MAX_OUTPUT_BYTES / 1024}KB.`,
     parameters: findSchema,
     execute: async (
       _toolCallId: string,
@@ -26,9 +25,7 @@ export function createFindTool(cwd: string): AgentTool<typeof findSchema> {
     ): Promise<AgentToolResult<undefined>> => {
       if (signal?.aborted) throw new Error("Operation aborted");
 
-      const searchPath = params.path
-        ? path.isAbsolute(params.path) ? params.path : path.resolve(cwd, params.path)
-        : cwd;
+      const searchPath = params.path ? resolvePath(cwd, params.path) : cwd;
       const effectiveLimit = params.limit ?? DEFAULT_LIMIT;
 
       if (!existsSync(searchPath)) {
@@ -53,13 +50,9 @@ export function createFindTool(cwd: string): AgentTool<typeof findSchema> {
 
       let output = limited.join("\n");
 
-      // Byte truncation
-      if (Buffer.byteLength(output, "utf-8") > MAX_BYTES) {
-        const buf = Buffer.from(output, "utf-8");
-        output = buf.subarray(0, MAX_BYTES).toString("utf-8");
-        const lastNewline = output.lastIndexOf("\n");
-        if (lastNewline > 0) output = output.slice(0, lastNewline);
-        output += "\n\n[Output truncated]";
+      const head = truncateHead(output);
+      if (head.truncated) {
+        output = head.content + "\n\n[Output truncated]";
       }
 
       if (limitReached) {

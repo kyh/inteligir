@@ -2,9 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-
-const MAX_LINES = 2000;
-const MAX_BYTES = 50 * 1024;
+import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, resolvePath } from "./util";
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -28,15 +26,13 @@ export function createReadTool(cwd: string): AgentTool<typeof readSchema> {
   return {
     name: "read",
     label: "read",
-    description: `Read a file. Supports text and images (jpg, png, gif, webp). Text truncated to ${MAX_LINES} lines or ${MAX_BYTES / 1024}KB. Use offset/limit for large files.`,
+    description: `Read a file. Supports text and images (jpg, png, gif, webp). Text truncated to ${MAX_OUTPUT_LINES} lines or ${MAX_OUTPUT_BYTES / 1024}KB. Use offset/limit for large files.`,
     parameters: readSchema,
     execute: async (
       _toolCallId: string,
       params: { path: string; offset?: number; limit?: number },
     ): Promise<AgentToolResult<undefined>> => {
-      const filePath = path.isAbsolute(params.path)
-        ? params.path
-        : path.resolve(cwd, params.path);
+      const filePath = resolvePath(cwd, params.path);
 
       const ext = path.extname(filePath).toLowerCase();
       const mimeType = IMAGE_MIME_TYPES[ext];
@@ -73,15 +69,14 @@ export function createReadTool(cwd: string): AgentTool<typeof readSchema> {
       let content = selected.join("\n");
       let truncated = false;
 
-      if (selected.length > MAX_LINES) {
-        content = selected.slice(0, MAX_LINES).join("\n");
+      if (selected.length > MAX_OUTPUT_LINES) {
+        content = selected.slice(0, MAX_OUTPUT_LINES).join("\n");
         truncated = true;
       }
 
-      if (Buffer.byteLength(content, "utf-8") > MAX_BYTES) {
+      if (Buffer.byteLength(content, "utf-8") > MAX_OUTPUT_BYTES) {
         const buf = Buffer.from(content, "utf-8");
-        content = buf.subarray(0, MAX_BYTES).toString("utf-8");
-        // Drop partial last line
+        content = buf.subarray(0, MAX_OUTPUT_BYTES).toString("utf-8");
         const lastNewline = content.lastIndexOf("\n");
         if (lastNewline > 0) {
           content = content.substring(0, lastNewline);

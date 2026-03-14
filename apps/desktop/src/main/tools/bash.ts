@@ -1,9 +1,7 @@
 import { execFile } from "node:child_process";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-
-const MAX_LINES = 2000;
-const MAX_BYTES = 50 * 1024;
+import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, truncateTail } from "./util";
 
 const bashSchema = Type.Object({
   command: Type.String({ description: "Bash command to execute" }),
@@ -12,37 +10,11 @@ const bashSchema = Type.Object({
   ),
 });
 
-function truncateTail(output: string): {
-  content: string;
-  truncated: boolean;
-} {
-  const bytes = Buffer.byteLength(output, "utf-8");
-  if (bytes <= MAX_BYTES) {
-    const lines = output.split("\n");
-    if (lines.length <= MAX_LINES) {
-      return { content: output, truncated: false };
-    }
-    return {
-      content: lines.slice(-MAX_LINES).join("\n"),
-      truncated: true,
-    };
-  }
-  // Byte-truncate: take last MAX_BYTES
-  const buf = Buffer.from(output, "utf-8");
-  const sliced = buf.subarray(buf.length - MAX_BYTES).toString("utf-8");
-  // Drop partial first line
-  const idx = sliced.indexOf("\n");
-  return {
-    content: idx >= 0 ? sliced.substring(idx + 1) : sliced,
-    truncated: true,
-  };
-}
-
 export function createBashTool(cwd: string): AgentTool<typeof bashSchema> {
   return {
     name: "bash",
     label: "bash",
-    description: `Execute a bash command. Returns stdout+stderr. Output truncated to last ${MAX_LINES} lines or ${MAX_BYTES / 1024}KB.`,
+    description: `Execute a bash command. Returns stdout+stderr. Output truncated to last ${MAX_OUTPUT_LINES} lines or ${MAX_OUTPUT_BYTES / 1024}KB.`,
     parameters: bashSchema,
     execute: (
       _toolCallId: string,

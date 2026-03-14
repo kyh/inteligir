@@ -4,8 +4,8 @@ import path from "node:path";
 import { statSync, readFileSync } from "node:fs";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
+import { MAX_OUTPUT_BYTES, resolvePath, truncateHead } from "./util";
 
-const MAX_BYTES = 50 * 1024;
 const DEFAULT_LIMIT = 100;
 const MAX_LINE_LENGTH = 500;
 
@@ -23,7 +23,7 @@ export function createGrepTool(cwd: string): AgentTool<typeof grepSchema> {
   return {
     name: "grep",
     label: "grep",
-    description: `Search file contents for a pattern using ripgrep. Returns matching lines with paths and line numbers. Respects .gitignore. Truncated to ${DEFAULT_LIMIT} matches or ${MAX_BYTES / 1024}KB.`,
+    description: `Search file contents for a pattern using ripgrep. Returns matching lines with paths and line numbers. Respects .gitignore. Truncated to ${DEFAULT_LIMIT} matches or ${MAX_OUTPUT_BYTES / 1024}KB.`,
     parameters: grepSchema,
     execute: (
       _toolCallId: string,
@@ -44,9 +44,7 @@ export function createGrepTool(cwd: string): AgentTool<typeof grepSchema> {
           return;
         }
 
-        const searchPath = params.path
-          ? path.isAbsolute(params.path) ? params.path : path.resolve(cwd, params.path)
-          : cwd;
+        const searchPath = params.path ? resolvePath(cwd, params.path) : cwd;
         const effectiveLimit = Math.max(1, params.limit ?? DEFAULT_LIMIT);
         const contextLines = params.context && params.context > 0 ? params.context : 0;
 
@@ -145,12 +143,9 @@ export function createGrepTool(cwd: string): AgentTool<typeof grepSchema> {
           }
 
           let output = outputLines.join("\n");
-          if (Buffer.byteLength(output, "utf-8") > MAX_BYTES) {
-            const buf = Buffer.from(output, "utf-8");
-            output = buf.subarray(0, MAX_BYTES).toString("utf-8");
-            const lastNewline = output.lastIndexOf("\n");
-            if (lastNewline > 0) output = output.slice(0, lastNewline);
-            output += "\n\n[Output truncated]";
+          const head = truncateHead(output);
+          if (head.truncated) {
+            output = head.content + "\n\n[Output truncated]";
           }
 
           const notices: string[] = [];

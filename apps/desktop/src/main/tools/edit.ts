@@ -1,7 +1,7 @@
 import fs from "node:fs";
-import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
+import { resolvePath } from "./util";
 
 const editSchema = Type.Object({
   path: Type.String({ description: "Path to the file to edit" }),
@@ -22,9 +22,7 @@ export function createEditTool(cwd: string): AgentTool<typeof editSchema> {
       _toolCallId: string,
       params: { path: string; old_string: string; new_string: string },
     ): Promise<AgentToolResult<undefined>> => {
-      const filePath = path.isAbsolute(params.path)
-        ? params.path
-        : path.resolve(cwd, params.path);
+      const filePath = resolvePath(cwd, params.path);
 
       const content = fs.readFileSync(filePath, "utf-8");
 
