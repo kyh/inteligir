@@ -51,15 +51,17 @@ export const TasksFileSchema = z.object({
 // Task run log — per-execution record
 // ---------------------------------------------------------------------------
 
-export type TaskRunLog = {
-  id: string;
-  taskId: string;
-  startedAt: number;
-  durationMs: number | null;
-  status: "running" | "completed" | "failed";
-  error: string | null;
-  resultSummary: string | null;
-};
+export const TaskRunLogSchema = z.object({
+  id: z.string(),
+  taskId: z.string(),
+  startedAt: z.number(),
+  durationMs: z.number().nullable(),
+  status: z.enum(["running", "completed", "failed"]),
+  error: z.string().nullable(),
+  resultSummary: z.string().nullable(),
+});
+
+export type TaskRunLog = z.infer<typeof TaskRunLogSchema>;
 
 // ---------------------------------------------------------------------------
 // Method params & results

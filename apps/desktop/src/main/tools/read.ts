@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, resolvePath } from "./util";
+import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, resolvePath, truncateHead } from "./util";
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -74,13 +74,9 @@ export function createReadTool(cwd: string): AgentTool<typeof readSchema> {
         truncated = true;
       }
 
-      if (Buffer.byteLength(content, "utf-8") > MAX_OUTPUT_BYTES) {
-        const buf = Buffer.from(content, "utf-8");
-        content = buf.subarray(0, MAX_OUTPUT_BYTES).toString("utf-8");
-        const lastNewline = content.lastIndexOf("\n");
-        if (lastNewline > 0) {
-          content = content.substring(0, lastNewline);
-        }
+      const head = truncateHead(content);
+      if (head.truncated) {
+        content = head.content;
         truncated = true;
       }
 

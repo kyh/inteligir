@@ -53,7 +53,7 @@ const DEFAULT_SYSTEM_PROMPT = `You are Inteligir, an AI Chief of Staff. You help
 
 const DEFAULT_MODEL: Model<Api> = getModel("openai-codex", "gpt-5.4" as never);
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+export const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** Rough token estimate: ~4 chars per token */
 const CHARS_PER_TOKEN = 4;

@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 
-import type { TaskRunLog } from "../shared/task";
+import { TaskRunLogSchema, type TaskRunLog } from "../shared/task";
 import { inteligirPath, readJson, writeJson } from "./json-store";
 
 // ---------------------------------------------------------------------------
@@ -13,17 +13,7 @@ const RUNS_PATH = inteligirPath("task-runs.json");
 /** Max runs retained to prevent unbounded growth */
 const MAX_RUNS = 500;
 
-const RunsSchema = z.array(
-  z.object({
-    id: z.string(),
-    taskId: z.string(),
-    startedAt: z.number(),
-    durationMs: z.number().nullable(),
-    status: z.enum(["running", "completed", "failed"]),
-    error: z.string().nullable(),
-    resultSummary: z.string().nullable(),
-  }),
-);
+const RunsSchema = z.array(TaskRunLogSchema);
 
 function readRuns(): TaskRunLog[] {
   return readJson(RUNS_PATH, RunsSchema) ?? [];

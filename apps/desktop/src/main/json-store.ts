@@ -17,16 +17,13 @@ export function inteligirPath(...segments: string[]): string {
 
 export function readJson<T>(filePath: string, schema: ZodType<T>): T | null {
   const cached = cache.get(filePath);
-  if (cached !== undefined) {
-    const result = schema.safeParse(cached);
-    return result.success ? result.data : null;
-  }
+  if (cached !== undefined) return cached as T;
   try {
     const raw = fs.readFileSync(filePath, "utf8");
     const parsed: unknown = JSON.parse(raw);
     const result = schema.safeParse(parsed);
     if (result.success) {
-      cache.set(filePath, parsed);
+      cache.set(filePath, result.data);
       return result.data;
     }
     return null;

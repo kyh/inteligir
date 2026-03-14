@@ -11,9 +11,8 @@ const SESSION_PATH = inteligirPath("session.json");
 const SessionSchema = z.array(z.unknown());
 
 export function saveSession(messages: unknown[]): void {
-  // JSON round-trip strips class instances (e.g. `api` on AssistantMessage)
-  const serializable = JSON.parse(JSON.stringify(messages)) as unknown[];
-  writeJson(SESSION_PATH, serializable);
+  // structuredClone strips class instances (e.g. `api` on AssistantMessage)
+  writeJson(SESSION_PATH, structuredClone(messages));
 }
 
 export function loadSession(): unknown[] | null {
