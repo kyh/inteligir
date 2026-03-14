@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
-import type { CreateTaskParams, Task } from "../../shared/task";
-import { getBridge } from "../bridge";
+import type { CreateTaskParams, Task } from "@/shared/task";
+import { getBridge } from "@/renderer/lib/bridge";
 
 // ---------------------------------------------------------------------------
 // Store

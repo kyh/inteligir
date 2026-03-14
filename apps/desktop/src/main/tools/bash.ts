@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, truncateTail } from "./util";
+import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, truncateTail } from "@/main/lib/tool-utils";
 
 const bashSchema = Type.Object({
   command: Type.String({ description: "Bash command to execute" }),

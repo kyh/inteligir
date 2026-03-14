@@ -1,9 +1,10 @@
 import { cn } from "@repo/ui/utils";
 
-import { useAgentStore } from "./stores/agent-store";
-import { TaskPanel } from "./task-panel";
+import type { SessionStatus } from "@/shared/agent";
+import { useAgentStore } from "@/renderer/stores/agent-store";
+import { TaskPanel } from "@/renderer/chat/task-panel";
 
-const statusColors: Record<string, string> = {
+const statusColors: Record<SessionStatus, string> = {
   idle: "bg-green-400",
   busy: "bg-yellow-400 animate-pulse",
   error: "bg-red-400",
@@ -18,7 +19,7 @@ export function StatusBar() {
       <span
         className={cn(
           "inline-block h-1.5 w-1.5 rounded-full",
-          statusColors[sessionStatus] ?? "bg-muted-foreground",
+          statusColors[sessionStatus],
         )}
         title={sessionStatus}
       />

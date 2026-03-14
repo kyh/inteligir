@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, resolvePath, truncateHead } from "./util";
+import { MAX_OUTPUT_BYTES, MAX_OUTPUT_LINES, resolvePath, truncateHead } from "@/main/lib/tool-utils";
 
 const IMAGE_MIME_TYPES: Record<string, string> = {
   ".jpg": "image/jpeg",

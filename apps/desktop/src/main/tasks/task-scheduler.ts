@@ -1,11 +1,11 @@
 import { Cron } from "croner";
 
-import type { Task } from "../shared/task";
+import type { Task } from "@/shared/task";
 
-import { type Agent, IDLE_TIMEOUT_MS } from "./agent";
-import { getTasks, markTaskRun } from "./task-store";
-import { startRun, completeRun, failRun } from "./task-run-store";
-import { toErrorMessage } from "../shared/ipc";
+import { type Agent, IDLE_TIMEOUT_MS } from "@/main/agent/agent";
+import { getTasks, markTaskRun } from "@/main/tasks/task-store";
+import { startRun, completeRun, failRun } from "@/main/tasks/task-run-store";
+import { toErrorMessage } from "@/shared/ipc";
 
 // ---------------------------------------------------------------------------
 // Task scheduler — polls tasks.json and fires agent.sendMessage()

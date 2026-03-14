@@ -27,6 +27,7 @@
     "glob": "^13.0.6",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "react-router": "^7.13.1",
     "streamdown": "^2.4.0",
     "tailwindcss": "catalog:",
     "three": "^0.175.0",

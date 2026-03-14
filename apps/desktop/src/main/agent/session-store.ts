@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { inteligirPath, readJson, writeJson, clearFile } from "./json-store";
+import { inteligirPath, readJson, writeJson, clearFile } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
 // Session persistence — ~/.inteligir/session.json

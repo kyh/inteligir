@@ -2,11 +2,10 @@ import crypto from "node:crypto";
 
 import {
   TasksFileSchema,
-  CreateTaskParamsSchema,
   type Task,
   type CreateTaskParams,
-} from "../shared/task";
-import { inteligirPath, readJson, writeJson } from "./json-store";
+} from "@/shared/task";
+import { inteligirPath, readJson, writeJson } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
 // File-based task CRUD — ~/.inteligir/tasks.json
@@ -24,8 +23,6 @@ function saveTasks(tasks: Task[]): void {
 }
 
 export function createTask(params: CreateTaskParams): Task {
-  CreateTaskParamsSchema.parse(params);
-
   const task: Task = {
     id: crypto.randomUUID(),
     label: params.label,

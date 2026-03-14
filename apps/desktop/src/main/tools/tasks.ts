@@ -1,8 +1,8 @@
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
 
-import { createTask, deleteTask, getTasks, toggleTask } from "../task-store";
-import { TaskScheduleSchema, type TaskSchedule } from "../../shared/task";
+import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
+import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 
 // ---------------------------------------------------------------------------
 // manage_tasks — agent tool for task CRUD

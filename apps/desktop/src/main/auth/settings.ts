@@ -1,6 +1,6 @@
-import { SettingsSchema, type OAuthCredentials, type Settings } from "../shared/settings";
-import { refreshToken } from "./openai-auth";
-import { inteligirPath, readJson, writeJson } from "./json-store";
+import { SettingsSchema, type OAuthCredentials, type Settings } from "@/shared/settings";
+import { refreshToken } from "@/main/auth/openai-auth";
+import { inteligirPath, readJson, writeJson } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
 // File-based settings CRUD — ~/.inteligir/settings.json
@@ -21,12 +21,6 @@ export function saveSettings(settings: Settings): void {
 export function saveOAuthCredentials(creds: OAuthCredentials): void {
   const settings = getSettings();
   saveSettings({ ...settings, oauthCredentials: creds });
-}
-
-export function clearOAuthCredentials(): void {
-  const settings = getSettings();
-  const { oauthCredentials: _, ...rest } = settings;
-  saveSettings(rest);
 }
 
 export function isLoggedIn(): boolean {

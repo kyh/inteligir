@@ -4,7 +4,7 @@ import path from "node:path";
 import { statSync, readFileSync } from "node:fs";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-import { MAX_OUTPUT_BYTES, resolvePath, truncateHead } from "./util";
+import { MAX_OUTPUT_BYTES, resolvePath, truncateHead } from "@/main/lib/tool-utils";
 
 const DEFAULT_LIMIT = 100;
 const MAX_LINE_LENGTH = 500;

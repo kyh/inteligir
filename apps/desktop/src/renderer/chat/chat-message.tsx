@@ -1,8 +1,8 @@
 import { cn } from "@repo/ui/utils";
 
-import { Markdown } from "./markdown";
-import type { ChatMessage } from "./stores/agent-store";
-import { ToolExecutionView } from "./tool-execution";
+import { Markdown } from "@/renderer/components/markdown";
+import { ToolExecutionView } from "@/renderer/components/tool-execution";
+import type { ChatMessage } from "@/renderer/stores/agent-store";
 
 export function ChatMessageView({ message }: { message: ChatMessage }) {
   switch (message.kind) {

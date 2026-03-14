@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-import { resolvePath } from "./util";
+import { resolvePath } from "@/main/lib/tool-utils";
 
 const writeSchema = Type.Object({
   path: Type.String({ description: "Path to the file to write" }),

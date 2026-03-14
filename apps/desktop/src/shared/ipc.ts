@@ -18,6 +18,7 @@ import type {
   ListTasksResult,
   ToggleTaskResult,
 } from "./task";
+import type { ConversationEntry } from "./conversation";
 
 // ---------------------------------------------------------------------------
 // IPC channel names shared between Electron main <-> preload <-> renderer
@@ -169,6 +170,3 @@ export function extractRole(message: unknown): string {
   return "assistant";
 }
 
-// Re-export for convenience
-import type { ConversationEntry } from "./conversation";
-export type { ConversationEntry };

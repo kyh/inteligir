@@ -3,7 +3,7 @@ import { useCallback, useState, type FormEvent, type KeyboardEvent } from "react
 import { Button } from "@repo/ui/button";
 import { Input } from "@repo/ui/input";
 
-import { useAgentStore } from "./stores/agent-store";
+import { useAgentStore } from "@/renderer/stores/agent-store";
 
 export function ChatInput() {
   const [input, setInput] = useState("");

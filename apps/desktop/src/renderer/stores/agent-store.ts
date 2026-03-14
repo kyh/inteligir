@@ -1,8 +1,8 @@
 import { create } from "zustand";
 
-import type { SessionStatus } from "../../shared/agent";
-import { extractText } from "../../shared/ipc";
-import { getBridge } from "../bridge";
+import type { SessionStatus } from "@/shared/agent";
+import { extractText } from "@/shared/ipc";
+import { getBridge } from "@/renderer/lib/bridge";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -75,7 +75,7 @@ let nextMsgId = 0;
 export const useAgentStore = create<AgentStore>((set, get) => ({
   messages: [],
   needsSetup: false,
-  sessionStatus: "idle",
+  sessionStatus: "starting",
 
   init: () => {
     const bridge = getBridge();

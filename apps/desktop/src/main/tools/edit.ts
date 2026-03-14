@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
 import { Type } from "@sinclair/typebox";
-import { resolvePath } from "./util";
+import { resolvePath } from "@/main/lib/tool-utils";
 
 const editSchema = Type.Object({
   path: Type.String({ description: "Path to the file to edit" }),

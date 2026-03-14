@@ -12,23 +12,23 @@ import type {
   SendMessageResult,
   SessionStatus,
   SteerResult,
-} from "../shared/agent";
-import type { ConversationEntry } from "../shared/conversation";
+} from "@/shared/agent";
+import type { ConversationEntry } from "@/shared/conversation";
 
-import { inteligirPath } from "./json-store";
-import { getSettings, resolveAccessToken } from "./settings";
-import { appendEntry, readEntries, clearConversation } from "./conversation-store";
-import { saveSession, loadSession, clearSession } from "./session-store";
-import { getTasks } from "./task-store";
-import { extractText, extractRole, toErrorMessage } from "../shared/ipc";
-import { createBashTool } from "./tools/bash";
-import { createReadTool } from "./tools/read";
-import { createWriteTool } from "./tools/write";
-import { createEditTool } from "./tools/edit";
-import { createGrepTool } from "./tools/grep";
-import { createFindTool } from "./tools/find";
-import { createLsTool } from "./tools/ls";
-import { createManageTasksTool } from "./tools/tasks";
+import { inteligirPath } from "@/main/lib/json-store";
+import { getSettings, resolveAccessToken } from "@/main/auth/settings";
+import { appendEntry, readEntries, clearConversation } from "@/main/agent/conversation-store";
+import { saveSession, loadSession, clearSession } from "@/main/agent/session-store";
+import { getTasks } from "@/main/tasks/task-store";
+import { extractText, extractRole, toErrorMessage } from "@/shared/ipc";
+import { createBashTool } from "@/main/tools/bash";
+import { createReadTool } from "@/main/tools/read";
+import { createWriteTool } from "@/main/tools/write";
+import { createEditTool } from "@/main/tools/edit";
+import { createGrepTool } from "@/main/tools/grep";
+import { createFindTool } from "@/main/tools/find";
+import { createLsTool } from "@/main/tools/ls";
+import { createManageTasksTool } from "@/main/tools/tasks";
 
 // ---------------------------------------------------------------------------
 // Defaults

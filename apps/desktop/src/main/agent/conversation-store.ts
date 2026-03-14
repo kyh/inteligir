@@ -1,5 +1,5 @@
-import { ConversationEntrySchema, type ConversationEntry } from "../shared/conversation";
-import { inteligirPath, appendJsonl, readJsonl, clearFile } from "./json-store";
+import { ConversationEntrySchema, type ConversationEntry } from "@/shared/conversation";
+import { inteligirPath, appendJsonl, readJsonl, clearFile } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
 // Single conversation persistence — ~/.inteligir/conversation.jsonl
