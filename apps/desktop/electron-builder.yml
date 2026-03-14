@@ -16,6 +16,11 @@ mac:
   category: public.app-category.productivity
   icon: resources/icon.icns
   entitlementsInherit: resources/entitlements.mac.plist
+  target:
+    - target: dmg
+      arch: [universal]
+    - target: zip
+      arch: [universal]
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
@@ -24,8 +29,27 @@ mac:
   notarize: false
 dmg:
   artifactName: Inteligir-${version}-${arch}.${ext}
+win:
+  artifactName: Inteligir-${version}-${arch}-win.${ext}
+  icon: resources/icon.ico
+  target:
+    - target: nsis
+      arch: [x64, arm64]
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+linux:
+  artifactName: Inteligir-${version}-${arch}-linux.${ext}
+  icon: resources
+  category: Utility
+  target:
+    - target: AppImage
+      arch: [x64, arm64]
+    - target: deb
+      arch: [x64, arm64]
 npmRebuild: false
-# Required for electron-updater — configure before shipping.
-# See: https://www.electron.build/publish
-# publish:
-#   provider: github
+publish:
+  provider: github
+  owner: kyh
+  repo: inteligir

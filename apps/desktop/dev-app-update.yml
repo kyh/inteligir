@@ -1,0 +1,5 @@
+# Used by electron-updater during development.
+# See: https://www.electron.build/auto-update#debugging
+provider: github
+owner: kyh
+repo: inteligir

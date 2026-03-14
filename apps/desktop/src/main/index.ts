@@ -228,7 +228,7 @@ function configureAutoUpdater(): void {
   if (isDevelopment) return;
 
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.autoInstallOnAppQuit = true;
 
   autoUpdater.on("update-available", (info) => {
     setUpdateState({ status: "available", version: info.version });
