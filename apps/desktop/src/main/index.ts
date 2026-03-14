@@ -30,6 +30,7 @@ let updateState: UpdateState = {
 
 function setUpdateState(patch: Partial<UpdateState>): void {
   updateState = { ...updateState, ...patch };
+  rebuildMenu();
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
       window.webContents.send(IPC_CHANNELS.UPDATE_STATE, updateState);
@@ -79,16 +80,56 @@ function dispatchMenuAction(action: string): void {
   send();
 }
 
-function configureApplicationMenu(): void {
+function getUpdateMenuItem(): MenuItemConstructorOptions {
+  switch (updateState.status) {
+    case "checking":
+      return { label: "Checking for Updates...", enabled: false };
+    case "available":
+      return {
+        label: `Download Update (v${updateState.version})...`,
+        click: () => {
+          setUpdateState({ status: "downloading", downloadPercent: 0 });
+          void autoUpdater.downloadUpdate().catch((error: unknown) => {
+            setUpdateState({ status: "error", message: toErrorMessage(error) });
+            rebuildMenu();
+          });
+          rebuildMenu();
+        },
+      };
+    case "downloading":
+      return {
+        label: `Downloading Update... ${updateState.downloadPercent ?? 0}%`,
+        enabled: false,
+      };
+    case "downloaded":
+      return {
+        label: `Restart to Update (v${updateState.version})`,
+        click: () => {
+          isQuitting = true;
+          autoUpdater.quitAndInstall();
+        },
+      };
+    case "error":
+      return {
+        label: "Check for Updates...",
+        sublabel: `Update failed: ${updateState.message ?? "Unknown error"}`,
+        click: () => void checkForUpdates(),
+      };
+    default:
+      return {
+        label: "Check for Updates...",
+        click: () => void checkForUpdates(),
+      };
+  }
+}
+
+function rebuildMenu(): void {
   const template: MenuItemConstructorOptions[] = [
     {
       label: app.name,
       submenu: [
         { role: "about" },
-        {
-          label: "Check for Updates...",
-          click: () => void checkForUpdates(),
-        },
+        getUpdateMenuItem(),
         { type: "separator" },
         {
           label: "Settings...",
@@ -117,6 +158,10 @@ function configureApplicationMenu(): void {
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function configureApplicationMenu(): void {
+  rebuildMenu();
 }
 
 // ---------------------------------------------------------------------------

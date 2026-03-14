@@ -13,18 +13,8 @@ permissions:
   contents: write
 
 jobs:
-  build:
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-latest
-            platform: mac
-          - os: windows-latest
-            platform: win
-          - os: ubuntu-latest
-            platform: linux
-    runs-on: ${{ matrix.os }}
+  build-mac:
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -39,12 +29,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build renderer
-        run: pnpm --filter @repo/desktop build
-
-      - name: Build & publish (${{ matrix.platform }})
+      - name: Build & publish
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd apps/desktop
-          pnpm exec electron-builder --${{ matrix.platform }} --publish always
+        run: pnpm --filter @repo/desktop publish-mac
