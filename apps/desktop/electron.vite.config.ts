@@ -1,5 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
@@ -21,15 +22,19 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     build: {
       outDir: ".output/app/preload",
+      lib: {
+        entry: resolve(__dirname, "src/preload/index.ts"),
+        formats: ["cjs"],
+      },
       rollupOptions: {
-        input: {
-          index: resolve(__dirname, "src/preload/index.ts"),
+        output: {
+          entryFileNames: "index.js",
         },
       },
     },
   },
   renderer: {
-    plugins: [react()],
+    plugins: [tailwindcss(), react()],
     build: {
       outDir: ".output/app/renderer",
       rollupOptions: {

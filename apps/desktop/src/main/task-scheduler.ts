@@ -1,0 +1,79 @@
+import { Cron } from "croner";
+
+import type { Task } from "../shared/task";
+
+import type { Agent } from "./agent";
+import { getTasks, markTaskRun } from "./task-store";
+
+// ---------------------------------------------------------------------------
+// Task scheduler — polls tasks.json and fires agent.sendMessage()
+// ---------------------------------------------------------------------------
+
+const POLL_INTERVAL_MS = 15_000;
+
+export class TaskScheduler {
+  private timer: ReturnType<typeof setInterval> | null = null;
+  private getAgent: () => Agent | null;
+
+  constructor(getAgent: () => Agent | null) {
+    this.getAgent = getAgent;
+  }
+
+  start(): void {
+    if (this.timer) return;
+    this.timer = setInterval(() => this.tick(), POLL_INTERVAL_MS);
+  }
+
+  stop(): void {
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+  }
+
+  private tick(): void {
+    const agent = this.getAgent();
+    if (!agent) return;
+
+    const now = Date.now();
+    const tasks = getTasks();
+
+    for (const task of tasks) {
+      if (!task.enabled) continue;
+      if (!shouldFire(task, now)) continue;
+
+      // Fire the task
+      markTaskRun(task.id, now);
+      const prefix = `[Scheduled task: ${task.label}]\n\n`;
+      void agent.sendMessage(prefix + task.prompt);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Schedule evaluation
+// ---------------------------------------------------------------------------
+
+function shouldFire(task: Task, now: number): boolean {
+  const { schedule } = task;
+
+  switch (schedule.type) {
+    case "cron": {
+      try {
+        const lastRun = task.lastRunAt ?? task.createdAt;
+        const cron = new Cron(schedule.cron);
+        const next = cron.nextRun(new Date(lastRun));
+        return next !== null && next.getTime() <= now;
+      } catch {
+        return false;
+      }
+    }
+
+    case "interval":
+      if (task.lastRunAt === null) return true;
+      return now - task.lastRunAt >= schedule.intervalMs;
+
+    case "once":
+      return task.lastRunAt === null && now >= schedule.runAt;
+  }
+}

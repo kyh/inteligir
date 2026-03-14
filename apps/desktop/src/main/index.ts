@@ -4,8 +4,15 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "../types";
-import type { UpdateState } from "../types";
+import { Agent } from "./agent";
+import { login } from "./openai-auth";
+import { clearOAuthCredentials, getSettings, isLoggedIn, saveOAuthCredentials, saveSettings } from "./settings";
+import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
+import { TaskScheduler } from "./task-scheduler";
+import { SettingsSchema } from "../shared/settings";
+import { CreateTaskParamsSchema } from "../shared/task";
+import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "../shared/ipc";
+import type { UpdateState } from "../shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -16,6 +23,10 @@ const APP_DISPLAY_NAME = isDevelopment ? "Inteligir (Dev)" : "Inteligir";
 
 let mainWindow: BrowserWindow | null = null;
 let isQuitting = false;
+
+/** In-process agent instance */
+let agent: Agent | null = null;
+let scheduler: TaskScheduler | null = null;
 
 // ---------------------------------------------------------------------------
 // Auto-updater state
@@ -33,6 +44,39 @@ function setUpdateState(patch: Partial<UpdateState>): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
       window.webContents.send(IPC_CHANNELS.UPDATE_STATE, updateState);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent event forwarding (main → renderer via IPC)
+// ---------------------------------------------------------------------------
+
+function broadcastAgentEvent(event: unknown): void {
+  const type = typeof event === "object" && event !== null && "type" in event
+    ? (event as Record<string, unknown>).type
+    : "unknown";
+  console.log("[ipc] broadcasting agent event:", type);
+  if (type === "message_end") {
+    const msg = (event as Record<string, unknown>).message as Record<string, unknown> | undefined;
+    if (msg?.stopReason === "error") {
+      console.error("[ipc] message_end ERROR:", msg.errorMessage);
+    }
+  }
+
+  // pi-agent-core events contain class instances (e.g. message.api) that
+  // can't survive Electron's structured-clone IPC. Round-trip through JSON
+  // to strip non-serializable fields.
+  let safe: unknown;
+  try {
+    safe = JSON.parse(JSON.stringify(event));
+  } catch (err) {
+    console.error("[ipc] failed to serialize event:", type, err);
+    return;
+  }
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed()) {
+      window.webContents.send(IPC_CHANNELS.AGENT_EVENT, safe);
     }
   }
 }
@@ -93,7 +137,7 @@ function configureApplicationMenu(): void {
         {
           label: "Settings...",
           accelerator: "CmdOrCtrl+,",
-          click: () => dispatchMenuAction("open-settings"),
+          click: () => dispatchMenuAction(MENU_ACTIONS.OPEN_SETTINGS),
         },
         { type: "separator" },
         { role: "services" },
@@ -123,36 +167,20 @@ function configureApplicationMenu(): void {
 // IPC handlers
 // ---------------------------------------------------------------------------
 
-function registerIpcHandlers(): void {
-  ipcMain.handle(IPC_CHANNELS.PICK_FOLDER, async () => {
-    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const result = owner
-      ? await dialog.showOpenDialog(owner, {
-          properties: ["openDirectory", "createDirectory"],
-        })
-      : await dialog.showOpenDialog({
-          properties: ["openDirectory", "createDirectory"],
-        });
-    if (result.canceled) return null;
-    return result.filePaths[0] ?? null;
-  });
+function requireAgent(): Agent {
+  if (!agent) throw new Error("Agent not started");
+  return agent;
+}
 
-  ipcMain.handle(IPC_CHANNELS.CONFIRM, async (_event, message: unknown) => {
-    if (typeof message !== "string") return false;
-    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const options = {
-      type: "question" as const,
-      buttons: ["No", "Yes"],
-      defaultId: 1,
-      cancelId: 0,
-      noLink: true,
-      message: message.trim(),
-    };
-    const result = owner
-      ? await dialog.showMessageBox(owner, options)
-      : await dialog.showMessageBox(options);
-    return result.response === 1;
-  });
+function requireString(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new Error(`${name} (string) is required`);
+  }
+  return value;
+}
+
+function registerIpcHandlers(): void {
+  // ---- Desktop --------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, rawUrl: unknown) => {
     if (typeof rawUrl !== "string" || rawUrl.length === 0) return false;
@@ -189,18 +217,110 @@ function registerIpcHandlers(): void {
     if (updateState.status !== "downloaded") {
       return { accepted: false, state: updateState };
     }
-    // Defer so the IPC reply reaches the renderer before the process exits.
     setImmediate(() => {
       isQuitting = true;
       try {
         autoUpdater.quitAndInstall();
       } catch (error: unknown) {
-        // Reset so the user can retry without restarting the app.
         isQuitting = false;
         setUpdateState({ status: "error", message: toErrorMessage(error) });
       }
     });
     return { accepted: true, state: updateState };
+  });
+
+  // ---- Agent ----------------------------------------------------------------
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_SEND_MESSAGE, (_event, raw: unknown) => {
+    console.log("[ipc] AGENT_SEND_MESSAGE received");
+    return requireAgent().sendMessage(requireString(raw, "message"));
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_STEER, (_event, raw: unknown) => {
+    return requireAgent().steer(requireString(raw, "message"));
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_INTERRUPT, () => {
+    return requireAgent().interrupt();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_GET_STATE, () => {
+    return requireAgent().getState();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_GET_MESSAGES, () => {
+    return { entries: requireAgent().getMessages() };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_CLEAR, () => {
+    requireAgent().clear();
+    return { ok: true };
+  });
+
+  // ---- Auth -----------------------------------------------------------------
+
+  ipcMain.handle(IPC_CHANNELS.AUTH_LOGIN, async () => {
+    try {
+      const creds = await login();
+      saveOAuthCredentials({
+        access: creds.access,
+        refresh: creds.refresh,
+        expires: creds.expires,
+      });
+      // Restart agent with new credentials
+      const a = requireAgent();
+      await a.stop();
+      await a.start();
+      return { ok: true };
+    } catch (error: unknown) {
+      return { ok: false, error: toErrorMessage(error) };
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async () => {
+    clearOAuthCredentials();
+    // Restart agent without credentials
+    const a = requireAgent();
+    await a.stop();
+    await a.start();
+    return { ok: true };
+  });
+
+  // ---- Settings -------------------------------------------------------------
+
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
+    const settings = getSettings();
+    return { ...settings, loggedIn: isLoggedIn() };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.SETTINGS_SET, async (_event, raw: unknown) => {
+    const settings = SettingsSchema.parse(raw);
+    saveSettings(settings);
+    // Restart agent with new env vars
+    const a = requireAgent();
+    await a.stop();
+    await a.start();
+    return { ok: true };
+  });
+
+  // ---- Tasks ----------------------------------------------------------------
+
+  ipcMain.handle(IPC_CHANNELS.TASK_CREATE, (_event, raw: unknown) => {
+    const params = CreateTaskParamsSchema.parse(raw);
+    return { task: createTask(params) };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_LIST, () => {
+    return { tasks: getTasks() };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_DELETE, (_event, raw: unknown) => {
+    deleteTask(requireString(raw, "id"));
+    return { ok: true };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.TASK_TOGGLE, (_event, raw: unknown) => {
+    return { task: toggleTask(requireString(raw, "id")) };
   });
 }
 
@@ -261,6 +381,36 @@ function configureAutoUpdater(): void {
 }
 
 // ---------------------------------------------------------------------------
+// Agent lifecycle
+// ---------------------------------------------------------------------------
+
+async function startAgent(): Promise<void> {
+  process.stderr.write("[desktop] starting agent...\n");
+  console.log("[desktop] starting agent...");
+  try {
+    agent = new Agent();
+    agent.subscribe(broadcastAgentEvent);
+    await agent.start();
+    console.log("[desktop] agent started");
+
+    scheduler = new TaskScheduler(() => agent);
+    scheduler.start();
+  } catch (err) {
+    console.error("[desktop] agent start failed:", err);
+  }
+}
+
+function stopAgent(): void {
+  scheduler?.stop();
+  scheduler = null;
+
+  if (agent) {
+    void agent.stop();
+    agent = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Window creation
 // ---------------------------------------------------------------------------
 
@@ -276,7 +426,7 @@ function createWindow(): BrowserWindow {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.mjs"),
+      preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -329,15 +479,18 @@ function createWindow(): BrowserWindow {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  stopAgent();
 });
 
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
     configureAppIdentity();
     configureApplicationMenu();
     configureAutoUpdater();
     registerIpcHandlers();
+
+    await startAgent();
 
     mainWindow = createWindow();
 
