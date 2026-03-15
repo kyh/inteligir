@@ -1,4 +1,4 @@
-import type { AgentTool, AgentToolResult } from "@mariozechner/pi-agent-core";
+import type { AgentTool, AgentToolResult } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 
 import { createTask, deleteTask, getTasks, toggleTask } from "../task-store";

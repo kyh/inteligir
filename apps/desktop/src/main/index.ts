@@ -393,7 +393,7 @@ async function startAgent(): Promise<void> {
     // Auto-install CLI tools (agent-browser, etc.) — skips if already present
     await toolManager.ensureAll();
 
-    agent = new Agent(toolManager);
+    agent = new Agent();
     agent.subscribe(broadcastAgentEvent);
     await agent.start();
     console.log("[desktop] agent started");
