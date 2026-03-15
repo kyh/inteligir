@@ -44,9 +44,9 @@ export function SettingsPage() {
     if (!bridge) return;
     void bridge.logout().then(() => {
       useAgentStore.getState().clearMessages();
-      void navigate("/onboarding");
+      useAgentStore.getState().checkSetup();
     });
-  }, [navigate]);
+  }, []);
 
   const handleSave = useCallback(() => {
     const bridge = getBridge();

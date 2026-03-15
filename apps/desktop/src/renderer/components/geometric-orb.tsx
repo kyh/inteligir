@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useCallback } from "react";
 import { Canvas, useFrame, useThree, extend } from "@react-three/fiber";
 
 import * as THREE from "three";
@@ -19,6 +19,7 @@ const RADIUS = 1.5;
 const POINTS_PER_LINE = 96;
 const LINE_WIDTH = 2;
 const BACKGROUND = "#0a0a0a";
+const INITIAL_COLOR_INT = new THREE.Color("#eeeeee").getHex();
 
 // ---------------------------------------------------------------------------
 // Dynamic parameters — interpolated per-frame toward the active mood
@@ -108,22 +109,20 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
     [],
   );
 
-  const colorInt = useMemo(() => new THREE.Color("#eeeeee").getHex(), []);
-
   const materials = useMemo(
     () =>
       Array.from(
         { length: NUM_LINES },
         () =>
           new LineMaterial({
-            color: colorInt,
+            color: INITIAL_COLOR_INT,
             linewidth: LINE_WIDTH,
             transparent: true,
             opacity: 1,
             vertexColors: true,
           }),
       ),
-    [colorInt],
+    [],
   );
 
   const geometries = useMemo(
@@ -221,19 +220,40 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
   return (
     <>
       {Array.from({ length: NUM_LINES }, (_, lineIdx) => (
-        <group
+        <OrbLine
           key={lineIdx}
-          ref={(el) => {
-            groupRefs.current[lineIdx] = el;
-          }}
-        >
-          <line2>
-            <primitive object={geometries[lineIdx]} attach="geometry" />
-            <primitive object={materials[lineIdx]} attach="material" />
-          </line2>
-        </group>
+          lineIdx={lineIdx}
+          groupRefs={groupRefs}
+          geometry={geometries[lineIdx]}
+          material={materials[lineIdx]}
+        />
       ))}
     </>
+  );
+}
+
+function OrbLine({
+  lineIdx,
+  groupRefs,
+  geometry,
+  material,
+}: {
+  lineIdx: number;
+  groupRefs: React.MutableRefObject<(THREE.Group | null)[]>;
+  geometry: LineGeometry;
+  material: LineMaterial;
+}) {
+  const ref = useCallback(
+    (el: THREE.Group | null) => { groupRefs.current[lineIdx] = el; },
+    [groupRefs, lineIdx],
+  );
+  return (
+    <group ref={ref}>
+      <line2>
+        <primitive object={geometry} attach="geometry" />
+        <primitive object={material} attach="material" />
+      </line2>
+    </group>
   );
 }
 
