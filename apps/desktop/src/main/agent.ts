@@ -254,17 +254,19 @@ export class Agent {
 
   async waitForIdle(timeoutMs: number): Promise<boolean> {
     if (!this.session || this.status !== "busy") return true;
-    return Promise.race([
-      new Promise<boolean>((resolve) => {
-        const unsub = this.session!.subscribe((event) => {
-          if (event.type === "agent_end") {
-            unsub();
-            resolve(true);
-          }
-        });
-      }),
-      new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-    ]);
+    return new Promise<boolean>((resolve) => {
+      const unsub = this.session!.subscribe((event) => {
+        if (event.type === "agent_end") {
+          clearTimeout(timer);
+          unsub();
+          resolve(true);
+        }
+      });
+      const timer = setTimeout(() => {
+        unsub();
+        resolve(false);
+      }, timeoutMs);
+    });
   }
 
   // ---- public API ----------------------------------------------------------

@@ -6,7 +6,7 @@ import electronUpdater from "electron-updater";
 
 import { Agent } from "./agent";
 import { login } from "./openai-auth";
-import { clearOAuthCredentials, getSettings, isLoggedIn, saveOAuthCredentials } from "./settings";
+import { clearOAuthCredentials, isLoggedIn, saveOAuthCredentials } from "./settings";
 import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
 import { TaskScheduler } from "./task-scheduler";
 import { ToolManager } from "./tool-manager";
@@ -290,8 +290,7 @@ function registerIpcHandlers(): void {
   // ---- Settings -------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
-    const settings = getSettings();
-    return { ...settings, loggedIn: isLoggedIn() };
+    return { loggedIn: isLoggedIn() };
   });
 
   // ---- Tasks ----------------------------------------------------------------

@@ -14,7 +14,7 @@ export function getSettings(): Settings {
   return readJson(SETTINGS_PATH, SettingsSchema) ?? DEFAULT_SETTINGS;
 }
 
-export function saveSettings(settings: Settings): void {
+function saveSettings(settings: Settings): void {
   writeJson(SETTINGS_PATH, settings);
 }
 
