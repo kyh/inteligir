@@ -2,12 +2,12 @@ import { WaitlistForm } from "./_components/waitlist-form";
 
 const features = [
   {
-    title: "vibedgames",
+    title: "VibedGames",
     description:
       "An AI-powered video game generator with built-in multiplayer and mobile support. Describe a game, play it instantly.",
   },
   {
-    title: "samantha",
+    title: "Samantha",
     description:
       "An intuitive AI assistant that lives on your desktop. It learns how you think, adapts to how you work, and gets better the more you use it.",
   },
@@ -52,11 +52,11 @@ const Page = () => {
 
       {/* CTA */}
       <section className="py-16">
-        <div className="border-t border-dotted border-foreground/10 pt-4">
-          <h2 className="text-base font-medium text-foreground">
-            Stay in the loop
-          </h2>
-          <p className="text-base text-foreground/60 text-balance">
+        <h2 className="text-base font-medium text-foreground">
+          Stay in the loop
+        </h2>
+        <div className="mt-3 border-t border-dotted border-foreground/10 pt-3 text-balance">
+          <p className="text-sm text-foreground/60">
             We&apos;re shipping new experiments all the time. Drop your email to
             follow along.
           </p>
