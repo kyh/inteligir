@@ -1,10 +1,13 @@
 import {
   AuthStorage,
   createAgentSession,
-  SessionManager,
+  DefaultResourceLoader,
   ModelRegistry,
+  SessionManager,
+  SettingsManager,
 } from "@mariozechner/pi-coding-agent";
-import type { AgentSession, AgentSessionEvent } from "@mariozechner/pi-coding-agent";
+import type { AgentSession, AgentSessionEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import { Type } from "@sinclair/typebox";
 import { getModel } from "@mariozechner/pi-ai";
 import type { Api, Model } from "@mariozechner/pi-ai";
 
@@ -18,32 +21,112 @@ import type {
 import type { ConversationEntry } from "../shared/conversation";
 
 import { inteligirPath } from "./json-store";
-import { getSettings, resolveAccessToken } from "./settings";
+import { resolveAccessToken } from "./settings";
 import { appendEntry, readEntries, clearConversation } from "./conversation-store";
-import { getTasks } from "./task-store";
+import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
+import { TaskScheduleSchema, type TaskSchedule } from "../shared/task";
 import { extractText, extractRole, toErrorMessage } from "../shared/ipc";
-import { createManageTasksTool } from "./tools/tasks";
 
 // ---------------------------------------------------------------------------
 // Defaults
 // ---------------------------------------------------------------------------
 
 const AGENT_DIR = inteligirPath("agent");
-
-const DEFAULT_SYSTEM_PROMPT = `You are Inteligir, an AI Chief of Staff. You help the user manage tasks, coordinate workflows, and stay on top of their priorities.
-
-## Guidelines
-- Be concise and action-oriented
-- When creating tasks, confirm the schedule with the user before committing
-- For destructive operations (deleting files, dropping data), confirm first
-- If a tool call fails, diagnose and try an alternative approach`;
-
 const DEFAULT_MODEL: Model<Api> = getModel("openai-codex", "gpt-5.4" as never);
 
 export const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
-// Agent — wraps pi-coding-agent's AgentSession
+// manage_tasks extension — registered via extensionFactories
+// ---------------------------------------------------------------------------
+
+function registerTasksExtension(pi: ExtensionAPI): void {
+  const manageTasksSchema = Type.Object({
+    action: Type.Union([
+      Type.Literal("create"),
+      Type.Literal("list"),
+      Type.Literal("toggle"),
+      Type.Literal("delete"),
+    ], { description: "Action to perform" }),
+    label: Type.Optional(Type.String({ description: "Task label (required for create)" })),
+    prompt: Type.Optional(Type.String({ description: "Prompt to run when task fires (required for create)" })),
+    schedule: Type.Optional(Type.Unsafe<TaskSchedule>({
+      description: "Schedule: {type:'cron',cron:string} | {type:'interval',intervalMs:number} | {type:'once',runAt:number}",
+    })),
+    taskId: Type.Optional(Type.String({ description: "Task ID (required for toggle/delete)" })),
+  });
+
+  pi.registerTool({
+    name: "manage_tasks",
+    label: "manage_tasks",
+    description:
+      "Create, list, toggle, or delete scheduled tasks. " +
+      "Tasks run automatically on a cron/interval/once schedule.",
+    parameters: manageTasksSchema,
+    execute: async (_toolCallId, params) => {
+      const text = (s: string) => ({ content: [{ type: "text" as const, text: s }], details: {} });
+      const p = params as {
+        action: "create" | "list" | "toggle" | "delete";
+        label?: string;
+        prompt?: string;
+        schedule?: TaskSchedule;
+        taskId?: string;
+      };
+
+      switch (p.action) {
+        case "list": {
+          const tasks = getTasks();
+          if (tasks.length === 0) return text("No tasks configured.");
+          const lines = tasks.map(
+            (t) =>
+              `- [${t.enabled ? "ON" : "OFF"}] ${t.label} (${t.id})\n  schedule: ${JSON.stringify(t.schedule)}\n  prompt: ${t.prompt.slice(0, 100)}${t.prompt.length > 100 ? "..." : ""}`,
+          );
+          return text(lines.join("\n\n"));
+        }
+        case "create": {
+          if (!p.label) return text("Error: label is required for create");
+          if (!p.prompt) return text("Error: prompt is required for create");
+          if (!p.schedule) return text("Error: schedule is required for create");
+          const schedule = TaskScheduleSchema.parse(p.schedule);
+          const task = createTask({ label: p.label, prompt: p.prompt, schedule });
+          return text(`Created task "${task.label}" (${task.id})`);
+        }
+        case "toggle": {
+          if (!p.taskId) return text("Error: taskId is required for toggle");
+          try {
+            const task = toggleTask(p.taskId);
+            return text(`Task "${task.label}" is now ${task.enabled ? "enabled" : "disabled"}`);
+          } catch (err) {
+            return text(`Error: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        }
+        case "delete": {
+          if (!p.taskId) return text("Error: taskId is required for delete");
+          deleteTask(p.taskId);
+          return text(`Deleted task ${p.taskId}`);
+        }
+      }
+    },
+  });
+
+  // Inject active tasks into context before each agent turn
+  pi.on("before_agent_start", async (_event, ctx) => {
+    const tasks = getTasks().filter((t) => t.enabled);
+    if (tasks.length === 0) return;
+
+    const summary = tasks
+      .map((t) => `- ${t.label}: ${t.prompt.slice(0, 80)}${t.prompt.length > 80 ? "..." : ""} (${t.schedule.type})`)
+      .join("\n");
+
+    pi.sendMessage({
+      role: "user",
+      content: [{ type: "text", text: `[Active scheduled tasks]\n${summary}` }],
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Agent — thin wrapper around pi-coding-agent's AgentSession
 // ---------------------------------------------------------------------------
 
 type EventListener = (event: AgentSessionEvent) => void;
@@ -61,47 +144,41 @@ export class Agent {
   async start(): Promise<void> {
     if (this.session) return;
 
-    const settings = getSettings();
     const authStorage = AuthStorage.create();
+
+    // Inject the OpenAI OAuth token if available
+    const token = resolveAccessToken();
+    if (token) {
+      authStorage.setRuntimeApiKey("openai-codex", token);
+    }
+
     const modelRegistry = new ModelRegistry(authStorage);
+
+    const resourceLoader = new DefaultResourceLoader({
+      cwd: process.cwd(),
+      agentDir: AGENT_DIR,
+      extensionFactories: [registerTasksExtension],
+    });
+    await resourceLoader.reload();
 
     const { session } = await createAgentSession({
       cwd: process.cwd(),
       agentDir: AGENT_DIR,
       authStorage,
       modelRegistry,
+      resourceLoader,
       model: DEFAULT_MODEL,
       thinkingLevel: "off",
-      tools: [createManageTasksTool()],
       sessionManager: SessionManager.inMemory(),
+      settingsManager: SettingsManager.inMemory(),
     });
-
-    // Override system prompt with our custom one
-    const parts = [settings.systemPrompt ?? DEFAULT_SYSTEM_PROMPT];
-
-    // Active tasks summary
-    const tasks = getTasks().filter((t) => t.enabled);
-    if (tasks.length > 0) {
-      const summary = tasks
-        .map((t) => `- ${t.label}: ${t.prompt.slice(0, 80)}${t.prompt.length > 80 ? "..." : ""} (${t.schedule.type})`)
-        .join("\n");
-      parts.push(`\n## Active Scheduled Tasks\n${summary}`);
-    }
-
-    // The coding agent's system prompt already includes tool descriptions,
-    // skill instructions, and AGENTS.md content. We prepend our identity.
-    const basePrompt = session.state().systemPrompt;
-    session.state().systemPrompt = parts.join("\n") + "\n\n" + basePrompt;
 
     this.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
       this.handleEvent(event);
     });
 
     this.session = session;
-
-    // Crash recovery: check if last conversation entry is an unanswered user message
     this.checkCrashRecovery();
-
     this.status = "idle";
   }
 
@@ -120,10 +197,6 @@ export class Agent {
     this.error = null;
   }
 
-  /**
-   * Wait for the agent to finish its current turn (up to timeoutMs).
-   * Returns true if idle, false if timed out.
-   */
   async waitForIdle(timeoutMs: number): Promise<boolean> {
     if (!this.session || this.status !== "busy") return true;
     return Promise.race([
@@ -164,10 +237,8 @@ export class Agent {
 
   async steer(message: string): Promise<SteerResult> {
     const session = this.ensureSession();
-
     appendEntry({ kind: "steer", text: message, timestamp: Date.now() });
     await session.steer(message);
-
     return { accepted: true };
   }
 
