@@ -4,17 +4,17 @@ import { z } from "zod";
 // Task schedule schemas — discriminated union
 // ---------------------------------------------------------------------------
 
-export const CronScheduleSchema = z.object({
+const CronScheduleSchema = z.object({
   type: z.literal("cron"),
   cron: z.string(),
 });
 
-export const IntervalScheduleSchema = z.object({
+const IntervalScheduleSchema = z.object({
   type: z.literal("interval"),
   intervalMs: z.number().int().positive(),
 });
 
-export const OnceScheduleSchema = z.object({
+const OnceScheduleSchema = z.object({
   type: z.literal("once"),
   runAt: z.number(),
 });
