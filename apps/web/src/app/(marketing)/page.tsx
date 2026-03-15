@@ -28,8 +28,7 @@ const Page = () => {
             An agent experiment lab.
           </h1>
           <p className="text-base text-foreground/60 text-balance">
-            Exploring what&apos;s possible when you give AI agents real jobs to
-            do.
+            Exploring the future of functional AI.
           </p>
         </div>
       </section>
