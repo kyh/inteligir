@@ -8,8 +8,6 @@ import type {
   GetSettingsResult,
   LoginResult,
   LogoutResult,
-  SetSettingsParams,
-  SetSettingsResult,
 } from "./settings";
 import type {
   CreateTaskParams,
@@ -51,7 +49,6 @@ export const IPC_CHANNELS = {
 
   // Settings
   SETTINGS_GET: "settings:get",
-  SETTINGS_SET: "settings:set",
 
   // Tasks
   TASK_CREATE: "task:create",
@@ -114,7 +111,6 @@ export type DesktopBridge = {
 
   // Settings
   getSettings: () => Promise<GetSettingsResult>;
-  setSettings: (settings: SetSettingsParams) => Promise<SetSettingsResult>;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;

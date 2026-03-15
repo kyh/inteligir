@@ -9,7 +9,6 @@ import {
   DialogTitle,
 } from "@repo/ui/dialog";
 import { Label } from "@repo/ui/label";
-import { Textarea } from "@repo/ui/textarea";
 
 import { useAgentStore } from "./stores/agent-store";
 import { getBridge } from "./bridge";
@@ -23,8 +22,6 @@ export function SettingsDialog({
 }) {
   const needsSetup = useAgentStore((s) => s.needsSetup);
   const [loggedIn, setLoggedIn] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [saving, setSaving] = useState(false);
   const [loggingIn, setLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
@@ -36,7 +33,6 @@ export function SettingsDialog({
       .getSettings()
       .then((settings) => {
         setLoggedIn(settings.loggedIn);
-        setSystemPrompt(settings.systemPrompt ?? "");
       })
       .catch(() => {});
   }, [open]);
@@ -71,23 +67,6 @@ export function SettingsDialog({
       useAgentStore.getState().checkSetup();
     });
   }, []);
-
-  const handleSave = useCallback(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    setSaving(true);
-
-    void bridge
-      .setSettings({
-        ...(systemPrompt.trim() ? { systemPrompt: systemPrompt.trim() } : {}),
-      })
-      .then(() => {
-        onOpenChange(false);
-        useAgentStore.getState().fetchState();
-      })
-      .catch(() => {})
-      .finally(() => setSaving(false));
-  }, [systemPrompt, onOpenChange]);
 
   // Onboarding
   if (needsSetup) {
@@ -131,7 +110,7 @@ export function SettingsDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex max-h-[60vh] flex-col gap-5 overflow-y-auto py-2">
+        <div className="flex flex-col gap-5 py-2">
           {/* OpenAI account */}
           <div className="flex flex-col gap-2">
             <Label className="text-xs font-medium text-muted-foreground">
@@ -163,36 +142,6 @@ export function SettingsDialog({
               <p className="text-[10px] text-destructive">{loginError}</p>
             )}
           </div>
-
-          {/* System prompt */}
-          <div className="flex flex-col gap-2">
-            <Label className="text-xs font-medium text-muted-foreground">
-              System prompt
-            </Label>
-            <Textarea
-              placeholder="You are my AI chief of staff..."
-              value={systemPrompt}
-              onChange={(e) => setSystemPrompt(e.target.value)}
-              className="min-h-[80px] text-xs"
-              rows={4}
-            />
-            <p className="text-[10px] text-muted-foreground/60">
-              Instructions prepended to every conversation.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-2 pt-2">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="text-xs"
-          >
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving} className="text-xs">
-            {saving ? "Saving..." : "Save"}
-          </Button>
         </div>
       </DialogContent>
     </Dialog>

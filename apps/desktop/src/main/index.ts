@@ -6,11 +6,10 @@ import electronUpdater from "electron-updater";
 
 import { Agent } from "./agent";
 import { login } from "./openai-auth";
-import { clearOAuthCredentials, getSettings, isLoggedIn, saveOAuthCredentials, saveSettings } from "./settings";
+import { clearOAuthCredentials, getSettings, isLoggedIn, saveOAuthCredentials } from "./settings";
 import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
 import { TaskScheduler } from "./task-scheduler";
 import { ToolManager } from "./tool-manager";
-import { SettingsSchema } from "../shared/settings";
 import { CreateTaskParamsSchema } from "../shared/task";
 import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "../shared/ipc";
 import type { UpdateState } from "../shared/ipc";
@@ -293,16 +292,6 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
     const settings = getSettings();
     return { ...settings, loggedIn: isLoggedIn() };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.SETTINGS_SET, async (_event, raw: unknown) => {
-    const settings = SettingsSchema.parse(raw);
-    saveSettings(settings);
-    // Restart agent with new env vars
-    const a = requireAgent();
-    await a.stop();
-    await a.start();
-    return { ok: true };
   });
 
   // ---- Tasks ----------------------------------------------------------------

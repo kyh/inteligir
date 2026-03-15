@@ -91,8 +91,6 @@ function copyDirRecursive(src: string, dest: string): void {
   }
 }
 
-export const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
-
 // ---------------------------------------------------------------------------
 // manage_tasks extension — registered via extensionFactories
 // ---------------------------------------------------------------------------
@@ -194,8 +192,6 @@ export class Agent {
   private listeners = new Set<EventListener>();
   private status: SessionStatus = "starting";
   private error: string | null = null;
-  private idleTimer: ReturnType<typeof setTimeout> | null = null;
-
   // ---- lifecycle -----------------------------------------------------------
 
   async start(): Promise<void> {
@@ -243,7 +239,6 @@ export class Agent {
   }
 
   async stop(): Promise<void> {
-    this.clearIdleTimer();
     this.unsubscribe?.();
     this.unsubscribe = null;
 
@@ -336,11 +331,9 @@ export class Agent {
     switch (event.type) {
       case "agent_start":
         this.status = "busy";
-        this.startIdleTimer();
         break;
       case "agent_end":
         this.status = "idle";
-        this.clearIdleTimer();
         break;
       case "message_end": {
         const text = extractText(event.message);
@@ -374,28 +367,6 @@ export class Agent {
   private ensureSession(): AgentSession {
     if (!this.session) throw new Error("Agent not started — call start() first");
     return this.session;
-  }
-
-  // ---- idle timeout --------------------------------------------------------
-
-  private startIdleTimer(): void {
-    this.clearIdleTimer();
-    this.idleTimer = setTimeout(() => {
-      if (this.status === "busy" && this.session) {
-        console.warn("[agent] idle timeout reached, aborting");
-        void this.session.abort();
-        this.status = "error";
-        this.error = "Agent timed out after 5 minutes";
-        this.broadcast({ type: "agent_end", messages: this.session.messages() } as AgentSessionEvent);
-      }
-    }, IDLE_TIMEOUT_MS);
-  }
-
-  private clearIdleTimer(): void {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
-    }
   }
 
   // ---- crash recovery ------------------------------------------------------
