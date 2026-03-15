@@ -2,14 +2,14 @@ import { WaitlistForm } from "./_components/waitlist-form";
 
 const features = [
   {
-    title: "VibedGames",
+    title: "Vibedgames",
     description:
       "An AI-powered video game generator with built-in multiplayer and mobile support. Describe a game, play it instantly.",
   },
   {
-    title: "Samantha",
+    title: "OS¹",
     description:
-      "An intuitive AI assistant that lives on your desktop. It learns how you think, adapts to how you work, and gets better the more you use it.",
+      "An artificially intelligent operating system that lives on your desktop. It understands you, adapts to you, and gets smarter the more you use it.",
   },
   {
     title: "More coming soon",
