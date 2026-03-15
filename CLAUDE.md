@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-**inteligir** - An agent experiment lab where we build and run agentic tools, apps, and systems.
+**inteligir** - An agent experiment lab. Exploring the future of functional AI.
 
 Turborepo monorepo with Next.js marketing site + shared packages.
 
