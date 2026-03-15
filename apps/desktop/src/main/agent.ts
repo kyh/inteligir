@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import {
   AuthStorage,
   createAgentSession,
@@ -31,8 +34,62 @@ import { extractText, extractRole, toErrorMessage } from "../shared/ipc";
 // Defaults
 // ---------------------------------------------------------------------------
 
-const AGENT_DIR = inteligirPath("agent");
+/** ~/.inteligir — used as pi's agentDir so all discovery looks here */
+const AGENT_DIR = inteligirPath();
 const DEFAULT_MODEL: Model<Api> = getModel("openai-codex", "gpt-5.4" as never);
+
+/**
+ * Bundled resources shipped inside the app (resources/agent/).
+ * In production these are unpacked via asarUnpack and live at
+ * process.resourcesPath/app.asar.unpacked/resources/agent/.
+ * In dev they're at the repo's resources/agent/ directory.
+ */
+function getBundledResourcesDir(): string {
+  // In packaged app, use the unpacked resources path
+  if (process.resourcesPath) {
+    const unpacked = path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
+    if (fs.existsSync(unpacked)) return unpacked;
+  }
+  // Dev: electron-vite builds to .output/app/main/ — resources/ is two levels up
+  return path.resolve(__dirname, "../../resources/agent");
+}
+
+/**
+ * Seed bundled skills and AGENTS.md into ~/.inteligir/ on first run
+ * or when the bundled version is newer.
+ */
+function seedResources(): void {
+  const src = getBundledResourcesDir();
+  if (!fs.existsSync(src)) return;
+
+  // Seed skills
+  const skillsSrc = path.join(src, "skills");
+  const skillsDest = path.join(AGENT_DIR, "skills");
+  if (fs.existsSync(skillsSrc)) {
+    copyDirRecursive(skillsSrc, skillsDest);
+  }
+
+  // Seed AGENTS.md
+  const agentsMdSrc = path.join(src, "AGENTS.md");
+  const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
+  if (fs.existsSync(agentsMdSrc)) {
+    fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
+    fs.copyFileSync(agentsMdSrc, agentsMdDest);
+  }
+}
+
+function copyDirRecursive(src: string, dest: string): void {
+  fs.mkdirSync(dest, { recursive: true });
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
 
 export const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
@@ -143,6 +200,9 @@ export class Agent {
 
   async start(): Promise<void> {
     if (this.session) return;
+
+    // Seed bundled skills/AGENTS.md into ~/.inteligir/
+    seedResources();
 
     const authStorage = AuthStorage.create();
 
