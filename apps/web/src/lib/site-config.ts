@@ -1,7 +1,7 @@
 export const siteConfig = {
   name: "Inteligir",
   shortName: "Inteligir",
-  description: "Agentic AI for everyone",
+  description: "An agent experiment lab",
   url:
     process.env.NODE_ENV === "development"
       ? "http://localhost:3000"

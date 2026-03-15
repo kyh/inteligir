@@ -2,24 +2,24 @@ import { WaitlistForm } from "./_components/waitlist-form";
 
 const features = [
   {
-    title: "Manages your tasks",
+    title: "vibedgames",
     description:
-      "Triages, prioritizes, and tracks work across projects. Nothing falls through the cracks.",
+      "An AI-powered video game generator with built-in multiplayer and mobile support. Describe a game, play it instantly.",
   },
   {
-    title: "Coordinates your workflows",
+    title: "samantha",
     description:
-      "Orchestrates multi-step workflows across tools and teams without manual glue.",
+      "An intuitive AI assistant that lives on your desktop. It learns how you think, adapts to how you work, and gets better the more you use it.",
   },
   {
-    title: "Runs locally on your machine",
+    title: "Open experiments",
     description:
-      "A desktop app that keeps your data with you. No cloud lock-in, no third-party access.",
+      "We explore multi-agent systems, local-first AI, and new ways for people and agents to work together.",
   },
   {
-    title: "Learns your patterns",
+    title: "Open source",
     description:
-      "Adapts to your preferences and priorities over time. The more you use it, the sharper it gets.",
+      "Everything we build ships in the open. Fork it, break it, make it yours.",
   },
 ];
 
@@ -30,12 +30,11 @@ const Page = () => {
       <section className="pt-24 pb-16 lg:pt-48">
         <div>
           <h1 className="text-base font-medium text-foreground">
-            Your AI Chief of Staff.
+            An agent experiment lab.
           </h1>
           <p className="text-base text-foreground/60 text-balance">
-            An AI agent that manages your tasks, coordinates your workflows, and
-            keeps everything on track &mdash; all from a desktop app that runs
-            locally on your machine.
+            Exploring what&apos;s possible when you give AI agents real jobs to
+            do.
           </p>
         </div>
       </section>
@@ -43,7 +42,7 @@ const Page = () => {
       {/* Features */}
       <section className="py-16">
         <h2 className="text-base font-medium text-foreground">
-          What Inteligir does
+          What we&apos;re building
         </h2>
         <div className="mt-3 grid gap-8 border-t border-dotted border-foreground/10 pt-3 text-balance md:grid-cols-2">
           {features.map((item) => (
@@ -61,10 +60,11 @@ const Page = () => {
       <section className="py-16">
         <div className="border-t border-dotted border-foreground/10 pt-4">
           <h2 className="text-base font-medium text-foreground">
-            Get early access
+            Stay in the loop
           </h2>
           <p className="text-base text-foreground/60 text-balance">
-            Inteligir is in development. Join the waitlist to be first in line.
+            We&apos;re shipping new experiments all the time. Drop your email to
+            follow along.
           </p>
           <WaitlistForm />
         </div>

@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-**inteligir** - Your AI Chief of Staff. A local-first AI agent with a web UI for managing tasks, coordinating workflows, and keeping everything on track.
+**inteligir** - An agent experiment lab where we build and run agentic tools, apps, and systems.
 
-Turborepo monorepo with Next.js marketing site + shared packages. The desktop AI agent is planned — see NEXT-STEPS.md for the roadmap.
+Turborepo monorepo with Next.js marketing site + shared packages.
 
 ## Tech Stack
 
