@@ -379,6 +379,12 @@ async function startAgent(): Promise<void> {
     scheduler.start();
   } catch (err) {
     console.error("[desktop] agent start failed:", err);
+    // Broadcast error to renderer so user sees it instead of silent failure
+    broadcastAgentEvent({
+      type: "agent_status",
+      status: "error",
+      error: toErrorMessage(err),
+    });
   }
 }
 

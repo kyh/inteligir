@@ -47,9 +47,6 @@ yarn-error.log*
 *.tsbuildinfo
 .cache
 
-# package build output (tsc emitted .js in src/)
-packages/*/src/**/*.js
-
 # turbo
 .turbo
 

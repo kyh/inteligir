@@ -60,7 +60,10 @@ function getBundledResourcesDir(): string {
  */
 function seedResources(): void {
   const src = getBundledResourcesDir();
-  if (!fs.existsSync(src)) return;
+  if (!fs.existsSync(src)) {
+    console.warn("[agent] bundled resources not found at", src);
+    return;
+  }
 
   // Seed skills
   const skillsSrc = path.join(src, "skills");
