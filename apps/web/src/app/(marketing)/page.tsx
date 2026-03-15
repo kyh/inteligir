@@ -28,8 +28,8 @@ const Page = () => {
             An agent experiment lab.
           </h1>
           <p className="text-base text-foreground/60 text-balance">
-            What happens when AI agents generate your games, run your desktop,
-            and handle the rest?
+            Exploring what&apos;s possible when you give AI agents real jobs to
+            do.
           </p>
         </div>
       </section>
