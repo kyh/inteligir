@@ -58,6 +58,7 @@ export const IPC_CHANNELS = {
   TASK_LIST: "task:list",
   TASK_DELETE: "task:delete",
   TASK_TOGGLE: "task:toggle",
+
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -120,6 +121,7 @@ export type DesktopBridge = {
   listTasks: () => Promise<ListTasksResult>;
   deleteTask: (id: string) => Promise<DeleteTaskResult>;
   toggleTask: (id: string) => Promise<ToggleTaskResult>;
+
 };
 
 // ---------------------------------------------------------------------------

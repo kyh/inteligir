@@ -9,6 +9,7 @@ import { login } from "./openai-auth";
 import { clearOAuthCredentials, getSettings, isLoggedIn, saveOAuthCredentials, saveSettings } from "./settings";
 import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
 import { TaskScheduler } from "./task-scheduler";
+import { ToolManager } from "./tool-manager";
 import { SettingsSchema } from "../shared/settings";
 import { CreateTaskParamsSchema } from "../shared/task";
 import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "../shared/ipc";
@@ -27,6 +28,7 @@ let isQuitting = false;
 /** In-process agent instance */
 let agent: Agent | null = null;
 let scheduler: TaskScheduler | null = null;
+const toolManager = new ToolManager();
 
 // ---------------------------------------------------------------------------
 // Auto-updater state
@@ -388,7 +390,10 @@ async function startAgent(): Promise<void> {
   process.stderr.write("[desktop] starting agent...\n");
   console.log("[desktop] starting agent...");
   try {
-    agent = new Agent();
+    // Auto-install CLI tools (agent-browser, etc.) — skips if already present
+    await toolManager.ensureAll();
+
+    agent = new Agent(toolManager);
     agent.subscribe(broadcastAgentEvent);
     await agent.start();
     console.log("[desktop] agent started");

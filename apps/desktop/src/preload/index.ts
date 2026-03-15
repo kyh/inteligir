@@ -55,4 +55,5 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST),
   deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
   toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
+
 });
