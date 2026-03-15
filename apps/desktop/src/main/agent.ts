@@ -11,6 +11,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import type { AgentSession, AgentSessionEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
+import { shell } from "electron";
 import { getModel } from "@mariozechner/pi-ai";
 import type { Api, Model } from "@mariozechner/pi-ai";
 
@@ -21,14 +22,11 @@ import type {
   SessionStatus,
   SteerResult,
 } from "../shared/agent";
-import type { ConversationEntry } from "../shared/conversation";
 
 import { inteligirPath } from "./json-store";
-import { resolveAccessToken } from "./settings";
-import { appendEntry, readEntries, clearConversation } from "./conversation-store";
 import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
 import { TaskScheduleSchema, type TaskSchedule } from "../shared/task";
-import { extractText, extractRole, toErrorMessage } from "../shared/ipc";
+import { toErrorMessage } from "../shared/ipc";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -36,6 +34,8 @@ import { extractText, extractRole, toErrorMessage } from "../shared/ipc";
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here */
 const AGENT_DIR = inteligirPath();
+const AUTH_PATH = inteligirPath("auth.json");
+const SESSION_DIR = inteligirPath("sessions");
 const DEFAULT_MODEL: Model<Api> = getModel("openai-codex", "gpt-5.4" as never);
 
 /**
@@ -165,7 +165,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
   });
 
   // Inject active tasks into context before each agent turn
-  pi.on("before_agent_start", async (_event, ctx) => {
+  pi.on("before_agent_start", async (_event, _ctx) => {
     const tasks = getTasks().filter((t) => t.enabled);
     if (tasks.length === 0) return;
 
@@ -174,10 +174,44 @@ function registerTasksExtension(pi: ExtensionAPI): void {
       .join("\n");
 
     pi.sendMessage({
-      role: "user",
-      content: [{ type: "text", text: `[Active scheduled tasks]\n${summary}` }],
+      customType: "scheduled-tasks",
+      content: `[Active scheduled tasks]\n${summary}`,
+      display: false,
     });
   });
+}
+
+// ---------------------------------------------------------------------------
+// Auth — delegates to pi's AuthStorage with Electron browser login
+// ---------------------------------------------------------------------------
+
+let authStorage: AuthStorage | null = null;
+
+function getAuthStorage(): AuthStorage {
+  if (!authStorage) {
+    authStorage = AuthStorage.create(AUTH_PATH);
+  }
+  return authStorage;
+}
+
+export function isLoggedIn(): boolean {
+  return getAuthStorage().hasAuth("openai-codex");
+}
+
+export async function login(): Promise<void> {
+  const auth = getAuthStorage();
+  await auth.login("openai-codex", {
+    onAuth: (info) => {
+      void shell.openExternal(info.url);
+    },
+    onPrompt: () => {
+      return Promise.reject(new Error("Interactive prompt not supported"));
+    },
+  });
+}
+
+export function logout(): void {
+  getAuthStorage().logout("openai-codex");
 }
 
 // ---------------------------------------------------------------------------
@@ -192,6 +226,7 @@ export class Agent {
   private listeners = new Set<EventListener>();
   private status: SessionStatus = "starting";
   private error: string | null = null;
+
   // ---- lifecycle -----------------------------------------------------------
 
   async start(): Promise<void> {
@@ -200,15 +235,8 @@ export class Agent {
     // Seed bundled skills/AGENTS.md into ~/.inteligir/
     seedResources();
 
-    const authStorage = AuthStorage.create();
-
-    // Inject the OpenAI OAuth token if available
-    const token = resolveAccessToken();
-    if (token) {
-      authStorage.setRuntimeApiKey("openai-codex", token);
-    }
-
-    const modelRegistry = new ModelRegistry(authStorage);
+    const auth = getAuthStorage();
+    const modelRegistry = new ModelRegistry(auth);
 
     const resourceLoader = new DefaultResourceLoader({
       cwd: process.cwd(),
@@ -220,13 +248,13 @@ export class Agent {
     const { session } = await createAgentSession({
       cwd: process.cwd(),
       agentDir: AGENT_DIR,
-      authStorage,
+      authStorage: auth,
       modelRegistry,
       resourceLoader,
       model: DEFAULT_MODEL,
       thinkingLevel: "off",
-      sessionManager: SessionManager.inMemory(),
-      settingsManager: SettingsManager.inMemory(),
+      sessionManager: SessionManager.create(process.cwd(), SESSION_DIR),
+      settingsManager: SettingsManager.create(process.cwd(), AGENT_DIR),
     });
 
     this.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
@@ -234,7 +262,6 @@ export class Agent {
     });
 
     this.session = session;
-    this.checkCrashRecovery();
     this.status = "idle";
   }
 
@@ -274,8 +301,6 @@ export class Agent {
   async sendMessage(message: string): Promise<SendMessageResult> {
     const session = this.ensureSession();
 
-    appendEntry({ kind: "user", text: message, timestamp: Date.now() });
-
     if (this.status === "busy") {
       await session.followUp(message);
       return { accepted: true };
@@ -294,7 +319,6 @@ export class Agent {
 
   async steer(message: string): Promise<SteerResult> {
     const session = this.ensureSession();
-    appendEntry({ kind: "steer", text: message, timestamp: Date.now() });
     await session.steer(message);
     return { accepted: true };
   }
@@ -309,12 +333,11 @@ export class Agent {
     return { status: this.status, error: this.error };
   }
 
-  getMessages(): ConversationEntry[] {
-    return readEntries();
+  getLastAssistantText(): string | undefined {
+    return this.session?.getLastAssistantText();
   }
 
   clear(): void {
-    clearConversation();
     if (this.session) {
       void this.session.newSession();
     }
@@ -337,24 +360,6 @@ export class Agent {
       case "agent_end":
         this.status = "idle";
         break;
-      case "message_end": {
-        const text = extractText(event.message);
-        const role = extractRole(event.message);
-        if (role === "assistant" && text) {
-          appendEntry({ kind: "assistant", text, timestamp: Date.now() });
-        }
-        break;
-      }
-      case "tool_execution_end":
-        appendEntry({
-          kind: "tool",
-          toolCallId: event.toolCallId,
-          toolName: event.toolName,
-          isError: event.isError,
-          resultText: extractText(event.result),
-          timestamp: Date.now(),
-        });
-        break;
     }
 
     this.broadcast(event);
@@ -369,21 +374,5 @@ export class Agent {
   private ensureSession(): AgentSession {
     if (!this.session) throw new Error("Agent not started — call start() first");
     return this.session;
-  }
-
-  // ---- crash recovery ------------------------------------------------------
-
-  private checkCrashRecovery(): void {
-    const entries = readEntries();
-    if (entries.length === 0) return;
-
-    const last = entries[entries.length - 1];
-    if (last.kind === "user") {
-      appendEntry({
-        kind: "assistant",
-        text: "[Previous turn was interrupted — you may need to resend your last message]",
-        timestamp: Date.now(),
-      });
-    }
   }
 }

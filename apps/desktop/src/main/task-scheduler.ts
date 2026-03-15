@@ -69,9 +69,8 @@ export class TaskScheduler {
         return;
       }
 
-      const entries = agent.getMessages();
-      const last = entries.findLast((e) => e.kind === "assistant");
-      completeRun(run.id, last?.text.slice(0, 500) ?? "(no output)");
+      const lastText = agent.getLastAssistantText();
+      completeRun(run.id, lastText?.slice(0, 500) ?? "(no output)");
     } catch (err) {
       failRun(run.id, toErrorMessage(err));
     }

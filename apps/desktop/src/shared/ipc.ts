@@ -5,11 +5,6 @@ import type {
   SteerResult,
 } from "./agent";
 import type {
-  GetSettingsResult,
-  LoginResult,
-  LogoutResult,
-} from "./settings";
-import type {
   CreateTaskParams,
   CreateTaskResult,
   DeleteTaskResult,
@@ -39,7 +34,6 @@ export const IPC_CHANNELS = {
   AGENT_STEER: "agent:steer",
   AGENT_INTERRUPT: "agent:interrupt",
   AGENT_GET_STATE: "agent:get-state",
-  AGENT_GET_MESSAGES: "agent:get-messages",
   AGENT_CLEAR: "agent:clear",
   AGENT_EVENT: "agent:event",
 
@@ -101,16 +95,15 @@ export type DesktopBridge = {
   steer: (message: string) => Promise<SteerResult>;
   interrupt: () => Promise<InterruptResult>;
   getAgentState: () => Promise<GetStateResult>;
-  getMessages: () => Promise<{ entries: ConversationEntry[] }>;
   clear: () => Promise<{ ok: true }>;
   onAgentEvent: (listener: (event: unknown) => void) => () => void;
 
   // Auth
-  login: () => Promise<LoginResult>;
-  logout: () => Promise<LogoutResult>;
+  login: () => Promise<{ ok: true } | { ok: false; error: string }>;
+  logout: () => Promise<{ ok: true }>;
 
   // Settings
-  getSettings: () => Promise<GetSettingsResult>;
+  getSettings: () => Promise<{ loggedIn: boolean }>;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;
@@ -159,14 +152,4 @@ export function extractText(message: unknown): string {
   return parts.join("");
 }
 
-export function extractRole(message: unknown): string {
-  if (typeof message === "object" && message !== null && "role" in message) {
-    const role = (message as Record<string, unknown>).role;
-    if (typeof role === "string") return role;
-  }
-  return "assistant";
-}
 
-// Re-export for convenience
-import type { ConversationEntry } from "./conversation";
-export type { ConversationEntry };

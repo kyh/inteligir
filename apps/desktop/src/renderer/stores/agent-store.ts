@@ -192,42 +192,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     get().checkSetup();
     get().fetchState();
 
-    // Hydrate messages from persisted conversation
-    void bridge
-      .getMessages()
-      .then((result) => {
-        if (result.entries.length === 0) return;
-        const hydrated: ChatMessage[] = [];
-        for (const entry of result.entries) {
-          switch (entry.kind) {
-            case "user":
-              hydrated.push({ id: nextMsgId++, kind: "user", text: entry.text });
-              break;
-            case "assistant":
-              hydrated.push({ id: nextMsgId++, kind: "assistant", text: entry.text });
-              break;
-            case "steer":
-              hydrated.push({ id: nextMsgId++, kind: "steer", text: entry.text });
-              break;
-            case "tool":
-              hydrated.push({
-                id: nextMsgId++,
-                kind: "tool",
-                execution: {
-                  toolCallId: entry.toolCallId,
-                  toolName: entry.toolName,
-                  status: entry.isError ? "error" : "done",
-                  resultText: entry.resultText,
-                  isError: entry.isError,
-                },
-              });
-              break;
-          }
-        }
-        set({ messages: hydrated });
-      })
-      .catch(() => {});
-
     return () => { unsubscribe(); };
   },
 

@@ -4,9 +4,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-import { Agent } from "./agent";
-import { login } from "./openai-auth";
-import { clearOAuthCredentials, isLoggedIn, saveOAuthCredentials } from "./settings";
+import { Agent, isLoggedIn, login, logout } from "./agent";
 import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
 import { TaskScheduler } from "./task-scheduler";
 import { ToolManager } from "./tool-manager";
@@ -249,10 +247,6 @@ function registerIpcHandlers(): void {
     return requireAgent().getState();
   });
 
-  ipcMain.handle(IPC_CHANNELS.AGENT_GET_MESSAGES, () => {
-    return { entries: requireAgent().getMessages() };
-  });
-
   ipcMain.handle(IPC_CHANNELS.AGENT_CLEAR, () => {
     requireAgent().clear();
     return { ok: true };
@@ -262,12 +256,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGIN, async () => {
     try {
-      const creds = await login();
-      saveOAuthCredentials({
-        access: creds.access,
-        refresh: creds.refresh,
-        expires: creds.expires,
-      });
+      await login();
       // Restart agent with new credentials
       const a = requireAgent();
       await a.stop();
@@ -279,7 +268,7 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async () => {
-    clearOAuthCredentials();
+    logout();
     // Restart agent without credentials
     const a = requireAgent();
     await a.stop();
@@ -290,7 +279,7 @@ function registerIpcHandlers(): void {
   // ---- Settings -------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
-    return { loggedIn: isLoggedIn() };
+    return { loggedIn: isLoggedIn() } as const;
   });
 
   // ---- Tasks ----------------------------------------------------------------

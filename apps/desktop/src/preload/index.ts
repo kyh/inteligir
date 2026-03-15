@@ -37,7 +37,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   steer: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_STEER, message),
   interrupt: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_INTERRUPT),
   getAgentState: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_GET_STATE),
-  getMessages: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_GET_MESSAGES),
   clear: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_CLEAR),
   onAgentEvent: (listener: (event: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),

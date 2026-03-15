@@ -4,7 +4,7 @@ import os from "node:os";
 import type { ZodType } from "zod";
 
 // ---------------------------------------------------------------------------
-// Shared JSON/JSONL file I/O for ~/.inteligir stores
+// Shared JSON file I/O for ~/.inteligir stores
 // ---------------------------------------------------------------------------
 
 const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
@@ -36,36 +36,4 @@ export function writeJson(filePath: string, data: unknown): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf8");
   cache.set(filePath, data);
-}
-
-export function appendJsonl(filePath: string, entry: unknown): void {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  fs.appendFileSync(filePath, JSON.stringify(entry) + "\n", "utf8");
-}
-
-export function readJsonl<T>(filePath: string, schema: ZodType<T>): T[] {
-  try {
-    const lines = fs.readFileSync(filePath, "utf8").split("\n").filter(Boolean);
-    const entries: T[] = [];
-    for (const line of lines) {
-      try {
-        const result = schema.safeParse(JSON.parse(line));
-        if (result.success) entries.push(result.data);
-      } catch {
-        // skip malformed line
-      }
-    }
-    return entries;
-  } catch {
-    return [];
-  }
-}
-
-export function clearFile(filePath: string): void {
-  try {
-    fs.unlinkSync(filePath);
-  } catch {
-    // File may not exist
-  }
-  cache.delete(filePath);
 }
