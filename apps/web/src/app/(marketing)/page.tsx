@@ -12,9 +12,9 @@ const features = [
       "An intuitive AI assistant that lives on your desktop. It learns how you think, adapts to how you work, and gets better the more you use it.",
   },
   {
-    title: "What's next?",
+    title: "More coming soon",
     description:
-      "We're always looking for the next experiment. Have an idea for an agentic app? Let us know.",
+      "New experiments are always in the works. Stay tuned.",
   },
 ];
 
@@ -25,11 +25,11 @@ const Page = () => {
       <section className="pt-24 pb-16 lg:pt-48">
         <div>
           <h1 className="text-base font-medium text-foreground">
-            An agent experiment lab.
+            The agent lab.
           </h1>
           <p className="text-base text-foreground/60 text-balance">
-            Exploring what&apos;s possible when you give AI agents real jobs to
-            do.
+            Building agentic tools and apps &mdash; from game engines to desktop
+            assistants and whatever we dream up next.
           </p>
         </div>
       </section>
