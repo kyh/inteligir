@@ -363,13 +363,16 @@ async function startAgent(): Promise<void> {
   process.stderr.write("[desktop] starting agent...\n");
   console.log("[desktop] starting agent...");
   try {
-    // Auto-install CLI tools (agent-browser, etc.) — skips if already present
-    await toolManager.ensureAll();
-
     agent = new Agent();
     agent.subscribe(broadcastAgentEvent);
     await agent.start();
     console.log("[desktop] agent started");
+
+    // Install CLI tools (agent-browser, etc.) after agent starts — runs in
+    // background so it doesn't block the agent from being usable immediately.
+    void toolManager.ensureAll().catch((err) => {
+      console.error("[desktop] tool install failed:", err);
+    });
 
     scheduler = new TaskScheduler(() => agent);
     scheduler.start();

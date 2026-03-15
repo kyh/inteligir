@@ -10,7 +10,7 @@ import {
   SettingsManager,
 } from "@mariozechner/pi-coding-agent";
 import type { AgentSession, AgentSessionEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import { Type } from "@sinclair/typebox";
+import { Type, type Static } from "@sinclair/typebox";
 import { shell } from "electron";
 import { getModel } from "@mariozechner/pi-ai";
 import type { Api, Model } from "@mariozechner/pi-ai";
@@ -32,12 +32,17 @@ import { toErrorMessage } from "@/shared/ipc";
 // Defaults
 // ---------------------------------------------------------------------------
 
+const AUTH_PROVIDER = "openai-codex";
+
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here */
 const AGENT_DIR = inteligirPath();
 const AUTH_PATH = inteligirPath("auth.json");
 const SESSION_DIR = inteligirPath("sessions");
 
-const DEFAULT_MODEL: Model<Api> = getModel("openai-codex", "gpt-5.4" as never);
+const DEFAULT_MODEL: Model<Api> | undefined = getModel(AUTH_PROVIDER, "gpt-5.4" as never);
+if (!DEFAULT_MODEL) {
+  throw new Error('Model "openai-codex/gpt-5.4" not found in pi-ai model registry');
+}
 
 /**
  * Bundled resources shipped inside the app (resources/agent/).
@@ -73,10 +78,10 @@ function seedResources(): void {
     copyDirRecursive(skillsSrc, skillsDest);
   }
 
-  // Seed AGENTS.md
+  // Seed AGENTS.md (only on first run — don't overwrite user edits)
   const agentsMdSrc = path.join(src, "AGENTS.md");
   const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
-  if (fs.existsSync(agentsMdSrc)) {
+  if (fs.existsSync(agentsMdSrc) && !fs.existsSync(agentsMdDest)) {
     fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
     fs.copyFileSync(agentsMdSrc, agentsMdDest);
   }
@@ -122,15 +127,9 @@ function registerTasksExtension(pi: ExtensionAPI): void {
       "Create, list, toggle, or delete scheduled tasks. " +
       "Tasks run automatically on a cron/interval/once schedule.",
     parameters: manageTasksSchema,
-    execute: async (_toolCallId, params) => {
+    execute: async (_toolCallId, params: Static<typeof manageTasksSchema>) => {
       const text = (s: string) => ({ content: [{ type: "text" as const, text: s }], details: {} });
-      const p = params as {
-        action: "create" | "list" | "toggle" | "delete";
-        label?: string;
-        prompt?: string;
-        schedule?: TaskSchedule;
-        taskId?: string;
-      };
+      const p = params;
 
       switch (p.action) {
         case "list": {
@@ -199,12 +198,12 @@ function getAuthStorage(): AuthStorage {
 }
 
 export function isLoggedIn(): boolean {
-  return getAuthStorage().hasAuth("openai-codex");
+  return getAuthStorage().hasAuth(AUTH_PROVIDER);
 }
 
 export async function login(): Promise<void> {
   const auth = getAuthStorage();
-  await auth.login("openai-codex", {
+  await auth.login(AUTH_PROVIDER, {
     onAuth: (info) => {
       void shell.openExternal(info.url);
     },
@@ -215,7 +214,7 @@ export async function login(): Promise<void> {
 }
 
 export function logout(): void {
-  getAuthStorage().logout("openai-codex");
+  getAuthStorage().logout(AUTH_PROVIDER);
 }
 
 // ---------------------------------------------------------------------------
@@ -284,19 +283,27 @@ export class Agent {
   }
 
   async waitForIdle(timeoutMs: number): Promise<boolean> {
-    if (!this.session || this.status !== "busy") return true;
+    if (!this.session) return true;
+    // Subscribe before checking status to avoid race where agent_end fires
+    // between the check and the subscribe call.
     return new Promise<boolean>((resolve) => {
-      const unsub = this.session!.subscribe((event) => {
-        if (event.type === "agent_end") {
-          clearTimeout(timer);
-          unsub();
-          resolve(true);
-        }
-      });
-      const timer = setTimeout(() => {
+      let settled = false;
+      const settle = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
         unsub();
-        resolve(false);
-      }, timeoutMs);
+        resolve(value);
+      };
+      const unsub = this.session!.subscribe((event) => {
+        if (event.type === "agent_end") settle(true);
+      });
+      // Now safe to check — if already idle, the subscription hasn't missed anything
+      if (this.status !== "busy") {
+        settle(true);
+        return;
+      }
+      const timer = setTimeout(() => settle(false), timeoutMs);
     });
   }
 
