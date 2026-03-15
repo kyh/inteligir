@@ -25,11 +25,11 @@ const Page = () => {
       <section className="pt-24 pb-16 lg:pt-48">
         <div>
           <h1 className="text-base font-medium text-foreground">
-            The agent lab.
+            An agent experiment lab.
           </h1>
           <p className="text-base text-foreground/60 text-balance">
-            Building agentic tools and apps &mdash; from game engines to desktop
-            assistants and whatever we dream up next.
+            What happens when AI agents generate your games, run your desktop,
+            and handle the rest?
           </p>
         </div>
       </section>
