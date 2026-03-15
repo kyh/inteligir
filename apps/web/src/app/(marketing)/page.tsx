@@ -12,14 +12,9 @@ const features = [
       "An intuitive AI assistant that lives on your desktop. It learns how you think, adapts to how you work, and gets better the more you use it.",
   },
   {
-    title: "Open experiments",
+    title: "What's next?",
     description:
-      "We explore multi-agent systems, local-first AI, and new ways for people and agents to work together.",
-  },
-  {
-    title: "Open source",
-    description:
-      "Everything we build ships in the open. Fork it, break it, make it yours.",
+      "We're always looking for the next experiment. Have an idea for an agentic app? Let us know.",
   },
 ];
 
