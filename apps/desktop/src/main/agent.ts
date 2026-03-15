@@ -37,6 +37,7 @@ import type { ToolManager } from "./tool-manager";
 
 const ARCHIVES_DIR = inteligirPath("archives");
 const CLAUDE_MD_PATH = inteligirPath("CLAUDE.md");
+const SKILLS_DIR = path.resolve(__dirname, "../../skills");
 
 const DEFAULT_SYSTEM_PROMPT = `You are Inteligir, an AI Chief of Staff. You help the user manage tasks, coordinate workflows, and stay on top of their priorities.
 
@@ -51,53 +52,6 @@ const DEFAULT_SYSTEM_PROMPT = `You are Inteligir, an AI Chief of Staff. You help
 - When creating tasks, confirm the schedule with the user before committing
 - For destructive operations (deleting files, dropping data), confirm first
 - If a tool call fails, diagnose and try an alternative approach`;
-
-// ---------------------------------------------------------------------------
-// Skills — CLI tools exposed as system prompt instructions
-// ---------------------------------------------------------------------------
-
-const BROWSER_SKILL = `
-## Skill: Browser Automation (agent-browser)
-
-You can control a headless browser via the \`agent-browser\` CLI using the bash tool. Use this for web research, scraping, form filling, testing, and any browser-based task.
-
-### Workflow
-1. Open a page: \`agent-browser open <url>\`
-2. Get a snapshot to see what's on the page: \`agent-browser snapshot\`
-3. Interact using refs from the snapshot (e.g. \`@e1\`, \`@e2\`):
-   - \`agent-browser click @e1\`
-   - \`agent-browser fill @e3 "search query"\`
-   - \`agent-browser press Enter\`
-4. Extract data: \`agent-browser get text\`, \`agent-browser get html\`
-5. Screenshot: \`agent-browser screenshot\`
-6. Close when done: \`agent-browser close\`
-
-### Common Commands
-- **Navigation**: \`open <url>\`, \`goto <url>\`, \`back\`, \`forward\`, \`reload\`
-- **Interaction**: \`click <selector|@ref>\`, \`fill <selector|@ref> <text>\`, \`type <selector|@ref> <text>\`, \`press <key>\`, \`hover <selector|@ref>\`, \`select <selector|@ref> <value>\`, \`check\`, \`uncheck\`
-- **Reading**: \`get text [selector]\`, \`get html [selector]\`, \`get title\`, \`get url\`, \`get attr <selector> <attr>\`
-- **Snapshot**: \`snapshot\` — returns accessibility tree with @refs for precise element targeting
-- **Screenshot**: \`screenshot\`, \`screenshot --full\` (full page), \`screenshot --annotate\` (with element labels)
-- **Waiting**: \`wait <selector>\`, \`wait --text "text"\`, \`wait --url "pattern"\`, \`wait <ms>\`
-- **Scrolling**: \`scroll down\`, \`scroll up\`, \`scroll down 500\`
-- **JavaScript**: \`eval "document.title"\`
-- **Tabs**: \`tab list\`, \`tab new <url>\`, \`tab switch <index>\`, \`tab close\`
-- **Network**: \`network requests\`, \`network route "**/*.png" --abort\`
-- **Cookies/Storage**: \`cookies\`, \`storage local\`, \`storage session\`
-- **Comparison**: \`diff snapshot\`, \`diff screenshot --baseline <file>\`, \`diff url <url1> <url2>\`
-
-### Element Selection
-Prefer snapshot refs (@e1, @e2) for reliability. Also supports:
-- CSS selectors: \`agent-browser click "#submit-btn"\`
-- Semantic locators: \`agent-browser find role button --name "Submit"\`
-- Text/label: \`agent-browser find text "Sign in"\`, \`agent-browser find label "Email"\`
-
-### Tips
-- Always run \`snapshot\` after navigation or interaction to see the updated page state
-- Use \`--json\` flag for machine-readable output when parsing results
-- Use \`wait\` before interacting with dynamic content
-- The browser persists across commands — state is maintained between calls`;
-
 
 const DEFAULT_MODEL: Model<Api> = getModel("openai-codex", "gpt-5.4" as never);
 
@@ -377,9 +331,9 @@ function buildSystemPrompt(toolManager: ToolManager | null): string {
   // 1. Base prompt (settings override or default)
   parts.push(settings.systemPrompt ?? DEFAULT_SYSTEM_PROMPT);
 
-  // 2. Skills — CLI tools exposed as system prompt instructions
-  if (toolManager?.isInstalled("agent-browser")) {
-    parts.push(BROWSER_SKILL);
+  // 2. Skills — loaded from skills/ directory for installed CLI tools
+  for (const skill of loadSkills(toolManager)) {
+    parts.push(`\n${skill}`);
   }
 
   // 3. User's persistent instructions from ~/.inteligir/CLAUDE.md
@@ -405,6 +359,45 @@ function buildSystemPrompt(toolManager: ToolManager | null): string {
   }
 
   return parts.join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Skill loader — reads SKILL.md files from skills/ directory
+// ---------------------------------------------------------------------------
+
+/**
+ * Scans the skills/ directory for SKILL.md files. Only loads a skill if its
+ * corresponding CLI tool is installed (directory name = tool id).
+ */
+function loadSkills(toolManager: ToolManager | null): string[] {
+  const skills: string[] = [];
+
+  try {
+    const entries = fs.readdirSync(SKILLS_DIR, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+
+      // Only load skill if its CLI tool is installed
+      if (toolManager && !toolManager.isInstalled(entry.name)) continue;
+
+      const skillPath = path.join(SKILLS_DIR, entry.name, "SKILL.md");
+      try {
+        const content = fs.readFileSync(skillPath, "utf8").trim();
+        // Strip frontmatter (--- ... ---) — the agent just needs the instructions
+        const stripped = content.replace(/^---[\s\S]*?---\s*/, "");
+        if (stripped) {
+          skills.push(stripped);
+          console.log(`[agent] loaded skill: ${entry.name}`);
+        }
+      } catch {
+        // No SKILL.md in this directory — skip
+      }
+    }
+  } catch {
+    // No skills directory — fine
+  }
+
+  return skills;
 }
 
 // ---------------------------------------------------------------------------
