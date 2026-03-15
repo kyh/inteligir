@@ -2,24 +2,19 @@ import { WaitlistForm } from "./_components/waitlist-form";
 
 const features = [
   {
-    title: "Manages your tasks",
+    title: "Vibedgames",
     description:
-      "Triages, prioritizes, and tracks work across projects. Nothing falls through the cracks.",
+      "An AI-powered video game generator with built-in multiplayer and mobile support. Describe a game, play it instantly.",
   },
   {
-    title: "Coordinates your workflows",
+    title: "OS¹",
     description:
-      "Orchestrates multi-step workflows across tools and teams without manual glue.",
+      "An artificially intelligent operating system. It\u2019s not just an operating system, it\u2019s a consciousness.",
   },
   {
-    title: "Runs locally on your machine",
+    title: "More coming soon",
     description:
-      "A desktop app that keeps your data with you. No cloud lock-in, no third-party access.",
-  },
-  {
-    title: "Learns your patterns",
-    description:
-      "Adapts to your preferences and priorities over time. The more you use it, the sharper it gets.",
+      "New experiments are always in the works. Stay tuned.",
   },
 ];
 
@@ -30,12 +25,10 @@ const Page = () => {
       <section className="pt-24 pb-16 lg:pt-48">
         <div>
           <h1 className="text-base font-medium text-foreground">
-            Your AI Chief of Staff.
+            An agent experiment lab.
           </h1>
           <p className="text-base text-foreground/60 text-balance">
-            An AI agent that manages your tasks, coordinates your workflows, and
-            keeps everything on track &mdash; all from a desktop app that runs
-            locally on your machine.
+            Exploring the future of functional AI.
           </p>
         </div>
       </section>
@@ -43,7 +36,7 @@ const Page = () => {
       {/* Features */}
       <section className="py-16">
         <h2 className="text-base font-medium text-foreground">
-          What Inteligir does
+          What we&apos;re building
         </h2>
         <div className="mt-3 grid gap-8 border-t border-dotted border-foreground/10 pt-3 text-balance md:grid-cols-2">
           {features.map((item) => (
@@ -59,12 +52,13 @@ const Page = () => {
 
       {/* CTA */}
       <section className="py-16">
-        <div className="border-t border-dotted border-foreground/10 pt-4">
-          <h2 className="text-base font-medium text-foreground">
-            Get early access
-          </h2>
-          <p className="text-base text-foreground/60 text-balance">
-            Inteligir is in development. Join the waitlist to be first in line.
+        <h2 className="text-base font-medium text-foreground">
+          Stay in the loop
+        </h2>
+        <div className="mt-3 border-t border-dotted border-foreground/10 pt-3 text-balance">
+          <p className="text-sm text-foreground/60">
+            We&apos;re shipping new experiments all the time. Drop your email to
+            follow along.
           </p>
           <WaitlistForm />
         </div>

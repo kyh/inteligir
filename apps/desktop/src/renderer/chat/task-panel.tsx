@@ -10,8 +10,8 @@ import {
 } from "@repo/ui/popover";
 import { Textarea } from "@repo/ui/textarea";
 
-import type { CreateTaskParams, TaskSchedule } from "../shared/task";
-import { useTaskStore } from "./stores/task-store";
+import type { CreateTaskParams, TaskSchedule } from "@/shared/task";
+import { useTaskStore } from "@/renderer/stores/task-store";
 
 // ---------------------------------------------------------------------------
 // Schedule display helpers

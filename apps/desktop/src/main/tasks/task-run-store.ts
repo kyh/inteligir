@@ -1,8 +1,8 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 
-import { TaskRunLogSchema, type TaskRunLog } from "../shared/task";
-import { inteligirPath, readJson, writeJson } from "./json-store";
+import { TaskRunLogSchema, type TaskRunLog } from "@/shared/task";
+import { inteligirPath, readJson, writeJson } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
 // Per-run logging — ~/.inteligir/task-runs.json

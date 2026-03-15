@@ -4,13 +4,13 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-import { Agent, isLoggedIn, login, logout } from "./agent";
-import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
-import { TaskScheduler } from "./task-scheduler";
-import { ToolManager } from "./tool-manager";
-import { CreateTaskParamsSchema } from "../shared/task";
-import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "../shared/ipc";
-import type { UpdateState } from "../shared/ipc";
+import { Agent, isLoggedIn, login, logout } from "@/main/agent/agent";
+import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
+import { TaskScheduler } from "@/main/tasks/task-scheduler";
+import { ToolManager } from "@/main/tool-manager";
+import { CreateTaskParamsSchema } from "@/shared/task";
+import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
+import type { UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -96,16 +96,10 @@ function configureAppIdentity(): void {
 // Application menu
 // ---------------------------------------------------------------------------
 
-function ensureWindow(): BrowserWindow {
-  const existing =
-    BrowserWindow.getFocusedWindow() ?? mainWindow ?? BrowserWindow.getAllWindows()[0];
-  if (existing) return existing;
-  mainWindow = createWindow();
-  return mainWindow;
-}
-
 function dispatchMenuAction(action: string): void {
-  const win = ensureWindow();
+  const win =
+    BrowserWindow.getFocusedWindow() ?? mainWindow ?? BrowserWindow.getAllWindows()[0];
+  if (!win) return;
 
   const send = () => {
     if (win.isDestroyed()) return;
@@ -244,7 +238,8 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.AGENT_GET_STATE, () => {
-    return requireAgent().getState();
+    if (!agent) return { status: "starting", error: null };
+    return agent.getState();
   });
 
   ipcMain.handle(IPC_CHANNELS.AGENT_CLEAR, () => {
@@ -271,6 +266,7 @@ function registerIpcHandlers(): void {
     logout();
     // Restart agent without credentials
     const a = requireAgent();
+    a.clear();
     await a.stop();
     await a.start();
     return { ok: true };
@@ -377,6 +373,9 @@ async function startAgent(): Promise<void> {
 
     scheduler = new TaskScheduler(() => agent);
     scheduler.start();
+
+    // Notify renderer that agent is ready
+    broadcastAgentEvent({ type: "agent_end", messages: [] });
   } catch (err) {
     console.error("[desktop] agent start failed:", err);
     // Broadcast error to renderer so user sees it instead of silent failure
@@ -489,9 +488,10 @@ app
     configureAutoUpdater();
     registerIpcHandlers();
 
-    await startAgent();
-
     mainWindow = createWindow();
+
+    // Start agent in background — window shows immediately with "starting" state
+    void startAgent();
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

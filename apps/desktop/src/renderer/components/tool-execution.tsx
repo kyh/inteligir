@@ -7,7 +7,7 @@ import {
 } from "@repo/ui/collapsible";
 import { cn } from "@repo/ui/utils";
 
-import type { ToolExecution } from "./stores/agent-store";
+import type { ToolExecution } from "@/renderer/stores/agent-store";
 
 const statusIndicator: Record<ToolExecution["status"], string> = {
   running: "animate-pulse text-yellow-400",

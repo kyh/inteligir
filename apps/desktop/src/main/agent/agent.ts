@@ -21,12 +21,12 @@ import type {
   SendMessageResult,
   SessionStatus,
   SteerResult,
-} from "../shared/agent";
+} from "@/shared/agent";
 
-import { inteligirPath } from "./json-store";
-import { createTask, deleteTask, getTasks, toggleTask } from "./task-store";
-import { TaskScheduleSchema, type TaskSchedule } from "../shared/task";
-import { toErrorMessage } from "../shared/ipc";
+import { inteligirPath } from "@/main/lib/json-store";
+import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
+import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
+import { toErrorMessage } from "@/shared/ipc";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -36,6 +36,7 @@ import { toErrorMessage } from "../shared/ipc";
 const AGENT_DIR = inteligirPath();
 const AUTH_PATH = inteligirPath("auth.json");
 const SESSION_DIR = inteligirPath("sessions");
+
 const DEFAULT_MODEL: Model<Api> = getModel("openai-codex", "gpt-5.4" as never);
 
 /**

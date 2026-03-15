@@ -9,6 +9,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: { "@": resolve(__dirname, "src") },
+    },
     build: {
       outDir: ".output/app/main",
       rollupOptions: {
@@ -20,6 +23,9 @@ export default defineConfig({
   },
   preload: {
     plugins: [externalizeDepsPlugin()],
+    resolve: {
+      alias: { "@": resolve(__dirname, "src") },
+    },
     build: {
       outDir: ".output/app/preload",
       lib: {
@@ -35,6 +41,9 @@ export default defineConfig({
   },
   renderer: {
     plugins: [tailwindcss(), react()],
+    resolve: {
+      alias: { "@": resolve(__dirname, "src") },
+    },
     build: {
       outDir: ".output/app/renderer",
       rollupOptions: {

@@ -1,9 +1,9 @@
-import { useCallback, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useState, type ChangeEvent, type FormEvent, type KeyboardEvent } from "react";
 
 import { Button } from "@repo/ui/button";
 import { Input } from "@repo/ui/input";
 
-import { useAgentStore } from "./stores/agent-store";
+import { useAgentStore } from "@/renderer/stores/agent-store";
 
 export function ChatInput() {
   const [input, setInput] = useState("");
@@ -12,6 +12,11 @@ export function ChatInput() {
   const steer = useAgentStore((s) => s.steer);
   const interrupt = useAgentStore((s) => s.interrupt);
   const clearMessages = useAgentStore((s) => s.clearMessages);
+
+  const handleChange = useCallback(
+    (e: ChangeEvent<HTMLInputElement>) => setInput(e.target.value),
+    [],
+  );
 
   const send = useCallback(
     (e: FormEvent) => {
@@ -55,7 +60,7 @@ export function ChatInput() {
     <form onSubmit={send} className="flex shrink-0 gap-2 px-6 pt-3 pb-6">
       <Input
         value={input}
-        onChange={(e) => setInput(e.target.value)}
+        onChange={handleChange}
         onKeyDown={handleKeyDown}
         placeholder={busy ? "Redirect the agent..." : "Send a message..."}
         className="flex-1"
