@@ -9,7 +9,7 @@ const features = [
   {
     title: "OS¹",
     description:
-      "An artificially intelligent operating system that lives on your desktop. It understands you, adapts to you, and gets smarter the more you use it.",
+      "An artificially intelligent operating system. It\u2019s not just an operating system, it\u2019s a consciousness.",
   },
   {
     title: "More coming soon",
