@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
 
 const exec = promisify(execFile);
@@ -10,7 +11,7 @@ const exec = promisify(execFile);
 type ToolDefinition = {
   id: string;
   /** Command to check if installed (e.g. ["agent-browser", "--version"]) */
-  checkCommand: string[];
+  checkCommand: [string, ...string[]];
   /** Steps to install, executed in order */
   installSteps: { command: string; args: string[]; description: string }[];
 };
@@ -113,11 +114,11 @@ function extendedPath(): string {
     "/opt/homebrew/bin",
     `${process.env["HOME"]}/.npm-global/bin`,
   ];
-  const parts = existing.split(":");
+  const parts = existing.split(path.delimiter);
   for (const extra of extras) {
     if (!parts.includes(extra)) {
       parts.push(extra);
     }
   }
-  return parts.join(":");
+  return parts.join(path.delimiter);
 }

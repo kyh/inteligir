@@ -45,6 +45,9 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   login: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGIN),
   logout: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT),
 
+  // Setup
+  runSetup: () => ipcRenderer.invoke(IPC_CHANNELS.SETUP_INIT),
+
   // Settings
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
 

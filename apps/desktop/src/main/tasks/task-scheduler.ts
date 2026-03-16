@@ -3,11 +3,11 @@ import { Cron } from "croner";
 import type { Task } from "@/shared/task";
 
 import type { Agent } from "@/main/agent/agent";
-
-const TASK_TIMEOUT_MS = 5 * 60 * 1000;
 import { getTasks, markTaskRun } from "@/main/tasks/task-store";
 import { startRun, completeRun, failRun } from "@/main/tasks/task-run-store";
 import { toErrorMessage } from "@/shared/ipc";
+
+const TASK_TIMEOUT_MS = 5 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Task scheduler — polls tasks.json and fires agent.sendMessage()
@@ -17,6 +17,7 @@ const POLL_INTERVAL_MS = 15_000;
 
 export class TaskScheduler {
   private timer: ReturnType<typeof setInterval> | null = null;
+  private firing = false;
   private getAgent: () => Agent | null;
 
   constructor(getAgent: () => Agent | null) {
@@ -36,6 +37,7 @@ export class TaskScheduler {
   }
 
   private tick(): void {
+    if (this.firing) return;
     const agent = this.getAgent();
     if (!agent) return;
 
@@ -56,6 +58,7 @@ export class TaskScheduler {
   }
 
   private async fireTask(agent: Agent, task: Task, now: number): Promise<void> {
+    this.firing = true;
     markTaskRun(task.id, now);
     const run = startRun(task.id);
     const prefix = `[Scheduled task: ${task.label}]\n\n`;
@@ -73,6 +76,8 @@ export class TaskScheduler {
       completeRun(run.id, lastText?.slice(0, 500) ?? "(no output)");
     } catch (err) {
       failRun(run.id, toErrorMessage(err));
+    } finally {
+      this.firing = false;
     }
   }
 }

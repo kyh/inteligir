@@ -11,7 +11,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import type { AgentSession, AgentSessionEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
-import { shell } from "electron";
+import { app, shell } from "electron";
 import { getModel } from "@mariozechner/pi-ai";
 import type { Api, Model } from "@mariozechner/pi-ai";
 
@@ -38,10 +38,24 @@ const AUTH_PROVIDER = "openai-codex";
 const AGENT_DIR = inteligirPath();
 const AUTH_PATH = inteligirPath("auth.json");
 const SESSION_DIR = inteligirPath("sessions");
+const WORKSPACE_DIR = inteligirPath("workspace");
 
-const DEFAULT_MODEL: Model<Api> | undefined = getModel(AUTH_PROVIDER, "gpt-5.4" as never);
-if (!DEFAULT_MODEL) {
-  throw new Error('Model "openai-codex/gpt-5.4" not found in pi-ai model registry');
+// Override pi-coding-agent's default getAgentDir() (~/.pi/agent) so all
+// internal library code that bypasses the explicit agentDir parameter
+// still resolves to ~/.inteligir.
+process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
+
+let _defaultModel: Model<Api> | null = null;
+
+function getDefaultModel(): Model<Api> {
+  if (!_defaultModel) {
+    const model = getModel(AUTH_PROVIDER, "gpt-5.4");
+    if (!model) {
+      throw new Error('Model "openai-codex/gpt-5.4" not found in pi-ai model registry');
+    }
+    _defaultModel = model;
+  }
+  return _defaultModel;
 }
 
 /**
@@ -50,31 +64,38 @@ if (!DEFAULT_MODEL) {
  * process.resourcesPath/app.asar.unpacked/resources/agent/.
  * In dev they're at the repo's resources/agent/ directory.
  */
+declare const __PROJECT_ROOT__: string;
+
 function getBundledResourcesDir(): string {
-  // In packaged app, use the unpacked resources path
-  if (process.resourcesPath) {
-    const unpacked = path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
-    if (fs.existsSync(unpacked)) return unpacked;
+  // Production: asarUnpack puts resources at <resourcesPath>/app.asar.unpacked/
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
   }
-  // Dev: electron-vite builds to .output/app/main/ — resources/ is two levels up
-  return path.resolve(__dirname, "../../resources/agent");
+  // Dev: injected by electron-vite at build time
+  return path.join(__PROJECT_ROOT__, "resources", "agent");
 }
 
 /**
  * Seed bundled skills and AGENTS.md into ~/.inteligir/ on first run
  * or when the bundled version is newer.
  */
-function seedResources(): void {
+export function seedResources(): void {
+  console.log("[agent] seeding resources, agentDir:", AGENT_DIR, "workspace:", WORKSPACE_DIR);
+  // Ensure agent dir and workspace exist
+  fs.mkdirSync(AGENT_DIR, { recursive: true });
+  fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+
   const src = getBundledResourcesDir();
   if (!fs.existsSync(src)) {
     console.warn("[agent] bundled resources not found at", src);
     return;
   }
+  console.log("[agent] bundled resources found at", src);
 
-  // Seed skills
+  // Seed skills (only on first run — don't overwrite user edits)
   const skillsSrc = path.join(src, "skills");
   const skillsDest = path.join(AGENT_DIR, "skills");
-  if (fs.existsSync(skillsSrc)) {
+  if (fs.existsSync(skillsSrc) && !fs.existsSync(skillsDest)) {
     copyDirRecursive(skillsSrc, skillsDest);
   }
 
@@ -197,8 +218,27 @@ function getAuthStorage(): AuthStorage {
   return authStorage;
 }
 
+export function isSetupComplete(): boolean {
+  const exists = fs.existsSync(WORKSPACE_DIR);
+  console.log("[agent] isSetupComplete:", exists, "(checking", WORKSPACE_DIR + ")");
+  return exists;
+}
+
+export function teardownResources(): void {
+  console.log("[agent] tearing down resources, removing:", AGENT_DIR);
+  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
+  // Reset cached auth so it's re-read from (now-deleted) disk on next login
+  authStorage = null;
+}
+
 export function isLoggedIn(): boolean {
-  return getAuthStorage().hasAuth(AUTH_PROVIDER);
+  if (!fs.existsSync(AUTH_PATH)) {
+    console.log("[agent] isLoggedIn: false (no auth.json)");
+    return false;
+  }
+  const loggedIn = getAuthStorage().hasAuth(AUTH_PROVIDER);
+  console.log("[agent] isLoggedIn:", loggedIn);
+  return loggedIn;
 }
 
 export async function login(): Promise<void> {
@@ -233,31 +273,32 @@ export class Agent {
   // ---- lifecycle -----------------------------------------------------------
 
   async start(): Promise<void> {
-    if (this.session) return;
-
-    // Seed bundled skills/AGENTS.md into ~/.inteligir/
-    seedResources();
+    if (this.session) {
+      console.log("[agent] start() skipped — session already exists");
+      return;
+    }
+    console.log("[agent] starting session, cwd:", WORKSPACE_DIR);
 
     const auth = getAuthStorage();
     const modelRegistry = new ModelRegistry(auth);
 
     const resourceLoader = new DefaultResourceLoader({
-      cwd: process.cwd(),
+      cwd: WORKSPACE_DIR,
       agentDir: AGENT_DIR,
       extensionFactories: [registerTasksExtension],
     });
     await resourceLoader.reload();
 
     const { session } = await createAgentSession({
-      cwd: process.cwd(),
+      cwd: WORKSPACE_DIR,
       agentDir: AGENT_DIR,
       authStorage: auth,
       modelRegistry,
       resourceLoader,
-      model: DEFAULT_MODEL,
+      model: getDefaultModel(),
       thinkingLevel: "off",
-      sessionManager: SessionManager.create(process.cwd(), SESSION_DIR),
-      settingsManager: SettingsManager.create(process.cwd(), AGENT_DIR),
+      sessionManager: SessionManager.create(WORKSPACE_DIR, SESSION_DIR),
+      settingsManager: SettingsManager.create(WORKSPACE_DIR, AGENT_DIR),
     });
 
     this.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
@@ -295,7 +336,7 @@ export class Agent {
         unsub();
         resolve(value);
       };
-      const unsub = this.session!.subscribe((event) => {
+      const unsub = this.subscribe((event) => {
         if (event.type === "agent_end") settle(true);
       });
       // Now safe to check — if already idle, the subscription hasn't missed anything

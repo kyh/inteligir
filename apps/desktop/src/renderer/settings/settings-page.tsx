@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback } from "react";
 import { useNavigate } from "react-router";
 
 import { Button } from "@repo/ui/button";
@@ -11,24 +11,7 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 export function SettingsPage() {
   const navigate = useNavigate();
   const { login, loggingIn, loginError } = useLogin();
-  const [loggedIn, setLoggedIn] = useState(false);
-
-  useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    void bridge
-      .getSettings()
-      .then((settings) => {
-        setLoggedIn(settings.loggedIn);
-      })
-      .catch(() => {});
-  }, []);
-
-  // Update local loggedIn state when login succeeds via hook
-  const needsSetup = useAgentStore((s) => s.needsSetup);
-  useEffect(() => {
-    if (!needsSetup) setLoggedIn(true);
-  }, [needsSetup]);
+  const loggedIn = !useAgentStore((s) => s.needsLogin);
 
   const goBack = useCallback(() => {
     void navigate("/");

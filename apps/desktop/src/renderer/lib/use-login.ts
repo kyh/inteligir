@@ -17,8 +17,7 @@ export function useLogin() {
       .login()
       .then((result) => {
         if (result.ok) {
-          useAgentStore.getState().checkSetup();
-          useAgentStore.getState().fetchState();
+          useAgentStore.getState().refreshStatus();
         } else {
           setLoginError(result.error);
         }

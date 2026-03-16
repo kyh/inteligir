@@ -41,6 +41,9 @@ export const IPC_CHANNELS = {
   AUTH_LOGIN: "auth:login",
   AUTH_LOGOUT: "auth:logout",
 
+  // Setup
+  SETUP_INIT: "setup:init",
+
   // Settings
   SETTINGS_GET: "settings:get",
 
@@ -101,8 +104,11 @@ export type DesktopBridge = {
   login: () => Promise<{ ok: true } | { ok: false; error: string }>;
   logout: () => Promise<{ ok: true }>;
 
+  // Setup
+  runSetup: () => Promise<{ ok: true } | { ok: false; error: string }>;
+
   // Settings
-  getSettings: () => Promise<{ loggedIn: boolean }>;
+  getSettings: () => Promise<{ loggedIn: boolean; setupComplete: boolean }>;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;
@@ -132,18 +138,17 @@ export function isHttpUrl(url: string): boolean {
 // pi-ai content block helpers (shared between main & renderer)
 // ---------------------------------------------------------------------------
 
+export function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null;
+}
+
 export function extractText(message: unknown): string {
-  if (typeof message !== "object" || message === null) return "";
-  const msg = message as Record<string, unknown>;
-  if (!Array.isArray(msg["content"])) return "";
+  if (!isRecord(message)) return "";
+  if (!Array.isArray(message["content"])) return "";
   const parts: string[] = [];
-  for (const block of msg["content"] as unknown[]) {
-    if (
-      typeof block === "object" &&
-      block !== null &&
-      (block as Record<string, unknown>)["type"] === "text"
-    ) {
-      const text = (block as Record<string, unknown>)["text"];
+  for (const block of message["content"]) {
+    if (isRecord(block) && block["type"] === "text") {
+      const text = block["text"];
       if (typeof text === "string") parts.push(text);
     }
   }

@@ -4,12 +4,12 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-import { Agent, isLoggedIn, login, logout } from "@/main/agent/agent";
+import { Agent, isLoggedIn, isSetupComplete, login, seedResources, teardownResources } from "@/main/agent/agent";
 import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
 import { TaskScheduler } from "@/main/tasks/task-scheduler";
 import { ToolManager } from "@/main/tool-manager";
 import { CreateTaskParamsSchema } from "@/shared/task";
-import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
+import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, isRecord, toErrorMessage } from "@/shared/ipc";
 import type { UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
@@ -52,12 +52,10 @@ function setUpdateState(patch: Partial<UpdateState>): void {
 // ---------------------------------------------------------------------------
 
 function broadcastAgentEvent(event: unknown): void {
-  const type = typeof event === "object" && event !== null && "type" in event
-    ? (event as Record<string, unknown>).type
-    : "unknown";
+  const type = isRecord(event) && "type" in event ? event.type : "unknown";
   console.log("[ipc] broadcasting agent event:", type);
-  if (type === "message_end") {
-    const msg = (event as Record<string, unknown>).message as Record<string, unknown> | undefined;
+  if (type === "message_end" && isRecord(event)) {
+    const msg = isRecord(event.message) ? event.message : undefined;
     if (msg?.stopReason === "error") {
       console.error("[ipc] message_end ERROR:", msg.errorMessage);
     }
@@ -243,39 +241,73 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.AGENT_CLEAR, () => {
-    requireAgent().clear();
+    agent?.clear();
     return { ok: true };
   });
 
   // ---- Auth -----------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGIN, async () => {
+    console.log("[auth] login requested");
     try {
       await login();
-      // Restart agent with new credentials
-      const a = requireAgent();
-      await a.stop();
-      await a.start();
-      return { ok: true };
+      console.log("[auth] login succeeded");
+      // If agent is already running, restart with new credentials
+      if (agent) {
+        console.log("[auth] restarting agent with new credentials");
+        await agent.stop();
+        try {
+          await agent.start();
+        } catch (startError: unknown) {
+          agent = null;
+          return { ok: false, error: toErrorMessage(startError) } as const;
+        }
+      }
+      return { ok: true } as const;
     } catch (error: unknown) {
-      return { ok: false, error: toErrorMessage(error) };
+      console.error("[auth] login failed:", toErrorMessage(error));
+      return { ok: false, error: toErrorMessage(error) } as const;
     }
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async () => {
-    logout();
-    // Restart agent without credentials
-    const a = requireAgent();
-    a.clear();
-    await a.stop();
-    await a.start();
-    return { ok: true };
+    console.log("[auth] logout requested");
+    if (agent) {
+      console.log("[auth] stopping agent");
+      scheduler?.stop();
+      scheduler = null;
+      await agent.stop();
+      agent = null;
+      console.log("[auth] agent stopped");
+    }
+    teardownResources();
+    console.log("[auth] resources torn down");
+    return { ok: true } as const;
+  });
+
+  // ---- Setup ----------------------------------------------------------------
+
+  ipcMain.handle(IPC_CHANNELS.SETUP_INIT, async () => {
+    console.log("[setup] init requested");
+    try {
+      seedResources();
+      console.log("[setup] resources seeded");
+      await startAgent();
+      console.log("[setup] agent started");
+      return { ok: true } as const;
+    } catch (error: unknown) {
+      console.error("[setup] init failed:", toErrorMessage(error));
+      return { ok: false, error: toErrorMessage(error) } as const;
+    }
   });
 
   // ---- Settings -------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
-    return { loggedIn: isLoggedIn() } as const;
+    const loggedIn = isLoggedIn();
+    const setupComplete = isSetupComplete();
+    console.log("[settings] get:", { loggedIn, setupComplete });
+    return { loggedIn, setupComplete } as const;
   });
 
   // ---- Tasks ----------------------------------------------------------------
@@ -359,13 +391,24 @@ function configureAutoUpdater(): void {
 // Agent lifecycle
 // ---------------------------------------------------------------------------
 
+let agentStarting: Promise<void> | null = null;
+
 async function startAgent(): Promise<void> {
-  process.stderr.write("[desktop] starting agent...\n");
+  if (agent || agentStarting) return;
+  agentStarting = doStartAgent();
+  try {
+    await agentStarting;
+  } finally {
+    agentStarting = null;
+  }
+}
+
+async function doStartAgent(): Promise<void> {
   console.log("[desktop] starting agent...");
   try {
     agent = new Agent();
-    agent.subscribe(broadcastAgentEvent);
     await agent.start();
+    agent.subscribe(broadcastAgentEvent);
     console.log("[desktop] agent started");
 
     // Install CLI tools (agent-browser, etc.) after agent starts — runs in
@@ -381,12 +424,9 @@ async function startAgent(): Promise<void> {
     broadcastAgentEvent({ type: "agent_end", messages: [] });
   } catch (err) {
     console.error("[desktop] agent start failed:", err);
-    // Broadcast error to renderer so user sees it instead of silent failure
-    broadcastAgentEvent({
-      type: "agent_status",
-      status: "error",
-      error: toErrorMessage(err),
-    });
+    // Clear broken agent so SETUP_INIT can retry
+    agent = null;
+    broadcastAgentEvent({ type: "agent_end", messages: [] });
   }
 }
 
@@ -493,8 +533,14 @@ app
 
     mainWindow = createWindow();
 
-    // Start agent in background — window shows immediately with "starting" state
-    void startAgent();
+    // Auto-start agent only if already set up; otherwise onboarding triggers it
+    const loggedIn = isLoggedIn();
+    const setupComplete = isSetupComplete();
+    console.log("[startup] loggedIn:", loggedIn, "setupComplete:", setupComplete);
+    if (loggedIn && setupComplete) {
+      console.log("[startup] auto-starting agent");
+      void startAgent();
+    }
 
     app.on("activate", () => {
       if (BrowserWindow.getAllWindows().length === 0) {

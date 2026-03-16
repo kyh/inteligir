@@ -9,6 +9,9 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin()],
+    define: {
+      __PROJECT_ROOT__: JSON.stringify(__dirname),
+    },
     resolve: {
       alias: { "@": resolve(__dirname, "src") },
     },

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import type { SessionStatus } from "@/shared/agent";
-import { extractText } from "@/shared/ipc";
+import { extractText, isRecord } from "@/shared/ipc";
 import { getBridge } from "@/renderer/lib/bridge";
 
 // ---------------------------------------------------------------------------
@@ -41,10 +41,6 @@ function eventType(event: unknown): string {
   return "";
 }
 
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null;
-}
-
 function messageRole(event: unknown): string {
   if (!isRecord(event)) return "";
   const message = event.message;
@@ -58,7 +54,9 @@ function messageRole(event: unknown): string {
 
 type AgentStore = {
   messages: ChatMessage[];
-  needsSetup: boolean;
+  setupChecked: boolean;
+  needsLogin: boolean;
+  needsOnboarding: boolean;
   sessionStatus: SessionStatus;
 
   init: () => () => void;
@@ -68,13 +66,16 @@ type AgentStore = {
   clearMessages: () => void;
   fetchState: () => void;
   checkSetup: () => void;
+  refreshStatus: () => void;
 };
 
 let nextMsgId = 0;
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
   messages: [],
-  needsSetup: false,
+  setupChecked: false,
+  needsLogin: false,
+  needsOnboarding: false,
   sessionStatus: "starting",
 
   init: () => {
@@ -95,6 +96,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
         case "agent_end":
           set({ sessionStatus: "idle" });
           streamingMsgId = null;
+          toolMsgIds.clear();
           break;
 
         case "message_start": {
@@ -189,8 +191,7 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       }
     });
 
-    get().checkSetup();
-    get().fetchState();
+    get().refreshStatus();
 
     return () => { unsubscribe(); };
   },
@@ -239,7 +240,19 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     if (!bridge) return;
     void bridge
       .getSettings()
-      .then((settings) => set({ needsSetup: !settings.loggedIn }))
-      .catch(() => {});
+      .then((settings) => {
+        const needsLogin = !settings.loggedIn;
+        const needsOnboarding = settings.loggedIn && !settings.setupComplete;
+        const s = get();
+        if (!s.setupChecked || s.needsLogin !== needsLogin || s.needsOnboarding !== needsOnboarding) {
+          set({ setupChecked: true, needsLogin, needsOnboarding });
+        }
+      })
+      .catch(() => set({ setupChecked: true, needsLogin: true, needsOnboarding: false }));
+  },
+
+  refreshStatus: () => {
+    get().checkSetup();
+    get().fetchState();
   },
 }));

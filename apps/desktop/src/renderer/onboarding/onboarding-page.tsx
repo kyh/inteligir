@@ -1,52 +1,68 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@repo/ui/button";
 
+import type { SessionStatus } from "@/shared/agent";
 import { GeometricOrb } from "@/renderer/components/geometric-orb";
-import { useLogin } from "@/renderer/lib/use-login";
+import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 
 export function OnboardingPage() {
-  const navigate = useNavigate();
-  const { login, loggingIn, loginError } = useLogin();
-  const needsSetup = useAgentStore((s) => s.needsSetup);
-  const sessionStatus = useAgentStore((s) => s.sessionStatus);
+  const checkSetup = useAgentStore((s) => s.checkSetup);
+  const [status, setStatus] = useState<SessionStatus>("starting");
+  const [error, setError] = useState<string | null>(null);
 
+  const runSetup = useCallback(async () => {
+    const bridge = getBridge();
+    if (!bridge) return;
+
+    setStatus("starting");
+    setError(null);
+
+    const result = await bridge.runSetup();
+    if (result.ok) {
+      setStatus("idle");
+      checkSetup();
+    } else {
+      setStatus("error");
+      setError(result.error);
+    }
+  }, [checkSetup]);
+
+  // Auto-run setup on mount
   useEffect(() => {
-    if (!needsSetup) void navigate("/");
-  }, [needsSetup, navigate]);
+    void runSetup();
+  }, [runSetup]);
 
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-0 px-6">
       <div className="h-48 w-48">
-        <GeometricOrb status={sessionStatus} />
+        <GeometricOrb status={status} />
       </div>
 
       <div className="flex max-w-xs flex-col gap-1 text-center">
-        <h1 className="text-sm font-semibold">Welcome to Inteligir</h1>
+        <h1 className="text-sm font-semibold">
+          {status === "error" ? "Setup failed" : "Setting up Inteligir"}
+        </h1>
         <p className="text-[10px] text-muted-foreground">
-          Log in with your OpenAI account to get started.
+          {status === "error"
+            ? "Something went wrong during setup."
+            : "Preparing your workspace and installing tools..."}
         </p>
       </div>
 
-      <div className="mt-6 flex w-full max-w-xs flex-col gap-3">
-        <Button
-          onClick={login}
-          disabled={loggingIn}
-          className="w-full text-xs"
-        >
-          {loggingIn ? "Waiting for browser..." : "Log in with OpenAI"}
-        </Button>
-        {loginError && (
-          <p className="text-center text-[10px] text-destructive">
-            {loginError}
-          </p>
-        )}
-        <p className="text-center text-[10px] text-muted-foreground/60">
-          Opens your browser to sign in with OpenAI.
-        </p>
-      </div>
+      {status === "error" && error && (
+        <div className="mt-4 flex max-w-xs flex-col gap-3">
+          <p className="text-center text-[10px] text-destructive">{error}</p>
+          <Button
+            variant="ghost"
+            onClick={() => void runSetup()}
+            className="text-[10px] text-muted-foreground underline hover:text-foreground"
+          >
+            Retry
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

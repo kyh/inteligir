@@ -1,21 +1,34 @@
-import { useEffect } from "react";
-import { Outlet, useNavigate } from "react-router";
+import { useEffect, useRef } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router";
 
 import { MENU_ACTIONS } from "@/shared/ipc";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 
+const SETUP_PATHS = new Set(["/login", "/onboarding"]);
+
 export function AppLayout() {
-  const needsSetup = useAgentStore((s) => s.needsSetup);
+  const setupChecked = useAgentStore((s) => s.setupChecked);
+  const needsLogin = useAgentStore((s) => s.needsLogin);
+  const needsOnboarding = useAgentStore((s) => s.needsOnboarding);
   const init = useAgentStore((s) => s.init);
   const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
 
   useEffect(() => init(), [init]);
 
-  // Auto-navigate to onboarding when no API keys configured
   useEffect(() => {
-    if (needsSetup) void navigate("/onboarding");
-  }, [needsSetup, navigate]);
+    if (!setupChecked) return;
+    if (needsLogin) {
+      void navigate("/login");
+    } else if (needsOnboarding) {
+      void navigate("/onboarding");
+    } else if (SETUP_PATHS.has(pathnameRef.current)) {
+      void navigate("/");
+    }
+  }, [setupChecked, needsLogin, needsOnboarding, navigate]);
 
   // Cmd+, → open settings
   useEffect(() => {
