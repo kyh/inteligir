@@ -9,6 +9,8 @@ const statusColors: Record<SessionStatus, string> = {
   busy: "bg-yellow-400 animate-pulse",
   error: "bg-red-400",
   starting: "bg-blue-400 animate-pulse",
+  listening: "bg-emerald-400 animate-pulse",
+  speaking: "bg-purple-400 animate-pulse",
 };
 
 function useSessionStatus(): SessionStatus {

@@ -2,7 +2,7 @@
 // Session state (used internally by Agent class)
 // ---------------------------------------------------------------------------
 
-export type SessionStatus = "idle" | "busy" | "error" | "starting";
+export type SessionStatus = "idle" | "busy" | "error" | "starting" | "listening" | "speaking";
 
 // ---------------------------------------------------------------------------
 // Method params & results

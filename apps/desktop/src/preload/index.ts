@@ -51,4 +51,14 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST),
   deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
   toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
+
+  // Voice
+  startVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_START),
+  stopVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STOP),
+  sendAudioChunk: (base64: string) => ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, base64),
+  interruptTts: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_INTERRUPT_TTS),
+  onVoiceEvent: (listener: (event: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.VOICE_EVENT, listener),
+  getVoiceSettings: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_GET_SETTINGS),
+  setVoiceSettings: (settings: unknown) => ipcRenderer.invoke(IPC_CHANNELS.VOICE_SET_SETTINGS, settings),
 });

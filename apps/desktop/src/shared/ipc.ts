@@ -11,6 +11,7 @@ import type {
   ListTasksResult,
   ToggleTaskResult,
 } from "./task";
+import type { VoiceEvent, VoiceSettings } from "./voice";
 
 // ---------------------------------------------------------------------------
 // IPC channel names shared between Electron main <-> preload <-> renderer
@@ -46,6 +47,15 @@ export const IPC_CHANNELS = {
   TASK_LIST: "task:list",
   TASK_DELETE: "task:delete",
   TASK_TOGGLE: "task:toggle",
+
+  // Voice
+  VOICE_START: "voice:start",
+  VOICE_STOP: "voice:stop",
+  VOICE_AUDIO_CHUNK: "voice:audio-chunk",
+  VOICE_EVENT: "voice:event",
+  VOICE_INTERRUPT_TTS: "voice:interrupt-tts",
+  VOICE_GET_SETTINGS: "voice:get-settings",
+  VOICE_SET_SETTINGS: "voice:set-settings",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -103,6 +113,15 @@ export type DesktopBridge = {
   listTasks: () => Promise<ListTasksResult>;
   deleteTask: (id: string) => Promise<DeleteTaskResult>;
   toggleTask: (id: string) => Promise<ToggleTaskResult>;
+
+  // Voice
+  startVoice: () => Promise<{ ok: boolean; error?: string }>;
+  stopVoice: () => Promise<{ ok: boolean }>;
+  sendAudioChunk: (base64: string) => void;
+  interruptTts: () => Promise<{ ok: boolean }>;
+  onVoiceEvent: (listener: (event: VoiceEvent) => void) => () => void;
+  getVoiceSettings: () => Promise<VoiceSettings | null>;
+  setVoiceSettings: (settings: VoiceSettings) => Promise<{ ok: boolean }>;
 };
 
 // ---------------------------------------------------------------------------

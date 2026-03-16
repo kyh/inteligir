@@ -2,16 +2,26 @@ import { useEffect, useRef } from "react";
 
 import { GeometricOrb } from "@/renderer/components/geometric-orb";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import { useVoiceStore } from "@/renderer/stores/voice-store";
 import { ChatInput } from "@/renderer/chat/chat-input";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
 import { StatusBar } from "@/renderer/chat/status-bar";
+import { VoiceIndicator } from "@/renderer/chat/voice-indicator";
 
 export function ChatPage() {
   const messages = useAgentStore((s) => s.messages);
   const appState = useAgentStore((s) => s.appState);
-  const sessionStatus = appState.phase === "ready"
-    ? (appState.agent === "busy" ? "busy" : "idle")
-    : appState.phase === "error" ? "error" : "starting";
+  const voiceState = useVoiceStore((s) => s.sessionState);
+  const initVoice = useVoiceStore((s) => s.init);
+
+  useEffect(() => initVoice(), [initVoice]);
+
+  const sessionStatus =
+    voiceState === "listening" ? "listening"
+    : voiceState === "speaking" ? "speaking"
+    : appState.phase === "ready"
+      ? (appState.agent === "busy" ? "busy" : "idle")
+      : appState.phase === "error" ? "error" : "starting";
   const messageCount = messages.length;
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +51,9 @@ export function ChatPage() {
 
       {/* Status bar */}
       <StatusBar />
+
+      {/* Voice indicator */}
+      <VoiceIndicator />
 
       {/* Input */}
       <ChatInput />

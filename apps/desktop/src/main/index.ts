@@ -6,8 +6,10 @@ import electronUpdater from "electron-updater";
 
 import { getAgent, getAppState, initMachine, onAgentEvent, shutdown, transition } from "@/main/app-machine";
 import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
+import { VoiceService } from "@/main/voice/voice-service";
+import { registerVoiceIpcHandlers } from "@/main/voice/voice-ipc";
 import { CreateTaskParamsSchema } from "@/shared/task";
-import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, isRecord, toErrorMessage } from "@/shared/ipc";
+import { IPC_CHANNELS, MENU_ACTIONS, extractText, isHttpUrl, isRecord, toErrorMessage } from "@/shared/ipc";
 import type { AppEvent } from "@/shared/app-state";
 import type { UpdateState } from "@/shared/ipc";
 
@@ -383,8 +385,26 @@ app
     configureAutoUpdater();
     registerIpcHandlers();
 
+    // Voice service — STT + TTS via ElevenLabs
+    const voiceService = new VoiceService(() => getAgent());
+    registerVoiceIpcHandlers(voiceService);
+
     // Forward raw agent session events to renderer for chat streaming
-    onAgentEvent(broadcastAgentEvent);
+    onAgentEvent((event) => {
+      broadcastAgentEvent(event);
+
+      // When voice is active and agent finishes a response, trigger TTS
+      if (
+        voiceService.isActive() &&
+        isRecord(event) &&
+        event.type === "message_end" &&
+        isRecord(event.message) &&
+        event.message.role === "assistant"
+      ) {
+        const text = extractText(event);
+        if (text) voiceService.handleAgentResponse(text);
+      }
+    });
 
     mainWindow = createWindow();
     initMachine();

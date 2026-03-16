@@ -66,6 +66,20 @@ const moods: Record<SessionStatus, Mood> = {
     squiggleSpeed: 1,
     ...rgb("#888888"),
   },
+  listening: {
+    speed: 15,
+    squiggleAmount: 0.06,
+    squiggleFrequency: 5,
+    squiggleSpeed: 3,
+    ...rgb("#44dd88"),
+  },
+  speaking: {
+    speed: 8,
+    squiggleAmount: 0.10,
+    squiggleFrequency: 7,
+    squiggleSpeed: 6,
+    ...rgb("#aa88ff"),
+  },
 };
 
 function rgb(hex: string): { r: number; g: number; b: number } {

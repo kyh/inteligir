@@ -58,6 +58,8 @@ type AgentStore = {
 
   init: () => () => void;
   sendMessage: (text: string) => void;
+  /** Add a user message to the UI only (no bridge call). Used by voice to avoid double-send. */
+  addUserMessage: (text: string) => void;
   steer: (text: string) => void;
   interrupt: () => void;
   clearMessages: () => void;
@@ -204,6 +206,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
     }));
     void bridge.sendMessage(text);
+  },
+
+  addUserMessage: (text: string) => {
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+    }));
   },
 
   steer: (text: string) => {
