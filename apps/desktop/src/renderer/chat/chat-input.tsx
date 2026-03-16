@@ -7,7 +7,7 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 
 export function ChatInput() {
   const [input, setInput] = useState("");
-  const busy = useAgentStore((s) => s.sessionStatus === "busy");
+  const busy = useAgentStore((s) => s.appState.phase === "ready" && s.appState.agent === "busy");
   const sendMessage = useAgentStore((s) => s.sendMessage);
   const steer = useAgentStore((s) => s.steer);
   const interrupt = useAgentStore((s) => s.interrupt);

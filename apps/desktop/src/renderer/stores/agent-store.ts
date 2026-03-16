@@ -1,6 +1,6 @@
 import { create } from "zustand";
 
-import type { SessionStatus } from "@/shared/agent";
+import type { AppState } from "@/shared/app-state";
 import { extractText, isRecord } from "@/shared/ipc";
 import { getBridge } from "@/renderer/lib/bridge";
 
@@ -54,29 +54,20 @@ function messageRole(event: unknown): string {
 
 type AgentStore = {
   messages: ChatMessage[];
-  setupChecked: boolean;
-  needsLogin: boolean;
-  needsOnboarding: boolean;
-  sessionStatus: SessionStatus;
+  appState: AppState;
 
   init: () => () => void;
   sendMessage: (text: string) => void;
   steer: (text: string) => void;
   interrupt: () => void;
   clearMessages: () => void;
-  fetchState: () => void;
-  checkSetup: () => void;
-  refreshStatus: () => void;
 };
 
 let nextMsgId = 0;
 
 export const useAgentStore = create<AgentStore>((set, get) => ({
   messages: [],
-  setupChecked: false,
-  needsLogin: false,
-  needsOnboarding: false,
-  sessionStatus: "starting",
+  appState: { phase: "logged_out" },
 
   init: () => {
     const bridge = getBridge();
@@ -85,16 +76,15 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     let streamingMsgId: number | null = null;
     const toolMsgIds = new Map<string, number>();
 
-    const unsubscribe = bridge.onAgentEvent((event: unknown) => {
+    // Subscribe to raw agent session events (chat streaming)
+    const unsubAgent = bridge.onAgentEvent((event: unknown) => {
       const type = eventType(event);
 
       switch (type) {
         case "agent_start":
-          set({ sessionStatus: "busy" });
           break;
 
         case "agent_end":
-          set({ sessionStatus: "idle" });
           streamingMsgId = null;
           toolMsgIds.clear();
           break;
@@ -191,9 +181,20 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       }
     });
 
-    get().refreshStatus();
+    // Subscribe to app lifecycle state
+    const unsubState = bridge.onAppState((appState: unknown) => {
+      set({ appState: appState as AppState });
+    });
 
-    return () => { unsubscribe(); };
+    // Fetch initial state
+    void bridge.getAppState().then((appState) => {
+      set({ appState });
+    });
+
+    return () => {
+      unsubAgent();
+      unsubState();
+    };
   },
 
   sendMessage: (text: string) => {
@@ -207,7 +208,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   steer: (text: string) => {
     const bridge = getBridge();
-    if (!bridge || get().sessionStatus !== "busy") return;
+    const { appState } = get();
+    if (!bridge || appState.phase !== "ready" || appState.agent !== "busy") return;
     set((s) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
     }));
@@ -216,7 +218,8 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
 
   interrupt: () => {
     const bridge = getBridge();
-    if (!bridge || get().sessionStatus !== "busy") return;
+    const { appState } = get();
+    if (!bridge || appState.phase !== "ready" || appState.agent !== "busy") return;
     void bridge.interrupt();
   },
 
@@ -224,35 +227,5 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     const bridge = getBridge();
     set({ messages: [] });
     if (bridge) void bridge.clear();
-  },
-
-  fetchState: () => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    void bridge
-      .getAgentState()
-      .then((result) => set({ sessionStatus: result.status }))
-      .catch(() => {});
-  },
-
-  checkSetup: () => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    void bridge
-      .getSettings()
-      .then((settings) => {
-        const needsLogin = !settings.loggedIn;
-        const needsOnboarding = settings.loggedIn && !settings.setupComplete;
-        const s = get();
-        if (!s.setupChecked || s.needsLogin !== needsLogin || s.needsOnboarding !== needsOnboarding) {
-          set({ setupChecked: true, needsLogin, needsOnboarding });
-        }
-      })
-      .catch(() => set({ setupChecked: true, needsLogin: true, needsOnboarding: false }));
-  },
-
-  refreshStatus: () => {
-    get().checkSetup();
-    get().fetchState();
   },
 }));

@@ -32,29 +32,23 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   onUpdateState: (listener: (state: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.UPDATE_STATE, listener),
 
+  // App lifecycle
+  getAppState: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_STATE),
+  transition: (event: unknown) => ipcRenderer.invoke(IPC_CHANNELS.APP_TRANSITION, event),
+  onAppState: (listener: (state: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.APP_STATE, listener),
+
   // Agent
   sendMessage: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_SEND_MESSAGE, message),
   steer: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_STEER, message),
   interrupt: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_INTERRUPT),
-  getAgentState: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_GET_STATE),
   clear: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_CLEAR),
   onAgentEvent: (listener: (event: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),
-
-  // Auth
-  login: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGIN),
-  logout: () => ipcRenderer.invoke(IPC_CHANNELS.AUTH_LOGOUT),
-
-  // Setup
-  runSetup: () => ipcRenderer.invoke(IPC_CHANNELS.SETUP_INIT),
-
-  // Settings
-  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
 
   // Tasks
   createTask: (params: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, params),
   listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST),
   deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
   toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
-
 });

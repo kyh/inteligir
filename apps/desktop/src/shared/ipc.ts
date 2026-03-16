@@ -1,9 +1,9 @@
 import type {
-  GetStateResult,
   InterruptResult,
   SendMessageResult,
   SteerResult,
 } from "./agent";
+import type { AppEvent, AppState } from "./app-state";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -29,23 +29,17 @@ export const IPC_CHANNELS = {
   UPDATE_DOWNLOAD: "desktop:update-download",
   UPDATE_INSTALL: "desktop:update-install",
 
+  // App lifecycle
+  APP_STATE: "app:state",
+  APP_TRANSITION: "app:transition",
+  APP_GET_STATE: "app:get-state",
+
   // Agent
   AGENT_SEND_MESSAGE: "agent:send-message",
   AGENT_STEER: "agent:steer",
   AGENT_INTERRUPT: "agent:interrupt",
-  AGENT_GET_STATE: "agent:get-state",
   AGENT_CLEAR: "agent:clear",
   AGENT_EVENT: "agent:event",
-
-  // Auth
-  AUTH_LOGIN: "auth:login",
-  AUTH_LOGOUT: "auth:logout",
-
-  // Setup
-  SETUP_INIT: "setup:init",
-
-  // Settings
-  SETTINGS_GET: "settings:get",
 
   // Tasks
   TASK_CREATE: "task:create",
@@ -92,23 +86,17 @@ export type DesktopBridge = {
   installUpdate: () => Promise<UpdateResponse>;
   onUpdateState: (listener: (state: UpdateState) => void) => () => void;
 
+  // App lifecycle
+  getAppState: () => Promise<AppState>;
+  transition: (event: AppEvent) => Promise<void>;
+  onAppState: (listener: (state: AppState) => void) => () => void;
+
   // Agent
   sendMessage: (message: string) => Promise<SendMessageResult>;
   steer: (message: string) => Promise<SteerResult>;
   interrupt: () => Promise<InterruptResult>;
-  getAgentState: () => Promise<GetStateResult>;
   clear: () => Promise<{ ok: true }>;
   onAgentEvent: (listener: (event: unknown) => void) => () => void;
-
-  // Auth
-  login: () => Promise<{ ok: true } | { ok: false; error: string }>;
-  logout: () => Promise<{ ok: true }>;
-
-  // Setup
-  runSetup: () => Promise<{ ok: true } | { ok: false; error: string }>;
-
-  // Settings
-  getSettings: () => Promise<{ loggedIn: boolean; setupComplete: boolean }>;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;

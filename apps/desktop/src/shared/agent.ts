@@ -1,13 +1,8 @@
 // ---------------------------------------------------------------------------
-// Session state
+// Session state (used internally by Agent class)
 // ---------------------------------------------------------------------------
 
 export type SessionStatus = "idle" | "busy" | "error" | "starting";
-
-export type SessionState = {
-  status: SessionStatus;
-  error: string | null;
-};
 
 // ---------------------------------------------------------------------------
 // Method params & results
@@ -16,4 +11,3 @@ export type SessionState = {
 export type SendMessageResult = { accepted: true };
 export type SteerResult = { accepted: true };
 export type InterruptResult = { interrupted: boolean };
-export type GetStateResult = SessionState;

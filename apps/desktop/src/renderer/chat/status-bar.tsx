@@ -11,8 +11,15 @@ const statusColors: Record<SessionStatus, string> = {
   starting: "bg-blue-400 animate-pulse",
 };
 
+function useSessionStatus(): SessionStatus {
+  const appState = useAgentStore((s) => s.appState);
+  if (appState.phase === "ready") return appState.agent === "busy" ? "busy" : "idle";
+  if (appState.phase === "error") return "error";
+  return "starting";
+}
+
 export function StatusBar() {
-  const sessionStatus = useAgentStore((s) => s.sessionStatus);
+  const sessionStatus = useSessionStatus();
 
   return (
     <div className="flex shrink-0 items-center gap-3 border-t border-border px-6 py-1.5 text-[11px] font-mono text-muted-foreground">

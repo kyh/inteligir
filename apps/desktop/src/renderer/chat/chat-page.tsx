@@ -8,7 +8,10 @@ import { StatusBar } from "@/renderer/chat/status-bar";
 
 export function ChatPage() {
   const messages = useAgentStore((s) => s.messages);
-  const sessionStatus = useAgentStore((s) => s.sessionStatus);
+  const appState = useAgentStore((s) => s.appState);
+  const sessionStatus = appState.phase === "ready"
+    ? (appState.agent === "busy" ? "busy" : "idle")
+    : appState.phase === "error" ? "error" : "starting";
   const messageCount = messages.length;
   const messagesEndRef = useRef<HTMLDivElement>(null);
 

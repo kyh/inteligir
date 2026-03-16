@@ -1,27 +1,21 @@
 import { WaitlistForm } from "./_components/waitlist-form";
 
-const features = [
+const apps = [
   {
     title: "Vibedgames",
-    description:
-      "An AI-powered video game generator with built-in multiplayer and mobile support. Describe a game, play it instantly.",
+    description: "Describe a game, play it instantly. With friends.",
+    url: "https://vibedgames.com",
   },
   {
     title: "OS¹",
-    description:
-      "An artificially intelligent operating system. It\u2019s not just an operating system, it\u2019s a consciousness.",
-  },
-  {
-    title: "More coming soon",
-    description:
-      "New experiments are always in the works. Stay tuned.",
+    description: "An artificially intelligent operating system.",
+    url: "https://inteligir.com/os1",
   },
 ];
 
 const Page = () => {
   return (
     <main>
-      {/* Hero */}
       <section className="pt-24 pb-16 lg:pt-48">
         <div>
           <h1 className="text-base font-medium text-foreground">
@@ -33,13 +27,10 @@ const Page = () => {
         </div>
       </section>
 
-      {/* Features */}
       <section className="py-16">
-        <h2 className="text-base font-medium text-foreground">
-          What we&apos;re building
-        </h2>
+        <h2 className="text-base font-medium text-foreground">Explorations</h2>
         <div className="mt-3 grid gap-8 border-t border-dotted border-foreground/10 pt-3 text-balance md:grid-cols-2">
-          {features.map((item) => (
+          {apps.map((item) => (
             <div key={item.title}>
               <h3 className="text-sm text-foreground">{item.title}</h3>
               <p className="mt-1 text-sm text-foreground/60">
@@ -50,7 +41,6 @@ const Page = () => {
         </div>
       </section>
 
-      {/* CTA */}
       <section className="py-16">
         <h2 className="text-base font-medium text-foreground">
           Stay in the loop

@@ -16,7 +16,6 @@ import { getModel } from "@mariozechner/pi-ai";
 import type { Api, Model } from "@mariozechner/pi-ai";
 
 import type {
-  GetStateResult,
   InterruptResult,
   SendMessageResult,
   SessionStatus,
@@ -80,7 +79,6 @@ function getBundledResourcesDir(): string {
  * or when the bundled version is newer.
  */
 export function seedResources(): void {
-  console.log("[agent] seeding resources, agentDir:", AGENT_DIR, "workspace:", WORKSPACE_DIR);
   // Ensure agent dir and workspace exist
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
@@ -90,7 +88,6 @@ export function seedResources(): void {
     console.warn("[agent] bundled resources not found at", src);
     return;
   }
-  console.log("[agent] bundled resources found at", src);
 
   // Seed skills (only on first run — don't overwrite user edits)
   const skillsSrc = path.join(src, "skills");
@@ -219,26 +216,17 @@ function getAuthStorage(): AuthStorage {
 }
 
 export function isSetupComplete(): boolean {
-  const exists = fs.existsSync(WORKSPACE_DIR);
-  console.log("[agent] isSetupComplete:", exists, "(checking", WORKSPACE_DIR + ")");
-  return exists;
+  return fs.existsSync(WORKSPACE_DIR);
 }
 
 export function teardownResources(): void {
-  console.log("[agent] tearing down resources, removing:", AGENT_DIR);
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
-  // Reset cached auth so it's re-read from (now-deleted) disk on next login
   authStorage = null;
 }
 
 export function isLoggedIn(): boolean {
-  if (!fs.existsSync(AUTH_PATH)) {
-    console.log("[agent] isLoggedIn: false (no auth.json)");
-    return false;
-  }
-  const loggedIn = getAuthStorage().hasAuth(AUTH_PROVIDER);
-  console.log("[agent] isLoggedIn:", loggedIn);
-  return loggedIn;
+  if (!fs.existsSync(AUTH_PATH)) return false;
+  return getAuthStorage().hasAuth(AUTH_PROVIDER);
 }
 
 export async function login(): Promise<void> {
@@ -253,9 +241,6 @@ export async function login(): Promise<void> {
   });
 }
 
-export function logout(): void {
-  getAuthStorage().logout(AUTH_PROVIDER);
-}
 
 // ---------------------------------------------------------------------------
 // Agent — thin wrapper around pi-coding-agent's AgentSession
@@ -273,11 +258,7 @@ export class Agent {
   // ---- lifecycle -----------------------------------------------------------
 
   async start(): Promise<void> {
-    if (this.session) {
-      console.log("[agent] start() skipped — session already exists");
-      return;
-    }
-    console.log("[agent] starting session, cwd:", WORKSPACE_DIR);
+    if (this.session) return;
 
     const auth = getAuthStorage();
     const modelRegistry = new ModelRegistry(auth);
@@ -381,7 +362,7 @@ export class Agent {
     return { interrupted: true };
   }
 
-  getState(): GetStateResult {
+  getState(): { status: SessionStatus; error: string | null } {
     return { status: this.status, error: this.error };
   }
 

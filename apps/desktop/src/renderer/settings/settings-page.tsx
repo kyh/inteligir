@@ -5,26 +5,23 @@ import { Button } from "@repo/ui/button";
 import { Label } from "@repo/ui/label";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { useLogin } from "@/renderer/lib/use-login";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 
 export function SettingsPage() {
   const navigate = useNavigate();
-  const { login, loggingIn, loginError } = useLogin();
-  const loggedIn = !useAgentStore((s) => s.needsLogin);
+  const appState = useAgentStore((s) => s.appState);
+  const clearMessages = useAgentStore((s) => s.clearMessages);
+
+  const isReady = appState.phase === "ready";
 
   const goBack = useCallback(() => {
     void navigate("/");
   }, [navigate]);
 
   const handleLogout = useCallback(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    void bridge.logout().then(() => {
-      useAgentStore.getState().clearMessages();
-      useAgentStore.getState().checkSetup();
-    });
-  }, []);
+    clearMessages();
+    getBridge()?.transition({ type: "LOGOUT" });
+  }, [clearMessages]);
 
   return (
     <div className="flex flex-1 flex-col px-6 pb-6 pt-12">
@@ -41,7 +38,7 @@ export function SettingsPage() {
           <Label className="text-xs font-medium text-muted-foreground">
             OpenAI Account
           </Label>
-          {loggedIn ? (
+          {isReady ? (
             <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
               <span className="text-xs text-foreground">Connected</span>
               <Button
@@ -54,17 +51,9 @@ export function SettingsPage() {
               </Button>
             </div>
           ) : (
-            <Button
-              variant="outline"
-              onClick={login}
-              disabled={loggingIn}
-              className="text-xs"
-            >
-              {loggingIn ? "Waiting for browser..." : "Log in with OpenAI"}
-            </Button>
-          )}
-          {loginError && (
-            <p className="text-[10px] text-destructive">{loginError}</p>
+            <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+              <span className="text-xs text-muted-foreground">Not connected</span>
+            </div>
           )}
         </div>
       </div>

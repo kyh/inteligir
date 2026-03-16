@@ -5,12 +5,21 @@ import { MENU_ACTIONS } from "@/shared/ipc";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 
-const SETUP_PATHS = new Set(["/login", "/onboarding"]);
+function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
+  switch (phase) {
+    case "logged_out":
+    case "logging_in":
+      return "/login";
+    case "logged_in":
+    case "setting_up":
+      return "/onboarding";
+    default:
+      return "/";
+  }
+}
 
 export function AppLayout() {
-  const setupChecked = useAgentStore((s) => s.setupChecked);
-  const needsLogin = useAgentStore((s) => s.needsLogin);
-  const needsOnboarding = useAgentStore((s) => s.needsOnboarding);
+  const appState = useAgentStore((s) => s.appState);
   const init = useAgentStore((s) => s.init);
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -20,17 +29,19 @@ export function AppLayout() {
   useEffect(() => init(), [init]);
 
   useEffect(() => {
-    if (!setupChecked) return;
-    if (needsLogin) {
-      void navigate("/login");
-    } else if (needsOnboarding) {
-      void navigate("/onboarding");
-    } else if (SETUP_PATHS.has(pathnameRef.current)) {
-      void navigate("/");
-    }
-  }, [setupChecked, needsLogin, needsOnboarding, navigate]);
+    const target = appState.phase === "error"
+      ? phaseToPath(appState.prev)
+      : phaseToPath(appState.phase);
 
-  // Cmd+, → open settings
+    // Only navigate if we're not already on the right page
+    // and don't navigate away from settings unless phase requires it
+    if (pathnameRef.current === "/settings" && target === "/") return;
+    if (pathnameRef.current !== target) {
+      void navigate(target);
+    }
+  }, [appState, navigate]);
+
+  // Cmd+, -> open settings
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
