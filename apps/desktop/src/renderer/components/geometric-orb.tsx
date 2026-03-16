@@ -23,7 +23,7 @@ const INITIAL_COLOR_INT = new THREE.Color("#eeeeee").getHex();
 const PI2 = Math.PI * 2;
 
 // Helix (infinity/figure-8 curve) parameters
-const HELIX_LENGTH = RADIUS * 2.0;
+const HELIX_LENGTH = RADIUS * 2;
 const HELIX_AMPLITUDE = RADIUS * 0.4;
 const RIBBON_WIDTH = 0.3;
 
@@ -115,10 +115,15 @@ function helixPoint(
   const x = HELIX_LENGTH * Math.sin(PI2 * percent);
   const y = HELIX_AMPLITUDE * Math.cos(PI2 * 3 * percent);
 
-  // Z-crossing correction (creates proper over/under weaving)
-  let t = (percent % 0.25) / 0.25;
-  t = (percent % 0.25) - (2 * (1 - t) * t * -0.0185 + t * t * 0.25);
-  if (Math.floor(percent / 0.25) === 0 || Math.floor(percent / 0.25) === 2) {
+  // Z-crossing correction — adjusts the phase per quarter-segment so the
+  // curve weaves over/under itself at the center crossing point.
+  // The 0.0185 nudge is an empirical fudge from the reference implementation
+  // that prevents the strands from visually intersecting at the crossover.
+  const quarter = percent % 0.25;
+  const tNorm = quarter / 0.25;
+  const segment = Math.floor(percent / 0.25);
+  let t = quarter - (2 * (1 - tNorm) * tNorm * -0.0185 + tNorm * tNorm * 0.25);
+  if (segment === 0 || segment === 2) {
     t *= -1;
   }
   const z = HELIX_AMPLITUDE * Math.sin(PI2 * 2 * (percent - t));
@@ -150,6 +155,23 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
       })),
     [],
   );
+
+  // Pre-compute helix positions — they only depend on point index and line
+  // index, so they're fully static and don't need per-frame recalculation.
+  const helixCache = useMemo(() => {
+    const cache = new Float32Array(NUM_LINES * POINTS_PER_LINE * 3);
+    for (let lineIdx = 0; lineIdx < NUM_LINES; lineIdx++) {
+      const ribbonOffset = lineIdx / (NUM_LINES - 1) - 0.5;
+      for (let i = 0; i < POINTS_PER_LINE; i++) {
+        const [hx, hy, hz] = helixPoint(i / POINTS_PER_LINE, ribbonOffset);
+        const idx = (lineIdx * POINTS_PER_LINE + i) * 3;
+        cache[idx] = hx;
+        cache[idx + 1] = hy;
+        cache[idx + 2] = hz;
+      }
+    }
+    return cache;
+  }, []);
 
   const materials = useMemo(
     () =>
@@ -201,7 +223,7 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
     const morph = mood.morphProgress;
 
     // Accumulate helix rotation (slows as helixSpin lerps to 0)
-    helixRotationRef.current += mood.helixSpin;
+    helixRotationRef.current = (helixRotationRef.current + mood.helixSpin) % PI2;
     if (parentGroupRef.current) {
       // Apply helix spin, fading out as morph approaches 1 (sphere)
       parentGroupRef.current.rotation.x = helixRotationRef.current * (1 - morph);
@@ -211,7 +233,7 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
       const group = groupRefs.current[lineIdx];
       if (!group) continue;
 
-      const { longitudeRotation, ribbonOffset } = lineConstants[lineIdx];
+      const { longitudeRotation } = lineConstants[lineIdx];
 
       // In helix mode (morph=0), all lines share orientation (rotation=0)
       // In sphere mode (morph=1), lines fan out by longitudeRotation
@@ -251,8 +273,11 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
         const sy = yPosition + ySquiggle * circleRadius;
         const sz = Math.sin(angle) * displacedRadius;
 
-        // --- Helix position ---
-        const [hx, hy, hz] = helixPoint(t, ribbonOffset);
+        // --- Helix position (from cache) ---
+        const hIdx = (lineIdx * POINTS_PER_LINE + i) * 3;
+        const hx = helixCache[hIdx];
+        const hy = helixCache[hIdx + 1];
+        const hz = helixCache[hIdx + 2];
 
         // --- Lerp between helix and sphere ---
         const x = hx + (sx - hx) * morph;
