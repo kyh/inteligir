@@ -22,7 +22,7 @@ export function StatusBar() {
   const sessionStatus = useSessionStatus();
 
   return (
-    <div className="flex shrink-0 items-center gap-3 border-t border-border px-6 py-1.5 text-[11px] font-mono text-muted-foreground">
+    <div className="text-muted-foreground flex items-center gap-3 px-1 pt-1.5 font-mono text-[11px]">
       <span
         className={cn(
           "inline-block h-1.5 w-1.5 rounded-full",
