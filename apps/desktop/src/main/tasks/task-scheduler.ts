@@ -2,7 +2,9 @@ import { Cron } from "croner";
 
 import type { Task } from "@/shared/task";
 
-import { type Agent, IDLE_TIMEOUT_MS } from "@/main/agent/agent";
+import type { Agent } from "@/main/agent/agent";
+
+const TASK_TIMEOUT_MS = 5 * 60 * 1000;
 import { getTasks, markTaskRun } from "@/main/tasks/task-store";
 import { startRun, completeRun, failRun } from "@/main/tasks/task-run-store";
 import { toErrorMessage } from "@/shared/ipc";
@@ -60,16 +62,15 @@ export class TaskScheduler {
 
     try {
       await agent.sendMessage(prefix + task.prompt);
-      const finished = await agent.waitForIdle(IDLE_TIMEOUT_MS);
+      const finished = await agent.waitForIdle(TASK_TIMEOUT_MS);
 
       if (!finished) {
         failRun(run.id, "Agent timed out");
         return;
       }
 
-      const entries = agent.getMessages();
-      const last = entries.findLast((e) => e.kind === "assistant");
-      completeRun(run.id, last?.text.slice(0, 500) ?? "(no output)");
+      const lastText = agent.getLastAssistantText();
+      completeRun(run.id, lastText?.slice(0, 500) ?? "(no output)");
     } catch (err) {
       failRun(run.id, toErrorMessage(err));
     }

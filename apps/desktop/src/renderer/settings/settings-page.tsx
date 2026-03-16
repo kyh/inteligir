@@ -3,7 +3,6 @@ import { useNavigate } from "react-router";
 
 import { Button } from "@repo/ui/button";
 import { Label } from "@repo/ui/label";
-import { Textarea } from "@repo/ui/textarea";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { useLogin } from "@/renderer/lib/use-login";
@@ -13,8 +12,6 @@ export function SettingsPage() {
   const navigate = useNavigate();
   const { login, loggingIn, loginError } = useLogin();
   const [loggedIn, setLoggedIn] = useState(false);
-  const [systemPrompt, setSystemPrompt] = useState("");
-  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     const bridge = getBridge();
@@ -23,7 +20,6 @@ export function SettingsPage() {
       .getSettings()
       .then((settings) => {
         setLoggedIn(settings.loggedIn);
-        setSystemPrompt(settings.systemPrompt ?? "");
       })
       .catch(() => {});
   }, []);
@@ -35,7 +31,6 @@ export function SettingsPage() {
   }, [needsSetup]);
 
   const goBack = useCallback(() => {
-    useAgentStore.getState().checkSetup();
     void navigate("/");
   }, [navigate]);
 
@@ -47,23 +42,6 @@ export function SettingsPage() {
       useAgentStore.getState().checkSetup();
     });
   }, []);
-
-  const handleSave = useCallback(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    setSaving(true);
-
-    void bridge
-      .setSettings({
-        ...(systemPrompt.trim() ? { systemPrompt: systemPrompt.trim() } : {}),
-      })
-      .then(() => {
-        useAgentStore.getState().fetchState();
-        goBack();
-      })
-      .catch(() => {})
-      .finally(() => setSaving(false));
-  }, [systemPrompt, goBack]);
 
   return (
     <div className="flex flex-1 flex-col px-6 pb-6 pt-12">
@@ -106,31 +84,11 @@ export function SettingsPage() {
             <p className="text-[10px] text-destructive">{loginError}</p>
           )}
         </div>
-
-        {/* System prompt */}
-        <div className="flex flex-col gap-2">
-          <Label className="text-xs font-medium text-muted-foreground">
-            System prompt
-          </Label>
-          <Textarea
-            placeholder="You are my AI chief of staff..."
-            value={systemPrompt}
-            onChange={(e) => setSystemPrompt(e.target.value)}
-            className="min-h-[80px] text-xs"
-            rows={4}
-          />
-          <p className="text-[10px] text-muted-foreground/60">
-            Instructions prepended to every conversation.
-          </p>
-        </div>
       </div>
 
       <div className="flex shrink-0 justify-end gap-2 pt-4">
         <Button variant="outline" onClick={goBack} className="text-xs">
-          Cancel
-        </Button>
-        <Button onClick={handleSave} disabled={saving} className="text-xs">
-          {saving ? "Saving..." : "Save"}
+          Back
         </Button>
       </div>
     </div>

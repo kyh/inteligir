@@ -37,7 +37,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   steer: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_STEER, message),
   interrupt: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_INTERRUPT),
   getAgentState: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_GET_STATE),
-  getMessages: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_GET_MESSAGES),
   clear: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_CLEAR),
   onAgentEvent: (listener: (event: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),
@@ -48,11 +47,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
 
   // Settings
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_GET),
-  setSettings: (settings: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SETTINGS_SET, settings),
 
   // Tasks
   createTask: (params: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, params),
   listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST),
   deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
   toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
+
 });

@@ -4,12 +4,10 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-import { Agent } from "@/main/agent/agent";
-import { login } from "@/main/auth/openai-auth";
-import { getSettings, isLoggedIn, saveOAuthCredentials, saveSettings } from "@/main/auth/settings";
+import { Agent, isLoggedIn, login, logout } from "@/main/agent/agent";
 import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
 import { TaskScheduler } from "@/main/tasks/task-scheduler";
-import { SettingsSchema } from "@/shared/settings";
+import { ToolManager } from "@/main/tool-manager";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { UpdateState } from "@/shared/ipc";
@@ -27,6 +25,7 @@ let isQuitting = false;
 /** In-process agent instance */
 let agent: Agent | null = null;
 let scheduler: TaskScheduler | null = null;
+const toolManager = new ToolManager();
 
 // ---------------------------------------------------------------------------
 // Auto-updater state
@@ -243,11 +242,6 @@ function registerIpcHandlers(): void {
     return agent.getState();
   });
 
-  ipcMain.handle(IPC_CHANNELS.AGENT_GET_MESSAGES, () => {
-    if (!agent) return { entries: [] };
-    return { entries: agent.getMessages() };
-  });
-
   ipcMain.handle(IPC_CHANNELS.AGENT_CLEAR, () => {
     requireAgent().clear();
     return { ok: true };
@@ -257,12 +251,7 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGIN, async () => {
     try {
-      const creds = await login();
-      saveOAuthCredentials({
-        access: creds.access,
-        refresh: creds.refresh,
-        expires: creds.expires,
-      });
+      await login();
       // Restart agent with new credentials
       const a = requireAgent();
       await a.stop();
@@ -274,9 +263,10 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.AUTH_LOGOUT, async () => {
+    logout();
+    // Restart agent without credentials
     const a = requireAgent();
     a.clear();
-    saveSettings({});
     await a.stop();
     await a.start();
     return { ok: true };
@@ -285,18 +275,7 @@ function registerIpcHandlers(): void {
   // ---- Settings -------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.SETTINGS_GET, () => {
-    const settings = getSettings();
-    return { ...settings, loggedIn: isLoggedIn() };
-  });
-
-  ipcMain.handle(IPC_CHANNELS.SETTINGS_SET, async (_event, raw: unknown) => {
-    const settings = SettingsSchema.parse(raw);
-    saveSettings(settings);
-    // Restart agent with new env vars
-    const a = requireAgent();
-    await a.stop();
-    await a.start();
-    return { ok: true };
+    return { loggedIn: isLoggedIn() } as const;
   });
 
   // ---- Tasks ----------------------------------------------------------------
@@ -389,6 +368,12 @@ async function startAgent(): Promise<void> {
     await agent.start();
     console.log("[desktop] agent started");
 
+    // Install CLI tools (agent-browser, etc.) after agent starts — runs in
+    // background so it doesn't block the agent from being usable immediately.
+    void toolManager.ensureAll().catch((err) => {
+      console.error("[desktop] tool install failed:", err);
+    });
+
     scheduler = new TaskScheduler(() => agent);
     scheduler.start();
 
@@ -396,6 +381,12 @@ async function startAgent(): Promise<void> {
     broadcastAgentEvent({ type: "agent_end", messages: [] });
   } catch (err) {
     console.error("[desktop] agent start failed:", err);
+    // Broadcast error to renderer so user sees it instead of silent failure
+    broadcastAgentEvent({
+      type: "agent_status",
+      status: "error",
+      error: toErrorMessage(err),
+    });
   }
 }
 
