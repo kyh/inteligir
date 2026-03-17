@@ -1,9 +1,22 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
 import { MENU_ACTIONS } from "@/shared/ipc";
+import { GeometricOrb } from "@/renderer/components/geometric-orb";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import type { SessionStatus } from "@/shared/agent";
+
+function phaseToOrbStatus(phase: string): SessionStatus {
+  switch (phase) {
+    case "ready":
+      return "idle";
+    case "error":
+      return "error";
+    default:
+      return "starting";
+  }
+}
 
 function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
   switch (phase) {
@@ -26,6 +39,10 @@ export function AppLayout() {
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
 
+  // Minimum time on onboarding page
+  const [onboardingReady, setOnboardingReady] = useState(false);
+  const onboardingTimerRef = useRef<ReturnType<typeof setTimeout>>();
+
   useEffect(() => init(), [init]);
 
   useEffect(() => {
@@ -33,13 +50,29 @@ export function AppLayout() {
       ? phaseToPath(appState.prev)
       : phaseToPath(appState.phase);
 
-    // Only navigate if we're not already on the right page
-    // and don't navigate away from settings unless phase requires it
+    // Start timer when entering onboarding
+    if (target === "/onboarding" && pathnameRef.current !== "/onboarding") {
+      setOnboardingReady(false);
+      onboardingTimerRef.current = setTimeout(
+        () => setOnboardingReady(true),
+        5000,
+      );
+    }
+
+    // Block leaving onboarding until timer expires
+    if (pathnameRef.current === "/onboarding" && target !== "/onboarding" && !onboardingReady) {
+      return;
+    }
+
     if (pathnameRef.current === "/settings" && target === "/") return;
     if (pathnameRef.current !== target) {
       void navigate(target);
     }
-  }, [appState, navigate]);
+  }, [appState, navigate, onboardingReady]);
+
+  useEffect(() => {
+    return () => clearTimeout(onboardingTimerRef.current);
+  }, []);
 
   // Cmd+, -> open settings
   useEffect(() => {
@@ -52,9 +85,18 @@ export function AppLayout() {
     });
   }, [navigate]);
 
+  const orbStatus = phaseToOrbStatus(appState.phase);
+
   return (
-    <div className="flex h-full w-full flex-col font-mono">
-      <Outlet />
+    <div className="relative h-full w-full font-mono">
+      <div className={`pointer-events-none absolute inset-0 -z-10 grid place-items-center ${pathname === "/settings" ? "hidden" : ""}`}>
+        <div className="h-48 w-48">
+          <GeometricOrb status={orbStatus} />
+        </div>
+      </div>
+      <div className="flex h-full flex-col">
+        <Outlet />
+      </div>
     </div>
   );
 }
