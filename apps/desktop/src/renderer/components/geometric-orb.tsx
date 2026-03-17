@@ -431,8 +431,11 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
 
     const camDir = camDirRef.current.copy(state.camera.position).normalize();
 
-    // Spin rotation fades to 0 before the group unwind starts (at morph≈0.2)
-    const spinFade = Math.max(0, 1 - morph * 5);
+    // During spin-up: kill spin quickly before group unwind (at morph≈0.2)
+    // During normal transitions: spin fades linearly with morph
+    const spinFade = spinUpRef.current
+      ? Math.max(0, 1 - morph * 5)
+      : 1 - morph;
     if (spinGroupRef.current) {
       spinGroupRef.current.rotation.x = helixRotationRef.current * spinFade;
     }
