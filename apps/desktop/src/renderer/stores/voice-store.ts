@@ -1,13 +1,12 @@
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { AudioCapture } from "@/renderer/lib/audio-capture";
-import { AudioPlaybackManager } from "@/renderer/lib/audio-playback";
+import { VoiceAudioManager } from "@/renderer/lib/voice-audio-manager";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { VoiceEvent, VoiceSessionState } from "@/shared/voice";
 
 // ---------------------------------------------------------------------------
-// Store
+// Store — pure state + IPC coordination; audio lifecycle is in VoiceAudioManager
 // ---------------------------------------------------------------------------
 
 type VoiceStore = {
@@ -22,8 +21,7 @@ type VoiceStore = {
   loadSettings: () => Promise<void>;
 };
 
-let audioCapture: AudioCapture | null = null;
-let audioPlayback: AudioPlaybackManager | null = null;
+let audioManager: VoiceAudioManager | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
@@ -35,7 +33,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     const bridge = getBridge();
     if (!bridge) return () => {};
 
-    audioPlayback = new AudioPlaybackManager();
+    audioManager = new VoiceAudioManager();
 
     const unsub = bridge.onVoiceEvent((raw: unknown) => {
       const event = raw as VoiceEvent;
@@ -44,18 +42,15 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
         case "voice:state":
           set({ sessionState: event.state, error: event.error ?? null });
 
-          // Start/stop mic capture based on state
-          if (event.state === "listening" && !audioCapture) {
-            audioCapture = new AudioCapture();
-            void audioCapture.start().catch((err) => {
+          if (event.state === "listening") {
+            void audioManager?.startCapture().catch((err) => {
               console.error("[voice] mic error:", err);
               set({ error: "Microphone access denied" });
               void bridge.stopVoice();
             });
           } else if (event.state === "inactive" || event.state === "error") {
-            audioCapture?.stop();
-            audioCapture = null;
-            audioPlayback?.interrupt();
+            audioManager?.stopCapture();
+            audioManager?.interruptPlayback();
           }
           break;
 
@@ -71,11 +66,10 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
           break;
 
         case "voice:tts-chunk":
-          void audioPlayback?.enqueue(event.audio);
+          void audioManager?.enqueueAudio(event.audio);
           break;
 
         case "voice:tts-done":
-          // Playback continues from queue; no action needed
           break;
       }
     });
@@ -83,10 +77,8 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     void get().loadSettings();
     return () => {
       unsub();
-      audioCapture?.stop();
-      audioCapture = null;
-      audioPlayback?.interrupt();
-      audioPlayback = null;
+      audioManager?.dispose();
+      audioManager = null;
     };
   },
 
@@ -98,15 +90,14 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     if (sessionState === "inactive") {
       void bridge.startVoice();
     } else {
-      audioCapture?.stop();
-      audioCapture = null;
-      audioPlayback?.interrupt();
+      audioManager?.stopCapture();
+      audioManager?.interruptPlayback();
       void bridge.stopVoice();
     }
   },
 
   interruptTts: () => {
-    audioPlayback?.interrupt();
+    audioManager?.interruptPlayback();
     getBridge()?.interruptTts();
   },
 

@@ -78,11 +78,12 @@ export class VoiceService {
     return { ok: true };
   }
 
-  /** Called when the agent finishes an assistant response */
+  /** Called when the agent finishes an assistant response.
+   *  Guards against race where voice is stopped between isActive() check and this call. */
   handleAgentResponse(text: string): void {
-    if (this.state === "inactive") return;
+    if (this.state === "inactive" || this.state === "error") return;
     if (!text.trim()) {
-      this.setState("listening");
+      if (this.state !== "inactive") this.setState("listening");
       return;
     }
     if (!this.settings) return;

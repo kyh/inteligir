@@ -71,7 +71,11 @@ export class ElevenLabsTTS {
     });
 
     ws.addEventListener("error", () => {
+      // Error may not always trigger close, so clean up proactively
+      this.ws = null;
       this.onError?.("TTS WebSocket error");
+      this.onDone = null;
+      this.onAudioChunk = null;
     });
 
     ws.addEventListener("close", () => {

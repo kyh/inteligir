@@ -1,16 +1,29 @@
 // ---------------------------------------------------------------------------
-// Microphone capture — getUserMedia + ScriptProcessorNode → PCM base64
+// Microphone capture — getUserMedia + AudioWorkletNode → PCM base64
 // ---------------------------------------------------------------------------
 
 import { getBridge } from "@/renderer/lib/bridge";
 
 const SAMPLE_RATE = 16000;
-const BUFFER_SIZE = 4096;
+
+// AudioWorklet processor code, inlined as a blob URL to avoid extra files
+const WORKLET_CODE = `
+class PcmProcessor extends AudioWorkletProcessor {
+  process(inputs) {
+    const input = inputs[0];
+    if (input && input[0] && input[0].length > 0) {
+      this.port.postMessage(input[0]);
+    }
+    return true;
+  }
+}
+registerProcessor("pcm-processor", PcmProcessor);
+`;
 
 export class AudioCapture {
   private stream: MediaStream | null = null;
   private context: AudioContext | null = null;
-  private processor: ScriptProcessorNode | null = null;
+  private workletNode: AudioWorkletNode | null = null;
 
   async start(): Promise<void> {
     const bridge = getBridge();
@@ -26,23 +39,31 @@ export class AudioCapture {
     });
 
     this.context = new AudioContext({ sampleRate: SAMPLE_RATE });
-    const source = this.context.createMediaStreamSource(this.stream);
 
-    // Use ScriptProcessorNode for wide compatibility in Electron
-    this.processor = this.context.createScriptProcessor(BUFFER_SIZE, 1, 1);
-    this.processor.onaudioprocess = (event) => {
-      const float32 = event.inputBuffer.getChannelData(0);
+    // Load worklet from inline blob
+    const blob = new Blob([WORKLET_CODE], { type: "application/javascript" });
+    const workletUrl = URL.createObjectURL(blob);
+    await this.context.audioWorklet.addModule(workletUrl);
+    URL.revokeObjectURL(workletUrl);
+
+    const source = this.context.createMediaStreamSource(this.stream);
+    this.workletNode = new AudioWorkletNode(this.context, "pcm-processor");
+
+    this.workletNode.port.addEventListener("message", (event) => {
+      const float32 = event.data as Float32Array;
       const base64 = float32ToBase64Pcm16(float32);
       bridge.sendAudioChunk(base64);
-    };
+    });
+    this.workletNode.port.start();
 
-    source.connect(this.processor);
-    this.processor.connect(this.context.destination);
+    source.connect(this.workletNode);
+    // Connect to destination to keep the graph alive
+    this.workletNode.connect(this.context.destination);
   }
 
   stop(): void {
-    this.processor?.disconnect();
-    this.processor = null;
+    this.workletNode?.disconnect();
+    this.workletNode = null;
 
     if (this.context) {
       void this.context.close();

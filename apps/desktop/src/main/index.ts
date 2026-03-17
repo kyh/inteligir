@@ -387,10 +387,10 @@ app
 
     // Voice service — STT + TTS via ElevenLabs
     const voiceService = new VoiceService(() => getAgent());
-    registerVoiceIpcHandlers(voiceService);
+    const unregisterVoiceIpc = registerVoiceIpcHandlers(voiceService);
 
     // Forward raw agent session events to renderer for chat streaming
-    onAgentEvent((event) => {
+    const unsubAgentEvents = onAgentEvent((event) => {
       broadcastAgentEvent(event);
 
       // When voice is active and agent finishes a response, trigger TTS
@@ -404,6 +404,13 @@ app
         const text = extractText(event);
         if (text) voiceService.handleAgentResponse(text);
       }
+    });
+
+    // Clean up voice resources on quit
+    app.on("will-quit", () => {
+      voiceService.stop();
+      unsubAgentEvents();
+      unregisterVoiceIpc();
     });
 
     mainWindow = createWindow();

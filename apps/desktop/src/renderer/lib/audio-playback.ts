@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
 // Audio playback manager — queues and plays base64 mp3 chunks sequentially
+// Reuses a single AudioContext to avoid resource leaks.
 // ---------------------------------------------------------------------------
 
 export class AudioPlaybackManager {
@@ -37,6 +38,15 @@ export class AudioPlaybackManager {
     if (this.isPlaying) {
       this.isPlaying = false;
       this.onStateChange?.(false);
+    }
+  }
+
+  /** Close the AudioContext and release all resources. */
+  dispose(): void {
+    this.interrupt();
+    if (this.context) {
+      void this.context.close();
+      this.context = null;
     }
   }
 

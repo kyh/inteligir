@@ -1,7 +1,8 @@
 // ---------------------------------------------------------------------------
-// Voice settings persistence — ~/.inteligir/voice-settings.json
+// Voice settings persistence — uses Electron safeStorage for the API key
 // ---------------------------------------------------------------------------
 
+import { safeStorage } from "electron";
 import { z } from "zod";
 
 import { inteligirPath, readJson, writeJson } from "@/main/lib/json-store";
@@ -9,15 +10,46 @@ import { DEFAULT_VOICE_ID, type VoiceSettings } from "@/shared/voice";
 
 const VOICE_SETTINGS_PATH = inteligirPath("voice-settings.json");
 
-const VoiceSettingsSchema = z.object({
-  apiKey: z.string().min(1),
+// On-disk schema: apiKey is encrypted via safeStorage, stored as base64
+const DiskSchema = z.object({
+  encryptedApiKey: z.string().min(1),
   voiceId: z.string().default(DEFAULT_VOICE_ID),
 });
 
 export function getVoiceSettings(): VoiceSettings | null {
-  return readJson(VOICE_SETTINGS_PATH, VoiceSettingsSchema);
+  const disk = readJson(VOICE_SETTINGS_PATH, DiskSchema);
+  if (!disk) return null;
+
+  try {
+    const apiKey = safeStorage.isEncryptionAvailable()
+      ? safeStorage.decryptString(Buffer.from(disk.encryptedApiKey, "base64"))
+      : disk.encryptedApiKey;
+    if (!apiKey) return null;
+    return { apiKey, voiceId: disk.voiceId };
+  } catch (err) {
+    console.error("[voice-settings] failed to decrypt API key:", err);
+    return null;
+  }
 }
 
 export function setVoiceSettings(settings: VoiceSettings): void {
-  writeJson(VOICE_SETTINGS_PATH, VoiceSettingsSchema.parse(settings));
+  // Validate shape strictly on the main-process side
+  if (
+    typeof settings !== "object" ||
+    settings === null ||
+    typeof settings.apiKey !== "string" ||
+    typeof settings.voiceId !== "string" ||
+    settings.apiKey.length === 0
+  ) {
+    throw new Error("Invalid voice settings");
+  }
+
+  const encryptedApiKey = safeStorage.isEncryptionAvailable()
+    ? safeStorage.encryptString(settings.apiKey).toString("base64")
+    : settings.apiKey;
+
+  writeJson(VOICE_SETTINGS_PATH, {
+    encryptedApiKey,
+    voiceId: settings.voiceId || DEFAULT_VOICE_ID,
+  });
 }

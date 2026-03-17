@@ -67,6 +67,7 @@ export class ElevenLabsSTT {
     } as unknown as string[]);
 
     ws.addEventListener("open", () => {
+      // Reset retry count on successful connect so future disconnects get fresh retries
       this.retryCount = 0;
       ws.send(
         JSON.stringify({

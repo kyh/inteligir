@@ -21,4 +21,6 @@ export type VoiceSettings = {
   voiceId: string; // default: "HpyxY047iEZzSG1aUPfx" (Samantha)
 };
 
+/** ElevenLabs "Samantha" voice — warm, breathy, conversational.
+ *  Browse alternatives at https://elevenlabs.io/voice-library */
 export const DEFAULT_VOICE_ID = "HpyxY047iEZzSG1aUPfx";

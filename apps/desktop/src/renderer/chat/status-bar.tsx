@@ -30,6 +30,8 @@ export function StatusBar() {
           "inline-block h-1.5 w-1.5 rounded-full",
           statusColors[sessionStatus],
         )}
+        role="status"
+        aria-label={`Session status: ${sessionStatus}`}
         title={sessionStatus}
       />
       <span>{sessionStatus}</span>
