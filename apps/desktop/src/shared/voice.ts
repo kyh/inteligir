@@ -21,9 +21,15 @@ export type VoiceSettings = {
   voiceId: string; // default: "HpyxY047iEZzSG1aUPfx" (Samantha)
 };
 
+/** Masked settings returned to the renderer — never exposes the full API key. */
+export type VoiceSettingsDisplay = {
+  apiKeyMasked: string; // e.g. "sk-...xxxx"
+  voiceId: string;
+};
+
 /** Returned by getVoiceSettings IPC — includes encryption status for UI warnings. */
 export type VoiceSettingsResponse = {
-  settings: VoiceSettings | null;
+  settings: VoiceSettingsDisplay | null;
   encryptionAvailable: boolean;
 };
 

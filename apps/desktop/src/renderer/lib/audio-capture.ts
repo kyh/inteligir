@@ -89,9 +89,11 @@ function float32ToBase64Pcm16(float32: Float32Array): string {
     pcm16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
   }
   const bytes = new Uint8Array(pcm16.buffer);
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i]!);
+  // Chunk to avoid call-stack limits on large buffers while avoiding O(n²) concat
+  const CHUNK = 8192;
+  const parts: string[] = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode(...bytes.subarray(i, i + CHUNK)));
   }
-  return btoa(binary);
+  return btoa(parts.join(""));
 }

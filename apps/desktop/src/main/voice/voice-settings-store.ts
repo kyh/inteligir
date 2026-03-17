@@ -10,9 +10,9 @@ import { DEFAULT_VOICE_ID, type VoiceSettings } from "@/shared/voice";
 
 const VOICE_SETTINGS_PATH = inteligirPath("voice-settings.json");
 
-// On-disk schema: apiKey is encrypted via safeStorage, stored as base64
+// On-disk schema: storedApiKey is encrypted (base64) when safeStorage is available, plaintext otherwise
 const DiskSchema = z.object({
-  encryptedApiKey: z.string().min(1),
+  storedApiKey: z.string().min(1),
   voiceId: z.string().default(DEFAULT_VOICE_ID),
 });
 
@@ -28,8 +28,8 @@ export function getVoiceSettings(): VoiceSettings | null {
 
   try {
     const apiKey = safeStorage.isEncryptionAvailable()
-      ? safeStorage.decryptString(Buffer.from(disk.encryptedApiKey, "base64"))
-      : disk.encryptedApiKey;
+      ? safeStorage.decryptString(Buffer.from(disk.storedApiKey, "base64"))
+      : disk.storedApiKey;
     if (!apiKey) return null;
     return { apiKey, voiceId: disk.voiceId };
   } catch (err) {
@@ -41,19 +41,19 @@ export function getVoiceSettings(): VoiceSettings | null {
 export function setVoiceSettings(raw: unknown): void {
   const settings = VoiceSettingsSchema.parse(raw);
 
-  let encryptedApiKey: string;
+  let storedApiKey: string;
   if (safeStorage.isEncryptionAvailable()) {
-    encryptedApiKey = safeStorage.encryptString(settings.apiKey).toString("base64");
+    storedApiKey = safeStorage.encryptString(settings.apiKey).toString("base64");
   } else {
     console.warn(
       "[voice-settings] OS keychain not available — API key will be stored in plaintext. " +
       "On Linux, install a keyring (e.g. gnome-keyring) for encrypted storage.",
     );
-    encryptedApiKey = settings.apiKey;
+    storedApiKey = settings.apiKey;
   }
 
   writeJson(VOICE_SETTINGS_PATH, {
-    encryptedApiKey,
+    storedApiKey,
     voiceId: settings.voiceId || DEFAULT_VOICE_ID,
   });
 }

@@ -65,6 +65,8 @@ export class ElevenLabsSTT {
     });
     const url = `${STT_WS_URL}?${params.toString()}`;
 
+    // Node.js WebSocket (via ws) supports a headers option not in the browser spec.
+    // This cast is intentional — this class only runs in the Electron main process.
     const ws = new WebSocket(url, {
       headers: { "xi-api-key": this.apiKey },
     } as unknown as string[]);

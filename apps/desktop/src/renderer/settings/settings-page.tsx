@@ -18,8 +18,9 @@ export function SettingsPage() {
 
   const isReady = appState.phase === "ready";
 
-  // Voice settings state
+  // Voice settings state — API key is write-only; we only display a masked version
   const [apiKey, setApiKey] = useState("");
+  const [apiKeyMasked, setApiKeyMasked] = useState("");
   const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_ID);
   const [voiceSaved, setVoiceSaved] = useState(false);
   const [encryptionAvailable, setEncryptionAvailable] = useState(true);
@@ -30,7 +31,7 @@ export function SettingsPage() {
       if (resp) {
         setEncryptionAvailable(resp.encryptionAvailable);
         if (resp.settings) {
-          setApiKey(resp.settings.apiKey);
+          setApiKeyMasked(resp.settings.apiKeyMasked);
           setVoiceId(resp.settings.voiceId || DEFAULT_VOICE_ID);
         }
       }
@@ -106,7 +107,7 @@ export function SettingsPage() {
                 type="password"
                 value={apiKey}
                 onChange={(e: ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
-                placeholder="sk-..."
+                placeholder={apiKeyMasked || "sk-..."}
                 className="h-7 text-xs"
               />
             </div>

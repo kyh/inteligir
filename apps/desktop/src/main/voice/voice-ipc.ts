@@ -10,6 +10,11 @@ import type { VoiceEvent } from "@/shared/voice";
 import { getVoiceSettings, setVoiceSettings } from "./voice-settings-store";
 import type { VoiceService } from "./voice-service";
 
+function maskKey(key: string): string {
+  if (key.length <= 8) return "••••";
+  return `${key.slice(0, 3)}...${key.slice(-4)}`;
+}
+
 function broadcastVoiceEvent(event: VoiceEvent): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
@@ -35,8 +40,11 @@ export function registerVoiceIpcHandlers(voiceService: VoiceService): () => void
   });
 
   ipcMain.handle(IPC_CHANNELS.VOICE_GET_SETTINGS, () => {
+    const s = getVoiceSettings();
     return {
-      settings: getVoiceSettings(),
+      settings: s
+        ? { apiKeyMasked: maskKey(s.apiKey), voiceId: s.voiceId }
+        : null,
       encryptionAvailable: safeStorage.isEncryptionAvailable(),
     };
   });

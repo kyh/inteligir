@@ -33,7 +33,8 @@ export class ElevenLabsTTS {
     });
     const url = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?${params.toString()}`;
 
-    // Auth via header (same approach as STT) — keeps API key out of message payloads
+    // Node.js WebSocket (via ws) supports a headers option not in the browser spec.
+    // This cast is intentional — this class only runs in the Electron main process.
     const ws = new WebSocket(url, {
       headers: { "xi-api-key": this.apiKey },
     } as unknown as string[]);

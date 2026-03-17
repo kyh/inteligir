@@ -13,12 +13,15 @@ export type VoiceTranscriptCallback = (t: { text: string; isFinal: boolean }) =>
 
 type EventListener = (event: VoiceEvent) => void;
 
+const PROCESSING_TIMEOUT_MS = 30_000;
+
 export class VoiceService {
   private state: VoiceSessionState = "inactive";
   private stt: ElevenLabsSTT | null = null;
   private tts: ElevenLabsTTS | null = null;
   private listeners = new Set<EventListener>();
   private settings: VoiceSettings | null = null;
+  private processingTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private getAgent: () => Agent | null,
@@ -43,6 +46,7 @@ export class VoiceService {
 
         if (t.isFinal && t.text.trim()) {
           this.setState("processing");
+          this.startProcessingTimeout();
           const agent = this.getAgent();
           if (agent) {
             void agent.sendMessage(t.text.trim());
@@ -90,6 +94,10 @@ export class VoiceService {
     }
     if (!this.settings) return;
 
+    // Interrupt any in-flight TTS before starting a new one
+    this.tts?.interrupt();
+    this.tts = null;
+
     this.setState("speaking");
 
     this.tts = new ElevenLabsTTS(this.settings.apiKey, this.settings.voiceId);
@@ -123,7 +131,24 @@ export class VoiceService {
     };
   }
 
+  private startProcessingTimeout(): void {
+    this.clearProcessingTimeout();
+    this.processingTimer = setTimeout(() => {
+      if (this.state === "processing") {
+        this.setState("listening");
+      }
+    }, PROCESSING_TIMEOUT_MS);
+  }
+
+  private clearProcessingTimeout(): void {
+    if (this.processingTimer) {
+      clearTimeout(this.processingTimer);
+      this.processingTimer = null;
+    }
+  }
+
   private setState(state: VoiceSessionState, error?: string): void {
+    if (state !== "processing") this.clearProcessingTimeout();
     this.state = state;
     this.emit({ type: "voice:state", state, error });
   }

@@ -22,7 +22,10 @@ type VoiceStore = {
 };
 
 // Module-level singleton — safe for single-window Electron app.
-// init() cleanup nulls this out, so re-init (e.g. hot-reload) is handled.
+// init() early-returns if already set, preventing duplicate managers.
+// On hot-reload, React's cleanup runs first (nulling audioManager), then
+// the new init() creates a fresh instance. Concurrent calls from multiple
+// components are not expected (only ChatPage calls init).
 let audioManager: VoiceAudioManager | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
@@ -110,12 +113,11 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   loadSettings: async () => {
     const bridge = getBridge();
     if (!bridge) return;
-    const { settings } = await bridge.getVoiceSettings();
-    set({
-      isConfigured:
-        settings !== null &&
-        typeof settings.apiKey === "string" &&
-        settings.apiKey.length > 0,
-    });
+    try {
+      const { settings } = await bridge.getVoiceSettings();
+      set({ isConfigured: settings !== null && settings.apiKeyMasked.length > 0 });
+    } catch {
+      // IPC unavailable — leave isConfigured as-is
+    }
   },
 }));
