@@ -91,9 +91,7 @@ function getUpdateMenuItem(): MenuItemConstructorOptions {
           setUpdateState({ status: "downloading", downloadPercent: 0 });
           void autoUpdater.downloadUpdate().catch((error: unknown) => {
             setUpdateState({ status: "error", message: toErrorMessage(error) });
-            rebuildMenu();
           });
-          rebuildMenu();
         },
       };
     case "downloading":
@@ -111,8 +109,8 @@ function getUpdateMenuItem(): MenuItemConstructorOptions {
       };
     case "error":
       return {
-        label: "Check for Updates...",
-        sublabel: `Update failed: ${updateState.message ?? "Unknown error"}`,
+        label: `Check for Updates...`,
+        toolTip: `Update failed: ${updateState.message ?? "Unknown error"}`,
         click: () => void checkForUpdates(),
       };
     default:
