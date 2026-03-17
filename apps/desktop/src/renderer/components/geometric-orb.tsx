@@ -93,6 +93,8 @@ const moods: Record<DisplayStatus, Mood> = {
     squiggleAmount: 0.06,
     squiggleFrequency: 5,
     squiggleSpeed: 3,
+    morphProgress: 1,
+    helixSpin: 0,
     ...rgb("#44dd88"),
   },
   speaking: {
@@ -100,6 +102,8 @@ const moods: Record<DisplayStatus, Mood> = {
     squiggleAmount: 0.10,
     squiggleFrequency: 7,
     squiggleSpeed: 6,
+    morphProgress: 1,
+    helixSpin: 0,
     ...rgb("#aa88ff"),
   },
 };
@@ -213,7 +217,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
   const prevStatusRef = useRef(status);
   const spinUpRef = useRef<{
     elapsed: number;
-    target: SessionStatus;
+    target: DisplayStatus;
   } | null>(null);
 
   if (status !== prevStatusRef.current) {

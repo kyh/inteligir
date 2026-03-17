@@ -47,7 +47,7 @@ export function SettingsPage() {
     const bridge = getBridge();
     if (!bridge) return;
     async function save() {
-      await bridge.setVoiceSettings({ apiKey, voiceId: voiceId || DEFAULT_VOICE_ID });
+      await bridge!.setVoiceSettings({ apiKey, voiceId: voiceId || DEFAULT_VOICE_ID });
       setVoiceSaved(true);
       void loadVoiceSettings();
       setTimeout(() => setVoiceSaved(false), 2000);

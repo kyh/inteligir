@@ -85,7 +85,7 @@ export class VoiceService {
   handleAgentResponse(text: string): void {
     if (this.state === "inactive" || this.state === "error") return;
     if (!text.trim()) {
-      if (this.state !== "inactive") this.setState("listening");
+      this.setState("listening");
       return;
     }
     if (!this.settings) return;

@@ -43,6 +43,7 @@
     "electron": "^41.0.1",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
+    "lucide-react": "^0.577.0",
     "typescript": "catalog:",
     "vite": "catalog:"
   }

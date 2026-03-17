@@ -8,28 +8,34 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
   switch (message.kind) {
     case "user":
       return (
-        <div className="max-w-[80%] self-end rounded-md bg-secondary px-3 py-1.5 text-sm">
-          {message.text}
+        <div className="ml-20">
+          <div className="bg-foreground/20 rounded-md px-3 py-1.5 text-sm">
+            {message.text}
+          </div>
         </div>
       );
 
     case "steer":
       return (
-        <div className="max-w-[80%] self-end rounded-md px-3 py-1.5 text-sm italic text-muted-foreground">
-          {message.text}
+        <div className="ml-20">
+          <div className="rounded-md px-3 py-1.5 text-sm italic text-muted-foreground">
+            {message.text}
+          </div>
         </div>
       );
 
     case "assistant":
       return (
-        <div className={cn("max-w-[90%] self-start text-sm")}>
-          {message.text ? <Markdown content={message.text} /> : "..."}
+        <div className={cn("mr-20")}>
+          <div className="bg-foreground/10 text-foreground/80 rounded-md px-3 py-1.5 text-sm">
+            {message.text ? <Markdown content={message.text} /> : "..."}
+          </div>
         </div>
       );
 
     case "tool":
       return (
-        <div className="self-start">
+        <div className="mr-20">
           <ToolExecutionView execution={message.execution} />
         </div>
       );

@@ -25,7 +25,7 @@ export function VoiceIndicator() {
   if (!label) return null;
 
   return (
-    <div className="px-6 py-1 text-[10px] text-muted-foreground">
+    <div className="pointer-events-auto w-full max-w-sm px-2 py-1 text-[10px] text-muted-foreground">
       {label}
     </div>
   );
