@@ -11,7 +11,7 @@ import type {
   ListTasksResult,
   ToggleTaskResult,
 } from "./task";
-import type { VoiceEvent, VoiceSettings } from "./voice";
+import type { VoiceEvent, VoiceSettings, VoiceSettingsResponse } from "./voice";
 
 // ---------------------------------------------------------------------------
 // IPC channel names shared between Electron main <-> preload <-> renderer
@@ -120,7 +120,7 @@ export type DesktopBridge = {
   sendAudioChunk: (base64: string) => void;
   interruptTts: () => Promise<{ ok: boolean }>;
   onVoiceEvent: (listener: (event: VoiceEvent) => void) => () => void;
-  getVoiceSettings: () => Promise<VoiceSettings | null>;
+  getVoiceSettings: () => Promise<VoiceSettingsResponse>;
   setVoiceSettings: (settings: VoiceSettings) => Promise<{ ok: boolean }>;
 };
 

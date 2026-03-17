@@ -2,10 +2,10 @@
 // Voice IPC handler registration
 // ---------------------------------------------------------------------------
 
-import { BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain, safeStorage } from "electron";
 
 import { IPC_CHANNELS } from "@/shared/ipc";
-import type { VoiceEvent, VoiceSettings } from "@/shared/voice";
+import type { VoiceEvent } from "@/shared/voice";
 
 import { getVoiceSettings, setVoiceSettings } from "./voice-settings-store";
 import type { VoiceService } from "./voice-service";
@@ -35,12 +35,15 @@ export function registerVoiceIpcHandlers(voiceService: VoiceService): () => void
   });
 
   ipcMain.handle(IPC_CHANNELS.VOICE_GET_SETTINGS, () => {
-    return getVoiceSettings();
+    return {
+      settings: getVoiceSettings(),
+      encryptionAvailable: safeStorage.isEncryptionAvailable(),
+    };
   });
 
   ipcMain.handle(IPC_CHANNELS.VOICE_SET_SETTINGS, (_event, raw: unknown) => {
-    // Validation is handled by setVoiceSettings (throws on invalid input)
-    setVoiceSettings(raw as VoiceSettings);
+    // Zod validation inside setVoiceSettings (throws on invalid input)
+    setVoiceSettings(raw);
     return { ok: true };
   });
 

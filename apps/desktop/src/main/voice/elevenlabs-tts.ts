@@ -73,9 +73,11 @@ export class ElevenLabsTTS {
     });
 
     ws.addEventListener("error", () => {
-      // Error may not always trigger close, so clean up proactively
+      // Error may not always trigger close, so clean up proactively.
+      // Null all callbacks after invoking to prevent double-fire if error fires multiple times.
       this.ws = null;
       this.onError?.("TTS WebSocket error");
+      this.onError = null;
       this.onDone = null;
       this.onAudioChunk = null;
     });

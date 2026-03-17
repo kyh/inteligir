@@ -22,13 +22,17 @@ export function SettingsPage() {
   const [apiKey, setApiKey] = useState("");
   const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_ID);
   const [voiceSaved, setVoiceSaved] = useState(false);
+  const [encryptionAvailable, setEncryptionAvailable] = useState(true);
 
   useEffect(() => {
     async function load() {
-      const settings = await getBridge()?.getVoiceSettings();
-      if (settings) {
-        setApiKey(settings.apiKey);
-        setVoiceId(settings.voiceId || DEFAULT_VOICE_ID);
+      const resp = await getBridge()?.getVoiceSettings();
+      if (resp) {
+        setEncryptionAvailable(resp.encryptionAvailable);
+        if (resp.settings) {
+          setApiKey(resp.settings.apiKey);
+          setVoiceId(resp.settings.voiceId || DEFAULT_VOICE_ID);
+        }
       }
     }
     void load();
@@ -121,6 +125,13 @@ export function SettingsPage() {
                 Default: Samantha ({DEFAULT_VOICE_ID})
               </span>
             </div>
+
+            {!encryptionAvailable && (
+              <p className="text-[9px] text-yellow-500">
+                OS keychain unavailable — API key will be stored in plaintext.
+                Install a keyring (e.g. gnome-keyring) for encrypted storage.
+              </p>
+            )}
 
             <div className="flex justify-end">
               <Button

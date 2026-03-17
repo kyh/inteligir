@@ -88,6 +88,8 @@ export function AppLayout() {
     });
   }, [navigate]);
 
+  // Voice store is initialized by ChatPage's useEffect(init). Before that,
+  // sessionState defaults to "inactive" which maps to the agent-only status — safe.
   const voiceState = useVoiceStore((s) => s.sessionState);
   const orbStatus = phaseToOrbStatus(appState.phase, voiceState);
 

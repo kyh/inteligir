@@ -4,7 +4,6 @@ import { Button } from "@repo/ui/button";
 import { Input } from "@repo/ui/input";
 
 import { useAgentStore } from "@/renderer/stores/agent-store";
-import { VoiceButton } from "@/renderer/chat/voice-button";
 
 export function ChatInput() {
   const [input, setInput] = useState("");
@@ -66,7 +65,6 @@ export function ChatInput() {
         placeholder={busy ? "Redirect the agent..." : "Send a message..."}
         className="flex-1"
       />
-      <VoiceButton />
       {busy ? (
         input.trim() ? (
           <Button type="submit">Steer</Button>

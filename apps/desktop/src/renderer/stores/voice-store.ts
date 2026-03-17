@@ -32,6 +32,8 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   error: null,
 
   init: () => {
+    if (audioManager) return () => {}; // already initialized (e.g. hot-reload re-mount)
+
     const bridge = getBridge();
     if (!bridge) return () => {};
 
@@ -108,7 +110,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   loadSettings: async () => {
     const bridge = getBridge();
     if (!bridge) return;
-    const settings = await bridge.getVoiceSettings();
+    const { settings } = await bridge.getVoiceSettings();
     set({
       isConfigured:
         settings !== null &&

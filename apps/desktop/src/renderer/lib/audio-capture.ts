@@ -57,8 +57,11 @@ export class AudioCapture {
     this.workletNode.port.start();
 
     source.connect(this.workletNode);
-    // Connect to destination to keep the graph alive
-    this.workletNode.connect(this.context.destination);
+    // Connect through a silent gain node to keep the graph alive without routing mic to speakers
+    const silentGain = this.context.createGain();
+    silentGain.gain.value = 0;
+    this.workletNode.connect(silentGain);
+    silentGain.connect(this.context.destination);
   }
 
   stop(): void {

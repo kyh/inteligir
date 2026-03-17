@@ -16,6 +16,12 @@ const DiskSchema = z.object({
   voiceId: z.string().default(DEFAULT_VOICE_ID),
 });
 
+// IPC input schema for setVoiceSettings
+const VoiceSettingsSchema = z.object({
+  apiKey: z.string().min(1),
+  voiceId: z.string(),
+});
+
 export function getVoiceSettings(): VoiceSettings | null {
   const disk = readJson(VOICE_SETTINGS_PATH, DiskSchema);
   if (!disk) return null;
@@ -32,17 +38,8 @@ export function getVoiceSettings(): VoiceSettings | null {
   }
 }
 
-export function setVoiceSettings(settings: VoiceSettings): void {
-  // Validate shape strictly on the main-process side
-  if (
-    typeof settings !== "object" ||
-    settings === null ||
-    typeof settings.apiKey !== "string" ||
-    typeof settings.voiceId !== "string" ||
-    settings.apiKey.length === 0
-  ) {
-    throw new Error("Invalid voice settings");
-  }
+export function setVoiceSettings(raw: unknown): void {
+  const settings = VoiceSettingsSchema.parse(raw);
 
   let encryptedApiKey: string;
   if (safeStorage.isEncryptionAvailable()) {
