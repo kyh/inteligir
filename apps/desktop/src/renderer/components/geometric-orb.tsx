@@ -22,15 +22,13 @@ const BACKGROUND = "#d1684e";
 const INITIAL_COLOR_INT = new THREE.Color("#eeeeee").getHex();
 const PI2 = Math.PI * 2;
 
-// Helix proportions — match reference (length=30, radius=5.6, tubeRadius=1.1)
-const HELIX_LENGTH = RADIUS * (30 / 5.6);
-const HELIX_AMPLITUDE = RADIUS;
+// Helix proportions — same shape as reference, scaled to fit camera
+const HELIX_LENGTH = 2.8;
+const HELIX_AMPLITUDE = HELIX_LENGTH * (5.6 / 30);
 const HELIX_TUBE_RADIUS = HELIX_AMPLITUDE * (1.1 / 5.6);
 
-// Camera
-const CAMERA_Z_HELIX = 18;
-const CAMERA_Z_SPHERE = 5;
-const CAMERA_Y_SPHERE = 0;
+// Camera fixed
+const CAMERA_Z = 5;
 
 // Reference animation constant
 const ROTATE_VALUE = 0.035;
@@ -101,12 +99,11 @@ const LERP_SPEED = 3;
 
 // Spin-up phase durations (seconds)
 const ACCEL_DURATION = 2.5;
-const MORPH_DURATION = 1.5;
+const MORPH_DURATION = 2.0;
 const SPIN_UP_DURATION = ACCEL_DURATION + MORPH_DURATION;
 
 /**
  * Reference easing — quadratic ease-in, cubic ease-out.
- * Original: if((t/=d/2)<1)return c/2*t*t+b;return c/2*((t-=2)*t*t+2)+b;
  */
 function referenceEasing(t: number): number {
   const u = t * 2;
@@ -115,7 +112,6 @@ function referenceEasing(t: number): number {
   return 0.5 * (s * s * s + 2);
 }
 
-/** Cubic ease-in-out for morph phase */
 function easeInOutCubic(t: number): number {
   return t < 0.5
     ? 4 * t * t * t
@@ -193,6 +189,9 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
   const spinGroupRef = useRef<THREE.Group>(null);
   const camDirRef = useRef(new THREE.Vector3());
   const helixRotationRef = useRef(0);
+  const sphereExpandRef = useRef(
+    moods[status].morphProgress > 0.5 ? 1 : 0,
+  );
   const { size } = useThree();
 
   const moodRef = useRef<Mood>({ ...moods[status] });
@@ -211,7 +210,7 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
   }
   targetRef.current = status;
 
-  // --- Tube mesh (reference: TubeGeometry(curve, 200, 1.1, 2, true)) ---
+  // --- Tube mesh ---
   const helixMeshRef = useRef<THREE.Mesh>(null);
   const helixGeometry = useMemo(
     () =>
@@ -234,7 +233,6 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
     [],
   );
 
-  // --- Sphere line constants ---
   const lineConstants = useMemo(
     () =>
       Array.from({ length: NUM_LINES }, (_, i) => ({
@@ -305,15 +303,10 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
     [vertexCount],
   );
 
-  // -----------------------------------------------------------------------
-  // useFrame — animation loop
-  // -----------------------------------------------------------------------
-
   useFrame((state, delta) => {
     const mood = moodRef.current;
     const spinUp = spinUpRef.current;
 
-    // --- Visibility helpers ---
     const setTubeVisible = (opacity: number) => {
       helixMaterial.opacity = opacity;
       if (helixMeshRef.current) helixMeshRef.current.visible = opacity > 0.01;
@@ -325,29 +318,28 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
       }
     };
 
-    // --- Spin-up transition (starting → other) ---
+    // --- Spin-up transition ---
     if (spinUp) {
       spinUp.elapsed += delta;
 
       if (spinUp.elapsed <= ACCEL_DURATION) {
-        // Acceleration phase — helix spins faster + turns
+        // Acceleration: helix spins + turns to -π/2
         const normalizedTime = Math.min(
           spinUp.elapsed / ACCEL_DURATION,
           1,
         );
         const acceleration = referenceEasing(normalizedTime);
 
-        // Reference: mesh.rotation.x += rotatevalue + acceleration
         helixRotationRef.current +=
           (ROTATE_VALUE + acceleration) * delta * 60;
         mood.morphProgress = 0;
+        sphereExpandRef.current = 0;
 
-        // Turn + push only when acceleration > 0.35
         if (acceleration > 0.35) {
           const progress = (acceleration - 0.35) / 0.65;
           if (parentGroupRef.current) {
             parentGroupRef.current.rotation.y = (-Math.PI / 2) * progress;
-            parentGroupRef.current.position.z = 6 * progress;
+            parentGroupRef.current.position.z = 0;
           }
         } else if (parentGroupRef.current) {
           parentGroupRef.current.rotation.y = 0;
@@ -357,41 +349,44 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
         setTubeVisible(1);
         setLinesVisible(0);
 
-        // Color lerp
         const target = moods[spinUp.target];
         const a = acceleration * 0.05;
         mood.r += (target.r - mood.r) * a;
         mood.g += (target.g - mood.g) * a;
         mood.b += (target.b - mood.b) * a;
       } else {
-        // Morph phase — tube → sphere with Z-roll
+        // Morph phase: tube → circle lines → expanding sphere
         const morphElapsed = spinUp.elapsed - ACCEL_DURATION;
-        const step = Math.min(morphElapsed / MORPH_DURATION, 1);
-        const eased = easeInOutCubic(step);
+        const morph = Math.min(morphElapsed / MORPH_DURATION, 1);
+        const easedMorph = easeInOutCubic(morph);
 
         // Decelerate spin
         helixRotationRef.current +=
-          (ROTATE_VALUE + 1) * (1 - eased) * delta * 60;
-        mood.morphProgress = eased;
+          (ROTATE_VALUE + 1) * (1 - easedMorph) * delta * 60;
 
-        // Unwind group rotation + position
+        // morphProgress: helix positions → circle/sphere positions
+        mood.morphProgress = easedMorph;
+
+        // sphereExpand: circle → full sphere (delayed past crossfade)
+        const expandRaw = Math.max(0, (morph - 0.2) / 0.8);
+        sphereExpandRef.current = easeInOutCubic(expandRaw);
+
+        // Tube/line crossfade (quick, first 25% of morph)
+        const crossfade = Math.min(morph / 0.25, 1);
+        setTubeVisible(1 - crossfade);
+        setLinesVisible(crossfade);
+
+        // Group rotation unwinds (delayed past crossfade)
+        const unwindRaw = Math.max(0, (morph - 0.2) / 0.8);
+        const unwind = easeInOutCubic(unwindRaw);
         if (parentGroupRef.current) {
-          parentGroupRef.current.rotation.y = (-Math.PI / 2) * (1 - eased);
-          parentGroupRef.current.position.z = 6 * (1 - eased);
+          parentGroupRef.current.rotation.y = (-Math.PI / 2) * (1 - unwind);
+          parentGroupRef.current.position.z = 0;
         }
 
-        // Z-roll smooths the helix→sphere transition
-        if (spinGroupRef.current) {
-          spinGroupRef.current.rotation.z = Math.PI * eased;
-        }
-
-        // Crossfade tube → lines
-        setTubeVisible(1 - eased);
-        setLinesVisible(eased);
-
-        // Lerp remaining params toward target
+        // Lerp params toward target
         const target = moods[spinUp.target];
-        const a = eased * 0.1;
+        const a = easedMorph * 0.1;
         mood.speed += (target.speed - mood.speed) * a;
         mood.squiggleAmount +=
           (target.squiggleAmount - mood.squiggleAmount) * a;
@@ -406,12 +401,10 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
 
       if (spinUp.elapsed >= SPIN_UP_DURATION) {
         Object.assign(mood, moods[spinUp.target]);
+        sphereExpandRef.current = 1;
         if (parentGroupRef.current) {
           parentGroupRef.current.rotation.y = 0;
           parentGroupRef.current.position.z = 0;
-        }
-        if (spinGroupRef.current) {
-          spinGroupRef.current.rotation.z = 0;
         }
         spinUpRef.current = null;
       }
@@ -420,9 +413,12 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
       const target = moods[targetRef.current];
       const alpha = 1 - Math.exp(-LERP_SPEED * delta);
       lerpMood(mood, target, alpha);
-
-      // Accumulate rotation from mood (frame-rate independent)
       helixRotationRef.current += mood.helixSpin * delta * 60;
+
+      // sphereExpand tracks morphProgress in normal mode
+      const expandTarget = mood.morphProgress > 0.5 ? 1 : 0;
+      sphereExpandRef.current +=
+        (expandTarget - sphereExpandRef.current) * alpha;
 
       const morph = mood.morphProgress;
       setTubeVisible(1 - morph);
@@ -431,56 +427,65 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
 
     const time = state.clock.elapsedTime;
     const morph = mood.morphProgress;
-
-    // --- Camera ---
-    state.camera.position.z =
-      CAMERA_Z_HELIX + (CAMERA_Z_SPHERE - CAMERA_Z_HELIX) * morph;
-    state.camera.position.y = CAMERA_Y_SPHERE * morph;
+    const expand = sphereExpandRef.current;
 
     const camDir = camDirRef.current.copy(state.camera.position).normalize();
 
-    // --- Apply spin rotation (fades out as morph→1) ---
+    // Spin rotation fades to 0 before the group unwind starts (at morph≈0.2)
+    const spinFade = Math.max(0, 1 - morph * 5);
     if (spinGroupRef.current) {
-      spinGroupRef.current.rotation.x =
-        helixRotationRef.current * (1 - morph);
+      spinGroupRef.current.rotation.x = helixRotationRef.current * spinFade;
     }
 
-    // --- Update sphere line geometry ---
+    // --- Update line geometry ---
     for (let lineIdx = 0; lineIdx < NUM_LINES; lineIdx++) {
       const group = groupRefs.current[lineIdx];
       if (!group) continue;
 
       const { longitudeRotation } = lineConstants[lineIdx];
 
-      const groupRotY = longitudeRotation * morph;
+      // Longitude spread: 0 when circle (expand=0), full when sphere
+      const groupRotY = longitudeRotation * morph * expand;
       group.rotation.y = groupRotY;
 
       const cosRotY = Math.cos(groupRotY);
       const sinRotY = Math.sin(groupRotY);
 
+      // Sphere parameters (for the expanded state)
       const timeOffset = (lineIdx / NUM_LINES) * mood.speed;
       const progress = ((time + timeOffset) % mood.speed) / mood.speed;
       const latitude = progress * Math.PI;
-      const circleRadius = Math.sin(latitude) * RADIUS;
-      const yPosition = Math.cos(latitude) * RADIUS;
+
+      const sphereR = RADIUS;
+      const circleRadius = Math.sin(latitude) * sphereR;
+      const yPosition = Math.cos(latitude) * sphereR;
 
       for (let i = 0; i < POINTS_PER_LINE; i++) {
         const t = i / POINTS_PER_LINE;
         const angle = t * PI2;
 
+        // --- Circle position: yz plane, matches helix cross-section ---
+        const cx = 0;
+        const cy = Math.cos(angle) * HELIX_AMPLITUDE;
+        const cz = Math.sin(angle) * HELIX_AMPLITUDE;
+
+        // --- Sphere position (scaled, with squiggle scaled by expand) ---
         const squiggle =
           Math.sin(
             angle * mood.squiggleFrequency +
               time * mood.squiggleSpeed +
               lineIdx * 0.5,
-          ) * mood.squiggleAmount;
+          ) *
+          mood.squiggleAmount *
+          expand;
         const radiusSquiggle =
           Math.cos(
             angle * mood.squiggleFrequency * 1.3 +
               time * mood.squiggleSpeed * 0.8,
           ) *
           mood.squiggleAmount *
-          0.5;
+          0.5 *
+          expand;
         const displacedRadius =
           circleRadius + (squiggle + radiusSquiggle) * circleRadius;
         const ySquiggle =
@@ -489,26 +494,34 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
               time * mood.squiggleSpeed * 1.2,
           ) *
           mood.squiggleAmount *
-          0.4;
+          0.4 *
+          expand;
 
         const sx = Math.cos(angle) * displacedRadius;
         const sy = yPosition + ySquiggle * circleRadius;
         const sz = Math.sin(angle) * displacedRadius;
 
+        // --- Blend circle → sphere based on expand ---
+        const tx = cx + (sx - cx) * expand;
+        const ty = cy + (sy - cy) * expand;
+        const tz = cz + (sz - cz) * expand;
+
+        // --- Blend helix → target based on morph ---
         const hIdx = (lineIdx * POINTS_PER_LINE + i) * 3;
         const hx = helixCache[hIdx];
         const hy = helixCache[hIdx + 1];
         const hz = helixCache[hIdx + 2];
 
-        const x = hx + (sx - hx) * morph;
-        const y = hy + (sy - hy) * morph;
-        const z = hz + (sz - hz) * morph;
+        const x = hx + (tx - hx) * morph;
+        const y = hy + (ty - hy) * morph;
+        const z = hz + (tz - hz) * morph;
 
         const offset = i * 3;
         positionBuffer[offset] = x;
         positionBuffer[offset + 1] = y;
         positionBuffer[offset + 2] = z;
 
+        // Depth-based opacity
         const worldX = x * cosRotY + z * sinRotY;
         const worldZ = -x * sinRotY + z * cosRotY;
         const dot = worldX * camDir.x + y * camDir.y + worldZ * camDir.z;
@@ -597,16 +610,7 @@ export function GeometricOrb({
   return (
     <Canvas
       className={className}
-      camera={{
-        position: [
-          0,
-          CAMERA_Y_SPHERE * moods[status].morphProgress,
-          CAMERA_Z_HELIX +
-            (CAMERA_Z_SPHERE - CAMERA_Z_HELIX) *
-              moods[status].morphProgress,
-        ],
-        fov: 65,
-      }}
+      camera={{ position: [0, 0, CAMERA_Z], fov: 65 }}
       gl={{ antialias: true, alpha: false }}
     >
       <color attach="background" args={[BACKGROUND]} />
