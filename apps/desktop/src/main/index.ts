@@ -310,6 +310,7 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     show: false,
+    backgroundColor: "#d1684e",
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
