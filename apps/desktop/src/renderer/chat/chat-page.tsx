@@ -72,46 +72,52 @@ export function ChatPage() {
         </Conversation>
       )}
 
-      {/* Input */}
-      <div className="pointer-events-auto w-full max-w-sm">
-        <form onSubmit={send}>
-          <InputGroup className="text-foreground border-none text-sm">
-            <InputGroupAddon>
-              <InputGroupButton
-                type="button"
-                size="icon-xs"
-                onClick={() => setShowText(!showText)}
-              >
-                <MessageSquareIcon />
-              </InputGroupButton>
-            </InputGroupAddon>
-            {showText && (
-              <>
-                <InputGroupInput
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder={busy ? "Redirect..." : "Message..."}
-                />
-                <InputGroupAddon align="inline-end" className="mt-auto">
-                  {busy && !input.trim() ? (
-                    <InputGroupButton
-                      type="button"
-                      size="icon-xs"
-                      onClick={interrupt}
-                    >
-                      <SquareIcon />
-                    </InputGroupButton>
-                  ) : (
-                    <InputGroupButton type="submit" size="icon-xs">
-                      <SendIcon />
-                    </InputGroupButton>
-                  )}
-                </InputGroupAddon>
-              </>
-            )}
-          </InputGroup>
-        </form>
+      {/* Composer */}
+      <div className="pointer-events-auto max-w-sm">
+        {showText ? (
+          <form onSubmit={send}>
+            <InputGroup className="text-foreground text-sm">
+              <InputGroupAddon>
+                <InputGroupButton
+                  type="button"
+                  size="icon-xs"
+                  onClick={() => setShowText(false)}
+                >
+                  <MessageSquareIcon />
+                </InputGroupButton>
+              </InputGroupAddon>
+              <InputGroupInput
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder={busy ? "Redirect..." : "Message..."}
+              />
+              <InputGroupAddon align="inline-end" className="mt-auto">
+                {busy && !input.trim() ? (
+                  <InputGroupButton
+                    type="button"
+                    size="icon-xs"
+                    onClick={interrupt}
+                  >
+                    <SquareIcon />
+                  </InputGroupButton>
+                ) : (
+                  <InputGroupButton type="submit" size="icon-xs">
+                    <SendIcon />
+                  </InputGroupButton>
+                )}
+              </InputGroupAddon>
+            </InputGroup>
+          </form>
+        ) : (
+          <button
+            type="button"
+            className="bg-input/40 text-muted-foreground hover:text-foreground rounded-md p-2 backdrop-blur-sm transition"
+            onClick={() => setShowText(true)}
+          >
+            <MessageSquareIcon className="size-4" />
+          </button>
+        )}
       </div>
     </div>
   );
