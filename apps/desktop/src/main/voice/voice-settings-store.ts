@@ -44,9 +44,16 @@ export function setVoiceSettings(settings: VoiceSettings): void {
     throw new Error("Invalid voice settings");
   }
 
-  const encryptedApiKey = safeStorage.isEncryptionAvailable()
-    ? safeStorage.encryptString(settings.apiKey).toString("base64")
-    : settings.apiKey;
+  let encryptedApiKey: string;
+  if (safeStorage.isEncryptionAvailable()) {
+    encryptedApiKey = safeStorage.encryptString(settings.apiKey).toString("base64");
+  } else {
+    console.warn(
+      "[voice-settings] OS keychain not available — API key will be stored in plaintext. " +
+      "On Linux, install a keyring (e.g. gnome-keyring) for encrypted storage.",
+    );
+    encryptedApiKey = settings.apiKey;
+  }
 
   writeJson(VOICE_SETTINGS_PATH, {
     encryptedApiKey,

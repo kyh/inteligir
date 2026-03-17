@@ -39,11 +39,8 @@ export function registerVoiceIpcHandlers(voiceService: VoiceService): () => void
   });
 
   ipcMain.handle(IPC_CHANNELS.VOICE_SET_SETTINGS, (_event, raw: unknown) => {
-    const settings = raw as VoiceSettings;
-    if (!settings || typeof settings.apiKey !== "string") {
-      throw new Error("Invalid voice settings");
-    }
-    setVoiceSettings(settings);
+    // Validation is handled by setVoiceSettings (throws on invalid input)
+    setVoiceSettings(raw as VoiceSettings);
     return { ok: true };
   });
 

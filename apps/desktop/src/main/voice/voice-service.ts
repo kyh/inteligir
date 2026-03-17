@@ -34,6 +34,10 @@ export class VoiceService {
 
     this.stt = new ElevenLabsSTT(this.settings.apiKey);
     this.stt.connect({
+      onConnected: () => {
+        // Only transition to "listening" once the WebSocket is actually open
+        this.setState("listening");
+      },
       onTranscript: (t) => {
         this.emit({ type: "voice:transcript", text: t.text, isFinal: t.isFinal });
 
@@ -46,12 +50,10 @@ export class VoiceService {
         }
       },
       onError: (error) => {
-        this.setState("error");
-        this.emit({ type: "voice:state", state: "error", error });
+        this.setState("error", error);
       },
     });
 
-    this.setState("listening");
     return { ok: true };
   }
 
@@ -121,9 +123,9 @@ export class VoiceService {
     };
   }
 
-  private setState(state: VoiceSessionState): void {
+  private setState(state: VoiceSessionState, error?: string): void {
     this.state = state;
-    this.emit({ type: "voice:state", state });
+    this.emit({ type: "voice:state", state, error });
   }
 
   private emit(event: VoiceEvent): void {

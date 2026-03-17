@@ -4,6 +4,9 @@ import { Button } from "@repo/ui/button";
 
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
+// Inline SVG icons — lucide-react is not available in the desktop workspace.
+// Paths match lucide's Mic, MicOff, and Volume2 icons.
+
 function MicIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

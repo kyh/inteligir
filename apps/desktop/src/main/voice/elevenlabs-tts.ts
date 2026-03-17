@@ -33,7 +33,10 @@ export class ElevenLabsTTS {
     });
     const url = `wss://api.elevenlabs.io/v1/text-to-speech/${this.voiceId}/stream-input?${params.toString()}`;
 
-    const ws = new WebSocket(url);
+    // Auth via header (same approach as STT) — keeps API key out of message payloads
+    const ws = new WebSocket(url, {
+      headers: { "xi-api-key": this.apiKey },
+    } as unknown as string[]);
 
     ws.addEventListener("open", () => {
       // BOS — beginning of stream with voice settings
@@ -45,7 +48,6 @@ export class ElevenLabsTTS {
             similarity_boost: 0.8,
             style: 0.2,
           },
-          xi_api_key: this.apiKey,
         }),
       );
 
@@ -80,7 +82,8 @@ export class ElevenLabsTTS {
 
     ws.addEventListener("close", () => {
       this.ws = null;
-      // If we didn't get an explicit isFinal, treat close as done
+      // If error fired first, onDone was already nulled there — so this is a no-op.
+      // If close fires without a preceding error, onDone fires exactly once.
       this.onDone?.();
       this.onDone = null;
     });

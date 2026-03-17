@@ -17,6 +17,7 @@ export class ElevenLabsSTT {
   private ws: WebSocket | null = null;
   private onTranscript: VoiceTranscriptCallback | null = null;
   private onError: ((error: string) => void) | null = null;
+  private onConnected: (() => void) | null = null;
   private retryCount = 0;
   private closed = false;
 
@@ -25,9 +26,11 @@ export class ElevenLabsSTT {
   connect(opts: {
     onTranscript: VoiceTranscriptCallback;
     onError: (error: string) => void;
+    onConnected: () => void;
   }): void {
     this.onTranscript = opts.onTranscript;
     this.onError = opts.onError;
+    this.onConnected = opts.onConnected;
     this.closed = false;
     this.retryCount = 0;
     this.openConnection();
@@ -77,6 +80,7 @@ export class ElevenLabsSTT {
           },
         }),
       );
+      this.onConnected?.();
     });
 
     ws.addEventListener("message", (event) => {

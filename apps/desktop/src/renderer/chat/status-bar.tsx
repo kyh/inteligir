@@ -1,10 +1,10 @@
 import { cn } from "@repo/ui/utils";
 
-import type { SessionStatus } from "@/shared/agent";
+import type { DisplayStatus } from "@/shared/agent";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { TaskPanel } from "@/renderer/chat/task-panel";
 
-const statusColors: Record<SessionStatus, string> = {
+const statusColors: Record<DisplayStatus, string> = {
   idle: "bg-green-400",
   busy: "bg-yellow-400 animate-pulse",
   error: "bg-red-400",
@@ -13,7 +13,7 @@ const statusColors: Record<SessionStatus, string> = {
   speaking: "bg-purple-400 animate-pulse",
 };
 
-function useSessionStatus(): SessionStatus {
+function useSessionStatus(): DisplayStatus {
   const appState = useAgentStore((s) => s.appState);
   if (appState.phase === "ready") return appState.agent === "busy" ? "busy" : "idle";
   if (appState.phase === "error") return "error";

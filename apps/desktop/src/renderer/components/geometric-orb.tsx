@@ -6,7 +6,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 
-import type { SessionStatus } from "@/shared/agent";
+import type { DisplayStatus } from "@/shared/agent";
 
 extend({ Line2, LineMaterial, LineGeometry });
 
@@ -37,7 +37,7 @@ type Mood = {
 
 const tmpColor = new THREE.Color();
 
-const moods: Record<SessionStatus, Mood> = {
+const moods: Record<DisplayStatus, Mood> = {
   idle: {
     speed: 20,
     squiggleAmount: 0.04,
@@ -104,7 +104,7 @@ function lerpMood(current: Mood, target: Mood, alpha: number): void {
 // LatitudeLines — all lines rendered with a single useFrame callback
 // ---------------------------------------------------------------------------
 
-function LatitudeLines({ status }: { status: SessionStatus }) {
+function LatitudeLines({ status }: { status: DisplayStatus }) {
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
   const camDirRef = useRef(new THREE.Vector3());
   const { size } = useThree();
@@ -279,7 +279,7 @@ export function GeometricOrb({
   status = "idle",
   className = "",
 }: {
-  status?: SessionStatus;
+  status?: DisplayStatus;
   className?: string;
 }) {
   return (

@@ -21,6 +21,8 @@ type VoiceStore = {
   loadSettings: () => Promise<void>;
 };
 
+// Module-level singleton — safe for single-window Electron app.
+// init() cleanup nulls this out, so re-init (e.g. hot-reload) is handled.
 let audioManager: VoiceAudioManager | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
@@ -70,6 +72,8 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
           break;
 
         case "voice:tts-done":
+          // Intentionally empty — playback drains from its own queue.
+          // State transitions are driven by voice:state events from main.
           break;
       }
     });

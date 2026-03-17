@@ -16,7 +16,8 @@ export function ChatPage() {
 
   useEffect(() => initVoice(), [initVoice]);
 
-  const sessionStatus =
+  // Derive display status: voice states override agent states for the orb
+  const sessionStatus: import("@/shared/agent").DisplayStatus =
     voiceState === "listening" ? "listening"
     : voiceState === "speaking" ? "speaking"
     : appState.phase === "ready"

@@ -64,6 +64,16 @@ export class AudioPlaybackManager {
       this.onStateChange?.(true);
     }
 
+    const ctx = this.context!;
+    // Resume AudioContext if suspended (Chromium suspends until user gesture)
+    if (ctx.state === "suspended") {
+      void ctx.resume().then(() => this.startSource());
+    } else {
+      this.startSource();
+    }
+  }
+
+  private startSource(): void {
     const buffer = this.queue.shift()!;
     const source = this.context!.createBufferSource();
     source.buffer = buffer;
