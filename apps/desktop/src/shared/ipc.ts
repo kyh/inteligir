@@ -53,7 +53,6 @@ export const IPC_CHANNELS = {
   VOICE_STOP: "voice:stop",
   VOICE_AUDIO_CHUNK: "voice:audio-chunk",
   VOICE_EVENT: "voice:event",
-  VOICE_INTERRUPT_TTS: "voice:interrupt-tts",
   VOICE_GET_SETTINGS: "voice:get-settings",
   VOICE_SET_SETTINGS: "voice:set-settings",
 } as const;
@@ -118,7 +117,6 @@ export type DesktopBridge = {
   startVoice: () => Promise<{ ok: boolean; error?: string }>;
   stopVoice: () => Promise<{ ok: boolean }>;
   sendAudioChunk: (base64: string) => void;
-  interruptTts: () => Promise<{ ok: boolean }>;
   onVoiceEvent: (listener: (event: VoiceEvent) => void) => () => void;
   getVoiceSettings: () => Promise<VoiceSettingsResponse>;
   setVoiceSettings: (settings: VoiceSettings) => Promise<{ ok: boolean }>;

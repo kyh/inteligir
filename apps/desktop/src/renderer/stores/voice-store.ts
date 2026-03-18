@@ -14,7 +14,6 @@ type VoiceStore = {
 
   init: () => () => void;
   toggleVoice: () => void;
-  interruptTts: () => void;
   loadSettings: () => Promise<void>;
 };
 
@@ -94,17 +93,18 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
     if (sessionState === "inactive") {
       void bridge.startVoice();
+    } else if (sessionState === "speaking") {
+      // Interrupt speech and restart listening
+      capture?.stop();
+      capture = null;
+      playback?.interrupt();
+      void bridge.stopVoice().then(() => bridge.startVoice());
     } else {
       capture?.stop();
       capture = null;
       playback?.interrupt();
       void bridge.stopVoice();
     }
-  },
-
-  interruptTts: () => {
-    playback?.interrupt();
-    getBridge()?.interruptTts();
   },
 
   loadSettings: async () => {

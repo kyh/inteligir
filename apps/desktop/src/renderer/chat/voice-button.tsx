@@ -9,7 +9,6 @@ export function VoiceButton({ className }: { className?: string }) {
   const sessionState = useVoiceStore((s) => s.sessionState);
   const isConfigured = useVoiceStore((s) => s.isConfigured);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
-  const interruptTts = useVoiceStore((s) => s.interruptTts);
   const navigate = useNavigate();
 
   const handleClick = useCallback(() => {
@@ -17,12 +16,8 @@ export function VoiceButton({ className }: { className?: string }) {
       void navigate("/settings");
       return;
     }
-    if (sessionState === "speaking") {
-      interruptTts();
-    } else {
-      toggleVoice();
-    }
-  }, [isConfigured, sessionState, toggleVoice, interruptTts, navigate]);
+    toggleVoice();
+  }, [isConfigured, toggleVoice, navigate]);
 
   const isActive = sessionState !== "inactive";
   const isSpeaking = sessionState === "speaking";

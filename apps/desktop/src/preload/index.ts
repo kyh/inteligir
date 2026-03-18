@@ -56,7 +56,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   startVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_START),
   stopVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STOP),
   sendAudioChunk: (base64: string) => ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, base64),
-  interruptTts: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_INTERRUPT_TTS),
   onVoiceEvent: (listener: (event: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.VOICE_EVENT, listener),
   getVoiceSettings: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_GET_SETTINGS),

@@ -5,11 +5,8 @@
 import type { Agent } from "@/main/agent/agent";
 import type { VoiceEvent, VoiceSessionState, VoiceSettings } from "@/shared/voice";
 
-import { ElevenLabsSTT } from "./elevenlabs-stt";
-import { ElevenLabsTTS } from "./elevenlabs-tts";
+import { ElevenLabsVoice } from "./elevenlabs-voice";
 import { getVoiceSettings } from "./voice-settings-store";
-
-export type VoiceTranscriptCallback = (t: { text: string; isFinal: boolean }) => void;
 
 type EventListener = (event: VoiceEvent) => void;
 
@@ -17,10 +14,9 @@ const PROCESSING_TIMEOUT_MS = 30_000;
 
 export class VoiceService {
   private state: VoiceSessionState = "inactive";
-  private stt: ElevenLabsSTT | null = null;
-  private tts: ElevenLabsTTS | null = null;
-  private listeners = new Set<EventListener>();
+  private voice: ElevenLabsVoice | null = null;
   private settings: VoiceSettings | null = null;
+  private listeners = new Set<EventListener>();
   private processingTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -35,8 +31,8 @@ export class VoiceService {
 
     this.setState("starting");
 
-    this.stt = new ElevenLabsSTT(this.settings.apiKey);
-    this.stt.connect({
+    this.voice = new ElevenLabsVoice(this.settings.apiKey);
+    this.voice.connectStt(this.settings.stt, {
       onConnected: () => {
         this.setState("listening");
       },
@@ -61,25 +57,14 @@ export class VoiceService {
   }
 
   stop(): { ok: boolean } {
-    this.stt?.close();
-    this.stt = null;
-    this.tts?.interrupt();
-    this.tts = null;
+    this.voice?.dispose();
+    this.voice = null;
     this.setState("inactive");
     return { ok: true };
   }
 
   sendAudio(base64Chunk: string): void {
-    this.stt?.sendAudio(base64Chunk);
-  }
-
-  interruptTts(): { ok: boolean } {
-    this.tts?.interrupt();
-    this.tts = null;
-    if (this.state === "speaking") {
-      this.setState("listening");
-    }
-    return { ok: true };
+    this.voice?.sendAudio(base64Chunk, this.settings?.stt.sampleRate ?? 16000);
   }
 
   /** Called when the agent finishes an assistant response.
@@ -90,27 +75,23 @@ export class VoiceService {
       this.setState("listening");
       return;
     }
-    if (!this.settings) return;
+    if (!this.settings || !this.voice) return;
 
     // Interrupt any in-flight TTS before starting a new one
-    this.tts?.interrupt();
-    this.tts = null;
+    this.voice.interruptTts();
 
     this.setState("speaking");
 
-    this.tts = new ElevenLabsTTS(this.settings.apiKey, this.settings.voiceId);
-    this.tts.speak(text, {
+    this.voice.speak(this.settings.voiceId, text, {
       onAudioChunk: (audio) => {
         this.emit({ type: "voice:tts-chunk", audio });
       },
       onDone: () => {
-        this.tts = null;
         if (this.state === "speaking") {
           this.setState("listening");
         }
       },
       onError: (error) => {
-        this.tts = null;
         console.error("[voice] TTS error:", error);
         this.setState("listening");
       },
