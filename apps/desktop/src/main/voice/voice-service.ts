@@ -75,7 +75,10 @@ export class VoiceService {
       this.setState("listening");
       return;
     }
-    if (!this.settings || !this.voice) return;
+    if (!this.settings || !this.voice) {
+      this.clearProcessingTimeout();
+      return;
+    }
 
     // Interrupt any in-flight TTS before starting a new one
     this.voice.interruptTts();

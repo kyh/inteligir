@@ -103,7 +103,10 @@ export class ElevenLabsVoice {
       try {
         const data = JSON.parse(String(event.data));
         if (data.audio) this.onAudioChunk?.(data.audio);
-        if (data.isFinal) this.onTtsDone?.();
+        if (data.isFinal) {
+          this.onTtsDone?.();
+          this.onTtsDone = null;
+        }
       } catch {
         // Ignore malformed messages
       }
@@ -176,6 +179,10 @@ export class ElevenLabsVoice {
           case "committed_transcript":
             this.onTranscript?.({ text: data.text ?? data.transcript ?? "", isFinal: true });
             break;
+          case "session_started":
+            // Log session ID for post-hoc debugging
+            console.log("[stt] session:", data.session_id);
+            break;
           case "input_error":
             console.error("[stt] input error:", data.error ?? data.message);
             break;
@@ -203,10 +210,11 @@ export class ElevenLabsVoice {
     this.sttWs = ws;
   }
 
-  /** Shared WebSocket factory — centralizes the Node.js headers cast. */
+  /** Shared WebSocket factory — centralizes the Node.js headers cast.
+   *  Electron main uses Node's built-in WebSocket which accepts { headers }
+   *  at runtime, but the DOM WebSocket type doesn't declare it. The double
+   *  cast is unavoidable without a separate ws dependency. */
   private createWebSocket(url: string): WebSocket {
-    // Node.js WebSocket (via ws) supports a headers option not in the browser spec.
-    // This cast is intentional — this class only runs in the Electron main process.
     return new WebSocket(url, {
       headers: { "xi-api-key": this.apiKey },
     } as unknown as string[]);

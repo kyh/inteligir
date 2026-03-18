@@ -21,8 +21,8 @@ export class AudioPlaybackManager {
       if (!this.isPlaying) {
         this.playNext();
       }
-    } catch {
-      // Skip invalid audio chunks
+    } catch (err) {
+      console.warn("[playback] failed to decode audio chunk:", err);
     }
   }
 

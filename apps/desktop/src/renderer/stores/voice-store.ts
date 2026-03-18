@@ -98,7 +98,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       capture?.stop();
       capture = null;
       playback?.interrupt();
-      void bridge.stopVoice().then(() => bridge.startVoice());
+      void bridge.stopVoice().then((r) => { if (r.ok) void bridge.startVoice(); });
     } else {
       capture?.stop();
       capture = null;
