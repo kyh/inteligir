@@ -42,28 +42,31 @@ export function AppLayout() {
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
 
-  // Minimum time on onboarding page
-  const [onboardingReady, setOnboardingReady] = useState(false);
-  const onboardingTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  // Minimum time on onboarding page — separate effect to avoid loops
+  const onboardingReadyRef = useRef(false);
+  const [, forceUpdate] = useState(0);
 
   useEffect(() => init(), [init]);
+
+  // Start the 5s timer when we navigate TO onboarding
+  useEffect(() => {
+    if (pathname === "/onboarding") {
+      onboardingReadyRef.current = false;
+      const timer = setTimeout(() => {
+        onboardingReadyRef.current = true;
+        forceUpdate((n) => n + 1);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [pathname]);
 
   useEffect(() => {
     const target = appState.phase === "error"
       ? phaseToPath(appState.prev)
       : phaseToPath(appState.phase);
 
-    // Start timer when entering onboarding
-    if (target === "/onboarding" && pathnameRef.current !== "/onboarding") {
-      setOnboardingReady(false);
-      onboardingTimerRef.current = setTimeout(
-        () => setOnboardingReady(true),
-        5000,
-      );
-    }
-
-    // Block leaving onboarding until timer expires
-    if (pathnameRef.current === "/onboarding" && target !== "/onboarding" && !onboardingReady) {
+    // Block leaving onboarding until 5s timer expires
+    if (pathnameRef.current === "/onboarding" && target !== "/onboarding" && !onboardingReadyRef.current) {
       return;
     }
 
@@ -71,11 +74,7 @@ export function AppLayout() {
     if (pathnameRef.current !== target) {
       void navigate(target);
     }
-  }, [appState, navigate, onboardingReady]);
-
-  useEffect(() => {
-    return () => clearTimeout(onboardingTimerRef.current);
-  }, []);
+  }, [appState, navigate]);
 
   // Cmd+, -> open settings
   useEffect(() => {

@@ -20,6 +20,7 @@ export class ElevenLabsSTT {
   private onConnected: (() => void) | null = null;
   private retryCount = 0;
   private closed = false;
+  private sendCount = 0;
 
   constructor(private apiKey: string) {}
 
@@ -37,11 +38,20 @@ export class ElevenLabsSTT {
   }
 
   sendAudio(base64Chunk: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      if (this.sendCount === 0) console.warn("[stt] ws not open, dropping audio");
+      return;
+    }
+    this.sendCount++;
+    if (this.sendCount <= 3 || this.sendCount % 200 === 0) {
+      console.log(`[stt] sending chunk #${this.sendCount}`);
+    }
     this.ws.send(
       JSON.stringify({
-        type: "input_audio_chunk",
+        message_type: "input_audio_chunk",
         audio_base_64: base64Chunk,
+        commit: false,
+        sample_rate: 16000,
       }),
     );
   }
@@ -59,9 +69,12 @@ export class ElevenLabsSTT {
 
     const params = new URLSearchParams({
       model_id: "scribe_v2_realtime",
-      sample_rate: "16000",
-      encoding: "pcm_s16le",
       language_code: "en",
+      encoding: "pcm_s16le",
+      sample_rate: "16000",
+      commit_strategy: "vad",
+      vad_silence_threshold_secs: "1.5",
+      vad_threshold: "0.4",
     });
     const url = `${STT_WS_URL}?${params.toString()}`;
 
@@ -74,41 +87,47 @@ export class ElevenLabsSTT {
     ws.addEventListener("open", () => {
       // Reset retry count on successful connect so future disconnects get fresh retries
       this.retryCount = 0;
-      ws.send(
-        JSON.stringify({
-          type: "configure",
-          transcription_config: {
-            commit_strategy: "vad",
-          },
-        }),
-      );
+      this.sendCount = 0;
       this.onConnected?.();
     });
 
     ws.addEventListener("message", (event) => {
       try {
         const data = JSON.parse(String(event.data));
-        if (data.type === "transcript" && data.transcript) {
-          this.onTranscript?.({
-            text: data.transcript.text ?? "",
-            isFinal: false,
-          });
-        } else if (data.type === "committed_transcript" && data.transcript) {
-          this.onTranscript?.({
-            text: data.transcript.text ?? "",
-            isFinal: true,
-          });
+        const msgType = (data.message_type ?? data.event) as string;
+        console.log("[stt] received:", msgType, JSON.stringify(data).slice(0, 200));
+
+        switch (msgType) {
+          case "partial_transcript":
+            this.onTranscript?.({
+              text: data.text ?? data.transcript ?? "",
+              isFinal: false,
+            });
+            break;
+          case "committed_transcript":
+            this.onTranscript?.({
+              text: data.text ?? data.transcript ?? "",
+              isFinal: true,
+            });
+            break;
+          case "session_started":
+            console.log("[stt] session started:", data.session_id);
+            break;
+          case "input_error":
+            console.error("[stt] input error:", data.error ?? data.message);
+            break;
         }
-      } catch {
-        // Ignore malformed messages
+      } catch (err) {
+        console.error("[stt] failed to parse message:", err);
       }
     });
 
-    ws.addEventListener("error", () => {
-      // Error will be followed by close event
+    ws.addEventListener("error", (err) => {
+      console.error("[stt] ws error:", err);
     });
 
-    ws.addEventListener("close", () => {
+    ws.addEventListener("close", (ev) => {
+      console.log("[stt] ws closed, code:", ev.code, "reason:", ev.reason);
       this.ws = null;
       if (!this.closed && this.retryCount < MAX_RETRIES) {
         this.retryCount++;

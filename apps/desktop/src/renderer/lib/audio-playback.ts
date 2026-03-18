@@ -14,20 +14,29 @@ export class AudioPlaybackManager {
     this.onStateChange = opts?.onStateChange ?? null;
   }
 
+  private enqueueCount = 0;
+
   async enqueue(base64Audio: string): Promise<void> {
     if (!this.context) {
       this.context = new AudioContext();
     }
+    this.enqueueCount++;
 
     const raw = Uint8Array.from(atob(base64Audio), (c) => c.charCodeAt(0));
+    if (this.enqueueCount <= 5) {
+      console.log(`[playback] enqueue #${this.enqueueCount}, raw bytes=${raw.length}, ctx state=${this.context.state}`);
+    }
     try {
       const buffer = await this.context.decodeAudioData(raw.buffer.slice(0));
+      if (this.enqueueCount <= 5) {
+        console.log(`[playback] decoded #${this.enqueueCount}, duration=${buffer.duration.toFixed(2)}s`);
+      }
       this.queue.push(buffer);
       if (!this.isPlaying) {
         this.playNext();
       }
-    } catch {
-      // Skip invalid audio chunks
+    } catch (err) {
+      console.error(`[playback] decode failed #${this.enqueueCount}:`, err);
     }
   }
 

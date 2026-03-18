@@ -18,7 +18,7 @@ export type VoiceEvent =
 
 export type VoiceSettings = {
   apiKey: string;
-  voiceId: string; // default: "HpyxY047iEZzSG1aUPfx" (Samantha)
+  voiceId: string;
 };
 
 /** Masked settings returned to the renderer — never exposes the full API key. */
@@ -33,6 +33,6 @@ export type VoiceSettingsResponse = {
   encryptionAvailable: boolean;
 };
 
-/** ElevenLabs "Samantha" voice — warm, breathy, conversational.
+/** ElevenLabs "River" — relaxed, neutral, informative.
  *  Browse alternatives at https://elevenlabs.io/voice-library */
-export const DEFAULT_VOICE_ID = "HpyxY047iEZzSG1aUPfx";
+export const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";

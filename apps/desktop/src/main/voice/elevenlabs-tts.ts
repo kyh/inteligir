@@ -40,6 +40,7 @@ export class ElevenLabsTTS {
     } as unknown as string[]);
 
     ws.addEventListener("open", () => {
+      console.log(`[tts] connected, voiceId=${this.voiceId}, model=${TTS_MODEL}`);
       // BOS — beginning of stream with voice settings
       ws.send(
         JSON.stringify({
@@ -59,14 +60,23 @@ export class ElevenLabsTTS {
       ws.send(JSON.stringify({ text: "" }));
     });
 
+    let ttsChunkCount = 0;
     ws.addEventListener("message", (event) => {
       try {
         const data = JSON.parse(String(event.data));
         if (data.audio) {
+          ttsChunkCount++;
+          if (ttsChunkCount <= 5) {
+            console.log(`[tts] audio chunk #${ttsChunkCount}, len=${data.audio.length}`);
+          }
           this.onAudioChunk?.(data.audio);
         }
         if (data.isFinal) {
+          console.log(`[tts] done, total chunks=${ttsChunkCount}`);
           this.onDone?.();
+        }
+        if (data.error || data.message || data.detail) {
+          console.error("[tts] server response:", JSON.stringify(data));
         }
       } catch {
         // Ignore malformed messages

@@ -202,10 +202,12 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
   sendMessage: (text: string) => {
     const bridge = getBridge();
     if (!bridge) return;
+    const { appState } = get();
+    if (appState.phase !== "ready") return;
     set((s) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
     }));
-    void bridge.sendMessage(text);
+    bridge.sendMessage(text).catch(console.error);
   },
 
   addUserMessage: (text: string) => {
@@ -221,14 +223,14 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     set((s) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
     }));
-    void bridge.steer(text);
+    bridge.steer(text).catch(console.error);
   },
 
   interrupt: () => {
     const bridge = getBridge();
     const { appState } = get();
     if (!bridge || appState.phase !== "ready" || appState.agent !== "busy") return;
-    void bridge.interrupt();
+    bridge.interrupt().catch(console.error);
   },
 
   clearMessages: () => {

@@ -38,22 +38,27 @@ export class VoiceService {
     this.stt = new ElevenLabsSTT(this.settings.apiKey);
     this.stt.connect({
       onConnected: () => {
-        // Only transition to "listening" once the WebSocket is actually open
+        console.log("[voice] STT connected, now listening");
         this.setState("listening");
       },
       onTranscript: (t) => {
+        console.log(`[voice] transcript ${t.isFinal ? "(final)" : "(partial)"}:`, t.text);
         this.emit({ type: "voice:transcript", text: t.text, isFinal: t.isFinal });
 
         if (t.isFinal && t.text.trim()) {
+          console.log("[voice] sending to agent:", t.text.trim());
           this.setState("processing");
           this.startProcessingTimeout();
           const agent = this.getAgent();
           if (agent) {
             void agent.sendMessage(t.text.trim());
+          } else {
+            console.warn("[voice] no agent available to handle transcript");
           }
         }
       },
       onError: (error) => {
+        console.error("[voice] STT error:", error);
         this.setState("error", error);
       },
     });
@@ -87,12 +92,20 @@ export class VoiceService {
   /** Called when the agent finishes an assistant response.
    *  Guards against race where voice is stopped between isActive() check and this call. */
   handleAgentResponse(text: string): void {
-    if (this.state === "inactive" || this.state === "error") return;
+    console.log("[voice] agent response:", text.slice(0, 200), text.length > 200 ? "..." : "");
+    if (this.state === "inactive" || this.state === "error") {
+      console.log("[voice] ignoring response, state is", this.state);
+      return;
+    }
     if (!text.trim()) {
+      console.log("[voice] empty response, back to listening");
       this.setState("listening");
       return;
     }
-    if (!this.settings) return;
+    if (!this.settings) {
+      console.warn("[voice] no settings, cannot TTS");
+      return;
+    }
 
     // Interrupt any in-flight TTS before starting a new one
     this.tts?.interrupt();
@@ -148,6 +161,7 @@ export class VoiceService {
   }
 
   private setState(state: VoiceSessionState, error?: string): void {
+    console.log(`[voice] ${this.state} → ${state}${error ? ` (${error})` : ""}`);
     if (state !== "processing") this.clearProcessingTimeout();
     this.state = state;
     this.emit({ type: "voice:state", state, error });

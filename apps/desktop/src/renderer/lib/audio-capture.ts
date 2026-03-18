@@ -29,6 +29,7 @@ export class AudioCapture {
     const bridge = getBridge();
     if (!bridge) throw new Error("Bridge not available");
 
+    console.log("[voice] requesting mic access...");
     this.stream = await navigator.mediaDevices.getUserMedia({
       audio: {
         sampleRate: SAMPLE_RATE,
@@ -49,12 +50,18 @@ export class AudioCapture {
     const source = this.context.createMediaStreamSource(this.stream);
     this.workletNode = new AudioWorkletNode(this.context, "pcm-processor");
 
+    let chunkCount = 0;
     this.workletNode.port.addEventListener("message", (event) => {
       const float32 = event.data as Float32Array;
       const base64 = float32ToBase64Pcm16(float32);
+      chunkCount++;
+      if (chunkCount <= 3 || chunkCount % 100 === 0) {
+        console.log(`[voice] audio chunk #${chunkCount}, size=${base64.length}`);
+      }
       bridge.sendAudioChunk(base64);
     });
     this.workletNode.port.start();
+    console.log("[voice] mic capture started, worklet connected");
 
     source.connect(this.workletNode);
     // Connect through a silent gain node to keep the graph alive without routing mic to speakers
