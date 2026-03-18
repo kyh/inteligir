@@ -1,0 +1,97 @@
+// ---------------------------------------------------------------------------
+// Audio playback manager — queues and plays base64 mp3 chunks sequentially
+// Reuses a single AudioContext to avoid resource leaks.
+// ---------------------------------------------------------------------------
+
+export class AudioPlaybackManager {
+  private context: AudioContext | null = null;
+  private queue: AudioBuffer[] = [];
+  private isPlaying = false;
+  private currentSource: AudioBufferSourceNode | null = null;
+  private onStateChange: ((playing: boolean) => void) | null = null;
+
+  constructor(opts?: { onStateChange?: (playing: boolean) => void }) {
+    this.onStateChange = opts?.onStateChange ?? null;
+  }
+
+  private enqueueCount = 0;
+
+  async enqueue(base64Audio: string): Promise<void> {
+    if (!this.context) {
+      this.context = new AudioContext();
+    }
+    this.enqueueCount++;
+
+    const raw = Uint8Array.from(atob(base64Audio), (c) => c.charCodeAt(0));
+    if (this.enqueueCount <= 5) {
+      console.log(`[playback] enqueue #${this.enqueueCount}, raw bytes=${raw.length}, ctx state=${this.context.state}`);
+    }
+    try {
+      const buffer = await this.context.decodeAudioData(raw.buffer.slice(0));
+      if (this.enqueueCount <= 5) {
+        console.log(`[playback] decoded #${this.enqueueCount}, duration=${buffer.duration.toFixed(2)}s`);
+      }
+      this.queue.push(buffer);
+      if (!this.isPlaying) {
+        this.playNext();
+      }
+    } catch (err) {
+      console.error(`[playback] decode failed #${this.enqueueCount}:`, err);
+    }
+  }
+
+  interrupt(): void {
+    this.currentSource?.stop();
+    this.currentSource = null;
+    this.queue = [];
+    if (this.isPlaying) {
+      this.isPlaying = false;
+      this.onStateChange?.(false);
+    }
+  }
+
+  /** Close the AudioContext and release all resources. */
+  dispose(): void {
+    this.interrupt();
+    if (this.context) {
+      void this.context.close();
+      this.context = null;
+    }
+  }
+
+  private playNext(): void {
+    if (this.queue.length === 0) {
+      if (this.isPlaying) {
+        this.isPlaying = false;
+        this.onStateChange?.(false);
+      }
+      return;
+    }
+
+    if (!this.isPlaying) {
+      this.isPlaying = true;
+      this.onStateChange?.(true);
+    }
+
+    const ctx = this.context!;
+    // Resume AudioContext if suspended (Chromium suspends until user gesture)
+    if (ctx.state === "suspended") {
+      void ctx.resume().then(() => this.startSource());
+    } else {
+      this.startSource();
+    }
+  }
+
+  private startSource(): void {
+    const buffer = this.queue.shift()!;
+    const source = this.context!.createBufferSource();
+    source.buffer = buffer;
+    source.connect(this.context!.destination);
+    source.addEventListener("ended", () => {
+      this.currentSource = null;
+      this.playNext();
+    });
+    this.currentSource = source;
+    source.start();
+  }
+}

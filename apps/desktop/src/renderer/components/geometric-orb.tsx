@@ -6,7 +6,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 
-import type { SessionStatus } from "@/shared/agent";
+import type { DisplayStatus } from "@/shared/agent";
 
 extend({ Line2, LineMaterial, LineGeometry });
 
@@ -51,7 +51,7 @@ type Mood = {
 
 const tmpColor = new THREE.Color();
 
-const moods: Record<SessionStatus, Mood> = {
+const moods: Record<DisplayStatus, Mood> = {
   idle: {
     speed: 20,
     squiggleAmount: 0.04,
@@ -87,6 +87,24 @@ const moods: Record<SessionStatus, Mood> = {
     morphProgress: 0,
     helixSpin: ROTATE_VALUE,
     ...rgb("#ffffff"),
+  },
+  listening: {
+    speed: 15,
+    squiggleAmount: 0.06,
+    squiggleFrequency: 5,
+    squiggleSpeed: 3,
+    morphProgress: 1,
+    helixSpin: 0,
+    ...rgb("#44dd88"),
+  },
+  speaking: {
+    speed: 8,
+    squiggleAmount: 0.10,
+    squiggleFrequency: 7,
+    squiggleSpeed: 6,
+    morphProgress: 1,
+    helixSpin: 0,
+    ...rgb("#aa88ff"),
   },
 };
 
@@ -183,7 +201,7 @@ function helixPoint(
 // LatitudeLines — all rendering in a single useFrame
 // ---------------------------------------------------------------------------
 
-function LatitudeLines({ status }: { status: SessionStatus }) {
+function LatitudeLines({ status }: { status: DisplayStatus }) {
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
   const parentGroupRef = useRef<THREE.Group>(null);
   const spinGroupRef = useRef<THREE.Group>(null);
@@ -199,7 +217,7 @@ function LatitudeLines({ status }: { status: SessionStatus }) {
   const prevStatusRef = useRef(status);
   const spinUpRef = useRef<{
     elapsed: number;
-    target: SessionStatus;
+    target: DisplayStatus;
   } | null>(null);
 
   if (status !== prevStatusRef.current) {
@@ -607,7 +625,7 @@ export function GeometricOrb({
   status = "idle",
   className = "",
 }: {
-  status?: SessionStatus;
+  status?: DisplayStatus;
   className?: string;
 }) {
   return (

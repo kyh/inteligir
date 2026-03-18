@@ -1,18 +1,43 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState, type ChangeEvent } from "react";
 import { useNavigate } from "react-router";
 
 import { Button } from "@repo/ui/button";
+import { Input } from "@repo/ui/input";
 import { Label } from "@repo/ui/label";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import { useVoiceStore } from "@/renderer/stores/voice-store";
+import { DEFAULT_VOICE_ID } from "@/shared/voice";
 
 export function SettingsPage() {
   const navigate = useNavigate();
   const appState = useAgentStore((s) => s.appState);
   const clearMessages = useAgentStore((s) => s.clearMessages);
+  const loadVoiceSettings = useVoiceStore((s) => s.loadSettings);
 
   const isReady = appState.phase === "ready";
+
+  // Voice settings state — API key is write-only; we only display a masked version
+  const [apiKey, setApiKey] = useState("");
+  const [apiKeyMasked, setApiKeyMasked] = useState("");
+  const [voiceId, setVoiceId] = useState(DEFAULT_VOICE_ID);
+  const [voiceSaved, setVoiceSaved] = useState(false);
+  const [encryptionAvailable, setEncryptionAvailable] = useState(true);
+
+  useEffect(() => {
+    async function load() {
+      const resp = await getBridge()?.getVoiceSettings();
+      if (resp) {
+        setEncryptionAvailable(resp.encryptionAvailable);
+        if (resp.settings) {
+          setApiKeyMasked(resp.settings.apiKeyMasked);
+          setVoiceId(resp.settings.voiceId || DEFAULT_VOICE_ID);
+        }
+      }
+    }
+    void load();
+  }, []);
 
   const goBack = useCallback(() => {
     void navigate("/");
@@ -22,6 +47,18 @@ export function SettingsPage() {
     clearMessages();
     getBridge()?.transition({ type: "LOGOUT" });
   }, [clearMessages]);
+
+  const handleSaveVoice = useCallback(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    async function save() {
+      await bridge!.setVoiceSettings({ apiKey, voiceId: voiceId || DEFAULT_VOICE_ID });
+      setVoiceSaved(true);
+      void loadVoiceSettings();
+      setTimeout(() => setVoiceSaved(false), 2000);
+    }
+    void save();
+  }, [apiKey, voiceId, loadVoiceSettings]);
 
   return (
     <div className="flex flex-1 flex-col px-6 pb-6 pt-12">
@@ -55,6 +92,60 @@ export function SettingsPage() {
               <span className="text-xs text-muted-foreground">Not connected</span>
             </div>
           )}
+        </div>
+
+        {/* Voice settings */}
+        <div className="flex flex-col gap-2">
+          <Label className="text-xs font-medium text-muted-foreground">
+            Voice (ElevenLabs)
+          </Label>
+
+          <div className="flex flex-col gap-2 rounded-md border border-border px-3 py-2">
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">API Key</Label>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setApiKey(e.target.value)}
+                placeholder={apiKeyMasked || "sk-..."}
+                className="h-7 text-xs"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <Label className="text-[10px] text-muted-foreground">
+                Voice ID
+              </Label>
+              <Input
+                value={voiceId}
+                onChange={(e: ChangeEvent<HTMLInputElement>) => setVoiceId(e.target.value)}
+                placeholder={DEFAULT_VOICE_ID}
+                className="h-7 text-xs"
+              />
+              <span className="text-[9px] text-muted-foreground">
+                Default: Samantha ({DEFAULT_VOICE_ID})
+              </span>
+            </div>
+
+            {!encryptionAvailable && (
+              <p className="text-[9px] text-yellow-500">
+                OS keychain unavailable — API key will be stored in plaintext.
+                Install a keyring (e.g. gnome-keyring) for encrypted storage.
+              </p>
+            )}
+
+            <div className="flex justify-end">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSaveVoice}
+                disabled={!apiKey.trim()}
+                className="h-auto px-2 py-0.5 text-[10px]"
+              >
+                {voiceSaved ? "Saved!" : "Save"}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 

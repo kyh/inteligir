@@ -5,9 +5,12 @@ import { MENU_ACTIONS } from "@/shared/ipc";
 import { GeometricOrb } from "@/renderer/components/geometric-orb";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
-import type { SessionStatus } from "@/shared/agent";
+import { useVoiceStore } from "@/renderer/stores/voice-store";
+import type { DisplayStatus } from "@/shared/agent";
 
-function phaseToOrbStatus(phase: string): SessionStatus {
+function phaseToOrbStatus(phase: string, voiceState: string): DisplayStatus {
+  if (voiceState === "listening") return "listening";
+  if (voiceState === "speaking") return "speaking";
   switch (phase) {
     case "ready":
       return "idle";
@@ -84,7 +87,10 @@ export function AppLayout() {
     });
   }, [navigate]);
 
-  const orbStatus = phaseToOrbStatus(appState.phase);
+  // Voice store is initialized by ChatPage's useEffect(init). Before that,
+  // sessionState defaults to "inactive" which maps to the agent-only status — safe.
+  const voiceState = useVoiceStore((s) => s.sessionState);
+  const orbStatus = phaseToOrbStatus(appState.phase, voiceState);
 
   return (
     <div className="relative h-full w-full font-mono">
