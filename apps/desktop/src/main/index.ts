@@ -403,7 +403,6 @@ app
         event.message.role === "assistant"
       ) {
         const text = extractText(event.message);
-        console.log("[voice] extracted text from agent response:", text.slice(0, 100) || "(empty)");
         if (text) voiceService.handleAgentResponse(text);
       }
     });

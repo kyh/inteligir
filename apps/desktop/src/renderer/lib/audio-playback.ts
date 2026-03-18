@@ -8,35 +8,21 @@ export class AudioPlaybackManager {
   private queue: AudioBuffer[] = [];
   private isPlaying = false;
   private currentSource: AudioBufferSourceNode | null = null;
-  private onStateChange: ((playing: boolean) => void) | null = null;
-
-  constructor(opts?: { onStateChange?: (playing: boolean) => void }) {
-    this.onStateChange = opts?.onStateChange ?? null;
-  }
-
-  private enqueueCount = 0;
 
   async enqueue(base64Audio: string): Promise<void> {
     if (!this.context) {
       this.context = new AudioContext();
     }
-    this.enqueueCount++;
 
     const raw = Uint8Array.from(atob(base64Audio), (c) => c.charCodeAt(0));
-    if (this.enqueueCount <= 5) {
-      console.log(`[playback] enqueue #${this.enqueueCount}, raw bytes=${raw.length}, ctx state=${this.context.state}`);
-    }
     try {
       const buffer = await this.context.decodeAudioData(raw.buffer.slice(0));
-      if (this.enqueueCount <= 5) {
-        console.log(`[playback] decoded #${this.enqueueCount}, duration=${buffer.duration.toFixed(2)}s`);
-      }
       this.queue.push(buffer);
       if (!this.isPlaying) {
         this.playNext();
       }
-    } catch (err) {
-      console.error(`[playback] decode failed #${this.enqueueCount}:`, err);
+    } catch {
+      // Skip invalid audio chunks
     }
   }
 
@@ -44,10 +30,7 @@ export class AudioPlaybackManager {
     this.currentSource?.stop();
     this.currentSource = null;
     this.queue = [];
-    if (this.isPlaying) {
-      this.isPlaying = false;
-      this.onStateChange?.(false);
-    }
+    this.isPlaying = false;
   }
 
   /** Close the AudioContext and release all resources. */
@@ -61,17 +44,11 @@ export class AudioPlaybackManager {
 
   private playNext(): void {
     if (this.queue.length === 0) {
-      if (this.isPlaying) {
-        this.isPlaying = false;
-        this.onStateChange?.(false);
-      }
+      this.isPlaying = false;
       return;
     }
 
-    if (!this.isPlaying) {
-      this.isPlaying = true;
-      this.onStateChange?.(true);
-    }
+    this.isPlaying = true;
 
     const ctx = this.context!;
     // Resume AudioContext if suspended (Chromium suspends until user gesture)

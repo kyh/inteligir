@@ -13,8 +13,7 @@ export type VoiceSessionState =
 export type VoiceEvent =
   | { type: "voice:state"; state: VoiceSessionState; error?: string }
   | { type: "voice:transcript"; text: string; isFinal: boolean }
-  | { type: "voice:tts-chunk"; audio: string } // base64 mp3
-  | { type: "voice:tts-done" };
+  | { type: "voice:tts-chunk"; audio: string }; // base64 mp3
 
 export type VoiceSettings = {
   apiKey: string;

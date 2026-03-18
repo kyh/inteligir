@@ -8,11 +8,6 @@ const STT_WS_URL = "wss://api.elevenlabs.io/v1/speech-to-text/realtime";
 const MAX_RETRIES = 3;
 const RETRY_BASE_MS = 1000;
 
-export type SttTranscript = {
-  text: string;
-  isFinal: boolean;
-};
-
 export class ElevenLabsSTT {
   private ws: WebSocket | null = null;
   private onTranscript: VoiceTranscriptCallback | null = null;
@@ -20,7 +15,6 @@ export class ElevenLabsSTT {
   private onConnected: (() => void) | null = null;
   private retryCount = 0;
   private closed = false;
-  private sendCount = 0;
 
   constructor(private apiKey: string) {}
 
@@ -38,14 +32,7 @@ export class ElevenLabsSTT {
   }
 
   sendAudio(base64Chunk: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      if (this.sendCount === 0) console.warn("[stt] ws not open, dropping audio");
-      return;
-    }
-    this.sendCount++;
-    if (this.sendCount <= 3 || this.sendCount % 200 === 0) {
-      console.log(`[stt] sending chunk #${this.sendCount}`);
-    }
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
     this.ws.send(
       JSON.stringify({
         message_type: "input_audio_chunk",
@@ -85,9 +72,7 @@ export class ElevenLabsSTT {
     } as unknown as string[]);
 
     ws.addEventListener("open", () => {
-      // Reset retry count on successful connect so future disconnects get fresh retries
       this.retryCount = 0;
-      this.sendCount = 0;
       this.onConnected?.();
     });
 
@@ -95,7 +80,6 @@ export class ElevenLabsSTT {
       try {
         const data = JSON.parse(String(event.data));
         const msgType = (data.message_type ?? data.event) as string;
-        console.log("[stt] received:", msgType, JSON.stringify(data).slice(0, 200));
 
         switch (msgType) {
           case "partial_transcript":
@@ -110,24 +94,20 @@ export class ElevenLabsSTT {
               isFinal: true,
             });
             break;
-          case "session_started":
-            console.log("[stt] session started:", data.session_id);
-            break;
           case "input_error":
             console.error("[stt] input error:", data.error ?? data.message);
             break;
         }
-      } catch (err) {
-        console.error("[stt] failed to parse message:", err);
+      } catch {
+        // Ignore malformed messages
       }
     });
 
-    ws.addEventListener("error", (err) => {
-      console.error("[stt] ws error:", err);
+    ws.addEventListener("error", () => {
+      // Error will be followed by close event
     });
 
-    ws.addEventListener("close", (ev) => {
-      console.log("[stt] ws closed, code:", ev.code, "reason:", ev.reason);
+    ws.addEventListener("close", () => {
       this.ws = null;
       if (!this.closed && this.retryCount < MAX_RETRIES) {
         this.retryCount++;

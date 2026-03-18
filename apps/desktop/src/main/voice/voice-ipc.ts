@@ -55,17 +55,13 @@ export function registerVoiceIpcHandlers(voiceService: VoiceService): () => void
     return { ok: true };
   });
 
-  // Audio chunks — using handle/invoke for reliability
-  let ipcChunkCount = 0;
-  ipcMain.handle(IPC_CHANNELS.VOICE_AUDIO_CHUNK, (_event, base64: unknown) => {
-    ipcChunkCount++;
-    if (ipcChunkCount <= 3) {
-      console.log(`[voice-ipc] chunk #${ipcChunkCount}, type=${typeof base64}, len=${typeof base64 === "string" ? base64.length : "N/A"}`);
-    }
+  // Audio chunks use fire-and-forget (send/on) to avoid Promise overhead at ~125 chunks/sec
+  const audioChunkHandler = (_event: Electron.IpcMainEvent, base64: unknown) => {
     if (typeof base64 === "string") {
       voiceService.sendAudio(base64);
     }
-  });
+  };
+  ipcMain.on(IPC_CHANNELS.VOICE_AUDIO_CHUNK, audioChunkHandler);
 
   return () => {
     unsubscribe();
@@ -74,6 +70,6 @@ export function registerVoiceIpcHandlers(voiceService: VoiceService): () => void
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_INTERRUPT_TTS);
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_GET_SETTINGS);
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_SET_SETTINGS);
-    ipcMain.removeHandler(IPC_CHANNELS.VOICE_AUDIO_CHUNK);
+    ipcMain.removeListener(IPC_CHANNELS.VOICE_AUDIO_CHUNK, audioChunkHandler);
   };
 }

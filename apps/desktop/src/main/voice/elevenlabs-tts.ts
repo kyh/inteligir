@@ -40,7 +40,6 @@ export class ElevenLabsTTS {
     } as unknown as string[]);
 
     ws.addEventListener("open", () => {
-      console.log(`[tts] connected, voiceId=${this.voiceId}, model=${TTS_MODEL}`);
       // BOS — beginning of stream with voice settings
       ws.send(
         JSON.stringify({
@@ -60,23 +59,14 @@ export class ElevenLabsTTS {
       ws.send(JSON.stringify({ text: "" }));
     });
 
-    let ttsChunkCount = 0;
     ws.addEventListener("message", (event) => {
       try {
         const data = JSON.parse(String(event.data));
         if (data.audio) {
-          ttsChunkCount++;
-          if (ttsChunkCount <= 5) {
-            console.log(`[tts] audio chunk #${ttsChunkCount}, len=${data.audio.length}`);
-          }
           this.onAudioChunk?.(data.audio);
         }
         if (data.isFinal) {
-          console.log(`[tts] done, total chunks=${ttsChunkCount}`);
           this.onDone?.();
-        }
-        if (data.error || data.message || data.detail) {
-          console.error("[tts] server response:", JSON.stringify(data));
         }
       } catch {
         // Ignore malformed messages
@@ -84,8 +74,6 @@ export class ElevenLabsTTS {
     });
 
     ws.addEventListener("error", () => {
-      // Error may not always trigger close, so clean up proactively.
-      // Null all callbacks after invoking to prevent double-fire if error fires multiple times.
       this.ws = null;
       this.onError?.("TTS WebSocket error");
       this.onError = null;
@@ -95,8 +83,6 @@ export class ElevenLabsTTS {
 
     ws.addEventListener("close", () => {
       this.ws = null;
-      // If error fired first, onDone was already nulled there — so this is a no-op.
-      // If close fires without a preceding error, onDone fires exactly once.
       this.onDone?.();
       this.onDone = null;
     });
