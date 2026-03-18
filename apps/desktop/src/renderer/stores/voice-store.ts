@@ -1,13 +1,10 @@
 import { create } from "zustand";
 
+import { AudioCapture } from "@/renderer/lib/audio-capture";
+import { AudioPlaybackManager } from "@/renderer/lib/audio-playback";
 import { getBridge } from "@/renderer/lib/bridge";
-import { VoiceAudioManager } from "@/renderer/lib/voice-audio-manager";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { VoiceEvent, VoiceSessionState } from "@/shared/voice";
-
-// ---------------------------------------------------------------------------
-// Store — pure state + IPC coordination; audio lifecycle is in VoiceAudioManager
-// ---------------------------------------------------------------------------
 
 type VoiceStore = {
   sessionState: VoiceSessionState;
@@ -17,16 +14,13 @@ type VoiceStore = {
 
   init: () => () => void;
   toggleVoice: () => void;
-  interruptTts: () => void;
   loadSettings: () => Promise<void>;
 };
 
-// Module-level singleton — safe for single-window Electron app.
-// init() early-returns if already set, preventing duplicate managers.
-// On hot-reload, React's cleanup runs first (nulling audioManager), then
-// the new init() creates a fresh instance. Concurrent calls from multiple
-// components are not expected (only ChatPage calls init).
-let audioManager: VoiceAudioManager | null = null;
+// Module-level singletons — safe for single-window Electron app.
+// init() early-returns if already set, preventing duplicates.
+let capture: AudioCapture | null = null;
+let playback: AudioPlaybackManager | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
@@ -35,12 +29,12 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   error: null,
 
   init: () => {
-    if (audioManager) return () => {}; // already initialized (e.g. hot-reload re-mount)
+    if (playback) return () => {}; // already initialized
 
     const bridge = getBridge();
     if (!bridge) return () => {};
 
-    audioManager = new VoiceAudioManager();
+    playback = new AudioPlaybackManager();
 
     const unsub = bridge.onVoiceEvent((raw: unknown) => {
       const event = raw as VoiceEvent;
@@ -50,14 +44,18 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
           set({ sessionState: event.state, error: event.error ?? null });
 
           if (event.state === "listening") {
-            void audioManager?.startCapture().catch((err) => {
-              console.error("[voice] mic error:", err);
-              set({ error: "Microphone access denied" });
-              void bridge.stopVoice();
-            });
+            if (!capture) {
+              capture = new AudioCapture();
+              void capture.start().catch((err) => {
+                console.error("[voice] mic error:", err);
+                set({ error: "Microphone access denied" });
+                void bridge.stopVoice();
+              });
+            }
           } else if (event.state === "inactive" || event.state === "error") {
-            audioManager?.stopCapture();
-            audioManager?.interruptPlayback();
+            capture?.stop();
+            capture = null;
+            playback?.interrupt();
           }
           break;
 
@@ -73,12 +71,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
           break;
 
         case "voice:tts-chunk":
-          void audioManager?.enqueueAudio(event.audio);
-          break;
-
-        case "voice:tts-done":
-          // Intentionally empty — playback drains from its own queue.
-          // State transitions are driven by voice:state events from main.
+          void playback?.enqueue(event.audio);
           break;
       }
     });
@@ -86,8 +79,10 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     void get().loadSettings();
     return () => {
       unsub();
-      audioManager?.dispose();
-      audioManager = null;
+      capture?.stop();
+      capture = null;
+      playback?.dispose();
+      playback = null;
     };
   },
 
@@ -98,16 +93,18 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
     if (sessionState === "inactive") {
       void bridge.startVoice();
+    } else if (sessionState === "speaking") {
+      // Interrupt speech and restart listening
+      capture?.stop();
+      capture = null;
+      playback?.interrupt();
+      void bridge.stopVoice().then((r) => { if (r.ok) void bridge.startVoice(); });
     } else {
-      audioManager?.stopCapture();
-      audioManager?.interruptPlayback();
+      capture?.stop();
+      capture = null;
+      playback?.interrupt();
       void bridge.stopVoice();
     }
-  },
-
-  interruptTts: () => {
-    audioManager?.interruptPlayback();
-    getBridge()?.interruptTts();
   },
 
   loadSettings: async () => {

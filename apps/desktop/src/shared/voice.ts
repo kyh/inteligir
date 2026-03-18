@@ -13,12 +13,26 @@ export type VoiceSessionState =
 export type VoiceEvent =
   | { type: "voice:state"; state: VoiceSessionState; error?: string }
   | { type: "voice:transcript"; text: string; isFinal: boolean }
-  | { type: "voice:tts-chunk"; audio: string } // base64 mp3
-  | { type: "voice:tts-done" };
+  | { type: "voice:tts-chunk"; audio: string }; // base64 mp3
+
+export type SttConfig = {
+  languageCode: string;
+  sampleRate: number;
+  vadSilenceThresholdSecs: number;
+  vadThreshold: number;
+};
+
+export const DEFAULT_STT_CONFIG: SttConfig = {
+  languageCode: "en",
+  sampleRate: 16000,
+  vadSilenceThresholdSecs: 1.5,
+  vadThreshold: 0.4,
+};
 
 export type VoiceSettings = {
   apiKey: string;
   voiceId: string;
+  stt: SttConfig;
 };
 
 /** Masked settings returned to the renderer — never exposes the full API key. */

@@ -5,11 +5,8 @@
 import type { Agent } from "@/main/agent/agent";
 import type { VoiceEvent, VoiceSessionState, VoiceSettings } from "@/shared/voice";
 
-import { ElevenLabsSTT } from "./elevenlabs-stt";
-import { ElevenLabsTTS } from "./elevenlabs-tts";
+import { ElevenLabsVoice } from "./elevenlabs-voice";
 import { getVoiceSettings } from "./voice-settings-store";
-
-export type VoiceTranscriptCallback = (t: { text: string; isFinal: boolean }) => void;
 
 type EventListener = (event: VoiceEvent) => void;
 
@@ -17,10 +14,9 @@ const PROCESSING_TIMEOUT_MS = 30_000;
 
 export class VoiceService {
   private state: VoiceSessionState = "inactive";
-  private stt: ElevenLabsSTT | null = null;
-  private tts: ElevenLabsTTS | null = null;
-  private listeners = new Set<EventListener>();
+  private voice: ElevenLabsVoice | null = null;
   private settings: VoiceSettings | null = null;
+  private listeners = new Set<EventListener>();
   private processingTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
@@ -35,30 +31,24 @@ export class VoiceService {
 
     this.setState("starting");
 
-    this.stt = new ElevenLabsSTT(this.settings.apiKey);
-    this.stt.connect({
+    this.voice = new ElevenLabsVoice(this.settings.apiKey);
+    this.voice.connectStt(this.settings.stt, {
       onConnected: () => {
-        console.log("[voice] STT connected, now listening");
         this.setState("listening");
       },
       onTranscript: (t) => {
-        console.log(`[voice] transcript ${t.isFinal ? "(final)" : "(partial)"}:`, t.text);
         this.emit({ type: "voice:transcript", text: t.text, isFinal: t.isFinal });
 
         if (t.isFinal && t.text.trim()) {
-          console.log("[voice] sending to agent:", t.text.trim());
           this.setState("processing");
           this.startProcessingTimeout();
           const agent = this.getAgent();
           if (agent) {
             void agent.sendMessage(t.text.trim());
-          } else {
-            console.warn("[voice] no agent available to handle transcript");
           }
         }
       },
       onError: (error) => {
-        console.error("[voice] STT error:", error);
         this.setState("error", error);
       },
     });
@@ -67,66 +57,44 @@ export class VoiceService {
   }
 
   stop(): { ok: boolean } {
-    this.stt?.close();
-    this.stt = null;
-    this.tts?.interrupt();
-    this.tts = null;
+    this.voice?.dispose();
+    this.voice = null;
     this.setState("inactive");
     return { ok: true };
   }
 
   sendAudio(base64Chunk: string): void {
-    this.stt?.sendAudio(base64Chunk);
-  }
-
-  interruptTts(): { ok: boolean } {
-    this.tts?.interrupt();
-    this.tts = null;
-    this.emit({ type: "voice:tts-done" });
-    if (this.state === "speaking") {
-      this.setState("listening");
-    }
-    return { ok: true };
+    this.voice?.sendAudio(base64Chunk, this.settings?.stt.sampleRate ?? 16000);
   }
 
   /** Called when the agent finishes an assistant response.
    *  Guards against race where voice is stopped between isActive() check and this call. */
   handleAgentResponse(text: string): void {
-    console.log("[voice] agent response:", text.slice(0, 200), text.length > 200 ? "..." : "");
-    if (this.state === "inactive" || this.state === "error") {
-      console.log("[voice] ignoring response, state is", this.state);
-      return;
-    }
+    if (this.state === "inactive" || this.state === "error") return;
     if (!text.trim()) {
-      console.log("[voice] empty response, back to listening");
       this.setState("listening");
       return;
     }
-    if (!this.settings) {
-      console.warn("[voice] no settings, cannot TTS");
+    if (!this.settings || !this.voice) {
+      this.clearProcessingTimeout();
       return;
     }
 
     // Interrupt any in-flight TTS before starting a new one
-    this.tts?.interrupt();
-    this.tts = null;
+    this.voice.interruptTts();
 
     this.setState("speaking");
 
-    this.tts = new ElevenLabsTTS(this.settings.apiKey, this.settings.voiceId);
-    this.tts.speak(text, {
+    this.voice.speak(this.settings.voiceId, text, {
       onAudioChunk: (audio) => {
         this.emit({ type: "voice:tts-chunk", audio });
       },
       onDone: () => {
-        this.tts = null;
-        this.emit({ type: "voice:tts-done" });
         if (this.state === "speaking") {
           this.setState("listening");
         }
       },
       onError: (error) => {
-        this.tts = null;
         console.error("[voice] TTS error:", error);
         this.setState("listening");
       },
@@ -161,7 +129,6 @@ export class VoiceService {
   }
 
   private setState(state: VoiceSessionState, error?: string): void {
-    console.log(`[voice] ${this.state} → ${state}${error ? ` (${error})` : ""}`);
     if (state !== "processing") this.clearProcessingTimeout();
     this.state = state;
     this.emit({ type: "voice:state", state, error });
