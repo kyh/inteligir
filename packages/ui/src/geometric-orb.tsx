@@ -1,4 +1,6 @@
-import { useRef, useMemo, useEffect, useCallback } from "react";
+"use client";
+
+import React, { useRef, useMemo, useEffect, useCallback } from "react";
 import { Canvas, useFrame, useThree, extend } from "@react-three/fiber";
 
 import * as THREE from "three";
@@ -6,7 +8,13 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 
-import type { DisplayStatus } from "@/shared/agent";
+export type DisplayStatus =
+  | "idle"
+  | "busy"
+  | "error"
+  | "starting"
+  | "listening"
+  | "speaking";
 
 extend({ Line2, LineMaterial, LineGeometry });
 
@@ -233,7 +241,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
   const helixGeometry = useMemo(
     () =>
       new THREE.TubeGeometry(
-        new HelixCurve(),
+        new (HelixCurve as unknown as new () => THREE.Curve<THREE.Vector3>)(),
         200,
         HELIX_TUBE_RADIUS,
         2,
@@ -463,7 +471,8 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
       const group = groupRefs.current[lineIdx];
       if (!group) continue;
 
-      const { longitudeRotation } = lineConstants[lineIdx];
+      const lineConst = lineConstants[lineIdx]!;
+      const { longitudeRotation } = lineConst;
 
       // Longitude spread: 0 when circle (expand=0), full when sphere
       const groupRotY = longitudeRotation * morph * expand;
@@ -529,9 +538,9 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
 
         // --- Blend helix → target based on morph ---
         const hIdx = (lineIdx * POINTS_PER_LINE + i) * 3;
-        const hx = helixCache[hIdx];
-        const hy = helixCache[hIdx + 1];
-        const hz = helixCache[hIdx + 2];
+        const hx = helixCache[hIdx]!;
+        const hy = helixCache[hIdx + 1]!;
+        const hz = helixCache[hIdx + 2]!;
 
         const x = hx + (tx - hx) * morph;
         const y = hy + (ty - hy) * morph;
@@ -556,15 +565,15 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
       }
 
       const last = POINTS_PER_LINE * 3;
-      positionBuffer[last] = positionBuffer[0];
-      positionBuffer[last + 1] = positionBuffer[1];
-      positionBuffer[last + 2] = positionBuffer[2];
-      colorBuffer[last] = colorBuffer[0];
-      colorBuffer[last + 1] = colorBuffer[1];
-      colorBuffer[last + 2] = colorBuffer[2];
+      positionBuffer[last] = positionBuffer[0]!;
+      positionBuffer[last + 1] = positionBuffer[1]!;
+      positionBuffer[last + 2] = positionBuffer[2]!;
+      colorBuffer[last] = colorBuffer[0]!;
+      colorBuffer[last + 1] = colorBuffer[1]!;
+      colorBuffer[last + 2] = colorBuffer[2]!;
 
-      geometries[lineIdx].setPositions(positionBuffer);
-      geometries[lineIdx].setColors(colorBuffer);
+      geometries[lineIdx]!.setPositions(positionBuffer);
+      geometries[lineIdx]!.setColors(colorBuffer);
     }
   });
 
@@ -573,16 +582,16 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
       <group ref={spinGroupRef}>
         <mesh
           ref={helixMeshRef}
-          geometry={helixGeometry}
-          material={helixMaterial}
+          geometry={helixGeometry as never}
+          material={helixMaterial as never}
         />
         {Array.from({ length: NUM_LINES }, (_, lineIdx) => (
           <OrbLine
             key={lineIdx}
             lineIdx={lineIdx}
             groupRefs={groupRefs}
-            geometry={geometries[lineIdx]}
-            material={materials[lineIdx]}
+            geometry={geometries[lineIdx]!}
+            material={materials[lineIdx]!}
           />
         ))}
       </group>
@@ -609,10 +618,13 @@ function OrbLine({
   );
   return (
     <group ref={ref}>
-      <line2>
-        <primitive object={geometry} attach="geometry" />
-        <primitive object={material} attach="material" />
-      </line2>
+      {/* Line2 from three/examples/jsm — extended via extend() at runtime */}
+      {(React.createElement as (type: string, props: object, ...children: React.ReactNode[]) => React.ReactElement)(
+        "line2",
+        {},
+        React.createElement("primitive", { object: geometry, attach: "geometry" }),
+        React.createElement("primitive", { object: material, attach: "material" }),
+      )}
     </group>
   );
 }

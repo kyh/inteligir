@@ -1,12 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
+import { GeometricOrb, type DisplayStatus } from "@repo/ui/geometric-orb";
 import { MENU_ACTIONS } from "@/shared/ipc";
-import { GeometricOrb } from "@/renderer/components/geometric-orb";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-import type { DisplayStatus } from "@/shared/agent";
 
 function phaseToOrbStatus(phase: string, voiceState: string): DisplayStatus {
   if (voiceState === "listening") return "listening";
@@ -58,6 +57,7 @@ export function AppLayout() {
       }, 5000);
       return () => clearTimeout(timer);
     }
+    return undefined;
   }, [pathname]);
 
   useEffect(() => {

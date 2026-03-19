@@ -8,7 +8,7 @@ import { Label } from "@repo/ui/label";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-import { DEFAULT_VOICE_ID } from "@/shared/voice";
+import { DEFAULT_STT_CONFIG, DEFAULT_VOICE_ID } from "@/shared/voice";
 
 export function SettingsPage() {
   const navigate = useNavigate();
@@ -52,7 +52,11 @@ export function SettingsPage() {
     const bridge = getBridge();
     if (!bridge) return;
     async function save() {
-      await bridge!.setVoiceSettings({ apiKey, voiceId: voiceId || DEFAULT_VOICE_ID });
+      await bridge!.setVoiceSettings({
+        apiKey,
+        voiceId: voiceId || DEFAULT_VOICE_ID,
+        stt: DEFAULT_STT_CONFIG,
+      });
       setVoiceSaved(true);
       void loadVoiceSettings();
       setTimeout(() => setVoiceSaved(false), 2000);

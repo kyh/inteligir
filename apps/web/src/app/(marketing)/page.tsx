@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { ExternalLink } from "lucide-react";
+
 import { WaitlistForm } from "./_components/waitlist-form";
 
 const apps = [
@@ -8,8 +11,9 @@ const apps = [
   },
   {
     title: "OS¹",
-    description: "An artificially intelligent operating system.",
-    url: "https://inteligir.com/os1",
+    description:
+      "An artificially intelligent operating system. Tailored for you.",
+    url: "/os1",
   },
 ];
 
@@ -30,14 +34,33 @@ const Page = () => {
       <section className="py-16">
         <h2 className="text-base font-medium text-foreground">Explorations</h2>
         <div className="mt-3 grid gap-8 border-t border-dotted border-foreground/10 pt-3 text-balance md:grid-cols-2">
-          {apps.map((item) => (
-            <div key={item.title}>
-              <h3 className="text-sm text-foreground">{item.title}</h3>
-              <p className="mt-1 text-sm text-foreground/60">
-                {item.description}
-              </p>
-            </div>
-          ))}
+          {apps.map((item) => {
+            const isExternal = item.url.startsWith("http");
+            return (
+              <Link
+                key={item.title}
+                href={item.url}
+                {...(isExternal && {
+                  target: "_blank",
+                  rel: "noopener noreferrer",
+                })}
+                className="group block"
+              >
+                <div>
+                  <h3 className="flex items-center gap-2 text-sm text-foreground">
+                    <span>{item.title}</span>
+                    <ExternalLink
+                      className="size-3 shrink-0 text-foreground/60 opacity-0 transition-none group-hover:opacity-100 group-focus-visible:opacity-100"
+                      aria-hidden
+                    />
+                  </h3>
+                  <p className="mt-1 text-sm text-foreground/60">
+                    {item.description}
+                  </p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
@@ -45,11 +68,7 @@ const Page = () => {
         <h2 className="text-base font-medium text-foreground">
           Stay in the loop
         </h2>
-        <div className="mt-3 border-t border-dotted border-foreground/10 pt-3 text-balance">
-          <p className="text-sm text-foreground/60">
-            We&apos;re shipping new experiments all the time. Drop your email to
-            follow along.
-          </p>
+        <div className="mt-6">
           <WaitlistForm />
         </div>
       </section>
@@ -57,7 +76,7 @@ const Page = () => {
       {/* Footer */}
       <footer className="py-16">
         <p className="text-xs text-foreground/30">
-          &copy; {new Date().getFullYear()} Inteligir
+          &copy; {new Date().getFullYear()} Kaiyu Hsu
         </p>
       </footer>
     </main>
