@@ -82,9 +82,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
       const type = eventType(event);
 
       switch (type) {
-        case "agent_start":
-          break;
-
         case "agent_end":
           streamingMsgId = null;
           toolMsgIds.clear();

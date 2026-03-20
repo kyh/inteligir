@@ -53,13 +53,3 @@ export function toggleTask(id: string): Task {
   return task;
 }
 
-export function markTaskRun(id: string, timestamp: number): void {
-  const tasks = getTasks();
-  const task = tasks.find((t) => t.id === id);
-  if (!task) return;
-  task.lastRunAt = timestamp;
-  if (task.schedule.type === "once") {
-    task.enabled = false;
-  }
-  saveTasks(tasks);
-}

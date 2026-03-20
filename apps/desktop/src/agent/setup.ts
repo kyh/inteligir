@@ -70,10 +70,11 @@ function getDefaultModel(): Model<Api> {
 declare const __PROJECT_ROOT__: string;
 
 function getBundledResourcesDir(): string {
-  // Check if running inside packaged app via env or process.resourcesPath
-  const isPackaged = process.env["INTELIGIR_PACKAGED"] === "true";
-  if (isPackaged && process.resourcesPath) {
-    return path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
+  // In packaged mode, the main process passes the resources path via env
+  // (process.resourcesPath is Electron-only, unavailable in the system node sidecar)
+  const resourcesPath = process.env["INTELIGIR_RESOURCES_PATH"];
+  if (resourcesPath) {
+    return path.join(resourcesPath, "app.asar.unpacked", "resources", "agent");
   }
   // Dev: injected by electron-vite at build time
   return path.join(__PROJECT_ROOT__, "resources", "agent");

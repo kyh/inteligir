@@ -49,7 +49,5 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
 
   // Voice (LiveKit)
-  startVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_START),
-  stopVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STOP),
   getVoiceToken: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_TOKEN),
 });

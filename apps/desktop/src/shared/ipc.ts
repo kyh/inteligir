@@ -39,8 +39,6 @@ export const IPC_CHANNELS = {
   TASK_TOGGLE: "task:toggle",
 
   // Voice (LiveKit)
-  VOICE_START: "voice:start",
-  VOICE_STOP: "voice:stop",
   VOICE_TOKEN: "voice:token",
 } as const;
 
@@ -97,8 +95,6 @@ export type DesktopBridge = {
   toggleTask: (id: string) => Promise<ToggleTaskResult>;
 
   // Voice (LiveKit)
-  startVoice: () => Promise<{ ok: boolean; error?: string }>;
-  stopVoice: () => Promise<{ ok: boolean }>;
   getVoiceToken: () => Promise<{ url: string; token: string }>;
 };
 

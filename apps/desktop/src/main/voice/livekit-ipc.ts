@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Simplified voice IPC — token generation + sidecar lifecycle
+// Voice IPC — sidecar lifecycle + token generation
 // ---------------------------------------------------------------------------
 
 import path from "node:path";
@@ -8,7 +8,7 @@ import { execSync, fork, type ChildProcess } from "node:child_process";
 import { app, BrowserWindow, ipcMain } from "electron";
 
 import { handleSidecarAgentEvent } from "@/main/app-machine";
-import { IPC_CHANNELS, isRecord, toErrorMessage } from "@/shared/ipc";
+import { IPC_CHANNELS, isRecord } from "@/shared/ipc";
 import { createRoomToken, type LiveKitCredentials } from "./livekit-token";
 
 const ROOM_NAME = "inteligir-desktop";
@@ -53,16 +53,15 @@ function ensureSidecar(): ChildProcess {
       LIVEKIT_URL: process.env["LIVEKIT_URL"],
       LIVEKIT_API_KEY: process.env["LIVEKIT_API_KEY"],
       LIVEKIT_API_SECRET: process.env["LIVEKIT_API_SECRET"],
-      INTELIGIR_PACKAGED: String(app.isPackaged),
+      // Pass Electron-only paths so the system node sidecar can find bundled resources
+      ...(app.isPackaged ? { INTELIGIR_RESOURCES_PATH: process.resourcesPath } : {}),
     },
   });
 
   sidecar.on("message", (msg: unknown) => {
     if (!isRecord(msg)) return;
     if (msg.type === "agent-event") {
-      // Forward to app-machine for busy/idle state tracking
       handleSidecarAgentEvent(msg.event);
-      // Forward to renderer for chat streaming
       broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, msg.event);
     }
   });
@@ -83,35 +82,21 @@ function broadcastToRenderer(channel: string, data: unknown): void {
   }
 }
 
+export function killSidecar(): void {
+  if (sidecar) {
+    sidecar.kill();
+    sidecar = null;
+  }
+}
+
 export function registerLiveKitIpcHandlers(): () => void {
-  ipcMain.handle(IPC_CHANNELS.VOICE_START, async (): Promise<{ ok: boolean; error?: string }> => {
-    try {
-      ensureSidecar();
-      return { ok: true };
-    } catch (err) {
-      return { ok: false, error: toErrorMessage(err) };
-    }
-  });
-
-  ipcMain.handle(IPC_CHANNELS.VOICE_STOP, (): { ok: boolean } => {
-    // Don't kill sidecar — it stays alive for text chat too.
-    // The renderer disconnects from the room which stops voice.
-    return { ok: true };
-  });
-
   ipcMain.handle(IPC_CHANNELS.VOICE_TOKEN, async (): Promise<LiveKitCredentials> => {
     ensureSidecar();
     return createRoomToken(ROOM_NAME, USER_IDENTITY);
   });
 
   return () => {
-    ipcMain.removeHandler(IPC_CHANNELS.VOICE_START);
-    ipcMain.removeHandler(IPC_CHANNELS.VOICE_STOP);
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_TOKEN);
-
-    if (sidecar) {
-      sidecar.kill();
-      sidecar = null;
-    }
+    killSidecar();
   };
 }

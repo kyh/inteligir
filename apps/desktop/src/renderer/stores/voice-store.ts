@@ -160,10 +160,6 @@ async function connectToRoom(
       }
     });
 
-    room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
-      console.log("[voice] data received:", topic, "from", participant?.identity, "size:", payload.length);
-    });
-
     console.log("[voice] connecting to", url);
     await room.connect(url, token);
     await room.localParticipant.setMicrophoneEnabled(true);
@@ -186,6 +182,7 @@ async function connectToRoom(
 }
 
 function disconnectRoom(set: SetState): void {
+  document.getElementById("livekit-agent-audio")?.remove();
   if (room) {
     void room.disconnect();
     room = null;

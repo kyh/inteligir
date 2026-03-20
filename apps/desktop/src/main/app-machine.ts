@@ -6,8 +6,9 @@ import {
   login,
   seedResources,
   teardownResources,
-} from "@/main/agent/agent";
+} from "@/agent/setup";
 import { ToolManager } from "@/main/tool-manager";
+import { killSidecar } from "@/main/voice/livekit-ipc";
 import { IPC_CHANNELS, isRecord, toErrorMessage } from "@/shared/ipc";
 import type { AppEvent, AppState } from "@/shared/app-state";
 
@@ -45,11 +46,6 @@ function broadcast(): void {
 
 export function getAppState(): AppState {
   return state;
-}
-
-export function onStateChange(fn: Listener): () => void {
-  listeners.add(fn);
-  return () => { listeners.delete(fn); };
 }
 
 /**
@@ -122,10 +118,10 @@ export function transition(event: AppEvent): void {
   }
 }
 
-/** Graceful shutdown. */
+/** Graceful shutdown — kill sidecar agent worker. */
 export async function shutdown(): Promise<void> {
   console.log("[machine] shutdown");
-  // Sidecar cleanup is handled by livekit-ipc
+  killSidecar();
 }
 
 // ---------------------------------------------------------------------------
