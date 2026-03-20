@@ -1,15 +1,15 @@
 import path from "node:path";
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-import { getAgent, getAppState, initMachine, onAgentEvent, shutdown, transition } from "@/main/app-machine";
+import { getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
 import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
-import { VoiceService } from "@/main/voice/voice-service";
-import { registerVoiceIpcHandlers } from "@/main/voice/voice-ipc";
+import { registerLiveKitIpcHandlers } from "@/main/voice/livekit-ipc";
 import { CreateTaskParamsSchema } from "@/shared/task";
-import { IPC_CHANNELS, MENU_ACTIONS, extractText, isHttpUrl, isRecord, toErrorMessage } from "@/shared/ipc";
+import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { AppEvent } from "@/shared/app-state";
 import type { UpdateState } from "@/shared/ipc";
 
@@ -38,34 +38,6 @@ function setUpdateState(patch: Partial<UpdateState>): void {
   for (const window of BrowserWindow.getAllWindows()) {
     if (!window.isDestroyed()) {
       window.webContents.send(IPC_CHANNELS.UPDATE_STATE, updateState);
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Agent event forwarding (main -> renderer via IPC)
-// ---------------------------------------------------------------------------
-
-function broadcastAgentEvent(event: unknown): void {
-  const type = isRecord(event) && "type" in event ? event.type : "unknown";
-
-  if (type === "message_end" && isRecord(event)) {
-    const msg = isRecord(event.message) ? event.message : undefined;
-    if (msg?.stopReason === "error") {
-      console.error("[agent] message error:", msg.errorMessage);
-    }
-  }
-
-  let safe: unknown;
-  try {
-    safe = JSON.parse(JSON.stringify(event));
-  } catch (err) {
-    console.error("[agent] failed to serialize event:", type, err);
-    return;
-  }
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send(IPC_CHANNELS.AGENT_EVENT, safe);
     }
   }
 }
@@ -153,12 +125,6 @@ function requireString(value: unknown, name: string): string {
   return value;
 }
 
-function requireAgent() {
-  const agent = getAgent();
-  if (!agent) throw new Error("Agent not started");
-  return agent;
-}
-
 function registerIpcHandlers(): void {
   // ---- Desktop --------------------------------------------------------------
 
@@ -214,25 +180,6 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.APP_TRANSITION, (_event, raw: unknown) => {
     transition(raw as AppEvent);
-  });
-
-  // ---- Agent ----------------------------------------------------------------
-
-  ipcMain.handle(IPC_CHANNELS.AGENT_SEND_MESSAGE, (_event, raw: unknown) => {
-    return requireAgent().sendMessage(requireString(raw, "message"));
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENT_STEER, (_event, raw: unknown) => {
-    return requireAgent().steer(requireString(raw, "message"));
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENT_INTERRUPT, () => {
-    return requireAgent().interrupt();
-  });
-
-  ipcMain.handle(IPC_CHANNELS.AGENT_CLEAR, () => {
-    getAgent()?.clear();
-    return { ok: true };
   });
 
   // ---- Tasks ----------------------------------------------------------------
@@ -386,31 +333,12 @@ app
     configureAutoUpdater();
     registerIpcHandlers();
 
-    // Voice service — STT + TTS via ElevenLabs
-    const voiceService = new VoiceService(() => getAgent());
-    const unregisterVoiceIpc = registerVoiceIpcHandlers(voiceService);
+    // Voice — LiveKit sidecar + token generation
+    // Agent events are forwarded from sidecar via livekit-ipc → app-machine
+    const unregisterVoiceIpc = registerLiveKitIpcHandlers();
 
-    // Forward raw agent session events to renderer for chat streaming
-    const unsubAgentEvents = onAgentEvent((event) => {
-      broadcastAgentEvent(event);
-
-      // When voice is active and agent finishes a response, trigger TTS
-      if (
-        voiceService.isActive() &&
-        isRecord(event) &&
-        event.type === "message_end" &&
-        isRecord(event.message) &&
-        event.message.role === "assistant"
-      ) {
-        const text = extractText(event.message);
-        if (text) voiceService.handleAgentResponse(text);
-      }
-    });
-
-    // Clean up voice resources on quit
+    // Clean up on quit
     app.on("will-quit", () => {
-      voiceService.stop();
-      unsubAgentEvents();
       unregisterVoiceIpc();
     });
 

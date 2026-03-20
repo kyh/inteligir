@@ -8,8 +8,7 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 function phaseToOrbStatus(phase: string, voiceState: string): DisplayStatus {
-  if (voiceState === "listening") return "listening";
-  if (voiceState === "speaking") return "speaking";
+  if (voiceState === "connected") return "listening";
   switch (phase) {
     case "ready":
       return "idle";

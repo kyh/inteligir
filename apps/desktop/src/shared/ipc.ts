@@ -1,8 +1,3 @@
-import type {
-  InterruptResult,
-  SendMessageResult,
-  SteerResult,
-} from "./agent";
 import type { AppEvent, AppState } from "./app-state";
 import type {
   CreateTaskParams,
@@ -11,7 +6,6 @@ import type {
   ListTasksResult,
   ToggleTaskResult,
 } from "./task";
-import type { VoiceEvent, VoiceSettings, VoiceSettingsResponse } from "./voice";
 
 // ---------------------------------------------------------------------------
 // IPC channel names shared between Electron main <-> preload <-> renderer
@@ -35,11 +29,7 @@ export const IPC_CHANNELS = {
   APP_TRANSITION: "app:transition",
   APP_GET_STATE: "app:get-state",
 
-  // Agent
-  AGENT_SEND_MESSAGE: "agent:send-message",
-  AGENT_STEER: "agent:steer",
-  AGENT_INTERRUPT: "agent:interrupt",
-  AGENT_CLEAR: "agent:clear",
+  // Agent (events forwarded from sidecar via main process)
   AGENT_EVENT: "agent:event",
 
   // Tasks
@@ -48,13 +38,10 @@ export const IPC_CHANNELS = {
   TASK_DELETE: "task:delete",
   TASK_TOGGLE: "task:toggle",
 
-  // Voice
+  // Voice (LiveKit)
   VOICE_START: "voice:start",
   VOICE_STOP: "voice:stop",
-  VOICE_AUDIO_CHUNK: "voice:audio-chunk",
-  VOICE_EVENT: "voice:event",
-  VOICE_GET_SETTINGS: "voice:get-settings",
-  VOICE_SET_SETTINGS: "voice:set-settings",
+  VOICE_TOKEN: "voice:token",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -100,11 +87,7 @@ export type DesktopBridge = {
   transition: (event: AppEvent) => Promise<void>;
   onAppState: (listener: (state: AppState) => void) => () => void;
 
-  // Agent
-  sendMessage: (message: string) => Promise<SendMessageResult>;
-  steer: (message: string) => Promise<SteerResult>;
-  interrupt: () => Promise<InterruptResult>;
-  clear: () => Promise<{ ok: true }>;
+  // Agent (events forwarded from sidecar; commands go via LiveKit data channels)
   onAgentEvent: (listener: (event: unknown) => void) => () => void;
 
   // Tasks
@@ -113,13 +96,10 @@ export type DesktopBridge = {
   deleteTask: (id: string) => Promise<DeleteTaskResult>;
   toggleTask: (id: string) => Promise<ToggleTaskResult>;
 
-  // Voice
+  // Voice (LiveKit)
   startVoice: () => Promise<{ ok: boolean; error?: string }>;
   stopVoice: () => Promise<{ ok: boolean }>;
-  sendAudioChunk: (base64: string) => void;
-  onVoiceEvent: (listener: (event: VoiceEvent) => void) => () => void;
-  getVoiceSettings: () => Promise<VoiceSettingsResponse>;
-  setVoiceSettings: (settings: VoiceSettings) => Promise<{ ok: boolean }>;
+  getVoiceToken: () => Promise<{ url: string; token: string }>;
 };
 
 // ---------------------------------------------------------------------------

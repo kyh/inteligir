@@ -1,19 +1,15 @@
 import { BrowserWindow } from "electron";
 
 import {
-  Agent,
   isLoggedIn,
   isSetupComplete,
   login,
   seedResources,
   teardownResources,
 } from "@/main/agent/agent";
-import { TaskScheduler } from "@/main/tasks/task-scheduler";
 import { ToolManager } from "@/main/tool-manager";
-import { IPC_CHANNELS, toErrorMessage } from "@/shared/ipc";
+import { IPC_CHANNELS, isRecord, toErrorMessage } from "@/shared/ipc";
 import type { AppEvent, AppState } from "@/shared/app-state";
-
-type AgentEventListener = (event: unknown) => void;
 
 // ---------------------------------------------------------------------------
 // State machine
@@ -22,12 +18,8 @@ type AgentEventListener = (event: unknown) => void;
 type Listener = (state: AppState) => void;
 
 let state: AppState = { phase: "logged_out" };
-let agent: Agent | null = null;
-let scheduler: TaskScheduler | null = null;
-let agentUnsub: (() => void) | null = null;
 const toolManager = new ToolManager();
 const listeners = new Set<Listener>();
-const agentEventListeners = new Set<AgentEventListener>();
 
 function setState(next: AppState): void {
   const prev = state;
@@ -55,26 +47,30 @@ export function getAppState(): AppState {
   return state;
 }
 
-export function getAgent(): Agent | null {
-  return agent;
-}
-
 export function onStateChange(fn: Listener): () => void {
   listeners.add(fn);
   return () => { listeners.delete(fn); };
 }
 
-/** Subscribe to raw agent session events (for chat streaming). */
-export function onAgentEvent(fn: AgentEventListener): () => void {
-  agentEventListeners.add(fn);
-  return () => { agentEventListeners.delete(fn); };
+/**
+ * Called by livekit-ipc when the sidecar forwards an agent event.
+ * Updates busy/idle machine state.
+ */
+export function handleSidecarAgentEvent(event: unknown): void {
+  if (state.phase !== "ready") return;
+  if (!isRecord(event)) return;
+  if (event.type === "agent_start") {
+    setState({ phase: "ready", agent: "busy" });
+  } else if (event.type === "agent_end") {
+    setState({ phase: "ready", agent: "idle" });
+  }
 }
 
 /** Determine initial state from persisted auth/setup and auto-start if ready. */
 export function initMachine(): void {
   if (isLoggedIn() && isSetupComplete()) {
     setState({ phase: "setting_up" });
-    void doStartAgent()
+    void doSetupReady()
       .then(() => setState({ phase: "ready", agent: "idle" }))
       .catch((err) => setState({ phase: "error", prev: "setting_up", message: toErrorMessage(err) }));
   } else if (isLoggedIn()) {
@@ -117,7 +113,7 @@ export function transition(event: AppEvent): void {
         void doSetup();
       } else if (prev === "ready") {
         setState({ phase: "setting_up" });
-        void doStartAgent()
+        void doSetupReady()
           .then(() => setState({ phase: "ready", agent: "idle" }))
           .catch((err) => setState({ phase: "error", prev: "ready", message: toErrorMessage(err) }));
       }
@@ -126,22 +122,10 @@ export function transition(event: AppEvent): void {
   }
 }
 
-/** Graceful shutdown — wait for agent to finish, then stop. */
+/** Graceful shutdown. */
 export async function shutdown(): Promise<void> {
   console.log("[machine] shutdown");
-  scheduler?.stop();
-  scheduler = null;
-
-  if (agent) {
-    const idle = await agent.waitForIdle(5_000);
-    if (!idle) {
-      console.warn("[machine] agent did not reach idle within timeout, force-stopping");
-    }
-    agentUnsub?.();
-    agentUnsub = null;
-    await agent.stop();
-    agent = null;
-  }
+  // Sidecar cleanup is handled by livekit-ipc
 }
 
 // ---------------------------------------------------------------------------
@@ -159,52 +143,22 @@ async function doLogin(): Promise<void> {
 
 async function doSetup(): Promise<void> {
   try {
-    seedResources();
-    await doStartAgent();
+    await doSetupReady();
     setState({ phase: "ready", agent: "idle" });
   } catch (err) {
     setState({ phase: "error", prev: "setting_up", message: toErrorMessage(err) });
   }
 }
 
-async function doStartAgent(): Promise<void> {
-  agent = new Agent();
-  await agent.start();
-
-  agentUnsub = agent.subscribe((event) => {
-    // Forward raw events to chat streaming listeners
-    for (const fn of agentEventListeners) {
-      try { fn(event); } catch { /* */ }
-    }
-
-    // Update machine state for lifecycle transitions
-    if (state.phase !== "ready") return;
-    if (event.type === "agent_start") {
-      setState({ phase: "ready", agent: "busy" });
-    } else if (event.type === "agent_end") {
-      setState({ phase: "ready", agent: "idle" });
-    }
-  });
-
+/** Seed resources and ensure tools — agent lives in sidecar. */
+async function doSetupReady(): Promise<void> {
+  seedResources();
   void toolManager.ensureAll().catch((err) => {
     console.error("[machine] tool install failed:", err);
   });
-
-  scheduler = new TaskScheduler(() => agent);
-  scheduler.start();
 }
 
 async function doLogout(): Promise<void> {
-  scheduler?.stop();
-  scheduler = null;
-
-  if (agent) {
-    agentUnsub?.();
-    agentUnsub = null;
-    await agent.stop();
-    agent = null;
-  }
-
   teardownResources();
   setState({ phase: "logged_out" });
 }

@@ -27,9 +27,11 @@ export function ChatPage() {
   const busy = useAgentStore(
     (s) => s.appState.phase === "ready" && s.appState.agent === "busy",
   );
-  const sendMessage = useAgentStore((s) => s.sendMessage);
-  const steer = useAgentStore((s) => s.steer);
-  const interrupt = useAgentStore((s) => s.interrupt);
+
+  // Text commands route through LiveKit data channels via voice store
+  const sendMessage = useVoiceStore((s) => s.sendMessage);
+  const steer = useVoiceStore((s) => s.steer);
+  const interrupt = useVoiceStore((s) => s.interrupt);
 
   const initVoice = useVoiceStore((s) => s.init);
   useEffect(() => initVoice(), [initVoice]);

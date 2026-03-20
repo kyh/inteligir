@@ -38,11 +38,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   onAppState: (listener: (state: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.APP_STATE, listener),
 
-  // Agent
-  sendMessage: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_SEND_MESSAGE, message),
-  steer: (message: string) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_STEER, message),
-  interrupt: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_INTERRUPT),
-  clear: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_CLEAR),
+  // Agent (events only — commands go via LiveKit data channels)
   onAgentEvent: (listener: (event: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),
 
@@ -52,12 +48,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
   toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
 
-  // Voice
+  // Voice (LiveKit)
   startVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_START),
   stopVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STOP),
-  sendAudioChunk: (base64: string) => ipcRenderer.send(IPC_CHANNELS.VOICE_AUDIO_CHUNK, base64),
-  onVoiceEvent: (listener: (event: unknown) => void) =>
-    forwardEvent(IPC_CHANNELS.VOICE_EVENT, listener),
-  getVoiceSettings: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_GET_SETTINGS),
-  setVoiceSettings: (settings: unknown) => ipcRenderer.invoke(IPC_CHANNELS.VOICE_SET_SETTINGS, settings),
+  getVoiceToken: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_TOKEN),
 });

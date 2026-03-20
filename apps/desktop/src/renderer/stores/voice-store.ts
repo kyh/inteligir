@@ -1,88 +1,51 @@
+import { Room, RoomEvent, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
 import { create } from "zustand";
 
-import { AudioCapture } from "@/renderer/lib/audio-capture";
-import { AudioPlaybackManager } from "@/renderer/lib/audio-playback";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
-import type { VoiceEvent, VoiceSessionState } from "@/shared/voice";
+import { toErrorMessage } from "@/shared/ipc";
+import { TEXT_CHAT_TOPIC, type TextChatMessage, type VoiceSessionState } from "@/shared/voice";
+
+const textEncoder = new TextEncoder();
+
+function sendDataMessage(msg: TextChatMessage): boolean {
+  if (!room || room.state !== "connected") return false;
+  const data = textEncoder.encode(JSON.stringify(msg));
+  void room.localParticipant.publishData(data, { reliable: true, topic: TEXT_CHAT_TOPIC });
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Store
+// ---------------------------------------------------------------------------
 
 type VoiceStore = {
   sessionState: VoiceSessionState;
   currentTranscript: string;
-  isConfigured: boolean;
   error: string | null;
 
   init: () => () => void;
   toggleVoice: () => void;
-  loadSettings: () => Promise<void>;
+  sendMessage: (text: string) => void;
+  steer: (text: string) => void;
+  interrupt: () => void;
+  clearChat: () => void;
 };
 
-// Module-level singletons — safe for single-window Electron app.
-// init() early-returns if already set, preventing duplicates.
-let capture: AudioCapture | null = null;
-let playback: AudioPlaybackManager | null = null;
+// Module-level room singleton — safe for single-window Electron app
+let room: Room | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
   currentTranscript: "",
-  isConfigured: false,
   error: null,
 
   init: () => {
-    if (playback) return () => {}; // already initialized
-
-    const bridge = getBridge();
-    if (!bridge) return () => {};
-
-    playback = new AudioPlaybackManager();
-
-    const unsub = bridge.onVoiceEvent((raw: unknown) => {
-      const event = raw as VoiceEvent;
-
-      switch (event.type) {
-        case "voice:state":
-          set({ sessionState: event.state, error: event.error ?? null });
-
-          if (event.state === "listening") {
-            if (!capture) {
-              capture = new AudioCapture();
-              void capture.start().catch((err) => {
-                console.error("[voice] mic error:", err);
-                set({ error: "Microphone access denied" });
-                void bridge.stopVoice();
-              });
-            }
-          } else if (event.state === "inactive" || event.state === "error") {
-            capture?.stop();
-            capture = null;
-            playback?.interrupt();
-          }
-          break;
-
-        case "voice:transcript":
-          if (event.isFinal) {
-            set({ currentTranscript: "" });
-            if (event.text.trim()) {
-              useAgentStore.getState().addUserMessage(event.text.trim());
-            }
-          } else {
-            set({ currentTranscript: event.text });
-          }
-          break;
-
-        case "voice:tts-chunk":
-          void playback?.enqueue(event.audio);
-          break;
-      }
-    });
-
-    void get().loadSettings();
     return () => {
-      unsub();
-      capture?.stop();
-      capture = null;
-      playback?.dispose();
-      playback = null;
+      if (room) {
+        void room.disconnect();
+        room = null;
+      }
     };
   },
 
@@ -91,30 +54,139 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     if (!bridge) return;
     const { sessionState } = get();
 
-    if (sessionState === "inactive") {
-      void bridge.startVoice();
-    } else if (sessionState === "speaking") {
-      // Interrupt speech and restart listening
-      capture?.stop();
-      capture = null;
-      playback?.interrupt();
-      void bridge.stopVoice().then((r) => { if (r.ok) void bridge.startVoice(); });
+    if (sessionState === "inactive" || sessionState === "error") {
+      void connectToRoom(bridge, set);
     } else {
-      capture?.stop();
-      capture = null;
-      playback?.interrupt();
-      void bridge.stopVoice();
+      disconnectRoom(set);
     }
   },
 
-  loadSettings: async () => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    try {
-      const { settings } = await bridge.getVoiceSettings();
-      set({ isConfigured: settings !== null && settings.apiKeyMasked.length > 0 });
-    } catch {
-      // IPC unavailable — leave isConfigured as-is
+  sendMessage: (text: string) => {
+    if (sendDataMessage({ type: "user_message", text })) {
+      useAgentStore.getState().addUserMessage(text);
     }
   },
+
+  steer: (text: string) => {
+    if (sendDataMessage({ type: "steer", text })) {
+      useAgentStore.getState().addSteerMessage(text);
+    }
+  },
+
+  interrupt: () => {
+    sendDataMessage({ type: "interrupt" });
+  },
+
+  clearChat: () => {
+    sendDataMessage({ type: "clear" });
+  },
 }));
+
+// ---------------------------------------------------------------------------
+// Room connection lifecycle
+// ---------------------------------------------------------------------------
+
+type SetState = (partial: Partial<VoiceStore>) => void;
+
+async function connectToRoom(
+  bridge: ReturnType<typeof getBridge> & object,
+  set: SetState,
+): Promise<void> {
+  set({ sessionState: "connecting", error: null });
+
+  try {
+    // Get LiveKit token (also ensures sidecar is running)
+    const { url, token } = await bridge.getVoiceToken();
+
+    // Create room and connect
+    room = new Room();
+
+    room.on(RoomEvent.Connected, () => {
+      console.log("[voice] room connected, waiting for agent...");
+    });
+
+    room.on(RoomEvent.Disconnected, (reason) => {
+      console.log("[voice] room disconnected:", reason);
+      set({ sessionState: "inactive", currentTranscript: "" });
+      room = null;
+    });
+
+    room.on(RoomEvent.ConnectionStateChanged, (state) => {
+      console.log("[voice] connection state:", state);
+    });
+
+    room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
+      console.log("[voice] track subscribed:", track.kind, "from", participant.identity);
+      if (track.kind === "audio") {
+        const el = track.attach();
+        el.id = "livekit-agent-audio";
+        document.body.appendChild(el);
+      }
+    });
+
+    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+      console.log("[voice] track unsubscribed:", track.kind);
+      if (track.kind === "audio") {
+        for (const el of track.detach()) {
+          el.remove();
+        }
+      }
+    });
+
+    room.on(RoomEvent.TrackPublished, (pub, participant) => {
+      console.log("[voice] track published:", pub.kind, "by", participant.identity);
+    });
+
+    room.on(RoomEvent.ParticipantConnected, (participant) => {
+      console.log("[voice] participant connected:", participant.identity);
+      // Agent joined — pipeline is ready
+      set({ sessionState: "connected" });
+    });
+
+    room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
+      console.log("[voice] transcription:", segments.map((s) => s.text).join(" "), "from", participant?.identity);
+      if (participant?.identity === room?.localParticipant.identity) return;
+      for (const seg of segments) {
+        if (seg.final) {
+          set({ currentTranscript: "" });
+          if (seg.text.trim()) {
+            useAgentStore.getState().addUserMessage(seg.text.trim());
+          }
+        } else {
+          set({ currentTranscript: seg.text });
+        }
+      }
+    });
+
+    room.on(RoomEvent.DataReceived, (payload, participant, _kind, topic) => {
+      console.log("[voice] data received:", topic, "from", participant?.identity, "size:", payload.length);
+    });
+
+    console.log("[voice] connecting to", url);
+    await room.connect(url, token);
+    await room.localParticipant.setMicrophoneEnabled(true);
+    console.log("[voice] mic enabled, local tracks:", room.localParticipant.audioTrackPublications.size);
+
+    // If agent is already in the room (e.g. reconnect), mark as ready
+    if (room.remoteParticipants.size > 0) {
+      set({ sessionState: "connected" });
+    }
+  } catch (err) {
+    set({
+      sessionState: "error",
+      error: toErrorMessage(err),
+    });
+    if (room) {
+      void room.disconnect();
+      room = null;
+    }
+  }
+}
+
+function disconnectRoom(set: SetState): void {
+  if (room) {
+    void room.disconnect();
+    room = null;
+  }
+  set({ sessionState: "inactive", currentTranscript: "" });
+}
