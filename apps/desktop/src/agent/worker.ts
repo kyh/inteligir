@@ -15,18 +15,40 @@ import { isRecord } from "@/shared/ipc";
 import { TEXT_CHAT_TOPIC, type TextChatMessage } from "@/shared/voice";
 
 // ---------------------------------------------------------------------------
+// Voice pipeline configuration
+// ---------------------------------------------------------------------------
+
+const STT_MODEL = "deepgram/flux-general";
+const TTS_VOICE = "elevenlabs/eleven_flash_v2_5:SAz9YHcvj6GT2YYXdXww";
+
+// Pre-loaded VAD model — populated in prewarm, reused in entry
+let preloadedVAD: silero.VAD | null = null;
+
+// ---------------------------------------------------------------------------
 // Agent singleton — shared across jobs (single user, single desktop)
 // ---------------------------------------------------------------------------
 
 let piAgent: Agent | null = null;
+let agentInitPromise: Promise<Agent> | null = null;
 
 async function ensureAgent(): Promise<Agent> {
-  if (!piAgent) {
+  if (piAgent) return piAgent;
+  if (agentInitPromise) return agentInitPromise;
+
+  agentInitPromise = (async () => {
     seedResources();
-    piAgent = new Agent();
-    await piAgent.start();
+    const agent = new Agent();
+    await agent.start();
+    piAgent = agent;
+    return agent;
+  })();
+
+  try {
+    return await agentInitPromise;
+  } catch (err) {
+    agentInitPromise = null;
+    throw err;
   }
-  return piAgent;
 }
 
 // ---------------------------------------------------------------------------
@@ -77,8 +99,7 @@ function forwardToMain(event: unknown): void {
 
 export default defineAgent({
   prewarm: async (_proc: JobProcess) => {
-    // Pre-load Silero VAD model
-    await silero.VAD.load();
+    preloadedVAD = await silero.VAD.load();
   },
 
   entry: async (ctx: JobContext) => {
@@ -95,9 +116,9 @@ export default defineAgent({
     // Create voice pipeline agent using LiveKit Cloud inference (no separate API key needed)
     const voiceAgent = new voice.Agent({
       instructions: "You are Inteligir, an AI chief of staff. Be concise and helpful.",
-      vad: await silero.VAD.load(),
-      stt: "deepgram/flux-general",
-      tts: "elevenlabs/eleven_flash_v2_5:SAz9YHcvj6GT2YYXdXww",
+      vad: preloadedVAD ?? await silero.VAD.load(),
+      stt: STT_MODEL,
+      tts: TTS_VOICE,
       llm: llmAdapter,
     });
 

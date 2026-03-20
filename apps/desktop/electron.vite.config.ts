@@ -1,24 +1,23 @@
 import { dirname, resolve } from "node:path";
-import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { config as dotenvConfig } from "dotenv";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Parse .env file into define-compatible entries for process.env injection. */
+/** Load .env file and return define-compatible entries for process.env injection. */
 function loadDotEnv(...prefixes: string[]): Record<string, string> {
   const defs: Record<string, string> = {};
-  try {
-    for (const line of readFileSync(resolve(__dirname, ".env"), "utf8").split("\n")) {
-      const m = line.match(/^\s*([^#=]+?)\s*=\s*(.*?)\s*$/);
-      const key = m?.[1];
-      if (key && prefixes.some((p) => key.startsWith(p))) {
-        defs[`process.env.${key}`] = JSON.stringify(m?.[2]);
+  const result = dotenvConfig({ path: resolve(__dirname, ".env") });
+  if (result.parsed) {
+    for (const [key, value] of Object.entries(result.parsed)) {
+      if (prefixes.some((p) => key.startsWith(p))) {
+        defs[`process.env.${key}`] = JSON.stringify(value);
       }
     }
-  } catch { /* .env missing — ok */ }
+  }
   return defs;
 }
 

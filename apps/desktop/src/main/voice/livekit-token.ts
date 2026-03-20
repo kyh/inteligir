@@ -9,6 +9,11 @@ export type LiveKitCredentials = {
   token: string;
 };
 
+const TOKEN_TTL = "6h";
+const TOKEN_REFRESH_THRESHOLD_MS = 10 * 60 * 1_000; // refresh if <10 min remaining
+
+let cachedCredentials: { credentials: LiveKitCredentials; expiresAt: number } | null = null;
+
 /**
  * Mint a JWT for a participant to join a LiveKit room.
  * Reads LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET from env.
@@ -26,9 +31,14 @@ export async function createRoomToken(
   if (!apiKey) throw new Error("LIVEKIT_API_KEY env var is required");
   if (!apiSecret) throw new Error("LIVEKIT_API_SECRET env var is required");
 
+  // Return cached token if still valid with comfortable margin
+  if (cachedCredentials && Date.now() < cachedCredentials.expiresAt - TOKEN_REFRESH_THRESHOLD_MS) {
+    return cachedCredentials.credentials;
+  }
+
   const token = new AccessToken(apiKey, apiSecret, {
     identity,
-    ttl: "1h",
+    ttl: TOKEN_TTL,
   });
 
   token.addGrant({
@@ -41,5 +51,14 @@ export async function createRoomToken(
   });
 
   const jwt = await token.toJwt();
-  return { url, token: jwt };
+  const credentials = { url, token: jwt };
+
+  // Parse TTL to ms for cache expiry (format: "6h")
+  const ttlHours = parseInt(TOKEN_TTL, 10);
+  cachedCredentials = {
+    credentials,
+    expiresAt: Date.now() + ttlHours * 60 * 60 * 1_000,
+  };
+
+  return credentials;
 }

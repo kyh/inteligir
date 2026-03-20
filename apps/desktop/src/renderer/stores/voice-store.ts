@@ -7,6 +7,8 @@ import { toErrorMessage } from "@/shared/ipc";
 import { TEXT_CHAT_TOPIC, type TextChatMessage, type VoiceSessionState } from "@/shared/voice";
 
 const textEncoder = new TextEncoder();
+const MAX_RECONNECT_ATTEMPTS = 3;
+const RECONNECT_BASE_DELAY_MS = 2_000;
 
 function sendDataMessage(msg: TextChatMessage): boolean {
   if (!room || room.state !== "connected") return false;
@@ -24,7 +26,6 @@ type VoiceStore = {
   currentTranscript: string;
   error: string | null;
 
-  init: () => () => void;
   toggleVoice: () => void;
   sendMessage: (text: string) => void;
   steer: (text: string) => void;
@@ -34,17 +35,13 @@ type VoiceStore = {
 
 // Module-level room singleton — safe for single-window Electron app
 let room: Room | null = null;
+let reconnectAttempts = 0;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
   currentTranscript: "",
   error: null,
-
-  init: () => {
-    return () => {
-      disconnectRoom(set);
-    };
-  },
 
   toggleVoice: () => {
     const bridge = getBridge();
@@ -105,9 +102,27 @@ async function connectToRoom(
     room.on(RoomEvent.Disconnected, (reason) => {
       console.log("[voice] room disconnected:", reason);
       room = null;
+      const state = useVoiceStore.getState().sessionState;
       // Skip if already inactive (e.g. explicit disconnectRoom call)
-      if (useVoiceStore.getState().sessionState !== "inactive") {
-        set({ sessionState: "inactive", currentTranscript: "" });
+      if (state === "inactive") return;
+
+      // Attempt reconnection with exponential backoff
+      if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+        const delay = RECONNECT_BASE_DELAY_MS * Math.pow(2, reconnectAttempts);
+        reconnectAttempts++;
+        console.log(`[voice] reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+        set({ sessionState: "connecting", error: null });
+        reconnectTimer = setTimeout(() => {
+          reconnectTimer = null;
+          void connectToRoom(bridge, set);
+        }, delay);
+      } else {
+        reconnectAttempts = 0;
+        set({
+          sessionState: "error",
+          currentTranscript: "",
+          error: `Disconnected: ${String(reason ?? "unknown")}. Reconnect attempts exhausted.`,
+        });
       }
     });
 
@@ -141,7 +156,8 @@ async function connectToRoom(
 
     room.on(RoomEvent.ParticipantConnected, (participant) => {
       console.log("[voice] participant connected:", participant.identity);
-      // Agent joined — pipeline is ready
+      // Agent joined — pipeline is ready. Reset reconnect counter on success.
+      reconnectAttempts = 0;
       set({ sessionState: "connected" });
     });
 
@@ -182,6 +198,11 @@ async function connectToRoom(
 }
 
 function disconnectRoom(set: SetState): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempts = 0;
   document.getElementById("livekit-agent-audio")?.remove();
   if (room) {
     void room.disconnect();

@@ -24,11 +24,11 @@ export class PiLLMAdapter extends llm.LLM {
   }
 
   override get model(): string {
-    return "gpt-5.4";
+    return "pi-coding-agent";
   }
 
   override get provider(): string {
-    return "openai-codex";
+    return "inteligir";
   }
 
   chat(options: {

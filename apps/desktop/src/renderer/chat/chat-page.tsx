@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 
 import {
@@ -32,9 +32,6 @@ export function ChatPage() {
   const sendMessage = useVoiceStore((s) => s.sendMessage);
   const steer = useVoiceStore((s) => s.steer);
   const interrupt = useVoiceStore((s) => s.interrupt);
-
-  const initVoice = useVoiceStore((s) => s.init);
-  useEffect(() => initVoice(), [initVoice]);
 
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<Mode>("voice");

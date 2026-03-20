@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import path from "node:path";
+import fs from "node:fs";
 import { execSync, fork, type ChildProcess } from "node:child_process";
 
 import { app, BrowserWindow, ipcMain } from "electron";
@@ -25,15 +26,40 @@ function getWorkerPath(): string {
  * Resolve the system Node.js binary path.
  * We must NOT use Electron's binary — it bundles Chromium's WebRTC which
  * conflicts with @livekit/rtc-node's native WebRTC (duplicate ObjC classes).
+ *
+ * On macOS app bundles, PATH is stripped so `which node` may fail.
+ * We check well-known install locations as fallback.
  */
 function getNodePath(): string {
   if (systemNodePath) return systemNodePath;
+
+  // Try `which node` first (works in dev and most Linux environments)
   try {
-    systemNodePath = execSync("which node", { encoding: "utf8" }).trim();
+    const resolved = execSync("which node", { encoding: "utf8" }).trim();
+    if (resolved && fs.existsSync(resolved)) {
+      systemNodePath = resolved;
+      return systemNodePath;
+    }
   } catch {
-    systemNodePath = "node";
+    // Fall through to well-known paths
   }
-  return systemNodePath;
+
+  // Well-known Node.js install locations (macOS app bundles strip PATH)
+  const candidates = [
+    "/usr/local/bin/node",
+    "/opt/homebrew/bin/node", // Apple Silicon Homebrew
+    "/usr/bin/node",
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      systemNodePath = candidate;
+      return systemNodePath;
+    }
+  }
+
+  throw new Error(
+    "Could not find system Node.js binary. Install Node.js or set the NODE_PATH environment variable.",
+  );
 }
 
 function ensureSidecar(): ChildProcess {
