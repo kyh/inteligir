@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 
-import { GeometricOrb } from "@repo/ui/geometric-orb";
+import { GeometricOrb, type DisplayStatus } from "@repo/ui/geometric-orb";
 
 function MacLogoIcon({ className }: { className?: string }) {
   return (
@@ -18,12 +19,41 @@ function MacLogoIcon({ className }: { className?: string }) {
 }
 
 export default function OS1Page() {
+  const ORB_STATUSES: DisplayStatus[] = [
+    "starting",
+    "idle",
+    "listening",
+    "speaking",
+  ];
+
+  const [orbStatus, setOrbStatus] = useState<DisplayStatus>("starting");
+
+  const toggleOrbStatus = () => {
+    setOrbStatus((s) => {
+      const idx = ORB_STATUSES.indexOf(s);
+      const next = ORB_STATUSES[(idx + 1) % ORB_STATUSES.length];
+      return next ?? "idle";
+    });
+  };
+
   return (
     <div className="flex min-h-dvh w-full flex-col bg-[#d1684e]">
       {/* Orb in center — flex-1 so it takes space and stays visible */}
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="h-48 w-48">
-          <GeometricOrb status="idle" />
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Cycle orb state (current: ${orbStatus})`}
+          onClick={toggleOrbStatus}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              toggleOrbStatus();
+            }
+          }}
+          className="h-48 w-48 select-none rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#d1684e]"
+        >
+          <GeometricOrb status={orbStatus} />
         </div>
       </div>
       {/* Bottom area — same as desktop login layout */}
@@ -35,6 +65,9 @@ export default function OS1Page() {
           <MacLogoIcon className="size-5 shrink-0" />
           Download for Mac
         </Link>
+        <span className="text-xs text-foreground/60">
+          Requires an OpenAI account
+        </span>
       </div>
     </div>
   );
