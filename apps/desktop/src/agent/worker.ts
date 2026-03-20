@@ -33,9 +33,11 @@ async function ensureAgent(): Promise<Agent> {
 // Data channel protocol for text chat
 // ---------------------------------------------------------------------------
 
+const textDecoder = new TextDecoder();
+
 function parseTextChat(data: Uint8Array): TextChatMessage | null {
   try {
-    const str = new TextDecoder().decode(data);
+    const str = textDecoder.decode(data);
     const parsed: unknown = JSON.parse(str);
     if (!isRecord(parsed) || typeof parsed.type !== "string") return null;
     switch (parsed.type) {
@@ -61,9 +63,10 @@ function parseTextChat(data: Uint8Array): TextChatMessage | null {
 function forwardToMain(event: unknown): void {
   if (process.send) {
     try {
-      process.send({ type: "agent-event", event: JSON.parse(JSON.stringify(event)) });
+      // process.send() uses structured clone — no need to pre-serialize
+      process.send({ type: "agent-event", event });
     } catch {
-      // Non-serializable event — skip
+      // Non-cloneable event — skip
     }
   }
 }
@@ -87,9 +90,7 @@ export default defineAgent({
     const llmAdapter = new PiLLMAdapter(agent);
 
     // Forward agent session events to main process
-    const unsubEvents = agent.subscribe((event) => {
-      forwardToMain(event);
-    });
+    const unsubEvents = agent.subscribe(forwardToMain);
 
     // Create voice pipeline agent using LiveKit Cloud inference (no separate API key needed)
     const voiceAgent = new voice.Agent({

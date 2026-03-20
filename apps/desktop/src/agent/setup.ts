@@ -96,7 +96,7 @@ export function seedResources(): void {
   const skillsSrc = path.join(src, "skills");
   const skillsDest = path.join(AGENT_DIR, "skills");
   if (fs.existsSync(skillsSrc) && !fs.existsSync(skillsDest)) {
-    copyDirRecursive(skillsSrc, skillsDest);
+    fs.cpSync(skillsSrc, skillsDest, { recursive: true });
   }
 
   const agentsMdSrc = path.join(src, "AGENTS.md");
@@ -104,19 +104,6 @@ export function seedResources(): void {
   if (fs.existsSync(agentsMdSrc) && !fs.existsSync(agentsMdDest)) {
     fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
     fs.copyFileSync(agentsMdSrc, agentsMdDest);
-  }
-}
-
-function copyDirRecursive(src: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDirRecursive(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
   }
 }
 
@@ -187,7 +174,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
     },
   });
 
-  pi.on("before_agent_start", async (_event, _ctx) => {
+  pi.on("before_agent_start", (_event, _ctx) => {
     const tasks = getTasks().filter((t) => t.enabled);
     if (tasks.length === 0) return;
 

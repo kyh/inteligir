@@ -42,10 +42,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
   init: () => {
     return () => {
-      if (room) {
-        void room.disconnect();
-        room = null;
-      }
+      disconnectRoom(set);
     };
   },
 
@@ -107,8 +104,11 @@ async function connectToRoom(
 
     room.on(RoomEvent.Disconnected, (reason) => {
       console.log("[voice] room disconnected:", reason);
-      set({ sessionState: "inactive", currentTranscript: "" });
       room = null;
+      // Skip if already inactive (e.g. explicit disconnectRoom call)
+      if (useVoiceStore.getState().sessionState !== "inactive") {
+        set({ sessionState: "inactive", currentTranscript: "" });
+      }
     });
 
     room.on(RoomEvent.ConnectionStateChanged, (state) => {
@@ -118,6 +118,8 @@ async function connectToRoom(
     room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
       console.log("[voice] track subscribed:", track.kind, "from", participant.identity);
       if (track.kind === "audio") {
+        // Remove stale element from previous connection before attaching
+        document.getElementById("livekit-agent-audio")?.remove();
         const el = track.attach();
         el.id = "livekit-agent-audio";
         document.body.appendChild(el);

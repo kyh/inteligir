@@ -81,6 +81,14 @@ class PiLLMStream extends llm.LLMStream {
     }
 
     let chunkIndex = 0;
+    let done = false;
+
+    const cleanup = (unsub: () => void): void => {
+      if (done) return;
+      done = true;
+      unsub();
+      this.output.close();
+    };
 
     // Subscribe to agent events before sending the message
     const unsub = this.agent.subscribe((event) => {
@@ -100,24 +108,16 @@ class PiLLMStream extends llm.LLMStream {
       }
 
       if (event.type === "agent_end") {
-        this.output.close();
-        unsub();
+        cleanup(unsub);
       }
     });
 
     try {
       await this.agent.sendMessage(userText);
-
       // Wait for agent to finish (agent_end event will close the output)
-      const finished = await this.agent.waitForIdle(120_000);
-      if (!finished) {
-        this.output.close();
-        unsub();
-      }
-    } catch (err) {
-      unsub();
-      this.output.close();
-      throw err;
+      await this.agent.waitForIdle(120_000);
+    } finally {
+      cleanup(unsub);
     }
   }
 }
