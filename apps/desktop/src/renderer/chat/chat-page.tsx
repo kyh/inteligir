@@ -9,15 +9,18 @@ export function ChatPage() {
   useEffect(() => initVoice(), [initVoice]);
 
   return (
-    <div className="flex h-full">
-      {/* Left: message thread spanning full height */}
-      <MessageThread />
+    <div className="grid h-full grid-cols-[18rem_1fr] grid-rows-[1fr_auto]">
+      {/* Left: message thread spanning both rows */}
+      <div className="row-span-2">
+        <MessageThread />
+      </div>
 
-      {/* Right: main area with floating input at center bottom */}
-      <div className="relative flex-1">
-        <div className="pointer-events-none absolute inset-0 flex items-end justify-center p-6">
-          <ChatInput />
-        </div>
+      {/* Right top: empty space (orb shows through from AppLayout) */}
+      <div />
+
+      {/* Right bottom: floating input */}
+      <div className="flex items-end justify-center p-6">
+        <ChatInput />
       </div>
     </div>
   );

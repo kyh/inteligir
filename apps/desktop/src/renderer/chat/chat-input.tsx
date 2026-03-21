@@ -76,7 +76,7 @@ export function ChatInput() {
   );
 
   return (
-    <div className="pointer-events-auto w-full max-w-md">
+    <div className="w-full max-w-md">
       <form onSubmit={send}>
         <InputGroup className="bg-background/80 text-foreground text-sm shadow-lg backdrop-blur-md">
           <InputGroupInput

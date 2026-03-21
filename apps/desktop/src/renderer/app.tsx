@@ -92,14 +92,22 @@ export function AppLayout() {
   const voiceState = useVoiceStore((s) => s.sessionState);
   const orbStatus = phaseToOrbStatus(appState.phase, voiceState);
 
+  const isChatPage = pathname === "/";
+  const isSettings = pathname === "/settings";
+
   return (
-    <div className="relative h-full w-full font-mono">
-      <div className={`pointer-events-none absolute inset-0 left-72 -z-10 grid place-items-center ${pathname === "/settings" ? "left-0 hidden" : pathname !== "/" ? "left-0" : ""}`}>
-        <div className="h-48 w-48">
-          <GeometricOrb status={orbStatus} />
+    <div className={`h-full w-full font-mono ${isChatPage ? "grid grid-cols-[18rem_1fr]" : ""}`}>
+      {/* Orb — sits in the right column on chat, centered on other pages */}
+      {!isSettings && (
+        <div className={`pointer-events-none -z-10 grid place-items-center ${isChatPage ? "col-start-2 row-start-1" : "absolute inset-0"}`}>
+          <div className="h-48 w-48">
+            <GeometricOrb status={orbStatus} />
+          </div>
         </div>
-      </div>
-      <div className="flex h-full flex-col">
+      )}
+
+      {/* Page content — spans full grid on chat page */}
+      <div className={`flex flex-col ${isChatPage ? "col-span-full row-start-1" : "h-full"}`}>
         <Outlet />
       </div>
     </div>
