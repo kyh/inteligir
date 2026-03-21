@@ -142,7 +142,7 @@ export async function shutdown(): Promise<void> {
     agent = null;
   }
 
-  await disposeBrowserTool();
+  disposeBrowserTool();
 }
 
 // ---------------------------------------------------------------------------
