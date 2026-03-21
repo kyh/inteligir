@@ -12,11 +12,7 @@ export function MessageThread() {
   const messages = useAgentStore((s) => s.messages);
 
   return (
-    <div className="flex h-full flex-col border-r border-border bg-background/60 backdrop-blur-sm">
-      <div className="shrink-0 px-4 py-3 text-xs font-medium text-muted-foreground">
-        Messages
-      </div>
-
+    <>
       <Conversation className="flex-1 px-3">
         <ConversationContent className="space-y-1 pb-2">
           {messages.length === 0 ? (
@@ -33,6 +29,6 @@ export function MessageThread() {
       </Conversation>
 
       <StatusBar />
-    </div>
+    </>
   );
 }

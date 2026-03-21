@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
 import { ChatInput } from "@/renderer/chat/chat-input";
-import { MessageThread } from "@/renderer/chat/message-thread";
+import { DraggableThread } from "@/renderer/chat/draggable-thread";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 export function ChatPage() {
@@ -9,17 +9,11 @@ export function ChatPage() {
   useEffect(() => initVoice(), [initVoice]);
 
   return (
-    <div className="grid h-full grid-cols-[18rem_1fr] grid-rows-[1fr_auto]">
-      {/* Left: message thread spanning both rows */}
-      <div className="row-span-2">
-        <MessageThread />
-      </div>
+    <div className="relative h-full">
+      <DraggableThread />
 
-      {/* Right top: empty space (orb shows through from AppLayout) */}
-      <div />
-
-      {/* Right bottom: floating input */}
-      <div className="flex items-end justify-center p-6">
+      {/* Floating input at center bottom */}
+      <div className="absolute inset-x-0 bottom-0 flex justify-center p-6">
         <ChatInput />
       </div>
     </div>
