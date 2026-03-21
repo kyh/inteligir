@@ -94,7 +94,7 @@ export function AppLayout() {
 
   return (
     <div className="relative h-full w-full font-mono">
-      <div className={`pointer-events-none absolute inset-0 -z-10 grid place-items-center ${pathname === "/settings" ? "hidden" : ""}`}>
+      <div className={`pointer-events-none absolute inset-0 left-72 -z-10 grid place-items-center ${pathname === "/settings" ? "left-0 hidden" : pathname !== "/" ? "left-0" : ""}`}>
         <div className="h-48 w-48">
           <GeometricOrb status={orbStatus} />
         </div>
