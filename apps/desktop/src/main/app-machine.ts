@@ -8,8 +8,8 @@ import {
   seedResources,
   teardownResources,
 } from "@/main/agent/agent";
+import { disposeBrowserTool } from "@/main/agent/browser-tool";
 import { TaskScheduler } from "@/main/tasks/task-scheduler";
-import { ToolManager } from "@/main/tool-manager";
 import { IPC_CHANNELS, toErrorMessage } from "@/shared/ipc";
 import type { AppEvent, AppState } from "@/shared/app-state";
 
@@ -25,7 +25,6 @@ let state: AppState = { phase: "logged_out" };
 let agent: Agent | null = null;
 let scheduler: TaskScheduler | null = null;
 let agentUnsub: (() => void) | null = null;
-const toolManager = new ToolManager();
 const listeners = new Set<Listener>();
 const agentEventListeners = new Set<AgentEventListener>();
 
@@ -142,6 +141,8 @@ export async function shutdown(): Promise<void> {
     await agent.stop();
     agent = null;
   }
+
+  await disposeBrowserTool();
 }
 
 // ---------------------------------------------------------------------------
@@ -184,10 +185,6 @@ async function doStartAgent(): Promise<void> {
     } else if (event.type === "agent_end") {
       setState({ phase: "ready", agent: "idle" });
     }
-  });
-
-  void toolManager.ensureAll().catch((err) => {
-    console.error("[machine] tool install failed:", err);
   });
 
   scheduler = new TaskScheduler(() => agent);

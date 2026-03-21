@@ -1,53 +1,61 @@
 ---
-name: agent-browser
+name: browser
 description: >
-  Browser automation skill using the agent-browser CLI. Use this when the user
-  asks you to browse the web, scrape pages, fill forms, take screenshots, or
-  interact with any website. Invoke agent-browser commands via the bash tool.
+  Built-in browser automation tool. Use this when the user asks you to browse
+  the web, scrape pages, fill forms, take screenshots, or interact with any
+  website. Invoke via the browser tool (not bash).
 ---
 
-# Browser Automation (agent-browser)
+# Browser Automation
 
-Control a headless browser via the `agent-browser` CLI using the bash tool.
+Control a built-in browser using the `browser` tool. No external CLI or
+installation required.
 
 ## Workflow
 
-1. Open a page: `agent-browser open <url>`
-2. Get a snapshot to see what's on the page: `agent-browser snapshot`
-3. Interact using refs from the snapshot (e.g. `@e1`, `@e2`):
-   - `agent-browser click @e1`
-   - `agent-browser fill @e3 "search query"`
-   - `agent-browser press Enter`
-4. Extract data: `agent-browser get text`, `agent-browser get html`
-5. Screenshot: `agent-browser screenshot`
-6. Close when done: `agent-browser close`
+1. Open a page: `browser({ action: "open", url: "https://example.com" })`
+2. Get a snapshot to see interactive elements: `browser({ action: "snapshot" })`
+3. Interact using @refs from the snapshot:
+   - `browser({ action: "click", selector: "@e1" })`
+   - `browser({ action: "fill", selector: "@e3", text: "search query" })`
+   - `browser({ action: "press", text: "Enter" })`
+4. Extract data: `browser({ action: "get_text" })` or `browser({ action: "get_text", selector: "@e2" })`
+5. Screenshot: `browser({ action: "screenshot" })` or `browser({ action: "screenshot", fullPage: true })`
+6. Close when done: `browser({ action: "close" })`
 
-## Common Commands
+## Actions
 
-- **Navigation**: `open <url>`, `goto <url>`, `back`, `forward`, `reload`
-- **Interaction**: `click <selector|@ref>`, `fill <selector|@ref> <text>`, `type <selector|@ref> <text>`, `press <key>`, `hover <selector|@ref>`, `select <selector|@ref> <value>`, `check`, `uncheck`
-- **Reading**: `get text [selector]`, `get html [selector]`, `get title`, `get url`, `get attr <selector> <attr>`
-- **Snapshot**: `snapshot` — returns accessibility tree with @refs for precise element targeting
-- **Screenshot**: `screenshot`, `screenshot --full` (full page), `screenshot --annotate` (with element labels)
-- **Waiting**: `wait <selector>`, `wait --text "text"`, `wait --url "pattern"`, `wait <ms>`
-- **Scrolling**: `scroll down`, `scroll up`, `scroll down 500`
-- **JavaScript**: `eval "document.title"`
-- **Tabs**: `tab list`, `tab new <url>`, `tab switch <index>`, `tab close`
-- **Network**: `network requests`, `network route "**/*.png" --abort`
-- **Cookies/Storage**: `cookies`, `storage local`, `storage session`
-- **Comparison**: `diff snapshot`, `diff screenshot --baseline <file>`, `diff url <url1> <url2>`
+| Action       | Required params          | Description                                |
+| ------------ | ------------------------ | ------------------------------------------ |
+| `open`       | `url`                    | Navigate to a URL                          |
+| `click`      | `selector`               | Click an element (@ref or CSS selector)    |
+| `fill`       | `selector`, `text`       | Clear and type into a field                |
+| `type`       | `text`, opt. `selector`  | Type text (into element or focused field)  |
+| `press`      | `text` (key name)        | Press a keyboard key (e.g. "Enter", "Tab") |
+| `hover`      | `selector`               | Hover over an element                      |
+| `select`     | `selector`, `text`       | Select an option in a dropdown             |
+| `snapshot`   | —                        | Get accessibility tree with @refs          |
+| `screenshot` | opt. `fullPage`          | Take a PNG screenshot                      |
+| `get_text`   | opt. `selector`          | Get text content of page or element        |
+| `get_url`    | —                        | Get current page URL                       |
+| `get_title`  | —                        | Get current page title                     |
+| `evaluate`   | `script`                 | Run JavaScript in the page                 |
+| `wait`       | opt. `selector`/`timeout`| Wait for element or fixed duration (ms)    |
+| `scroll`     | opt. `direction`/`amount`| Scroll up or down (default: down 500px)    |
+| `back`       | —                        | Navigate back                              |
+| `forward`    | —                        | Navigate forward                           |
+| `reload`     | —                        | Reload the page                            |
+| `close`      | —                        | Close the browser                          |
 
 ## Element Selection
 
-Prefer snapshot refs (@e1, @e2) for reliability. Also supports:
-
-- CSS selectors: `agent-browser click "#submit-btn"`
-- Semantic locators: `agent-browser find role button --name "Submit"`
-- Text/label: `agent-browser find text "Sign in"`, `agent-browser find label "Email"`
+Prefer snapshot refs (`@e1`, `@e2`) for reliability — they map to the
+interactive elements shown in the accessibility tree. Also supports CSS
+selectors like `#submit-btn` or `.search-input`.
 
 ## Tips
 
 - Always run `snapshot` after navigation or interaction to see the updated page state
-- Use `--json` flag for machine-readable output when parsing results
-- Use `wait` before interacting with dynamic content
-- The browser persists across commands — state is maintained between calls
+- The browser persists across calls — state, cookies, and sessions are maintained
+- Use `wait` with a selector before interacting with dynamic content
+- Use `evaluate` for complex DOM operations the other actions don't cover
