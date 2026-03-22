@@ -7,23 +7,16 @@ import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Convert env vars matching prefixes into Vite `define` entries. */
-function envDefines(mode: string, ...prefixes: string[]): Record<string, string> {
-  const env = loadEnv(mode, __dirname, prefixes);
-  return Object.fromEntries(
-    Object.entries(env).map(([key, value]) => [`process.env.${key}`, JSON.stringify(value)]),
-  );
-}
-
 export default defineConfig(({ mode }) => ({
   main: {
     plugins: [externalizeDepsPlugin()],
     define: {
       __PROJECT_ROOT__: JSON.stringify(__dirname),
-      // Only inline the public URL — secrets (API key/secret) are loaded at
-      // runtime via process.loadEnvFile() so they don't end up as string
-      // literals in the compiled bundle.
-      ...envDefines(mode, "LIVEKIT_URL"),
+      // Expose LIVEKIT_URL as an explicit build-time constant so sidecar
+      // forwarding doesn't depend on Vite's process.env replacement behavior.
+      // Secrets (API key/secret) are loaded at runtime via process.loadEnvFile()
+      // so they don't end up as string literals in the compiled bundle.
+      __LIVEKIT_URL__: JSON.stringify(loadEnv(mode, __dirname, "LIVEKIT_URL").LIVEKIT_URL ?? ""),
     },
     resolve: {
       alias: { "@": resolve(__dirname, "src") },

@@ -12,10 +12,13 @@ import { handleSidecarAgentEvent } from "@/main/app-machine";
 import { IPC_CHANNELS, isRecord } from "@/shared/ipc";
 import { createRoomToken, type LiveKitCredentials } from "./livekit-token";
 
+declare const __LIVEKIT_URL__: string;
+
 const ROOM_NAME = "inteligir-desktop";
 const USER_IDENTITY = "desktop-user";
 
 let sidecar: ChildProcess | null = null;
+let sidecarPromise: Promise<ChildProcess> | null = null;
 let systemNodePath: string | null = null;
 let nodePathPromise: Promise<string> | null = null;
 
@@ -94,7 +97,17 @@ export function warmupNodePath(): void {
 
 async function ensureSidecar(): Promise<ChildProcess> {
   if (sidecar && sidecar.exitCode === null) return sidecar;
+  if (sidecarPromise) return sidecarPromise;
 
+  sidecarPromise = spawnSidecar();
+  try {
+    return await sidecarPromise;
+  } finally {
+    sidecarPromise = null;
+  }
+}
+
+async function spawnSidecar(): Promise<ChildProcess> {
   const workerPath = getWorkerPath();
   const nodePath = await (nodePathPromise ?? resolveNodePath());
   console.log("[voice] spawning agent worker:", workerPath, "(node:", nodePath + ")");
@@ -104,10 +117,9 @@ async function ensureSidecar(): Promise<ChildProcess> {
     stdio: ["pipe", "inherit", "inherit", "ipc"],
     env: {
       ...process.env,
-      // LIVEKIT_URL is inlined at build time by Vite `define`, so it's not on
-      // the runtime process.env — forward it explicitly. API key/secret are
-      // loaded at runtime via process.loadEnvFile() and already on process.env.
-      LIVEKIT_URL: process.env["LIVEKIT_URL"],
+      // __LIVEKIT_URL__ is a build-time constant from electron.vite.config.ts.
+      // API key/secret are on process.env via process.loadEnvFile() at runtime.
+      LIVEKIT_URL: __LIVEKIT_URL__,
       // Pass Electron-only paths so the system node sidecar can find bundled resources
       ...(app.isPackaged ? { INTELIGIR_RESOURCES_PATH: process.resourcesPath } : {}),
     },
@@ -137,11 +149,35 @@ function broadcastToRenderer(channel: string, data: unknown): void {
   }
 }
 
-export function killSidecar(): void {
-  if (sidecar) {
-    sidecar.kill();
-    sidecar = null;
-  }
+const SIDECAR_SHUTDOWN_TIMEOUT_MS = 5_000;
+
+/**
+ * Gracefully shut down the sidecar. Sends SIGTERM and waits up to 5s for
+ * a clean exit before force-killing. Returns a promise that resolves once
+ * the process is gone.
+ */
+export async function killSidecar(): Promise<void> {
+  const proc = sidecar;
+  if (!proc) return;
+  sidecar = null;
+
+  // Already exited?
+  if (proc.exitCode !== null) return;
+
+  proc.kill("SIGTERM");
+
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      console.warn("[voice] sidecar did not exit in time, force-killing");
+      proc.kill("SIGKILL");
+      resolve();
+    }, SIDECAR_SHUTDOWN_TIMEOUT_MS);
+
+    proc.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 export function registerLiveKitIpcHandlers(): () => void {
@@ -152,6 +188,6 @@ export function registerLiveKitIpcHandlers(): () => void {
 
   return () => {
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_TOKEN);
-    killSidecar();
+    void killSidecar();
   };
 }

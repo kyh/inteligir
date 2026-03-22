@@ -118,10 +118,10 @@ export function transition(event: AppEvent): void {
   }
 }
 
-/** Graceful shutdown — kill sidecar agent worker. */
+/** Graceful shutdown — give sidecar time to finish in-flight work. */
 export async function shutdown(): Promise<void> {
   console.log("[machine] shutdown");
-  killSidecar();
+  await killSidecar();
 }
 
 // ---------------------------------------------------------------------------

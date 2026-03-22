@@ -124,6 +124,9 @@ export default defineAgent({
     const unsubEvents = agent.subscribe(forwardToMain);
 
     // Create voice pipeline agent using LiveKit Cloud inference (no separate API key needed)
+    if (!preloadedVAD) {
+      console.warn("[agent-worker] VAD was not prewarmed, loading in hot path");
+    }
     const voiceAgent = new voice.Agent({
       instructions: "You are Inteligir, an AI chief of staff. Be concise and helpful.",
       vad: preloadedVAD ?? await silero.VAD.load(),
@@ -149,13 +152,13 @@ export default defineAgent({
 
       switch (msg.type) {
         case "user_message":
-          void agent.sendMessage(msg.text);
+          agent.sendMessage(msg.text).catch((err) => console.error("[agent-worker] sendMessage error:", err));
           break;
         case "steer":
-          void agent.steer(msg.text);
+          agent.steer(msg.text).catch((err) => console.error("[agent-worker] steer error:", err));
           break;
         case "interrupt":
-          void agent.interrupt();
+          agent.interrupt().catch((err) => console.error("[agent-worker] interrupt error:", err));
           break;
         case "clear":
           agent.clear();

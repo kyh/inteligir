@@ -4,6 +4,8 @@
 
 import { AccessToken } from "livekit-server-sdk";
 
+declare const __LIVEKIT_URL__: string;
+
 export type LiveKitCredentials = {
   url: string;
   token: string;
@@ -19,18 +21,19 @@ const tokenCache = new Map<string, { credentials: LiveKitCredentials; expiresAt:
 
 /**
  * Mint a JWT for a participant to join a LiveKit room.
- * Reads LIVEKIT_URL, LIVEKIT_API_KEY, LIVEKIT_API_SECRET from env.
+ * URL comes from __LIVEKIT_URL__ (build-time constant).
+ * API key/secret come from process.env (loaded at runtime via process.loadEnvFile).
  */
 export async function createRoomToken(
   roomName: string,
   identity: string,
   options?: { canPublish?: boolean; canSubscribe?: boolean; canPublishData?: boolean },
 ): Promise<LiveKitCredentials> {
-  const url = process.env["LIVEKIT_URL"];
+  const url = __LIVEKIT_URL__;
   const apiKey = process.env["LIVEKIT_API_KEY"];
   const apiSecret = process.env["LIVEKIT_API_SECRET"];
 
-  if (!url) throw new Error("LIVEKIT_URL env var is required");
+  if (!url) throw new Error("LIVEKIT_URL is not configured (build-time constant is empty)");
   if (!apiKey) throw new Error("LIVEKIT_API_KEY env var is required");
   if (!apiSecret) throw new Error("LIVEKIT_API_SECRET env var is required");
 
