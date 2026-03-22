@@ -54,3 +54,6 @@ yarn-error.log*
 .branches
 .temp
 .superset
+
+# Generated DB types
+packages/db/src/database.types.js
