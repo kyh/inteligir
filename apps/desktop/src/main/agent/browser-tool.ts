@@ -21,6 +21,9 @@ const NAV_TIMEOUT_MS = 30_000;
 /** Max characters for snapshot output to avoid blowing up the agent's context */
 const SNAPSHOT_MAX_CHARS = 30_000;
 
+/** Allowed URL schemes for the open action */
+const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
+
 // ---------------------------------------------------------------------------
 // Browser lifecycle — lazily create a BrowserWindow (shown on open)
 // ---------------------------------------------------------------------------
@@ -475,10 +478,9 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
   // Validate URL before creating a window so invalid URLs don't spin one up.
   if (action.action === "open") {
     if (!action.url) return text("Error: url is required for open action");
-    const ALLOWED_SCHEMES = ["http:", "https:"];
     try {
       const parsed = new URL(action.url);
-      if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
+      if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
         return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
       }
     } catch {
@@ -572,7 +574,7 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       const win = getWindow();
       let image: Electron.NativeImage;
       if (action.fullPage) {
-        // Capture the full scrollable area without resizing the window.
+        // Temporarily resize to the full scrollable area, capture, then restore.
         // Cap dimensions to avoid enormous images from pathological pages.
         const MAX_WIDTH = 1280;
         const MAX_HEIGHT = 16384;
@@ -694,6 +696,8 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       return text("Reloaded page");
     }
 
+    default:
+      return text(`Unknown action: ${(action as BrowserAction).action}`);
   }
 }
 
