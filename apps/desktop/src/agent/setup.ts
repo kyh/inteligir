@@ -303,6 +303,8 @@ export class Agent {
         unsub();
         resolve(value);
       };
+      // Subscribe BEFORE checking this.status to avoid a race where
+      // agent_end fires between the status check and the subscription.
       const unsub = this.subscribe((event) => {
         if (event.type === "agent_end") settle(true);
       });

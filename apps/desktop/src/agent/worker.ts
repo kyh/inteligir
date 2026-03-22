@@ -19,7 +19,7 @@ import { TEXT_CHAT_TOPIC, type TextChatMessage } from "@/shared/voice";
 // Voice pipeline configuration
 // ---------------------------------------------------------------------------
 
-const STT_MODEL = "deepgram/flux-general";
+const STT_MODEL = "deepgram/nova-3";
 const TTS_VOICE = "elevenlabs/eleven_flash_v2_5:SAz9YHcvj6GT2YYXdXww";
 
 // Pre-loaded VAD model — populated in prewarm, reused in entry

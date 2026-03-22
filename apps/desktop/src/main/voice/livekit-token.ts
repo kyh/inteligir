@@ -9,11 +9,11 @@ export type LiveKitCredentials = {
   token: string;
 };
 
-const TOKEN_TTL = "6h";
-const TOKEN_TTL_MS = 6 * 60 * 60 * 1_000; // must match TOKEN_TTL
+const TOKEN_TTL_MS = 6 * 60 * 60 * 1_000;
+const TOKEN_TTL = `${TOKEN_TTL_MS / 1_000}s`;
 const TOKEN_REFRESH_THRESHOLD_MS = 10 * 60 * 1_000; // refresh if <10 min remaining
 
-let cachedCredentials: { credentials: LiveKitCredentials; expiresAt: number } | null = null;
+const tokenCache = new Map<string, { credentials: LiveKitCredentials; expiresAt: number }>();
 
 /**
  * Mint a JWT for a participant to join a LiveKit room.
@@ -33,8 +33,10 @@ export async function createRoomToken(
   if (!apiSecret) throw new Error("LIVEKIT_API_SECRET env var is required");
 
   // Return cached token if still valid with comfortable margin
-  if (cachedCredentials && Date.now() < cachedCredentials.expiresAt - TOKEN_REFRESH_THRESHOLD_MS) {
-    return cachedCredentials.credentials;
+  const cacheKey = `${roomName}::${identity}`;
+  const cached = tokenCache.get(cacheKey);
+  if (cached && Date.now() < cached.expiresAt - TOKEN_REFRESH_THRESHOLD_MS) {
+    return cached.credentials;
   }
 
   const token = new AccessToken(apiKey, apiSecret, {
@@ -45,7 +47,6 @@ export async function createRoomToken(
   token.addGrant({
     room: roomName,
     roomJoin: true,
-    roomCreate: true,
     canPublish: options?.canPublish ?? true,
     canSubscribe: options?.canSubscribe ?? true,
     canPublishData: options?.canPublishData ?? true,
@@ -54,10 +55,10 @@ export async function createRoomToken(
   const jwt = await token.toJwt();
   const credentials = { url, token: jwt };
 
-  cachedCredentials = {
+  tokenCache.set(cacheKey, {
     credentials,
     expiresAt: Date.now() + TOKEN_TTL_MS,
-  };
+  });
 
   return credentials;
 }

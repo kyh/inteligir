@@ -2,6 +2,7 @@ import { Room, RoomEvent, type RemoteTrack, type RemoteTrackPublication, type Re
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import type { DesktopBridge } from "@/shared/ipc";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { toErrorMessage } from "@/shared/ipc";
 import { TEXT_CHAT_TOPIC, type TextChatMessage, type VoiceSessionState } from "@/shared/voice";
@@ -38,6 +39,7 @@ type VoiceStore = {
 let room: Room | null = null;
 let reconnectAttempts = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let connectAbortController: AbortController | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
@@ -87,14 +89,20 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 type SetState = (partial: Partial<VoiceStore>) => void;
 
 async function connectToRoom(
-  bridge: ReturnType<typeof getBridge> & object,
+  bridge: DesktopBridge,
   set: SetState,
 ): Promise<void> {
+  // Abort any previous in-flight connect attempt
+  connectAbortController?.abort();
+  const abort = new AbortController();
+  connectAbortController = abort;
+
   set({ sessionState: "connecting", error: null });
 
   try {
     // Get LiveKit token (also ensures sidecar is running)
     const { url, token } = await bridge.getVoiceToken();
+    if (abort.signal.aborted) return;
 
     // Create room and connect
     room = new Room();
@@ -186,6 +194,11 @@ async function connectToRoom(
 
     console.log("[voice] connecting to", url);
     await room.connect(url, token);
+    if (abort.signal.aborted) {
+      void room.disconnect();
+      room = null;
+      return;
+    }
     await room.localParticipant.setMicrophoneEnabled(true);
     console.log("[voice] mic enabled, local tracks:", room.localParticipant.audioTrackPublications.size);
 
@@ -206,6 +219,8 @@ async function connectToRoom(
 }
 
 function disconnectRoom(set: SetState): void {
+  connectAbortController?.abort();
+  connectAbortController = null;
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

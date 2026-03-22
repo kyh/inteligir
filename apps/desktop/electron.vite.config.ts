@@ -1,35 +1,27 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { config as dotenvConfig } from "dotenv";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { loadEnv } from "vite";
 import { defineConfig, externalizeDepsPlugin } from "electron-vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-/** Load .env file and return define-compatible entries for process.env injection. */
-function loadDotEnv(...prefixes: string[]): Record<string, string> {
-  const defs: Record<string, string> = {};
-  const result = dotenvConfig({ path: resolve(__dirname, ".env") });
-  if (result.parsed) {
-    for (const [key, value] of Object.entries(result.parsed)) {
-      if (prefixes.some((p) => key.startsWith(p))) {
-        defs[`process.env.${key}`] = JSON.stringify(value);
-      }
-    }
-  }
-  return defs;
+/** Convert env vars matching prefixes into Vite `define` entries. */
+function envDefines(mode: string, ...prefixes: string[]): Record<string, string> {
+  const env = loadEnv(mode, __dirname, prefixes);
+  return Object.fromEntries(
+    Object.entries(env).map(([key, value]) => [`process.env.${key}`, JSON.stringify(value)]),
+  );
 }
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   main: {
     plugins: [externalizeDepsPlugin()],
     define: {
       __PROJECT_ROOT__: JSON.stringify(__dirname),
-      // Only inline the public URL — never embed API key/secret in the bundle.
-      // The main process reads LIVEKIT_API_KEY and LIVEKIT_API_SECRET from .env
-      // at runtime via dotenv (see main/index.ts).
-      ...loadDotEnv("LIVEKIT_URL"),
+      // Inline all LIVEKIT_* env vars at build time via Vite's loadEnv.
+      ...envDefines(mode, "LIVEKIT_"),
     },
     resolve: {
       alias: { "@": resolve(__dirname, "src") },
@@ -76,4 +68,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));
