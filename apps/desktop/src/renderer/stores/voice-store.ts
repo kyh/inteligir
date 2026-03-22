@@ -126,7 +126,10 @@ async function connectToRoom(
         set({ sessionState: "connecting", error: null });
         reconnectTimer = setTimeout(() => {
           reconnectTimer = null;
-          void connectToRoom(bridge, set);
+          // Re-resolve bridge to avoid stale reference after window reload
+          const currentBridge = getBridge();
+          if (!currentBridge) return;
+          void connectToRoom(currentBridge, set);
         }, delay);
       } else {
         reconnectAttempts = 0;
@@ -144,6 +147,8 @@ async function connectToRoom(
 
     room.on(RoomEvent.TrackSubscribed, (track: RemoteTrack, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
       console.log("[voice] track subscribed:", track.kind, "from", participant.identity);
+      // Guard against events arriving after disconnect tore down the room
+      if (!room) return;
       if (track.kind === "audio") {
         // Remove stale element from previous connection before attaching
         document.getElementById("livekit-agent-audio")?.remove();

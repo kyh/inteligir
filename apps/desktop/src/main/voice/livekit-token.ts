@@ -13,6 +13,8 @@ const TOKEN_TTL_MS = 6 * 60 * 60 * 1_000;
 const TOKEN_TTL = `${TOKEN_TTL_MS / 1_000}s`;
 const TOKEN_REFRESH_THRESHOLD_MS = 10 * 60 * 1_000; // refresh if <10 min remaining
 
+// Keyed by "roomName::identity". Currently single-room so this holds one entry.
+// If rooms vary dynamically, add eviction logic to prevent unbounded growth.
 const tokenCache = new Map<string, { credentials: LiveKitCredentials; expiresAt: number }>();
 
 /**

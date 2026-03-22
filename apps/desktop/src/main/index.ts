@@ -4,9 +4,19 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
+declare const __PROJECT_ROOT__: string;
+
+// Load .env at runtime so LIVEKIT_API_KEY / LIVEKIT_API_SECRET are available
+// on process.env without being baked into the compiled bundle.
+try {
+  process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
+} catch {
+  // .env file is optional — env vars may be set externally
+}
+
 import { getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
 import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
-import { registerLiveKitIpcHandlers } from "@/main/voice/livekit-ipc";
+import { registerLiveKitIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { AppEvent } from "@/shared/app-state";
@@ -334,6 +344,7 @@ app
 
     // Voice — LiveKit sidecar + token generation
     // Agent events are forwarded from sidecar via livekit-ipc → app-machine
+    warmupNodePath(); // Pre-resolve system Node.js path before first voice use
     const unregisterVoiceIpc = registerLiveKitIpcHandlers();
 
     // Clean up on quit

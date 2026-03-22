@@ -20,8 +20,10 @@ export default defineConfig(({ mode }) => ({
     plugins: [externalizeDepsPlugin()],
     define: {
       __PROJECT_ROOT__: JSON.stringify(__dirname),
-      // Inline all LIVEKIT_* env vars at build time via Vite's loadEnv.
-      ...envDefines(mode, "LIVEKIT_"),
+      // Only inline the public URL — secrets (API key/secret) are loaded at
+      // runtime via process.loadEnvFile() so they don't end up as string
+      // literals in the compiled bundle.
+      ...envDefines(mode, "LIVEKIT_URL"),
     },
     resolve: {
       alias: { "@": resolve(__dirname, "src") },

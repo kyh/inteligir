@@ -4,7 +4,7 @@
 
 import path from "node:path";
 import fs from "node:fs";
-import { execSync, fork, type ChildProcess } from "node:child_process";
+import { exec, fork, type ChildProcess } from "node:child_process";
 
 import { app, BrowserWindow, ipcMain } from "electron";
 
@@ -17,20 +17,21 @@ const USER_IDENTITY = "desktop-user";
 
 let sidecar: ChildProcess | null = null;
 let systemNodePath: string | null = null;
+let nodePathPromise: Promise<string> | null = null;
 
 function getWorkerPath(): string {
   return path.join(__dirname, "worker.js");
 }
 
 /**
- * Resolve the system Node.js binary path.
+ * Resolve the system Node.js binary path (async to avoid blocking the main process).
  * We must NOT use Electron's binary — it bundles Chromium's WebRTC which
  * conflicts with @livekit/rtc-node's native WebRTC (duplicate ObjC classes).
  *
  * On macOS app bundles, PATH is stripped so `which node` may fail.
  * We check well-known install locations as fallback.
  */
-function getNodePath(): string {
+async function resolveNodePath(): Promise<string> {
   if (systemNodePath) return systemNodePath;
 
   // 1. Check NODE_PATH env var first (as the error message advertises)
@@ -40,10 +41,15 @@ function getNodePath(): string {
     return systemNodePath;
   }
 
-  // 2. Try `which node` / `where node` (works in dev and most environments)
+  // 2. Try `which node` / `where node` (async to avoid blocking the main thread)
   const whichCmd = process.platform === "win32" ? "where node" : "which node";
   try {
-    const resolved = execSync(whichCmd, { encoding: "utf8" }).trim().split("\n")[0]!;
+    const resolved = await new Promise<string>((resolve, reject) => {
+      exec(whichCmd, { encoding: "utf8" }, (err, stdout) => {
+        if (err) return reject(err);
+        resolve(stdout.trim().split("\n")[0] ?? "");
+      });
+    });
     if (resolved && fs.existsSync(resolved)) {
       systemNodePath = resolved;
       return systemNodePath;
@@ -76,11 +82,21 @@ function getNodePath(): string {
   );
 }
 
-function ensureSidecar(): ChildProcess {
+/** Pre-resolve system Node.js path during startup so it's cached before first use. */
+export function warmupNodePath(): void {
+  if (!nodePathPromise) {
+    nodePathPromise = resolveNodePath();
+    nodePathPromise.catch((err) => {
+      console.error("[voice] failed to resolve system Node.js:", err);
+    });
+  }
+}
+
+async function ensureSidecar(): Promise<ChildProcess> {
   if (sidecar && sidecar.exitCode === null) return sidecar;
 
   const workerPath = getWorkerPath();
-  const nodePath = getNodePath();
+  const nodePath = await (nodePathPromise ?? resolveNodePath());
   console.log("[voice] spawning agent worker:", workerPath, "(node:", nodePath + ")");
 
   sidecar = fork(workerPath, ["start"], {
@@ -88,11 +104,10 @@ function ensureSidecar(): ChildProcess {
     stdio: ["pipe", "inherit", "inherit", "ipc"],
     env: {
       ...process.env,
-      // Vite `define` inlines these at build time so they're not on the
-      // runtime process.env object — forward them explicitly to the sidecar.
+      // LIVEKIT_URL is inlined at build time by Vite `define`, so it's not on
+      // the runtime process.env — forward it explicitly. API key/secret are
+      // loaded at runtime via process.loadEnvFile() and already on process.env.
       LIVEKIT_URL: process.env["LIVEKIT_URL"],
-      LIVEKIT_API_KEY: process.env["LIVEKIT_API_KEY"],
-      LIVEKIT_API_SECRET: process.env["LIVEKIT_API_SECRET"],
       // Pass Electron-only paths so the system node sidecar can find bundled resources
       ...(app.isPackaged ? { INTELIGIR_RESOURCES_PATH: process.resourcesPath } : {}),
     },
@@ -131,7 +146,7 @@ export function killSidecar(): void {
 
 export function registerLiveKitIpcHandlers(): () => void {
   ipcMain.handle(IPC_CHANNELS.VOICE_TOKEN, async (): Promise<LiveKitCredentials> => {
-    ensureSidecar();
+    await ensureSidecar();
     return createRoomToken(ROOM_NAME, USER_IDENTITY);
   });
 

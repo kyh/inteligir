@@ -42,7 +42,9 @@ export class PiLLMAdapter extends llm.LLM {
     return new PiLLMStream(this, this.agent, {
       chatCtx: options.chatCtx,
       toolCtx: options.toolCtx,
-      connOptions: options.connOptions ?? { maxRetry: 1, retryIntervalMs: 0, timeoutMs: 30_000 },
+      // maxRetry: 0 — retrying would call agent.sendMessage a second time while
+      // the first may still be running, causing duplicate responses.
+      connOptions: options.connOptions ?? { maxRetry: 0, retryIntervalMs: 0, timeoutMs: 30_000 },
     });
   }
 }
