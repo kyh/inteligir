@@ -35,10 +35,7 @@ function bool(v: unknown): boolean {
 }
 
 function eventType(event: unknown): string {
-  if (typeof event === "object" && event !== null && "type" in event) {
-    return str((event as Record<string, unknown>).type);
-  }
-  return "";
+  return isRecord(event) ? str(event.type) : "";
 }
 
 function messageRole(event: unknown): string {

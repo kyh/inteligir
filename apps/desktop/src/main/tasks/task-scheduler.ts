@@ -95,7 +95,8 @@ function shouldFire(task: Task, now: number): boolean {
         const cron = new Cron(schedule.cron);
         const next = cron.nextRun(new Date(lastRun));
         return next !== null && next.getTime() <= now;
-      } catch {
+      } catch (err) {
+        console.warn(`[scheduler] invalid cron "${schedule.cron}" for task ${task.id}:`, err);
         return false;
       }
     }

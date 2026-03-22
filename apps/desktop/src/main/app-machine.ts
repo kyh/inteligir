@@ -50,7 +50,7 @@ export function handleSidecarAgentEvent(event: unknown): void {
   if (!isRecord(event)) return;
 
   // Log agent errors so they appear in Electron main process logs
-  if (event.type === "message_end" && isRecord(event) && event.stopReason === "error") {
+  if (event.type === "message_end" && event.stopReason === "error") {
     console.error("[agent] error event:", event);
   }
 
