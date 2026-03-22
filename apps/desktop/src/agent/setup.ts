@@ -1,3 +1,7 @@
+// ---------------------------------------------------------------------------
+// Agent setup — extracted from main process for use in sidecar worker
+// ---------------------------------------------------------------------------
+
 import fs from "node:fs";
 import path from "node:path";
 
@@ -11,9 +15,9 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import type { AgentSession, AgentSessionEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
-import { app, shell } from "electron";
 import { getModel } from "@mariozechner/pi-ai";
 import type { Api, Model } from "@mariozechner/pi-ai";
+import open from "open";
 
 import type {
   InterruptResult,
@@ -39,9 +43,7 @@ const AUTH_PATH = inteligirPath("auth.json");
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
 
-// Override pi-coding-agent's default getAgentDir() (~/.pi/agent) so all
-// internal library code that bypasses the explicit agentDir parameter
-// still resolves to ~/.inteligir.
+// Override pi-coding-agent's default getAgentDir() (~/.pi/agent)
 process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
 
 let _defaultModel: Model<Api> | null = null;
@@ -59,16 +61,20 @@ function getDefaultModel(): Model<Api> {
 
 /**
  * Bundled resources shipped inside the app (resources/agent/).
- * In production these are unpacked via asarUnpack and live at
- * process.resourcesPath/app.asar.unpacked/resources/agent/.
+ * In production these are unpacked via asarUnpack.
  * In dev they're at the repo's resources/agent/ directory.
+ *
+ * `projectRoot` must be passed by the caller — in the main process
+ * this is __PROJECT_ROOT__, in the sidecar it's passed via env.
  */
 declare const __PROJECT_ROOT__: string;
 
 function getBundledResourcesDir(): string {
-  // Production: asarUnpack puts resources at <resourcesPath>/app.asar.unpacked/
-  if (app.isPackaged) {
-    return path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
+  // In packaged mode, the main process passes the resources path via env
+  // (process.resourcesPath is Electron-only, unavailable in the system node sidecar)
+  const resourcesPath = process.env["INTELIGIR_RESOURCES_PATH"];
+  if (resourcesPath) {
+    return path.join(resourcesPath, "app.asar.unpacked", "resources", "agent");
   }
   // Dev: injected by electron-vite at build time
   return path.join(__PROJECT_ROOT__, "resources", "agent");
@@ -79,7 +85,6 @@ function getBundledResourcesDir(): string {
  * or when the bundled version is newer.
  */
 export function seedResources(): void {
-  // Ensure agent dir and workspace exist
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
 
@@ -89,14 +94,12 @@ export function seedResources(): void {
     return;
   }
 
-  // Seed skills (only on first run — don't overwrite user edits)
   const skillsSrc = path.join(src, "skills");
   const skillsDest = path.join(AGENT_DIR, "skills");
   if (fs.existsSync(skillsSrc) && !fs.existsSync(skillsDest)) {
-    copyDirRecursive(skillsSrc, skillsDest);
+    fs.cpSync(skillsSrc, skillsDest, { recursive: true });
   }
 
-  // Seed AGENTS.md (only on first run — don't overwrite user edits)
   const agentsMdSrc = path.join(src, "AGENTS.md");
   const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
   if (fs.existsSync(agentsMdSrc) && !fs.existsSync(agentsMdDest)) {
@@ -105,21 +108,8 @@ export function seedResources(): void {
   }
 }
 
-function copyDirRecursive(src: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDirRecursive(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
 // ---------------------------------------------------------------------------
-// manage_tasks extension — registered via extensionFactories
+// manage_tasks extension
 // ---------------------------------------------------------------------------
 
 function registerTasksExtension(pi: ExtensionAPI): void {
@@ -173,7 +163,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
             const task = toggleTask(p.taskId);
             return text(`Task "${task.label}" is now ${task.enabled ? "enabled" : "disabled"}`);
           } catch (err) {
-            return text(`Error: ${err instanceof Error ? err.message : String(err)}`);
+            return text(`Error: ${toErrorMessage(err)}`);
           }
         }
         case "delete": {
@@ -185,8 +175,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
     },
   });
 
-  // Inject active tasks into context before each agent turn
-  pi.on("before_agent_start", async (_event, _ctx) => {
+  pi.on("before_agent_start", (_event, _ctx) => {
     const tasks = getTasks().filter((t) => t.enabled);
     if (tasks.length === 0) return;
 
@@ -203,7 +192,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
 }
 
 // ---------------------------------------------------------------------------
-// Auth — delegates to pi's AuthStorage with Electron browser login
+// Auth — delegates to pi's AuthStorage
 // ---------------------------------------------------------------------------
 
 let authStorage: AuthStorage | null = null;
@@ -233,14 +222,13 @@ export async function login(): Promise<void> {
   const auth = getAuthStorage();
   await auth.login(AUTH_PROVIDER, {
     onAuth: (info) => {
-      void shell.openExternal(info.url);
+      void open(info.url);
     },
     onPrompt: () => {
       return Promise.reject(new Error("Interactive prompt not supported"));
     },
   });
 }
-
 
 // ---------------------------------------------------------------------------
 // Agent — thin wrapper around pi-coding-agent's AgentSession
@@ -306,8 +294,6 @@ export class Agent {
 
   async waitForIdle(timeoutMs: number): Promise<boolean> {
     if (!this.session) return true;
-    // Subscribe before checking status to avoid race where agent_end fires
-    // between the check and the subscribe call.
     return new Promise<boolean>((resolve) => {
       let settled = false;
       const settle = (value: boolean) => {
@@ -317,10 +303,11 @@ export class Agent {
         unsub();
         resolve(value);
       };
+      // Subscribe BEFORE checking this.status to avoid a race where
+      // agent_end fires between the status check and the subscription.
       const unsub = this.subscribe((event) => {
         if (event.type === "agent_end") settle(true);
       });
-      // Now safe to check — if already idle, the subscription hasn't missed anything
       if (this.status !== "busy") {
         settle(true);
         return;

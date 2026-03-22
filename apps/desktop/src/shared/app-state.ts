@@ -11,8 +11,6 @@ export type AppState =
   | { phase: "logging_out" }
   | { phase: "error"; prev: "logging_in" | "setting_up" | "ready"; message: string };
 
-export type AppPhase = AppState["phase"];
-
 export type AppEvent =
   | { type: "LOGIN" }
   | { type: "SETUP" }

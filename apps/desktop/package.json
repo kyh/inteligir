@@ -15,6 +15,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@livekit/agents": "^1.2.0",
+    "@livekit/agents-plugin-silero": "^1.2.0",
     "@mariozechner/pi-ai": "^0.58.1",
     "@mariozechner/pi-coding-agent": "^0.58.1",
     "@react-three/drei": "^10.7.7",
@@ -24,7 +26,10 @@
     "@streamdown/code": "^1.1.0",
     "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
+    "livekit-client": "^2.17.3",
+    "livekit-server-sdk": "^2.15.0",
     "motion": "^12.38.0",
+    "open": "^11.0.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-router": "^7.13.1",

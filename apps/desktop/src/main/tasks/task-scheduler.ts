@@ -1,8 +1,7 @@
 import { Cron } from "croner";
 
 import type { Task } from "@/shared/task";
-
-import type { Agent } from "@/main/agent/agent";
+import type { Agent } from "@/agent/setup";
 import { getTasks, markTaskRun } from "@/main/tasks/task-store";
 import { startRun, completeRun, failRun } from "@/main/tasks/task-run-store";
 import { toErrorMessage } from "@/shared/ipc";
@@ -96,7 +95,8 @@ function shouldFire(task: Task, now: number): boolean {
         const cron = new Cron(schedule.cron);
         const next = cron.nextRun(new Date(lastRun));
         return next !== null && next.getTime() <= now;
-      } catch {
+      } catch (err) {
+        console.warn(`[scheduler] invalid cron "${schedule.cron}" for task ${task.id}:`, err);
         return false;
       }
     }

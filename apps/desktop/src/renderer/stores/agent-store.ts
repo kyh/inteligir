@@ -35,10 +35,7 @@ function bool(v: unknown): boolean {
 }
 
 function eventType(event: unknown): string {
-  if (typeof event === "object" && event !== null && "type" in event) {
-    return str((event as Record<string, unknown>).type);
-  }
-  return "";
+  return isRecord(event) ? str(event.type) : "";
 }
 
 function messageRole(event: unknown): string {
@@ -57,17 +54,16 @@ type AgentStore = {
   appState: AppState;
 
   init: () => () => void;
-  sendMessage: (text: string) => void;
-  /** Add a user message to the UI only (no bridge call). Used by voice to avoid double-send. */
+  /** Add a user message to the UI only (no command sent). Used by voice store. */
   addUserMessage: (text: string) => void;
-  steer: (text: string) => void;
-  interrupt: () => void;
+  /** Add a steer message to the UI only. Used by voice store. */
+  addSteerMessage: (text: string) => void;
   clearMessages: () => void;
 };
 
 let nextMsgId = 0;
 
-export const useAgentStore = create<AgentStore>((set, get) => ({
+export const useAgentStore = create<AgentStore>((set) => ({
   messages: [],
   appState: { phase: "logged_out" },
 
@@ -83,9 +79,6 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
       const type = eventType(event);
 
       switch (type) {
-        case "agent_start":
-          break;
-
         case "agent_end":
           streamingMsgId = null;
           toolMsgIds.clear();
@@ -199,43 +192,19 @@ export const useAgentStore = create<AgentStore>((set, get) => ({
     };
   },
 
-  sendMessage: (text: string) => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    const { appState } = get();
-    if (appState.phase !== "ready") return;
-    set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
-    }));
-    bridge.sendMessage(text).catch(console.error);
-  },
-
   addUserMessage: (text: string) => {
     set((s) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
     }));
   },
 
-  steer: (text: string) => {
-    const bridge = getBridge();
-    const { appState } = get();
-    if (!bridge || appState.phase !== "ready" || appState.agent !== "busy") return;
+  addSteerMessage: (text: string) => {
     set((s) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
     }));
-    bridge.steer(text).catch(console.error);
-  },
-
-  interrupt: () => {
-    const bridge = getBridge();
-    const { appState } = get();
-    if (!bridge || appState.phase !== "ready" || appState.agent !== "busy") return;
-    bridge.interrupt().catch(console.error);
   },
 
   clearMessages: () => {
-    const bridge = getBridge();
     set({ messages: [] });
-    if (bridge) void bridge.clear();
   },
 }));
