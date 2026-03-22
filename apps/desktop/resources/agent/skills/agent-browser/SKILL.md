@@ -59,7 +59,18 @@ selectors like `#submit-btn` or `.search-input`.
 - The browser persists across calls — state, cookies, and sessions are maintained
 - Use `wait` with a selector before interacting with dynamic content
 - Use `evaluate` for complex DOM operations the other actions don't cover
+- To get raw HTML instead of text, use `evaluate` with
+  `document.documentElement.outerHTML` (full page) or
+  `document.querySelector("...").innerHTML` (specific element)
 - The `evaluate` action only captures synchronous return values. If your script
   returns a Promise, wrap it so the final value is returned (e.g. `await fetch(...).then(r => r.text())`).
   Unhandled async rejections inside evaluated scripts are not captured — the
   action will return the synchronous result while the error logs to the console.
+
+## Security
+
+- Only `http:` and `https:` URLs are allowed. `file://`, `javascript:`, and
+  `data:` schemes are blocked.
+- The `evaluate` action runs arbitrary JavaScript in the page context. Avoid
+  passing untrusted user input directly into scripts. Prefer structured actions
+  (click, fill, get_text) when possible.

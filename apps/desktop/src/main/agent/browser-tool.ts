@@ -44,6 +44,11 @@ function getWindow(): BrowserWindow {
   // Attach CDP debugger for input simulation (click, type, etc.)
   browserWindow.webContents.debugger.attach("1.3");
 
+  // Clear stale refs when navigating to a new page (refs are page-specific)
+  browserWindow.webContents.on("did-navigate", () => {
+    refSelectors.clear();
+  });
+
   // Clear stale refs if the window is destroyed externally (crash, user close)
   browserWindow.on("closed", () => {
     refSelectors.clear();
@@ -166,6 +171,8 @@ async function cdpType(contents: WebContents, value: string): Promise<void> {
     });
     await debugger_.sendCommand("Input.dispatchKeyEvent", {
       type: "keyUp",
+      key: char,
+      code: char === " " ? "Space" : `Key${char.toUpperCase()}`,
     });
   }
 }
@@ -437,10 +444,21 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
   switch (action.action) {
     case "open": {
       if (!action.url) return text("Error: url is required for open action");
+      // Only allow http/https URLs — block file://, javascript:, data:, etc.
+      const ALLOWED_SCHEMES = ["http:", "https:"];
+      try {
+        const parsed = new URL(action.url);
+        if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
+          return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
+        }
+      } catch {
+        return text(`Error: Invalid URL "${action.url}"`);
+      }
       const win = getWindow();
-      const navPromise = awaitNavigation(contents);
+      // loadURL resolves once the page's main frame finishes loading, so a
+      // separate awaitNavigation listener is unnecessary and would leak if
+      // loadURL rejects (e.g. invalid URL, DNS failure).
       await contents.loadURL(action.url);
-      await navPromise;
       if (!win.isVisible()) win.show();
       return text(`Navigated to ${action.url}`);
     }
@@ -523,7 +541,12 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
         `)) as { width: number; height: number };
         const original = win.getContentSize();
         win.setContentSize(size.width, Math.min(size.height, 16384));
-        await new Promise((r) => setTimeout(r, 100));
+        // Wait for the resize to take effect before capturing
+        await new Promise<void>((resolve) => {
+          win.once("resize", () => resolve());
+          // Safety fallback in case the resize event doesn't fire (e.g. same size)
+          setTimeout(() => resolve(), 500);
+        });
         try {
           image = await contents.capturePage();
         } finally {
