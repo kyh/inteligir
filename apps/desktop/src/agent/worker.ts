@@ -174,9 +174,10 @@ export default defineAgent({
 
 // ---------------------------------------------------------------------------
 // CLI entry — starts the worker when run as a sidecar
+// The sidecar is forked with "start" as the first argument (see livekit-ipc.ts).
 // ---------------------------------------------------------------------------
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv.includes("start")) {
   cli.runApp(new ServerOptions({
     agent: fileURLToPath(import.meta.url),
     numIdleProcesses: 0,

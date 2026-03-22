@@ -16,20 +16,14 @@ import type { AppEvent, AppState } from "@/shared/app-state";
 // State machine
 // ---------------------------------------------------------------------------
 
-type Listener = (state: AppState) => void;
-
 let state: AppState = { phase: "logged_out" };
 const toolManager = new ToolManager();
-const listeners = new Set<Listener>();
 
 function setState(next: AppState): void {
   const prev = state;
   state = next;
   console.log(`[machine] ${prev.phase} -> ${next.phase}`);
   broadcast();
-  for (const fn of listeners) {
-    try { fn(next); } catch { /* */ }
-  }
 }
 
 function broadcast(): void {
@@ -53,8 +47,14 @@ export function getAppState(): AppState {
  * Updates busy/idle machine state.
  */
 export function handleSidecarAgentEvent(event: unknown): void {
-  if (state.phase !== "ready") return;
   if (!isRecord(event)) return;
+
+  // Log agent errors so they appear in Electron main process logs
+  if (event.type === "message_end" && isRecord(event) && event.stopReason === "error") {
+    console.error("[agent] error event:", event);
+  }
+
+  if (state.phase !== "ready") return;
   if (event.type === "agent_start") {
     setState({ phase: "ready", agent: "busy" });
   } else if (event.type === "agent_end") {
