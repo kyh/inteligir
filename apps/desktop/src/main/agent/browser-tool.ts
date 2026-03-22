@@ -12,7 +12,14 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
 
 // ---------------------------------------------------------------------------
-// Browser lifecycle — lazily create a hidden BrowserWindow
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Default timeout for navigation operations (ms) */
+const NAV_TIMEOUT_MS = 30_000;
+
+// ---------------------------------------------------------------------------
+// Browser lifecycle — lazily create a BrowserWindow (shown on open)
 // ---------------------------------------------------------------------------
 
 let browserWindow: BrowserWindow | null = null;
@@ -34,6 +41,12 @@ function getWindow(): BrowserWindow {
   // Attach CDP debugger for input simulation (click, type, etc.)
   browserWindow.webContents.debugger.attach("1.3");
 
+  // Clear stale refs if the window is destroyed externally (crash, user close)
+  browserWindow.on("closed", () => {
+    refSelectors.clear();
+    browserWindow = null;
+  });
+
   return browserWindow;
 }
 
@@ -50,6 +63,41 @@ function disposeBrowser(): void {
   }
   browserWindow = null;
   refSelectors.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Navigation helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Wait for `did-finish-load` with a timeout fallback to prevent hanging
+ * on network errors or redirect loops.
+ */
+function awaitNavigation(contents: WebContents, timeoutMs = NAV_TIMEOUT_MS): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      contents.removeListener("did-finish-load", onLoad);
+      contents.removeListener("did-fail-load", onFail);
+      reject(new Error(`Navigation timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    function onLoad() {
+      clearTimeout(timer);
+      contents.removeListener("did-fail-load", onFail);
+      resolve();
+    }
+
+    function onFail(_event: Electron.Event, errorCode: number, errorDescription: string) {
+      // Aborted navigations (e.g. redirects) are not real failures
+      if (errorCode === -3) return;
+      clearTimeout(timer);
+      contents.removeListener("did-finish-load", onLoad);
+      reject(new Error(`Navigation failed: ${errorDescription} (code ${errorCode})`));
+    }
+
+    contents.once("did-finish-load", onLoad);
+    contents.once("did-fail-load", onFail);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +174,7 @@ async function cdpPress(contents: WebContents, key: string): Promise<void> {
     Tab: { key: "Tab", code: "Tab", keyCode: 9 },
     Escape: { key: "Escape", code: "Escape", keyCode: 27 },
     Backspace: { key: "Backspace", code: "Backspace", keyCode: 8 },
+    Delete: { key: "Delete", code: "Delete", keyCode: 46 },
     ArrowDown: { key: "ArrowDown", code: "ArrowDown", keyCode: 40 },
     ArrowUp: { key: "ArrowUp", code: "ArrowUp", keyCode: 38 },
     ArrowLeft: { key: "ArrowLeft", code: "ArrowLeft", keyCode: 37 },
@@ -159,6 +208,34 @@ async function cdpHover(contents: WebContents, selector: string): Promise<void> 
   });
 }
 
+/**
+ * Select all content in the currently focused element using Ctrl/Cmd+A,
+ * then delete it. Works for input, textarea, and contenteditable elements.
+ */
+async function cdpSelectAllAndDelete(contents: WebContents): Promise<void> {
+  const debugger_ = contents.debugger;
+  const modifier = process.platform === "darwin" ? 4 : 2; // meta : ctrl
+
+  // Ctrl/Cmd+A to select all
+  await debugger_.sendCommand("Input.dispatchKeyEvent", {
+    type: "keyDown",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: modifier,
+  });
+  await debugger_.sendCommand("Input.dispatchKeyEvent", {
+    type: "keyUp",
+    key: "a",
+    code: "KeyA",
+    windowsVirtualKeyCode: 65,
+    modifiers: modifier,
+  });
+
+  // Delete the selection
+  await cdpPress(contents, "Delete");
+}
+
 // ---------------------------------------------------------------------------
 // Accessibility snapshot
 // ---------------------------------------------------------------------------
@@ -179,6 +256,10 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
 
       function getRole(el) {
         return el.getAttribute("role") || roleMap[el.tagName.toLowerCase()] || null;
+      }
+
+      function escapeAttrValue(s) {
+        return s.replace(/\\\\/g, "\\\\\\\\").replace(/"/g, '\\\\"');
       }
 
       function walk(el, depth) {
@@ -206,7 +287,7 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
             selector = "#" + CSS.escape(el.id);
           } else if (el.getAttribute("aria-label")) {
             const r = el.getAttribute("role") || el.tagName.toLowerCase();
-            selector = r + '[aria-label="' + CSS.escape(el.getAttribute("aria-label")) + '"]';
+            selector = r + '[aria-label="' + escapeAttrValue(el.getAttribute("aria-label")) + '"]';
           } else {
             // nth-of-type chain
             const parts = [];
@@ -348,7 +429,11 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
   switch (action.action) {
     case "open": {
       if (!action.url) return text("Error: url is required for open action");
+      const win = getWindow();
+      const navPromise = awaitNavigation(contents);
       await contents.loadURL(action.url);
+      await navPromise;
+      if (!win.isVisible()) win.show();
       return text(`Navigated to ${action.url}`);
     }
 
@@ -363,12 +448,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       if (!action.selector) return text("Error: selector is required for fill");
       if (action.text === undefined) return text("Error: text is required for fill");
       const sel = resolveSelector(action.selector);
-      // Focus, select all, delete, then type new value
+      // Focus the element, select all content, delete, then type new value.
+      // Uses Ctrl/Cmd+A + Delete which works for input, textarea, and contenteditable.
       await cdpClick(contents, sel);
-      await contents.executeJavaScript(`
-        document.querySelector(${JSON.stringify(sel)})?.select?.()
-      `);
-      await cdpPress(contents, "Backspace");
+      await cdpSelectAllAndDelete(contents);
       await cdpType(contents, action.text);
       return text(`Filled ${action.selector} with "${action.text}"`);
     }
@@ -503,21 +586,27 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
     }
 
     case "back": {
-      if (contents.canGoBack()) contents.goBack();
+      if (contents.canGoBack()) {
+        const navPromise = awaitNavigation(contents);
+        contents.goBack();
+        await navPromise;
+      }
       return text("Navigated back");
     }
 
     case "forward": {
-      if (contents.canGoForward()) contents.goForward();
+      if (contents.canGoForward()) {
+        const navPromise = awaitNavigation(contents);
+        contents.goForward();
+        await navPromise;
+      }
       return text("Navigated forward");
     }
 
     case "reload": {
+      const navPromise = awaitNavigation(contents);
       contents.reload();
-      // Wait for the page to finish loading
-      await new Promise<void>((resolve) => {
-        contents.once("did-finish-load", () => resolve());
-      });
+      await navPromise;
       return text("Reloaded page");
     }
 

@@ -59,3 +59,7 @@ selectors like `#submit-btn` or `.search-input`.
 - The browser persists across calls — state, cookies, and sessions are maintained
 - Use `wait` with a selector before interacting with dynamic content
 - Use `evaluate` for complex DOM operations the other actions don't cover
+- The `evaluate` action only captures synchronous return values. If your script
+  returns a Promise, wrap it so the final value is returned (e.g. `await fetch(...).then(r => r.text())`).
+  Unhandled async rejections inside evaluated scripts are not captured — the
+  action will return the synchronous result while the error logs to the console.
