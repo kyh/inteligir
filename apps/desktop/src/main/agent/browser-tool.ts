@@ -18,6 +18,9 @@ import { Type, type Static } from "@sinclair/typebox";
 /** Default timeout for navigation operations (ms) */
 const NAV_TIMEOUT_MS = 30_000;
 
+/** Max characters for snapshot output to avoid blowing up the agent's context */
+const SNAPSHOT_MAX_CHARS = 30_000;
+
 // ---------------------------------------------------------------------------
 // Browser lifecycle — lazily create a BrowserWindow (shown on open)
 // ---------------------------------------------------------------------------
@@ -232,8 +235,8 @@ async function cdpSelectAllAndDelete(contents: WebContents): Promise<void> {
     modifiers: modifier,
   });
 
-  // Delete the selection
-  await cdpPress(contents, "Delete");
+  // Backspace to clear the selection (more consistent cross-platform than Delete)
+  await cdpPress(contents, "Backspace");
 }
 
 // ---------------------------------------------------------------------------
@@ -337,7 +340,12 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
     refSelectors.set(ref, selector);
   }
 
-  return parsed.tree;
+  const tree = parsed.tree;
+  if (tree.length > SNAPSHOT_MAX_CHARS) {
+    const truncated = tree.slice(0, SNAPSHOT_MAX_CHARS);
+    return `${truncated}\n\n(truncated — ${parsed.refs.length} interactive elements total, showing first ${SNAPSHOT_MAX_CHARS} chars)`;
+  }
+  return tree;
 }
 
 // ---------------------------------------------------------------------------
@@ -486,7 +494,16 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       await contents.executeJavaScript(`
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
-          if (el) { el.value = ${JSON.stringify(action.text)}; el.dispatchEvent(new Event('change', { bubbles: true })); }
+          if (!el) return;
+          // Use the native value setter to bypass React/Vue overrides
+          const proto = el.tagName === "SELECT" ? HTMLSelectElement.prototype
+            : el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype
+            : HTMLInputElement.prototype;
+          const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+          if (setter) setter.call(el, ${JSON.stringify(action.text)});
+          else el.value = ${JSON.stringify(action.text)};
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
         })()
       `);
       return text(`Selected "${action.text}" in ${action.selector}`);
@@ -499,22 +516,22 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
 
     case "screenshot": {
       const win = getWindow();
-      const image = await (action.fullPage
-        ? contents.executeJavaScript(`
-            new Promise(resolve => {
-              const { scrollHeight, scrollWidth } = document.documentElement;
-              resolve({ width: scrollWidth, height: scrollHeight });
-            })
-          `).then(async (size: { width: number; height: number }) => {
-            const original = win.getContentSize();
-            win.setContentSize(size.width, Math.min(size.height, 16384));
-            // Wait for resize
-            await new Promise((r) => setTimeout(r, 100));
-            const img = await contents.capturePage();
-            win.setContentSize(original[0], original[1]);
-            return img;
-          })
-        : contents.capturePage());
+      let image: Electron.NativeImage;
+      if (action.fullPage) {
+        const size = (await contents.executeJavaScript(`
+          ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })
+        `)) as { width: number; height: number };
+        const original = win.getContentSize();
+        win.setContentSize(size.width, Math.min(size.height, 16384));
+        await new Promise((r) => setTimeout(r, 100));
+        try {
+          image = await contents.capturePage();
+        } finally {
+          win.setContentSize(original[0], original[1]);
+        }
+      } else {
+        image = await contents.capturePage();
+      }
       const base64 = image.toPNG().toString("base64");
       return {
         content: [{ type: "image", data: base64, mimeType: "image/png" }],
@@ -586,20 +603,22 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
     }
 
     case "back": {
-      if (contents.canGoBack()) {
-        const navPromise = awaitNavigation(contents);
-        contents.goBack();
-        await navPromise;
+      if (!contents.canGoBack()) {
+        return text("Already at the beginning of history");
       }
+      const backNav = awaitNavigation(contents);
+      contents.goBack();
+      await backNav;
       return text("Navigated back");
     }
 
     case "forward": {
-      if (contents.canGoForward()) {
-        const navPromise = awaitNavigation(contents);
-        contents.goForward();
-        await navPromise;
+      if (!contents.canGoForward()) {
+        return text("Already at the end of history");
       }
+      const fwdNav = awaitNavigation(contents);
+      contents.goForward();
+      await fwdNav;
       return text("Navigated forward");
     }
 
