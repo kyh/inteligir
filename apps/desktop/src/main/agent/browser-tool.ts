@@ -65,6 +65,13 @@ function getContents(): WebContents {
   return getWindow().webContents;
 }
 
+/** True if the browser has navigated to a real page (not blank). */
+function hasLoadedPage(): boolean {
+  if (!browserWindow || browserWindow.isDestroyed()) return false;
+  const url = browserWindow.webContents.getURL();
+  return url !== "" && url !== "about:blank";
+}
+
 function disposeBrowser(): void {
   if (browserWindow && !browserWindow.isDestroyed()) {
     try {
@@ -126,7 +133,7 @@ type ToolResult = {
     | { type: "text"; text: string }
     | { type: "image"; data: string; mimeType: string }
   )[];
-  details: Record<string, never>;
+  details: Record<string, unknown>;
 };
 
 function text(s: string): ToolResult {
@@ -195,14 +202,17 @@ function charToCode(char: string): string {
 async function cdpType(contents: WebContents, value: string): Promise<void> {
   const debugger_ = contents.debugger;
   for (const char of value) {
+    const code = charToCode(char);
     await debugger_.sendCommand("Input.dispatchKeyEvent", {
       type: "keyDown",
+      key: char,
+      code,
       text: char,
     });
     await debugger_.sendCommand("Input.dispatchKeyEvent", {
       type: "keyUp",
       key: char,
-      code: charToCode(char),
+      code,
     });
   }
 }
@@ -488,6 +498,12 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
     }
   }
 
+  // Actions other than "open" require a page to already be loaded.
+  // Avoid lazily creating a blank BrowserWindow for snapshot/get_url/etc.
+  if (action.action !== "open" && !hasLoadedPage()) {
+    return text('Error: No page loaded. Use the "open" action first to navigate to a URL.');
+  }
+
   const contents = getContents();
 
   switch (action.action) {
@@ -547,10 +563,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       if (!action.selector) return text("Error: selector is required for select");
       if (!action.text) return text("Error: text (option value) is required for select");
       const sel = resolveSelector(action.selector);
-      await contents.executeJavaScript(`
+      const found = await contents.executeJavaScript(`
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
-          if (!el) return;
+          if (!el) return false;
           // Use the native value setter to bypass React/Vue overrides
           const proto = el.tagName === "SELECT" ? HTMLSelectElement.prototype
             : el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype
@@ -560,8 +576,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
           else el.value = ${JSON.stringify(action.text)};
           el.dispatchEvent(new Event("input", { bubbles: true }));
           el.dispatchEvent(new Event("change", { bubbles: true }));
+          return true;
         })()
       `);
+      if (!found) return text(`Error: Element not found: ${sel}`);
       return text(`Selected "${action.text}" in ${action.selector}`);
     }
 
@@ -587,9 +605,14 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
         win.setContentSize(captureWidth, captureHeight);
         // Wait for the resize to take effect before capturing
         await new Promise<void>((resolve) => {
-          win.once("resize", () => resolve());
-          // Safety fallback in case the resize event doesn't fire (e.g. same size)
-          setTimeout(() => resolve(), 500);
+          const fallback = setTimeout(() => {
+            win.removeAllListeners("resize");
+            resolve();
+          }, 500);
+          win.once("resize", () => {
+            clearTimeout(fallback);
+            resolve();
+          });
         });
         try {
           image = await contents.capturePage();
@@ -641,6 +664,8 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       const ms = action.timeout ?? 5000;
       if (action.selector) {
         const sel = resolveSelector(action.selector);
+        // Note: if the browser is disposed or navigates while waiting, the
+        // in-page observer/timeout will naturally expire with the page context.
         const found = await contents.executeJavaScript(`
           new Promise((resolve) => {
             const el = document.querySelector(${JSON.stringify(sel)});
