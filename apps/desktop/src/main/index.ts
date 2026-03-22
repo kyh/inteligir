@@ -1,4 +1,11 @@
 import path from "node:path";
+import { config as dotenvConfig } from "dotenv";
+
+declare const __PROJECT_ROOT__: string;
+
+// Load .env at runtime so LIVEKIT_API_KEY / LIVEKIT_API_SECRET are available
+// on process.env without being baked into the compiled bundle.
+dotenvConfig({ path: path.resolve(__PROJECT_ROOT__, ".env") });
 
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 

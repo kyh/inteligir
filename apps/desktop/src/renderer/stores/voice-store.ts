@@ -26,6 +26,7 @@ type VoiceStore = {
   currentTranscript: string;
   error: string | null;
 
+  init: () => () => void;
   toggleVoice: () => void;
   sendMessage: (text: string) => void;
   steer: (text: string) => void;
@@ -42,6 +43,9 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
   currentTranscript: "",
   error: null,
+
+  // LiveKit voice connects on demand via toggleVoice — no eager init needed.
+  init: () => () => {},
 
   toggleVoice: () => {
     const bridge = getBridge();
@@ -163,7 +167,11 @@ async function connectToRoom(
 
     room.on(RoomEvent.TranscriptionReceived, (segments, participant) => {
       console.log("[voice] transcription:", segments.map((s) => s.text).join(" "), "from", participant?.identity);
-      if (participant?.identity === room?.localParticipant.identity) return;
+      // In LiveKit's agent pipeline, STT transcription is attributed to the
+      // local participant (the user whose speech was transcribed). Agent TTS
+      // transcription is attributed to the agent (remote) participant.
+      // We only want user speech here — skip agent/remote transcriptions.
+      if (participant?.identity !== room?.localParticipant.identity) return;
       for (const seg of segments) {
         if (seg.final) {
           set({ currentTranscript: "" });

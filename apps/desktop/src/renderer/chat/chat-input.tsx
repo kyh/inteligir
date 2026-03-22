@@ -7,7 +7,7 @@ import {
   InputGroupButton,
   InputGroupInput,
 } from "@repo/ui/input-group";
-import { MicIcon, MicOffIcon, SendIcon, SquareIcon, Volume2Icon } from "lucide-react";
+import { MicIcon, MicOffIcon, SendIcon, SquareIcon } from "lucide-react";
 
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
@@ -18,30 +18,18 @@ export function ChatInput() {
   const busy = useAgentStore(
     (s) => s.appState.phase === "ready" && s.appState.agent === "busy",
   );
-  const clearMessages = useAgentStore((s) => s.clearMessages);
-
   // Route text commands through LiveKit data channels via voice store
   const sendMessage = useVoiceStore((s) => s.sendMessage);
   const steer = useVoiceStore((s) => s.steer);
   const interrupt = useVoiceStore((s) => s.interrupt);
+  const clearChat = useVoiceStore((s) => s.clearChat);
 
   const sessionState = useVoiceStore((s) => s.sessionState);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
 
-  const voiceActive = sessionState !== "inactive";
-  const voiceSpeaking = sessionState === "speaking";
-
-  const VoiceIcon = voiceSpeaking
-    ? Volume2Icon
-    : voiceActive
-      ? MicIcon
-      : MicOffIcon;
-
-  const voiceTitle = voiceSpeaking
-    ? "Interrupt"
-    : voiceActive
-      ? "Stop voice"
-      : "Start voice";
+  const voiceActive = sessionState !== "inactive" && sessionState !== "error";
+  const VoiceIcon = voiceActive ? MicIcon : MicOffIcon;
+  const voiceTitle = voiceActive ? "Stop voice" : "Start voice";
 
   const send = useCallback(
     (e: FormEvent) => {
@@ -62,7 +50,8 @@ export function ChatInput() {
     (e: KeyboardEvent<HTMLInputElement>) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
         e.preventDefault();
-        clearMessages();
+        useAgentStore.getState().clearMessages();
+        clearChat();
         return;
       }
       if (e.key === "Escape") {
@@ -74,7 +63,7 @@ export function ChatInput() {
         }
       }
     },
-    [busy, input, interrupt, clearMessages],
+    [busy, input, interrupt, clearChat],
   );
 
   return (
@@ -93,7 +82,7 @@ export function ChatInput() {
               size="icon-xs"
               onClick={toggleVoice}
               title={voiceTitle}
-              className={voiceSpeaking ? "animate-pulse" : ""}
+              className={sessionState === "connecting" ? "animate-pulse" : ""}
             >
               <VoiceIcon />
             </InputGroupButton>

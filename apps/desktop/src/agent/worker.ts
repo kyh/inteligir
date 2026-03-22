@@ -11,6 +11,7 @@ import * as silero from "@livekit/agents-plugin-silero";
 
 import { Agent, seedResources } from "@/agent/setup";
 import { PiLLMAdapter } from "@/agent/pi-llm-adapter";
+import { TaskScheduler } from "@/main/tasks/task-scheduler";
 import { isRecord } from "@/shared/ipc";
 import { TEXT_CHAT_TOPIC, type TextChatMessage } from "@/shared/voice";
 
@@ -23,6 +24,9 @@ const TTS_VOICE = "elevenlabs/eleven_flash_v2_5:SAz9YHcvj6GT2YYXdXww";
 
 // Pre-loaded VAD model — populated in prewarm, reused in entry
 let preloadedVAD: silero.VAD | null = null;
+
+// Task scheduler — started once the agent is ready
+let taskScheduler: TaskScheduler | null = null;
 
 // ---------------------------------------------------------------------------
 // Agent singleton — shared across jobs (single user, single desktop)
@@ -110,6 +114,12 @@ export default defineAgent({
     const agent = await ensureAgent();
     const llmAdapter = new PiLLMAdapter(agent);
 
+    // Start task scheduler once agent is ready
+    if (!taskScheduler) {
+      taskScheduler = new TaskScheduler(() => piAgent);
+      taskScheduler.start();
+    }
+
     // Forward agent session events to main process
     const unsubEvents = agent.subscribe(forwardToMain);
 
@@ -154,6 +164,8 @@ export default defineAgent({
     });
 
     ctx.addShutdownCallback(async () => {
+      taskScheduler?.stop();
+      taskScheduler = null;
       unsubEvents();
       await session.close();
     });

@@ -33,9 +33,17 @@ function getWorkerPath(): string {
 function getNodePath(): string {
   if (systemNodePath) return systemNodePath;
 
-  // Try `which node` first (works in dev and most Linux environments)
+  // 1. Check NODE_PATH env var first (as the error message advertises)
+  const envPath = process.env["NODE_PATH"];
+  if (envPath && fs.existsSync(envPath)) {
+    systemNodePath = envPath;
+    return systemNodePath;
+  }
+
+  // 2. Try `which node` / `where node` (works in dev and most environments)
+  const whichCmd = process.platform === "win32" ? "where node" : "which node";
   try {
-    const resolved = execSync("which node", { encoding: "utf8" }).trim();
+    const resolved = execSync(whichCmd, { encoding: "utf8" }).trim().split("\n")[0]!;
     if (resolved && fs.existsSync(resolved)) {
       systemNodePath = resolved;
       return systemNodePath;
@@ -44,12 +52,18 @@ function getNodePath(): string {
     // Fall through to well-known paths
   }
 
-  // Well-known Node.js install locations (macOS app bundles strip PATH)
-  const candidates = [
-    "/usr/local/bin/node",
-    "/opt/homebrew/bin/node", // Apple Silicon Homebrew
-    "/usr/bin/node",
-  ];
+  // 3. Well-known Node.js install locations (macOS app bundles strip PATH)
+  const candidates =
+    process.platform === "win32"
+      ? [
+          path.join(process.env["ProgramFiles"] ?? "C:\\Program Files", "nodejs", "node.exe"),
+          path.join(process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)", "nodejs", "node.exe"),
+        ]
+      : [
+          "/usr/local/bin/node",
+          "/opt/homebrew/bin/node", // Apple Silicon Homebrew
+          "/usr/bin/node",
+        ];
   for (const candidate of candidates) {
     if (fs.existsSync(candidate)) {
       systemNodePath = candidate;

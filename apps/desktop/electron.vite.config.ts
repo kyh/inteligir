@@ -26,7 +26,10 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     define: {
       __PROJECT_ROOT__: JSON.stringify(__dirname),
-      ...loadDotEnv("LIVEKIT_"),
+      // Only inline the public URL — never embed API key/secret in the bundle.
+      // The main process reads LIVEKIT_API_KEY and LIVEKIT_API_SECRET from .env
+      // at runtime via dotenv (see main/index.ts).
+      ...loadDotEnv("LIVEKIT_URL"),
     },
     resolve: {
       alias: { "@": resolve(__dirname, "src") },

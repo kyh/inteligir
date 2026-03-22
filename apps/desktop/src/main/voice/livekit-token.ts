@@ -10,6 +10,7 @@ export type LiveKitCredentials = {
 };
 
 const TOKEN_TTL = "6h";
+const TOKEN_TTL_MS = 6 * 60 * 60 * 1_000; // must match TOKEN_TTL
 const TOKEN_REFRESH_THRESHOLD_MS = 10 * 60 * 1_000; // refresh if <10 min remaining
 
 let cachedCredentials: { credentials: LiveKitCredentials; expiresAt: number } | null = null;
@@ -53,11 +54,9 @@ export async function createRoomToken(
   const jwt = await token.toJwt();
   const credentials = { url, token: jwt };
 
-  // Parse TTL to ms for cache expiry (format: "6h")
-  const ttlHours = parseInt(TOKEN_TTL, 10);
   cachedCredentials = {
     credentials,
-    expiresAt: Date.now() + ttlHours * 60 * 60 * 1_000,
+    expiresAt: Date.now() + TOKEN_TTL_MS,
   };
 
   return credentials;
