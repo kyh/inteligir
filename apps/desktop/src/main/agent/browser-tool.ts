@@ -83,28 +83,34 @@ function disposeBrowser(): void {
  */
 function awaitNavigation(contents: WebContents, timeoutMs = NAV_TIMEOUT_MS): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
+    function cleanup() {
+      clearTimeout(timer);
       contents.removeListener("did-finish-load", onLoad);
       contents.removeListener("did-fail-load", onFail);
+    }
+
+    const timer = setTimeout(() => {
+      cleanup();
       reject(new Error(`Navigation timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
     function onLoad() {
-      clearTimeout(timer);
-      contents.removeListener("did-fail-load", onFail);
+      cleanup();
       resolve();
     }
 
     function onFail(_event: Electron.Event, errorCode: number, errorDescription: string) {
-      // Aborted navigations (e.g. redirects) are not real failures
+      // Aborted navigations (e.g. redirects) are not real failures — keep
+      // listening for the final load or a real error.
       if (errorCode === -3) return;
-      clearTimeout(timer);
-      contents.removeListener("did-finish-load", onLoad);
+      cleanup();
       reject(new Error(`Navigation failed: ${errorDescription} (code ${errorCode})`));
     }
 
-    contents.once("did-finish-load", onLoad);
-    contents.once("did-fail-load", onFail);
+    // Use `on` (not `once`) so redirect aborts (code -3) don't consume the
+    // listener. cleanup() removes both listeners when we're done.
+    contents.on("did-finish-load", onLoad);
+    contents.on("did-fail-load", onFail);
   });
 }
 
@@ -162,6 +168,27 @@ async function cdpClick(contents: WebContents, selector: string): Promise<void> 
   }
 }
 
+/** Map a character to its CDP `code` value (physical key identifier). */
+function charToCode(char: string): string {
+  if (char === " ") return "Space";
+  if (char >= "a" && char <= "z") return `Key${char.toUpperCase()}`;
+  if (char >= "A" && char <= "Z") return `Key${char}`;
+  if (char >= "0" && char <= "9") return `Digit${char}`;
+  // Punctuation — best-effort mapping for US keyboard layout
+  const punctuation: Record<string, string> = {
+    "-": "Minus", "=": "Equal", "[": "BracketLeft", "]": "BracketRight",
+    "\\": "Backslash", ";": "Semicolon", "'": "Quote", "`": "Backquote",
+    ",": "Comma", ".": "Period", "/": "Slash",
+    // Shifted variants map to same physical key
+    "_": "Minus", "+": "Equal", "{": "BracketLeft", "}": "BracketRight",
+    "|": "Backslash", ":": "Semicolon", '"': "Quote", "~": "Backquote",
+    "<": "Comma", ">": "Period", "?": "Slash",
+    "!": "Digit1", "@": "Digit2", "#": "Digit3", "$": "Digit4", "%": "Digit5",
+    "^": "Digit6", "&": "Digit7", "*": "Digit8", "(": "Digit9", ")": "Digit0",
+  };
+  return punctuation[char] ?? "";
+}
+
 async function cdpType(contents: WebContents, value: string): Promise<void> {
   const debugger_ = contents.debugger;
   for (const char of value) {
@@ -172,7 +199,7 @@ async function cdpType(contents: WebContents, value: string): Promise<void> {
     await debugger_.sendCommand("Input.dispatchKeyEvent", {
       type: "keyUp",
       key: char,
-      code: char === " " ? "Space" : `Key${char.toUpperCase()}`,
+      code: charToCode(char),
     });
   }
 }
@@ -439,26 +466,35 @@ function resolveSelector(selector: string): string {
 // ---------------------------------------------------------------------------
 
 async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> {
+  // Handle close without creating a window — avoids create-then-destroy.
+  if (action.action === "close") {
+    disposeBrowser();
+    return text("Browser closed");
+  }
+
+  // Validate URL before creating a window so invalid URLs don't spin one up.
+  if (action.action === "open") {
+    if (!action.url) return text("Error: url is required for open action");
+    const ALLOWED_SCHEMES = ["http:", "https:"];
+    try {
+      const parsed = new URL(action.url);
+      if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
+        return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
+      }
+    } catch {
+      return text(`Error: Invalid URL "${action.url}"`);
+    }
+  }
+
   const contents = getContents();
 
   switch (action.action) {
     case "open": {
-      if (!action.url) return text("Error: url is required for open action");
-      // Only allow http/https URLs — block file://, javascript:, data:, etc.
-      const ALLOWED_SCHEMES = ["http:", "https:"];
-      try {
-        const parsed = new URL(action.url);
-        if (!ALLOWED_SCHEMES.includes(parsed.protocol)) {
-          return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
-        }
-      } catch {
-        return text(`Error: Invalid URL "${action.url}"`);
-      }
       const win = getWindow();
       // loadURL resolves once the page's main frame finishes loading, so a
       // separate awaitNavigation listener is unnecessary and would leak if
       // loadURL rejects (e.g. invalid URL, DNS failure).
-      await contents.loadURL(action.url);
+      await contents.loadURL(action.url!);
       if (!win.isVisible()) win.show();
       return text(`Navigated to ${action.url}`);
     }
@@ -536,11 +572,17 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       const win = getWindow();
       let image: Electron.NativeImage;
       if (action.fullPage) {
+        // Capture the full scrollable area without resizing the window.
+        // Cap dimensions to avoid enormous images from pathological pages.
+        const MAX_WIDTH = 1280;
+        const MAX_HEIGHT = 16384;
         const size = (await contents.executeJavaScript(`
           ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })
         `)) as { width: number; height: number };
+        const captureWidth = Math.min(size.width, MAX_WIDTH);
+        const captureHeight = Math.min(size.height, MAX_HEIGHT);
         const original = win.getContentSize();
-        win.setContentSize(size.width, Math.min(size.height, 16384));
+        win.setContentSize(captureWidth, captureHeight);
         // Wait for the resize to take effect before capturing
         await new Promise<void>((resolve) => {
           win.once("resize", () => resolve());
@@ -652,10 +694,6 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       return text("Reloaded page");
     }
 
-    case "close": {
-      disposeBrowser();
-      return text("Browser closed");
-    }
   }
 }
 
