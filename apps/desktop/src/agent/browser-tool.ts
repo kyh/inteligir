@@ -23,6 +23,9 @@ import { Type, type Static } from "@sinclair/typebox";
 /** Default timeout for navigation operations (ms) */
 const NAV_TIMEOUT_MS = 30_000;
 
+/** Default timeout for evaluate action (ms) */
+const EVALUATE_TIMEOUT_MS = 30_000;
+
 /** Max characters for snapshot output to avoid blowing up the agent's context */
 const SNAPSHOT_MAX_CHARS = 30_000;
 
@@ -351,7 +354,7 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
   const tree = parsed.tree;
   if (tree.length > SNAPSHOT_MAX_CHARS) {
     const truncated = tree.slice(0, SNAPSHOT_MAX_CHARS);
-    return `${truncated}\n\n(truncated — showing first ${SNAPSHOT_MAX_CHARS} chars, but all ${parsed.refs.length} element refs are usable)`;
+    return `${truncated}\n\n(truncated — showing first ${SNAPSHOT_MAX_CHARS} chars; refs from the visible portion are usable)`;
   }
   return tree;
 }
@@ -546,23 +549,26 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       if (!action.selector) return text("Error: selector is required for select");
       if (!action.text) return text("Error: text (option value) is required for select");
       const sel = resolveSelector(action.selector);
-      const found = await contents.executeJavaScript(`
+      const selectResult = await contents.executeJavaScript(`
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
-          if (!el) return false;
+          if (!el) return "not_found";
+          // Verify the option value exists before setting
+          const optionExists = Array.from(el.options).some(o => o.value === ${JSON.stringify(action.text)});
+          if (!optionExists) return "invalid_option";
           // Use the native value setter to bypass React/Vue overrides
-          const proto = el.tagName === "SELECT" ? HTMLSelectElement.prototype
-            : el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype
-            : HTMLInputElement.prototype;
-          const setter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+          const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
           if (setter) setter.call(el, ${JSON.stringify(action.text)});
           else el.value = ${JSON.stringify(action.text)};
           el.dispatchEvent(new Event("input", { bubbles: true }));
           el.dispatchEvent(new Event("change", { bubbles: true }));
-          return true;
+          return "ok";
         })()
-      `);
-      if (!found) return text(`Error: Element not found: ${sel}`);
+      `) as string;
+      if (selectResult === "not_found") return text(`Error: Element not found: ${sel}`);
+      if (selectResult === "invalid_option") {
+        return text(`Error: No <option> with value "${action.text}" found in ${action.selector}`);
+      }
       return text(`Selected "${action.text}" in ${action.selector}`);
     }
 
@@ -570,19 +576,22 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       if (!action.selector) return text("Error: selector is required for check");
       const sel = resolveSelector(action.selector);
       const desired = action.checked !== false; // default true
-      const result = await contents.executeJavaScript(`
+      const checkResult = await contents.executeJavaScript(`
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return "not_found";
           const want = ${desired};
           if (el.checked === want) return "already";
-          el.focus();
-          el.click();
-          return el.checked === want ? "toggled" : "failed";
+          // Set checked directly instead of el.click() to avoid triggering
+          // form submission or navigation side effects.
+          el.checked = want;
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          return "toggled";
         })()
       `) as string;
-      if (result === "not_found") return text(`Error: Element not found: ${sel}`);
-      if (result === "already") return text(`Checkbox ${action.selector} already ${desired ? "checked" : "unchecked"}`);
+      if (checkResult === "not_found") return text(`Error: Element not found: ${sel}`);
+      if (checkResult === "already") return text(`Checkbox ${action.selector} already ${desired ? "checked" : "unchecked"}`);
       return text(`${desired ? "Checked" : "Unchecked"} ${action.selector}`);
     }
 
@@ -595,8 +604,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       const win = getWindow();
       let image: Electron.NativeImage;
       if (action.fullPage) {
-        // Temporarily resize to the full scrollable area, capture, then restore.
-        // Cap dimensions to avoid enormous images from pathological pages.
+        // HACK: We resize the visible BrowserWindow to capture the full page
+        // because Electron's capturePage() only captures the visible viewport.
+        // The user may see a brief window resize flicker. There's no off-screen
+        // alternative without spawning a second headless BrowserWindow.
         const MAX_WIDTH = 1280;
         const MAX_HEIGHT = 16384;
         const size = (await contents.executeJavaScript(`
@@ -658,7 +669,13 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
 
     case "evaluate": {
       if (!action.script) return text("Error: script is required for evaluate");
-      const result = await contents.executeJavaScript(action.script);
+      const timeout = action.timeout ?? EVALUATE_TIMEOUT_MS;
+      const result = await Promise.race([
+        contents.executeJavaScript(action.script),
+        new Promise((_resolve, reject) =>
+          setTimeout(() => reject(new Error(`evaluate timed out after ${timeout}ms`)), timeout),
+        ),
+      ]);
       return text(
         typeof result === "string" ? result : JSON.stringify(result, null, 2),
       );
@@ -734,6 +751,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
 // Public API
 // ---------------------------------------------------------------------------
 
+/**
+ * Register the browser automation tool with pi-coding-agent.
+ * Call once per process — the tool uses module-level singletons.
+ */
 export function registerBrowserExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "browser",
