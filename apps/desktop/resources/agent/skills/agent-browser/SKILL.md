@@ -33,7 +33,7 @@ installation required.
 | `type`       | `text`, opt. `selector`  | Type text (into element or focused field)  |
 | `press`      | `text` (key name)        | Press a keyboard key (e.g. "Enter", "Tab") |
 | `hover`      | `selector`               | Hover over an element                      |
-| `select`     | `selector`, `text`       | Select an option in a dropdown             |
+| `select`     | `selector`, `text`       | Select a `<select>` option by its `value` attribute |
 | `snapshot`   | —                        | Get accessibility tree with @refs          |
 | `screenshot` | opt. `fullPage`          | Take a PNG screenshot                      |
 | `get_text`   | opt. `selector`          | Get text content of page or element        |

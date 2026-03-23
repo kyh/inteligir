@@ -47,8 +47,13 @@ function getWindow(): BrowserWindow {
   // Attach CDP debugger for input simulation (click, type, etc.)
   browserWindow.webContents.debugger.attach("1.3");
 
-  // Clear stale refs when navigating to a new page (refs are page-specific)
+  // Clear stale refs on navigation (refs are page-specific).
+  // did-navigate fires on full navigations; did-navigate-in-page fires on
+  // SPA pushState/replaceState/hash changes (React Router, Next.js, etc.).
   browserWindow.webContents.on("did-navigate", () => {
+    refSelectors.clear();
+  });
+  browserWindow.webContents.on("did-navigate-in-page", () => {
     refSelectors.clear();
   });
 
@@ -509,9 +514,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
   switch (action.action) {
     case "open": {
       const win = getWindow();
-      // loadURL resolves once the page's main frame finishes loading, so a
-      // separate awaitNavigation listener is unnecessary and would leak if
-      // loadURL rejects (e.g. invalid URL, DNS failure).
+      // For the open action, loadURL already resolves once the page's main
+      // frame finishes loading — a separate awaitNavigation listener would be
+      // redundant and leak if loadURL rejects. (back/forward/reload still use
+      // awaitNavigation since their APIs are fire-and-forget.)
       await contents.loadURL(action.url!);
       if (!win.isVisible()) win.show();
       return text(`Navigated to ${action.url}`);
@@ -605,14 +611,15 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
         win.setContentSize(captureWidth, captureHeight);
         // Wait for the resize to take effect before capturing
         await new Promise<void>((resolve) => {
-          const fallback = setTimeout(() => {
-            win.removeAllListeners("resize");
-            resolve();
-          }, 500);
-          win.once("resize", () => {
+          function onResize() {
             clearTimeout(fallback);
             resolve();
-          });
+          }
+          const fallback = setTimeout(() => {
+            win.removeListener("resize", onResize);
+            resolve();
+          }, 500);
+          win.once("resize", onResize);
         });
         try {
           image = await contents.capturePage();
