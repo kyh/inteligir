@@ -48,7 +48,7 @@ export const TasksFileSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Task run log — per-execution record
+// Task run log — per-execution tracking
 // ---------------------------------------------------------------------------
 
 export const TaskRunLogSchema = z.object({

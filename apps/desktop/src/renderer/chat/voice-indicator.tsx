@@ -3,10 +3,8 @@ import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 const stateLabels: Record<VoiceSessionState, string | null> = {
   inactive: null,
-  starting: "Connecting...",
-  listening: "Listening...",
-  processing: "Thinking...",
-  speaking: "Speaking...",
+  connecting: "Connecting...",
+  connected: "Listening...",
   error: null, // error text comes from store.error
 };
 
@@ -19,7 +17,7 @@ export function VoiceIndicator() {
 
   const label =
     error ? error
-    : sessionState === "listening" && currentTranscript ? `"${currentTranscript}..."`
+    : sessionState === "connected" && currentTranscript ? `"${currentTranscript}..."`
     : stateLabels[sessionState];
 
   if (!label) return null;

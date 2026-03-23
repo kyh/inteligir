@@ -8,8 +8,7 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 function phaseToOrbStatus(phase: string, voiceState: string): DisplayStatus {
-  if (voiceState === "listening") return "listening";
-  if (voiceState === "speaking") return "speaking";
+  if (voiceState === "connected") return "listening";
   switch (phase) {
     case "ready":
       return "idle";
@@ -92,13 +91,18 @@ export function AppLayout() {
   const voiceState = useVoiceStore((s) => s.sessionState);
   const orbStatus = phaseToOrbStatus(appState.phase, voiceState);
 
+  const isSettings = pathname === "/settings";
+
   return (
     <div className="relative h-full w-full font-mono">
-      <div className={`pointer-events-none absolute inset-0 -z-10 grid place-items-center ${pathname === "/settings" ? "hidden" : ""}`}>
-        <div className="h-48 w-48">
-          <GeometricOrb status={orbStatus} />
+      {!isSettings && (
+        <div className="pointer-events-none absolute inset-0 -z-10 grid place-items-center">
+          <div className="h-48 w-48">
+            <GeometricOrb status={orbStatus} />
+          </div>
         </div>
-      </div>
+      )}
+
       <div className="flex h-full flex-col">
         <Outlet />
       </div>
