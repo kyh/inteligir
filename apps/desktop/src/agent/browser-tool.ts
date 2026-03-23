@@ -523,7 +523,7 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
     }
 
     case "type": {
-      if (!action.text) return text("Error: text is required for type");
+      if (action.text === undefined) return text("Error: text is required for type");
       if (action.selector) {
         const sel = resolveSelector(action.selector);
         await cdpClick(contents, sel);
@@ -582,9 +582,11 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
           if (!el) return "not_found";
           const want = ${desired};
           if (el.checked === want) return "already";
-          // Set checked directly instead of el.click() to avoid triggering
-          // form submission or navigation side effects.
-          el.checked = want;
+          // Use native prototype setter to bypass React/Vue property overrides
+          // on controlled inputs (same pattern as fill).
+          const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
+          if (setter) setter.call(el, want);
+          else el.checked = want;
           el.dispatchEvent(new Event("input", { bubbles: true }));
           el.dispatchEvent(new Event("change", { bubbles: true }));
           return "toggled";
@@ -670,6 +672,9 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
     case "evaluate": {
       if (!action.script) return text("Error: script is required for evaluate");
       const timeout = action.timeout ?? EVALUATE_TIMEOUT_MS;
+      // Note: on timeout the in-page script keeps running — there's no way to
+      // cancel executeJavaScript. This is acceptable; the page context will GC
+      // it on next navigation or close.
       const result = await Promise.race([
         contents.executeJavaScript(action.script),
         new Promise((_resolve, reject) =>
