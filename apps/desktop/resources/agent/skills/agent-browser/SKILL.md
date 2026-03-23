@@ -40,7 +40,7 @@ installation required.
 | `get_text`   | opt. `selector`          | Get text content of page or element        |
 | `get_url`    | —                        | Get current page URL                       |
 | `get_title`  | —                        | Get current page title                     |
-| `evaluate`   | `script`                 | Run JavaScript in the page                 |
+| `evaluate`   | `script`, opt. `timeout` | Run JavaScript in the page (30s default timeout) |
 | `wait`       | opt. `selector`/`timeout`| Wait for element or fixed duration (ms)    |
 | `scroll`     | opt. `direction`/`amount`| Scroll up or down (default: down 500px)    |
 | `back`       | —                        | Navigate back                              |
@@ -67,6 +67,9 @@ selectors like `#submit-btn` or `.search-input`.
   returns a Promise, wrap it so the final value is returned (e.g. `await fetch(...).then(r => r.text())`).
   Unhandled async rejections inside evaluated scripts are not captured — the
   action will return the synchronous result while the error logs to the console.
+  Note: timed-out scripts continue running in the page context until navigation or close.
+- The `select` action matches by the `<option>` `value` attribute, not the visible label.
+  Run `snapshot` or `evaluate` to inspect option values if the visible text differs.
 
 ## Security
 

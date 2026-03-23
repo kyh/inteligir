@@ -57,7 +57,11 @@ function getWindow(): BrowserWindow {
   });
 
   // Attach CDP debugger for input simulation (click, type, etc.)
-  browserWindow.webContents.debugger.attach("1.3");
+  try {
+    browserWindow.webContents.debugger.attach("1.3");
+  } catch {
+    // Already attached (e.g. DevTools open) — safe to continue
+  }
 
   // Clear stale refs on navigation (refs are page-specific).
   // did-navigate fires on full navigations; did-navigate-in-page fires on
@@ -110,8 +114,15 @@ function disposeBrowser(): void {
 /**
  * Wait for `did-finish-load` with a timeout fallback to prevent hanging
  * on network errors or redirect loops.
+ *
+ * If the page already finished loading (e.g. in-memory back/forward that
+ * resolves synchronously in some Electron versions), resolves immediately.
  */
 function awaitNavigation(contents: WebContents, timeoutMs = NAV_TIMEOUT_MS): Promise<void> {
+  // Fast-path: if the navigation completed synchronously (in-memory cache),
+  // isLoading() will already be false by the time we get here.
+  if (!contents.isLoading()) return Promise.resolve();
+
   return new Promise<void>((resolve, reject) => {
     function cleanup() {
       clearTimeout(timer);
@@ -270,10 +281,6 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
         return el.getAttribute("role") || roleMap[el.tagName.toLowerCase()] || null;
       }
 
-      function escapeAttrValue(s) {
-        return s.replace(/\\\\/g, "\\\\\\\\").replace(/"/g, '\\\\"');
-      }
-
       function walk(el, depth) {
         if (!el || el.nodeType !== 1) return "";
         if (depth > MAX_DEPTH || nodeCount >= MAX_NODES) return "";
@@ -300,8 +307,10 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
           if (el.id) {
             selector = "#" + CSS.escape(el.id);
           } else if (el.getAttribute("aria-label")) {
+            // Use CSS.escape for the attribute value — avoids multi-level
+            // string escaping that's hard to audit in injected JS.
             const r = el.getAttribute("role") || el.tagName.toLowerCase();
-            selector = r + '[aria-label="' + escapeAttrValue(el.getAttribute("aria-label")) + '"]';
+            selector = r + "[aria-label=" + JSON.stringify(el.getAttribute("aria-label")) + "]";
           } else {
             // nth-of-type chain
             const parts = [];
@@ -324,8 +333,8 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
         const indent = "  ".repeat(depth);
         let line = indent + "[" + role + "]" + refLabel;
         const label = name || (el.textContent || "").trim().slice(0, 60);
-        if (label) line += ' "' + label.replace(/"/g, '\\\\"') + '"';
-        if (value) line += ' value="' + value.replace(/"/g, '\\\\"') + '"';
+        if (label) line += " " + JSON.stringify(label);
+        if (value) line += " value=" + JSON.stringify(value);
 
         const lines = [line];
         for (const child of el.children) {
