@@ -21,6 +21,10 @@ const NAV_TIMEOUT_MS = 30_000;
 /** Max characters for snapshot output to avoid blowing up the agent's context */
 const SNAPSHOT_MAX_CHARS = 30_000;
 
+/** Max DOM depth and node count to cap snapshot computation time */
+const SNAPSHOT_MAX_DEPTH = 40;
+const SNAPSHOT_MAX_NODES = 10_000;
+
 /** Allowed URL schemes for the open action */
 const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 
@@ -183,43 +187,10 @@ async function cdpClick(contents: WebContents, selector: string): Promise<void> 
   }
 }
 
-/** Map a character to its CDP `code` value (physical key identifier). */
-function charToCode(char: string): string {
-  if (char === " ") return "Space";
-  if (char >= "a" && char <= "z") return `Key${char.toUpperCase()}`;
-  if (char >= "A" && char <= "Z") return `Key${char}`;
-  if (char >= "0" && char <= "9") return `Digit${char}`;
-  // Punctuation — best-effort mapping for US keyboard layout
-  const punctuation: Record<string, string> = {
-    "-": "Minus", "=": "Equal", "[": "BracketLeft", "]": "BracketRight",
-    "\\": "Backslash", ";": "Semicolon", "'": "Quote", "`": "Backquote",
-    ",": "Comma", ".": "Period", "/": "Slash",
-    // Shifted variants map to same physical key
-    "_": "Minus", "+": "Equal", "{": "BracketLeft", "}": "BracketRight",
-    "|": "Backslash", ":": "Semicolon", '"': "Quote", "~": "Backquote",
-    "<": "Comma", ">": "Period", "?": "Slash",
-    "!": "Digit1", "@": "Digit2", "#": "Digit3", "$": "Digit4", "%": "Digit5",
-    "^": "Digit6", "&": "Digit7", "*": "Digit8", "(": "Digit9", ")": "Digit0",
-  };
-  return punctuation[char] ?? "";
-}
-
 async function cdpType(contents: WebContents, value: string): Promise<void> {
-  const debugger_ = contents.debugger;
-  for (const char of value) {
-    const code = charToCode(char);
-    await debugger_.sendCommand("Input.dispatchKeyEvent", {
-      type: "keyDown",
-      key: char,
-      code,
-      text: char,
-    });
-    await debugger_.sendCommand("Input.dispatchKeyEvent", {
-      type: "keyUp",
-      key: char,
-      code,
-    });
-  }
+  // Input.insertText sends the entire string in a single CDP round-trip,
+  // which is dramatically faster than dispatching keyDown/keyUp per character.
+  await contents.debugger.sendCommand("Input.insertText", { text: value });
 }
 
 async function cdpPress(contents: WebContents, key: string): Promise<void> {
@@ -306,7 +277,10 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
       const roleMap = { a: "link", button: "button", input: "textbox",
         textarea: "textbox", select: "combobox" };
 
+      const MAX_DEPTH = ${SNAPSHOT_MAX_DEPTH};
+      const MAX_NODES = ${SNAPSHOT_MAX_NODES};
       let refCounter = 0;
+      let nodeCount = 0;
       const refs = [];
 
       function getRole(el) {
@@ -319,6 +293,8 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
 
       function walk(el, depth) {
         if (!el || el.nodeType !== 1) return "";
+        if (depth > MAX_DEPTH || nodeCount >= MAX_NODES) return "";
+        nodeCount++;
         const role = getRole(el) || el.tagName.toLowerCase();
         const name = el.getAttribute("aria-label") || el.getAttribute("alt")
           || el.getAttribute("title") || el.getAttribute("placeholder") || "";
@@ -395,7 +371,7 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
   const tree = parsed.tree;
   if (tree.length > SNAPSHOT_MAX_CHARS) {
     const truncated = tree.slice(0, SNAPSHOT_MAX_CHARS);
-    return `${truncated}\n\n(truncated — ${parsed.refs.length} interactive elements total, showing first ${SNAPSHOT_MAX_CHARS} chars)`;
+    return `${truncated}\n\n(truncated — showing first ${SNAPSHOT_MAX_CHARS} chars, but all ${parsed.refs.length} element refs are usable)`;
   }
   return tree;
 }
@@ -609,11 +585,11 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
         const captureHeight = Math.min(size.height, MAX_HEIGHT);
         const original = win.getContentSize();
         win.setContentSize(captureWidth, captureHeight);
-        // Wait for the resize to take effect before capturing
+        // Wait for resize + a short settle for HiDPI repaints
         await new Promise<void>((resolve) => {
           function onResize() {
             clearTimeout(fallback);
-            resolve();
+            setTimeout(resolve, 50);
           }
           const fallback = setTimeout(() => {
             win.removeListener("resize", onResize);
@@ -683,7 +659,7 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
                 resolve(true);
               }
             });
-            observer.observe(document.body, { childList: true, subtree: true });
+            observer.observe(document.documentElement, { childList: true, subtree: true });
             setTimeout(() => { observer.disconnect(); resolve(false); }, ${ms});
           })
         `);
