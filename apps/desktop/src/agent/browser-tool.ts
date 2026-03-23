@@ -307,10 +307,10 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
           if (el.id) {
             selector = "#" + CSS.escape(el.id);
           } else if (el.getAttribute("aria-label")) {
-            // Use CSS.escape for the attribute value — avoids multi-level
-            // string escaping that's hard to audit in injected JS.
+            // Use CSS.escape for the attribute value — handles ], newlines,
+            // non-ASCII, and other characters that break CSS selectors.
             const r = el.getAttribute("role") || el.tagName.toLowerCase();
-            selector = r + "[aria-label=" + JSON.stringify(el.getAttribute("aria-label")) + "]";
+            selector = r + '[aria-label="' + CSS.escape(el.getAttribute("aria-label")) + '"]';
           } else {
             // nth-of-type chain
             const parts = [];
@@ -682,14 +682,17 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       if (!action.script) return text("Error: script is required for evaluate");
       const timeout = action.timeout ?? EVALUATE_TIMEOUT_MS;
       // Note: on timeout the in-page script keeps running — there's no way to
-      // cancel executeJavaScript. This is acceptable; the page context will GC
-      // it on next navigation or close.
+      // cancel executeJavaScript. The abandoned promise may resolve/reject after
+      // the browser is disposed; the .catch() suppresses unhandled rejection noise.
+      const scriptPromise = contents.executeJavaScript(action.script);
       const result = await Promise.race([
-        contents.executeJavaScript(action.script),
+        scriptPromise,
         new Promise((_resolve, reject) =>
           setTimeout(() => reject(new Error(`evaluate timed out after ${timeout}ms`)), timeout),
         ),
       ]);
+      // Suppress unhandled rejection from the abandoned promise if timeout won
+      scriptPromise.catch(() => {});
       return text(
         typeof result === "string" ? result : JSON.stringify(result, null, 2),
       );
@@ -699,9 +702,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       const ms = action.timeout ?? 5000;
       if (action.selector) {
         const sel = resolveSelector(action.selector);
-        // Note: if the browser is disposed or navigates while waiting, the
-        // in-page observer/timeout will naturally expire with the page context.
-        const found = await contents.executeJavaScript(`
+        // The in-page promise has its own setTimeout, but if the renderer
+        // hangs or crashes, executeJavaScript itself will never settle.
+        // Wrap with a Node-side race so we don't hang indefinitely.
+        const waitPromise = contents.executeJavaScript(`
           new Promise((resolve) => {
             const el = document.querySelector(${JSON.stringify(sel)});
             if (el) return resolve(true);
@@ -715,6 +719,12 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
             setTimeout(() => { observer.disconnect(); resolve(false); }, ${ms});
           })
         `);
+        const found = await Promise.race([
+          waitPromise,
+          new Promise<false>((resolve) => setTimeout(() => resolve(false), ms + 1000)),
+        ]);
+        // Suppress noise if the in-page promise settles after the Node-side timeout
+        waitPromise.catch(() => {});
         return text(found ? `Found ${action.selector}` : `Timeout waiting for ${action.selector}`);
       }
       await new Promise((resolve) => setTimeout(resolve, ms));

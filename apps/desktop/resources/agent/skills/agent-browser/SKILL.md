@@ -71,6 +71,17 @@ selectors like `#submit-btn` or `.search-input`.
 - The `select` action matches by the `<option>` `value` attribute, not the visible label.
   Run `snapshot` or `evaluate` to inspect option values if the visible text differs.
 
+## Known Limitations
+
+- **Full-page screenshot flicker**: The `screenshot` action with `fullPage: true`
+  briefly resizes the visible browser window to capture the full scrollable area.
+  The user may see a momentary flicker. Regular (viewport-only) screenshots do
+  not have this issue.
+- **Single browser window**: This tool operates a single browser instance. Tab
+  management (new/switch/close), network interception, cookie/storage inspection,
+  and visual diff features from the previous CLI-based tool are not supported.
+  Use `evaluate` for cookie/storage reads if needed.
+
 ## Security
 
 - Only `http:` and `https:` URLs are allowed. `file://`, `javascript:`, and
