@@ -4,6 +4,11 @@
  *
  * Registered as a pi-coding-agent extension so the agent can browse the web,
  * scrape pages, fill forms, take screenshots, etc.
+ *
+ * Concurrency: browserWindow and refSelectors are module-level singletons.
+ * Tool calls must be serialized — concurrent calls (e.g. snapshot + fill)
+ * could clear the ref map mid-flight. This is safe in practice because
+ * pi-coding-agent serializes tool execution.
  */
 
 import { BrowserWindow } from "electron";
@@ -82,14 +87,17 @@ function hasLoadedPage(): boolean {
 }
 
 function disposeBrowser(): void {
-  if (browserWindow && !browserWindow.isDestroyed()) {
-    try {
-      browserWindow.webContents.debugger.detach();
-    } catch { /* already detached */ }
-    browserWindow.close();
-  }
+  const win = browserWindow;
+  // Null out first to guard against re-entrancy — close() can fire the
+  // "closed" event synchronously in some Electron versions.
   browserWindow = null;
   refSelectors.clear();
+  if (win && !win.isDestroyed()) {
+    try {
+      win.webContents.debugger.detach();
+    } catch { /* already detached */ }
+    win.close();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -234,34 +242,6 @@ async function cdpHover(contents: WebContents, selector: string): Promise<void> 
   });
 }
 
-/**
- * Select all content in the currently focused element using Ctrl/Cmd+A,
- * then delete it. Works for input, textarea, and contenteditable elements.
- */
-async function cdpSelectAllAndDelete(contents: WebContents): Promise<void> {
-  const debugger_ = contents.debugger;
-  const modifier = process.platform === "darwin" ? 4 : 2; // meta : ctrl
-
-  // Ctrl/Cmd+A to select all
-  await debugger_.sendCommand("Input.dispatchKeyEvent", {
-    type: "keyDown",
-    key: "a",
-    code: "KeyA",
-    windowsVirtualKeyCode: 65,
-    modifiers: modifier,
-  });
-  await debugger_.sendCommand("Input.dispatchKeyEvent", {
-    type: "keyUp",
-    key: "a",
-    code: "KeyA",
-    windowsVirtualKeyCode: 65,
-    modifiers: modifier,
-  });
-
-  // Backspace to clear the selection (more consistent cross-platform than Delete)
-  await cdpPress(contents, "Backspace");
-}
-
 // ---------------------------------------------------------------------------
 // Accessibility snapshot
 // ---------------------------------------------------------------------------
@@ -397,6 +377,7 @@ const BrowserActionSchema = Type.Object({
       Type.Literal("get_title"),
       Type.Literal("evaluate"),
       Type.Literal("wait"),
+      Type.Literal("check"),
       Type.Literal("scroll"),
       Type.Literal("back"),
       Type.Literal("forward"),
@@ -433,6 +414,9 @@ const BrowserActionSchema = Type.Object({
   ),
   timeout: Type.Optional(
     Type.Number({ description: "Timeout in ms for wait action (default: 5000)" }),
+  ),
+  checked: Type.Optional(
+    Type.Boolean({ description: "Desired checked state for check action (default: true)" }),
   ),
 });
 
@@ -510,10 +494,27 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       if (!action.selector) return text("Error: selector is required for fill");
       if (action.text === undefined) return text("Error: text is required for fill");
       const sel = resolveSelector(action.selector);
-      // Focus the element, select all content, delete, then type new value.
-      // Uses Ctrl/Cmd+A + Delete which works for input, textarea, and contenteditable.
-      await cdpClick(contents, sel);
-      await cdpSelectAllAndDelete(contents);
+      // Focus, clear, and type in a way that's resilient to React/Vue re-renders.
+      // The JS call focuses and clears atomically before we insertText.
+      const cleared = await contents.executeJavaScript(`
+        (function() {
+          const el = document.querySelector(${JSON.stringify(sel)});
+          if (!el) return false;
+          el.focus();
+          // Use native setter to clear — works with React/Vue controlled inputs
+          const proto = el.tagName === "INPUT" ? HTMLInputElement.prototype
+            : el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype
+            : null;
+          const setter = proto && Object.getOwnPropertyDescriptor(proto, "value")?.set;
+          if (setter) { setter.call(el, ""); }
+          else if ("value" in el) { el.value = ""; }
+          else { el.textContent = ""; } // contenteditable
+          el.dispatchEvent(new Event("input", { bubbles: true }));
+          el.dispatchEvent(new Event("change", { bubbles: true }));
+          return true;
+        })()
+      `);
+      if (!cleared) return text(`Error: Element not found: ${sel}`);
       await cdpType(contents, action.text);
       return text(`Filled ${action.selector} with "${action.text}"`);
     }
@@ -563,6 +564,26 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       `);
       if (!found) return text(`Error: Element not found: ${sel}`);
       return text(`Selected "${action.text}" in ${action.selector}`);
+    }
+
+    case "check": {
+      if (!action.selector) return text("Error: selector is required for check");
+      const sel = resolveSelector(action.selector);
+      const desired = action.checked !== false; // default true
+      const result = await contents.executeJavaScript(`
+        (function() {
+          const el = document.querySelector(${JSON.stringify(sel)});
+          if (!el) return "not_found";
+          const want = ${desired};
+          if (el.checked === want) return "already";
+          el.focus();
+          el.click();
+          return el.checked === want ? "toggled" : "failed";
+        })()
+      `) as string;
+      if (result === "not_found") return text(`Error: Element not found: ${sel}`);
+      if (result === "already") return text(`Checkbox ${action.selector} already ${desired ? "checked" : "unchecked"}`);
+      return text(`${desired ? "Checked" : "Unchecked"} ${action.selector}`);
     }
 
     case "snapshot": {

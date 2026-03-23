@@ -34,6 +34,7 @@ installation required.
 | `press`      | `text` (key name)        | Press a keyboard key (e.g. "Enter", "Tab") |
 | `hover`      | `selector`               | Hover over an element                      |
 | `select`     | `selector`, `text`       | Select a `<select>` option by its `value` attribute |
+| `check`      | `selector`, opt `checked`| Check/uncheck a checkbox (default: check)  |
 | `snapshot`   | —                        | Get accessibility tree with @refs          |
 | `screenshot` | opt. `fullPage`          | Take a PNG screenshot                      |
 | `get_text`   | opt. `selector`          | Get text content of page or element        |
