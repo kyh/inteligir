@@ -56,7 +56,10 @@ function getWindow(): BrowserWindow {
     },
   });
 
-  // Attach CDP debugger for input simulation (click, type, etc.)
+  // Attach CDP debugger for input simulation (click, type, etc.).
+  // Protocol version "1.3" is pinned for stability — Electron bundles a
+  // specific Chromium, so there's no benefit to requesting a newer version,
+  // and bumping could break if the bundled Chromium doesn't support it.
   try {
     browserWindow.webContents.debugger.attach("1.3");
   } catch {
@@ -613,12 +616,9 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
 
     case "screenshot": {
       const win = getWindow();
-      let image: Electron.NativeImage;
       if (action.fullPage) {
-        // HACK: We resize the visible BrowserWindow to capture the full page
-        // because Electron's capturePage() only captures the visible viewport.
-        // The user may see a brief window resize flicker. There's no off-screen
-        // alternative without spawning a second headless BrowserWindow.
+        // Use CDP Page.captureScreenshot with captureBeyondViewport to capture
+        // the full scrollable area without resizing the visible window.
         const MAX_WIDTH = 1280;
         const MAX_HEIGHT = 16384;
         const size = (await contents.executeJavaScript(`
@@ -626,28 +626,29 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
         `)) as { width: number; height: number };
         const captureWidth = Math.min(size.width, MAX_WIDTH);
         const captureHeight = Math.min(size.height, MAX_HEIGHT);
-        const original = win.getContentSize();
-        win.setContentSize(captureWidth, captureHeight);
-        // Wait for resize + a short settle for HiDPI repaints
-        await new Promise<void>((resolve) => {
-          function onResize() {
-            clearTimeout(fallback);
-            setTimeout(resolve, 50);
-          }
-          const fallback = setTimeout(() => {
-            win.removeListener("resize", onResize);
-            resolve();
-          }, 500);
-          win.once("resize", onResize);
-        });
-        try {
-          image = await contents.capturePage();
-        } finally {
-          win.setContentSize(original[0], original[1]);
-        }
-      } else {
-        image = await contents.capturePage();
+        const devicePixelRatio = (await contents.executeJavaScript(
+          "window.devicePixelRatio || 1",
+        )) as number;
+        const cdpResult = (await contents.debugger.sendCommand(
+          "Page.captureScreenshot",
+          {
+            format: "png",
+            captureBeyondViewport: true,
+            clip: {
+              x: 0,
+              y: 0,
+              width: captureWidth,
+              height: captureHeight,
+              scale: 1 / devicePixelRatio,
+            },
+          },
+        )) as { data: string };
+        return {
+          content: [{ type: "image", data: cdpResult.data, mimeType: "image/png" }],
+          details: {},
+        };
       }
+      const image = await win.webContents.capturePage();
       const base64 = image.toPNG().toString("base64");
       return {
         content: [{ type: "image", data: base64, mimeType: "image/png" }],
@@ -683,16 +684,23 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
       const timeout = action.timeout ?? EVALUATE_TIMEOUT_MS;
       // Note: on timeout the in-page script keeps running — there's no way to
       // cancel executeJavaScript. The abandoned promise may resolve/reject after
-      // the browser is disposed; the .catch() suppresses unhandled rejection noise.
+      // the browser is disposed; the .catch() below logs script errors that
+      // arrived after the timeout so they aren't silently swallowed.
+      const TIMEOUT_SENTINEL = Symbol("timeout");
       const scriptPromise = contents.executeJavaScript(action.script);
       const result = await Promise.race([
         scriptPromise,
-        new Promise((_resolve, reject) =>
-          setTimeout(() => reject(new Error(`evaluate timed out after ${timeout}ms`)), timeout),
+        new Promise<typeof TIMEOUT_SENTINEL>((resolve) =>
+          setTimeout(() => resolve(TIMEOUT_SENTINEL), timeout),
         ),
       ]);
-      // Suppress unhandled rejection from the abandoned promise if timeout won
-      scriptPromise.catch(() => {});
+      if (result === TIMEOUT_SENTINEL) {
+        // Log late errors from the abandoned promise so they aren't silent
+        scriptPromise.catch((err: unknown) => {
+          console.warn("[browser-tool] evaluate script threw after timeout:", err);
+        });
+        return text(`Error: evaluate timed out after ${timeout}ms`);
+      }
       return text(
         typeof result === "string" ? result : JSON.stringify(result, null, 2),
       );

@@ -73,14 +73,15 @@ selectors like `#submit-btn` or `.search-input`.
 
 ## Known Limitations
 
-- **Full-page screenshot flicker**: The `screenshot` action with `fullPage: true`
-  briefly resizes the visible browser window to capture the full scrollable area.
-  The user may see a momentary flicker. Regular (viewport-only) screenshots do
-  not have this issue.
 - **Single browser window**: This tool operates a single browser instance. Tab
   management (new/switch/close), network interception, cookie/storage inspection,
   and visual diff features from the previous CLI-based tool are not supported.
   Use `evaluate` for cookie/storage reads if needed.
+- **Shadow DOM**: The `fill`, `select`, and `check` actions use native prototype
+  setters to work with React/Vue controlled inputs, but cannot reach inputs
+  inside Web Component shadow DOM. Use `evaluate` to interact with shadow roots.
+- **Full-page screenshot cap**: Full-page screenshots are capped at 1280×16384
+  pixels to avoid excessive memory usage on very tall pages.
 
 ## Security
 
