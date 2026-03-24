@@ -118,14 +118,10 @@ function disposeBrowser(): void {
  * Wait for `did-finish-load` with a timeout fallback to prevent hanging
  * on network errors or redirect loops.
  *
- * If the page already finished loading (e.g. in-memory back/forward that
- * resolves synchronously in some Electron versions), resolves immediately.
+ * Callers must register this listener BEFORE triggering navigation
+ * (goBack, goForward, reload) so no events are missed.
  */
 function awaitNavigation(contents: WebContents, timeoutMs = NAV_TIMEOUT_MS): Promise<void> {
-  // Fast-path: if the navigation completed synchronously (in-memory cache),
-  // isLoading() will already be false by the time we get here.
-  if (!contents.isLoading()) return Promise.resolve();
-
   return new Promise<void>((resolve, reject) => {
     function cleanup() {
       clearTimeout(timer);
@@ -305,16 +301,20 @@ async function buildSnapshot(contents: WebContents): Promise<string> {
           refCounter++;
           refLabel = " @e" + refCounter;
 
-          // Build a selector for this element
+          // Build a unique selector for this element.
+          // Each strategy is only used if it produces a unique match.
           let selector;
           if (el.id) {
             selector = "#" + CSS.escape(el.id);
           } else if (el.getAttribute("aria-label")) {
-            // Use CSS.escape for the attribute value — handles ], newlines,
-            // non-ASCII, and other characters that break CSS selectors.
             const r = el.getAttribute("role") || el.tagName.toLowerCase();
-            selector = r + '[aria-label="' + CSS.escape(el.getAttribute("aria-label")) + '"]';
-          } else {
+            const candidate = r + '[aria-label="' + CSS.escape(el.getAttribute("aria-label")) + '"]';
+            // Only use aria-label selector if it uniquely identifies this element
+            if (document.querySelectorAll(candidate).length === 1) {
+              selector = candidate;
+            }
+          }
+          if (!selector) {
             // nth-of-type chain
             const parts = [];
             let cur = el;
@@ -701,9 +701,10 @@ async function executeBrowserAction(action: BrowserAction): Promise<ToolResult> 
         });
         return text(`Error: evaluate timed out after ${timeout}ms`);
       }
-      return text(
-        typeof result === "string" ? result : JSON.stringify(result, null, 2),
-      );
+      const output = result === undefined ? "undefined"
+        : typeof result === "string" ? result
+        : JSON.stringify(result, null, 2);
+      return text(output);
     }
 
     case "wait": {
