@@ -7,7 +7,7 @@ import {
   seedResources,
   teardownResources,
 } from "@/agent/setup";
-import { ToolManager } from "@/main/tool-manager";
+import { disposeBrowserTool } from "@/agent/browser-tool";
 import { killSidecar } from "@/main/voice/livekit-ipc";
 import { IPC_CHANNELS, isRecord, toErrorMessage } from "@/shared/ipc";
 import type { AppEvent, AppState } from "@/shared/app-state";
@@ -17,7 +17,6 @@ import type { AppEvent, AppState } from "@/shared/app-state";
 // ---------------------------------------------------------------------------
 
 let state: AppState = { phase: "logged_out" };
-const toolManager = new ToolManager();
 
 function setState(next: AppState): void {
   const prev = state;
@@ -121,6 +120,7 @@ export function transition(event: AppEvent): void {
 /** Graceful shutdown — give sidecar time to finish in-flight work. */
 export async function shutdown(): Promise<void> {
   console.log("[machine] shutdown");
+  disposeBrowserTool();
   await killSidecar();
 }
 
@@ -146,12 +146,9 @@ async function doSetup(): Promise<void> {
   }
 }
 
-/** Seed resources and ensure tools — agent lives in sidecar. */
+/** Seed resources — agent lives in sidecar, browser tool is self-contained. */
 async function doSetupReady(): Promise<void> {
   seedResources();
-  void toolManager.ensureAll().catch((err) => {
-    console.error("[machine] tool install failed:", err);
-  });
 }
 
 async function doLogout(): Promise<void> {

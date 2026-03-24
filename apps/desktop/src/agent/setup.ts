@@ -26,6 +26,7 @@ import type {
   SteerResult,
 } from "@/shared/agent";
 
+import { registerBrowserExtension } from "@/agent/browser-tool";
 import { inteligirPath } from "@/main/lib/json-store";
 import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
@@ -254,7 +255,7 @@ export class Agent {
     const resourceLoader = new DefaultResourceLoader({
       cwd: WORKSPACE_DIR,
       agentDir: AGENT_DIR,
-      extensionFactories: [registerTasksExtension],
+      extensionFactories: [registerTasksExtension, registerBrowserExtension],
     });
     await resourceLoader.reload();
 
