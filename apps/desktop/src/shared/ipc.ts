@@ -1,3 +1,4 @@
+import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
 import type {
   CreateTaskParams,
@@ -86,7 +87,7 @@ export type DesktopBridge = {
   onAppState: (listener: (state: AppState) => void) => () => void;
 
   // Agent (events forwarded from sidecar; commands go via LiveKit data channels)
-  onAgentEvent: (listener: (event: unknown) => void) => () => void;
+  onAgentEvent: (listener: (event: AppAgentEvent) => void) => () => void;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;

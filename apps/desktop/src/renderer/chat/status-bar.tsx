@@ -1,6 +1,6 @@
 import { cn } from "@repo/ui/utils";
 
-import type { SessionStatus } from "@/shared/agent";
+import { getSessionStatus, type SessionStatus } from "@/shared/agent";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { TaskPanel } from "@/renderer/chat/task-panel";
 
@@ -11,15 +11,8 @@ const statusColors: Record<SessionStatus, string> = {
   starting: "bg-blue-400 animate-pulse",
 };
 
-function useSessionStatus(): SessionStatus {
-  const appState = useAgentStore((s) => s.appState);
-  if (appState.phase === "ready") return appState.agent === "busy" ? "busy" : "idle";
-  if (appState.phase === "error") return "error";
-  return "starting";
-}
-
 export function StatusBar() {
-  const sessionStatus = useSessionStatus();
+  const sessionStatus = useAgentStore((s) => getSessionStatus(s.appState));
 
   return (
     <div className="flex shrink-0 items-center gap-3 border-t border-border px-6 py-1.5 text-[11px] font-mono text-muted-foreground">

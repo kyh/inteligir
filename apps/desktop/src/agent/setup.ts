@@ -28,7 +28,7 @@ import type {
 
 import { registerBrowserExtension } from "@/agent/browser-tool";
 import { inteligirPath } from "@/main/lib/json-store";
-import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
+import { taskManager } from "@/main/tasks/task-singleton";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
 
@@ -142,7 +142,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
 
       switch (p.action) {
         case "list": {
-          const tasks = getTasks();
+          const tasks = taskManager.getTasks();
           if (tasks.length === 0) return text("No tasks configured.");
           const lines = tasks.map(
             (t) =>
@@ -155,13 +155,13 @@ function registerTasksExtension(pi: ExtensionAPI): void {
           if (!p.prompt) return text("Error: prompt is required for create");
           if (!p.schedule) return text("Error: schedule is required for create");
           const schedule = TaskScheduleSchema.parse(p.schedule);
-          const task = createTask({ label: p.label, prompt: p.prompt, schedule });
+          const task = taskManager.createTask({ label: p.label, prompt: p.prompt, schedule });
           return text(`Created task "${task.label}" (${task.id})`);
         }
         case "toggle": {
           if (!p.taskId) return text("Error: taskId is required for toggle");
           try {
-            const task = toggleTask(p.taskId);
+            const task = taskManager.toggleTask(p.taskId);
             return text(`Task "${task.label}" is now ${task.enabled ? "enabled" : "disabled"}`);
           } catch (err) {
             return text(`Error: ${toErrorMessage(err)}`);
@@ -169,7 +169,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
         }
         case "delete": {
           if (!p.taskId) return text("Error: taskId is required for delete");
-          deleteTask(p.taskId);
+          taskManager.deleteTask(p.taskId);
           return text(`Deleted task ${p.taskId}`);
         }
       }
@@ -177,7 +177,7 @@ function registerTasksExtension(pi: ExtensionAPI): void {
   });
 
   pi.on("before_agent_start", (_event, _ctx) => {
-    const tasks = getTasks().filter((t) => t.enabled);
+    const tasks = taskManager.getTasks().filter((t) => t.enabled);
     if (tasks.length === 0) return;
 
     const summary = tasks

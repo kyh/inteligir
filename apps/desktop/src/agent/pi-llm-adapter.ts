@@ -9,7 +9,6 @@
 import { llm, type APIConnectOptions } from "@livekit/agents";
 
 import { Agent } from "@/agent/setup";
-import { isRecord } from "@/shared/ipc";
 
 export class PiLLMAdapter extends llm.LLM {
   private agent: Agent;
@@ -86,19 +85,25 @@ class PiLLMStream extends llm.LLMStream {
 
     // Subscribe to agent events before sending the message
     const unsub = this.agent.subscribe((event) => {
-      if (!isRecord(event)) return;
+      if (event.type !== "message_update") return;
 
-      if (event.type === "message_update") {
-        const ame = isRecord(event.assistantMessageEvent) ? event.assistantMessageEvent : null;
-        if (ame && ame.type === "text_delta" && typeof ame.delta === "string" && ame.delta) {
-          this.output.put({
-            id: `pi-${chunkIndex++}`,
-            delta: {
-              role: "assistant",
-              content: ame.delta,
-            },
-          });
-        }
+      const ame = event.assistantMessageEvent;
+      if (
+        ame &&
+        typeof ame === "object" &&
+        "type" in ame &&
+        ame.type === "text_delta" &&
+        "delta" in ame &&
+        typeof ame.delta === "string" &&
+        ame.delta
+      ) {
+        this.output.put({
+          id: `pi-${chunkIndex++}`,
+          delta: {
+            role: "assistant",
+            content: ame.delta,
+          },
+        });
       }
     });
 

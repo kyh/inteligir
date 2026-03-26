@@ -17,3 +17,14 @@ export type TextChatMessage =
   | { type: "steer"; text: string }
   | { type: "interrupt" }
   | { type: "clear" };
+
+// ---------------------------------------------------------------------------
+// VoiceSession events — emitted by the session class, consumed by stores
+// ---------------------------------------------------------------------------
+
+export type VoiceSessionEvent =
+  | { type: "state_changed"; state: VoiceSessionState; error?: string }
+  | { type: "transcript_partial"; text: string }
+  | { type: "transcript_final"; text: string }
+  | { type: "audio_track_subscribed"; track: unknown }
+  | { type: "audio_track_unsubscribed"; track: unknown };

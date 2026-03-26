@@ -1,4 +1,5 @@
 import path from "node:path";
+import { z } from "zod";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 
 import type { MenuItemConstructorOptions } from "electron";
@@ -15,11 +16,12 @@ try {
 }
 
 import { getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
-import { createTask, deleteTask, getTasks, toggleTask } from "@/main/tasks/task-store";
+import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
+import { taskManager } from "@/main/tasks/task-singleton";
 import { registerLiveKitIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
+import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { AppEvent } from "@/shared/app-state";
 import type { UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
@@ -127,13 +129,6 @@ function configureApplicationMenu(): void {
 // IPC handlers
 // ---------------------------------------------------------------------------
 
-function requireString(value: unknown, name: string): string {
-  if (typeof value !== "string" || value.length === 0) {
-    throw new Error(`${name} (string) is required`);
-  }
-  return value;
-}
-
 function registerIpcHandlers(): void {
   // ---- Desktop --------------------------------------------------------------
 
@@ -148,12 +143,12 @@ function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async () => {
+  createVoidIpcHandler(IPC_CHANNELS.UPDATE_CHECK, async () => {
     await checkForUpdates();
     return updateState;
   });
 
-  ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
+  createVoidIpcHandler(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
     if (updateState.status !== "available") {
       return { accepted: false, state: updateState };
     }
@@ -167,7 +162,7 @@ function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL, (_event) => {
+  createVoidIpcHandler(IPC_CHANNELS.UPDATE_INSTALL, () => {
     if (updateState.status !== "downloaded") {
       return { accepted: false, state: updateState };
     }
@@ -185,30 +180,29 @@ function registerIpcHandlers(): void {
 
   // ---- App lifecycle --------------------------------------------------------
 
-  ipcMain.handle(IPC_CHANNELS.APP_GET_STATE, () => getAppState());
+  createVoidIpcHandler(IPC_CHANNELS.APP_GET_STATE, () => getAppState());
 
-  ipcMain.handle(IPC_CHANNELS.APP_TRANSITION, (_event, raw: unknown) => {
-    transition(raw as AppEvent);
+  createIpcHandler(IPC_CHANNELS.APP_TRANSITION, AppEventSchema, (event) => {
+    transition(event);
   });
 
   // ---- Tasks ----------------------------------------------------------------
 
-  ipcMain.handle(IPC_CHANNELS.TASK_CREATE, (_event, raw: unknown) => {
-    const params = CreateTaskParamsSchema.parse(raw);
-    return { task: createTask(params) };
+  createIpcHandler(IPC_CHANNELS.TASK_CREATE, CreateTaskParamsSchema, (params) => {
+    return { task: taskManager.createTask(params) };
   });
 
-  ipcMain.handle(IPC_CHANNELS.TASK_LIST, () => {
-    return { tasks: getTasks() };
+  createVoidIpcHandler(IPC_CHANNELS.TASK_LIST, () => {
+    return { tasks: taskManager.getTasks() };
   });
 
-  ipcMain.handle(IPC_CHANNELS.TASK_DELETE, (_event, raw: unknown) => {
-    deleteTask(requireString(raw, "id"));
-    return { ok: true };
+  createIpcHandler(IPC_CHANNELS.TASK_DELETE, z.string().min(1), (id) => {
+    taskManager.deleteTask(id);
+    return { ok: true as const };
   });
 
-  ipcMain.handle(IPC_CHANNELS.TASK_TOGGLE, (_event, raw: unknown) => {
-    return { task: toggleTask(requireString(raw, "id")) };
+  createIpcHandler(IPC_CHANNELS.TASK_TOGGLE, z.string().min(1), (id) => {
+    return { task: taskManager.toggleTask(id) };
   });
 }
 

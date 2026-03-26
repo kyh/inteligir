@@ -81,3 +81,22 @@ export type ListTasksResult = { tasks: Task[] };
 export type DeleteTaskResult = { ok: true };
 
 export type ToggleTaskResult = { task: Task };
+
+// ---------------------------------------------------------------------------
+// Display helpers (pure)
+// ---------------------------------------------------------------------------
+
+export function formatSchedule(schedule: TaskSchedule): string {
+  switch (schedule.type) {
+    case "cron":
+      return `cron: ${schedule.cron}`;
+    case "interval": {
+      const mins = Math.round(schedule.intervalMs / 60_000);
+      if (mins < 60) return `every ${mins}m`;
+      const hrs = Math.round(mins / 60);
+      return `every ${hrs}h`;
+    }
+    case "once":
+      return `once: ${new Date(schedule.runAt).toLocaleString()}`;
+  }
+}

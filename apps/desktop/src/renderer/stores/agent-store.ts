@@ -1,8 +1,9 @@
 import { create } from "zustand";
 
-import type { AppState } from "@/shared/app-state";
-import { extractText, isRecord } from "@/shared/ipc";
+import type { AppAgentEvent } from "@/shared/agent-events";
+import { AppStateSchema, type AppState } from "@/shared/app-state";
 import { getBridge } from "@/renderer/lib/bridge";
+import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -21,29 +22,6 @@ export type ChatMessage =
   | { id: number; kind: "assistant"; text: string }
   | { id: number; kind: "steer"; text: string }
   | { id: number; kind: "tool"; execution: ToolExecution };
-
-// ---------------------------------------------------------------------------
-// Narrow helpers for raw pi-agent-core events
-// ---------------------------------------------------------------------------
-
-function str(v: unknown): string {
-  return typeof v === "string" ? v : "";
-}
-
-function bool(v: unknown): boolean {
-  return typeof v === "boolean" ? v : false;
-}
-
-function eventType(event: unknown): string {
-  return isRecord(event) ? str(event.type) : "";
-}
-
-function messageRole(event: unknown): string {
-  if (!isRecord(event)) return "";
-  const message = event.message;
-  if (isRecord(message)) return str(message.role);
-  return "";
-}
 
 // ---------------------------------------------------------------------------
 // Store
@@ -74,18 +52,22 @@ export const useAgentStore = create<AgentStore>((set) => ({
     let streamingMsgId: number | null = null;
     const toolMsgIds = new Map<string, number>();
 
-    // Subscribe to raw agent session events (chat streaming)
-    const unsubAgent = bridge.onAgentEvent((event: unknown) => {
-      const type = eventType(event);
-
-      switch (type) {
+    // Subscribe to typed agent session events (chat streaming)
+    const unsubAgent = bridge.onAgentEvent((event: AppAgentEvent) => {
+      switch (event.type) {
         case "agent_end":
           streamingMsgId = null;
           toolMsgIds.clear();
           break;
 
+        case "sidecar_error":
+          streamingMsgId = null;
+          toolMsgIds.clear();
+          useVoiceStore.getState().handleSidecarError(event.message);
+          break;
+
         case "message_start": {
-          if (messageRole(event) !== "assistant") break;
+          if (event.role !== "assistant") break;
           const id = nextMsgId++;
           streamingMsgId = id;
           set((s) => ({
@@ -95,12 +77,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
         }
 
         case "message_update": {
-          if (streamingMsgId === null || !isRecord(event)) break;
-          const ame = event.assistantMessageEvent;
-          if (!isRecord(ame) || str(ame.type) !== "text_delta") break;
-          const delta = str(ame.delta);
-          if (!delta) break;
+          if (streamingMsgId === null) break;
           const sid = streamingMsgId;
+          const delta = event.delta;
           set((s) => ({
             messages: s.messages.map((m) =>
               m.id === sid && m.kind === "assistant"
@@ -112,9 +91,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
         }
 
         case "message_end": {
-          if (streamingMsgId === null || messageRole(event) !== "assistant" || !isRecord(event)) break;
-          const text = extractText(event.message);
+          if (streamingMsgId === null || event.role !== "assistant") break;
           const sid = streamingMsgId;
+          const { text } = event;
           set((s) => ({
             messages: s.messages.map((m) =>
               m.id === sid && m.kind === "assistant" ? { ...m, text } : m,
@@ -125,10 +104,8 @@ export const useAgentStore = create<AgentStore>((set) => ({
         }
 
         case "tool_execution_start": {
-          if (!isRecord(event)) break;
           const id = nextMsgId++;
-          const toolCallId = str(event.toolCallId);
-          toolMsgIds.set(toolCallId, id);
+          toolMsgIds.set(event.toolCallId, id);
           set((s) => ({
             messages: [
               ...s.messages,
@@ -136,8 +113,8 @@ export const useAgentStore = create<AgentStore>((set) => ({
                 id,
                 kind: "tool",
                 execution: {
-                  toolCallId,
-                  toolName: str(event.toolName),
+                  toolCallId: event.toolCallId,
+                  toolName: event.toolName,
                   status: "running",
                   resultText: "",
                   isError: false,
@@ -149,13 +126,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
         }
 
         case "tool_execution_end": {
-          if (!isRecord(event)) break;
-          const toolCallId = str(event.toolCallId);
-          const msgId = toolMsgIds.get(toolCallId);
+          const msgId = toolMsgIds.get(event.toolCallId);
           if (msgId === undefined) break;
-          toolMsgIds.delete(toolCallId);
-          const isError = bool(event.isError);
-          const resultText = extractText(event.result);
+          toolMsgIds.delete(event.toolCallId);
           set((s) => ({
             messages: s.messages.map((m) =>
               m.id === msgId && m.kind === "tool"
@@ -163,9 +136,9 @@ export const useAgentStore = create<AgentStore>((set) => ({
                     ...m,
                     execution: {
                       ...m.execution,
-                      status: isError ? "error" : "done",
-                      resultText,
-                      isError,
+                      status: event.isError ? "error" : "done",
+                      resultText: event.resultText,
+                      isError: event.isError,
                     },
                   }
                 : m,
@@ -178,12 +151,34 @@ export const useAgentStore = create<AgentStore>((set) => ({
 
     // Subscribe to app lifecycle state
     const unsubState = bridge.onAppState((appState: unknown) => {
-      set({ appState: appState as AppState });
+      const parsed = AppStateSchema.safeParse(appState);
+      if (!parsed.success) return;
+      set({ appState: parsed.data });
+
+      // Coordinated cleanup on logout
+      if (parsed.data.phase === "logged_out") {
+        set({ messages: [] });
+        useVoiceStore.getState().reset();
+      }
     });
 
     // Fetch initial state
     void bridge.getAppState().then((appState) => {
       set({ appState });
+    });
+
+    // Register callbacks with voice store to break circular dependency
+    useVoiceStore.getState().setCallbacks({
+      onUserMessage: (text: string) => {
+        set((s) => ({
+          messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+        }));
+      },
+      onSteerMessage: (text: string) => {
+        set((s) => ({
+          messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
+        }));
+      },
     });
 
     return () => {

@@ -18,6 +18,7 @@
     "lint-fix": "oxlint --fix",
     "format": "oxfmt",
     "format-fix": "oxfmt --write",
+    "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "gen-ui": "pnpm -F ui gen-ui",
     "bootstrap": "tsx scripts/bootstrap.ts"

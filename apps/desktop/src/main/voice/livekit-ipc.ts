@@ -9,7 +9,8 @@ import { exec, fork, type ChildProcess } from "node:child_process";
 import { app, BrowserWindow, ipcMain } from "electron";
 
 import { handleSidecarAgentEvent } from "@/main/app-machine";
-import { IPC_CHANNELS, isRecord } from "@/shared/ipc";
+import { SidecarMessageSchema, parseAgentEvent } from "@/shared/agent-event-parser";
+import { IPC_CHANNELS } from "@/shared/ipc";
 import { createRoomToken, type LiveKitCredentials } from "./livekit-token";
 
 declare const __LIVEKIT_URL__: string;
@@ -126,16 +127,25 @@ async function spawnSidecar(): Promise<ChildProcess> {
   });
 
   sidecar.on("message", (msg: unknown) => {
-    if (!isRecord(msg)) return;
-    if (msg.type === "agent-event") {
-      handleSidecarAgentEvent(msg.event);
-      broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, msg.event);
-    }
+    const wrapper = SidecarMessageSchema.safeParse(msg);
+    if (!wrapper.success) return;
+    const event = parseAgentEvent(wrapper.data.event);
+    if (!event) return;
+    handleSidecarAgentEvent(event);
+    broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
   });
 
   sidecar.on("exit", (code) => {
     console.log(`[voice] agent worker exited with code ${String(code)}`);
     sidecar = null;
+
+    // Notify renderer so voice-store can transition to error
+    if (code !== null && code !== 0) {
+      broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, {
+        type: "sidecar_error",
+        message: `Agent worker crashed (exit code ${code})`,
+      });
+    }
   });
 
   return sidecar;

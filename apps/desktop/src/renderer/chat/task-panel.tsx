@@ -10,27 +10,8 @@ import {
 } from "@repo/ui/popover";
 import { Textarea } from "@repo/ui/textarea";
 
-import type { CreateTaskParams, TaskSchedule } from "@/shared/task";
+import { formatSchedule, type CreateTaskParams, type TaskSchedule } from "@/shared/task";
 import { useTaskStore } from "@/renderer/stores/task-store";
-
-// ---------------------------------------------------------------------------
-// Schedule display helpers
-// ---------------------------------------------------------------------------
-
-function formatSchedule(schedule: TaskSchedule): string {
-  switch (schedule.type) {
-    case "cron":
-      return `cron: ${schedule.cron}`;
-    case "interval": {
-      const mins = Math.round(schedule.intervalMs / 60_000);
-      if (mins < 60) return `every ${mins}m`;
-      const hrs = Math.round(mins / 60);
-      return `every ${hrs}h`;
-    }
-    case "once":
-      return `once: ${new Date(schedule.runAt).toLocaleString()}`;
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Create task form

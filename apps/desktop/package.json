@@ -12,6 +12,7 @@
     "clean": "rm -rf .cache .output",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -51,6 +52,7 @@
     "electron-vite": "^5.0.0",
     "lucide-react": "^0.577.0",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "^4.1.1"
   }
 }
