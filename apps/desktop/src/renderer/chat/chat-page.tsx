@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 
-import { ChatInput } from "@/renderer/chat/chat-input";
+import { ControlIsland } from "@/renderer/chat/control-island";
 import { DraggableThread } from "@/renderer/chat/draggable-thread";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -12,9 +12,9 @@ export function ChatPage() {
     <div className="relative h-full">
       <DraggableThread />
 
-      {/* Floating input at center bottom */}
-      <div className="absolute inset-x-0 bottom-0 flex justify-center p-6">
-        <ChatInput />
+      {/* Floating control island at center bottom */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex justify-center p-6">
+        <ControlIsland />
       </div>
     </div>
   );

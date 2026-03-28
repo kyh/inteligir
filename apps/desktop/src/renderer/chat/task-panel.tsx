@@ -138,19 +138,99 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
 // Task panel popover
 // ---------------------------------------------------------------------------
 
-export function TaskPanel() {
+// ---------------------------------------------------------------------------
+// Inner content — reusable in both standalone popover and embedded mode
+// ---------------------------------------------------------------------------
+
+function TaskPanelContent() {
   const tasks = useTaskStore((s) => s.tasks);
-  const fetchTasks = useTaskStore((s) => s.fetchTasks);
   const toggleTask = useTaskStore((s) => s.toggleTask);
   const deleteTask = useTaskStore((s) => s.deleteTask);
-  const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    if (open) fetchTasks();
-  }, [open, fetchTasks]);
+  return (
+    <>
+      {/* Header */}
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-xs font-medium">Scheduled Tasks</span>
+        <button
+          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          onClick={() => setCreating(!creating)}
+        >
+          {creating ? "cancel" : "+ new"}
+        </button>
+      </div>
 
-  const enabledCount = tasks.filter((t) => t.enabled).length;
+      {/* Task list */}
+      {tasks.length === 0 && !creating && (
+        <div className="py-4 text-center text-[10px] text-muted-foreground">
+          No scheduled tasks
+        </div>
+      )}
+
+      {tasks.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          {tasks.map((task) => (
+            <div
+              key={task.id}
+              className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-secondary/50"
+            >
+              {/* Toggle */}
+              <button
+                className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
+                  task.enabled ? "bg-green-400" : "bg-muted-foreground/30"
+                }`}
+                onClick={() => toggleTask(task.id)}
+                title={task.enabled ? "Disable" : "Enable"}
+              />
+
+              {/* Label + schedule */}
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className={`truncate ${!task.enabled ? "text-muted-foreground" : ""}`}>
+                  {task.label}
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {formatSchedule(task.schedule)}
+                </span>
+              </div>
+
+              {/* Delete */}
+              <button
+                className="shrink-0 text-[10px] text-muted-foreground/50 hover:text-destructive-foreground transition-colors"
+                onClick={() => deleteTask(task.id)}
+                title="Delete"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Create form */}
+      {creating && (
+        <CreateTaskForm onDone={() => setCreating(false)} />
+      )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// TaskPanel — standalone popover or embedded content
+// ---------------------------------------------------------------------------
+
+export function TaskPanel({ embedded }: { embedded?: boolean }) {
+  const fetchTasks = useTaskStore((s) => s.fetchTasks);
+  const enabledCount = useTaskStore((s) => s.tasks.filter((t) => t.enabled).length);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (open || embedded) fetchTasks();
+  }, [open, embedded, fetchTasks]);
+
+  if (embedded) {
+    return <TaskPanelContent />;
+  }
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -161,67 +241,7 @@ export function TaskPanel() {
         )}
       </PopoverTrigger>
       <PopoverContent align="end" className="w-72 p-3">
-        {/* Header */}
-        <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-medium">Scheduled Tasks</span>
-          <button
-            className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            onClick={() => setCreating(!creating)}
-          >
-            {creating ? "cancel" : "+ new"}
-          </button>
-        </div>
-
-        {/* Task list */}
-        {tasks.length === 0 && !creating && (
-          <div className="py-4 text-center text-[10px] text-muted-foreground">
-            No scheduled tasks
-          </div>
-        )}
-
-        {tasks.length > 0 && (
-          <div className="flex flex-col gap-1.5">
-            {tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-secondary/50"
-              >
-                {/* Toggle */}
-                <button
-                  className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
-                    task.enabled ? "bg-green-400" : "bg-muted-foreground/30"
-                  }`}
-                  onClick={() => toggleTask(task.id)}
-                  title={task.enabled ? "Disable" : "Enable"}
-                />
-
-                {/* Label + schedule */}
-                <div className="flex min-w-0 flex-1 flex-col">
-                  <span className={`truncate ${!task.enabled ? "text-muted-foreground" : ""}`}>
-                    {task.label}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground">
-                    {formatSchedule(task.schedule)}
-                  </span>
-                </div>
-
-                {/* Delete */}
-                <button
-                  className="shrink-0 text-[10px] text-muted-foreground/50 hover:text-destructive-foreground transition-colors"
-                  onClick={() => deleteTask(task.id)}
-                  title="Delete"
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Create form */}
-        {creating && (
-          <CreateTaskForm onDone={() => setCreating(false)} />
-        )}
+        <TaskPanelContent />
       </PopoverContent>
     </Popover>
   );

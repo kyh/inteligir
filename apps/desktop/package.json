@@ -23,7 +23,7 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@repo/ui": "workspace:^",
-    "@sinclair/typebox": "^0.34.48",
+    "@sinclair/typebox": "^0.34.49",
     "@streamdown/code": "^1.1.1",
     "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
@@ -47,12 +47,12 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "electron": "^41.0.4",
+    "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
     "lucide-react": "^0.577.0",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.2"
   }
 }
