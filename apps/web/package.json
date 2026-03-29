@@ -25,7 +25,7 @@
     "@trpc/tanstack-react-query": "catalog:",
     "ai": "^6.0.141",
     "better-auth": "catalog:",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.7.0",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

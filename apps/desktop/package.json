@@ -18,8 +18,8 @@
   "dependencies": {
     "@livekit/agents": "^1.2.1",
     "@livekit/agents-plugin-silero": "^1.2.1",
-    "@mariozechner/pi-ai": "^0.58.4",
-    "@mariozechner/pi-coding-agent": "^0.58.4",
+    "@mariozechner/pi-ai": "^0.63.1",
+    "@mariozechner/pi-coding-agent": "^0.63.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
     "@repo/ui": "workspace:^",
@@ -36,7 +36,7 @@
     "react-router": "^7.13.2",
     "streamdown": "^2.5.0",
     "tailwindcss": "catalog:",
-    "three": "^0.175.0",
+    "three": "^0.183.2",
     "zod": "catalog:",
     "zustand": "^5.0.12"
   },
@@ -50,7 +50,7 @@
     "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
-    "lucide-react": "^0.577.0",
+    "lucide-react": "^1.7.0",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "^4.1.2"
