@@ -2,6 +2,8 @@
 // Voice session types shared between main <-> preload <-> renderer
 // ---------------------------------------------------------------------------
 
+import { z } from "zod";
+
 export type VoiceSessionState =
   | "inactive"
   | "connecting"
@@ -11,12 +13,15 @@ export type VoiceSessionState =
 /** Data channel topic for text chat between renderer and agent worker. */
 export const TEXT_CHAT_TOPIC = "inteligir:chat";
 
-/** Messages sent over the data channel between renderer and agent worker. */
-export type TextChatMessage =
-  | { type: "user_message"; text: string }
-  | { type: "steer"; text: string }
-  | { type: "interrupt" }
-  | { type: "clear" };
+/** Messages sent between renderer and agent worker (IPC or data channel). */
+export const TextChatMessageSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("user_message"), text: z.string() }),
+  z.object({ type: z.literal("steer"), text: z.string() }),
+  z.object({ type: z.literal("interrupt") }),
+  z.object({ type: z.literal("clear") }),
+]);
+
+export type TextChatMessage = z.infer<typeof TextChatMessageSchema>;
 
 // ---------------------------------------------------------------------------
 // VoiceSession events — emitted by the session class, consumed by stores

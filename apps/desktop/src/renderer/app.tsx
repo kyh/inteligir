@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
 import { GeometricOrb, type DisplayStatus } from "@repo/ui/geometric-orb";
@@ -40,34 +40,12 @@ export function AppLayout() {
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
 
-  // Minimum time on onboarding page — separate effect to avoid loops
-  const onboardingReadyRef = useRef(false);
-  const [, forceUpdate] = useState(0);
-
   useEffect(() => init(), [init]);
-
-  // Start the 5s timer when we navigate TO onboarding
-  useEffect(() => {
-    if (pathname === "/onboarding") {
-      onboardingReadyRef.current = false;
-      const timer = setTimeout(() => {
-        onboardingReadyRef.current = true;
-        forceUpdate((n) => n + 1);
-      }, 5000);
-      return () => clearTimeout(timer);
-    }
-    return undefined;
-  }, [pathname]);
 
   useEffect(() => {
     const target = appState.phase === "error"
       ? phaseToPath(appState.prev)
       : phaseToPath(appState.phase);
-
-    // Block leaving onboarding until 5s timer expires
-    if (pathnameRef.current === "/onboarding" && target !== "/onboarding" && !onboardingReadyRef.current) {
-      return;
-    }
 
     if (pathnameRef.current === "/settings" && target === "/") return;
     if (pathnameRef.current !== target) {

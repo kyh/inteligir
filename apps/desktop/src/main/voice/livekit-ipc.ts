@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Voice IPC — sidecar lifecycle + token generation
+// Sidecar lifecycle + IPC handlers for agent commands and voice
 // ---------------------------------------------------------------------------
 
 import path from "node:path";
@@ -9,14 +9,17 @@ import { exec, fork, type ChildProcess } from "node:child_process";
 import { app, BrowserWindow, ipcMain } from "electron";
 
 import { handleSidecarAgentEvent } from "@/main/app-machine";
+import { createIpcHandler } from "@/main/lib/ipc-handler";
 import { SidecarMessageSchema, parseAgentEvent } from "@/shared/agent-event-parser";
 import { IPC_CHANNELS } from "@/shared/ipc";
+import { TextChatMessageSchema, type TextChatMessage } from "@/shared/voice";
 import { createRoomToken, type LiveKitCredentials } from "./livekit-token";
 
 declare const __LIVEKIT_URL__: string;
 
 const ROOM_NAME = "inteligir-desktop";
 const USER_IDENTITY = "desktop-user";
+const AGENT_IDENTITY = "desktop-agent";
 
 let sidecar: ChildProcess | null = null;
 let sidecarPromise: Promise<ChildProcess> | null = null;
@@ -96,7 +99,11 @@ export function warmupNodePath(): void {
   }
 }
 
-async function ensureSidecar(): Promise<ChildProcess> {
+// ---------------------------------------------------------------------------
+// Sidecar lifecycle
+// ---------------------------------------------------------------------------
+
+export async function ensureSidecar(): Promise<ChildProcess> {
   if (sidecar && sidecar.exitCode === null) return sidecar;
   if (sidecarPromise) return sidecarPromise;
 
@@ -111,22 +118,39 @@ async function ensureSidecar(): Promise<ChildProcess> {
 async function spawnSidecar(): Promise<ChildProcess> {
   const workerPath = getWorkerPath();
   const nodePath = await (nodePathPromise ?? resolveNodePath());
-  console.log("[voice] spawning agent worker:", workerPath, "(node:", nodePath + ")");
+  console.log("[sidecar] spawning agent worker:", workerPath, "(node:", nodePath + ")");
 
-  sidecar = fork(workerPath, ["start"], {
+  const proc = fork(workerPath, ["start"], {
     execPath: nodePath,
     stdio: ["pipe", "inherit", "inherit", "ipc"],
     env: {
       ...process.env,
-      // __LIVEKIT_URL__ is a build-time constant from electron.vite.config.ts.
-      // API key/secret are on process.env via process.loadEnvFile() at runtime.
       LIVEKIT_URL: __LIVEKIT_URL__,
-      // Pass Electron-only paths so the system node sidecar can find bundled resources
       ...(app.isPackaged ? { INTELIGIR_RESOURCES_PATH: process.resourcesPath } : {}),
     },
   });
 
-  sidecar.on("message", (msg: unknown) => {
+  // Wait for "ready" signal from worker before resolving
+  await new Promise<void>((resolve, reject) => {
+    const onMessage = (msg: unknown) => {
+      if (typeof msg === "object" && msg !== null && (msg as Record<string, unknown>).type === "ready") {
+        proc.removeListener("message", onMessage);
+        proc.removeListener("exit", onExit);
+        resolve();
+      }
+    };
+    const onExit = (code: number | null) => {
+      proc.removeListener("message", onMessage);
+      reject(new Error(`Sidecar exited during init (code ${String(code)})`));
+    };
+    proc.on("message", onMessage);
+    proc.once("exit", onExit);
+  });
+
+  sidecar = proc;
+
+  // Forward agent events to renderer
+  proc.on("message", (msg: unknown) => {
     const wrapper = SidecarMessageSchema.safeParse(msg);
     if (!wrapper.success) return;
     const event = parseAgentEvent(wrapper.data.event);
@@ -135,11 +159,10 @@ async function spawnSidecar(): Promise<ChildProcess> {
     broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
   });
 
-  sidecar.on("exit", (code) => {
-    console.log(`[voice] agent worker exited with code ${String(code)}`);
+  proc.on("exit", (code) => {
+    console.log(`[sidecar] agent worker exited with code ${String(code)}`);
     sidecar = null;
 
-    // Notify renderer so voice-store can transition to error
     if (code !== null && code !== 0) {
       broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, {
         type: "sidecar_error",
@@ -148,7 +171,8 @@ async function spawnSidecar(): Promise<ChildProcess> {
     }
   });
 
-  return sidecar;
+  console.log("[sidecar] agent ready");
+  return proc;
 }
 
 function broadcastToRenderer(channel: string, data: unknown): void {
@@ -159,26 +183,38 @@ function broadcastToRenderer(channel: string, data: unknown): void {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Send commands to sidecar
+// ---------------------------------------------------------------------------
+
+export async function sendCommandToSidecar(command: TextChatMessage): Promise<void> {
+  const proc = await ensureSidecar();
+  proc.send({ type: "text-command", command });
+}
+
+async function sendVoiceStart(url: string, token: string): Promise<void> {
+  const proc = await ensureSidecar();
+  proc.send({ type: "voice-start", url, token });
+}
+
+// ---------------------------------------------------------------------------
+// Shutdown
+// ---------------------------------------------------------------------------
+
 const SIDECAR_SHUTDOWN_TIMEOUT_MS = 5_000;
 
-/**
- * Gracefully shut down the sidecar. Sends SIGTERM and waits up to 5s for
- * a clean exit before force-killing. Returns a promise that resolves once
- * the process is gone.
- */
 export async function killSidecar(): Promise<void> {
   const proc = sidecar;
   if (!proc) return;
   sidecar = null;
 
-  // Already exited?
   if (proc.exitCode !== null) return;
 
   proc.kill("SIGTERM");
 
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
-      console.warn("[voice] sidecar did not exit in time, force-killing");
+      console.warn("[sidecar] did not exit in time, force-killing");
       proc.kill("SIGKILL");
       resolve();
     }, SIDECAR_SHUTDOWN_TIMEOUT_MS);
@@ -190,13 +226,32 @@ export async function killSidecar(): Promise<void> {
   });
 }
 
-export function registerLiveKitIpcHandlers(): () => void {
+// ---------------------------------------------------------------------------
+// IPC handler registration
+// ---------------------------------------------------------------------------
+
+export function registerAgentIpcHandlers(): () => void {
+  // Text commands from renderer → sidecar
+  createIpcHandler(IPC_CHANNELS.AGENT_COMMAND, TextChatMessageSchema, (command) => {
+    void sendCommandToSidecar(command);
+  });
+
+  // Voice token request — generates separate tokens for user (renderer) and agent (sidecar)
   ipcMain.handle(IPC_CHANNELS.VOICE_TOKEN, async (): Promise<LiveKitCredentials> => {
-    await ensureSidecar();
-    return createRoomToken(ROOM_NAME, USER_IDENTITY);
+    const [userCredentials, agentCredentials] = await Promise.all([
+      createRoomToken(ROOM_NAME, USER_IDENTITY),
+      createRoomToken(ROOM_NAME, AGENT_IDENTITY, {
+        canPublish: true,
+        canSubscribe: true,
+        canPublishData: true,
+      }),
+    ]);
+    await sendVoiceStart(agentCredentials.url, agentCredentials.token);
+    return userCredentials;
   });
 
   return () => {
+    ipcMain.removeHandler(IPC_CHANNELS.AGENT_COMMAND);
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_TOKEN);
     void killSidecar();
   };

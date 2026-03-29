@@ -18,6 +18,7 @@
   "dependencies": {
     "@livekit/agents": "^1.2.1",
     "@livekit/agents-plugin-silero": "^1.2.1",
+    "@livekit/rtc-node": "^0.13.24",
     "@mariozechner/pi-ai": "^0.63.1",
     "@mariozechner/pi-coding-agent": "^0.63.1",
     "@react-three/drei": "^10.7.7",

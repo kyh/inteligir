@@ -5,6 +5,7 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     seedResources: vi.fn(),
+    ensureSidecar: vi.fn<() => Promise<unknown>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
     disposeBrowserTool: vi.fn(),
     killSidecar: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),

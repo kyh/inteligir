@@ -1,13 +1,14 @@
 // ---------------------------------------------------------------------------
-// LiveKit agent worker — sidecar process spawned by Electron main
+// Agent sidecar worker — spawned by Electron main via child_process.fork()
 //
-// Runs as a child_process.fork(). Connects to LiveKit Cloud, handles
-// VAD → STT → pi-agent → TTS voice pipeline and data channel text chat.
+// Owns the pi-coding-agent lifecycle. Accepts text commands over IPC
+// immediately. LiveKit voice pipeline starts lazily when main sends
+// a "voice-start" message.
 // ---------------------------------------------------------------------------
 
-import { fileURLToPath } from "node:url";
-import { cli, defineAgent, ServerOptions, voice, type JobContext, type JobProcess } from "@livekit/agents";
+import { voice } from "@livekit/agents";
 import * as silero from "@livekit/agents-plugin-silero";
+import { Room, RoomEvent } from "@livekit/rtc-node";
 
 import { Agent, seedResources } from "@/agent/setup";
 import { PiLLMAdapter } from "@/agent/pi-llm-adapter";
@@ -22,11 +23,8 @@ import { TEXT_CHAT_TOPIC, type TextChatMessage } from "@/shared/voice";
 const STT_MODEL = "deepgram/nova-3";
 const TTS_VOICE = "elevenlabs/eleven_flash_v2_5:SAz9YHcvj6GT2YYXdXww";
 
-// Pre-loaded VAD model — populated in prewarm, reused in entry
-let preloadedVAD: silero.VAD | null = null;
-
 // ---------------------------------------------------------------------------
-// Agent singleton — shared across jobs (single user, single desktop)
+// Agent singleton
 // ---------------------------------------------------------------------------
 
 let piAgent: Agent | null = null;
@@ -53,40 +51,12 @@ async function ensureAgent(): Promise<Agent> {
 }
 
 // ---------------------------------------------------------------------------
-// Data channel protocol for text chat
-// ---------------------------------------------------------------------------
-
-const textDecoder = new TextDecoder();
-
-function parseTextChat(data: Uint8Array): TextChatMessage | null {
-  try {
-    const str = textDecoder.decode(data);
-    const parsed: unknown = JSON.parse(str);
-    if (!isRecord(parsed) || typeof parsed.type !== "string") return null;
-    switch (parsed.type) {
-      case "user_message":
-      case "steer":
-        return typeof parsed.text === "string" ? { type: parsed.type, text: parsed.text } : null;
-      case "interrupt":
-        return { type: "interrupt" };
-      case "clear":
-        return { type: "clear" };
-      default:
-        return null;
-    }
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Forward agent events to main process (for renderer chat streaming)
 // ---------------------------------------------------------------------------
 
 function forwardToMain(event: unknown): void {
   if (process.send) {
     try {
-      // process.send() uses structured clone — no need to pre-serialize
       process.send({ type: "agent-event", event });
     } catch {
       // Non-cloneable event — skip
@@ -95,88 +65,207 @@ function forwardToMain(event: unknown): void {
 }
 
 // ---------------------------------------------------------------------------
-// Agent definition
+// Text command dispatch — shared by IPC and data channel handlers
 // ---------------------------------------------------------------------------
 
-export default defineAgent({
-  prewarm: async (_proc: JobProcess) => {
-    preloadedVAD = await silero.VAD.load();
-  },
+function dispatchCommand(agent: Agent, msg: TextChatMessage): void {
+  switch (msg.type) {
+    case "user_message":
+      agent.sendMessage(msg.text).catch((err) => console.error("[worker] sendMessage error:", err));
+      break;
+    case "steer":
+      agent.steer(msg.text).catch((err) => console.error("[worker] steer error:", err));
+      break;
+    case "interrupt":
+      agent.interrupt().catch((err) => console.error("[worker] interrupt error:", err));
+      break;
+    case "clear":
+      agent.clear();
+      break;
+  }
+}
 
-  entry: async (ctx: JobContext) => {
-    await ctx.connect();
-    const participant = await ctx.waitForParticipant();
-    console.log(`[agent-worker] participant joined: ${participant.identity}`);
+function parseTextCommand(raw: unknown): TextChatMessage | null {
+  if (!isRecord(raw) || typeof raw.type !== "string") return null;
+  switch (raw.type) {
+    case "user_message":
+    case "steer":
+      return typeof raw.text === "string" ? { type: raw.type, text: raw.text } : null;
+    case "interrupt":
+      return { type: "interrupt" };
+    case "clear":
+      return { type: "clear" };
+    default:
+      return null;
+  }
+}
 
-    const agent = await ensureAgent();
-    const llmAdapter = new PiLLMAdapter(agent);
+// ---------------------------------------------------------------------------
+// Voice pipeline — lazy lifecycle
+// ---------------------------------------------------------------------------
 
-    // Start task scheduler once agent is ready
-    taskManager.startScheduler(() => piAgent);
+let voiceRoom: Room | null = null;
+let voiceSession: voice.AgentSession | null = null;
+let vadPromise: Promise<silero.VAD> | null = null;
 
-    // Forward agent session events to main process
-    const unsubEvents = agent.subscribe(forwardToMain);
+async function startVoice(agent: Agent, url: string, token: string): Promise<void> {
+  if (voiceRoom) {
+    console.warn("[worker] voice already active, ignoring voice-start");
+    return;
+  }
 
-    // Create voice pipeline agent using LiveKit Cloud inference (no separate API key needed)
-    if (!preloadedVAD) {
-      console.warn("[agent-worker] VAD was not prewarmed, loading in hot path");
-    }
-    const voiceAgent = new voice.Agent({
-      instructions: "You are Inteligir, an AI chief of staff. Be concise and helpful.",
-      vad: preloadedVAD ?? await silero.VAD.load(),
-      stt: STT_MODEL,
-      tts: TTS_VOICE,
-      llm: llmAdapter,
-    });
+  const vad = await (vadPromise ?? silero.VAD.load());
+  const room = new Room();
+  voiceRoom = room;
 
-    const session = new voice.AgentSession({});
+  console.log("[worker] connecting voice to", url);
+  await room.connect(url, token);
 
-    await session.start({
-      agent: voiceAgent,
-      room: ctx.room,
-    });
+  const llmAdapter = new PiLLMAdapter(agent);
+  const voiceAgent = new voice.Agent({
+    instructions: "You are Inteligir, an AI chief of staff. Be concise and helpful.",
+    vad,
+    stt: STT_MODEL,
+    tts: TTS_VOICE,
+    llm: llmAdapter,
+  });
 
-    // Listen for text chat via data channel
-    ctx.room.on("dataReceived", (payload: Uint8Array, remoteParticipant, _kind, topic) => {
-      if (topic !== TEXT_CHAT_TOPIC) return;
-      if (remoteParticipant?.identity !== participant.identity) return;
+  const session = new voice.AgentSession({});
+  voiceSession = session;
 
-      const msg = parseTextChat(payload);
-      if (!msg) return;
+  await session.start({ agent: voiceAgent, room });
 
-      switch (msg.type) {
-        case "user_message":
-          agent.sendMessage(msg.text).catch((err) => console.error("[agent-worker] sendMessage error:", err));
-          break;
-        case "steer":
-          agent.steer(msg.text).catch((err) => console.error("[agent-worker] steer error:", err));
-          break;
-        case "interrupt":
-          agent.interrupt().catch((err) => console.error("[agent-worker] interrupt error:", err));
-          break;
-        case "clear":
-          agent.clear();
-          break;
-      }
-    });
+  // Also accept text commands over the data channel when voice is connected
+  room.on(RoomEvent.DataReceived, (payload: Uint8Array, remoteParticipant, _kind, topic) => {
+    if (topic !== TEXT_CHAT_TOPIC) return;
+    // Accept from any participant in the room
+    if (!remoteParticipant) return;
 
-    ctx.addShutdownCallback(async () => {
-      taskManager.stopScheduler();
-      unsubEvents();
-      await session.close();
-    });
-  },
+    const msg = parseTextCommand(JSON.parse(new TextDecoder().decode(payload)) as unknown);
+    if (msg) dispatchCommand(agent, msg);
+  });
+
+  console.log("[worker] voice pipeline started");
+}
+
+async function stopVoice(): Promise<void> {
+  if (voiceSession) {
+    await voiceSession.close();
+    voiceSession = null;
+  }
+  if (voiceRoom) {
+    await voiceRoom.disconnect();
+    voiceRoom = null;
+  }
+  console.log("[worker] voice pipeline stopped");
+}
+
+// ---------------------------------------------------------------------------
+// @livekit/agents logger init — the SDK requires a pino-compatible logger on
+// globalThis before any class is instantiated. Normally cli.runApp() handles
+// this. We create a thin console-backed shim to avoid importing pino.
+// ---------------------------------------------------------------------------
+
+function initAgentsLogger(): void {
+  const LOGGER_KEY = Symbol.for("@livekit/agents:logger");
+  const LOGGER_OPTIONS_KEY = Symbol.for("@livekit/agents:loggerOptions");
+  const g = globalThis as Record<symbol, unknown>;
+  if (g[LOGGER_KEY]) return; // already initialized
+
+  // Minimal pino-compatible logger backed by console
+  const noop = () => {};
+  const levels = { trace: 10, debug: 20, info: 30, warn: 40, error: 50, fatal: 60 };
+  const minLevel = levels.info;
+
+  function makeLogger(name?: string): Record<string, unknown> {
+    const prefix = name ? `[${name}] ` : "";
+    const logger: Record<string, unknown> = {
+      level: "info",
+      trace: minLevel <= levels.trace ? (...args: unknown[]) => console.debug(prefix, ...args) : noop,
+      debug: minLevel <= levels.debug ? (...args: unknown[]) => console.debug(prefix, ...args) : noop,
+      info: (...args: unknown[]) => console.info(prefix, ...args),
+      warn: (...args: unknown[]) => console.warn(prefix, ...args),
+      error: (...args: unknown[]) => console.error(prefix, ...args),
+      fatal: (...args: unknown[]) => console.error(prefix, ...args),
+      child: (bindings: Record<string, unknown>) => makeLogger(bindings["name"] as string ?? name),
+      isLevelEnabled: (l: string) => (levels[l as keyof typeof levels] ?? 0) >= minLevel,
+    };
+    return logger;
+  }
+
+  g[LOGGER_OPTIONS_KEY] = { pretty: true, level: "info" };
+  g[LOGGER_KEY] = makeLogger();
+}
+
+// ---------------------------------------------------------------------------
+// Main entry — agent first, voice lazy
+// ---------------------------------------------------------------------------
+
+// Prevent @livekit/agents internal unhandled rejections from crashing the process.
+// The SDK rejects promises with `undefined` during participant disconnect cleanup.
+process.on("unhandledRejection", (reason) => {
+  if (reason !== undefined) {
+    console.error("[worker] unhandled rejection:", reason);
+  }
 });
+
+async function main(): Promise<void> {
+  // 0. Initialize @livekit/agents logger (required before using any agents SDK class).
+  // The SDK reads from globalThis via Symbol. Normally cli.runApp() sets this up.
+  // We set it directly to avoid importing pino or internal SDK modules.
+  initAgentsLogger();
+
+  // 1. Init agent immediately — text chat is ready
+  const agent = await ensureAgent();
+  agent.subscribe(forwardToMain);
+  taskManager.startScheduler(() => piAgent);
+
+  // 2. Preload VAD in background for when voice is needed
+  vadPromise = silero.VAD.load();
+  vadPromise.catch((err) => console.error("[worker] VAD preload failed:", err));
+
+  // 3. IPC listener — text commands + voice lifecycle
+  process.on("message", (msg: unknown) => {
+    if (!isRecord(msg) || typeof msg.type !== "string") return;
+
+    switch (msg.type) {
+      case "text-command": {
+        const command = parseTextCommand(msg.command);
+        if (command) dispatchCommand(agent, command);
+        break;
+      }
+      case "voice-start": {
+        const url = typeof msg.url === "string" ? msg.url : "";
+        const token = typeof msg.token === "string" ? msg.token : "";
+        if (url && token) {
+          startVoice(agent, url, token).catch((err) => {
+            console.error("[worker] voice start failed:", err);
+          });
+        }
+        break;
+      }
+      case "voice-stop": {
+        stopVoice().catch((err) => console.error("[worker] voice stop failed:", err));
+        break;
+      }
+    }
+  });
+
+  // 4. Signal ready to main process
+  if (process.send) {
+    process.send({ type: "ready" });
+  }
+
+  console.log("[worker] agent ready, waiting for commands");
+}
 
 // ---------------------------------------------------------------------------
 // CLI entry — starts the worker when run as a sidecar
-// The sidecar is forked with "start" as the first argument (see livekit-ipc.ts).
 // ---------------------------------------------------------------------------
 
 if (process.argv.includes("start")) {
-  cli.runApp(new ServerOptions({
-    agent: fileURLToPath(import.meta.url),
-    numIdleProcesses: 0,
-    port: 0, // random port — avoids conflicts on restart
-  }));
+  main().catch((err) => {
+    console.error("[worker] fatal:", err);
+    process.exit(1);
+  });
 }

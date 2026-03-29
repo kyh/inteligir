@@ -7,6 +7,7 @@ import type {
   ListTasksResult,
   ToggleTaskResult,
 } from "./task";
+import type { TextChatMessage } from "./voice";
 
 // ---------------------------------------------------------------------------
 // IPC channel names shared between Electron main <-> preload <-> renderer
@@ -32,6 +33,7 @@ export const IPC_CHANNELS = {
 
   // Agent (events forwarded from sidecar via main process)
   AGENT_EVENT: "agent:event",
+  AGENT_COMMAND: "agent:command",
 
   // Tasks
   TASK_CREATE: "task:create",
@@ -86,8 +88,9 @@ export type DesktopBridge = {
   transition: (event: AppEvent) => Promise<void>;
   onAppState: (listener: (state: AppState) => void) => () => void;
 
-  // Agent (events forwarded from sidecar; commands go via LiveKit data channels)
+  // Agent
   onAgentEvent: (listener: (event: AppAgentEvent) => void) => () => void;
+  sendAgentCommand: (command: TextChatMessage) => Promise<void>;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;

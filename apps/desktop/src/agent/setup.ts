@@ -26,7 +26,10 @@ import type {
   SteerResult,
 } from "@/shared/agent";
 
-import { registerBrowserExtension } from "@/agent/browser-tool";
+// Lazy import — browser-tool depends on electron's BrowserWindow which is
+// unavailable in the sidecar (system Node.js). Imported dynamically only
+// when running in Electron main process.
+type ExtensionFactory = (pi: import("@mariozechner/pi-coding-agent").ExtensionAPI) => void;
 import { inteligirPath } from "@/main/lib/json-store";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
@@ -107,6 +110,19 @@ export function seedResources(): void {
     fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
     fs.copyFileSync(agentsMdSrc, agentsMdDest);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Extension factories — browser tool is only available in Electron main process
+// ---------------------------------------------------------------------------
+
+async function getExtensionFactories(): Promise<ExtensionFactory[]> {
+  const factories: ExtensionFactory[] = [registerTasksExtension];
+  if (process.versions["electron"]) {
+    const { registerBrowserExtension } = await import("@/agent/browser-tool");
+    factories.push(registerBrowserExtension);
+  }
+  return factories;
 }
 
 // ---------------------------------------------------------------------------
@@ -255,7 +271,7 @@ export class Agent {
     const resourceLoader = new DefaultResourceLoader({
       cwd: WORKSPACE_DIR,
       agentDir: AGENT_DIR,
-      extensionFactories: [registerTasksExtension, registerBrowserExtension],
+      extensionFactories: await getExtensionFactories(),
     });
     await resourceLoader.reload();
 

@@ -10,6 +10,7 @@ import type { EffectTag } from "./app-reducer";
 export type EffectDeps = {
   login: () => Promise<void>;
   seedResources: () => void;
+  ensureSidecar: () => Promise<unknown>;
   teardownResources: () => void;
   disposeBrowserTool: () => void;
   killSidecar: () => Promise<void>;
@@ -29,6 +30,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     case "SETUP": {
       try {
         deps.seedResources();
+        await deps.ensureSidecar();
         return { type: "SETUP_OK" };
       } catch (err) {
         return { type: "SETUP_FAIL", message: toErrorMessage(err) };
@@ -38,6 +40,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     case "SETUP_READY": {
       try {
         deps.seedResources();
+        await deps.ensureSidecar();
         return { type: "SETUP_OK" };
       } catch (err) {
         return { type: "SETUP_FAIL", message: toErrorMessage(err) };

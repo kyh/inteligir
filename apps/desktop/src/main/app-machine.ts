@@ -10,7 +10,7 @@ import {
   teardownResources,
 } from "@/agent/setup";
 import { disposeBrowserTool } from "@/agent/browser-tool";
-import { killSidecar } from "@/main/voice/livekit-ipc";
+import { ensureSidecar, killSidecar } from "@/main/voice/livekit-ipc";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
 import type { AppAgentEvent } from "@/shared/agent-events";
@@ -99,6 +99,7 @@ function broadcast(state: AppState): void {
 const realDeps: EffectDeps = {
   login,
   seedResources,
+  ensureSidecar,
   teardownResources,
   disposeBrowserTool,
   killSidecar,

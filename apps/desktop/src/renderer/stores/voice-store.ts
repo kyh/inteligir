@@ -99,23 +99,29 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   },
 
   sendMessage: (text: string) => {
-    if (session?.send({ type: "user_message", text })) {
+    const bridge = getBridge();
+    if (bridge) {
+      void bridge.sendAgentCommand({ type: "user_message", text });
       get().onUserMessage?.(text);
     }
   },
 
   steer: (text: string) => {
-    if (session?.send({ type: "steer", text })) {
+    const bridge = getBridge();
+    if (bridge) {
+      void bridge.sendAgentCommand({ type: "steer", text });
       get().onSteerMessage?.(text);
     }
   },
 
   interrupt: () => {
-    session?.send({ type: "interrupt" });
+    const bridge = getBridge();
+    if (bridge) void bridge.sendAgentCommand({ type: "interrupt" });
   },
 
   clearChat: () => {
-    session?.send({ type: "clear" });
+    const bridge = getBridge();
+    if (bridge) void bridge.sendAgentCommand({ type: "clear" });
   },
 
   handleSidecarError: (message: string) => {

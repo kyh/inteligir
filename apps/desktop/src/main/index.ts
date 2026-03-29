@@ -18,7 +18,7 @@ try {
 import { getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { taskManager } from "@/main/tasks/task-singleton";
-import { registerLiveKitIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
+import { registerAgentIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
@@ -339,7 +339,7 @@ app
     // Voice — LiveKit sidecar + token generation
     // Agent events are forwarded from sidecar via livekit-ipc → app-machine
     warmupNodePath(); // Pre-resolve system Node.js path before first voice use
-    const unregisterVoiceIpc = registerLiveKitIpcHandlers();
+    const unregisterVoiceIpc = registerAgentIpcHandlers();
 
     // Clean up on quit
     app.on("will-quit", () => {

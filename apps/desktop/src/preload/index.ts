@@ -38,9 +38,10 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   onAppState: (listener: (state: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.APP_STATE, listener),
 
-  // Agent (events only — commands go via LiveKit data channels)
+  // Agent
   onAgentEvent: (listener: (event: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),
+  sendAgentCommand: (command: unknown) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_COMMAND, command),
 
   // Tasks
   createTask: (params: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, params),
