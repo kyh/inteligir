@@ -10,8 +10,8 @@ catalogs:
       specifier: ^1.5.6
       version: 1.5.6
     '@kyh/tsconfig':
-      specifier: ^1.1.13
-      version: 1.1.13
+      specifier: ^1.1.14
+      version: 1.1.14
     '@tailwindcss/postcss':
       specifier: ^4.2.2
       version: 4.2.2
@@ -273,7 +273,7 @@ importers:
     devDependencies:
       '@kyh/tsconfig':
         specifier: 'catalog:'
-        version: 1.1.13
+        version: 1.1.14
       '@tailwindcss/postcss':
         specifier: 'catalog:'
         version: 4.2.2
@@ -331,7 +331,7 @@ importers:
     devDependencies:
       '@kyh/tsconfig':
         specifier: 'catalog:'
-        version: 1.1.13
+        version: 1.1.14
       '@types/node':
         specifier: 'catalog:'
         version: 25.5.0
@@ -368,7 +368,7 @@ importers:
     devDependencies:
       '@kyh/tsconfig':
         specifier: 'catalog:'
-        version: 1.1.13
+        version: 1.1.14
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.14
@@ -453,7 +453,7 @@ importers:
     devDependencies:
       '@kyh/tsconfig':
         specifier: 'catalog:'
-        version: 1.1.13
+        version: 1.1.14
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.14
@@ -2214,8 +2214,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@kyh/tsconfig@1.1.13':
-    resolution: {integrity: sha512-COK25yb9tlo5ea/qKYNPENxH95YZqlm6Vb1SyHxMKbyx25ANlF4/rGb+V+hZlNORmni9FcQwJ8IxeswpYTLjqA==}
+  '@kyh/tsconfig@1.1.14':
+    resolution: {integrity: sha512-Bn14z3WTnvIld5j9GYbHuoWyxGPKxF4U+OC+jfQvFruZZyJZOK435xIz7MmvsprrqBUn+6I2DYOS6vyN5k5iXA==}
 
   '@livekit/agents-plugin-silero@1.2.1':
     resolution: {integrity: sha512-2FXT5CkVWOhBfIZUP04S2h6WBsinga6Xd6PKVJxbmaYNZmJK/8Z22qfNDaHbxZxYxDDB2E/uXhOHOlUgj+AP3A==}
@@ -11865,7 +11865,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kyh/tsconfig@1.1.13': {}
+  '@kyh/tsconfig@1.1.14': {}
 
   '@livekit/agents-plugin-silero@1.2.1(@livekit/agents@1.2.1(@livekit/rtc-node@0.13.24)(typescript@6.0.2)(zod@4.3.6))(@livekit/rtc-node@0.13.24)':
     dependencies:
