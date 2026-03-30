@@ -181,7 +181,7 @@ function registerIpcHandlers(): void {
 
   // ---- Agent history (read directly from session files on disk) ------------
 
-  createVoidIpcHandler(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
+  ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
 
   // ---- App lifecycle --------------------------------------------------------
 

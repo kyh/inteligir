@@ -187,7 +187,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       if (!parsed.success) return;
       set({ appState: parsed.data });
 
-      if (parsed.data.phase === "logged_out") {
+      if (parsed.data.phase === "logged_out" || parsed.data.phase === "setting_up") {
         set({ messages: [] });
         useVoiceStore.getState().reset();
       }
@@ -198,11 +198,13 @@ export const useAgentStore = create<AgentStore>((set) => ({
       set({ appState });
     });
 
-    // Load persisted session history from the agent sidecar
+    // Load persisted session history from disk (via main process)
     void bridge.getAgentHistory().then((history) => {
       if (history.length > 0) {
-        set({ messages: historyToChatMessages(history) });
+        set((s) => s.messages.length === 0 ? { messages: historyToChatMessages(history) } : s);
       }
+    }).catch((err) => {
+      console.warn("[agent-store] failed to load history:", err);
     });
 
     return () => {

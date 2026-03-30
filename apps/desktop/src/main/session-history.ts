@@ -2,13 +2,57 @@
 // Read persisted session history directly from disk (no sidecar needed).
 // ---------------------------------------------------------------------------
 
-import { SessionManager } from "@mariozechner/pi-coding-agent";
+import {
+  SessionManager,
+  type SessionMessageEntry,
+} from "@mariozechner/pi-coding-agent";
+import type {
+  Message,
+  TextContent,
+  ToolCall,
+} from "@mariozechner/pi-ai";
 
 import { inteligirPath } from "@/main/lib/json-store";
 import type { ChatHistoryEntry } from "@/shared/ipc";
 
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
+
+// ---------------------------------------------------------------------------
+// Type guards for pi-ai content blocks
+// ---------------------------------------------------------------------------
+
+function isTextContent(block: unknown): block is TextContent {
+  return (
+    typeof block === "object" &&
+    block !== null &&
+    "type" in block &&
+    (block as Record<string, unknown>).type === "text" &&
+    "text" in block &&
+    typeof (block as Record<string, unknown>).text === "string"
+  );
+}
+
+function isToolCall(block: unknown): block is ToolCall {
+  return (
+    typeof block === "object" &&
+    block !== null &&
+    "type" in block &&
+    (block as Record<string, unknown>).type === "toolCall" &&
+    "id" in block &&
+    "name" in block
+  );
+}
+
+function extractTextFromContent(content: Message["content"]): string {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.filter(isTextContent).map((b) => b.text).join("");
+}
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 /**
  * Read the most recent session's messages from disk and convert to
@@ -22,36 +66,26 @@ export function readSessionHistory(): ChatHistoryEntry[] {
 
     for (const entry of entries) {
       if (entry.type !== "message") continue;
-      const msg = entry.message;
+      const msg = (entry as SessionMessageEntry).message;
       if (!msg || typeof msg !== "object" || !("role" in msg)) continue;
 
       if (msg.role === "user") {
-        const text = typeof msg.content === "string"
-          ? msg.content
-          : Array.isArray(msg.content)
-            ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("")
-            : "";
+        const text = extractTextFromContent(msg.content);
         if (text) history.push({ role: "user", text });
       } else if (msg.role === "assistant") {
-        const textParts = Array.isArray(msg.content)
-          ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text)
-          : [];
-        const text = textParts.join("");
+        const text = extractTextFromContent(msg.content);
         if (text) history.push({ role: "assistant", text });
 
         // Extract tool calls
         if (Array.isArray(msg.content)) {
           for (const block of msg.content) {
-            if (block && typeof block === "object" && "type" in block && block.type === "toolCall") {
-              const tc = block as { id: string; name: string };
-              history.push({ role: "tool", text: "", toolName: tc.name, toolCallId: tc.id });
+            if (isToolCall(block)) {
+              history.push({ role: "tool", text: "", toolName: block.name, toolCallId: block.id });
             }
           }
         }
       } else if (msg.role === "toolResult") {
-        const resultText = Array.isArray(msg.content)
-          ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("")
-          : "";
+        const resultText = extractTextFromContent(msg.content);
         // Update the matching tool entry
         for (let i = history.length - 1; i >= 0; i--) {
           const h = history[i];
