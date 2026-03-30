@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { AppStateSchema, type AppState } from "@/shared/app-state";
+import type { ChatHistoryEntry } from "@/shared/ipc";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -24,29 +25,6 @@ export type ChatMessage =
   | { id: number; kind: "tool"; execution: ToolExecution };
 
 // ---------------------------------------------------------------------------
-// localStorage persistence
-// ---------------------------------------------------------------------------
-
-const MESSAGES_STORAGE_KEY = "inteligir:chat-messages";
-
-function loadPersistedMessages(): ChatMessage[] {
-  try {
-    const raw = window.localStorage.getItem(MESSAGES_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as ChatMessage[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function persistMessages(messages: ChatMessage[]): void {
-  try {
-    window.localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
-  } catch { /* quota exceeded — ignore */ }
-}
-
-// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
@@ -64,15 +42,39 @@ type AgentStore = {
 
 let nextMsgId = 0;
 
-export const useAgentStore = create<AgentStore>((set, get) => {
-  const initialMessages = loadPersistedMessages();
-  nextMsgId = initialMessages.reduce((max, m) => Math.max(max, m.id + 1), 0);
+/**
+ * Convert persisted session history entries into ChatMessages for the UI.
+ */
+function historyToChatMessages(history: ChatHistoryEntry[]): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+  for (const entry of history) {
+    switch (entry.role) {
+      case "user":
+        messages.push({ id: nextMsgId++, kind: "user", text: entry.text });
+        break;
+      case "assistant":
+        messages.push({ id: nextMsgId++, kind: "assistant", text: entry.text });
+        break;
+      case "tool":
+        messages.push({
+          id: nextMsgId++,
+          kind: "tool",
+          execution: {
+            toolCallId: entry.toolCallId ?? "",
+            toolName: entry.toolName ?? "",
+            status: entry.isError ? "error" : "done",
+            resultText: entry.text,
+            isError: entry.isError ?? false,
+          },
+        });
+        break;
+    }
+  }
+  return messages;
+}
 
-  /** Persist current messages to localStorage (call after stable state changes). */
-  const save = () => persistMessages(get().messages);
-
-  return {
-  messages: initialMessages,
+export const useAgentStore = create<AgentStore>((set) => ({
+  messages: [],
   appState: { phase: "logged_out" },
 
   init: () => {
@@ -88,7 +90,6 @@ export const useAgentStore = create<AgentStore>((set, get) => {
         case "agent_end":
           streamingMsgId = null;
           toolMsgIds.clear();
-          save();
           break;
 
         case "sidecar_error":
@@ -131,7 +132,6 @@ export const useAgentStore = create<AgentStore>((set, get) => {
             ),
           }));
           streamingMsgId = null;
-          save();
           break;
         }
 
@@ -176,7 +176,6 @@ export const useAgentStore = create<AgentStore>((set, get) => {
                 : m,
             ),
           }));
-          save();
           break;
         }
       }
@@ -190,7 +189,6 @@ export const useAgentStore = create<AgentStore>((set, get) => {
 
       if (parsed.data.phase === "logged_out") {
         set({ messages: [] });
-        persistMessages([]);
         useVoiceStore.getState().reset();
       }
     });
@@ -198,6 +196,13 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     // Fetch initial state
     void bridge.getAppState().then((appState) => {
       set({ appState });
+    });
+
+    // Load persisted session history from the agent sidecar
+    void bridge.getAgentHistory().then((history) => {
+      if (history.length > 0) {
+        set({ messages: historyToChatMessages(history) });
+      }
     });
 
     return () => {
@@ -212,22 +217,18 @@ export const useAgentStore = create<AgentStore>((set, get) => {
     const bridge = getBridge();
     if (!bridge) return;
     void bridge.sendAgentCommand({ type: "user_message", text });
-    set((s) => {
-      const messages = [...s.messages, { id: nextMsgId++, kind: "user" as const, text }];
-      persistMessages(messages);
-      return { messages };
-    });
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+    }));
   },
 
   steer: (text: string) => {
     const bridge = getBridge();
     if (!bridge) return;
     void bridge.sendAgentCommand({ type: "steer", text });
-    set((s) => {
-      const messages = [...s.messages, { id: nextMsgId++, kind: "steer" as const, text }];
-      persistMessages(messages);
-      return { messages };
-    });
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
+    }));
   },
 
   interrupt: () => {
@@ -237,18 +238,14 @@ export const useAgentStore = create<AgentStore>((set, get) => {
   // --- UI-only message additions (used by voice transcripts) ----------------
 
   addUserMessage: (text: string) => {
-    set((s) => {
-      const messages = [...s.messages, { id: nextMsgId++, kind: "user" as const, text }];
-      persistMessages(messages);
-      return { messages };
-    });
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+    }));
   },
 
   addSteerMessage: (text: string) => {
-    set((s) => {
-      const messages = [...s.messages, { id: nextMsgId++, kind: "steer" as const, text }];
-      persistMessages(messages);
-      return { messages };
-    });
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
+    }));
   },
-}});
+}));

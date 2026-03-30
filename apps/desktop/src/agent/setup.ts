@@ -279,7 +279,7 @@ export class Agent {
       resourceLoader,
       model: getDefaultModel(),
       thinkingLevel: "off",
-      sessionManager: SessionManager.create(WORKSPACE_DIR, SESSION_DIR),
+      sessionManager: SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR),
       settingsManager: SettingsManager.create(WORKSPACE_DIR, AGENT_DIR),
     });
 
@@ -368,6 +368,60 @@ export class Agent {
 
   getLastAssistantText(): string | undefined {
     return this.session?.getLastAssistantText();
+  }
+
+  /**
+   * Return the persisted session messages for the renderer to display.
+   * Converts pi-ai Message[] into serializable chat history entries.
+   */
+  getHistory(): Array<{ role: "user" | "assistant" | "tool"; text: string; toolName?: string; toolCallId?: string; isError?: boolean }> {
+    if (!this.session) return [];
+    const messages = this.session.messages;
+    const history: Array<{ role: "user" | "assistant" | "tool"; text: string; toolName?: string; toolCallId?: string; isError?: boolean }> = [];
+
+    for (const msg of messages) {
+      if (!msg || typeof msg !== "object" || !("role" in msg)) continue;
+
+      if (msg.role === "user") {
+        const text = typeof msg.content === "string"
+          ? msg.content
+          : Array.isArray(msg.content)
+            ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("")
+            : "";
+        if (text) history.push({ role: "user", text });
+      } else if (msg.role === "assistant") {
+        const textParts = Array.isArray(msg.content)
+          ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text)
+          : [];
+        const text = textParts.join("");
+        if (text) history.push({ role: "assistant", text });
+
+        // Extract tool calls for display
+        if (Array.isArray(msg.content)) {
+          for (const block of msg.content) {
+            if (block && typeof block === "object" && "type" in block && block.type === "toolCall") {
+              const tc = block as { id: string; name: string };
+              history.push({ role: "tool", text: "", toolName: tc.name, toolCallId: tc.id });
+            }
+          }
+        }
+      } else if (msg.role === "toolResult") {
+        const resultText = Array.isArray(msg.content)
+          ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("")
+          : "";
+        // Update the matching tool entry with result
+        for (let i = history.length - 1; i >= 0; i--) {
+          const h = history[i];
+          if (h && h.role === "tool" && h.toolCallId === msg.toolCallId) {
+            h.text = resultText;
+            h.isError = msg.isError;
+            break;
+          }
+        }
+      }
+    }
+
+    return history;
   }
 
   // ---- subscriptions -------------------------------------------------------

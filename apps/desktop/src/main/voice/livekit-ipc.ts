@@ -11,7 +11,8 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import { handleSidecarAgentEvent } from "@/main/app-machine";
 import { createIpcHandler } from "@/main/lib/ipc-handler";
 import { SidecarMessageSchema, parseAgentEvent } from "@/shared/agent-event-parser";
-import { IPC_CHANNELS } from "@/shared/ipc";
+import { IPC_CHANNELS, isRecord } from "@/shared/ipc";
+import type { ChatHistoryEntry } from "@/shared/ipc";
 import { TextChatMessageSchema, type TextChatMessage } from "@/shared/voice";
 import { createRoomToken, type LiveKitCredentials } from "./livekit-token";
 
@@ -192,6 +193,25 @@ export async function sendCommandToSidecar(command: TextChatMessage): Promise<vo
   proc.send({ type: "text-command", command });
 }
 
+export async function getHistoryFromSidecar(): Promise<ChatHistoryEntry[]> {
+  const proc = await ensureSidecar();
+  return new Promise<ChatHistoryEntry[]>((resolve) => {
+    const timeout = setTimeout(() => {
+      proc.removeListener("message", onMessage);
+      resolve([]);
+    }, 5_000);
+
+    const onMessage = (msg: unknown) => {
+      if (!isRecord(msg) || msg.type !== "history-response") return;
+      proc.removeListener("message", onMessage);
+      clearTimeout(timeout);
+      resolve(Array.isArray(msg.history) ? msg.history as ChatHistoryEntry[] : []);
+    };
+    proc.on("message", onMessage);
+    proc.send({ type: "get-history" });
+  });
+}
+
 async function sendVoiceStart(url: string, token: string): Promise<void> {
   const proc = await ensureSidecar();
   proc.send({ type: "voice-start", url, token });
@@ -243,6 +263,11 @@ export function registerAgentIpcHandlers(): () => void {
     void sendCommandToSidecar(command);
   });
 
+  // Session history from sidecar → renderer
+  ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, async () => {
+    return getHistoryFromSidecar();
+  });
+
   // Voice token request — generates separate tokens for user (renderer) and agent (sidecar)
   ipcMain.handle(IPC_CHANNELS.VOICE_TOKEN, async (): Promise<LiveKitCredentials> => {
     const [userCredentials, agentCredentials] = await Promise.all([
@@ -264,6 +289,7 @@ export function registerAgentIpcHandlers(): () => void {
 
   return () => {
     ipcMain.removeHandler(IPC_CHANNELS.AGENT_COMMAND);
+    ipcMain.removeHandler(IPC_CHANNELS.AGENT_HISTORY);
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_TOKEN);
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_STOP);
     void killSidecar();

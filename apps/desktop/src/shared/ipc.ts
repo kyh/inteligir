@@ -34,6 +34,7 @@ export const IPC_CHANNELS = {
   // Agent (events forwarded from sidecar via main process)
   AGENT_EVENT: "agent:event",
   AGENT_COMMAND: "agent:command",
+  AGENT_HISTORY: "agent:history",
 
   // Tasks
   TASK_CREATE: "task:create",
@@ -75,6 +76,14 @@ export type UpdateResponse = {
 // Desktop bridge (preload -> renderer)
 // ---------------------------------------------------------------------------
 
+export type ChatHistoryEntry = {
+  role: "user" | "assistant" | "tool";
+  text: string;
+  toolName?: string;
+  toolCallId?: string;
+  isError?: boolean;
+};
+
 export type DesktopBridge = {
   // Desktop
   openExternal: (url: string) => Promise<boolean>;
@@ -92,6 +101,7 @@ export type DesktopBridge = {
   // Agent
   onAgentEvent: (listener: (event: AppAgentEvent) => void) => () => void;
   sendAgentCommand: (command: TextChatMessage) => Promise<void>;
+  getAgentHistory: () => Promise<ChatHistoryEntry[]>;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;

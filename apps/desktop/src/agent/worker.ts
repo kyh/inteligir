@@ -211,6 +211,13 @@ async function main(): Promise<void> {
         if (command) dispatchCommand(agent, command);
         break;
       }
+      case "get-history": {
+        const history = agent.getHistory();
+        if (process.send) {
+          process.send({ type: "history-response", history });
+        }
+        break;
+      }
       case "voice-start": {
         const url = typeof msg.url === "string" ? msg.url : "";
         const token = typeof msg.token === "string" ? msg.token : "";
