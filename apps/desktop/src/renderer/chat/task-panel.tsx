@@ -3,11 +3,6 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@repo/ui/button";
 import { Input } from "@repo/ui/input";
 import { Label } from "@repo/ui/label";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@repo/ui/popover";
 import { Textarea } from "@repo/ui/textarea";
 
 import { formatSchedule, type CreateTaskParams, type TaskSchedule } from "@/shared/task";
@@ -73,13 +68,13 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
         rows={3}
       />
 
-      {/* Schedule type */}
       <div className="flex flex-col gap-1.5">
         <Label className="text-[10px] text-muted-foreground">Schedule</Label>
         <div className="flex gap-1">
           {(["cron", "interval", "once"] as const).map((t) => (
             <button
               key={t}
+              type="button"
               className={`rounded px-2 py-0.5 text-[10px] transition-colors ${
                 scheduleType === t
                   ? "bg-secondary text-foreground"
@@ -135,33 +130,33 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
-// Task panel popover
+// Task panel content
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// Inner content — reusable in both standalone popover and embedded mode
-// ---------------------------------------------------------------------------
-
-function TaskPanelContent() {
+export function TaskPanel() {
   const tasks = useTaskStore((s) => s.tasks);
+  const fetchTasks = useTaskStore((s) => s.fetchTasks);
   const toggleTask = useTaskStore((s) => s.toggleTask);
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const [creating, setCreating] = useState(false);
 
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
+
   return (
-    <>
-      {/* Header */}
+    <div className="p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-medium">Scheduled Tasks</span>
         <button
-          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+          type="button"
+          className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
           onClick={() => setCreating(!creating)}
         >
           {creating ? "cancel" : "+ new"}
         </button>
       </div>
 
-      {/* Task list */}
       {tasks.length === 0 && !creating && (
         <div className="py-4 text-center text-[10px] text-muted-foreground">
           No scheduled tasks
@@ -175,16 +170,14 @@ function TaskPanelContent() {
               key={task.id}
               className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-secondary/50"
             >
-              {/* Toggle */}
               <button
+                type="button"
                 className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
                   task.enabled ? "bg-green-400" : "bg-muted-foreground/30"
                 }`}
                 onClick={() => toggleTask(task.id)}
                 title={task.enabled ? "Disable" : "Enable"}
               />
-
-              {/* Label + schedule */}
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className={`truncate ${!task.enabled ? "text-muted-foreground" : ""}`}>
                   {task.label}
@@ -193,10 +186,9 @@ function TaskPanelContent() {
                   {formatSchedule(task.schedule)}
                 </span>
               </div>
-
-              {/* Delete */}
               <button
-                className="shrink-0 text-[10px] text-muted-foreground/50 hover:text-destructive-foreground transition-colors"
+                type="button"
+                className="shrink-0 text-[10px] text-muted-foreground/50 transition-colors hover:text-destructive-foreground"
                 onClick={() => deleteTask(task.id)}
                 title="Delete"
               >
@@ -207,42 +199,7 @@ function TaskPanelContent() {
         </div>
       )}
 
-      {/* Create form */}
-      {creating && (
-        <CreateTaskForm onDone={() => setCreating(false)} />
-      )}
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// TaskPanel — standalone popover or embedded content
-// ---------------------------------------------------------------------------
-
-export function TaskPanel({ embedded }: { embedded?: boolean }) {
-  const fetchTasks = useTaskStore((s) => s.fetchTasks);
-  const enabledCount = useTaskStore((s) => s.tasks.filter((t) => t.enabled).length);
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (open || embedded) fetchTasks();
-  }, [open, embedded, fetchTasks]);
-
-  if (embedded) {
-    return <TaskPanelContent />;
-  }
-
-  return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="flex items-center gap-1 hover:text-foreground transition-colors cursor-pointer">
-        <span>tasks</span>
-        {enabledCount > 0 && (
-          <span className="text-[10px] text-yellow-400">{enabledCount}</span>
-        )}
-      </PopoverTrigger>
-      <PopoverContent align="end" className="w-72 p-3">
-        <TaskPanelContent />
-      </PopoverContent>
-    </Popover>
+      {creating && <CreateTaskForm onDone={() => setCreating(false)} />}
+    </div>
   );
 }
