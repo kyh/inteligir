@@ -83,13 +83,11 @@ function VoiceButton() {
 
 function SettingsContent() {
   const appState = useAgentStore((s) => s.appState);
-  const clearMessages = useAgentStore((s) => s.clearMessages);
   const isReady = appState.phase === "ready";
 
   const handleLogout = useCallback(() => {
-    clearMessages();
     getBridge()?.transition({ type: "LOGOUT" });
-  }, [clearMessages]);
+  }, []);
 
   return (
     <div className="flex flex-col gap-4 p-3">
@@ -134,7 +132,6 @@ export function ChatPage() {
   const sendMessage = useAgentStore((s) => s.sendMessage);
   const steer = useAgentStore((s) => s.steer);
   const interrupt = useAgentStore((s) => s.interrupt);
-  const clearChat = useAgentStore((s) => s.clearChat);
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
   const sessionStatus = getSessionStatus(appState);
@@ -161,12 +158,6 @@ export function ChatPage() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        useAgentStore.getState().clearMessages();
-        clearChat();
-        return;
-      }
       if (e.key === "Escape") {
         e.preventDefault();
         if (busy) {
@@ -176,7 +167,7 @@ export function ChatPage() {
         }
       }
     },
-    [busy, input, interrupt, clearChat],
+    [busy, input, interrupt],
   );
 
   useEffect(() => {

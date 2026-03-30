@@ -24,6 +24,29 @@ export type ChatMessage =
   | { id: number; kind: "tool"; execution: ToolExecution };
 
 // ---------------------------------------------------------------------------
+// localStorage persistence
+// ---------------------------------------------------------------------------
+
+const MESSAGES_STORAGE_KEY = "inteligir:chat-messages";
+
+function loadPersistedMessages(): ChatMessage[] {
+  try {
+    const raw = window.localStorage.getItem(MESSAGES_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ChatMessage[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function persistMessages(messages: ChatMessage[]): void {
+  try {
+    window.localStorage.setItem(MESSAGES_STORAGE_KEY, JSON.stringify(messages));
+  } catch { /* quota exceeded — ignore */ }
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
@@ -35,16 +58,21 @@ type AgentStore = {
   sendMessage: (text: string) => void;
   steer: (text: string) => void;
   interrupt: () => void;
-  clearChat: () => void;
   addUserMessage: (text: string) => void;
   addSteerMessage: (text: string) => void;
-  clearMessages: () => void;
 };
 
 let nextMsgId = 0;
 
-export const useAgentStore = create<AgentStore>((set) => ({
-  messages: [],
+export const useAgentStore = create<AgentStore>((set, get) => {
+  const initialMessages = loadPersistedMessages();
+  nextMsgId = initialMessages.reduce((max, m) => Math.max(max, m.id + 1), 0);
+
+  /** Persist current messages to localStorage (call after stable state changes). */
+  const save = () => persistMessages(get().messages);
+
+  return {
+  messages: initialMessages,
   appState: { phase: "logged_out" },
 
   init: () => {
@@ -60,6 +88,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
         case "agent_end":
           streamingMsgId = null;
           toolMsgIds.clear();
+          save();
           break;
 
         case "sidecar_error":
@@ -102,6 +131,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
             ),
           }));
           streamingMsgId = null;
+          save();
           break;
         }
 
@@ -146,6 +176,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
                 : m,
             ),
           }));
+          save();
           break;
         }
       }
@@ -159,6 +190,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
 
       if (parsed.data.phase === "logged_out") {
         set({ messages: [] });
+        persistMessages([]);
         useVoiceStore.getState().reset();
       }
     });
@@ -180,44 +212,43 @@ export const useAgentStore = create<AgentStore>((set) => ({
     const bridge = getBridge();
     if (!bridge) return;
     void bridge.sendAgentCommand({ type: "user_message", text });
-    set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
-    }));
+    set((s) => {
+      const messages = [...s.messages, { id: nextMsgId++, kind: "user" as const, text }];
+      persistMessages(messages);
+      return { messages };
+    });
   },
 
   steer: (text: string) => {
     const bridge = getBridge();
     if (!bridge) return;
     void bridge.sendAgentCommand({ type: "steer", text });
-    set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
-    }));
+    set((s) => {
+      const messages = [...s.messages, { id: nextMsgId++, kind: "steer" as const, text }];
+      persistMessages(messages);
+      return { messages };
+    });
   },
 
   interrupt: () => {
     void getBridge()?.sendAgentCommand({ type: "interrupt" });
   },
 
-  clearChat: () => {
-    void getBridge()?.sendAgentCommand({ type: "clear" });
-    set({ messages: [] });
-  },
-
   // --- UI-only message additions (used by voice transcripts) ----------------
 
   addUserMessage: (text: string) => {
-    set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
-    }));
+    set((s) => {
+      const messages = [...s.messages, { id: nextMsgId++, kind: "user" as const, text }];
+      persistMessages(messages);
+      return { messages };
+    });
   },
 
   addSteerMessage: (text: string) => {
-    set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
-    }));
+    set((s) => {
+      const messages = [...s.messages, { id: nextMsgId++, kind: "steer" as const, text }];
+      persistMessages(messages);
+      return { messages };
+    });
   },
-
-  clearMessages: () => {
-    set({ messages: [] });
-  },
-}));
+}});

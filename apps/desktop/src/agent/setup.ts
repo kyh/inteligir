@@ -370,12 +370,6 @@ export class Agent {
     return this.session?.getLastAssistantText();
   }
 
-  clear(): void {
-    if (this.session) {
-      void this.session.newSession();
-    }
-  }
-
   // ---- subscriptions -------------------------------------------------------
 
   subscribe(listener: EventListener): () => void {
