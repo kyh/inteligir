@@ -5,7 +5,7 @@
 
 import type { AppState, MachineEvent } from "@/shared/app-state";
 
-export type EffectTag = "LOGIN" | "SETUP" | "SETUP_READY" | "LOGOUT";
+export type EffectTag = "LOGIN" | "SETUP" | "LOGOUT";
 
 export type ReducerResult = {
   next: AppState;
@@ -38,9 +38,8 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
         case "logging_in":
           return { next: { phase: "logging_in" }, effect: "LOGIN" };
         case "setting_up":
-          return { next: { phase: "setting_up" }, effect: "SETUP" };
         case "ready":
-          return { next: { phase: "setting_up" }, effect: "SETUP_READY" };
+          return { next: { phase: "setting_up" }, effect: "SETUP" };
         default:
           return null;
       }

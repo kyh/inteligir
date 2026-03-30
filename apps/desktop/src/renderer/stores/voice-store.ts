@@ -7,7 +7,8 @@ import { VoiceSession } from "@/renderer/voice/session";
 import type { VoiceSessionState } from "@/shared/voice";
 
 // ---------------------------------------------------------------------------
-// Store
+// Store — manages voice session lifecycle only.
+// Text commands go through the agent store, not here.
 // ---------------------------------------------------------------------------
 
 type VoiceStore = {
@@ -15,24 +16,10 @@ type VoiceStore = {
   currentTranscript: string;
   error: string | null;
 
-  // Callbacks — set by agent-store to break circular dependency
-  onUserMessage: ((text: string) => void) | null;
-  onSteerMessage: ((text: string) => void) | null;
-
   init: () => () => void;
-  setCallbacks: (cbs: {
-    onUserMessage: (text: string) => void;
-    onSteerMessage: (text: string) => void;
-  }) => void;
-  /** Called by agent-store when the sidecar process crashes */
   handleSidecarError: (message: string) => void;
-  /** Reset to initial state — called on logout */
   reset: () => void;
   toggleVoice: () => void;
-  sendMessage: (text: string) => void;
-  steer: (text: string) => void;
-  interrupt: () => void;
-  clearChat: () => void;
 };
 
 let session: VoiceSession | null = null;
@@ -41,8 +28,6 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
   currentTranscript: "",
   error: null,
-  onUserMessage: null,
-  onSteerMessage: null,
 
   init: () => {
     const bridge = getBridge();
@@ -53,7 +38,6 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       tokenFetcher: () => bridge.getVoiceToken(),
     });
 
-    // Subscribe to session events
     const unsubSession = session.on((event) => {
       switch (event.type) {
         case "state_changed":
@@ -68,12 +52,18 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
           break;
         case "transcript_final":
           set({ currentTranscript: "" });
-          get().onUserMessage?.(event.text);
+          // Voice transcripts are sent to the agent by the PiLLMAdapter on
+          // the sidecar. We add the user message to the chat here so it
+          // appears immediately. Import is deferred to avoid circular deps.
+          if (event.text) {
+            void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
+              useAgentStore.getState().addUserMessage(event.text);
+            });
+          }
           break;
       }
     });
 
-    // Bind audio tracks to DOM elements
     const unsubAudio = bindAudio(session);
 
     return () => {
@@ -84,10 +74,6 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     };
   },
 
-  setCallbacks: (cbs) => {
-    set({ onUserMessage: cbs.onUserMessage, onSteerMessage: cbs.onSteerMessage });
-  },
-
   toggleVoice: () => {
     if (!session) return;
     const { sessionState } = get();
@@ -95,42 +81,19 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       void session.connect();
     } else {
       session.disconnect();
+      void getBridge()?.stopVoice();
     }
-  },
-
-  sendMessage: (text: string) => {
-    const bridge = getBridge();
-    if (bridge) {
-      void bridge.sendAgentCommand({ type: "user_message", text });
-      get().onUserMessage?.(text);
-    }
-  },
-
-  steer: (text: string) => {
-    const bridge = getBridge();
-    if (bridge) {
-      void bridge.sendAgentCommand({ type: "steer", text });
-      get().onSteerMessage?.(text);
-    }
-  },
-
-  interrupt: () => {
-    const bridge = getBridge();
-    if (bridge) void bridge.sendAgentCommand({ type: "interrupt" });
-  },
-
-  clearChat: () => {
-    const bridge = getBridge();
-    if (bridge) void bridge.sendAgentCommand({ type: "clear" });
   },
 
   handleSidecarError: (message: string) => {
     session?.disconnect();
+    void getBridge()?.stopVoice();
     set({ sessionState: "error", error: message, currentTranscript: "" });
   },
 
   reset: () => {
     session?.disconnect();
+    void getBridge()?.stopVoice();
     set({ sessionState: "inactive", currentTranscript: "", error: null });
   },
 }));

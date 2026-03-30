@@ -4,8 +4,8 @@
  * Registers the "browser" tool with pi-coding-agent and delegates all action
  * execution to the decomposed modules under ./browser/.
  *
- * Concurrency: session is a module-level singleton. Tool calls must be
- * serialized — pi-coding-agent handles this.
+ * Uses Chrome via CDP WebSocket — connects to the user's actual browser
+ * with their sessions/cookies. No Electron dependency.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
@@ -31,10 +31,20 @@ export function registerBrowserExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "browser",
     label: "browser",
-    description:
-      "Browse the web, interact with pages, take screenshots, and extract data. " +
-      "Uses a built-in browser — no external tools required. " +
-      "Workflow: open a URL → snapshot to see elements → interact using @refs → extract or screenshot.",
+    description: `Browse the web using Chrome via CDP. Launches a dedicated Chrome instance, or connects to an existing one on port 9222.
+
+Core workflow — every browser task follows this pattern:
+1. open: Navigate to a URL (opens a new Chrome tab)
+2. snapshot: Get the accessibility tree with element refs (@e1, @e2, ...)
+3. Interact: Use refs to click, fill, type, select, check, hover
+4. Re-snapshot: After navigation or DOM changes, ALWAYS get fresh refs
+
+IMPORTANT: Refs (@e1, @e2) are INVALIDATED after any page change. Always re-snapshot after:
+- Clicking links or buttons that navigate
+- Form submissions
+- Dynamic content loading (dropdowns, modals, SPAs)
+
+Actions: open, click, fill, type, press, hover, select, check, snapshot, screenshot, get_text, get_url, get_title, evaluate, wait, scroll, back, forward, reload, close.`,
     parameters: BrowserActionSchema,
     execute: async (_toolCallId, params) => {
       try {

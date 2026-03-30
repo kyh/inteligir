@@ -104,12 +104,12 @@ describe("reduce", () => {
     expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP" });
   });
 
-  it("RETRY from error(ready) → setting_up + SETUP_READY", () => {
+  it("RETRY from error(ready) → setting_up + SETUP", () => {
     const result = reduce(
       { phase: "error", prev: "ready", message: "fail" },
       { type: "RETRY" },
     );
-    expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP_READY" });
+    expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP" });
   });
 
   it("RETRY from non-error → null", () => {

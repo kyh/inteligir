@@ -1,20 +1,24 @@
 /**
- * BrowserWindow lifecycle + ref map.
+ * Browser session — CDP WebSocket connection to a Chrome tab.
  *
- * Manages a single Electron BrowserWindow instance, the CDP debugger attachment,
- * and the mapping from snapshot @eN refs to CSS selectors.
+ * Connects to the user's Chrome browser via CDP. Opens a new tab for the agent
+ * and manages the ref (@eN → CSS selector) mapping.
  */
 
-import { BrowserWindow } from "electron";
-import type { WebContents } from "electron";
+import {
+  CDPClient,
+  closeTab,
+  discoverChromeEndpoint,
+  openNewTab,
+} from "./cdp-client";
 
 // ---------------------------------------------------------------------------
 // Public interface
 // ---------------------------------------------------------------------------
 
 export interface BrowserSession {
-  getWindow(): BrowserWindow;
-  getContents(): WebContents;
+  /** Get the CDP client. Lazily connects to Chrome and opens a tab. */
+  ensureConnected(): Promise<CDPClient>;
   hasLoadedPage(): boolean;
   updateRefs(refs: ReadonlyArray<{ ref: string; selector: string }>): void;
   resolveSelector(selector: string): string;
@@ -27,62 +31,53 @@ export interface BrowserSession {
 // ---------------------------------------------------------------------------
 
 export function createBrowserSession(): BrowserSession {
-  let browserWindow: BrowserWindow | null = null;
+  let cdp: CDPClient | null = null;
+  let connectPromise: Promise<CDPClient> | null = null;
+  let httpEndpoint: string | null = null;
+  let targetId: string | null = null;
+  let currentUrl = "";
   const refSelectors = new Map<string, string>();
   let disposed = false;
 
-  function getWindow(): BrowserWindow {
-    if (browserWindow && !browserWindow.isDestroyed()) return browserWindow;
+  async function connect(): Promise<CDPClient> {
+    httpEndpoint = await discoverChromeEndpoint();
+    const tab = await openNewTab(httpEndpoint);
+    targetId = tab.id;
 
-    browserWindow = new BrowserWindow({
-      show: false,
-      width: 1280,
-      height: 900,
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-        sandbox: true,
-      },
+    const client = await CDPClient.connect(tab.webSocketDebuggerUrl);
+
+    // Enable required CDP domains
+    await client.send("Page.enable");
+    await client.send("Runtime.enable");
+
+    // Track navigation to invalidate refs
+    client.on("Page.frameNavigated", (params) => {
+      const frame = params["frame"] as Record<string, unknown> | undefined;
+      // Only clear for main frame navigations
+      if (!frame || !frame["parentId"]) {
+        currentUrl = (frame?.["url"] as string) ?? "";
+        refSelectors.clear();
+      }
     });
 
-    // Attach CDP debugger for input simulation (click, type, etc.).
-    // Protocol version "1.3" is pinned for stability — Electron bundles a
-    // specific Chromium, so there's no benefit to requesting a newer version,
-    // and bumping could break if the bundled Chromium doesn't support it.
-    try {
-      browserWindow.webContents.debugger.attach("1.3");
-    } catch {
-      // Already attached (e.g. DevTools open) — safe to continue
-    }
-
-    // Clear stale refs on navigation (refs are page-specific).
-    // did-navigate fires on full navigations; did-navigate-in-page fires on
-    // SPA pushState/replaceState/hash changes (React Router, Next.js, etc.).
-    browserWindow.webContents.on("did-navigate", () => {
-      refSelectors.clear();
-    });
-    browserWindow.webContents.on("did-navigate-in-page", () => {
+    // SPA navigations (pushState/replaceState/hash)
+    client.on("Page.navigatedWithinDocument", () => {
       refSelectors.clear();
     });
 
-    // Clear stale refs if the window is destroyed externally (crash, user close)
-    browserWindow.on("closed", () => {
-      refSelectors.clear();
-      browserWindow = null;
-    });
-
-    return browserWindow;
+    cdp = client;
+    return client;
   }
 
-  function getContents(): WebContents {
-    return getWindow().webContents;
+  function ensureConnected(): Promise<CDPClient> {
+    if (cdp) return Promise.resolve(cdp);
+    if (connectPromise) return connectPromise;
+    connectPromise = connect().finally(() => { connectPromise = null; });
+    return connectPromise;
   }
 
-  /** True if the browser has navigated to a real page (not blank). */
   function hasLoadedPage(): boolean {
-    if (!browserWindow || browserWindow.isDestroyed()) return false;
-    const url = browserWindow.webContents.getURL();
-    return url !== "" && url !== "about:blank";
+    return currentUrl !== "" && currentUrl !== "about:blank";
   }
 
   function updateRefs(refs: ReadonlyArray<{ ref: string; selector: string }>): void {
@@ -104,23 +99,25 @@ export function createBrowserSession(): BrowserSession {
   }
 
   function dispose(): void {
-    const win = browserWindow;
-    // Null out first to guard against re-entrancy — close() can fire the
-    // "closed" event synchronously in some Electron versions.
-    browserWindow = null;
     disposed = true;
     refSelectors.clear();
-    if (win && !win.isDestroyed()) {
-      try {
-        win.webContents.debugger.detach();
-      } catch { /* already detached */ }
-      win.close();
+
+    if (cdp) {
+      cdp.close();
+      cdp = null;
     }
+
+    // Close the tab we opened
+    if (httpEndpoint && targetId) {
+      closeTab(httpEndpoint, targetId).catch(() => {});
+      targetId = null;
+    }
+
+    currentUrl = "";
   }
 
   return {
-    getWindow,
-    getContents,
+    ensureConnected,
     hasLoadedPage,
     updateRefs,
     resolveSelector,

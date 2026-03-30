@@ -6,7 +6,7 @@
 import { Room, RoomEvent, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from "livekit-client";
 
 import { toErrorMessage } from "@/shared/ipc";
-import { TEXT_CHAT_TOPIC, type TextChatMessage, type VoiceSessionEvent, type VoiceSessionState } from "@/shared/voice";
+import type { VoiceSessionEvent, VoiceSessionState } from "@/shared/voice";
 import { DEFAULT_RECONNECT_POLICY, nextReconnectDelay, type ReconnectPolicy } from "./reconnect";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +33,6 @@ export class VoiceSession {
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private abortController: AbortController | null = null;
   private sessionState: VoiceSessionState = "inactive";
-  private readonly textEncoder = new TextEncoder();
   private readonly listeners = new Set<VoiceSessionListener>();
   private readonly policy: ReconnectPolicy;
 
@@ -112,13 +111,6 @@ export class VoiceSession {
     }
 
     this.setSessionState("inactive");
-  }
-
-  send(msg: TextChatMessage): boolean {
-    if (!this.room || this.room.state !== "connected") return false;
-    const data = this.textEncoder.encode(JSON.stringify(msg));
-    void this.room.localParticipant.publishData(data, { reliable: true, topic: TEXT_CHAT_TOPIC });
-    return true;
   }
 
   // ---- Internal -------------------------------------------------------------

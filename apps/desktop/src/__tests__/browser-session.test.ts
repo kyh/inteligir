@@ -1,28 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const mockWindow = {
-  isDestroyed: vi.fn().mockReturnValue(false),
-  isVisible: vi.fn().mockReturnValue(false),
-  webContents: {
-    debugger: { attach: vi.fn(), detach: vi.fn() },
-    on: vi.fn(),
-    getURL: vi.fn().mockReturnValue(""),
-  },
-  on: vi.fn(),
-  close: vi.fn(),
-  show: vi.fn(),
-};
-
-vi.mock("electron", () => {
-  // Must be a real constructor (called with `new`)
-  function BrowserWindow() {
-    return mockWindow;
-  }
-  return { BrowserWindow };
-});
-
 import { createBrowserSession } from "@/agent/browser/browser-session";
 import type { BrowserSession } from "@/agent/browser/browser-session";
+
+// Mock the cdp-client module — browser-session uses discoverChromeEndpoint, openNewTab, CDPClient, closeTab
+vi.mock("@/agent/browser/cdp-client", () => {
+  const mockCDP = {
+    send: vi.fn().mockResolvedValue({}),
+    on: vi.fn(),
+    off: vi.fn(),
+    close: vi.fn(),
+  };
+  return {
+    CDPClient: { connect: vi.fn().mockResolvedValue(mockCDP) },
+    discoverChromeEndpoint: vi.fn().mockResolvedValue("http://127.0.0.1:9222"),
+    openNewTab: vi.fn().mockResolvedValue({
+      id: "target-1",
+      webSocketDebuggerUrl: "ws://127.0.0.1:9222/devtools/page/target-1",
+    }),
+    closeTab: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 describe("browser-session", () => {
   let session: BrowserSession;
@@ -38,7 +36,6 @@ describe("browser-session", () => {
 
   describe("resolveSelector", () => {
     it("returns CSS selector as-is when not a ref", () => {
-      // Need to call getWindow first to initialise, then set up refs
       session.updateRefs([]);
       expect(session.resolveSelector("#my-button")).toBe("#my-button");
       expect(session.resolveSelector(".class > div")).toBe(".class > div");
@@ -87,22 +84,8 @@ describe("browser-session", () => {
   // ---------------------------------------------------------------------------
 
   describe("hasLoadedPage", () => {
-    it("returns false when no URL loaded (empty string)", () => {
-      // getWindow() is called internally; the mock returns getURL() => ""
+    it("returns false before any navigation", () => {
       expect(session.hasLoadedPage()).toBe(false);
-    });
-
-    it("returns false when URL is about:blank", () => {
-      // Force getWindow to be called so browserWindow is set
-      const contents = session.getContents();
-      vi.mocked(contents.getURL).mockReturnValue("about:blank");
-      expect(session.hasLoadedPage()).toBe(false);
-    });
-
-    it("returns true when a real URL is loaded", () => {
-      const contents = session.getContents();
-      vi.mocked(contents.getURL).mockReturnValue("https://example.com");
-      expect(session.hasLoadedPage()).toBe(true);
     });
   });
 
@@ -118,7 +101,6 @@ describe("browser-session", () => {
     });
 
     it("is idempotent — second call does not throw", () => {
-      session.getWindow(); // ensure window exists
       session.dispose();
       expect(() => session.dispose()).not.toThrow();
     });

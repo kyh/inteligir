@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-vi.mock("electron", () => ({}));
+import type { CDPClient } from "@/agent/browser/cdp-client";
 
 // Mock CDP adapter — we test those functions separately
 vi.mock("@/agent/browser/cdp-adapter", () => ({
@@ -15,34 +14,27 @@ vi.mock("@/agent/browser/snapshot-builder", () => ({
   buildSnapshot: vi.fn().mockResolvedValue("[snapshot]"),
 }));
 
+// Mock cdp-client evaluate to return values for get_url, get_title, scroll
+vi.mock("@/agent/browser/cdp-client", () => ({
+  evaluate: vi.fn().mockResolvedValue(undefined),
+}));
+
 import { dispatchAction } from "@/agent/browser/action-dispatcher";
 import type { ActionContext } from "@/agent/browser/action-dispatcher";
 import type { BrowserAction } from "@/agent/browser/schema";
 import type { BrowserSession } from "@/agent/browser/browser-session";
-import type { WebContents } from "electron";
-import type { BrowserWindow } from "electron";
+import { evaluate } from "@/agent/browser/cdp-client";
+
+const mockCDP = {
+  send: vi.fn().mockResolvedValue({}),
+  on: vi.fn(),
+  off: vi.fn(),
+  close: vi.fn(),
+} as unknown as CDPClient;
 
 function createMockSession(overrides?: Partial<BrowserSession>): BrowserSession {
   return {
-    getWindow: vi.fn().mockReturnValue({
-      isVisible: vi.fn().mockReturnValue(false),
-      show: vi.fn(),
-      webContents: { capturePage: vi.fn() },
-    } as unknown as BrowserWindow),
-    getContents: vi.fn().mockReturnValue({
-      executeJavaScript: vi.fn(),
-      loadURL: vi.fn().mockResolvedValue(undefined),
-      getURL: vi.fn().mockReturnValue("https://example.com"),
-      getTitle: vi.fn().mockReturnValue("Example"),
-      canGoBack: vi.fn().mockReturnValue(false),
-      canGoForward: vi.fn().mockReturnValue(false),
-      goBack: vi.fn(),
-      goForward: vi.fn(),
-      reload: vi.fn(),
-      on: vi.fn(),
-      removeListener: vi.fn(),
-      debugger: { sendCommand: vi.fn() },
-    } as unknown as WebContents),
+    ensureConnected: vi.fn().mockResolvedValue(mockCDP),
     hasLoadedPage: vi.fn().mockReturnValue(true),
     updateRefs: vi.fn(),
     resolveSelector: vi.fn().mockImplementation((s: string) => s),
@@ -76,7 +68,7 @@ describe("action-dispatcher", () => {
     it("calls session.dispose()", async () => {
       const result = await dispatchAction({ action: "close" }, ctx);
       expect(session.dispose).toHaveBeenCalledOnce();
-      expect(textContent(result)).toBe("Browser closed");
+      expect(textContent(result)).toBe("Browser tab closed");
     });
   });
 
@@ -101,10 +93,13 @@ describe("action-dispatcher", () => {
     });
 
     it("navigates for valid http URL", async () => {
+      // Mock awaitNavigation — Page.loadEventFired fires immediately
+      vi.mocked(mockCDP.on).mockImplementation((event: string, handler: () => void) => {
+        if (event === "Page.loadEventFired") setTimeout(handler, 0);
+      });
       const result = await dispatchAction({ action: "open", url: "https://example.com" }, ctx);
       expect(textContent(result)).toContain("Navigated to");
-      const contents = session.getContents();
-      expect(contents.loadURL).toHaveBeenCalledWith("https://example.com");
+      expect(mockCDP.send).toHaveBeenCalledWith("Page.navigate", { url: "https://example.com" });
     });
   });
 
@@ -133,6 +128,7 @@ describe("action-dispatcher", () => {
 
   describe("get_url action", () => {
     it("returns current URL", async () => {
+      vi.mocked(evaluate).mockResolvedValueOnce("https://example.com");
       const result = await dispatchAction({ action: "get_url" }, ctx);
       expect(textContent(result)).toBe("https://example.com");
     });
@@ -144,6 +140,7 @@ describe("action-dispatcher", () => {
 
   describe("get_title action", () => {
     it("returns current title", async () => {
+      vi.mocked(evaluate).mockResolvedValueOnce("Example");
       const result = await dispatchAction({ action: "get_title" }, ctx);
       expect(textContent(result)).toBe("Example");
     });
@@ -155,20 +152,18 @@ describe("action-dispatcher", () => {
 
   describe("scroll action", () => {
     it("scrolls down by default amount", async () => {
-      const contents = session.getContents();
       const result = await dispatchAction({ action: "scroll" }, ctx);
       expect(textContent(result)).toBe("Scrolled down 500px");
-      expect(contents.executeJavaScript).toHaveBeenCalledWith("window.scrollBy(0, 500)");
+      expect(evaluate).toHaveBeenCalledWith(mockCDP, "window.scrollBy(0, 500)");
     });
 
     it("scrolls up with negative delta", async () => {
-      const contents = session.getContents();
       const result = await dispatchAction(
         { action: "scroll", direction: "up", amount: 300 },
         ctx,
       );
       expect(textContent(result)).toBe("Scrolled up 300px");
-      expect(contents.executeJavaScript).toHaveBeenCalledWith("window.scrollBy(0, -300)");
+      expect(evaluate).toHaveBeenCalledWith(mockCDP, "window.scrollBy(0, -300)");
     });
   });
 

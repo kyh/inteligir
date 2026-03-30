@@ -51,4 +51,5 @@ contextBridge.exposeInMainWorld("desktopBridge", {
 
   // Voice (LiveKit)
   getVoiceToken: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_TOKEN),
+  stopVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STOP),
 });

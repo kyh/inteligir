@@ -9,7 +9,6 @@ import {
   seedResources,
   teardownResources,
 } from "@/agent/setup";
-import { disposeBrowserTool } from "@/agent/browser-tool";
 import { ensureSidecar, killSidecar } from "@/main/voice/livekit-ipc";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
@@ -57,7 +56,6 @@ export class AppMachine {
 
   async shutdown(): Promise<void> {
     this._destroying = true;
-    this._deps.disposeBrowserTool();
     await this._deps.killSidecar();
   }
 
@@ -101,7 +99,6 @@ const realDeps: EffectDeps = {
   seedResources,
   ensureSidecar,
   teardownResources,
-  disposeBrowserTool,
   killSidecar,
 };
 

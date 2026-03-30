@@ -8,13 +8,13 @@
 
 import { voice } from "@livekit/agents";
 import * as silero from "@livekit/agents-plugin-silero";
-import { Room, RoomEvent } from "@livekit/rtc-node";
+import { Room } from "@livekit/rtc-node";
 
 import { Agent, seedResources } from "@/agent/setup";
 import { PiLLMAdapter } from "@/agent/pi-llm-adapter";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { isRecord } from "@/shared/ipc";
-import { TEXT_CHAT_TOPIC, type TextChatMessage } from "@/shared/voice";
+import { TextChatMessageSchema, type TextChatMessage } from "@/shared/voice";
 
 // ---------------------------------------------------------------------------
 // Voice pipeline configuration
@@ -86,18 +86,8 @@ function dispatchCommand(agent: Agent, msg: TextChatMessage): void {
 }
 
 function parseTextCommand(raw: unknown): TextChatMessage | null {
-  if (!isRecord(raw) || typeof raw.type !== "string") return null;
-  switch (raw.type) {
-    case "user_message":
-    case "steer":
-      return typeof raw.text === "string" ? { type: raw.type, text: raw.text } : null;
-    case "interrupt":
-      return { type: "interrupt" };
-    case "clear":
-      return { type: "clear" };
-    default:
-      return null;
-  }
+  const result = TextChatMessageSchema.safeParse(raw);
+  return result.success ? result.data : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -134,16 +124,6 @@ async function startVoice(agent: Agent, url: string, token: string): Promise<voi
   voiceSession = session;
 
   await session.start({ agent: voiceAgent, room });
-
-  // Also accept text commands over the data channel when voice is connected
-  room.on(RoomEvent.DataReceived, (payload: Uint8Array, remoteParticipant, _kind, topic) => {
-    if (topic !== TEXT_CHAT_TOPIC) return;
-    // Accept from any participant in the room
-    if (!remoteParticipant) return;
-
-    const msg = parseTextCommand(JSON.parse(new TextDecoder().decode(payload)) as unknown);
-    if (msg) dispatchCommand(agent, msg);
-  });
 
   console.log("[worker] voice pipeline started");
 }
@@ -251,7 +231,21 @@ async function main(): Promise<void> {
     }
   });
 
-  // 4. Signal ready to main process
+  // 4. Graceful shutdown — clean up voice + browser tab
+  async function shutdown(): Promise<void> {
+    console.log("[worker] shutting down...");
+    taskManager.stopScheduler();
+    await stopVoice();
+    try {
+      const { disposeBrowserTool } = await import("@/agent/browser-tool");
+      disposeBrowserTool();
+    } catch { /* browser tool may not have been loaded */ }
+  }
+
+  process.on("SIGTERM", () => { void shutdown().then(() => process.exit(0)); });
+  process.on("SIGINT", () => { void shutdown().then(() => process.exit(0)); });
+
+  // 5. Signal ready to main process
   if (process.send) {
     process.send({ type: "ready" });
   }

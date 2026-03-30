@@ -15,10 +15,6 @@ vi.mock("@/agent/setup", () => ({
   teardownResources: vi.fn(),
 }));
 
-vi.mock("@/agent/browser-tool", () => ({
-  disposeBrowserTool: vi.fn(),
-}));
-
 vi.mock("@/main/voice/livekit-ipc", () => ({
   ensureSidecar: vi.fn().mockResolvedValue(undefined),
   killSidecar: vi.fn().mockResolvedValue(undefined),
@@ -30,7 +26,6 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     seedResources: vi.fn(),
     ensureSidecar: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
-    disposeBrowserTool: vi.fn(),
     killSidecar: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };

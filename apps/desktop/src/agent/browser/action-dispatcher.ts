@@ -1,11 +1,11 @@
 /**
  * Action dispatcher — routes a BrowserAction to the appropriate handler.
  *
- * Pure-ish module: all mutable state lives in the BrowserSession passed via
- * ActionContext, making this straightforward to test with a stub session.
+ * All browser interaction goes through CDP WebSocket to the user's Chrome.
  */
 
-import type { WebContents } from "electron";
+import type { CDPClient } from "./cdp-client";
+import { evaluate } from "./cdp-client";
 import type { BrowserAction } from "./schema";
 import { text } from "./schema";
 import type { ToolResult } from "./schema";
@@ -13,63 +13,35 @@ import type { BrowserSession } from "./browser-session";
 import { cdpClick, cdpType, cdpPress, cdpHover } from "./cdp-adapter";
 import { buildSnapshot } from "./snapshot-builder";
 
-// Re-export for convenience — callers may need the type
+// Re-export for convenience
 export type { ToolResult };
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Default timeout for navigation operations (ms) */
 const NAV_TIMEOUT_MS = 30_000;
-
-/** Default timeout for evaluate action (ms) */
 const EVALUATE_TIMEOUT_MS = 30_000;
-
-/** Allowed URL schemes for the open action */
 const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 
 // ---------------------------------------------------------------------------
-// Navigation helper
+// Navigation helper — wait for CDP Page.loadEventFired
 // ---------------------------------------------------------------------------
 
-/**
- * Wait for `did-finish-load` with a timeout fallback to prevent hanging
- * on network errors or redirect loops.
- *
- * Callers must register this listener BEFORE triggering navigation
- * (goBack, goForward, reload) so no events are missed.
- */
-function awaitNavigation(contents: WebContents, timeoutMs = NAV_TIMEOUT_MS): Promise<void> {
+function awaitNavigation(cdp: CDPClient, timeoutMs = NAV_TIMEOUT_MS): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    function cleanup() {
-      clearTimeout(timer);
-      contents.removeListener("did-finish-load", onLoad);
-      contents.removeListener("did-fail-load", onFail);
-    }
-
     const timer = setTimeout(() => {
-      cleanup();
+      cdp.off("Page.loadEventFired", onLoad);
       reject(new Error(`Navigation timed out after ${timeoutMs}ms`));
     }, timeoutMs);
 
     function onLoad() {
-      cleanup();
+      clearTimeout(timer);
+      cdp.off("Page.loadEventFired", onLoad);
       resolve();
     }
 
-    function onFail(_event: Electron.Event, errorCode: number, errorDescription: string) {
-      // Aborted navigations (e.g. redirects) are not real failures — keep
-      // listening for the final load or a real error.
-      if (errorCode === -3) return;
-      cleanup();
-      reject(new Error(`Navigation failed: ${errorDescription} (code ${errorCode})`));
-    }
-
-    // Use `on` (not `once`) so redirect aborts (code -3) don't consume the
-    // listener. cleanup() removes both listeners when we're done.
-    contents.on("did-finish-load", onLoad);
-    contents.on("did-fail-load", onFail);
+    cdp.on("Page.loadEventFired", onLoad);
   });
 }
 
@@ -91,13 +63,13 @@ export async function dispatchAction(
 ): Promise<ToolResult> {
   const { session } = ctx;
 
-  // Handle close without creating a window — avoids create-then-destroy.
+  // Handle close without connecting
   if (action.action === "close") {
     session.dispose();
-    return text("Browser closed");
+    return text("Browser tab closed");
   }
 
-  // Validate URL before creating a window so invalid URLs don't spin one up.
+  // Validate URL before connecting
   if (action.action === "open") {
     if (!action.url) return text("Error: url is required for open action");
     try {
@@ -110,30 +82,25 @@ export async function dispatchAction(
     }
   }
 
-  // Actions other than "open" require a page to already be loaded.
-  // Avoid lazily creating a blank BrowserWindow for snapshot/get_url/etc.
+  // Actions other than "open" require a page to already be loaded
   if (action.action !== "open" && !session.hasLoadedPage()) {
     return text('Error: No page loaded. Use the "open" action first to navigate to a URL.');
   }
 
-  const contents = session.getContents();
+  const cdp = await session.ensureConnected();
 
   switch (action.action) {
     case "open": {
-      const win = session.getWindow();
-      // For the open action, loadURL already resolves once the page's main
-      // frame finishes loading — a separate awaitNavigation listener would be
-      // redundant and leak if loadURL rejects. (back/forward/reload still use
-      // awaitNavigation since their APIs are fire-and-forget.)
-      await contents.loadURL(action.url ?? "");
-      if (!win.isVisible()) win.show();
+      const navPromise = awaitNavigation(cdp);
+      await cdp.send("Page.navigate", { url: action.url });
+      await navPromise;
       return text(`Navigated to ${action.url}`);
     }
 
     case "click": {
       if (!action.selector) return text("Error: selector is required for click");
       const sel = session.resolveSelector(action.selector);
-      await cdpClick(contents, sel);
+      await cdpClick(cdp, sel);
       return text(`Clicked ${action.selector}`);
     }
 
@@ -141,28 +108,25 @@ export async function dispatchAction(
       if (!action.selector) return text("Error: selector is required for fill");
       if (action.text === undefined) return text("Error: text is required for fill");
       const sel = session.resolveSelector(action.selector);
-      // Focus, clear, and type in a way that's resilient to React/Vue re-renders.
-      // The JS call focuses and clears atomically before we insertText.
-      const cleared = await contents.executeJavaScript(`
+      const cleared = await evaluate(cdp, `
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return false;
           el.focus();
-          // Use native setter to clear — works with React/Vue controlled inputs
           const proto = el.tagName === "INPUT" ? HTMLInputElement.prototype
             : el.tagName === "TEXTAREA" ? HTMLTextAreaElement.prototype
             : null;
           const setter = proto && Object.getOwnPropertyDescriptor(proto, "value")?.set;
           if (setter) { setter.call(el, ""); }
           else if ("value" in el) { el.value = ""; }
-          else { el.textContent = ""; } // contenteditable
+          else { el.textContent = ""; }
           el.dispatchEvent(new Event("input", { bubbles: true }));
           el.dispatchEvent(new Event("change", { bubbles: true }));
           return true;
         })()
       `);
       if (!cleared) return text(`Error: Element not found: ${sel}`);
-      await cdpType(contents, action.text);
+      await cdpType(cdp, action.text);
       return text(`Filled ${action.selector} with "${action.text}"`);
     }
 
@@ -170,22 +134,22 @@ export async function dispatchAction(
       if (action.text === undefined) return text("Error: text is required for type");
       if (action.selector) {
         const sel = session.resolveSelector(action.selector);
-        await cdpClick(contents, sel);
+        await cdpClick(cdp, sel);
       }
-      await cdpType(contents, action.text);
+      await cdpType(cdp, action.text);
       return text(`Typed "${action.text}"`);
     }
 
     case "press": {
       if (!action.text) return text("Error: text (key name) is required for press");
-      await cdpPress(contents, action.text);
+      await cdpPress(cdp, action.text);
       return text(`Pressed ${action.text}`);
     }
 
     case "hover": {
       if (!action.selector) return text("Error: selector is required for hover");
       const sel = session.resolveSelector(action.selector);
-      await cdpHover(contents, sel);
+      await cdpHover(cdp, sel);
       return text(`Hovered ${action.selector}`);
     }
 
@@ -193,14 +157,12 @@ export async function dispatchAction(
       if (!action.selector) return text("Error: selector is required for select");
       if (!action.text) return text("Error: text (option value) is required for select");
       const sel = session.resolveSelector(action.selector);
-      const selectResult = await contents.executeJavaScript(`
+      const selectResult = await evaluate(cdp, `
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return "not_found";
-          // Verify the option value exists before setting
           const optionExists = Array.from(el.options).some(o => o.value === ${JSON.stringify(action.text)});
           if (!optionExists) return "invalid_option";
-          // Use the native value setter to bypass React/Vue overrides
           const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, "value")?.set;
           if (setter) setter.call(el, ${JSON.stringify(action.text)});
           else el.value = ${JSON.stringify(action.text)};
@@ -219,15 +181,13 @@ export async function dispatchAction(
     case "check": {
       if (!action.selector) return text("Error: selector is required for check");
       const sel = session.resolveSelector(action.selector);
-      const desired = action.checked !== false; // default true
-      const checkResult = await contents.executeJavaScript(`
+      const desired = action.checked !== false;
+      const checkResult = await evaluate(cdp, `
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return "not_found";
           const want = ${desired};
           if (el.checked === want) return "already";
-          // Use native prototype setter to bypass React/Vue property overrides
-          // on controlled inputs (same pattern as fill).
           const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "checked")?.set;
           if (setter) setter.call(el, want);
           else el.checked = want;
@@ -242,48 +202,40 @@ export async function dispatchAction(
     }
 
     case "snapshot": {
-      const snapshot = await buildSnapshot(contents, session);
+      const snapshot = await buildSnapshot(cdp, session);
       return text(snapshot);
     }
 
     case "screenshot": {
-      const win = session.getWindow();
       if (action.fullPage) {
-        // Use CDP Page.captureScreenshot with captureBeyondViewport to capture
-        // the full scrollable area without resizing the visible window.
         const MAX_WIDTH = 1280;
         const MAX_HEIGHT = 16384;
-        const size = (await contents.executeJavaScript(`
+        const size = (await evaluate(cdp, `
           ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })
         `)) as { width: number; height: number };
         const captureWidth = Math.min(size.width, MAX_WIDTH);
         const captureHeight = Math.min(size.height, MAX_HEIGHT);
-        const devicePixelRatio = (await contents.executeJavaScript(
-          "window.devicePixelRatio || 1",
-        )) as number;
-        const cdpResult = (await contents.debugger.sendCommand(
-          "Page.captureScreenshot",
-          {
-            format: "png",
-            captureBeyondViewport: true,
-            clip: {
-              x: 0,
-              y: 0,
-              width: captureWidth,
-              height: captureHeight,
-              scale: 1 / devicePixelRatio,
-            },
+        const devicePixelRatio = (await evaluate(cdp, "window.devicePixelRatio || 1")) as number;
+        const cdpResult = await cdp.send("Page.captureScreenshot", {
+          format: "png",
+          captureBeyondViewport: true,
+          clip: {
+            x: 0,
+            y: 0,
+            width: captureWidth,
+            height: captureHeight,
+            scale: 1 / devicePixelRatio,
           },
-        )) as { data: string };
+        });
         return {
-          content: [{ type: "image", data: cdpResult.data, mimeType: "image/png" }],
+          content: [{ type: "image", data: cdpResult["data"] as string, mimeType: "image/png" }],
           details: {},
         };
       }
-      const image = await win.webContents.capturePage();
-      const base64 = image.toPNG().toString("base64");
+      // Viewport screenshot — same CDP command without clip
+      const cdpResult = await cdp.send("Page.captureScreenshot", { format: "png" });
       return {
-        content: [{ type: "image", data: base64, mimeType: "image/png" }],
+        content: [{ type: "image", data: cdpResult["data"] as string, mimeType: "image/png" }],
         details: {},
       };
     }
@@ -292,34 +244,30 @@ export async function dispatchAction(
       let result: string;
       if (action.selector) {
         const sel = session.resolveSelector(action.selector);
-        result = (await contents.executeJavaScript(`
+        result = (await evaluate(cdp, `
           document.querySelector(${JSON.stringify(sel)})?.textContent ?? "(element not found)"
         `)) as string;
       } else {
-        result = (await contents.executeJavaScript(
-          "document.body.innerText",
-        )) as string;
+        result = (await evaluate(cdp, "document.body.innerText")) as string;
       }
       return text(result);
     }
 
     case "get_url": {
-      return text(contents.getURL());
+      const url = (await evaluate(cdp, "location.href")) as string;
+      return text(url);
     }
 
     case "get_title": {
-      return text(contents.getTitle());
+      const title = (await evaluate(cdp, "document.title")) as string;
+      return text(title);
     }
 
     case "evaluate": {
       if (!action.script) return text("Error: script is required for evaluate");
       const timeout = action.timeout ?? EVALUATE_TIMEOUT_MS;
-      // Note: on timeout the in-page script keeps running — there's no way to
-      // cancel executeJavaScript. The abandoned promise may resolve/reject after
-      // the browser is disposed; the .catch() below logs script errors that
-      // arrived after the timeout so they aren't silently swallowed.
       const TIMEOUT_SENTINEL = Symbol("timeout");
-      const scriptPromise = contents.executeJavaScript(action.script);
+      const scriptPromise = evaluate(cdp, action.script);
       const result = await Promise.race([
         scriptPromise,
         new Promise<typeof TIMEOUT_SENTINEL>((resolve) =>
@@ -327,7 +275,6 @@ export async function dispatchAction(
         ),
       ]);
       if (result === TIMEOUT_SENTINEL) {
-        // Log late errors from the abandoned promise so they aren't silent
         scriptPromise.catch((err: unknown) => {
           console.warn("[browser-tool] evaluate script threw after timeout:", err);
         });
@@ -343,10 +290,7 @@ export async function dispatchAction(
       const ms = action.timeout ?? 5000;
       if (action.selector) {
         const sel = session.resolveSelector(action.selector);
-        // The in-page promise has its own setTimeout, but if the renderer
-        // hangs or crashes, executeJavaScript itself will never settle.
-        // Wrap with a Node-side race so we don't hang indefinitely.
-        const waitPromise = contents.executeJavaScript(`
+        const waitPromise = evaluate(cdp, `
           new Promise((resolve) => {
             const el = document.querySelector(${JSON.stringify(sel)});
             if (el) return resolve(true);
@@ -364,7 +308,6 @@ export async function dispatchAction(
           waitPromise,
           new Promise<false>((resolve) => setTimeout(() => resolve(false), ms + 1000)),
         ]);
-        // Suppress noise if the in-page promise settles after the Node-side timeout
         waitPromise.catch(() => {});
         return text(found ? `Found ${action.selector}` : `Timeout waiting for ${action.selector}`);
       }
@@ -376,33 +319,34 @@ export async function dispatchAction(
       const dir = action.direction ?? "down";
       const amt = action.amount ?? 500;
       const delta = dir === "down" ? amt : -amt;
-      await contents.executeJavaScript(`window.scrollBy(0, ${delta})`);
+      await evaluate(cdp, `window.scrollBy(0, ${delta})`);
       return text(`Scrolled ${dir} ${amt}px`);
     }
 
     case "back": {
-      if (!contents.canGoBack()) {
-        return text("Already at the beginning of history");
-      }
-      const backNav = awaitNavigation(contents);
-      contents.goBack();
-      await backNav;
+      const history = await cdp.send("Page.getNavigationHistory");
+      const currentIndex = history["currentIndex"] as number;
+      if (currentIndex <= 0) return text("Already at the beginning of history");
+      const navPromise = awaitNavigation(cdp);
+      await evaluate(cdp, "history.back()");
+      await navPromise;
       return text("Navigated back");
     }
 
     case "forward": {
-      if (!contents.canGoForward()) {
-        return text("Already at the end of history");
-      }
-      const fwdNav = awaitNavigation(contents);
-      contents.goForward();
-      await fwdNav;
+      const history = await cdp.send("Page.getNavigationHistory");
+      const currentIndex = history["currentIndex"] as number;
+      const entries = history["entries"] as unknown[];
+      if (currentIndex >= entries.length - 1) return text("Already at the end of history");
+      const navPromise = awaitNavigation(cdp);
+      await evaluate(cdp, "history.forward()");
+      await navPromise;
       return text("Navigated forward");
     }
 
     case "reload": {
-      const navPromise = awaitNavigation(contents);
-      contents.reload();
+      const navPromise = awaitNavigation(cdp);
+      await cdp.send("Page.reload");
       await navPromise;
       return text("Reloaded page");
     }

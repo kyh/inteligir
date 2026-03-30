@@ -32,9 +32,11 @@ type AgentStore = {
   appState: AppState;
 
   init: () => () => void;
-  /** Add a user message to the UI only (no command sent). Used by voice store. */
+  sendMessage: (text: string) => void;
+  steer: (text: string) => void;
+  interrupt: () => void;
+  clearChat: () => void;
   addUserMessage: (text: string) => void;
-  /** Add a steer message to the UI only. Used by voice store. */
   addSteerMessage: (text: string) => void;
   clearMessages: () => void;
 };
@@ -155,7 +157,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
       if (!parsed.success) return;
       set({ appState: parsed.data });
 
-      // Coordinated cleanup on logout
       if (parsed.data.phase === "logged_out") {
         set({ messages: [] });
         useVoiceStore.getState().reset();
@@ -167,25 +168,42 @@ export const useAgentStore = create<AgentStore>((set) => ({
       set({ appState });
     });
 
-    // Register callbacks with voice store to break circular dependency
-    useVoiceStore.getState().setCallbacks({
-      onUserMessage: (text: string) => {
-        set((s) => ({
-          messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
-        }));
-      },
-      onSteerMessage: (text: string) => {
-        set((s) => ({
-          messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
-        }));
-      },
-    });
-
     return () => {
       unsubAgent();
       unsubState();
     };
   },
+
+  // --- Agent commands (IPC) -------------------------------------------------
+
+  sendMessage: (text: string) => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    void bridge.sendAgentCommand({ type: "user_message", text });
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+    }));
+  },
+
+  steer: (text: string) => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    void bridge.sendAgentCommand({ type: "steer", text });
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
+    }));
+  },
+
+  interrupt: () => {
+    void getBridge()?.sendAgentCommand({ type: "interrupt" });
+  },
+
+  clearChat: () => {
+    void getBridge()?.sendAgentCommand({ type: "clear" });
+    set({ messages: [] });
+  },
+
+  // --- UI-only message additions (used by voice transcripts) ----------------
 
   addUserMessage: (text: string) => {
     set((s) => ({

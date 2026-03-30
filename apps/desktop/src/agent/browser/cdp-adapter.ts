@@ -1,10 +1,10 @@
 /**
  * CDP helpers for input simulation.
  *
- * Pure functions taking WebContents as first param — easy to test with a stub.
+ * Pure functions taking CDPClient as first param — easy to test with a stub.
  */
 
-import type { WebContents } from "electron";
+import { type CDPClient, evaluate } from "./cdp-client";
 
 // ---------------------------------------------------------------------------
 // Key map for cdpPress
@@ -27,15 +27,11 @@ const keyMap: Record<string, { key: string; code: string; keyCode?: number }> = 
 // Element center — shared by click and hover
 // ---------------------------------------------------------------------------
 
-/**
- * Get the bounding box of an element via executeJavaScript.
- * Returns center coordinates for click/hover targets.
- */
 export async function getElementCenter(
-  contents: WebContents,
+  cdp: CDPClient,
   selector: string,
 ): Promise<{ x: number; y: number }> {
-  const rect = await contents.executeJavaScript(`
+  const rect = await evaluate(cdp, `
     (function() {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return null;
@@ -51,11 +47,10 @@ export async function getElementCenter(
 // CDP input commands
 // ---------------------------------------------------------------------------
 
-export async function cdpClick(contents: WebContents, selector: string): Promise<void> {
-  const { x, y } = await getElementCenter(contents, selector);
-  const debugger_ = contents.debugger;
+export async function cdpClick(cdp: CDPClient, selector: string): Promise<void> {
+  const { x, y } = await getElementCenter(cdp, selector);
   for (const type of ["mousePressed", "mouseReleased"] as const) {
-    await debugger_.sendCommand("Input.dispatchMouseEvent", {
+    await cdp.send("Input.dispatchMouseEvent", {
       type,
       x,
       y,
@@ -65,23 +60,20 @@ export async function cdpClick(contents: WebContents, selector: string): Promise
   }
 }
 
-export async function cdpType(contents: WebContents, value: string): Promise<void> {
-  // Input.insertText sends the entire string in a single CDP round-trip,
-  // which is dramatically faster than dispatching keyDown/keyUp per character.
-  await contents.debugger.sendCommand("Input.insertText", { text: value });
+export async function cdpType(cdp: CDPClient, value: string): Promise<void> {
+  await cdp.send("Input.insertText", { text: value });
 }
 
-export async function cdpPress(contents: WebContents, key: string): Promise<void> {
+export async function cdpPress(cdp: CDPClient, key: string): Promise<void> {
   const mapped = keyMap[key] ?? { key, code: `Key${key.toUpperCase()}` };
-  const debugger_ = contents.debugger;
 
-  await debugger_.sendCommand("Input.dispatchKeyEvent", {
+  await cdp.send("Input.dispatchKeyEvent", {
     type: "keyDown",
     key: mapped.key,
     code: mapped.code,
     windowsVirtualKeyCode: mapped.keyCode,
   });
-  await debugger_.sendCommand("Input.dispatchKeyEvent", {
+  await cdp.send("Input.dispatchKeyEvent", {
     type: "keyUp",
     key: mapped.key,
     code: mapped.code,
@@ -89,9 +81,9 @@ export async function cdpPress(contents: WebContents, key: string): Promise<void
   });
 }
 
-export async function cdpHover(contents: WebContents, selector: string): Promise<void> {
-  const { x, y } = await getElementCenter(contents, selector);
-  await contents.debugger.sendCommand("Input.dispatchMouseEvent", {
+export async function cdpHover(cdp: CDPClient, selector: string): Promise<void> {
+  const { x, y } = await getElementCenter(cdp, selector);
+  await cdp.send("Input.dispatchMouseEvent", {
     type: "mouseMoved",
     x,
     y,

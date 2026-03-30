@@ -197,6 +197,13 @@ async function sendVoiceStart(url: string, token: string): Promise<void> {
   proc.send({ type: "voice-start", url, token });
 }
 
+async function sendVoiceStop(): Promise<void> {
+  // Only send if sidecar is running — don't spawn one just to stop voice
+  if (sidecar && sidecar.exitCode === null) {
+    sidecar.send({ type: "voice-stop" });
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Shutdown
 // ---------------------------------------------------------------------------
@@ -250,9 +257,15 @@ export function registerAgentIpcHandlers(): () => void {
     return userCredentials;
   });
 
+  // Voice stop — renderer tells sidecar to tear down voice pipeline
+  ipcMain.handle(IPC_CHANNELS.VOICE_STOP, async () => {
+    await sendVoiceStop();
+  });
+
   return () => {
     ipcMain.removeHandler(IPC_CHANNELS.AGENT_COMMAND);
     ipcMain.removeHandler(IPC_CHANNELS.VOICE_TOKEN);
+    ipcMain.removeHandler(IPC_CHANNELS.VOICE_STOP);
     void killSidecar();
   };
 }

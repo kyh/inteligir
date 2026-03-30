@@ -43,6 +43,7 @@ export const IPC_CHANNELS = {
 
   // Voice (LiveKit)
   VOICE_TOKEN: "voice:token",
+  VOICE_STOP: "voice:stop",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -100,6 +101,7 @@ export type DesktopBridge = {
 
   // Voice (LiveKit)
   getVoiceToken: () => Promise<{ url: string; token: string }>;
+  stopVoice: () => Promise<void>;
 };
 
 // ---------------------------------------------------------------------------

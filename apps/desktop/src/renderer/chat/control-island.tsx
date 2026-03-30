@@ -120,10 +120,10 @@ function ChatContent() {
   const busy = useAgentStore(
     (s) => s.appState.phase === "ready" && s.appState.agent === "busy",
   );
-  const sendMessage = useVoiceStore((s) => s.sendMessage);
-  const steer = useVoiceStore((s) => s.steer);
-  const interrupt = useVoiceStore((s) => s.interrupt);
-  const clearChat = useVoiceStore((s) => s.clearChat);
+  const sendMessage = useAgentStore((s) => s.sendMessage);
+  const steer = useAgentStore((s) => s.steer);
+  const interrupt = useAgentStore((s) => s.interrupt);
+  const clearChat = useAgentStore((s) => s.clearChat);
 
   const send = useCallback(
     (e: FormEvent) => {

@@ -113,16 +113,12 @@ export function seedResources(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Extension factories — browser tool is only available in Electron main process
+// Extension factories
 // ---------------------------------------------------------------------------
 
 async function getExtensionFactories(): Promise<ExtensionFactory[]> {
-  const factories: ExtensionFactory[] = [registerTasksExtension];
-  if (process.versions["electron"]) {
-    const { registerBrowserExtension } = await import("@/agent/browser-tool");
-    factories.push(registerBrowserExtension);
-  }
-  return factories;
+  const { registerBrowserExtension } = await import("@/agent/browser-tool");
+  return [registerTasksExtension, registerBrowserExtension];
 }
 
 // ---------------------------------------------------------------------------

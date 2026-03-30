@@ -7,7 +7,6 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     seedResources: vi.fn(),
     ensureSidecar: vi.fn<() => Promise<unknown>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
-    disposeBrowserTool: vi.fn(),
     killSidecar: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -47,25 +46,6 @@ describe("runEffect", () => {
       }),
     });
     const result = await runEffect("SETUP", deps);
-    expect(result).toEqual({ type: "SETUP_FAIL", message: "seed broke" });
-  });
-
-  // ---- SETUP_READY ----------------------------------------------------------
-
-  it("SETUP_READY calls deps.seedResources and returns SETUP_OK", async () => {
-    const deps = makeDeps();
-    const result = await runEffect("SETUP_READY", deps);
-    expect(deps.seedResources).toHaveBeenCalledOnce();
-    expect(result).toEqual({ type: "SETUP_OK" });
-  });
-
-  it("SETUP_READY returns SETUP_FAIL when seedResources throws", async () => {
-    const deps = makeDeps({
-      seedResources: vi.fn().mockImplementation(() => {
-        throw new Error("seed broke");
-      }),
-    });
-    const result = await runEffect("SETUP_READY", deps);
     expect(result).toEqual({ type: "SETUP_FAIL", message: "seed broke" });
   });
 

@@ -1,11 +1,11 @@
 /**
  * Accessibility snapshot builder.
  *
- * Runs an in-page IIFE via executeJavaScript to walk the DOM and produce a
+ * Runs an in-page IIFE via Runtime.evaluate to walk the DOM and produce a
  * text-based accessibility tree with @eN refs for interactive elements.
  */
 
-import type { WebContents } from "electron";
+import { type CDPClient, evaluate } from "./cdp-client";
 import type { BrowserSession } from "./browser-session";
 
 // ---------------------------------------------------------------------------
@@ -27,7 +27,7 @@ export interface SnapshotOptions {
 }
 
 export async function buildSnapshot(
-  contents: WebContents,
+  cdp: CDPClient,
   session: BrowserSession,
   opts?: SnapshotOptions,
 ): Promise<string> {
@@ -35,7 +35,7 @@ export async function buildSnapshot(
   const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
   const maxNodes = opts?.maxNodes ?? DEFAULT_MAX_NODES;
 
-  const result = await contents.executeJavaScript(`
+  const result = await evaluate(cdp, `
     (function() {
       const interactiveRoles = new Set([
         "link", "button", "textbox", "checkbox", "radio", "combobox",
@@ -76,21 +76,17 @@ export async function buildSnapshot(
           refCounter++;
           refLabel = " @e" + refCounter;
 
-          // Build a unique selector for this element.
-          // Each strategy is only used if it produces a unique match.
           let selector;
           if (el.id) {
             selector = "#" + CSS.escape(el.id);
           } else if (el.getAttribute("aria-label")) {
             const r = el.getAttribute("role") || el.tagName.toLowerCase();
             const candidate = r + '[aria-label="' + CSS.escape(el.getAttribute("aria-label")) + '"]';
-            // Only use aria-label selector if it uniquely identifies this element
             if (document.querySelectorAll(candidate).length === 1) {
               selector = candidate;
             }
           }
           if (!selector) {
-            // nth-of-type chain
             const parts = [];
             let cur = el;
             while (cur && cur !== document.body) {
@@ -132,7 +128,6 @@ export async function buildSnapshot(
     refs: { ref: string; selector: string }[];
   };
 
-  // Update the ref map
   session.updateRefs(parsed.refs);
 
   const tree = parsed.tree;
