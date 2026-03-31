@@ -187,7 +187,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       if (!parsed.success) return;
       set({ appState: parsed.data });
 
-      if (parsed.data.phase === "logged_out" || parsed.data.phase === "setting_up") {
+      if (parsed.data.phase === "logged_out") {
         set({ messages: [] });
         useVoiceStore.getState().reset();
       }

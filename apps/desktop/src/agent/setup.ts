@@ -50,6 +50,20 @@ const WORKSPACE_DIR = inteligirPath("workspace");
 // Override pi-coding-agent's default getAgentDir() (~/.pi/agent)
 process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
 
+/**
+ * Resolve the SessionManager for the agent. If the main process already
+ * identified a session file (via INTELIGIR_SESSION_FILE env), open that
+ * exact file so the sidecar continues the same session the UI loaded.
+ * Otherwise fall back to continueRecent.
+ */
+function resolveSessionManager(): SessionManager {
+  const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
+  if (sessionFile) {
+    return SessionManager.open(sessionFile, SESSION_DIR);
+  }
+  return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
+}
+
 let _defaultModel: Model<Api> | null = null;
 
 function getDefaultModel(): Model<Api> {
@@ -279,7 +293,7 @@ export class Agent {
       resourceLoader,
       model: getDefaultModel(),
       thinkingLevel: "off",
-      sessionManager: SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR),
+      sessionManager: resolveSessionManager(),
       settingsManager: SettingsManager.create(WORKSPACE_DIR, AGENT_DIR),
     });
 

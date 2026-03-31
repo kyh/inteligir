@@ -10,6 +10,7 @@ import type {
   Message,
   TextContent,
   ToolCall,
+  ToolResultMessage,
 } from "@mariozechner/pi-ai";
 
 import { inteligirPath } from "@/main/lib/json-store";
@@ -17,6 +18,17 @@ import type { ChatHistoryEntry } from "@/shared/ipc";
 
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
+
+/**
+ * Resolved session file path from the most recent call to readSessionHistory().
+ * Used to ensure the sidecar opens the same session the UI loaded history from.
+ */
+let lastSessionFile: string | undefined;
+
+/** Return the session file path resolved by the last readSessionHistory() call. */
+export function getResolvedSessionFile(): string | undefined {
+  return lastSessionFile;
+}
 
 // ---------------------------------------------------------------------------
 // Type guards for pi-ai content blocks
@@ -44,6 +56,16 @@ function isToolCall(block: unknown): block is ToolCall {
   );
 }
 
+function isToolResult(msg: unknown): msg is ToolResultMessage {
+  return (
+    typeof msg === "object" &&
+    msg !== null &&
+    "role" in msg &&
+    (msg as Record<string, unknown>).role === "toolResult" &&
+    "toolCallId" in msg
+  );
+}
+
 function extractTextFromContent(content: Message["content"]): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -60,8 +82,15 @@ function extractTextFromContent(content: Message["content"]): string {
  */
 export function readSessionHistory(): ChatHistoryEntry[] {
   try {
+    const MAX_HISTORY_ENTRIES = 200;
+
     const sm = SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
-    const entries = sm.getEntries();
+    lastSessionFile = sm.getSessionFile();
+    const allEntries = sm.getEntries();
+    // Cap to the most recent entries to keep startup fast for long sessions
+    const entries = allEntries.length > MAX_HISTORY_ENTRIES
+      ? allEntries.slice(-MAX_HISTORY_ENTRIES)
+      : allEntries;
     const history: ChatHistoryEntry[] = [];
 
     for (const entry of entries) {
@@ -84,7 +113,7 @@ export function readSessionHistory(): ChatHistoryEntry[] {
             }
           }
         }
-      } else if (msg.role === "toolResult") {
+      } else if (isToolResult(msg)) {
         const resultText = extractTextFromContent(msg.content);
         // Update the matching tool entry
         for (let i = history.length - 1; i >= 0; i--) {
