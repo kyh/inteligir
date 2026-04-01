@@ -237,9 +237,12 @@ export function ChatPage() {
   }, [dismissed]);
 
   // Drag-to-dismiss handlers
+  const didDragRef = useRef(false);
+
   const handleDragStart = useCallback(
     (e: React.PointerEvent) => {
       dragRef.current = { startY: e.clientY, isDragging: true };
+      didDragRef.current = false;
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
     [],
@@ -249,6 +252,9 @@ export function ChatPage() {
     (e: React.PointerEvent) => {
       if (!dragRef.current) return;
       const delta = e.clientY - dragRef.current.startY;
+      if (Math.abs(delta) > 10) {
+        didDragRef.current = true;
+      }
       if (delta > 40) {
         setDismissed(true);
       }
@@ -257,10 +263,16 @@ export function ChatPage() {
     [],
   );
 
-  // Tap to restore when dismissed
-  const handleRestore = useCallback(() => {
-    setDismissed(false);
-  }, []);
+  // Tap to restore when dismissed (suppressed if a drag just occurred)
+  const handleBarClick = useCallback(() => {
+    if (didDragRef.current) {
+      didDragRef.current = false;
+      return;
+    }
+    if (dismissed) {
+      setDismissed(false);
+    }
+  }, [dismissed]);
 
   return (
     <>
@@ -302,7 +314,7 @@ export function ChatPage() {
             className="flex cursor-grab items-center justify-center bg-foreground/5 py-1.5 active:cursor-grabbing"
             onPointerDown={handleDragStart}
             onPointerUp={handleDragEnd}
-            onClick={dismissed ? handleRestore : undefined}
+            onClick={handleBarClick}
           >
             <div className="h-1 w-8 rounded-full bg-foreground/20" />
           </div>
