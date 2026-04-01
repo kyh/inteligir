@@ -18,14 +18,6 @@ function forwardEvent(
 contextBridge.exposeInMainWorld("desktopBridge", {
   // Desktop
   openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),
-  onMenuAction: (listener: (action: string) => void) => {
-    const wrapped = (_event: Electron.IpcRendererEvent, action: unknown) => {
-      if (typeof action !== "string") return;
-      listener(action);
-    };
-    ipcRenderer.on(IPC_CHANNELS.MENU_ACTION, wrapped);
-    return () => { ipcRenderer.removeListener(IPC_CHANNELS.MENU_ACTION, wrapped); };
-  },
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_CHECK),
   downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DOWNLOAD),
   installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_INSTALL),

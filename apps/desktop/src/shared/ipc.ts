@@ -13,14 +13,9 @@ import type { TextChatMessage } from "./voice";
 // IPC channel names shared between Electron main <-> preload <-> renderer
 // ---------------------------------------------------------------------------
 
-export const MENU_ACTIONS = {
-  OPEN_SETTINGS: "open-settings",
-} as const;
-
 export const IPC_CHANNELS = {
   // Desktop
   OPEN_EXTERNAL: "desktop:open-external",
-  MENU_ACTION: "desktop:menu-action",
   UPDATE_STATE: "desktop:update-state",
   UPDATE_CHECK: "desktop:update-check",
   UPDATE_DOWNLOAD: "desktop:update-download",
@@ -78,7 +73,6 @@ export type UpdateResponse = {
 export type DesktopBridge = {
   // Desktop
   openExternal: (url: string) => Promise<boolean>;
-  onMenuAction: (listener: (action: string) => void) => () => void;
   checkForUpdates: () => Promise<UpdateState>;
   downloadUpdate: () => Promise<UpdateResponse>;
   installUpdate: () => Promise<UpdateResponse>;

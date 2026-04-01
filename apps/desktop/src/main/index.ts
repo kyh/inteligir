@@ -21,7 +21,7 @@ import { taskManager } from "@/main/tasks/task-singleton";
 import { registerAgentIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
-import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
+import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
@@ -65,25 +65,7 @@ function configureAppIdentity(): void {
   });
 }
 
-function dispatchMenuAction(action: string): void {
-  const win =
-    BrowserWindow.getFocusedWindow() ?? mainWindow ?? BrowserWindow.getAllWindows()[0];
-  if (!win) return;
 
-  const send = () => {
-    if (win.isDestroyed()) return;
-    if (!win.isVisible()) win.show();
-    win.focus();
-    win.webContents.send(IPC_CHANNELS.MENU_ACTION, action);
-  };
-
-  if (win.webContents.isLoadingMainFrame()) {
-    win.webContents.once("did-finish-load", send);
-    return;
-  }
-
-  send();
-}
 
 function configureApplicationMenu(): void {
   const template: MenuItemConstructorOptions[] = [
@@ -94,12 +76,6 @@ function configureApplicationMenu(): void {
         {
           label: "Check for Updates...",
           click: () => void checkForUpdates(),
-        },
-        { type: "separator" },
-        {
-          label: "Settings...",
-          accelerator: "CmdOrCtrl+,",
-          click: () => dispatchMenuAction(MENU_ACTIONS.OPEN_SETTINGS),
         },
         { type: "separator" },
         { role: "services" },
