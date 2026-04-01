@@ -121,6 +121,20 @@ function getUpdateMenuItem(): MenuItemConstructorOptions {
   }
 }
 
+function getQuitMenuItem(): MenuItemConstructorOptions {
+  if (updateState.status === "downloaded") {
+    return {
+      label: `Quit and Install Update (v${updateState.version})`,
+      accelerator: "CmdOrCtrl+Q",
+      click: () => {
+        isQuitting = true;
+        autoUpdater.quitAndInstall();
+      },
+    };
+  }
+  return { role: "quit" };
+}
+
 function rebuildMenu(): void {
   const template: MenuItemConstructorOptions[] = [
     {
@@ -141,7 +155,7 @@ function rebuildMenu(): void {
         { role: "hideOthers" },
         { role: "unhide" },
         { type: "separator" },
-        { role: "quit" },
+        getQuitMenuItem(),
       ],
     },
     {

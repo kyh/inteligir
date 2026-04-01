@@ -11,7 +11,7 @@
     "build-mac": "node --import tsx ./scripts/build-mac.ts",
     "clean": "rm -rf .cache .output",
     "dev": "electron-vite dev",
-    "publish-mac": "electron-vite build && electron-builder --mac --publish always",
+    "publish-mac": "electron-vite build && electron-builder --mac --publish onTag",
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit"
   },
