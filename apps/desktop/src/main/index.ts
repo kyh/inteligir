@@ -102,10 +102,7 @@ function getUpdateMenuItem(): MenuItemConstructorOptions {
     case "downloaded":
       return {
         label: `Restart to Update (v${updateState.version})`,
-        click: () => {
-          isQuitting = true;
-          autoUpdater.quitAndInstall();
-        },
+        click: () => tryQuitAndInstall(),
       };
     case "error":
       return {
@@ -121,15 +118,22 @@ function getUpdateMenuItem(): MenuItemConstructorOptions {
   }
 }
 
+function tryQuitAndInstall(): void {
+  isQuitting = true;
+  try {
+    autoUpdater.quitAndInstall();
+  } catch (error: unknown) {
+    isQuitting = false;
+    setUpdateState({ status: "error", message: toErrorMessage(error) });
+  }
+}
+
 function getQuitMenuItem(): MenuItemConstructorOptions {
   if (updateState.status === "downloaded") {
     return {
       label: `Quit and Install Update (v${updateState.version})`,
       accelerator: "CmdOrCtrl+Q",
-      click: () => {
-        isQuitting = true;
-        autoUpdater.quitAndInstall();
-      },
+      click: () => tryQuitAndInstall(),
     };
   }
   return { role: "quit" };
@@ -243,16 +247,7 @@ function registerIpcHandlers(): void {
       return { accepted: false, state: updateState };
     }
     // Defer so the IPC reply reaches the renderer before the process exits.
-    setImmediate(() => {
-      isQuitting = true;
-      try {
-        autoUpdater.quitAndInstall();
-      } catch (error: unknown) {
-        // Reset so the user can retry without restarting the app.
-        isQuitting = false;
-        setUpdateState({ status: "error", message: toErrorMessage(error) });
-      }
-    });
+    setImmediate(() => tryQuitAndInstall());
     return { accepted: true, state: updateState };
   });
 }
