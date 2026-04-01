@@ -2,11 +2,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import {
   CheckSquareIcon,
-  GripHorizontalIcon,
   ListTodoIcon,
   MailIcon,
   MicIcon,
-  MicOffIcon,
   PenLineIcon,
   PhoneIcon,
   PlusIcon,
@@ -277,23 +275,21 @@ export function ChatPage() {
   return (
     <>
       <div className="flex h-full w-72 flex-col">
-        {/* Conversation area — hidden when dismissed */}
-        {!dismissed && (
-          <Conversation className="flex-1 px-3 pt-10">
-            <ConversationContent className="space-y-1 pb-2">
-              {messages.length === 0 ? (
-                <div className="px-1 py-4 text-center text-xs text-muted-foreground/60">
-                  No messages yet
-                </div>
-              ) : (
-                messages.map((msg) => (
-                  <ChatMessageView key={msg.id} message={msg} />
-                ))
-              )}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-        )}
+        {/* Conversation area — hidden via CSS when dismissed to preserve scroll state */}
+        <Conversation className={cn("flex-1 px-3 pt-10", dismissed && "invisible h-0 min-h-0 flex-none overflow-hidden")}>
+          <ConversationContent className="space-y-1 pb-2">
+            {messages.length === 0 ? (
+              <div className="px-1 py-4 text-center text-xs text-muted-foreground/60">
+                No messages yet
+              </div>
+            ) : (
+              messages.map((msg) => (
+                <ChatMessageView key={msg.id} message={msg} />
+              ))
+            )}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
         {/* Spacer when dismissed to push action bar to bottom */}
         {dismissed && <div className="flex-1" />}
