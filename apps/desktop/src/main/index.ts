@@ -292,9 +292,11 @@ function configureAutoUpdater(): void {
   });
 
   autoUpdater.on("download-progress", (progress) => {
+    const percent = Math.floor(progress.percent);
+    if (percent === updateState.downloadPercent) return;
     setUpdateState({
       status: "downloading",
-      downloadPercent: Math.floor(progress.percent),
+      downloadPercent: percent,
     });
   });
 
