@@ -250,10 +250,8 @@ export function ChatPage() {
     (e: React.PointerEvent) => {
       if (!dragRef.current) return;
       const delta = e.clientY - dragRef.current.startY;
-      if (Math.abs(delta) > 10) {
-        didDragRef.current = true;
-      }
       if (delta > 40) {
+        didDragRef.current = true;
         setDismissed(true);
       }
       dragRef.current = null;
@@ -276,7 +274,8 @@ export function ChatPage() {
     <>
       <div className="flex h-full w-72 flex-col">
         {/* Conversation area — hidden via CSS when dismissed to preserve scroll state */}
-        <Conversation className={cn("flex-1 px-3 pt-10", dismissed && "invisible h-0 min-h-0 flex-none overflow-hidden")}>
+        {!dismissed && (
+          <Conversation className="flex-1 px-3 pt-10">
           <ConversationContent className="space-y-1 pb-2">
             {messages.length === 0 ? (
               <div className="px-1 py-4 text-center text-xs text-muted-foreground/60">
@@ -290,6 +289,7 @@ export function ChatPage() {
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
+        )}
 
         {/* Spacer when dismissed to push action bar to bottom */}
         {dismissed && <div className="flex-1" />}
