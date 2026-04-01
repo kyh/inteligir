@@ -414,13 +414,13 @@ export function ChatPage() {
             <div className="flex items-center gap-0.5">
               <TabButton
                 icon={MailIcon}
-                active={activeTab === "message"}
+                active={activeTab === "message" && !dismissed}
                 onClick={() => { setActiveTab("message"); setDismissed(false); }}
                 label="Message"
               />
               <TabButton
                 icon={PhoneIcon}
-                active={activeTab === "voice"}
+                active={activeTab === "voice" && !dismissed}
                 onClick={() => { setActiveTab("voice"); setDismissed(false); }}
                 label="Voice"
               />
