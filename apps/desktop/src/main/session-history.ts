@@ -30,6 +30,11 @@ export function getResolvedSessionFile(): string | undefined {
   return lastSessionFile;
 }
 
+/** Clear the cached session file path (e.g. on logout before teardownResources deletes it). */
+export function clearResolvedSessionFile(): void {
+  lastSessionFile = undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Type guards for pi-ai content blocks
 // ---------------------------------------------------------------------------
