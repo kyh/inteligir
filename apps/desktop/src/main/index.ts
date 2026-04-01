@@ -352,6 +352,11 @@ app
     });
 
     mainWindow = createWindow();
+
+    // Pre-read session history so the resolved session file path is available
+    // before initMachine() spawns the sidecar (which reads it via env var).
+    readSessionHistory();
+
     initMachine();
   })
   .catch((error) => {

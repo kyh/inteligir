@@ -24,15 +24,17 @@ const WORKSPACE_DIR = inteligirPath("workspace");
  * Used to ensure the sidecar opens the same session the UI loaded history from.
  */
 let lastSessionFile: string | undefined;
+let cachedHistory: ChatHistoryEntry[] | undefined;
 
 /** Return the session file path resolved by the last readSessionHistory() call. */
 export function getResolvedSessionFile(): string | undefined {
   return lastSessionFile;
 }
 
-/** Clear the cached session file path (e.g. on logout before teardownResources deletes it). */
+/** Clear the cached session file path and history (e.g. on logout). */
 export function clearResolvedSessionFile(): void {
   lastSessionFile = undefined;
+  cachedHistory = undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -84,8 +86,12 @@ function extractTextFromContent(content: Message["content"]): string {
 /**
  * Read the most recent session's messages from disk and convert to
  * ChatHistoryEntry[] for the renderer.
+ *
+ * Called eagerly at startup (before initMachine) to resolve the session file
+ * path, and again by the renderer via IPC to get the cached result.
  */
 export function readSessionHistory(): ChatHistoryEntry[] {
+  if (cachedHistory !== undefined) return cachedHistory;
   try {
     const MAX_HISTORY_ENTRIES = 200;
 
@@ -132,9 +138,11 @@ export function readSessionHistory(): ChatHistoryEntry[] {
       }
     }
 
+    cachedHistory = history;
     return history;
   } catch (err) {
     console.warn("[session-history] failed to read session:", err);
-    return [];
+    cachedHistory = [];
+    return cachedHistory;
   }
 }
