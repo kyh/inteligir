@@ -173,7 +173,7 @@ export function ChatPage() {
   const [showTasks, setShowTasks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ startY: number; isDragging: boolean } | null>(null);
+  const dragRef = useRef<{ startY: number } | null>(null);
 
   const messages = useAgentStore((s) => s.messages);
   const appState = useAgentStore((s) => s.appState);
@@ -241,7 +241,7 @@ export function ChatPage() {
 
   const handleDragStart = useCallback(
     (e: React.PointerEvent) => {
-      dragRef.current = { startY: e.clientY, isDragging: true };
+      dragRef.current = { startY: e.clientY };
       didDragRef.current = false;
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
