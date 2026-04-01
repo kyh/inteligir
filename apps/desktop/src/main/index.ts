@@ -158,10 +158,6 @@ function rebuildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-function configureApplicationMenu(): void {
-  rebuildMenu();
-}
-
 // ---------------------------------------------------------------------------
 // IPC handlers
 // ---------------------------------------------------------------------------
@@ -378,7 +374,7 @@ app
   .whenReady()
   .then(() => {
     configureAppIdentity();
-    configureApplicationMenu();
+    rebuildMenu();
     configureAutoUpdater();
     registerIpcHandlers();
 
