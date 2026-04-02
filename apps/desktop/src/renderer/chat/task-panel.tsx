@@ -186,14 +186,16 @@ export function TaskPanel() {
                   {formatSchedule(task.schedule)}
                 </span>
               </div>
-              <button
-                type="button"
-                className="shrink-0 text-[10px] text-muted-foreground/50 transition-colors hover:text-destructive-foreground"
-                onClick={() => deleteTask(task.id)}
-                title="Delete"
-              >
-                ×
-              </button>
+              {!task.system && (
+                <button
+                  type="button"
+                  className="shrink-0 text-[10px] text-muted-foreground/50 transition-colors hover:text-destructive-foreground"
+                  onClick={() => deleteTask(task.id)}
+                  title="Delete"
+                >
+                  ×
+                </button>
+              )}
             </div>
           ))}
         </div>

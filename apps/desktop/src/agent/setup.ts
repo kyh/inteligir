@@ -181,8 +181,12 @@ function registerTasksExtension(pi: ExtensionAPI): void {
         }
         case "delete": {
           if (!p.taskId) return text("Error: taskId is required for delete");
-          taskManager.deleteTask(p.taskId);
-          return text(`Deleted task ${p.taskId}`);
+          try {
+            taskManager.deleteTask(p.taskId);
+            return text(`Deleted task ${p.taskId}`);
+          } catch (err) {
+            return text(`Error: ${toErrorMessage(err)}`);
+          }
         }
       }
     },

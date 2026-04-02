@@ -82,6 +82,45 @@ describe("TaskManager CRUD", () => {
   });
 });
 
+describe("Heartbeat (system task)", () => {
+  it("ensureHeartbeat creates the heartbeat task", () => {
+    const mgr = createManager();
+    mgr.ensureHeartbeat();
+
+    const tasks = mgr.getTasks();
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0]!.label).toBe("Heartbeat");
+    expect(tasks[0]!.system).toBe(true);
+    expect(tasks[0]!.schedule).toEqual({ type: "interval", intervalMs: 30 * 60 * 1000 });
+  });
+
+  it("ensureHeartbeat is idempotent", () => {
+    const mgr = createManager();
+    mgr.ensureHeartbeat();
+    mgr.ensureHeartbeat();
+
+    expect(mgr.getTasks()).toHaveLength(1);
+  });
+
+  it("cannot delete a system task", () => {
+    const mgr = createManager();
+    mgr.ensureHeartbeat();
+    const heartbeat = mgr.getTasks()[0]!;
+
+    expect(() => mgr.deleteTask(heartbeat.id)).toThrow("Cannot delete a system task");
+    expect(mgr.getTasks()).toHaveLength(1);
+  });
+
+  it("can toggle a system task", () => {
+    const mgr = createManager();
+    mgr.ensureHeartbeat();
+    const heartbeat = mgr.getTasks()[0]!;
+
+    const toggled = mgr.toggleTask(heartbeat.id);
+    expect(toggled.enabled).toBe(false);
+  });
+});
+
 describe("shouldFire", () => {
   const base: Task = {
     id: "t1",

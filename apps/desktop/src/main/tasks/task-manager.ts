@@ -26,6 +26,12 @@ const POLL_INTERVAL_MS = 15_000;
 const TASK_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_RUNS = 500;
 
+// Heartbeat defaults
+const HEARTBEAT_ID = "system:heartbeat";
+const HEARTBEAT_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
+const HEARTBEAT_PROMPT =
+  "Review recent activity and context. If anything needs the user's attention, surface it concisely. Otherwise, stay completely silent — do not respond.";
+
 // ---------------------------------------------------------------------------
 // Store schemas
 // ---------------------------------------------------------------------------
@@ -90,7 +96,33 @@ export class TaskManager {
   }
 
   deleteTask(id: string): void {
+    const task = this.tasks.read().find((t) => t.id === id);
+    if (task?.system) throw new Error("Cannot delete a system task");
     this.tasks.update((tasks) => tasks.filter((t) => t.id !== id));
+  }
+
+  // ---- Heartbeat ------------------------------------------------------------
+
+  /**
+   * Ensure the system heartbeat task exists. Called once at startup.
+   * If the heartbeat was previously created it is left as-is (preserving
+   * the user's enabled/disabled toggle).
+   */
+  ensureHeartbeat(): void {
+    const existing = this.tasks.read().find((t) => t.id === HEARTBEAT_ID);
+    if (existing) return;
+
+    const heartbeat: Task = {
+      id: HEARTBEAT_ID,
+      label: "Heartbeat",
+      prompt: HEARTBEAT_PROMPT,
+      schedule: { type: "interval", intervalMs: HEARTBEAT_INTERVAL_MS },
+      enabled: true,
+      lastRunAt: null,
+      createdAt: Date.now(),
+      system: true,
+    };
+    this.tasks.update((tasks) => [...tasks, heartbeat]);
   }
 
   toggleTask(id: string): Task {

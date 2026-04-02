@@ -198,6 +198,7 @@ async function main(): Promise<void> {
   // 1. Init agent immediately — text chat is ready
   const agent = await ensureAgent();
   agent.subscribe(forwardToMain);
+  taskManager.ensureHeartbeat();
   taskManager.startScheduler(() => piAgent);
 
   // 2. Preload VAD in background for when voice is needed

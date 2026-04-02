@@ -39,6 +39,8 @@ export const TaskSchema = z.object({
   enabled: z.boolean(),
   lastRunAt: z.number().nullable(),
   createdAt: z.number(),
+  /** System tasks (e.g. heartbeat) cannot be deleted by the user. */
+  system: z.boolean().optional(),
 });
 
 export type Task = z.infer<typeof TaskSchema>;
