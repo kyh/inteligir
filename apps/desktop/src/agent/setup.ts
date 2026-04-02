@@ -59,7 +59,11 @@ process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
 function resolveSessionManager(): SessionManager {
   const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
   if (sessionFile) {
-    return SessionManager.open(sessionFile, SESSION_DIR);
+    try {
+      return SessionManager.open(sessionFile, SESSION_DIR);
+    } catch {
+      console.warn("[agent] session file not found, falling back to continueRecent");
+    }
   }
   return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
 }

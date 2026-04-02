@@ -90,18 +90,20 @@ function extractTextFromContent(content: Message["content"]): string {
  * Called eagerly at startup (before initMachine) to resolve the session file
  * path, and again by the renderer via IPC to get the cached result.
  */
+/**
+ * Eagerly load session history during startup (before initMachine).
+ * Populates lastSessionFile so the sidecar receives the correct path.
+ */
+export function preloadSessionHistory(): void {
+  readSessionHistory();
+}
+
 export function readSessionHistory(): ChatHistoryEntry[] {
   if (cachedHistory !== undefined) return cachedHistory;
   try {
-    const MAX_HISTORY_ENTRIES = 200;
-
     const sm = SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
     lastSessionFile = sm.getSessionFile();
-    const allEntries = sm.getEntries();
-    // Cap to the most recent entries to keep startup fast for long sessions
-    const entries = allEntries.length > MAX_HISTORY_ENTRIES
-      ? allEntries.slice(-MAX_HISTORY_ENTRIES)
-      : allEntries;
+    const entries = sm.getEntries();
     const history: ChatHistoryEntry[] = [];
 
     for (const entry of entries) {
@@ -138,8 +140,13 @@ export function readSessionHistory(): ChatHistoryEntry[] {
       }
     }
 
-    cachedHistory = history;
-    return history;
+    // Cap the final UI message list (not raw entries) since one entry can
+    // expand into multiple ChatHistoryEntry items (e.g. tool calls).
+    const MAX_UI_MESSAGES = 200;
+    cachedHistory = history.length > MAX_UI_MESSAGES
+      ? history.slice(-MAX_UI_MESSAGES)
+      : history;
+    return cachedHistory;
   } catch (err) {
     console.warn("[session-history] failed to read session:", err);
     cachedHistory = [];
