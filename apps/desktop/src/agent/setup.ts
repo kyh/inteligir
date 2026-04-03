@@ -61,8 +61,8 @@ function resolveSessionManager(): SessionManager {
   if (sessionFile) {
     try {
       return SessionManager.open(sessionFile, SESSION_DIR);
-    } catch {
-      console.warn("[agent] session file not found, falling back to continueRecent");
+    } catch (err) {
+      console.warn("[agent] failed to open session file, falling back to continueRecent:", err);
     }
   }
   return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
