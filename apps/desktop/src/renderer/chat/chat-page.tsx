@@ -273,7 +273,7 @@ export function ChatPage() {
   return (
     <>
       <div className="flex h-full w-72 flex-col">
-        {/* Conversation area — hidden via CSS when dismissed to preserve scroll state */}
+        {/* Conversation area — unmounted when dismissed */}
         {!dismissed && (
           <Conversation className="flex-1 px-3 pt-10">
           <ConversationContent className="space-y-1 pb-2">
