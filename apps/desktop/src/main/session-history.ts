@@ -144,11 +144,14 @@ export function readSessionHistory(): ChatHistoryEntry[] {
     // avoid orphaned tool/assistant entries at the start.
     const MAX_UI_MESSAGES = 200;
     if (history.length > MAX_UI_MESSAGES) {
-      let start = history.length - MAX_UI_MESSAGES;
+      const originalStart = history.length - MAX_UI_MESSAGES;
+      let start = originalStart;
       // Walk forward to the nearest user message so we don't cut mid-turn
       while (start < history.length && history[start]?.role !== "user") {
         start++;
       }
+      // Fall back to the original position if no user message was found
+      if (start >= history.length) start = originalStart;
       cachedHistory = history.slice(start);
     } else {
       cachedHistory = history;
