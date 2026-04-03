@@ -111,21 +111,26 @@ function TabButton({
   active,
   onClick,
   label,
+  disabled,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   active?: boolean;
   onClick: () => void;
   label: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "flex size-9 items-center justify-center rounded-lg transition-colors",
-        active
-          ? "bg-foreground/15 text-foreground"
-          : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+        disabled
+          ? "cursor-not-allowed text-muted-foreground/40"
+          : active
+            ? "bg-foreground/15 text-foreground"
+            : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
       )}
       title={label}
       aria-label={label}
@@ -143,16 +148,24 @@ function GridOption({
   icon: Icon,
   label,
   onClick,
+  disabled,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex flex-col items-center gap-1.5 rounded-lg p-3 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+      disabled={disabled}
+      className={cn(
+        "flex flex-col items-center gap-1.5 rounded-lg p-3 transition-colors",
+        disabled
+          ? "cursor-not-allowed text-muted-foreground/40"
+          : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+      )}
     >
       <Icon className="size-4" />
       <span className="text-[10px]">{label}</span>
@@ -310,6 +323,7 @@ export function ChatPage() {
             className="flex cursor-grab items-center justify-center bg-foreground/5 py-1.5 active:cursor-grabbing"
             onPointerDown={handleDragStart}
             onPointerUp={handleDragEnd}
+            onPointerCancel={() => { dragRef.current = null; }}
             onClick={handleBarClick}
           >
             <div className="h-1 w-8 rounded-full bg-foreground/20" />
@@ -406,11 +420,13 @@ export function ChatPage() {
                     icon={CheckSquareIcon}
                     label="Todos"
                     onClick={() => {}}
+                    disabled
                   />
                   <GridOption
                     icon={PenLineIcon}
                     label="Notes"
                     onClick={() => {}}
+                    disabled
                   />
                 </div>
               )}
@@ -449,6 +465,7 @@ export function ChatPage() {
                 icon={PenLineIcon}
                 onClick={() => {}}
                 label="Notes"
+                disabled
               />
               <TabButton
                 icon={PlusIcon}
