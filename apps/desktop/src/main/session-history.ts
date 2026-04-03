@@ -140,12 +140,19 @@ export function readSessionHistory(): ChatHistoryEntry[] {
       }
     }
 
-    // Cap the final UI message list (not raw entries) since one entry can
-    // expand into multiple ChatHistoryEntry items (e.g. tool calls).
+    // Cap the final UI message list. Slice at a user-message boundary to
+    // avoid orphaned tool/assistant entries at the start.
     const MAX_UI_MESSAGES = 200;
-    cachedHistory = history.length > MAX_UI_MESSAGES
-      ? history.slice(-MAX_UI_MESSAGES)
-      : history;
+    if (history.length > MAX_UI_MESSAGES) {
+      let start = history.length - MAX_UI_MESSAGES;
+      // Walk forward to the nearest user message so we don't cut mid-turn
+      while (start < history.length && history[start]?.role !== "user") {
+        start++;
+      }
+      cachedHistory = history.slice(start);
+    } else {
+      cachedHistory = history;
+    }
     return cachedHistory;
   } catch (err) {
     console.warn("[session-history] failed to read session:", err);
