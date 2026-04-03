@@ -203,7 +203,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
     }).then((history) => {
       if (history && history.length > 0) {
         set((s) =>
-          s.messages.length === 0
+          s.messages.length === 0 && s.appState.phase !== "logged_out"
             ? { messages: historyToChatMessages(history) }
             : s,
         );
