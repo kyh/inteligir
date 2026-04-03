@@ -193,16 +193,17 @@ export const useAgentStore = create<AgentStore>((set) => ({
       }
     });
 
-    // Fetch initial state
+    // Fetch initial state, then load persisted session history once we know
+    // the real app phase (appState defaults to logged_out before this resolves).
     void bridge.getAppState().then((appState) => {
       set({ appState });
-    });
 
-    // Load persisted session history from disk (via main process)
-    void bridge.getAgentHistory().then((history) => {
-      if (history.length > 0) {
+      if (appState.phase === "logged_out") return;
+      return bridge.getAgentHistory();
+    }).then((history) => {
+      if (history && history.length > 0) {
         set((s) =>
-          s.messages.length === 0 && s.appState.phase !== "logged_out"
+          s.messages.length === 0
             ? { messages: historyToChatMessages(history) }
             : s,
         );
