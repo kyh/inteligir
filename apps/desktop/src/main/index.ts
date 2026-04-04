@@ -188,6 +188,8 @@ function registerIpcHandlers(): void {
 
   // ---- Tasks ----------------------------------------------------------------
 
+  taskManager.ensureHeartbeat();
+
   createIpcHandler(IPC_CHANNELS.TASK_CREATE, CreateTaskParamsSchema, (params) => {
     return { task: taskManager.createTask(params) };
   });
