@@ -151,7 +151,7 @@ export function readSessionHistory(): ChatHistoryEntry[] {
     return cachedHistory;
   } catch (err) {
     console.warn("[session-history] failed to read session:", err);
-    cachedHistory = [];
-    return cachedHistory;
+    // Don't cache on error — allow retry on the next IPC call
+    return [];
   }
 }
