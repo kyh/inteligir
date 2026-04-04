@@ -113,7 +113,6 @@ async function startVoice(agent: Agent, url: string, token: string): Promise<voi
 
   const llmAdapter = new PiLLMAdapter(agent);
   const voiceAgent = new voice.Agent({
-    instructions: "You are Inteligir, an AI chief of staff. Be concise and helpful.",
     vad,
     stt: STT_MODEL,
     tts: TTS_VOICE,
