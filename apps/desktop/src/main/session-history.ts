@@ -87,17 +87,9 @@ function extractTextFromContent(content: Message["content"]): string {
  * Read the most recent session's messages from disk and convert to
  * ChatHistoryEntry[] for the renderer.
  *
- * Called eagerly at startup (before initMachine) to resolve the session file
- * path, and again by the renderer via IPC to get the cached result.
+ * Called eagerly at startup (before initMachine) to populate lastSessionFile,
+ * and again by the renderer via IPC to get the cached result.
  */
-/**
- * Eagerly load session history during startup (before initMachine).
- * Populates lastSessionFile so the sidecar receives the correct path.
- */
-export function preloadSessionHistory(): void {
-  readSessionHistory();
-}
-
 export function readSessionHistory(): ChatHistoryEntry[] {
   if (cachedHistory !== undefined) return cachedHistory;
   try {

@@ -19,7 +19,7 @@ import { getAppState, initMachine, shutdown, transition } from "@/main/app-machi
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { registerAgentIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
-import { preloadSessionHistory, readSessionHistory } from "@/main/session-history";
+import { readSessionHistory } from "@/main/session-history";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, MENU_ACTIONS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
@@ -353,7 +353,8 @@ app
 
     mainWindow = createWindow();
 
-    preloadSessionHistory();
+    // Resolve session file path before initMachine() spawns the sidecar
+    readSessionHistory();
 
     initMachine();
   })
