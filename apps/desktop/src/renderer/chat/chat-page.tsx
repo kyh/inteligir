@@ -2,15 +2,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import {
   CheckSquareIcon,
+  GridIcon,
   ListTodoIcon,
-  MailIcon,
+  MessageSquareIcon,
   MicIcon,
   PenLineIcon,
   PhoneIcon,
-  PlusIcon,
   SendIcon,
   SettingsIcon,
-  SmartphoneIcon,
   SquareIcon,
   MoreVerticalIcon,
 } from "lucide-react";
@@ -160,6 +159,8 @@ function GridOption({
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={label}
+      aria-label={label}
       className={cn(
         "flex flex-col items-center gap-1.5 rounded-lg p-3 transition-colors",
         disabled
@@ -272,16 +273,18 @@ export function ChatPage() {
     [],
   );
 
+  const handleDragCancel = useCallback(() => {
+    dragRef.current = null;
+  }, []);
+
   // Tap to restore when dismissed (suppressed if a drag just occurred)
   const handleBarClick = useCallback(() => {
     if (didDragRef.current) {
       didDragRef.current = false;
       return;
     }
-    if (dismissed) {
-      setDismissed(false);
-    }
-  }, [dismissed]);
+    setDismissed(false);
+  }, []);
 
   return (
     <>
@@ -307,8 +310,8 @@ export function ChatPage() {
         {/* Spacer when dismissed to push action bar to bottom */}
         {dismissed && <div className="flex-1" />}
 
-        {/* Transcript overlay */}
-        {!dismissed && currentTranscript && (
+        {/* Transcript overlay — visible during active voice even when dismissed */}
+        {(voiceActive || !dismissed) && currentTranscript && (
           <div className="px-3 pb-1">
             <p className="truncate text-xs italic text-muted-foreground">
               &ldquo;{currentTranscript}&hellip;&rdquo;
@@ -323,7 +326,7 @@ export function ChatPage() {
             className="flex cursor-grab items-center justify-center bg-foreground/5 py-1.5 active:cursor-grabbing"
             onPointerDown={handleDragStart}
             onPointerUp={handleDragEnd}
-            onPointerCancel={() => { dragRef.current = null; }}
+            onPointerCancel={handleDragCancel}
             onClick={handleBarClick}
           >
             <div className="h-1 w-8 rounded-full bg-foreground/20" />
@@ -375,7 +378,7 @@ export function ChatPage() {
                     <span
                       className={cn(
                         "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
-                        voiceActive ? "bg-green-400 animate-pulse" : statusColors[sessionStatus],
+                        voiceActive ? "bg-green-400 animate-pulse" : "bg-muted-foreground/40",
                       )}
                     />
                     <span className="text-xs text-muted-foreground">
@@ -437,7 +440,7 @@ export function ChatPage() {
           <div className="flex items-center justify-between bg-foreground/12 px-2 py-1.5">
             <div className="flex items-center gap-0.5">
               <TabButton
-                icon={MailIcon}
+                icon={MessageSquareIcon}
                 active={activeTab === "message" && !dismissed}
                 onClick={() => { setActiveTab("message"); setDismissed(false); }}
                 label="Message"
@@ -449,7 +452,7 @@ export function ChatPage() {
                 label="Voice"
               />
               <TabButton
-                icon={SmartphoneIcon}
+                icon={GridIcon}
                 active={activeTab === "other" && !dismissed}
                 onClick={() => { setActiveTab("other"); setDismissed(false); }}
                 label="More"
@@ -466,11 +469,6 @@ export function ChatPage() {
                 onClick={() => {}}
                 label="Notes"
                 disabled
-              />
-              <TabButton
-                icon={PlusIcon}
-                onClick={() => { setActiveTab("other"); setDismissed(false); }}
-                label="Add"
               />
               <TabButton
                 icon={MoreVerticalIcon}
