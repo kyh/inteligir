@@ -275,6 +275,7 @@ export function ChatPage() {
 
   const handleDragCancel = useCallback(() => {
     dragRef.current = null;
+    didDragRef.current = false;
   }, []);
 
   // Tap to restore when dismissed (suppressed if a drag just occurred)
@@ -283,7 +284,7 @@ export function ChatPage() {
       didDragRef.current = false;
       return;
     }
-    setDismissed(false);
+    setDismissed((prev) => (prev ? false : prev));
   }, []);
 
   return (
@@ -292,19 +293,19 @@ export function ChatPage() {
         {/* Conversation area — unmounted when dismissed */}
         {!dismissed && (
           <Conversation className="flex-1 px-3 pt-10">
-          <ConversationContent className="space-y-1 pb-2">
-            {messages.length === 0 ? (
-              <div className="px-1 py-4 text-center text-xs text-muted-foreground/60">
-                No messages yet
-              </div>
-            ) : (
-              messages.map((msg) => (
-                <ChatMessageView key={msg.id} message={msg} />
-              ))
-            )}
-          </ConversationContent>
-          <ConversationScrollButton />
-        </Conversation>
+            <ConversationContent className="space-y-1 pb-2">
+              {messages.length === 0 ? (
+                <div className="px-1 py-4 text-center text-xs text-muted-foreground/60">
+                  No messages yet
+                </div>
+              ) : (
+                messages.map((msg) => (
+                  <ChatMessageView key={msg.id} message={msg} />
+                ))
+              )}
+            </ConversationContent>
+            <ConversationScrollButton />
+          </Conversation>
         )}
 
         {/* Spacer when dismissed to push action bar to bottom */}
@@ -409,6 +410,9 @@ export function ChatPage() {
 
               {activeTab === "other" && (
                 <div className="grid grid-cols-4 gap-1">
+                  {/* Tasks & Settings intentionally duplicated here and in the
+                      tab bar for discoverability — the grid is the full menu,
+                      the tab bar provides quick access to frequent actions. */}
                   <GridOption
                     icon={ListTodoIcon}
                     label="Tasks"
