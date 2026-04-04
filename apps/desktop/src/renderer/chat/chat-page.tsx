@@ -460,7 +460,7 @@ export function ChatPage() {
             </div>
             <div className="flex items-center gap-0.5">
               <TabButton
-                icon={CheckSquareIcon}
+                icon={ListTodoIcon}
                 onClick={() => { setShowTasks(!showTasks); }}
                 label="Tasks"
               />
