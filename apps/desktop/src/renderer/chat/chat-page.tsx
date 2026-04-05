@@ -11,7 +11,6 @@ import {
   SendIcon,
   SettingsIcon,
   SquareIcon,
-  MoreVerticalIcon,
 } from "lucide-react";
 import { cn } from "@repo/ui/utils";
 import {
@@ -284,8 +283,8 @@ export function ChatPage() {
       didDragRef.current = false;
       return;
     }
-    setDismissed((prev) => (prev ? false : prev));
-  }, []);
+    if (dismissed) setDismissed(false);
+  }, [dismissed]);
 
   return (
     <>
@@ -465,6 +464,7 @@ export function ChatPage() {
             <div className="flex items-center gap-0.5">
               <TabButton
                 icon={ListTodoIcon}
+                active={showTasks}
                 onClick={() => { setShowTasks(!showTasks); }}
                 label="Tasks"
               />
@@ -475,9 +475,10 @@ export function ChatPage() {
                 disabled
               />
               <TabButton
-                icon={MoreVerticalIcon}
+                icon={SettingsIcon}
+                active={showSettings}
                 onClick={() => { setShowSettings(!showSettings); }}
-                label="More options"
+                label="Settings"
               />
             </div>
           </div>
