@@ -1,16 +1,33 @@
 import path from "node:path";
-
+import { z } from "zod";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "../types";
-import type { UpdateState } from "../types";
+declare const __PROJECT_ROOT__: string;
+
+// Load .env at runtime so LIVEKIT_API_KEY / LIVEKIT_API_SECRET are available
+// on process.env without being baked into the compiled bundle.
+try {
+  process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
+} catch {
+  // .env file is optional — env vars may be set externally
+}
+
+import { getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
+import { taskManager } from "@/main/tasks/task-singleton";
+import { registerAgentIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
+import { readSessionHistory } from "@/main/session-history";
+import { AppEventSchema } from "@/shared/app-state";
+import { CreateTaskParamsSchema } from "@/shared/task";
+import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
+import type { UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
 const isDevelopment = !app.isPackaged;
-/** Delay before first update check so the app finishes loading first. */
 const STARTUP_UPDATE_DELAY_MS = 15_000;
 const APP_DISPLAY_NAME = isDevelopment ? "Inteligir (Dev)" : "Inteligir";
 
@@ -39,7 +56,7 @@ function setUpdateState(patch: Partial<UpdateState>): void {
 }
 
 // ---------------------------------------------------------------------------
-// App identity
+// App identity & menu
 // ---------------------------------------------------------------------------
 
 function configureAppIdentity(): void {
@@ -50,35 +67,7 @@ function configureAppIdentity(): void {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Application menu
-// ---------------------------------------------------------------------------
 
-function ensureWindow(): BrowserWindow {
-  const existing =
-    BrowserWindow.getFocusedWindow() ?? mainWindow ?? BrowserWindow.getAllWindows()[0];
-  if (existing) return existing;
-  mainWindow = createWindow();
-  return mainWindow;
-}
-
-function dispatchMenuAction(action: string): void {
-  const win = ensureWindow();
-
-  const send = () => {
-    if (win.isDestroyed()) return;
-    if (!win.isVisible()) win.show();
-    win.focus();
-    win.webContents.send(IPC_CHANNELS.MENU_ACTION, action);
-  };
-
-  if (win.webContents.isLoadingMainFrame()) {
-    win.webContents.once("did-finish-load", send);
-    return;
-  }
-
-  send();
-}
 
 function getUpdateMenuItem(): MenuItemConstructorOptions {
   switch (updateState.status) {
@@ -147,12 +136,6 @@ function rebuildMenu(): void {
         { role: "about" },
         getUpdateMenuItem(),
         { type: "separator" },
-        {
-          label: "Settings...",
-          accelerator: "CmdOrCtrl+,",
-          click: () => dispatchMenuAction("open-settings"),
-        },
-        { type: "separator" },
         { role: "services" },
         { type: "separator" },
         { role: "hide" },
@@ -181,40 +164,11 @@ function rebuildMenu(): void {
 // ---------------------------------------------------------------------------
 
 function registerIpcHandlers(): void {
-  ipcMain.handle(IPC_CHANNELS.PICK_FOLDER, async () => {
-    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const result = owner
-      ? await dialog.showOpenDialog(owner, {
-          properties: ["openDirectory", "createDirectory"],
-        })
-      : await dialog.showOpenDialog({
-          properties: ["openDirectory", "createDirectory"],
-        });
-    if (result.canceled) return null;
-    return result.filePaths[0] ?? null;
-  });
-
-  ipcMain.handle(IPC_CHANNELS.CONFIRM, async (_event, message: unknown) => {
-    if (typeof message !== "string") return false;
-    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
-    const options = {
-      type: "question" as const,
-      buttons: ["No", "Yes"],
-      defaultId: 1,
-      cancelId: 0,
-      noLink: true,
-      message: message.trim(),
-    };
-    const result = owner
-      ? await dialog.showMessageBox(owner, options)
-      : await dialog.showMessageBox(options);
-    return result.response === 1;
-  });
+  // ---- Desktop --------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, rawUrl: unknown) => {
     if (typeof rawUrl !== "string" || rawUrl.length === 0) return false;
     if (!isHttpUrl(rawUrl)) return false;
-
     try {
       await shell.openExternal(rawUrl);
       return true;
@@ -223,12 +177,12 @@ function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async () => {
+  createVoidIpcHandler(IPC_CHANNELS.UPDATE_CHECK, async () => {
     await checkForUpdates();
     return updateState;
   });
 
-  ipcMain.handle(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
+  createVoidIpcHandler(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
     if (updateState.status !== "available") {
       return { accepted: false, state: updateState };
     }
@@ -242,13 +196,44 @@ function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.UPDATE_INSTALL, (_event) => {
+  createVoidIpcHandler(IPC_CHANNELS.UPDATE_INSTALL, () => {
     if (updateState.status !== "downloaded") {
       return { accepted: false, state: updateState };
     }
     // Defer so the IPC reply reaches the renderer before the process exits.
     setImmediate(() => tryQuitAndInstall());
     return { accepted: true, state: updateState };
+  });
+
+  // ---- Agent history (read directly from session files on disk) ------------
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
+
+  // ---- App lifecycle --------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.APP_GET_STATE, () => getAppState());
+
+  createIpcHandler(IPC_CHANNELS.APP_TRANSITION, AppEventSchema, (event) => {
+    transition(event);
+  });
+
+  // ---- Tasks ----------------------------------------------------------------
+
+  createIpcHandler(IPC_CHANNELS.TASK_CREATE, CreateTaskParamsSchema, (params) => {
+    return { task: taskManager.createTask(params) };
+  });
+
+  createVoidIpcHandler(IPC_CHANNELS.TASK_LIST, () => {
+    return { tasks: taskManager.getTasks() };
+  });
+
+  createIpcHandler(IPC_CHANNELS.TASK_DELETE, z.string().min(1), (id) => {
+    taskManager.deleteTask(id);
+    return { ok: true as const };
+  });
+
+  createIpcHandler(IPC_CHANNELS.TASK_TOGGLE, z.string().min(1), (id) => {
+    return { task: taskManager.toggleTask(id) };
   });
 }
 
@@ -259,11 +244,7 @@ function registerIpcHandlers(): void {
 async function checkForUpdates(): Promise<void> {
   if (isDevelopment) return;
 
-  setUpdateState({
-    status: "checking",
-    message: null,
-    downloadPercent: null,
-  });
+  setUpdateState({ status: "checking", message: null, downloadPercent: null });
 
   try {
     await autoUpdater.checkForUpdates();
@@ -289,18 +270,11 @@ function configureAutoUpdater(): void {
   autoUpdater.on("download-progress", (progress) => {
     const percent = Math.floor(progress.percent);
     if (percent === updateState.downloadPercent) return;
-    setUpdateState({
-      status: "downloading",
-      downloadPercent: percent,
-    });
+    setUpdateState({ status: "downloading", downloadPercent: percent });
   });
 
   autoUpdater.on("update-downloaded", (info) => {
-    setUpdateState({
-      status: "downloaded",
-      version: info.version,
-      downloadPercent: 100,
-    });
+    setUpdateState({ status: "downloaded", version: info.version, downloadPercent: 100 });
   });
 
   autoUpdater.on("error", (error) => {
@@ -321,12 +295,13 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     show: false,
+    backgroundColor: "#d1684e",
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.mjs"),
+      preload: path.join(__dirname, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -377,28 +352,39 @@ function createWindow(): BrowserWindow {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
-app.on("before-quit", () => {
+app.on("before-quit", (event) => {
+  if (isQuitting) return;
   isQuitting = true;
+  event.preventDefault();
+  void shutdown().finally(() => {
+    app.quit();
+  });
 });
 
 app
   .whenReady()
-  .then(() => {
+  .then(async () => {
     configureAppIdentity();
     rebuildMenu();
     configureAutoUpdater();
     registerIpcHandlers();
 
+    // Voice — LiveKit sidecar + token generation
+    // Agent events are forwarded from sidecar via livekit-ipc → app-machine
+    warmupNodePath(); // Pre-resolve system Node.js path before first voice use
+    const unregisterVoiceIpc = registerAgentIpcHandlers();
+
+    // Clean up on quit
+    app.on("will-quit", () => {
+      unregisterVoiceIpc();
+    });
+
     mainWindow = createWindow();
 
-    app.on("activate", () => {
-      if (BrowserWindow.getAllWindows().length === 0) {
-        mainWindow = createWindow();
-      } else {
-        mainWindow?.show();
-        mainWindow?.focus();
-      }
-    });
+    // Resolve session file path before initMachine() spawns the sidecar
+    readSessionHistory();
+
+    initMachine();
   })
   .catch((error) => {
     console.error("[desktop] fatal startup error", error);

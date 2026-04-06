@@ -13,26 +13,48 @@
     "dev": "electron-vite dev",
     "publish-mac": "electron-vite build && electron-builder --mac --publish onTag",
     "start": "electron-vite preview",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@livekit/agents": "^1.2.1",
+    "@livekit/agents-plugin-silero": "^1.2.1",
+    "@livekit/rtc-node": "^0.13.24",
+    "@mariozechner/pi-ai": "^0.63.1",
+    "@mariozechner/pi-coding-agent": "^0.63.1",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.5.0",
+    "@repo/ui": "workspace:^",
+    "@sinclair/typebox": "^0.34.49",
+    "@streamdown/code": "^1.1.1",
+    "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
+    "livekit-client": "^2.18.0",
+    "livekit-server-sdk": "^2.15.0",
+    "motion": "^12.38.0",
+    "open": "^11.0.0",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "three": "^0.175.0"
+    "react-router": "^7.13.2",
+    "streamdown": "^2.5.0",
+    "tailwindcss": "catalog:",
+    "three": "^0.183.2",
+    "zod": "catalog:",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "electron": "^41.0.1",
+    "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
+    "lucide-react": "^1.7.0",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "^4.1.2"
   }
 }

@@ -4,6 +4,10 @@
   "compilerOptions": {
     "composite": true,
     "jsx": "react-jsx",
-    "types": ["electron-vite/node"]
+    "types": ["electron-vite/node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   }
 }

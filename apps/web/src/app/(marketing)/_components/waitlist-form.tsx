@@ -41,7 +41,7 @@ export const WaitlistForm = () => {
         event.preventDefault();
         void form.handleSubmit();
       }}
-      className="mt-10 flex max-w-sm items-center gap-2 rounded-xl border border-foreground/10"
+      className="flex max-w-sm items-center gap-2 rounded-xl border border-foreground/10"
     >
       <form.Field
         name="email"
@@ -50,7 +50,8 @@ export const WaitlistForm = () => {
         }}
       >
         {(field) => {
-          const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid;
+          const isInvalid =
+            field.state.meta.isTouched && !field.state.meta.isValid;
 
           return (
             <Field data-invalid={isInvalid} className="relative min-w-0 flex-1">
@@ -85,7 +86,10 @@ export const WaitlistForm = () => {
         }}
       </form.Field>
       <Button
-        className={cn("text-xs", joinWaitlist.isPending && "[&>:first-child]:bg-input")}
+        className={cn(
+          "text-xs",
+          joinWaitlist.isPending && "[&>:first-child]:bg-input",
+        )}
         variant="ghost"
         loading={joinWaitlist.isPending}
       >
