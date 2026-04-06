@@ -18,14 +18,14 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-export default function OS1Page() {
-  const ORB_STATUSES: DisplayStatus[] = [
-    "starting",
-    "idle",
-    "listening",
-    "speaking",
-  ];
+const ORB_STATUSES: DisplayStatus[] = [
+  "starting",
+  "idle",
+  "listening",
+  "speaking",
+];
 
+export default function Page() {
   const [orbStatus, setOrbStatus] = useState<DisplayStatus>("starting");
 
   const toggleOrbStatus = () => {
@@ -37,8 +37,7 @@ export default function OS1Page() {
   };
 
   return (
-    <div className="flex min-h-dvh w-full flex-col bg-[#d1684e]">
-      {/* Orb in center — flex-1 so it takes space and stays visible */}
+    <main className="flex min-h-dvh w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center">
         <div
           role="button"
@@ -51,16 +50,15 @@ export default function OS1Page() {
               toggleOrbStatus();
             }
           }}
-          className="h-48 w-48 select-none rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#d1684e]"
+          className="h-48 w-48 select-none rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <GeometricOrb status={orbStatus} />
         </div>
       </div>
-      {/* Bottom area — same as desktop login layout */}
       <div className="flex flex-col items-center gap-3 px-6 pb-16">
         <Link
           href="#"
-          className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-[#d1684e]"
+          className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <MacLogoIcon className="size-5 shrink-0" />
           Download for Mac
@@ -69,6 +67,6 @@ export default function OS1Page() {
           Requires an OpenAI account
         </span>
       </div>
-    </div>
+    </main>
   );
 }

@@ -76,10 +76,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "white" },
-    { media: "(prefers-color-scheme: dark)", color: "black" },
-  ],
+  themeColor: "#d1684e",
 };
 
 type LayoutProps = {
@@ -90,7 +87,7 @@ const RootLayout = (props: LayoutProps) => {
   return (
     <html lang="en" suppressHydrationWarning>
       <body className="bg-background text-foreground font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem>
+        <ThemeProvider attribute="class" forcedTheme="light" enableSystem={false}>
           <TooltipProvider>
             <TRPCReactProvider>{props.children}</TRPCReactProvider>
             <GlobalToaster />
