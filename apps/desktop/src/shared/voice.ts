@@ -15,7 +15,6 @@ export const TextChatMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("user_message"), text: z.string() }),
   z.object({ type: z.literal("steer"), text: z.string() }),
   z.object({ type: z.literal("interrupt") }),
-  z.object({ type: z.literal("clear") }),
 ]);
 
 export type TextChatMessage = z.infer<typeof TextChatMessageSchema>;

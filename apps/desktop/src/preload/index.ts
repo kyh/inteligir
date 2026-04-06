@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   onAgentEvent: (listener: (event: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),
   sendAgentCommand: (command: unknown) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_COMMAND, command),
+  getAgentHistory: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_HISTORY),
 
   // Tasks
   createTask: (params: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, params),

@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { AppStateSchema, type AppState } from "@/shared/app-state";
+import type { ChatHistoryEntry } from "@/shared/ipc";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -35,13 +36,42 @@ type AgentStore = {
   sendMessage: (text: string) => void;
   steer: (text: string) => void;
   interrupt: () => void;
-  clearChat: () => void;
   addUserMessage: (text: string) => void;
   addSteerMessage: (text: string) => void;
-  clearMessages: () => void;
 };
 
 let nextMsgId = 0;
+
+/**
+ * Convert persisted session history entries into ChatMessages for the UI.
+ */
+function historyToChatMessages(history: ChatHistoryEntry[]): ChatMessage[] {
+  const messages: ChatMessage[] = [];
+  for (const entry of history) {
+    switch (entry.role) {
+      case "user":
+        messages.push({ id: nextMsgId++, kind: "user", text: entry.text });
+        break;
+      case "assistant":
+        messages.push({ id: nextMsgId++, kind: "assistant", text: entry.text });
+        break;
+      case "tool":
+        messages.push({
+          id: nextMsgId++,
+          kind: "tool",
+          execution: {
+            toolCallId: entry.toolCallId ?? "",
+            toolName: entry.toolName ?? "",
+            status: entry.isError ? "error" : "done",
+            resultText: entry.text,
+            isError: entry.isError ?? false,
+          },
+        });
+        break;
+    }
+  }
+  return messages;
+}
 
 export const useAgentStore = create<AgentStore>((set) => ({
   messages: [],
@@ -163,10 +193,27 @@ export const useAgentStore = create<AgentStore>((set) => ({
       }
     });
 
-    // Fetch initial state
-    void bridge.getAppState().then((appState) => {
-      set({ appState });
-    });
+    // Fetch initial state, then load persisted session history once we know
+    // the real app phase (appState defaults to logged_out before this resolves).
+    void (async () => {
+      try {
+        const appState = await bridge.getAppState();
+        set({ appState });
+
+        if (appState.phase === "logged_out") return;
+
+        const history = await bridge.getAgentHistory();
+        if (history.length > 0) {
+          set((s) =>
+            s.messages.length === 0 && s.appState.phase !== "logged_out"
+              ? { messages: historyToChatMessages(history) }
+              : s,
+          );
+        }
+      } catch (err) {
+        console.warn("[agent-store] failed to load history:", err);
+      }
+    })();
 
     return () => {
       unsubAgent();
@@ -198,11 +245,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
     void getBridge()?.sendAgentCommand({ type: "interrupt" });
   },
 
-  clearChat: () => {
-    void getBridge()?.sendAgentCommand({ type: "clear" });
-    set({ messages: [] });
-  },
-
   // --- UI-only message additions (used by voice transcripts) ----------------
 
   addUserMessage: (text: string) => {
@@ -215,9 +257,5 @@ export const useAgentStore = create<AgentStore>((set) => ({
     set((s) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
     }));
-  },
-
-  clearMessages: () => {
-    set({ messages: [] });
   },
 }));

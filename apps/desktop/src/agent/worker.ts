@@ -79,9 +79,6 @@ function dispatchCommand(agent: Agent, msg: TextChatMessage): void {
     case "interrupt":
       agent.interrupt().catch((err) => console.error("[worker] interrupt error:", err));
       break;
-    case "clear":
-      agent.clear();
-      break;
   }
 }
 

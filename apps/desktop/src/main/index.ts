@@ -19,6 +19,7 @@ import { getAppState, initMachine, shutdown, transition } from "@/main/app-machi
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { registerAgentIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
+import { readSessionHistory } from "@/main/session-history";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
@@ -153,6 +154,10 @@ function registerIpcHandlers(): void {
     });
     return { accepted: true, state: updateState };
   });
+
+  // ---- Agent history (read directly from session files on disk) ------------
+
+  ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
 
   // ---- App lifecycle --------------------------------------------------------
 
@@ -323,6 +328,10 @@ app
     });
 
     mainWindow = createWindow();
+
+    // Resolve session file path before initMachine() spawns the sidecar
+    readSessionHistory();
+
     initMachine();
   })
   .catch((error) => {

@@ -10,6 +10,7 @@ import { app, BrowserWindow, ipcMain } from "electron";
 
 import { handleSidecarAgentEvent } from "@/main/app-machine";
 import { createIpcHandler } from "@/main/lib/ipc-handler";
+import { getResolvedSessionFile } from "@/main/session-history";
 import { SidecarMessageSchema, parseAgentEvent } from "@/shared/agent-event-parser";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { TextChatMessageSchema, type TextChatMessage } from "@/shared/voice";
@@ -118,6 +119,7 @@ export async function ensureSidecar(): Promise<ChildProcess> {
 async function spawnSidecar(): Promise<ChildProcess> {
   const workerPath = getWorkerPath();
   const nodePath = await (nodePathPromise ?? resolveNodePath());
+  const sessionFile = getResolvedSessionFile();
   console.log("[sidecar] spawning agent worker:", workerPath, "(node:", nodePath + ")");
 
   const proc = fork(workerPath, ["start"], {
@@ -127,6 +129,7 @@ async function spawnSidecar(): Promise<ChildProcess> {
       ...process.env,
       LIVEKIT_URL: __LIVEKIT_URL__,
       ...(app.isPackaged ? { INTELIGIR_RESOURCES_PATH: process.resourcesPath } : {}),
+      ...(sessionFile ? { INTELIGIR_SESSION_FILE: sessionFile } : {}),
     },
   });
 
