@@ -109,12 +109,14 @@ function getUpdateMenuItem(): MenuItemConstructorOptions {
 
 function tryQuitAndInstall(): void {
   isQuitting = true;
-  try {
-    autoUpdater.quitAndInstall();
-  } catch (error: unknown) {
-    isQuitting = false;
-    setUpdateState({ status: "error", message: toErrorMessage(error) });
-  }
+  void shutdown().finally(() => {
+    try {
+      autoUpdater.quitAndInstall();
+    } catch (error: unknown) {
+      isQuitting = false;
+      setUpdateState({ status: "error", message: toErrorMessage(error) });
+    }
+  });
 }
 
 function getQuitMenuItem(): MenuItemConstructorOptions {
