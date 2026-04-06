@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent } from "react";
 import {
-  CheckSquareIcon,
   GridIcon,
   ListTodoIcon,
   MessageSquareIcon,
   MicIcon,
-  PenLineIcon,
   PhoneIcon,
   SendIcon,
   SettingsIcon,
@@ -121,7 +119,7 @@ function TabButton({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "flex size-9 items-center justify-center rounded-lg transition-colors",
+        "flex h-9 flex-1 items-center justify-center rounded-lg transition-colors",
         disabled
           ? "cursor-not-allowed text-muted-foreground/40"
           : active
@@ -178,11 +176,9 @@ function GridOption({
 export function ChatPage() {
   const [input, setInput] = useState("");
   const [activeTab, setActiveTab] = useState<ActionTab>("message");
-  const [dismissed, setDismissed] = useState(false);
   const [showTasks, setShowTasks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const dragRef = useRef<{ startY: number } | null>(null);
 
   const messages = useAgentStore((s) => s.messages);
   const appState = useAgentStore((s) => s.appState);
@@ -233,76 +229,22 @@ export function ChatPage() {
   );
 
   useEffect(() => {
-    if (!dismissed) {
-      inputRef.current?.focus();
-    }
-  }, [dismissed]);
-
-  // Drag-to-dismiss handlers
-  const didDragRef = useRef(false);
-
-  const handleDragStart = useCallback(
-    (e: React.PointerEvent) => {
-      dragRef.current = { startY: e.clientY };
-      didDragRef.current = false;
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    },
-    [],
-  );
-
-  const handleDragEnd = useCallback(
-    (e: React.PointerEvent) => {
-      if (!dragRef.current) return;
-      const delta = e.clientY - dragRef.current.startY;
-      if (delta > 40) {
-        didDragRef.current = true;
-        setDismissed(true);
-      }
-      dragRef.current = null;
-    },
-    [],
-  );
-
-  const handleDragCancel = useCallback(() => {
-    dragRef.current = null;
-    didDragRef.current = false;
+    inputRef.current?.focus();
   }, []);
-
-  // Tap to restore when dismissed (suppressed if a drag just occurred)
-  const handleBarClick = useCallback(() => {
-    if (didDragRef.current) {
-      didDragRef.current = false;
-      return;
-    }
-    if (dismissed) setDismissed(false);
-  }, [dismissed]);
 
   return (
     <>
       <div className="flex h-full w-72 flex-col">
-        {/* Conversation area — unmounted when dismissed */}
-        {!dismissed && (
-          <Conversation className="flex-1 px-3 pt-10">
-            <ConversationContent className="space-y-1 pb-2">
-              {messages.length === 0 ? (
-                <div className="px-1 py-4 text-center text-xs text-muted-foreground/60">
-                  No messages yet
-                </div>
-              ) : (
-                messages.map((msg) => (
-                  <ChatMessageView key={msg.id} message={msg} />
-                ))
-              )}
-            </ConversationContent>
-            <ConversationScrollButton />
-          </Conversation>
-        )}
+        <Conversation className="flex-1 px-3 pt-10">
+          <ConversationContent className="space-y-1 pb-2">
+            {messages.map((msg) => (
+              <ChatMessageView key={msg.id} message={msg} />
+            ))}
+          </ConversationContent>
+          <ConversationScrollButton />
+        </Conversation>
 
-        {/* Spacer when dismissed to push action bar to bottom */}
-        {dismissed && <div className="flex-1" />}
-
-        {/* Transcript overlay — visible during active voice even when dismissed */}
-        {(voiceActive || !dismissed) && currentTranscript && (
+        {currentTranscript && (
           <div className="px-3 pb-1">
             <p className="truncate text-xs italic text-muted-foreground">
               &ldquo;{currentTranscript}&hellip;&rdquo;
@@ -312,14 +254,8 @@ export function ChatPage() {
 
         {/* Floating action bar */}
         <div className="mx-2 mb-2 overflow-hidden rounded-2xl">
-          {/* Drag bar to dismiss */}
-          <div
-            className="flex cursor-grab items-center justify-center bg-foreground/5 py-1.5 active:cursor-grabbing"
-            onPointerDown={handleDragStart}
-            onPointerUp={handleDragEnd}
-            onPointerCancel={handleDragCancel}
-            onClick={handleBarClick}
-          >
+          {/* Drag handle */}
+          <div className="flex items-center justify-center bg-foreground/5 py-1.5">
             <div className="h-1 w-8 rounded-full bg-foreground/20" />
           </div>
 
@@ -400,9 +336,6 @@ export function ChatPage() {
 
               {activeTab === "other" && (
                 <div className="grid grid-cols-4 gap-1">
-                  {/* Tasks & Settings intentionally duplicated here and in the
-                      tab bar for discoverability — the grid is the full menu,
-                      the tab bar provides quick access to frequent actions. */}
                   <GridOption
                     icon={ListTodoIcon}
                     label="Tasks"
@@ -413,65 +346,31 @@ export function ChatPage() {
                     label="Settings"
                     onClick={() => setShowSettings(!showSettings)}
                   />
-                  <GridOption
-                    icon={CheckSquareIcon}
-                    label="Todos"
-                    onClick={() => {}}
-                    disabled
-                  />
-                  <GridOption
-                    icon={PenLineIcon}
-                    label="Notes"
-                    onClick={() => {}}
-                    disabled
-                  />
                 </div>
               )}
             </div>
           )}
 
           {/* Tabs section */}
-          <div className="flex items-center justify-between bg-foreground/12 px-2 py-1.5">
-            <div className="flex items-center gap-0.5">
-              <TabButton
-                icon={MessageSquareIcon}
-                active={activeTab === "message" && !dismissed}
-                onClick={() => { setActiveTab("message"); setDismissed(false); }}
-                label="Message"
-              />
-              <TabButton
-                icon={PhoneIcon}
-                active={activeTab === "voice" && !dismissed}
-                onClick={() => { setActiveTab("voice"); setDismissed(false); }}
-                label="Voice"
-              />
-              <TabButton
-                icon={GridIcon}
-                active={activeTab === "other" && !dismissed}
-                onClick={() => { setActiveTab("other"); setDismissed(false); }}
-                label="More"
-              />
-            </div>
-            <div className="flex items-center gap-0.5">
-              <TabButton
-                icon={ListTodoIcon}
-                active={showTasks}
-                onClick={() => { setShowTasks(!showTasks); }}
-                label="Tasks"
-              />
-              <TabButton
-                icon={PenLineIcon}
-                onClick={() => {}}
-                label="Notes"
-                disabled
-              />
-              <TabButton
-                icon={SettingsIcon}
-                active={showSettings}
-                onClick={() => { setShowSettings(!showSettings); }}
-                label="Settings"
-              />
-            </div>
+          <div className="flex items-center gap-0.5 bg-foreground/12 px-2 py-1.5">
+            <TabButton
+              icon={MessageSquareIcon}
+              active={activeTab === "message"}
+              onClick={() => setActiveTab("message")}
+              label="Message"
+            />
+            <TabButton
+              icon={PhoneIcon}
+              active={activeTab === "voice"}
+              onClick={() => setActiveTab("voice")}
+              label="Voice"
+            />
+            <TabButton
+              icon={GridIcon}
+              active={activeTab === "other"}
+              onClick={() => setActiveTab("other")}
+              label="More"
+            />
           </div>
         </div>
       </div>
