@@ -260,8 +260,7 @@ export function ChatPage() {
           </div>
 
           {/* Input section */}
-          {!dismissed && (
-            <div className="bg-foreground/8 px-3 py-2">
+          <div className="bg-foreground/8 px-3 py-2">
               {activeTab === "message" && (
                 <form onSubmit={send} className="flex items-center gap-2">
                   <span
@@ -349,7 +348,6 @@ export function ChatPage() {
                 </div>
               )}
             </div>
-          )}
 
           {/* Tabs section */}
           <div className="flex items-center gap-0.5 bg-foreground/12 px-2 py-1.5">

@@ -4,28 +4,45 @@ directories:
   buildResources: resources
   output: .output/bin
 files:
-  - "!**/.vscode/*"
-  - "!src/*"
-  - "!electron.vite.config.*"
-  - "!{dev-app-update.yml,CHANGELOG.md,README.md}"
-  - "!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}"
+  - .output/app/**/*
+  - package.json
+  - "!node_modules"
+  - node_modules/koffi/**/*
+  - "!node_modules/koffi/build/koffi/linux_*"
+  - "!node_modules/koffi/build/koffi/win32_*"
+  - "!node_modules/koffi/build/koffi/freebsd_*"
+  - "!node_modules/koffi/build/koffi/openbsd_*"
+  - "!node_modules/koffi/build/koffi/musl_*"
+  - node_modules/onnxruntime-node/**/*
+  - "!node_modules/onnxruntime-node/bin/napi-v3/linux"
+  - "!node_modules/onnxruntime-node/bin/napi-v3/win32"
+  - node_modules/sharp/**/*
+  - node_modules/@img/sharp-darwin-arm64/**/*
+  - node_modules/@livekit/rtc-node/**/*
+  - node_modules/@livekit/agents-plugin-silero/**/*
 asarUnpack:
+  - node_modules/koffi/**/*.node
+  - node_modules/onnxruntime-node/**/*.node
+  - node_modules/@img/sharp-darwin-arm64/**/*.node
+  - node_modules/@livekit/rtc-node/**/*.node
   - resources/**
 mac:
   artifactName: Inteligir-${version}-${arch}-mac.${ext}
   category: public.app-category.productivity
   icon: resources/icon.icns
+  entitlements: resources/entitlements.mac.plist
   entitlementsInherit: resources/entitlements.mac.plist
+  hardenedRuntime: true
+  notarize: true
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
     - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
     - NSDocumentsFolderUsageDescription: Application requests access to the user's Documents folder.
     - NSDownloadsFolderUsageDescription: Application requests access to the user's Downloads folder.
-  notarize: false
 dmg:
   artifactName: Inteligir-${version}-${arch}.${ext}
 npmRebuild: false
-# Required for electron-updater — configure before shipping.
-# See: https://www.electron.build/publish
-# publish:
-#   provider: github
+publish:
+  provider: github
+  owner: kyh
+  repo: inteligir

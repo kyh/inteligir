@@ -3,13 +3,23 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { loadEnv } from "vite";
-import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { defineConfig } from "electron-vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
+// Native modules that can't be bundled by Vite — must stay in node_modules
+const nativeExternals = [
+  "koffi",
+  "onnxruntime-node",
+  "sharp",
+  "@img/sharp-darwin-arm64",
+  "@livekit/rtc-node",
+  "@livekit/agents-plugin-silero",
+];
+
 export default defineConfig(({ mode }) => ({
   main: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [],
     define: {
       __PROJECT_ROOT__: JSON.stringify(__dirname),
       // Expose LIVEKIT_URL as an explicit build-time constant so sidecar
@@ -24,6 +34,7 @@ export default defineConfig(({ mode }) => ({
     build: {
       outDir: ".output/app/main",
       rollupOptions: {
+        external: [...nativeExternals, "electron"],
         input: {
           index: resolve(__dirname, "src/main/index.ts"),
           worker: resolve(__dirname, "src/agent/worker.ts"),
@@ -32,7 +43,7 @@ export default defineConfig(({ mode }) => ({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    plugins: [],
     resolve: {
       alias: { "@": resolve(__dirname, "src") },
     },

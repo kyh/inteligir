@@ -8,7 +8,9 @@
   "main": "./.output/app/main/index.js",
   "scripts": {
     "build": "electron-vite build",
-    "build-mac": "node --import tsx ./scripts/build-mac.ts",
+    "release": "pnpm with-env electron-vite build && pnpm with-env electron-builder --mac dmg --publish never",
+    "release:publish": "pnpm with-env electron-vite build && pnpm with-env electron-builder --mac dmg --publish always",
+    "with-env": "dotenv -e .env --",
     "clean": "rm -rf .cache .output",
     "dev": "electron-vite dev",
     "start": "electron-vite preview",
