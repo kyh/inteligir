@@ -1,3 +1,5 @@
+import { cacheLife, cacheTag } from "next/cache";
+
 import { GeometricOrb } from "@repo/ui/geometric-orb";
 
 const GITHUB_REPO = "kyh/inteligir";
@@ -17,13 +19,14 @@ function MacLogoIcon({ className }: { className?: string }) {
 }
 
 async function getDownloadUrl(): Promise<string> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("download-url");
+
   try {
     const res = await fetch(
       `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
-      {
-        headers: { Accept: "application/vnd.github+json" },
-        next: { revalidate: 300 },
-      },
+      { headers: { Accept: "application/vnd.github+json" } },
     );
     if (!res.ok) return FALLBACK_URL;
 
@@ -44,7 +47,9 @@ export default async function Page() {
   return (
     <main className="flex min-h-dvh w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center">
-        <GeometricOrb />
+        <div className="h-48 w-48">
+          <GeometricOrb status="starting" />
+        </div>
       </div>
       <div className="flex flex-col items-center gap-3 px-6 pb-16">
         <a
