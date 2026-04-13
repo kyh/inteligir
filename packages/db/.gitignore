@@ -1,0 +1,4 @@
+# tsc build output (emitted alongside source files)
+src/**/*.js
+src/**/*.d.ts
+src/**/*.js.map
