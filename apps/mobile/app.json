@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Inteligir",
+    "slug": "inteligir",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "inteligir",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.inteligir.mobile"
+    },
+    "android": {
+      "package": "com.inteligir.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#d1684e"
+      }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ]
+  }
+}

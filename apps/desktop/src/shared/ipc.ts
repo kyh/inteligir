@@ -1,5 +1,6 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
+import type { DispatchState } from "./dispatch";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -40,6 +41,11 @@ export const IPC_CHANNELS = {
   // Voice (LiveKit)
   VOICE_TOKEN: "voice:token",
   VOICE_STOP: "voice:stop",
+
+  // Dispatch (mobile ↔ desktop relay)
+  DISPATCH_STATE: "dispatch:state",
+  DISPATCH_GET_STATE: "dispatch:get-state",
+  DISPATCH_REFRESH_CODE: "dispatch:refresh-code",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -106,6 +112,11 @@ export type DesktopBridge = {
   // Voice (LiveKit)
   getVoiceToken: () => Promise<{ url: string; token: string }>;
   stopVoice: () => Promise<void>;
+
+  // Dispatch (mobile ↔ desktop relay)
+  getDispatchState: () => Promise<DispatchState>;
+  refreshDispatchCode: () => Promise<void>;
+  onDispatchState: (listener: (state: DispatchState) => void) => () => void;
 };
 
 // ---------------------------------------------------------------------------

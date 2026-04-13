@@ -1,0 +1,35 @@
+{
+  "name": "@repo/mobile",
+  "version": "0.1.0",
+  "private": true,
+  "main": "expo-router/entry",
+  "scripts": {
+    "dev": "expo start",
+    "build": "echo 'Mobile build handled by EAS'",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .cache .expo node_modules"
+  },
+  "dependencies": {
+    "@better-auth/expo": "catalog:",
+    "@expo/vector-icons": "^14.0.4",
+    "@repo/api": "workspace:^",
+    "@tanstack/react-query": "catalog:",
+    "@trpc/client": "catalog:",
+    "@trpc/tanstack-react-query": "catalog:",
+    "better-auth": "catalog:",
+    "expo": "~53.0.0",
+    "expo-router": "~5.0.0",
+    "expo-secure-store": "~14.0.0",
+    "expo-status-bar": "~2.2.0",
+    "react": "catalog:",
+    "react-native": "~0.79.0",
+    "react-native-safe-area-context": "~5.4.0",
+    "react-native-screens": "~4.10.0",
+    "superjson": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/react": "catalog:",
+    "typescript": "catalog:"
+  }
+}

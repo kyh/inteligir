@@ -16,9 +16,16 @@ try {
 }
 
 import { getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import {
+  getDispatchState,
+  initDispatch,
+  refreshPairingCode,
+  sendDispatchResponse,
+  shutdownDispatch,
+} from "@/main/dispatch/dispatch-client";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { taskManager } from "@/main/tasks/task-singleton";
-import { registerAgentIpcHandlers, warmupNodePath } from "@/main/voice/livekit-ipc";
+import { registerAgentIpcHandlers, sendCommandToSidecar, warmupNodePath } from "@/main/voice/livekit-ipc";
 import { readSessionHistory } from "@/main/session-history";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -158,6 +165,11 @@ function registerIpcHandlers(): void {
   // ---- Agent history (read directly from session files on disk) ------------
 
   ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
+
+  // ---- Dispatch (mobile ↔ desktop relay) -----------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.DISPATCH_GET_STATE, () => getDispatchState());
+  createVoidIpcHandler(IPC_CHANNELS.DISPATCH_REFRESH_CODE, () => refreshPairingCode());
 
   // ---- App lifecycle --------------------------------------------------------
 
@@ -304,6 +316,7 @@ app.on("before-quit", (event) => {
   if (isQuitting) return;
   isQuitting = true;
   event.preventDefault();
+  shutdownDispatch();
   void shutdown().finally(() => {
     app.quit();
   });
@@ -333,6 +346,26 @@ app
     readSessionHistory();
 
     initMachine();
+
+    // Dispatch — register device and start polling for mobile commands.
+    // Inbound messages are forwarded to the agent sidecar as text commands.
+    initDispatch((msg) => {
+      switch (msg.type) {
+        case "user_message": {
+          const text = (msg.payload as { text?: string }).text ?? "";
+          if (text) void sendCommandToSidecar({ type: "user_message", text });
+          break;
+        }
+        case "steer": {
+          const text = (msg.payload as { text?: string }).text ?? "";
+          if (text) void sendCommandToSidecar({ type: "steer", text });
+          break;
+        }
+        case "interrupt":
+          void sendCommandToSidecar({ type: "interrupt" });
+          break;
+      }
+    });
   })
   .catch((error) => {
     console.error("[desktop] fatal startup error", error);

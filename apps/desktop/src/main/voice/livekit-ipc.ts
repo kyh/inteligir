@@ -9,6 +9,7 @@ import { exec, fork, type ChildProcess } from "node:child_process";
 import { app, BrowserWindow, ipcMain } from "electron";
 
 import { handleSidecarAgentEvent } from "@/main/app-machine";
+import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { createIpcHandler } from "@/main/lib/ipc-handler";
 import { getResolvedSessionFile } from "@/main/session-history";
 import { SidecarMessageSchema, parseAgentEvent } from "@/shared/agent-event-parser";
@@ -152,7 +153,7 @@ async function spawnSidecar(): Promise<ChildProcess> {
 
   sidecar = proc;
 
-  // Forward agent events to renderer
+  // Forward agent events to renderer + dispatch (mobile)
   proc.on("message", (msg: unknown) => {
     const wrapper = SidecarMessageSchema.safeParse(msg);
     if (!wrapper.success) return;
@@ -160,6 +161,7 @@ async function spawnSidecar(): Promise<ChildProcess> {
     if (!event) return;
     handleSidecarAgentEvent(event);
     broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
+    void sendDispatchResponse(event);
   });
 
   proc.on("exit", (code) => {

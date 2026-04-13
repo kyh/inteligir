@@ -45,4 +45,10 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   // Voice (LiveKit)
   getVoiceToken: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_TOKEN),
   stopVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STOP),
+
+  // Dispatch (mobile ↔ desktop relay)
+  getDispatchState: () => ipcRenderer.invoke(IPC_CHANNELS.DISPATCH_GET_STATE),
+  refreshDispatchCode: () => ipcRenderer.invoke(IPC_CHANNELS.DISPATCH_REFRESH_CODE),
+  onDispatchState: (listener: (state: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.DISPATCH_STATE, listener),
 });

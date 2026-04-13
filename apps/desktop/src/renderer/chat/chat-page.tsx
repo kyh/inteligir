@@ -22,6 +22,7 @@ import type { VoiceSessionState } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
 import { TaskPanel } from "@/renderer/chat/task-panel";
+import { DispatchStatus } from "@/renderer/components/dispatch-status";
 import { DraggablePanel } from "@/renderer/components/draggable-panel";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
@@ -91,6 +92,13 @@ function SettingsContent() {
             <span className="text-xs text-muted-foreground">Not connected</span>
           </div>
         )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs font-medium text-muted-foreground">
+          Mobile Dispatch
+        </Label>
+        <DispatchStatus />
       </div>
     </div>
   );
