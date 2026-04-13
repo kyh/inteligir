@@ -9,7 +9,7 @@
   "scripts": {
     "build": "electron-vite build",
     "release": "pnpm with-env electron-vite build && pnpm with-env electron-builder --mac dmg --publish never",
-    "release:publish": "pnpm with-env electron-vite build && pnpm with-env electron-builder --mac dmg --publish always",
+    "release:publish": "GH_TOKEN=$(gh auth token) pnpm with-env electron-vite build && GH_TOKEN=$(gh auth token) pnpm with-env electron-builder --mac dmg --publish always",
     "with-env": "dotenv -e .env --",
     "clean": "rm -rf .cache .output",
     "dev": "electron-vite dev",

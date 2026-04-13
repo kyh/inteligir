@@ -128,7 +128,18 @@ async function spawnSidecar(): Promise<ChildProcess> {
     env: {
       ...process.env,
       LIVEKIT_URL: __LIVEKIT_URL__,
-      ...(app.isPackaged ? { INTELIGIR_RESOURCES_PATH: process.resourcesPath } : {}),
+      ...(app.isPackaged
+        ? {
+            INTELIGIR_RESOURCES_PATH: process.resourcesPath,
+            NODE_PATH: [
+              path.join(process.resourcesPath, "app.asar", "node_modules"),
+              path.join(process.resourcesPath, "app.asar.unpacked", "node_modules"),
+              process.env["NODE_PATH"],
+            ]
+              .filter(Boolean)
+              .join(path.delimiter),
+          }
+        : {}),
       ...(sessionFile ? { INTELIGIR_SESSION_FILE: sessionFile } : {}),
     },
   });
