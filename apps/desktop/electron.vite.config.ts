@@ -32,6 +32,7 @@ export default defineConfig(({ mode }) => ({
       alias: { "@": resolve(__dirname, "src") },
     },
     build: {
+      externalizeDeps: false,
       outDir: ".output/app/main",
       rollupOptions: {
         external: [...nativeExternals, "electron"],
