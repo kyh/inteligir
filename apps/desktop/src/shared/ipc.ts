@@ -26,7 +26,7 @@ export const IPC_CHANNELS = {
   APP_TRANSITION: "app:transition",
   APP_GET_STATE: "app:get-state",
 
-  // Agent (events forwarded from sidecar via main process)
+  // Agent
   AGENT_EVENT: "agent:event",
   AGENT_COMMAND: "agent:command",
   AGENT_HISTORY: "agent:history",
@@ -37,9 +37,8 @@ export const IPC_CHANNELS = {
   TASK_DELETE: "task:delete",
   TASK_TOGGLE: "task:toggle",
 
-  // Voice (LiveKit)
-  VOICE_TOKEN: "voice:token",
-  VOICE_STOP: "voice:stop",
+  // Voice
+  VOICE_CONFIG: "voice:config",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -103,9 +102,12 @@ export type DesktopBridge = {
   deleteTask: (id: string) => Promise<DeleteTaskResult>;
   toggleTask: (id: string) => Promise<ToggleTaskResult>;
 
-  // Voice (LiveKit)
-  getVoiceToken: () => Promise<{ url: string; token: string }>;
-  stopVoice: () => Promise<void>;
+  // Voice
+  getVoiceConfig: () => Promise<{
+    deepgramApiKey: string;
+    elevenlabsApiKey: string;
+    elevenlabsVoiceId?: string;
+  } | null>;
 };
 
 // ---------------------------------------------------------------------------

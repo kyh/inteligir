@@ -1,9 +1,10 @@
 // ---------------------------------------------------------------------------
-// Agent setup — extracted from main process for use in sidecar worker
+// Agent setup — manages agent lifecycle in the main process
 // ---------------------------------------------------------------------------
 
 import fs from "node:fs";
 import path from "node:path";
+import { app } from "electron";
 
 import {
   AuthStorage,
@@ -26,9 +27,6 @@ import type {
   SteerResult,
 } from "@/shared/agent";
 
-// Lazy import — browser-tool depends on electron's BrowserWindow which is
-// unavailable in the sidecar (system Node.js). Imported dynamically only
-// when running in Electron main process.
 type ExtensionFactory = (pi: import("@mariozechner/pi-coding-agent").ExtensionAPI) => void;
 import { inteligirPath } from "@/main/lib/json-store";
 import { taskManager } from "@/main/tasks/task-singleton";
@@ -53,7 +51,7 @@ process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
 /**
  * Resolve the SessionManager for the agent. If the main process already
  * identified a session file (via INTELIGIR_SESSION_FILE env), open that
- * exact file so the sidecar continues the same session the UI loaded.
+ * exact file so the agent continues the same session the UI loaded.
  * Otherwise fall back to continueRecent.
  */
 function resolveSessionManager(): SessionManager {
@@ -85,20 +83,13 @@ function getDefaultModel(): Model<Api> {
  * Bundled resources shipped inside the app (resources/agent/).
  * In production these are unpacked via asarUnpack.
  * In dev they're at the repo's resources/agent/ directory.
- *
- * `projectRoot` must be passed by the caller — in the main process
- * this is __PROJECT_ROOT__, in the sidecar it's passed via env.
  */
 declare const __PROJECT_ROOT__: string;
 
 function getBundledResourcesDir(): string {
-  // In packaged mode, the main process passes the resources path via env
-  // (process.resourcesPath is Electron-only, unavailable in the system node sidecar)
-  const resourcesPath = process.env["INTELIGIR_RESOURCES_PATH"];
-  if (resourcesPath) {
-    return path.join(resourcesPath, "app.asar.unpacked", "resources", "agent");
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
   }
-  // Dev: injected by electron-vite at build time
   return path.join(__PROJECT_ROOT__, "resources", "agent");
 }
 

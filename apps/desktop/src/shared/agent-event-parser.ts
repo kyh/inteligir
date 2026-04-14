@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Parse raw pi-agent-core events into typed AppAgentEvent at the IPC boundary.
-// Pure function — no Electron, no sidecar dependency. Testable in plain Node.
+// Pure function — no Electron dependency. Testable in plain Node.
 // ---------------------------------------------------------------------------
 
 import { z } from "zod";
@@ -47,15 +47,6 @@ const ToolExecutionEndSchema = z.object({
   toolCallId: z.string(),
   isError: z.boolean(),
   result: z.unknown(),
-});
-
-// ---------------------------------------------------------------------------
-// Sidecar IPC message wrapper
-// ---------------------------------------------------------------------------
-
-export const SidecarMessageSchema = z.object({
-  type: z.literal("agent-event"),
-  event: z.unknown(),
 });
 
 // ---------------------------------------------------------------------------

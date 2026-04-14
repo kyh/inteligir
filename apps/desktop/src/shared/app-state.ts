@@ -18,7 +18,7 @@ export const AppEventSchema = z.discriminatedUnion("type", [
 export type AppEvent = z.infer<typeof AppEventSchema>;
 
 // ---------------------------------------------------------------------------
-// Internal events — emitted by effect runner / sidecar, never from renderer
+// Internal events — emitted by effect runner, never from renderer
 // ---------------------------------------------------------------------------
 
 export type InternalEvent =

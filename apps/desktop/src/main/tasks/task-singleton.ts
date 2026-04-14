@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Singleton TaskManager instance for the main process and sidecar.
+// Singleton TaskManager instance for the main process.
 // ---------------------------------------------------------------------------
 
 import { TaskManager } from "./task-manager";

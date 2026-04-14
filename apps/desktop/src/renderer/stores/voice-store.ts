@@ -1,14 +1,11 @@
-import { Room } from "livekit-client";
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { bindAudio } from "@/renderer/voice/audio-binder";
-import { VoiceSession } from "@/renderer/voice/session";
+import { VoicePipeline, type VoicePipelineEvent } from "@/renderer/voice/voice-pipeline";
 import type { VoiceSessionState } from "@/shared/voice";
 
 // ---------------------------------------------------------------------------
-// Store — manages voice session lifecycle only.
-// Text commands go through the agent store, not here.
+// Store — manages voice pipeline lifecycle (Deepgram STT + ElevenLabs TTS)
 // ---------------------------------------------------------------------------
 
 type VoiceStore = {
@@ -17,12 +14,14 @@ type VoiceStore = {
   error: string | null;
 
   init: () => () => void;
-  handleSidecarError: (message: string) => void;
   reset: () => void;
   toggleVoice: () => void;
+  speakText: (text: string) => void;
+  flushSpeech: () => void;
+  interruptSpeech: () => void;
 };
 
-let session: VoiceSession | null = null;
+let pipeline: VoicePipeline | null = null;
 
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
@@ -33,12 +32,15 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
     const bridge = getBridge();
     if (!bridge) return () => {};
 
-    session = new VoiceSession({
-      roomFactory: () => new Room(),
-      tokenFetcher: () => bridge.getVoiceToken(),
+    let cancelled = false;
+
+    void bridge.getVoiceConfig().then((config) => {
+      if (cancelled || !config) return;
+      pipeline = new VoicePipeline(config);
+      pipeline.on(handlePipelineEvent);
     });
 
-    const unsubSession = session.on((event) => {
+    function handlePipelineEvent(event: VoicePipelineEvent) {
       switch (event.type) {
         case "state_changed":
           set({
@@ -52,48 +54,47 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
           break;
         case "transcript_final":
           set({ currentTranscript: "" });
-          // Voice transcripts are sent to the agent by the PiLLMAdapter on
-          // the sidecar. We add the user message to the chat here so it
-          // appears immediately. Import is deferred to avoid circular deps.
           if (event.text) {
+            void bridge.sendAgentCommand({ type: "user_message", text: event.text });
             void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
               useAgentStore.getState().addUserMessage(event.text);
             });
           }
           break;
       }
-    });
-
-    const unsubAudio = bindAudio(session);
+    }
 
     return () => {
-      unsubSession();
-      unsubAudio();
-      session?.disconnect();
-      session = null;
+      cancelled = true;
+      pipeline?.disconnect();
+      pipeline = null;
     };
   },
 
   toggleVoice: () => {
-    if (!session) return;
+    if (!pipeline) return;
     const { sessionState } = get();
     if (sessionState === "inactive" || sessionState === "error") {
-      void session.connect();
+      void pipeline.connect();
     } else {
-      session.disconnect();
-      void getBridge()?.stopVoice();
+      pipeline.disconnect();
     }
   },
 
-  handleSidecarError: (message: string) => {
-    session?.disconnect();
-    void getBridge()?.stopVoice();
-    set({ sessionState: "error", error: message, currentTranscript: "" });
+  speakText: (text: string) => {
+    pipeline?.speakText(text);
+  },
+
+  flushSpeech: () => {
+    pipeline?.flushSpeech();
+  },
+
+  interruptSpeech: () => {
+    pipeline?.interruptSpeech();
   },
 
   reset: () => {
-    session?.disconnect();
-    void getBridge()?.stopVoice();
+    pipeline?.disconnect();
     set({ sessionState: "inactive", currentTranscript: "", error: null });
   },
 }));

@@ -10,5 +10,4 @@ export type AppAgentEvent =
   | { type: "message_update"; delta: string }
   | { type: "message_end"; role: string; text: string; stopReason?: string }
   | { type: "tool_execution_start"; toolCallId: string; toolName: string }
-  | { type: "tool_execution_end"; toolCallId: string; isError: boolean; resultText: string }
-  | { type: "sidecar_error"; message: string };
+  | { type: "tool_execution_end"; toolCallId: string; isError: boolean; resultText: string };

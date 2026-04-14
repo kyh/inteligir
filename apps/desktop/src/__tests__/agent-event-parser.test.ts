@@ -1,22 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAgentEvent, SidecarMessageSchema } from "@/shared/agent-event-parser";
-
-describe("SidecarMessageSchema", () => {
-  it("accepts valid wrapper", () => {
-    const r = SidecarMessageSchema.safeParse({ type: "agent-event", event: {} });
-    expect(r.success).toBe(true);
-  });
-
-  it("rejects wrong type", () => {
-    const r = SidecarMessageSchema.safeParse({ type: "other" });
-    expect(r.success).toBe(false);
-  });
-
-  it("rejects non-object", () => {
-    const r = SidecarMessageSchema.safeParse("string");
-    expect(r.success).toBe(false);
-  });
-});
+import { parseAgentEvent } from "@/shared/agent-event-parser";
 
 describe("parseAgentEvent", () => {
   it("parses agent_start", () => {
