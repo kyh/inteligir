@@ -6,6 +6,7 @@ directories:
 files:
   - .output/app/**/*
   - package.json
+  - resources/agent/**/*
   - "!node_modules"
 asarUnpack:
   - resources/**
