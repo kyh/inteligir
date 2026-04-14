@@ -113,7 +113,6 @@ export const useAgentStore = create<AgentStore>((set) => ({
                 : m,
             ),
           }));
-          // Stream text to TTS if voice is active
           {
             const voice = useVoiceStore.getState();
             if (voice.sessionState === "connected") voice.speakText(delta);

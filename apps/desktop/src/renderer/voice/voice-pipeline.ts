@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Voice pipeline — orchestrates Deepgram STT + ElevenLabs TTS + agent IPC
+// Voice pipeline — orchestrates Deepgram STT + ElevenLabs TTS
 // ---------------------------------------------------------------------------
 
 import { startSTT, type STTHandle } from "./stt";
@@ -41,13 +41,13 @@ export class VoicePipeline {
     this.setState("connecting");
 
     try {
-      // Start TTS first (WebSocket connect)
+      // TTS connects lazily on first sendText — just create the handle
       this.tts = createTTS(
         this.config.elevenlabsApiKey,
         this.config.elevenlabsVoiceId,
       );
 
-      // Start STT (requests mic permission + opens Deepgram WebSocket)
+      // STT requests mic permission + opens Deepgram WebSocket
       this.stt = await startSTT(
         this.config.deepgramApiKey,
         (text, isFinal) => {
@@ -56,13 +56,11 @@ export class VoicePipeline {
             if (text.trim()) {
               this.emit({ type: "transcript_final", text: text.trim() });
             }
-          } else {
+          } else if (text.trim()) {
+            // Interrupt TTS when user starts speaking
+            this.tts?.interrupt();
             this.emit({ type: "transcript_partial", text });
           }
-        },
-        () => {
-          // User started speaking — interrupt any ongoing TTS playback
-          this.tts?.interrupt();
         },
         (error) => {
           console.error("[voice] STT error:", error);
@@ -86,19 +84,12 @@ export class VoicePipeline {
     this.setState("inactive");
   }
 
-  /** Stream agent response text to TTS for speech synthesis. */
   speakText(text: string): void {
     this.tts?.sendText(text);
   }
 
-  /** Signal end of agent response — flushes remaining TTS audio. */
   flushSpeech(): void {
     this.tts?.flush();
-  }
-
-  /** Interrupt current TTS playback (e.g., user started speaking). */
-  interruptSpeech(): void {
-    this.tts?.interrupt();
   }
 
   private setState(state: VoiceSessionState, error?: string): void {

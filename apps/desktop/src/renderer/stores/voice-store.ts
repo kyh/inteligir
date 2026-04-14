@@ -4,10 +4,6 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { VoicePipeline, type VoicePipelineEvent } from "@/renderer/voice/voice-pipeline";
 import type { VoiceSessionState } from "@/shared/voice";
 
-// ---------------------------------------------------------------------------
-// Store — manages voice pipeline lifecycle (Deepgram STT + ElevenLabs TTS)
-// ---------------------------------------------------------------------------
-
 type VoiceStore = {
   sessionState: VoiceSessionState;
   currentTranscript: string;
@@ -18,7 +14,6 @@ type VoiceStore = {
   toggleVoice: () => void;
   speakText: (text: string) => void;
   flushSpeech: () => void;
-  interruptSpeech: () => void;
 };
 
 let pipeline: VoicePipeline | null = null;
@@ -87,10 +82,6 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
   flushSpeech: () => {
     pipeline?.flushSpeech();
-  },
-
-  interruptSpeech: () => {
-    pipeline?.interruptSpeech();
   },
 
   reset: () => {

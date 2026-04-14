@@ -3,7 +3,6 @@
 // ---------------------------------------------------------------------------
 
 export type TranscriptCallback = (text: string, isFinal: boolean) => void;
-export type SpeechStartedCallback = () => void;
 
 export type STTHandle = {
   stop: () => void;
@@ -20,7 +19,6 @@ type DeepgramMessage = {
 export async function startSTT(
   apiKey: string,
   onTranscript: TranscriptCallback,
-  onSpeechStarted: SpeechStartedCallback,
   onError: (error: string) => void,
 ): Promise<STTHandle> {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -31,7 +29,6 @@ export async function startSTT(
     smart_format: "true",
     interim_results: "true",
     utterance_end_ms: "1000",
-    vad_events: "true",
     endpointing: "300",
     encoding: "linear16",
     sample_rate: "16000",
@@ -84,10 +81,6 @@ export async function startSTT(
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(String(event.data)) as DeepgramMessage;
-      if (data.type === "SpeechStarted") {
-        onSpeechStarted();
-        return;
-      }
       const transcript = data.channel?.alternatives?.[0]?.transcript;
       if (transcript) {
         onTranscript(transcript, data.is_final ?? false);

@@ -1,13 +1,10 @@
 // ---------------------------------------------------------------------------
-// ElevenLabs streaming TTS — text chunks → gapless audio playback
+// ElevenLabs streaming TTS — lazy WebSocket, immediate playback
 // ---------------------------------------------------------------------------
 
 const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 const MODEL_ID = "eleven_flash_v2_5";
 const SAMPLE_RATE = 24000;
-
-// Buffer audio for this many ms before starting playback to absorb jitter
-const PRE_BUFFER_MS = 150;
 
 export type TTSHandle = {
   sendText: (text: string) => void;
@@ -20,158 +17,134 @@ export function createTTS(
   apiKey: string,
   voiceId: string = DEFAULT_VOICE_ID,
 ): TTSHandle {
-  const uri =
+  const baseUri =
     `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input` +
     `?model_id=${MODEL_ID}&output_format=pcm_${SAMPLE_RATE}`;
 
-  const ws = new WebSocket(uri);
-  let audioCtx: AudioContext | null = null;
+  const audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
   let nextPlayTime = 0;
-  let interrupted = false;
+  let muted = false;
+  const activeSources: Set<AudioBufferSourceNode> = new Set();
 
-  // Pre-buffer: accumulate PCM samples before first playback
-  let preBuffer: Int16Array[] = [];
-  let preBufferSamples = 0;
-  let playbackStarted = false;
-  const preBufferThreshold = Math.floor((SAMPLE_RATE * PRE_BUFFER_MS) / 1000);
+  let ws: WebSocket | null = null;
+  let pendingText: string[] = [];
 
-  function getAudioContext(): AudioContext {
-    if (!audioCtx || audioCtx.state === "closed") {
-      audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
-      nextPlayTime = 0;
-    }
-    return audioCtx;
+  function ensureConnection(): WebSocket {
+    if (ws && ws.readyState <= WebSocket.OPEN) return ws;
+
+    const socket = new WebSocket(baseUri);
+    ws = socket;
+
+    socket.onopen = () => {
+      socket.send(
+        JSON.stringify({
+          text: " ",
+          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
+          xi_api_key: apiKey,
+        }),
+      );
+      // Send any text that arrived while connecting
+      for (const text of pendingText) {
+        socket.send(JSON.stringify({ text, try_trigger_generation: true }));
+      }
+      pendingText = [];
+    };
+
+    socket.onmessage = (event) => {
+      if (muted) return;
+      try {
+        const data = JSON.parse(String(event.data)) as { audio?: string };
+        if (data.audio) {
+          const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
+          playChunk(bytes.buffer);
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    socket.onerror = () => {
+      ws = null;
+    };
+
+    socket.onclose = () => {
+      ws = null;
+    };
+
+    return socket;
   }
 
-  function scheduleBuffer(int16: Int16Array): void {
-    if (interrupted || int16.length === 0) return;
-    const ctx = getAudioContext();
+  function playChunk(pcm: ArrayBuffer): void {
+    const int16 = new Int16Array(pcm);
+    if (int16.length === 0) return;
+
+    if (audioCtx.state === "suspended") void audioCtx.resume();
 
     const float32 = new Float32Array(int16.length);
     for (let i = 0; i < int16.length; i++) {
       float32[i] = (int16[i] ?? 0) / 32768;
     }
 
-    const buffer = ctx.createBuffer(1, float32.length, SAMPLE_RATE);
+    const buffer = audioCtx.createBuffer(1, float32.length, SAMPLE_RATE);
     buffer.getChannelData(0).set(float32);
 
-    const source = ctx.createBufferSource();
+    const source = audioCtx.createBufferSource();
     source.buffer = buffer;
-    source.connect(ctx.destination);
+    source.connect(audioCtx.destination);
+    source.onended = () => activeSources.delete(source);
+    activeSources.add(source);
 
-    const now = ctx.currentTime;
+    const now = audioCtx.currentTime;
     if (nextPlayTime < now) nextPlayTime = now;
     source.start(nextPlayTime);
     nextPlayTime += buffer.duration;
   }
 
-  function drainPreBuffer(): void {
-    if (preBuffer.length === 0) return;
-    // Concatenate all buffered chunks into one
-    const total = preBuffer.reduce((sum, b) => sum + b.length, 0);
-    const merged = new Int16Array(total);
-    let offset = 0;
-    for (const chunk of preBuffer) {
-      merged.set(chunk, offset);
-      offset += chunk.length;
+  function stopAllSources(): void {
+    for (const source of activeSources) {
+      try { source.stop(); } catch { /* already stopped */ }
     }
-    preBuffer = [];
-    preBufferSamples = 0;
-    scheduleBuffer(merged);
-  }
-
-  function onPCMChunk(pcmBuffer: ArrayBuffer): void {
-    if (interrupted) return;
-    const int16 = new Int16Array(pcmBuffer);
-
-    if (!playbackStarted) {
-      // Accumulate until we have enough for smooth start
-      preBuffer.push(int16);
-      preBufferSamples += int16.length;
-      if (preBufferSamples >= preBufferThreshold) {
-        playbackStarted = true;
-        drainPreBuffer();
-      }
-      return;
-    }
-
-    scheduleBuffer(int16);
-  }
-
-  ws.onopen = () => {
-    ws.send(
-      JSON.stringify({
-        text: " ",
-        voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-        xi_api_key: apiKey,
-      }),
-    );
-  };
-
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(String(event.data)) as { audio?: string; isFinal?: boolean };
-      if (data.audio) {
-        const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
-        onPCMChunk(bytes.buffer);
-      }
-      // If this is the final chunk, drain any remaining pre-buffer
-      if (data.isFinal && !playbackStarted) {
-        playbackStarted = true;
-        drainPreBuffer();
-      }
-    } catch {
-      // Non-JSON or parse error
-    }
-  };
-
-  ws.onerror = (err) => {
-    console.error("[tts] WebSocket error:", err);
-  };
-
-  function resetPlayback(): void {
-    preBuffer = [];
-    preBufferSamples = 0;
-    playbackStarted = false;
+    activeSources.clear();
     nextPlayTime = 0;
   }
 
   return {
     sendText: (text: string) => {
-      if (ws.readyState === WebSocket.OPEN) {
-        if (interrupted) {
-          interrupted = false;
-          audioCtx = null; // force new context
-          resetPlayback();
-        }
-        ws.send(JSON.stringify({ text }));
+      // New text from agent always unmutes — the agent is responding fresh
+      muted = false;
+      const socket = ensureConnection();
+      if (socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({ text, try_trigger_generation: true }));
+      } else {
+        pendingText.push(text);
       }
     },
     flush: () => {
-      if (ws.readyState === WebSocket.OPEN) {
+      // Close the current connection so it doesn't timeout idle.
+      // Next sendText will open a fresh one.
+      if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ text: "" }));
       }
-      // Drain anything left in pre-buffer
-      if (!playbackStarted) {
-        playbackStarted = true;
-        drainPreBuffer();
-      }
+      ws = null;
+      muted = false;
     },
     interrupt: () => {
-      interrupted = true;
-      resetPlayback();
-      if (audioCtx) {
-        void audioCtx.close();
-        audioCtx = null;
+      muted = true;
+      pendingText = [];
+      stopAllSources();
+      // Kill the connection — remaining server-side audio is discarded
+      if (ws) {
+        ws.close();
+        ws = null;
       }
     },
     close: () => {
-      interrupted = true;
-      if (audioCtx) {
-        void audioCtx.close();
-        audioCtx = null;
+      stopAllSources();
+      void audioCtx.close();
+      if (ws) {
+        ws.close();
+        ws = null;
       }
-      ws.close();
     },
   };
 }
