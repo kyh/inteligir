@@ -101,20 +101,18 @@ export default function DispatchScreen() {
             setEntries((prev) => [...prev, { role: "assistant", text: event.text as string }]);
           }
           break;
-        case "tool_execution_start":
-          // Flush any streaming assistantText before adding tool entries
-          // to preserve chronological order in the chat
-          setAssistantText((text) => {
-            if (text) {
-              setEntries((prev) => [...prev, { role: "assistant", text }]);
-            }
-            return "";
-          });
+        case "tool_execution_start": {
+          // Flush streaming assistantText + append tool entry in one
+          // update to guarantee correct ordering.
+          let flushed = "";
+          setAssistantText((text) => { flushed = text; return ""; });
           setEntries((prev) => [
             ...prev,
-            { role: "tool", text: `Running ${event.toolName}...`, isError: false },
+            ...(flushed ? [{ role: "assistant" as const, text: flushed }] : []),
+            { role: "tool" as const, text: `Running ${event.toolName}...`, isError: false },
           ]);
           break;
+        }
         case "tool_execution_end":
           setEntries((prev) => [
             ...prev,
