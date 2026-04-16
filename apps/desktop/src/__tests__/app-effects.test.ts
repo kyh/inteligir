@@ -5,6 +5,7 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     seedResources: vi.fn(),
+    installGws: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),

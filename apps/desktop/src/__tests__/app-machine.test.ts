@@ -13,6 +13,7 @@ vi.mock("@/agent/setup", () => ({
   isSetupComplete: vi.fn().mockReturnValue(false),
   login: vi.fn().mockResolvedValue(undefined),
   seedResources: vi.fn(),
+  installGws: vi.fn().mockResolvedValue(undefined),
   teardownResources: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn().mockResolvedValue(undefined),
     seedResources: vi.fn(),
+    installGws: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(undefined),
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),

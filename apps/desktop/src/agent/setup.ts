@@ -2,8 +2,12 @@
 // Agent setup — manages agent lifecycle in the main process
 // ---------------------------------------------------------------------------
 
+import { execFile } from "node:child_process";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { pipeline } from "node:stream/promises";
+import { createGunzip } from "node:zlib";
 import { app } from "electron";
 
 import {
@@ -44,6 +48,7 @@ const AGENT_DIR = inteligirPath();
 const AUTH_PATH = inteligirPath("auth.json");
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
+const BIN_DIR = inteligirPath("bin");
 
 // Override pi-coding-agent's default getAgentDir() (~/.pi/agent)
 process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
@@ -100,6 +105,13 @@ function getBundledResourcesDir(): string {
 export function seedResources(): void {
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+
+  // Prepend ~/.inteligir/bin to PATH so the agent's bash tool can find gws
+  const currentPath = process.env["PATH"] ?? "";
+  if (!currentPath.includes(BIN_DIR)) {
+    process.env["PATH"] = `${BIN_DIR}:${currentPath}`;
+  }
 
   const src = getBundledResourcesDir();
   if (!fs.existsSync(src)) {
@@ -119,6 +131,134 @@ export function seedResources(): void {
     fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
     fs.copyFileSync(agentsMdSrc, agentsMdDest);
   }
+
+  seedGwsClientSecret(src);
+}
+
+// ---------------------------------------------------------------------------
+// Google Workspace CLI (gws) — binary install + client secret seeding
+// ---------------------------------------------------------------------------
+
+const GWS_VERSION = "0.22.5";
+const GWS_CONFIG_DIR = path.join(os.homedir(), ".config", "gws");
+
+/**
+ * Map process.arch to the gws release artifact name.
+ * Returns null for unsupported architectures.
+ */
+function gwsArchSuffix(): string | null {
+  switch (process.arch) {
+    case "arm64":
+      return "aarch64-apple-darwin";
+    case "x64":
+      return "x86_64-apple-darwin";
+    default:
+      return null;
+  }
+}
+
+/**
+ * Download the gws binary, then install its built-in skills.
+ * Binary goes to ~/.inteligir/bin/gws, skills to ~/.inteligir/skills/.
+ * Skips each step if already present. Called during onboarding setup.
+ */
+export async function installGws(): Promise<void> {
+  await installGwsBinary();
+  await installGwsSkills();
+}
+
+async function installGwsBinary(): Promise<void> {
+  const gwsPath = path.join(BIN_DIR, "gws");
+  if (fs.existsSync(gwsPath)) return;
+
+  const arch = gwsArchSuffix();
+  if (!arch) {
+    console.warn(`[gws] unsupported architecture: ${process.arch}`);
+    return;
+  }
+
+  const tarball = `google-workspace-cli-${arch}.tar.gz`;
+  const url = `https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}/${tarball}`;
+  const tmpTar = path.join(BIN_DIR, tarball);
+
+  try {
+    console.log(`[gws] downloading binary from ${url}`);
+    const response = await fetch(url, { redirect: "follow" });
+    if (!response.ok || !response.body) {
+      throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
+    }
+
+    const tmpGz = `${tmpTar}.gz`;
+    const dest = fs.createWriteStream(tmpGz);
+    await pipeline(response.body, dest);
+
+    const gzStream = fs.createReadStream(tmpGz);
+    const tarDest = fs.createWriteStream(tmpTar);
+    await pipeline(gzStream, createGunzip(), tarDest);
+    fs.unlinkSync(tmpGz);
+
+    await new Promise<void>((resolve, reject) => {
+      execFile("tar", ["xf", tmpTar, "-C", BIN_DIR, "gws"], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    fs.unlinkSync(tmpTar);
+
+    fs.chmodSync(gwsPath, 0o755);
+    console.log(`[gws] installed binary to ${gwsPath}`);
+  } catch (err) {
+    console.error("[gws] binary install failed:", err);
+    for (const f of [`${tmpTar}.gz`, tmpTar, gwsPath]) {
+      try { fs.unlinkSync(f); } catch { /* ignore */ }
+    }
+  }
+}
+
+/**
+ * Install gws built-in skills (95 skill directories) into ~/.inteligir/skills/.
+ * Uses `gws skills install --all` which ships with the binary.
+ * Skips if any gws-prefixed skill directory already exists.
+ */
+async function installGwsSkills(): Promise<void> {
+  const gwsPath = path.join(BIN_DIR, "gws");
+  if (!fs.existsSync(gwsPath)) return;
+
+  const skillsDir = path.join(AGENT_DIR, "skills");
+  fs.mkdirSync(skillsDir, { recursive: true });
+
+  // Skip if gws skills already installed
+  const existing = fs.readdirSync(skillsDir);
+  if (existing.some((name) => name.startsWith("gws-"))) return;
+
+  try {
+    console.log("[gws] installing built-in skills");
+    await new Promise<void>((resolve, reject) => {
+      execFile(gwsPath, ["skills", "install", "--all", "--dir", skillsDir], (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    console.log(`[gws] installed skills to ${skillsDir}`);
+  } catch (err) {
+    console.error("[gws] skills install failed:", err);
+  }
+}
+
+/**
+ * Copy bundled client_secret.json → ~/.config/gws/client_secret.json
+ * if not already present. Required for gws OAuth flow.
+ */
+function seedGwsClientSecret(bundledResourcesDir: string): void {
+  const secretSrc = path.join(bundledResourcesDir, "client_secret.json");
+  const secretDest = path.join(GWS_CONFIG_DIR, "client_secret.json");
+
+  if (!fs.existsSync(secretSrc)) return;
+  if (fs.existsSync(secretDest)) return;
+
+  fs.mkdirSync(GWS_CONFIG_DIR, { recursive: true });
+  fs.copyFileSync(secretSrc, secretDest);
+  console.log(`[gws] seeded client_secret.json → ${secretDest}`);
 }
 
 // ---------------------------------------------------------------------------

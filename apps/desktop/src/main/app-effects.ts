@@ -11,6 +11,7 @@ import type { EffectTag } from "./app-reducer";
 export type EffectDeps = {
   login: () => Promise<void>;
   seedResources: () => void;
+  installGws: () => Promise<void>;
   startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   teardownResources: () => void;
@@ -30,6 +31,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     case "SETUP": {
       try {
         deps.seedResources();
+        await deps.installGws();
         await deps.startAgent();
         return { type: "SETUP_OK" };
       } catch (err) {
