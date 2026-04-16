@@ -17,7 +17,7 @@ import {
   respondInput,
   sendMessageInput,
 } from "./dispatch-schema";
-import { broadcastDispatchEvent } from "./supabase-admin";
+import { broadcastDispatchEvent, removeDeviceChannel } from "./supabase-admin";
 
 /** Generate a cryptographically random 6-char uppercase alphanumeric code */
 function generatePairingCode(): string {
@@ -299,6 +299,7 @@ export const dispatchRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
       tokenDeviceCache.delete(input.deviceToken);
+      removeDeviceChannel(device.id);
       await ctx.db.delete(dispatchDevice).where(eq(dispatchDevice.id, device.id));
       return { ok: true };
     }),

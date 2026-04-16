@@ -3,7 +3,6 @@ import { createClient, type RealtimeChannel, type SupabaseClient } from "@supaba
 /**
  * Lazy-initialized server-side Supabase client for broadcasting dispatch events.
  * Uses the service role key so it can broadcast without RLS restrictions.
- * Lazy init avoids "supabaseUrl is required" errors during Next.js build.
  */
 let _supabaseAdmin: SupabaseClient | null = null;
 function getSupabaseAdmin(): SupabaseClient {
@@ -16,12 +15,17 @@ function getSupabaseAdmin(): SupabaseClient {
   return _supabaseAdmin;
 }
 
-/**
- * Cache of subscribed channels keyed by device ID.
- * Channels are reused across calls to avoid leaking RealtimeChannel objects.
- */
 const channels = new Map<string, RealtimeChannel>();
 const subscribed = new Map<string, Promise<void>>();
+
+function evictChannel(deviceId: string): void {
+  const ch = channels.get(deviceId);
+  if (ch) {
+    getSupabaseAdmin().removeChannel(ch);
+    channels.delete(deviceId);
+  }
+  subscribed.delete(deviceId);
+}
 
 function getChannel(deviceId: string): { channel: RealtimeChannel; ready: Promise<void> } {
   let ch = channels.get(deviceId);
@@ -32,17 +36,19 @@ function getChannel(deviceId: string): { channel: RealtimeChannel; ready: Promis
     ch = admin.channel(`dispatch:${deviceId}`);
     channels.set(deviceId, ch);
 
-    let resolved = false;
     ready = new Promise<void>((resolve, reject) => {
+      let resolved = false;
       ch!.subscribe((status) => {
         if (status === "SUBSCRIBED") {
           resolved = true;
           resolve();
-        } else if (!resolved) {
-          channels.delete(deviceId);
-          subscribed.delete(deviceId);
-          admin.removeChannel(ch!);
-          reject(new Error(`Channel subscription failed: ${status}`));
+        } else {
+          // Clean up on any failure — both pre- and post-subscribe.
+          // Post-subscribe cleanup lets the next call create a fresh channel.
+          evictChannel(deviceId);
+          if (!resolved) {
+            reject(new Error(`Channel subscription failed: ${status}`));
+          }
         }
       });
     });
@@ -54,7 +60,6 @@ function getChannel(deviceId: string): { channel: RealtimeChannel; ready: Promis
 
 /**
  * Broadcast a dispatch message to a device channel.
- * Both mobile and desktop subscribe to `dispatch:{deviceId}`.
  * Awaits the channel subscription before sending to ensure delivery.
  */
 export async function broadcastDispatchEvent(
@@ -69,4 +74,11 @@ export async function broadcastDispatchEvent(
     event,
     payload,
   });
+}
+
+/**
+ * Clean up a device's cached channel (call on device deletion).
+ */
+export function removeDeviceChannel(deviceId: string): void {
+  evictChannel(deviceId);
 }

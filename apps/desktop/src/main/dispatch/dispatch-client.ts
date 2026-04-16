@@ -265,28 +265,31 @@ export function initDispatch(
 ): void {
   onInboundMessage = handler;
 
-  const creds = credentialStore.read();
-  if (creds) {
-    // Only assume paired if the flag is set; otherwise show pairing code
-    setState({
-      status: creds.paired ? "paired" : "awaiting_pairing",
-      deviceId: creds.deviceId,
-      pairingCode: null,
-      pairingExpiresAt: null,
-      error: null,
-    });
-    subscribeToChannel(creds.deviceId);
-    // If not yet paired, refresh the pairing code so the user can see it
-    if (!creds.paired) {
-      void refreshPairingCode();
-    }
-  } else {
-    void registerDevice().then(() => {
-      const updatedCreds = credentialStore.read();
-      if (updatedCreds) {
-        subscribeToChannel(updatedCreds.deviceId);
+  try {
+    const creds = credentialStore.read();
+    if (creds) {
+      setState({
+        status: creds.paired ? "paired" : "awaiting_pairing",
+        deviceId: creds.deviceId,
+        pairingCode: null,
+        pairingExpiresAt: null,
+        error: null,
+      });
+      subscribeToChannel(creds.deviceId);
+      if (!creds.paired) {
+        void refreshPairingCode();
       }
-    });
+    } else {
+      void registerDevice().then(() => {
+        const updatedCreds = credentialStore.read();
+        if (updatedCreds) {
+          subscribeToChannel(updatedCreds.deviceId);
+        }
+      });
+    }
+  } catch (err) {
+    console.error("[dispatch] init failed (non-fatal):", err);
+    setState({ status: "error", error: err instanceof Error ? err.message : String(err) });
   }
 }
 
