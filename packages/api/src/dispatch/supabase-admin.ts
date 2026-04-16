@@ -27,12 +27,13 @@ function getChannel(deviceId: string): { channel: RealtimeChannel; ready: Promis
     ready = new Promise<void>((resolve, reject) => {
       ch!.subscribe((status) => {
         if (status === "SUBSCRIBED") resolve();
-        else if (status === "CHANNEL_ERROR") {
-          // Clear cache so the next call creates a fresh channel
+        else if (status !== "SUBSCRIBED") {
+          // CHANNEL_ERROR, TIMED_OUT, CLOSED — clear cache so the
+          // next call creates a fresh channel instead of hanging.
           channels.delete(deviceId);
           subscribed.delete(deviceId);
           supabaseAdmin.removeChannel(ch!);
-          reject(new Error("Channel subscription failed"));
+          reject(new Error(`Channel subscription failed: ${status}`));
         }
       });
     });
