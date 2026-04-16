@@ -158,6 +158,13 @@ function subscribeToChannel(deviceId: string): void {
   channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
     if (payload.direction === "to_device") {
       if (payload.id) seenMessageIds.add(payload.id);
+      // If we receive a message from mobile but haven't transitioned to
+      // "paired" yet (e.g., missed the device_paired broadcast), do it now.
+      if (dispatchState.status !== "paired") {
+        const creds = credentialStore.read();
+        if (creds) credentialStore.write({ ...creds, paired: true });
+        setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
+      }
       onInboundMessage?.({
         id: payload.id,
         type: payload.type,
