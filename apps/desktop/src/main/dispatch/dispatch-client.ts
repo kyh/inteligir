@@ -56,6 +56,8 @@ const credentialStore = new JsonStore<DispatchCredentials | null>(
 let dispatchState: DispatchState = { ...DISPATCH_INITIAL_STATE };
 let channel: RealtimeChannel | null = null;
 let onInboundMessage: ((msg: DispatchInboundMessage) => void) | null = null;
+/** Track message IDs received via broadcast to deduplicate on catch-up */
+const seenMessageIds = new Set<string>();
 
 function setState(patch: Partial<DispatchState>): void {
   dispatchState = { ...dispatchState, ...patch };
@@ -142,6 +144,7 @@ function subscribeToChannel(deviceId: string): void {
   // Listen for broadcast messages
   channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
     if (payload.direction === "to_device") {
+      if (payload.id) seenMessageIds.add(payload.id);
       onInboundMessage?.({
         id: payload.id,
         type: payload.type,
@@ -190,6 +193,9 @@ async function catchUpPendingMessages(): Promise<void> {
     }>("dispatch.catchUp", { deviceToken: creds.token });
 
     for (const msg of result.messages) {
+      // Skip messages already received via broadcast
+      if (seenMessageIds.has(msg.id)) continue;
+      seenMessageIds.add(msg.id);
       onInboundMessage?.(msg);
     }
   } catch {

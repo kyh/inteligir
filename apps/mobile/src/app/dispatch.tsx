@@ -48,6 +48,8 @@ export default function DispatchScreen() {
   const [assistantText, setAssistantText] = useState("");
   const [isAgentBusy, setIsAgentBusy] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  /** Track message IDs received via broadcast to deduplicate on catch-up */
+  const seenIdsRef = useRef(new Set<string>());
 
   // -- Supabase Realtime subscription ----------------------------------------
 
@@ -58,6 +60,7 @@ export default function DispatchScreen() {
 
     channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
       if (payload.direction !== "to_mobile") return;
+      if (payload.id) seenIdsRef.current.add(payload.id);
       const event = payload.payload as AgentEvent;
 
       switch (event.type) {
@@ -143,6 +146,9 @@ export default function DispatchScreen() {
     trpc.dispatch.mobileCatchUp.mutationOptions({
       onSuccess(data) {
         for (const msg of data.messages) {
+          // Skip messages already received via broadcast
+          if (seenIdsRef.current.has(msg.id)) continue;
+          seenIdsRef.current.add(msg.id);
           const event = msg.payload as AgentEvent;
           if (event.type === "message_end" && event.role === "assistant" && typeof event.text === "string") {
             setEntries((prev) => [...prev, { role: "assistant", text: event.text as string }]);
