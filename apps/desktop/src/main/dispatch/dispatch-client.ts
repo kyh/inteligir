@@ -57,7 +57,20 @@ let dispatchState: DispatchState = { ...DISPATCH_INITIAL_STATE };
 let channel: RealtimeChannel | null = null;
 let onInboundMessage: ((msg: DispatchInboundMessage) => void) | null = null;
 /** Track message IDs received via broadcast to deduplicate on catch-up */
-const seenMessageIds = new Set<string>();
+const seenMessageIds = (() => {
+  const MAX = 5000;
+  const ids = new Set<string>();
+  return {
+    has: (id: string) => ids.has(id),
+    add: (id: string) => {
+      ids.add(id);
+      if (ids.size > MAX) {
+        const oldest = ids.values().next().value;
+        if (oldest) ids.delete(oldest);
+      }
+    },
+  };
+})();
 
 function setState(patch: Partial<DispatchState>): void {
   dispatchState = { ...dispatchState, ...patch };

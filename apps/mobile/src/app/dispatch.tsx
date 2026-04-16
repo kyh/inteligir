@@ -48,8 +48,10 @@ export default function DispatchScreen() {
   const [assistantText, setAssistantText] = useState("");
   const [isAgentBusy, setIsAgentBusy] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+  /** Mirror of assistantText for synchronous reads in event handlers */
+  const assistantTextRef = useRef("");
   /** Track message IDs received via broadcast to deduplicate on catch-up */
-  const seenIdsRef = useRef(new Set<string>());
+  const seenIdsRef = useRef({ ids: new Set<string>(), add(id: string) { this.ids.add(id); if (this.ids.size > 5000) { const oldest = this.ids.values().next().value; if (oldest) this.ids.delete(oldest); } }, has(id: string) { return this.ids.has(id); } });
 
   // -- Supabase Realtime subscription ----------------------------------------
 
@@ -69,43 +71,39 @@ export default function DispatchScreen() {
           break;
         case "agent_end":
           setIsAgentBusy(false);
-          // Commit the streaming text as a final entry
-          setAssistantText((text) => {
-            if (text) {
-              setEntries((prev) => [...prev, { role: "assistant", text }]);
-            }
-            return "";
-          });
+          if (assistantTextRef.current) {
+            setEntries((prev) => [...prev, { role: "assistant", text: assistantTextRef.current }]);
+          }
+          assistantTextRef.current = "";
+          setAssistantText("");
           break;
         case "message_start":
           if (event.role === "assistant") {
-            // Commit any existing text before starting a new message
-            setAssistantText((text) => {
-              if (text) {
-                setEntries((prev) => [...prev, { role: "assistant", text }]);
-              }
-              return "";
-            });
+            if (assistantTextRef.current) {
+              setEntries((prev) => [...prev, { role: "assistant", text: assistantTextRef.current }]);
+            }
+            assistantTextRef.current = "";
+            setAssistantText("");
           }
           break;
         case "message_update":
           if (typeof event.delta === "string") {
-            setAssistantText((prev) => prev + event.delta);
+            assistantTextRef.current += event.delta;
+            setAssistantText(assistantTextRef.current);
           }
           break;
         case "message_end":
           if (event.role === "assistant" && typeof event.text === "string") {
-            // Commit the final text directly into entries (not assistantText)
-            // so it's ordered correctly before any tool events that follow
+            assistantTextRef.current = "";
             setAssistantText("");
             setEntries((prev) => [...prev, { role: "assistant", text: event.text as string }]);
           }
           break;
         case "tool_execution_start": {
-          // Flush streaming assistantText + append tool entry in one
-          // update to guarantee correct ordering.
-          let flushed = "";
-          setAssistantText((text) => { flushed = text; return ""; });
+          // Read ref synchronously, then flush + append tool in one update
+          const flushed = assistantTextRef.current;
+          assistantTextRef.current = "";
+          setAssistantText("");
           setEntries((prev) => [
             ...prev,
             ...(flushed ? [{ role: "assistant" as const, text: flushed }] : []),
