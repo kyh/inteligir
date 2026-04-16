@@ -74,21 +74,21 @@ export function getDispatchState(): DispatchState {
 // API helpers (tRPC HTTP calls)
 // ---------------------------------------------------------------------------
 
-type TRPCResult<T> = { result: { data: T } };
+type TRPCResult<T> = { result: { data: { json: T } } };
 
 async function trpcMutation<T>(procedure: string, input: unknown): Promise<T> {
   const url = `${API_BASE_URL}/api/trpc/${procedure}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
+    body: JSON.stringify({ json: input }),
   });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(`Dispatch API error (${res.status}): ${text}`);
   }
   const json = (await res.json()) as TRPCResult<T>;
-  return json.result.data;
+  return json.result.data.json;
 }
 
 // ---------------------------------------------------------------------------
@@ -149,6 +149,16 @@ function subscribeToChannel(deviceId: string): void {
         createdAt: payload.createdAt,
       });
     }
+  });
+
+  // Listen for pairing completion
+  channel.on("broadcast", { event: "device_paired" }, () => {
+    setState({
+      status: "paired",
+      pairingCode: null,
+      pairingExpiresAt: null,
+      error: null,
+    });
   });
 
   // Track presence so mobile can see we're online

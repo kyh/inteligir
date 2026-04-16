@@ -135,6 +135,11 @@ export const dispatchRouter = createTRPCRouter({
         })
         .where(eq(dispatchDevice.id, device.id));
 
+      // Notify the desktop that pairing is complete
+      await broadcastDispatchEvent(device.id, "device_paired", {
+        deviceId: device.id,
+      });
+
       return {
         deviceId: device.id,
         name: device.name,
