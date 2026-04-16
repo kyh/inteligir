@@ -261,6 +261,11 @@ export async function refreshPairingCode(): Promise<void> {
   const creds = credentialStore.read();
   if (!creds) {
     await registerDevice();
+    // Subscribe so we receive the pairing broadcast
+    const newCreds = credentialStore.read();
+    if (newCreds) {
+      subscribeToChannel(newCreds.deviceId);
+    }
     return;
   }
 

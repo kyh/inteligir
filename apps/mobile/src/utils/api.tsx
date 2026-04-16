@@ -27,9 +27,7 @@ export const trpc = createTRPCOptionsProxy<AppRouter>({
         transformer: superjson,
         url: `${getBaseUrl()}/api/trpc`,
         headers() {
-          const headers = new Map<string, string>();
-          headers.set("x-trpc-source", "expo-react");
-          return headers;
+          return { "x-trpc-source": "expo-react" };
         },
       }),
     ],
