@@ -41,16 +41,14 @@ export const dispatchDevice = pgTable("dispatch_device", (t) => ({
   userId: t.text("user_id").references(() => user.id, { onDelete: "cascade" }),
   /** Human-readable device name, e.g. "MacBook Pro" */
   name: t.text().notNull(),
-  /** Opaque token the device uses to authenticate dispatch API calls */
+  /** Opaque token the desktop uses to authenticate dispatch API calls */
   token: t.text().notNull().unique(),
+  /** Opaque token the mobile uses after pairing */
+  mobileToken: t.text("mobile_token").unique(),
   /** Short code displayed on desktop for mobile to pair with */
   pairingCode: t.text("pairing_code"),
   /** When the pairing code expires */
   pairingExpiresAt: t.timestamp("pairing_expires_at"),
-  /** Whether the device is currently online (heartbeat-based) */
-  isOnline: t.boolean("is_online").notNull().default(false),
-  /** Last time the device sent a heartbeat */
-  lastHeartbeatAt: t.timestamp("last_heartbeat_at"),
   createdAt: t
     .timestamp("created_at")
     .$defaultFn(() => new Date())

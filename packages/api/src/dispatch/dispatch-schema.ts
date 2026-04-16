@@ -9,7 +9,7 @@ export const registerDeviceInput = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Pairing (called by mobile, authenticated)
+// Pairing (called by mobile — pairing code is the auth)
 // ---------------------------------------------------------------------------
 
 export const pairDeviceInput = z.object({
@@ -17,11 +17,19 @@ export const pairDeviceInput = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Heartbeat (called by desktop, device-token auth)
+// Device-token auth (desktop)
 // ---------------------------------------------------------------------------
 
-export const heartbeatInput = z.object({
+export const deviceTokenInput = z.object({
   deviceToken: z.string().min(1),
+});
+
+// ---------------------------------------------------------------------------
+// Mobile-token auth
+// ---------------------------------------------------------------------------
+
+export const mobileTokenInput = z.object({
+  mobileToken: z.string().min(1),
 });
 
 // ---------------------------------------------------------------------------
@@ -29,17 +37,9 @@ export const heartbeatInput = z.object({
 // ---------------------------------------------------------------------------
 
 export const sendMessageInput = z.object({
-  deviceId: z.string().uuid(),
+  mobileToken: z.string().min(1),
   type: z.enum(["user_message", "steer", "interrupt"]),
   payload: z.record(z.string(), z.unknown()).default({}),
-});
-
-// ---------------------------------------------------------------------------
-// Poll messages (desktop polls for to_device, mobile polls for to_mobile)
-// ---------------------------------------------------------------------------
-
-export const pollMessagesInput = z.object({
-  deviceToken: z.string().min(1),
 });
 
 // ---------------------------------------------------------------------------
@@ -53,9 +53,13 @@ export const respondInput = z.object({
 });
 
 // ---------------------------------------------------------------------------
-// Poll responses (mobile polls for to_mobile messages)
+// Catch-up (fetch pending messages on reconnect)
 // ---------------------------------------------------------------------------
 
-export const pollResponsesInput = z.object({
-  deviceId: z.string().uuid(),
+export const catchUpInput = z.object({
+  deviceToken: z.string().min(1),
+});
+
+export const mobileCatchUpInput = z.object({
+  mobileToken: z.string().min(1),
 });

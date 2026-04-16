@@ -7,16 +7,17 @@ import {
 import { TRPCError } from "@trpc/server";
 
 import type { TRPCContext } from "../trpc";
-import { createTRPCRouter, protectedProcedure, publicProcedure } from "../trpc";
+import { createTRPCRouter, publicProcedure } from "../trpc";
 import {
-  heartbeatInput,
+  catchUpInput,
+  deviceTokenInput,
+  mobileCatchUpInput,
   pairDeviceInput,
-  pollMessagesInput,
-  pollResponsesInput,
   registerDeviceInput,
   respondInput,
   sendMessageInput,
 } from "./dispatch-schema";
+import { broadcastDispatchEvent } from "./supabase-admin";
 
 /** Generate a cryptographically random 6-char uppercase alphanumeric code */
 function generatePairingCode(): string {
@@ -29,42 +30,44 @@ function generatePairingCode(): string {
   return code;
 }
 
-/** Generate an opaque device token */
-function generateDeviceToken(): string {
-  return `dpt_${crypto.randomBytes(32).toString("hex")}`;
+/** Generate an opaque token */
+function generateToken(prefix: string): string {
+  return `${prefix}_${crypto.randomBytes(32).toString("hex")}`;
 }
 
 const PAIRING_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const HEARTBEAT_TIMEOUT_MS = 30 * 1000; // 30 seconds — device is offline if no heartbeat
 
 // ---------------------------------------------------------------------------
-// Helper: resolve device from token (used by device-auth endpoints)
+// Helpers: resolve device from token
 // ---------------------------------------------------------------------------
 
-async function resolveDevice(db: TRPCContext["db"], token: string) {
+async function resolveDeviceByToken(db: TRPCContext["db"], token: string) {
   const device = await db.query.dispatchDevice.findFirst({
     where: (d, { eq: eq_ }) => eq_(d.token, token),
   });
   if (!device) {
     throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid device token" });
   }
-  if (!device.userId) {
-    throw new TRPCError({ code: "FORBIDDEN", message: "Device not yet paired" });
+  return device;
+}
+
+async function resolveDeviceByMobileToken(db: TRPCContext["db"], mobileToken: string) {
+  const device = await db.query.dispatchDevice.findFirst({
+    where: (d, { eq: eq_ }) => eq_(d.mobileToken, mobileToken),
+  });
+  if (!device) {
+    throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid mobile token" });
   }
   return device;
 }
 
 export const dispatchRouter = createTRPCRouter({
-  // ---- Device Registration (desktop, unauthenticated) ----------------------
+  // ---- Device Registration (desktop) ---------------------------------------
 
-  /**
-   * Desktop calls this on startup to register itself and get a pairing code.
-   * Returns: { deviceId, token, pairingCode, expiresAt }
-   */
   registerDevice: publicProcedure
     .input(registerDeviceInput)
     .mutation(async ({ ctx, input }) => {
-      const token = generateDeviceToken();
+      const token = generateToken("dpt");
       const pairingCode = generatePairingCode();
       const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MS);
 
@@ -75,8 +78,6 @@ export const dispatchRouter = createTRPCRouter({
           token,
           pairingCode,
           pairingExpiresAt: expiresAt,
-          isOnline: true,
-          lastHeartbeatAt: new Date(),
         })
         .returning();
 
@@ -88,20 +89,12 @@ export const dispatchRouter = createTRPCRouter({
       };
     }),
 
-  // ---- Refresh Pairing Code (desktop, device-token) ------------------------
+  // ---- Refresh Pairing Code (desktop) --------------------------------------
 
-  /**
-   * Desktop can request a new pairing code if the previous one expired.
-   */
   refreshPairingCode: publicProcedure
-    .input(heartbeatInput)
+    .input(deviceTokenInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await ctx.db.query.dispatchDevice.findFirst({
-        where: (d, { eq: eq_ }) => eq_(d.token, input.deviceToken),
-      });
-      if (!device) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid device token" });
-      }
+      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
 
       const pairingCode = generatePairingCode();
       const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MS);
@@ -114,13 +107,9 @@ export const dispatchRouter = createTRPCRouter({
       return { pairingCode, expiresAt: expiresAt.toISOString() };
     }),
 
-  // ---- Pair Device (mobile, authenticated) ---------------------------------
+  // ---- Pair Device (mobile — pairing code is the auth) ---------------------
 
-  /**
-   * Mobile user enters the 6-char code shown on the desktop.
-   * Links the device to the authenticated user.
-   */
-  pair: protectedProcedure
+  pair: publicProcedure
     .input(pairDeviceInput)
     .mutation(async ({ ctx, input }) => {
       const device = await ctx.db.query.dispatchDevice.findFirst({
@@ -135,17 +124,12 @@ export const dispatchRouter = createTRPCRouter({
         throw new TRPCError({ code: "BAD_REQUEST", message: "Pairing code expired" });
       }
 
-      if (device.userId && device.userId !== ctx.session.user.id) {
-        throw new TRPCError({
-          code: "CONFLICT",
-          message: "Device already paired to another user",
-        });
-      }
+      const mobileToken = generateToken("dpm");
 
       await ctx.db
         .update(dispatchDevice)
         .set({
-          userId: ctx.session.user.id,
+          mobileToken,
           pairingCode: null,
           pairingExpiresAt: null,
         })
@@ -154,86 +138,74 @@ export const dispatchRouter = createTRPCRouter({
       return {
         deviceId: device.id,
         name: device.name,
+        mobileToken,
       };
-    }),
-
-  // ---- List Devices (mobile, authenticated) --------------------------------
-
-  listDevices: protectedProcedure.query(async ({ ctx }) => {
-    const devices = await ctx.db.query.dispatchDevice.findMany({
-      where: (d, { eq: eq_ }) => eq_(d.userId, ctx.session.user.id),
-    });
-
-    const now = Date.now();
-    return {
-      devices: devices.map((d) => ({
-        id: d.id,
-        name: d.name,
-        isOnline:
-          d.isOnline &&
-          d.lastHeartbeatAt !== null &&
-          now - d.lastHeartbeatAt.getTime() < HEARTBEAT_TIMEOUT_MS,
-        lastHeartbeatAt: d.lastHeartbeatAt?.toISOString() ?? null,
-      })),
-    };
-  }),
-
-  // ---- Heartbeat (desktop, device-token) -----------------------------------
-
-  heartbeat: publicProcedure
-    .input(heartbeatInput)
-    .mutation(async ({ ctx, input }) => {
-      const device = await ctx.db.query.dispatchDevice.findFirst({
-        where: (d, { eq: eq_ }) => eq_(d.token, input.deviceToken),
-      });
-      if (!device) {
-        throw new TRPCError({ code: "UNAUTHORIZED", message: "Invalid device token" });
-      }
-
-      await ctx.db
-        .update(dispatchDevice)
-        .set({
-          isOnline: true,
-          lastHeartbeatAt: new Date(),
-        })
-        .where(eq(dispatchDevice.id, device.id));
-
-      return { ok: true };
     }),
 
   // ---- Send Message (mobile → desktop) -------------------------------------
 
-  sendMessage: protectedProcedure
+  sendMessage: publicProcedure
     .input(sendMessageInput)
     .mutation(async ({ ctx, input }) => {
-      // Verify the device belongs to this user
-      const device = await ctx.db.query.dispatchDevice.findFirst({
-        where: (d, { eq: eq_ }) => eq_(d.id, input.deviceId),
-      });
-
-      if (!device || device.userId !== ctx.session.user.id) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Device not found" });
-      }
+      const device = await resolveDeviceByMobileToken(ctx.db, input.mobileToken);
 
       const [message] = await ctx.db
         .insert(dispatchMessage)
         .values({
-          deviceId: input.deviceId,
+          deviceId: device.id,
           direction: "to_device",
           type: input.type,
           payload: input.payload,
         })
         .returning();
 
+      // Broadcast to desktop via Supabase Realtime
+      await broadcastDispatchEvent(device.id, "dispatch_message", {
+        id: message!.id,
+        direction: "to_device",
+        type: input.type,
+        payload: input.payload,
+        createdAt: message!.createdAt.toISOString(),
+      });
+
       return { messageId: message!.id };
     }),
 
-  // ---- Poll Messages (desktop polls for pending to_device messages) --------
+  // ---- Respond (desktop → mobile) ------------------------------------------
 
-  pollMessages: publicProcedure
-    .input(pollMessagesInput)
+  respond: publicProcedure
+    .input(respondInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDevice(ctx.db, input.deviceToken);
+      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
+
+      const [message] = await ctx.db
+        .insert(dispatchMessage)
+        .values({
+          deviceId: device.id,
+          direction: "to_mobile",
+          type: input.type,
+          payload: input.payload,
+        })
+        .returning();
+
+      // Broadcast to mobile via Supabase Realtime
+      await broadcastDispatchEvent(device.id, "dispatch_message", {
+        id: message!.id,
+        direction: "to_mobile",
+        type: input.type,
+        payload: input.payload,
+        createdAt: message!.createdAt.toISOString(),
+      });
+
+      return { messageId: message!.id };
+    }),
+
+  // ---- Catch-up (desktop fetches pending to_device on reconnect) -----------
+
+  catchUp: publicProcedure
+    .input(catchUpInput)
+    .mutation(async ({ ctx, input }) => {
+      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
 
       const messages = await ctx.db.query.dispatchMessage.findMany({
         where: (m, { eq: eq_, and: and_ }) =>
@@ -245,7 +217,6 @@ export const dispatchRouter = createTRPCRouter({
         orderBy: (m, { asc }) => asc(m.createdAt),
       });
 
-      // Mark as delivered
       if (messages.length > 0) {
         for (const msg of messages) {
           await ctx.db
@@ -265,44 +236,17 @@ export const dispatchRouter = createTRPCRouter({
       };
     }),
 
-  // ---- Respond (desktop → mobile) ------------------------------------------
+  // ---- Catch-up (mobile fetches pending to_mobile on reconnect) ------------
 
-  respond: publicProcedure
-    .input(respondInput)
+  mobileCatchUp: publicProcedure
+    .input(mobileCatchUpInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDevice(ctx.db, input.deviceToken);
-
-      const [message] = await ctx.db
-        .insert(dispatchMessage)
-        .values({
-          deviceId: device.id,
-          direction: "to_mobile",
-          type: input.type,
-          payload: input.payload,
-        })
-        .returning();
-
-      return { messageId: message!.id };
-    }),
-
-  // ---- Poll Responses (mobile polls for to_mobile messages) ----------------
-
-  pollResponses: protectedProcedure
-    .input(pollResponsesInput)
-    .mutation(async ({ ctx, input }) => {
-      // Verify the device belongs to this user
-      const device = await ctx.db.query.dispatchDevice.findFirst({
-        where: (d, { eq: eq_ }) => eq_(d.id, input.deviceId),
-      });
-
-      if (!device || device.userId !== ctx.session.user.id) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Device not found" });
-      }
+      const device = await resolveDeviceByMobileToken(ctx.db, input.mobileToken);
 
       const messages = await ctx.db.query.dispatchMessage.findMany({
         where: (m, { eq: eq_, and: and_ }) =>
           and_(
-            eq_(m.deviceId, input.deviceId),
+            eq_(m.deviceId, device.id),
             eq_(m.direction, "to_mobile"),
             eq_(m.status, "pending"),
           ),
@@ -328,22 +272,13 @@ export const dispatchRouter = createTRPCRouter({
       };
     }),
 
-  // ---- Unpair Device (mobile, authenticated) -------------------------------
+  // ---- Unpair Device -------------------------------------------------------
 
-  unpairDevice: protectedProcedure
-    .input(pollResponsesInput) // reuses { deviceId }
+  unpairDevice: publicProcedure
+    .input(deviceTokenInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await ctx.db.query.dispatchDevice.findFirst({
-        where: (d, { eq: eq_ }) => eq_(d.id, input.deviceId),
-      });
-
-      if (!device || device.userId !== ctx.session.user.id) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Device not found" });
-      }
-
-      // Delete all messages and the device itself (cascade handles messages)
+      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
       await ctx.db.delete(dispatchDevice).where(eq(dispatchDevice.id, device.id));
-
       return { ok: true };
     }),
 });

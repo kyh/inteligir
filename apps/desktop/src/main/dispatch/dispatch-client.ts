@@ -2,14 +2,17 @@
 // Dispatch client — connects the desktop app to the relay API so the mobile
 // app can send commands and receive agent events remotely.
 //
+// Uses Supabase Realtime (Broadcast channels + Presence) instead of polling.
+//
 // Lifecycle:
 //   1. On startup, check for persisted credentials (~/.inteligir/dispatch.json)
 //   2. If none, register a new device and show pairing code
-//   3. Poll the relay for inbound messages on an interval
-//   4. Forward inbound messages to the agent via the existing command system
-//   5. Forward agent events back to the relay as responses
+//   3. Subscribe to Supabase Broadcast channel for inbound messages
+//   4. Track presence so mobile can see device is online
+//   5. On connect, catch up any messages missed while offline
 // ---------------------------------------------------------------------------
 
+import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 import { BrowserWindow } from "electron";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import {
@@ -27,8 +30,14 @@ import type { AppAgentEvent } from "@/shared/agent-events";
 // ---------------------------------------------------------------------------
 
 const API_BASE_URL = process.env["DISPATCH_API_URL"] ?? "http://localhost:3000";
-const POLL_INTERVAL_MS = 3_000;
-const HEARTBEAT_INTERVAL_MS = 15_000;
+const SUPABASE_URL = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "";
+const SUPABASE_ANON_KEY = process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] ?? "";
+
+// ---------------------------------------------------------------------------
+// Supabase client (for Realtime only)
+// ---------------------------------------------------------------------------
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ---------------------------------------------------------------------------
 // Persistent credential store
@@ -45,8 +54,7 @@ const credentialStore = new JsonStore<DispatchCredentials | null>(
 // ---------------------------------------------------------------------------
 
 let dispatchState: DispatchState = { ...DISPATCH_INITIAL_STATE };
-let pollTimer: ReturnType<typeof setInterval> | null = null;
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let channel: RealtimeChannel | null = null;
 let onInboundMessage: ((msg: DispatchInboundMessage) => void) | null = null;
 
 function setState(patch: Partial<DispatchState>): void {
@@ -63,7 +71,7 @@ export function getDispatchState(): DispatchState {
 }
 
 // ---------------------------------------------------------------------------
-// API helpers
+// API helpers (tRPC HTTP calls)
 // ---------------------------------------------------------------------------
 
 type TRPCResult<T> = { result: { data: T } };
@@ -119,64 +127,58 @@ async function registerDevice(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Heartbeat
+// Supabase Realtime subscription
 // ---------------------------------------------------------------------------
 
-async function sendHeartbeat(): Promise<void> {
-  const creds = credentialStore.read();
-  if (!creds) return;
-
-  try {
-    await trpcMutation("dispatch.heartbeat", { deviceToken: creds.token });
-  } catch {
-    // Heartbeat failures are non-fatal; next one will retry
+function subscribeToChannel(deviceId: string): void {
+  // Clean up existing channel
+  if (channel) {
+    supabase.removeChannel(channel);
+    channel = null;
   }
+
+  channel = supabase.channel(`dispatch:${deviceId}`);
+
+  // Listen for broadcast messages
+  channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
+    if (payload.direction === "to_device") {
+      onInboundMessage?.({
+        id: payload.id,
+        type: payload.type,
+        payload: payload.payload,
+        createdAt: payload.createdAt,
+      });
+    }
+  });
+
+  // Track presence so mobile can see we're online
+  channel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") {
+      await channel!.track({
+        deviceId,
+        online_at: new Date().toISOString(),
+      });
+
+      // Catch up on any messages missed while offline
+      void catchUpPendingMessages();
+    }
+  });
 }
 
-// ---------------------------------------------------------------------------
-// Polling
-// ---------------------------------------------------------------------------
-
-async function pollOnce(): Promise<void> {
+async function catchUpPendingMessages(): Promise<void> {
   const creds = credentialStore.read();
   if (!creds) return;
 
   try {
     const result = await trpcMutation<{
       messages: DispatchInboundMessage[];
-    }>("dispatch.pollMessages", { deviceToken: creds.token });
+    }>("dispatch.catchUp", { deviceToken: creds.token });
 
     for (const msg of result.messages) {
       onInboundMessage?.(msg);
     }
-  } catch (err) {
-    // If token is invalid, clear credentials and re-register
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("UNAUTHORIZED")) {
-      credentialStore.write(null);
-      setState({ ...DISPATCH_INITIAL_STATE, status: "error", error: "Device token rejected" });
-      stopPolling();
-    }
-  }
-}
-
-function startPolling(): void {
-  if (pollTimer) return;
-  pollTimer = setInterval(() => void pollOnce(), POLL_INTERVAL_MS);
-  heartbeatTimer = setInterval(() => void sendHeartbeat(), HEARTBEAT_INTERVAL_MS);
-  // Immediate first poll + heartbeat
-  void pollOnce();
-  void sendHeartbeat();
-}
-
-function stopPolling(): void {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-  if (heartbeatTimer) {
-    clearInterval(heartbeatTimer);
-    heartbeatTimer = null;
+  } catch {
+    // Catch-up failures are non-fatal
   }
 }
 
@@ -206,8 +208,6 @@ export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> 
 
 /**
  * Initialize the dispatch system. Call once from main process startup.
- *
- * @param handler - Called when a mobile user sends a command to this device
  */
 export function initDispatch(
   handler: (msg: DispatchInboundMessage) => void,
@@ -216,7 +216,6 @@ export function initDispatch(
 
   const creds = credentialStore.read();
   if (creds) {
-    // Already registered — assume paired and start polling
     setState({
       status: "paired",
       deviceId: creds.deviceId,
@@ -224,11 +223,13 @@ export function initDispatch(
       pairingExpiresAt: null,
       error: null,
     });
-    startPolling();
+    subscribeToChannel(creds.deviceId);
   } else {
-    // First time — register and show pairing code
     void registerDevice().then(() => {
-      startPolling();
+      const updatedCreds = credentialStore.read();
+      if (updatedCreds) {
+        subscribeToChannel(updatedCreds.deviceId);
+      }
     });
   }
 }
@@ -266,6 +267,9 @@ export async function refreshPairingCode(): Promise<void> {
  * Shut down the dispatch system. Call on app quit.
  */
 export function shutdownDispatch(): void {
-  stopPolling();
+  if (channel) {
+    supabase.removeChannel(channel);
+    channel = null;
+  }
   onInboundMessage = null;
 }
