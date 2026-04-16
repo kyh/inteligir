@@ -140,10 +140,16 @@ export const dispatchRouter = createTRPCRouter({
         })
         .where(eq(dispatchDevice.id, device.id));
 
-      // Notify the desktop that pairing is complete
-      await broadcastDispatchEvent(device.id, "device_paired", {
-        deviceId: device.id,
-      });
+      // Notify the desktop that pairing is complete (non-fatal — desktop
+      // also auto-transitions on first inbound dispatch message)
+      try {
+        await broadcastDispatchEvent(device.id, "device_paired", {
+          deviceId: device.id,
+        });
+      } catch {
+        // Broadcast failure is non-fatal; desktop will detect pairing
+        // when mobile sends its first message.
+      }
 
       return {
         deviceId: device.id,
