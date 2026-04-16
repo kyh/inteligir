@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { eq } from "@repo/db";
+import { eq, inArray } from "@repo/db";
 import {
   dispatchDevice,
   dispatchMessage,
@@ -222,13 +222,12 @@ export const dispatchRouter = createTRPCRouter({
         orderBy: (m, { asc }) => asc(m.createdAt),
       });
 
+      // Batch mark as delivered in a single query
       if (messages.length > 0) {
-        for (const msg of messages) {
-          await ctx.db
-            .update(dispatchMessage)
-            .set({ status: "delivered" })
-            .where(eq(dispatchMessage.id, msg.id));
-        }
+        await ctx.db
+          .update(dispatchMessage)
+          .set({ status: "delivered" })
+          .where(inArray(dispatchMessage.id, messages.map((m) => m.id)));
       }
 
       return {
@@ -258,13 +257,12 @@ export const dispatchRouter = createTRPCRouter({
         orderBy: (m, { asc }) => asc(m.createdAt),
       });
 
+      // Batch mark as delivered in a single query
       if (messages.length > 0) {
-        for (const msg of messages) {
-          await ctx.db
-            .update(dispatchMessage)
-            .set({ status: "delivered" })
-            .where(eq(dispatchMessage.id, msg.id));
-        }
+        await ctx.db
+          .update(dispatchMessage)
+          .set({ status: "delivered" })
+          .where(inArray(dispatchMessage.id, messages.map((m) => m.id)));
       }
 
       return {

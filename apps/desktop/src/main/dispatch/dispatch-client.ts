@@ -153,6 +153,11 @@ function subscribeToChannel(deviceId: string): void {
 
   // Listen for pairing completion
   channel.on("broadcast", { event: "device_paired" }, () => {
+    // Persist the paired flag so restarts know we're paired
+    const creds = credentialStore.read();
+    if (creds) {
+      credentialStore.write({ ...creds, paired: true });
+    }
     setState({
       status: "paired",
       pairingCode: null,
@@ -226,14 +231,19 @@ export function initDispatch(
 
   const creds = credentialStore.read();
   if (creds) {
+    // Only assume paired if the flag is set; otherwise show pairing code
     setState({
-      status: "paired",
+      status: creds.paired ? "paired" : "awaiting_pairing",
       deviceId: creds.deviceId,
       pairingCode: null,
       pairingExpiresAt: null,
       error: null,
     });
     subscribeToChannel(creds.deviceId);
+    // If not yet paired, refresh the pairing code so the user can see it
+    if (!creds.paired) {
+      void refreshPairingCode();
+    }
   } else {
     void registerDevice().then(() => {
       const updatedCreds = credentialStore.read();

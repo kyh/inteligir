@@ -26,6 +26,7 @@ export const DISPATCH_INITIAL_STATE: DispatchState = {
 export const DispatchCredentialsSchema = z.object({
   deviceId: z.string(),
   token: z.string(),
+  paired: z.boolean().default(false),
 });
 
 export type DispatchCredentials = z.infer<typeof DispatchCredentialsSchema>;

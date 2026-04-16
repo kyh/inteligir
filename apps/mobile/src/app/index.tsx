@@ -1,6 +1,6 @@
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Link, Stack, useRouter } from "expo-router";
+import { Link, Redirect, Stack } from "expo-router";
 
 import {
   getMobileToken,
@@ -9,18 +9,20 @@ import {
 } from "@/utils/session-store";
 
 export default function Index() {
-  const router = useRouter();
   const mobileToken = getMobileToken();
   const deviceId = getDeviceId();
   const deviceName = getDeviceName();
 
   // If already paired, go straight to dispatch
   if (mobileToken && deviceId) {
-    router.replace({
-      pathname: "/dispatch",
-      params: { deviceId, deviceName: deviceName ?? "Desktop" },
-    });
-    return null;
+    return (
+      <Redirect
+        href={{
+          pathname: "/dispatch",
+          params: { deviceId, deviceName: deviceName ?? "Desktop" },
+        }}
+      />
+    );
   }
 
   return (

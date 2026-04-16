@@ -10,32 +10,45 @@ const supabaseAdmin = createClient(
 );
 
 /**
- * Cache of active channels keyed by device ID.
+ * Cache of subscribed channels keyed by device ID.
  * Channels are reused across calls to avoid leaking RealtimeChannel objects.
  */
 const channels = new Map<string, RealtimeChannel>();
+const subscribed = new Map<string, Promise<void>>();
 
-function getChannel(deviceId: string): RealtimeChannel {
+function getChannel(deviceId: string): { channel: RealtimeChannel; ready: Promise<void> } {
   let ch = channels.get(deviceId);
-  if (!ch) {
+  let ready = subscribed.get(deviceId);
+
+  if (!ch || !ready) {
     ch = supabaseAdmin.channel(`dispatch:${deviceId}`);
-    ch.subscribe();
     channels.set(deviceId, ch);
+
+    ready = new Promise<void>((resolve, reject) => {
+      ch!.subscribe((status) => {
+        if (status === "SUBSCRIBED") resolve();
+        else if (status === "CHANNEL_ERROR") reject(new Error("Channel subscription failed"));
+      });
+    });
+    subscribed.set(deviceId, ready);
   }
-  return ch;
+
+  return { channel: ch, ready };
 }
 
 /**
  * Broadcast a dispatch message to a device channel.
  * Both mobile and desktop subscribe to `dispatch:{deviceId}`.
+ * Awaits the channel subscription before sending to ensure delivery.
  */
 export async function broadcastDispatchEvent(
   deviceId: string,
   event: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const ch = getChannel(deviceId);
-  await ch.send({
+  const { channel, ready } = getChannel(deviceId);
+  await ready;
+  await channel.send({
     type: "broadcast",
     event,
     payload,

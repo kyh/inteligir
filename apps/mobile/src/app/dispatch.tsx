@@ -75,7 +75,15 @@ export default function DispatchScreen() {
           });
           break;
         case "message_start":
-          if (event.role === "assistant") setAssistantText("");
+          if (event.role === "assistant") {
+            // Commit any existing text before starting a new message
+            setAssistantText((text) => {
+              if (text) {
+                setEntries((prev) => [...prev, { role: "assistant", text }]);
+              }
+              return "";
+            });
+          }
           break;
         case "message_update":
           if (typeof event.delta === "string") {

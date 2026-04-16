@@ -46,7 +46,7 @@ export const dispatchDevice = pgTable("dispatch_device", (t) => ({
   /** Opaque token the mobile uses after pairing */
   mobileToken: t.text("mobile_token").unique(),
   /** Short code displayed on desktop for mobile to pair with */
-  pairingCode: t.text("pairing_code"),
+  pairingCode: t.text("pairing_code").unique(),
   /** When the pairing code expires */
   pairingExpiresAt: t.timestamp("pairing_expires_at"),
   createdAt: t
