@@ -183,26 +183,38 @@ export const dispatchRouter = createTRPCRouter({
     .mutation(async ({ ctx, input }) => {
       const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
 
-      const [message] = await ctx.db
-        .insert(dispatchMessage)
-        .values({
-          deviceId: device.id,
-          direction: "to_mobile",
-          type: input.type,
-          payload: input.payload,
-        })
-        .returning();
+      // Ephemeral streaming events (message_update, message_start) are
+      // broadcast-only — no DB row. This avoids hundreds of rows per
+      // response and keeps the DB lean. Only significant events are
+      // persisted so catch-up on reconnect works.
+      const ephemeralTypes = new Set(["message_update", "message_start"]);
+      const isEphemeral = ephemeralTypes.has(input.type);
 
-      // Broadcast to mobile via Supabase Realtime
+      let messageId: string | null = null;
+
+      if (!isEphemeral) {
+        const [message] = await ctx.db
+          .insert(dispatchMessage)
+          .values({
+            deviceId: device.id,
+            direction: "to_mobile",
+            type: input.type,
+            payload: input.payload,
+          })
+          .returning();
+        messageId = message!.id;
+      }
+
+      // Always broadcast via Supabase Realtime for live updates
       await broadcastDispatchEvent(device.id, "dispatch_message", {
-        id: message!.id,
+        id: messageId,
         direction: "to_mobile",
         type: input.type,
         payload: input.payload,
-        createdAt: message!.createdAt.toISOString(),
+        createdAt: new Date().toISOString(),
       });
 
-      return { messageId: message!.id };
+      return { messageId };
     }),
 
   // ---- Catch-up (desktop fetches pending to_device on reconnect) -----------

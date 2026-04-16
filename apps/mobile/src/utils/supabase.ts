@@ -1,7 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
 
-import { getBaseUrl } from "./base-url";
-
 // In dev, Supabase URL is the local instance.
 // In prod, set EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY.
 const SUPABASE_URL =

@@ -133,7 +133,7 @@ export default function DispatchScreen() {
       onSuccess(data) {
         for (const msg of data.messages) {
           const event = msg.payload as AgentEvent;
-          if (event.type === "message_end" && typeof event.text === "string") {
+          if (event.type === "message_end" && event.role === "assistant" && typeof event.text === "string") {
             setEntries((prev) => [...prev, { role: "assistant", text: event.text as string }]);
           }
         }
