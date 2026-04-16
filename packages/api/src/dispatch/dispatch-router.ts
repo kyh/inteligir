@@ -54,6 +54,8 @@ async function resolveDeviceByToken(db: TRPCContext["db"], token: string) {
 /** Cache token → deviceId to avoid DB lookup on every streaming event */
 const tokenDeviceCache = new Map<string, string>();
 
+const EPHEMERAL_EVENT_TYPES = new Set(["message_update", "message_start"]);
+
 async function resolveDeviceByMobileToken(db: TRPCContext["db"], mobileToken: string) {
   const device = await db.query.dispatchDevice.findFirst({
     where: (d, { eq: eq_ }) => eq_(d.mobileToken, mobileToken),
@@ -184,8 +186,7 @@ export const dispatchRouter = createTRPCRouter({
   respond: publicProcedure
     .input(respondInput)
     .mutation(async ({ ctx, input }) => {
-      const ephemeralTypes = new Set(["message_update", "message_start"]);
-      const isEphemeral = ephemeralTypes.has(input.type);
+      const isEphemeral = EPHEMERAL_EVENT_TYPES.has(input.type);
 
       // Use cached device ID for ephemeral events to skip DB lookup
       let deviceId = tokenDeviceCache.get(input.deviceToken);
@@ -297,6 +298,7 @@ export const dispatchRouter = createTRPCRouter({
     .input(deviceTokenInput)
     .mutation(async ({ ctx, input }) => {
       const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
+      tokenDeviceCache.delete(input.deviceToken);
       await ctx.db.delete(dispatchDevice).where(eq(dispatchDevice.id, device.id));
       return { ok: true };
     }),
