@@ -165,6 +165,8 @@ function subscribeToChannel(deviceId: string): void {
   // Listen for broadcast messages
   channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
     if (payload.direction === "to_device") {
+      // Dedup: skip if already processed via catch-up
+      if (payload.id && seenMessageIds.has(payload.id)) return;
       if (payload.id) seenMessageIds.add(payload.id);
       // If we receive a message from mobile but haven't transitioned to
       // "paired" yet (e.g., missed the device_paired broadcast), do it now.

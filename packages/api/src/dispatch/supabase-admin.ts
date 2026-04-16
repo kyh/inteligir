@@ -1,13 +1,20 @@
-import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
+import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Server-side Supabase client for broadcasting dispatch events.
+ * Lazy-initialized server-side Supabase client for broadcasting dispatch events.
  * Uses the service role key so it can broadcast without RLS restrictions.
+ * Lazy init avoids "supabaseUrl is required" errors during Next.js build.
  */
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
-);
+let _supabaseAdmin: SupabaseClient | null = null;
+function getSupabaseAdmin(): SupabaseClient {
+  if (!_supabaseAdmin) {
+    _supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL ?? "",
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+    );
+  }
+  return _supabaseAdmin;
+}
 
 /**
  * Cache of subscribed channels keyed by device ID.
@@ -21,18 +28,20 @@ function getChannel(deviceId: string): { channel: RealtimeChannel; ready: Promis
   let ready = subscribed.get(deviceId);
 
   if (!ch || !ready) {
-    ch = supabaseAdmin.channel(`dispatch:${deviceId}`);
+    const admin = getSupabaseAdmin();
+    ch = admin.channel(`dispatch:${deviceId}`);
     channels.set(deviceId, ch);
 
+    let resolved = false;
     ready = new Promise<void>((resolve, reject) => {
       ch!.subscribe((status) => {
-        if (status === "SUBSCRIBED") resolve();
-        else if (status !== "SUBSCRIBED") {
-          // CHANNEL_ERROR, TIMED_OUT, CLOSED — clear cache so the
-          // next call creates a fresh channel instead of hanging.
+        if (status === "SUBSCRIBED") {
+          resolved = true;
+          resolve();
+        } else if (!resolved) {
           channels.delete(deviceId);
           subscribed.delete(deviceId);
-          supabaseAdmin.removeChannel(ch!);
+          admin.removeChannel(ch!);
           reject(new Error(`Channel subscription failed: ${status}`));
         }
       });

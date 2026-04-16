@@ -62,6 +62,7 @@ export default function DispatchScreen() {
 
     channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
       if (payload.direction !== "to_mobile") return;
+      if (payload.id && seenIdsRef.current.has(payload.id)) return;
       if (payload.id) seenIdsRef.current.add(payload.id);
       const event = payload.payload as AgentEvent;
 
