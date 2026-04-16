@@ -92,10 +92,21 @@ export default function DispatchScreen() {
           break;
         case "message_end":
           if (event.role === "assistant" && typeof event.text === "string") {
-            setAssistantText(event.text);
+            // Commit the final text directly into entries (not assistantText)
+            // so it's ordered correctly before any tool events that follow
+            setAssistantText("");
+            setEntries((prev) => [...prev, { role: "assistant", text: event.text as string }]);
           }
           break;
         case "tool_execution_start":
+          // Flush any streaming assistantText before adding tool entries
+          // to preserve chronological order in the chat
+          setAssistantText((text) => {
+            if (text) {
+              setEntries((prev) => [...prev, { role: "assistant", text }]);
+            }
+            return "";
+          });
           setEntries((prev) => [
             ...prev,
             { role: "tool", text: `Running ${event.toolName}...`, isError: false },
