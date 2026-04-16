@@ -20,7 +20,6 @@ import {
   getDispatchState,
   initDispatch,
   refreshPairingCode,
-  sendDispatchResponse,
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
