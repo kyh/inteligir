@@ -51,6 +51,9 @@ async function resolveDeviceByToken(db: TRPCContext["db"], token: string) {
   return device;
 }
 
+/** Cache token → deviceId to avoid DB lookup on every streaming event */
+const tokenDeviceCache = new Map<string, string>();
+
 async function resolveDeviceByMobileToken(db: TRPCContext["db"], mobileToken: string) {
   const device = await db.query.dispatchDevice.findFirst({
     where: (d, { eq: eq_ }) => eq_(d.mobileToken, mobileToken),
@@ -181,14 +184,16 @@ export const dispatchRouter = createTRPCRouter({
   respond: publicProcedure
     .input(respondInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
-
-      // Ephemeral streaming events (message_update, message_start) are
-      // broadcast-only — no DB row. This avoids hundreds of rows per
-      // response and keeps the DB lean. Only significant events are
-      // persisted so catch-up on reconnect works.
       const ephemeralTypes = new Set(["message_update", "message_start"]);
       const isEphemeral = ephemeralTypes.has(input.type);
+
+      // Use cached device ID for ephemeral events to skip DB lookup
+      let deviceId = tokenDeviceCache.get(input.deviceToken);
+      if (!deviceId) {
+        const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
+        deviceId = device.id;
+        tokenDeviceCache.set(input.deviceToken, deviceId);
+      }
 
       let messageId: string | null = null;
 
@@ -196,7 +201,7 @@ export const dispatchRouter = createTRPCRouter({
         const [message] = await ctx.db
           .insert(dispatchMessage)
           .values({
-            deviceId: device.id,
+            deviceId,
             direction: "to_mobile",
             type: input.type,
             payload: input.payload,
@@ -205,8 +210,7 @@ export const dispatchRouter = createTRPCRouter({
         messageId = message!.id;
       }
 
-      // Always broadcast via Supabase Realtime for live updates
-      await broadcastDispatchEvent(device.id, "dispatch_message", {
+      await broadcastDispatchEvent(deviceId, "dispatch_message", {
         id: messageId,
         direction: "to_mobile",
         type: input.type,

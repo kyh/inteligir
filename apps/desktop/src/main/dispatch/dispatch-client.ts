@@ -30,14 +30,22 @@ import type { AppAgentEvent } from "@/shared/agent-events";
 // ---------------------------------------------------------------------------
 
 const API_BASE_URL = process.env["DISPATCH_API_URL"] ?? "http://localhost:3000";
-const SUPABASE_URL = process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "";
-const SUPABASE_ANON_KEY = process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] ?? "";
 
 // ---------------------------------------------------------------------------
-// Supabase client (for Realtime only)
+// Supabase client (for Realtime only) — lazy-initialized so env vars
+// loaded by process.loadEnvFile() in index.ts are available.
 // ---------------------------------------------------------------------------
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let _supabase: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+  if (!_supabase) {
+    _supabase = createClient(
+      process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "",
+      process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] ?? "",
+    );
+  }
+  return _supabase;
+}
 
 // ---------------------------------------------------------------------------
 // Persistent credential store
@@ -148,11 +156,11 @@ async function registerDevice(): Promise<void> {
 function subscribeToChannel(deviceId: string): void {
   // Clean up existing channel
   if (channel) {
-    supabase.removeChannel(channel);
+    getSupabase().removeChannel(channel);
     channel = null;
   }
 
-  channel = supabase.channel(`dispatch:${deviceId}`);
+  channel = getSupabase().channel(`dispatch:${deviceId}`);
 
   // Listen for broadcast messages
   channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
@@ -319,7 +327,7 @@ export async function refreshPairingCode(): Promise<void> {
  */
 export function shutdownDispatch(): void {
   if (channel) {
-    supabase.removeChannel(channel);
+    getSupabase().removeChannel(channel);
     channel = null;
   }
   onInboundMessage = null;
