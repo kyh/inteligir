@@ -200,9 +200,10 @@ function subscribeToChannel(deviceId: string): void {
   });
 
   // Track presence so mobile can see we're online
-  channel.subscribe(async (status) => {
+  const ch = channel;
+  ch.subscribe(async (status) => {
     if (status === "SUBSCRIBED") {
-      await channel!.track({
+      await ch.track({
         deviceId,
         online_at: new Date().toISOString(),
       });
