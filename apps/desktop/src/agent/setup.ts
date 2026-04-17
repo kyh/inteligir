@@ -255,7 +255,10 @@ async function installGwsBinary(): Promise<void> {
 /**
  * Install gws built-in skills (95 skill directories) into ~/.inteligir/skills/.
  * Uses `gws skills install --all` which ships with the binary.
- * Skips if any gws-prefixed skill directory already exists.
+ *
+ * A sentinel file (`.gws-install-complete`) records the version last installed.
+ * Partial/failed installs leave no sentinel, so the next run retries. Version
+ * bumps also trigger a re-install.
  */
 async function installGwsSkills(): Promise<void> {
   const gwsPath = path.join(BIN_DIR, "gws");
@@ -264,9 +267,11 @@ async function installGwsSkills(): Promise<void> {
   const skillsDir = path.join(AGENT_DIR, "skills");
   fs.mkdirSync(skillsDir, { recursive: true });
 
-  // Skip if gws skills already installed
-  const existing = fs.readdirSync(skillsDir);
-  if (existing.some((name) => name.startsWith("gws-"))) return;
+  const sentinel = path.join(skillsDir, ".gws-install-complete");
+  if (fs.existsSync(sentinel)) {
+    const installedVersion = fs.readFileSync(sentinel, "utf8").trim();
+    if (installedVersion === GWS_VERSION) return;
+  }
 
   try {
     console.log("[gws] installing built-in skills");
@@ -276,6 +281,7 @@ async function installGwsSkills(): Promise<void> {
         else resolve();
       });
     });
+    fs.writeFileSync(sentinel, GWS_VERSION);
     console.log(`[gws] installed skills to ${skillsDir}`);
   } catch (err) {
     console.error("[gws] skills install failed:", err);
