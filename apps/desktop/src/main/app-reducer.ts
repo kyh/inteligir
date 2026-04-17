@@ -45,7 +45,7 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
       }
     }
 
-    // ---- Internal events (from effect runner / sidecar) ---------------------
+    // ---- Internal events (from effect runner) ---------------------------------
 
     case "LOGIN_OK":
       if (state.phase !== "logging_in") return null;

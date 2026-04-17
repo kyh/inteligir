@@ -1,21 +1,23 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
 declare const __PROJECT_ROOT__: string;
 
-// Load .env at runtime so LIVEKIT_API_KEY / LIVEKIT_API_SECRET are available
-// on process.env without being baked into the compiled bundle.
+// Load .env at runtime for voice API keys (DEEPGRAM_API_KEY, ELEVENLABS_API_KEY)
 try {
   process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
 } catch {
-  // .env file is optional — env vars may be set externally
+  // .env file is optional
 }
 
-import { getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
 import {
   getDispatchState,
   initDispatch,
@@ -24,8 +26,8 @@ import {
 } from "@/main/dispatch/dispatch-client";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { taskManager } from "@/main/tasks/task-singleton";
-import { registerAgentIpcHandlers, sendCommandToSidecar, warmupNodePath } from "@/main/voice/livekit-ipc";
 import { readSessionHistory } from "@/main/session-history";
+import { TextChatMessageSchema } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
@@ -161,7 +163,23 @@ function registerIpcHandlers(): void {
     return { accepted: true, state: updateState };
   });
 
-  // ---- Agent history (read directly from session files on disk) ------------
+  // ---- Agent ----------------------------------------------------------------
+
+  createIpcHandler(IPC_CHANNELS.AGENT_COMMAND, TextChatMessageSchema, (command) => {
+    const agent = getAgent();
+    if (!agent) return;
+    switch (command.type) {
+      case "user_message":
+        void agent.sendMessage(command.text);
+        break;
+      case "steer":
+        void agent.steer(command.text);
+        break;
+      case "interrupt":
+        void agent.interrupt();
+        break;
+    }
+  });
 
   ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
 
@@ -195,6 +213,19 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(IPC_CHANNELS.TASK_TOGGLE, z.string().min(1), (id) => {
     return { task: taskManager.toggleTask(id) };
+  });
+
+  // ---- Voice ----------------------------------------------------------------
+
+  ipcMain.handle(IPC_CHANNELS.VOICE_CONFIG, () => {
+    const deepgramApiKey = process.env["DEEPGRAM_API_KEY"];
+    const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
+    if (!deepgramApiKey || !elevenlabsApiKey) return null;
+    return {
+      deepgramApiKey,
+      elevenlabsApiKey,
+      elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
+    };
   });
 }
 
@@ -329,39 +360,31 @@ app
     configureAutoUpdater();
     registerIpcHandlers();
 
-    // Voice — LiveKit sidecar + token generation
-    // Agent events are forwarded from sidecar via livekit-ipc → app-machine
-    warmupNodePath(); // Pre-resolve system Node.js path before first voice use
-    const unregisterVoiceIpc = registerAgentIpcHandlers();
-
-    // Clean up on quit
-    app.on("will-quit", () => {
-      unregisterVoiceIpc();
-    });
-
     mainWindow = createWindow();
 
-    // Resolve session file path before initMachine() spawns the sidecar
+    // Resolve session file path before initMachine() starts the agent
     readSessionHistory();
 
     initMachine();
 
-    // Dispatch — register device and start polling for mobile commands.
-    // Inbound messages are forwarded to the agent sidecar as text commands.
+    // Dispatch — register device and subscribe to Supabase Realtime for
+    // mobile commands. Inbound messages are forwarded to the local agent.
     initDispatch((msg) => {
+      const agent = getAgent();
+      if (!agent) return;
       switch (msg.type) {
         case "user_message": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void sendCommandToSidecar({ type: "user_message", text });
+          if (text) void agent.sendMessage(text);
           break;
         }
         case "steer": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void sendCommandToSidecar({ type: "steer", text });
+          if (text) void agent.steer(text);
           break;
         }
         case "interrupt":
-          void sendCommandToSidecar({ type: "interrupt" });
+          void agent.interrupt();
           break;
       }
     });

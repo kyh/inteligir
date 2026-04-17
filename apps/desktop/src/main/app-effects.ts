@@ -11,9 +11,9 @@ import type { EffectTag } from "./app-reducer";
 export type EffectDeps = {
   login: () => Promise<void>;
   seedResources: () => void;
-  ensureSidecar: () => Promise<unknown>;
+  startAgent: () => Promise<void>;
+  stopAgent: () => Promise<void>;
   teardownResources: () => void;
-  killSidecar: () => Promise<void>;
 };
 
 export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<MachineEvent> {
@@ -30,7 +30,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     case "SETUP": {
       try {
         deps.seedResources();
-        await deps.ensureSidecar();
+        await deps.startAgent();
         return { type: "SETUP_OK" };
       } catch (err) {
         return { type: "SETUP_FAIL", message: toErrorMessage(err) };
@@ -39,6 +39,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
 
     case "LOGOUT": {
       clearResolvedSessionFile();
+      await deps.stopAgent();
       deps.teardownResources();
       return { type: "LOGOUT_OK" };
     }

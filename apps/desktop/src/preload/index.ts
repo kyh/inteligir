@@ -42,9 +42,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
   toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
 
-  // Voice (LiveKit)
-  getVoiceToken: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_TOKEN),
-  stopVoice: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STOP),
+  // Voice
+  getVoiceConfig: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_CONFIG),
 
   // Dispatch (mobile ↔ desktop relay)
   getDispatchState: () => ipcRenderer.invoke(IPC_CHANNELS.DISPATCH_GET_STATE),

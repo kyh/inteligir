@@ -3,20 +3,82 @@
 // ---------------------------------------------------------------------------
 
 import {
+  Agent,
   isLoggedIn,
   isSetupComplete,
   login,
   seedResources,
   teardownResources,
 } from "@/agent/setup";
-import { ensureSidecar, killSidecar } from "@/main/voice/livekit-ipc";
+import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
+import { taskManager } from "@/main/tasks/task-singleton";
+import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import type { AppState, MachineEvent } from "@/shared/app-state";
 
 import { BrowserWindow } from "electron";
+
+// ---------------------------------------------------------------------------
+// Agent singleton — runs in the main process
+// ---------------------------------------------------------------------------
+
+let agent: Agent | null = null;
+
+function broadcastToRenderer(channel: string, data: unknown): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (!win.isDestroyed()) {
+      win.webContents.send(channel, data);
+    }
+  }
+}
+
+function handleAgentEvent(event: AppAgentEvent): void {
+  if (event.type === "message_end" && event.stopReason === "error") {
+    console.error("[agent] error event:", event);
+  }
+
+  switch (event.type) {
+    case "agent_start":
+      machine?.ingest({ type: "AGENT_START" });
+      break;
+    case "agent_end":
+      machine?.ingest({ type: "AGENT_END" });
+      break;
+  }
+
+  broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
+
+  // Relay to mobile via dispatch (non-fatal if no mobile is paired)
+  void sendDispatchResponse(event);
+}
+
+async function startAgent(): Promise<void> {
+  if (agent) return;
+  agent = new Agent();
+  await agent.start();
+
+  agent.subscribe((raw) => {
+    const event = parseAgentEvent(raw);
+    if (event) handleAgentEvent(event);
+  });
+
+  taskManager.startScheduler(() => agent);
+}
+
+async function stopAgent(): Promise<void> {
+  taskManager.stopScheduler();
+  if (agent) {
+    await agent.stop();
+    agent = null;
+  }
+}
+
+export function getAgent(): Agent | null {
+  return agent;
+}
 
 // ---------------------------------------------------------------------------
 // AppMachine class
@@ -44,22 +106,19 @@ export class AppMachine {
   /** Awaitable — resolves after the triggered effect (if any) completes. */
   send(event: MachineEvent): Promise<void> {
     const p = this._queue.then(() => this._step(event));
-    // Absorb errors so a failed effect doesn't freeze the queue
     this._queue = p.catch(() => {});
     return p;
   }
 
-  /** Non-awaitable enqueue — for callers that cannot await (sidecar events). */
+  /** Non-awaitable enqueue — for callers that cannot await. */
   ingest(event: MachineEvent): void {
     void this.send(event);
   }
 
   async shutdown(): Promise<void> {
     this._destroying = true;
-    await this._deps.killSidecar();
+    await stopAgent();
   }
-
-  // ---- Internal -------------------------------------------------------------
 
   private async _step(event: MachineEvent): Promise<void> {
     if (this._destroying) return;
@@ -87,19 +146,15 @@ export class AppMachine {
 let machine: AppMachine | null = null;
 
 function broadcast(state: AppState): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send(IPC_CHANNELS.APP_STATE, state);
-    }
-  }
+  broadcastToRenderer(IPC_CHANNELS.APP_STATE, state);
 }
 
 const realDeps: EffectDeps = {
   login,
   seedResources,
-  ensureSidecar,
+  startAgent,
+  stopAgent,
   teardownResources,
-  killSidecar,
 };
 
 export function getAppState(): AppState {
@@ -110,30 +165,9 @@ export function transition(event: MachineEvent): void {
   machine?.ingest(event);
 }
 
-/**
- * Called by livekit-ipc when the sidecar forwards an agent event.
- * Maps relevant events to machine events.
- */
-export function handleSidecarAgentEvent(event: AppAgentEvent): void {
-  // Log agent errors so they appear in Electron main process logs
-  if (event.type === "message_end" && event.stopReason === "error") {
-    console.error("[agent] error event:", event);
-  }
-
-  switch (event.type) {
-    case "agent_start":
-      machine?.ingest({ type: "AGENT_START" });
-      break;
-    case "agent_end":
-      machine?.ingest({ type: "AGENT_END" });
-      break;
-  }
-}
-
 /** Determine initial state from persisted auth/setup and auto-start if ready. */
 export function initMachine(): void {
   if (isLoggedIn() && isSetupComplete()) {
-    // Start in logged_in so SETUP event is valid, triggering seedResources → ready
     machine = new AppMachine(realDeps, broadcast, { phase: "logged_in" });
     void machine.send({ type: "SETUP" }).catch((err) => {
       console.error("[machine] init setup failed:", err);

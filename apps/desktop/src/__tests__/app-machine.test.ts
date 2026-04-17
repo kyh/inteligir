@@ -8,6 +8,7 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("@/agent/setup", () => ({
+  Agent: vi.fn(),
   isLoggedIn: vi.fn().mockReturnValue(false),
   isSetupComplete: vi.fn().mockReturnValue(false),
   login: vi.fn().mockResolvedValue(undefined),
@@ -15,18 +16,13 @@ vi.mock("@/agent/setup", () => ({
   teardownResources: vi.fn(),
 }));
 
-vi.mock("@/main/voice/livekit-ipc", () => ({
-  ensureSidecar: vi.fn().mockResolvedValue(undefined),
-  killSidecar: vi.fn().mockResolvedValue(undefined),
-}));
-
 function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn().mockResolvedValue(undefined),
     seedResources: vi.fn(),
-    ensureSidecar: vi.fn().mockResolvedValue(undefined),
+    startAgent: vi.fn().mockResolvedValue(undefined),
+    stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
-    killSidecar: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -116,13 +112,11 @@ describe("AppMachine", () => {
     });
     const machine = new AppMachine(deps, vi.fn());
 
-    // Fire two events — second should be queued
     const p1 = machine.send({ type: "LOGIN" });
-    const p2 = machine.send({ type: "SETUP" }); // will execute after LOGIN completes
+    const p2 = machine.send({ type: "SETUP" });
 
     await Promise.all([p1, p2]);
 
-    // After LOGIN completes → logged_in, then SETUP → setting_up → ready
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 
@@ -133,7 +127,6 @@ describe("AppMachine", () => {
     await machine.shutdown();
 
     await machine.send({ type: "LOGOUT" });
-    // State shouldn't change after shutdown
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 });

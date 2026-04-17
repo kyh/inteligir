@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Read persisted session history directly from disk (no sidecar needed).
+// Read persisted session history directly from disk.
 // ---------------------------------------------------------------------------
 
 import {
@@ -21,7 +21,7 @@ const WORKSPACE_DIR = inteligirPath("workspace");
 
 /**
  * Resolved session file path from the most recent call to readSessionHistory().
- * Used to ensure the sidecar opens the same session the UI loaded history from.
+ * Used to ensure the agent opens the same session the UI loaded history from.
  */
 let lastSessionFile: string | undefined;
 let cachedHistory: ChatHistoryEntry[] | undefined;

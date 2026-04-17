@@ -1,9 +1,9 @@
-"use client";
+import { cacheLife, cacheTag } from "next/cache";
 
-import Link from "next/link";
-import { useState } from "react";
+import { GeometricOrb } from "@repo/ui/geometric-orb";
 
-import { GeometricOrb, type DisplayStatus } from "@repo/ui/geometric-orb";
+const GITHUB_REPO = "kyh/inteligir";
+const FALLBACK_URL = `https://github.com/${GITHUB_REPO}/releases`;
 
 function MacLogoIcon({ className }: { className?: string }) {
   return (
@@ -18,51 +18,47 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-const ORB_STATUSES: DisplayStatus[] = [
-  "starting",
-  "idle",
-  "listening",
-  "speaking",
-];
+async function getDownloadUrl(): Promise<string> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("download-url");
 
-export default function Page() {
-  const [orbStatus, setOrbStatus] = useState<DisplayStatus>("starting");
+  try {
+    const res = await fetch(
+      `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`,
+      { headers: { Accept: "application/vnd.github+json" } },
+    );
+    if (!res.ok) return FALLBACK_URL;
 
-  const toggleOrbStatus = () => {
-    setOrbStatus((s) => {
-      const idx = ORB_STATUSES.indexOf(s);
-      const next = ORB_STATUSES[(idx + 1) % ORB_STATUSES.length];
-      return next ?? "idle";
-    });
-  };
+    const release: {
+      assets: Array<{ name: string; browser_download_url: string }>;
+    } = await res.json();
+
+    const dmg = release.assets.find((a) => a.name.endsWith(".dmg"));
+    return dmg?.browser_download_url ?? FALLBACK_URL;
+  } catch {
+    return FALLBACK_URL;
+  }
+}
+
+export default async function Page() {
+  const downloadUrl = await getDownloadUrl();
 
   return (
     <main className="flex min-h-dvh w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center">
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label={`Cycle orb state (current: ${orbStatus})`}
-          onClick={toggleOrbStatus}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              toggleOrbStatus();
-            }
-          }}
-          className="h-48 w-48 select-none rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
-        >
-          <GeometricOrb status={orbStatus} />
+        <div className="h-48 w-48">
+          <GeometricOrb status="starting" />
         </div>
       </div>
       <div className="flex flex-col items-center gap-3 px-6 pb-16">
-        <Link
-          href="#"
+        <a
+          href={downloadUrl}
           className="inline-flex items-center gap-2 rounded-full bg-[#1A1A1A] px-6 py-3 text-sm font-medium text-white shadow-lg transition-opacity duration-200 ease hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <MacLogoIcon className="size-5 shrink-0" />
           Download for Mac
-        </Link>
+        </a>
         <span className="text-xs text-foreground/60">
           Requires an OpenAI account
         </span>
