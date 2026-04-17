@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -109,8 +110,9 @@ export function seedResources(): void {
 
   // Prepend ~/.inteligir/bin to PATH so the agent's bash tool can find gws
   const currentPath = process.env["PATH"] ?? "";
-  if (!currentPath.includes(BIN_DIR)) {
-    process.env["PATH"] = `${BIN_DIR}:${currentPath}`;
+  const pathEntries = currentPath.split(path.delimiter).filter(Boolean);
+  if (!pathEntries.includes(BIN_DIR)) {
+    process.env["PATH"] = currentPath ? `${BIN_DIR}${path.delimiter}${currentPath}` : BIN_DIR;
   }
 
   const src = getBundledResourcesDir();
@@ -143,10 +145,13 @@ const GWS_VERSION = "0.22.5";
 const GWS_CONFIG_DIR = path.join(os.homedir(), ".config", "gws");
 
 /**
- * Map process.arch to the gws release artifact name.
- * Returns null for unsupported architectures.
+ * Map (process.platform, process.arch) to the gws release artifact name.
+ * Returns null for unsupported platform/arch combinations.
+ * Currently only macOS is supported — inteligir is a macOS-only desktop app.
  */
 function gwsArchSuffix(): string | null {
+  if (process.platform !== "darwin") return null;
+
   switch (process.arch) {
     case "arm64":
       return "aarch64-apple-darwin";
@@ -173,45 +178,77 @@ async function installGwsBinary(): Promise<void> {
 
   const arch = gwsArchSuffix();
   if (!arch) {
-    console.warn(`[gws] unsupported architecture: ${process.arch}`);
+    console.warn(`[gws] unsupported platform/arch: ${process.platform}/${process.arch}`);
     return;
   }
 
   const tarball = `google-workspace-cli-${arch}.tar.gz`;
-  const url = `https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}/${tarball}`;
-  const tmpTar = path.join(BIN_DIR, tarball);
+  const baseUrl = `https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}`;
+  const tarballUrl = `${baseUrl}/${tarball}`;
+  const shaUrl = `${tarballUrl}.sha256`;
+  const tarGzPath = path.join(BIN_DIR, tarball);
+  const tarPath = path.join(BIN_DIR, tarball.replace(/\.gz$/, ""));
+
+  const cleanup = () => {
+    for (const f of [tarGzPath, tarPath, gwsPath]) {
+      try { fs.unlinkSync(f); } catch { /* ignore */ }
+    }
+  };
 
   try {
-    console.log(`[gws] downloading binary from ${url}`);
-    const response = await fetch(url, { redirect: "follow" });
-    if (!response.ok || !response.body) {
-      throw new Error(`fetch failed: ${response.status} ${response.statusText}`);
+    console.log(`[gws] downloading binary from ${tarballUrl}`);
+
+    // Fetch tarball and expected sha256 in parallel
+    const [tarResp, shaResp] = await Promise.all([
+      fetch(tarballUrl, { redirect: "follow" }),
+      fetch(shaUrl, { redirect: "follow" }),
+    ]);
+    if (!tarResp.ok || !tarResp.body) {
+      throw new Error(`tarball fetch failed: ${tarResp.status} ${tarResp.statusText}`);
+    }
+    if (!shaResp.ok) {
+      throw new Error(`checksum fetch failed: ${shaResp.status} ${shaResp.statusText}`);
     }
 
-    const tmpGz = `${tmpTar}.gz`;
-    const dest = fs.createWriteStream(tmpGz);
-    await pipeline(response.body, dest);
+    // `.sha256` file format: "<hex>  <filename>\n" — take the first token
+    const shaText = await shaResp.text();
+    const expectedSha = shaText.trim().split(/\s+/)[0]?.toLowerCase();
+    if (!expectedSha || !/^[0-9a-f]{64}$/.test(expectedSha)) {
+      throw new Error(`invalid checksum format: ${shaText.slice(0, 80)}`);
+    }
 
-    const gzStream = fs.createReadStream(tmpGz);
-    const tarDest = fs.createWriteStream(tmpTar);
-    await pipeline(gzStream, createGunzip(), tarDest);
-    fs.unlinkSync(tmpGz);
+    // Stream tarball to disk while computing sha256
+    const hash = createHash("sha256");
+    const dest = fs.createWriteStream(tarGzPath);
+    await pipeline(tarResp.body, async function* (source) {
+      for await (const chunk of source) {
+        hash.update(chunk as Uint8Array);
+        yield chunk;
+      }
+    }, dest);
+
+    const actualSha = hash.digest("hex");
+    if (actualSha !== expectedSha) {
+      throw new Error(`checksum mismatch: expected ${expectedSha}, got ${actualSha}`);
+    }
+
+    // Decompress .tar.gz → .tar, then extract gws binary
+    await pipeline(fs.createReadStream(tarGzPath), createGunzip(), fs.createWriteStream(tarPath));
+    fs.unlinkSync(tarGzPath);
 
     await new Promise<void>((resolve, reject) => {
-      execFile("tar", ["xf", tmpTar, "-C", BIN_DIR, "gws"], (err) => {
+      execFile("tar", ["xf", tarPath, "-C", BIN_DIR, "gws"], (err) => {
         if (err) reject(err);
         else resolve();
       });
     });
-    fs.unlinkSync(tmpTar);
+    fs.unlinkSync(tarPath);
 
     fs.chmodSync(gwsPath, 0o755);
     console.log(`[gws] installed binary to ${gwsPath}`);
   } catch (err) {
     console.error("[gws] binary install failed:", err);
-    for (const f of [`${tmpTar}.gz`, tmpTar, gwsPath]) {
-      try { fs.unlinkSync(f); } catch { /* ignore */ }
-    }
+    cleanup();
   }
 }
 
