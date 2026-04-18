@@ -316,24 +316,20 @@ async function installGwsSkills(): Promise<void> {
     if (installedVersion === GWS_VERSION) return;
   }
 
-  try {
-    console.log("[gws] installing built-in skills");
-    await new Promise<void>((resolve, reject) => {
-      execFile(
-        gwsPath,
-        ["skills", "install", "--all", "--dir", skillsDir],
-        { timeout: 120_000 },
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        },
-      );
-    });
-    fs.writeFileSync(sentinel, GWS_VERSION);
-    console.log(`[gws] installed skills to ${skillsDir}`);
-  } catch (err) {
-    console.error("[gws] skills install failed:", err);
-  }
+  console.log("[gws] installing built-in skills");
+  await new Promise<void>((resolve, reject) => {
+    execFile(
+      gwsPath,
+      ["skills", "install", "--all", "--dir", skillsDir],
+      { timeout: 120_000 },
+      (err) => {
+        if (err) reject(err);
+        else resolve();
+      },
+    );
+  });
+  fs.writeFileSync(sentinel, GWS_VERSION);
+  console.log(`[gws] installed skills to ${skillsDir}`);
 }
 
 /**
@@ -344,7 +340,12 @@ function seedGwsClientSecret(bundledResourcesDir: string): void {
   const secretSrc = path.join(bundledResourcesDir, "client_secret.json");
   const secretDest = path.join(GWS_CONFIG_DIR, "client_secret.json");
 
-  if (!fs.existsSync(secretSrc)) return;
+  if (!fs.existsSync(secretSrc)) {
+    console.warn("[gws] client_secret.json not found in bundled resources — OAuth will not work");
+    return;
+  }
+  // Never overwrite an existing secret — the user may have replaced it with
+  // their own GCP credentials. Re-seeding requires deleting the file first.
   if (fs.existsSync(secretDest)) return;
 
   fs.mkdirSync(GWS_CONFIG_DIR, { recursive: true });
