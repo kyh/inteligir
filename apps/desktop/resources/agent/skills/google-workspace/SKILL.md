@@ -65,7 +65,7 @@ gws gmail messages get --params '{"id":"<id>","userId":"me"}'
 ```bash
 gws calendar +agenda                                 # upcoming events
 gws calendar +agenda --timezone America/New_York
-gws calendar +insert --summary "Meeting" --start "2025-03-20T10:00:00" --end "2025-03-20T11:00:00"
+gws calendar +insert --summary "Meeting" --start "YYYY-MM-DDTHH:MM:SS" --end "YYYY-MM-DDTHH:MM:SS"
 gws calendar events list --params '{"calendarId":"primary","maxResults":10}'
 ```
 

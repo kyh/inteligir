@@ -213,8 +213,14 @@ async function installGwsBinary(): Promise<void> {
   const tarGzPath = path.join(BIN_DIR, tarball);
   const tarPath = path.join(BIN_DIR, tarball.replace(/\.gz$/, ""));
 
+  // On upgrade failure, preserve the previously working binary — only remove
+  // gwsPath if this run created it (no prior install) or after tar extraction
+  // has finished (callers below set `binaryWritten = true`).
+  let binaryWritten = false;
   const cleanup = () => {
-    for (const f of [tarGzPath, tarPath, gwsPath]) {
+    const temp = [tarGzPath, tarPath];
+    if (installedVersion === null || binaryWritten) temp.push(gwsPath);
+    for (const f of temp) {
       try { fs.unlinkSync(f); } catch { /* ignore */ }
     }
   };
@@ -266,6 +272,7 @@ async function installGwsBinary(): Promise<void> {
         else resolve();
       });
     });
+    binaryWritten = true;
     fs.unlinkSync(tarPath);
 
     fs.chmodSync(gwsPath, 0o755);
@@ -273,6 +280,7 @@ async function installGwsBinary(): Promise<void> {
   } catch (err) {
     console.error("[gws] binary install failed:", err);
     cleanup();
+    throw err;
   }
 }
 
@@ -300,10 +308,15 @@ async function installGwsSkills(): Promise<void> {
   try {
     console.log("[gws] installing built-in skills");
     await new Promise<void>((resolve, reject) => {
-      execFile(gwsPath, ["skills", "install", "--all", "--dir", skillsDir], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+      execFile(
+        gwsPath,
+        ["skills", "install", "--all", "--dir", skillsDir],
+        { timeout: 120_000 },
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
     });
     fs.writeFileSync(sentinel, GWS_VERSION);
     console.log(`[gws] installed skills to ${skillsDir}`);
