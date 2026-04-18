@@ -8,7 +8,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
-import { createGunzip } from "node:zlib";
 import { app } from "electron";
 
 import {
@@ -166,10 +165,18 @@ function gwsArchSuffix(): string | null {
  * Download the gws binary, then install its built-in skills.
  * Binary goes to ~/.inteligir/bin/gws, skills to ~/.inteligir/skills/.
  * Skips each step if already present. Called during onboarding setup.
+ *
+ * Best-effort: swallows failures so offline/network issues don't block SETUP.
+ * If install fails, the agent's bash tool will surface "gws: command not found"
+ * when the user invokes a Google Workspace action.
  */
 export async function installGws(): Promise<void> {
-  await installGwsBinary();
-  await installGwsSkills();
+  try {
+    await installGwsBinary();
+    await installGwsSkills();
+  } catch (err) {
+    console.error("[gws] install failed (continuing without gws):", err);
+  }
 }
 
 /**
@@ -207,19 +214,21 @@ async function installGwsBinary(): Promise<void> {
   }
 
   const tarball = `google-workspace-cli-${arch}.tar.gz`;
+  // NOTE: tarball and its .sha256 share the same origin, so the checksum
+  // only guards against download corruption — not a compromised GitHub release.
   const baseUrl = `https://github.com/googleworkspace/cli/releases/download/v${GWS_VERSION}`;
   const tarballUrl = `${baseUrl}/${tarball}`;
   const shaUrl = `${tarballUrl}.sha256`;
   const tarGzPath = path.join(BIN_DIR, tarball);
-  const tarPath = path.join(BIN_DIR, tarball.replace(/\.gz$/, ""));
 
-  // On upgrade failure, preserve the previously working binary — only remove
-  // gwsPath if this run created it (no prior install) or after tar extraction
-  // has finished (callers below set `binaryWritten = true`).
+  // On upgrade failure, preserve the previously working binary. Only remove
+  // gwsPath if this run is a fresh install AND tar hasn't yet written the
+  // binary — after tar extraction, the new binary is committed and post-steps
+  // (chmod) are trivial enough that we shouldn't nuke the result on failure.
   let binaryWritten = false;
   const cleanup = () => {
-    const temp = [tarGzPath, tarPath];
-    if (installedVersion === null || binaryWritten) temp.push(gwsPath);
+    const temp: string[] = [tarGzPath];
+    if (installedVersion === null && !binaryWritten) temp.push(gwsPath);
     for (const f of temp) {
       try { fs.unlinkSync(f); } catch { /* ignore */ }
     }
@@ -262,20 +271,22 @@ async function installGwsBinary(): Promise<void> {
       throw new Error(`checksum mismatch: expected ${expectedSha}, got ${actualSha}`);
     }
 
-    // Decompress .tar.gz → .tar, then extract gws binary
-    await pipeline(fs.createReadStream(tarGzPath), createGunzip(), fs.createWriteStream(tarPath));
-    fs.unlinkSync(tarGzPath);
-
+    // Extract gws binary directly from .tar.gz (30s timeout against hangs)
     await new Promise<void>((resolve, reject) => {
-      execFile("tar", ["xf", tarPath, "-C", BIN_DIR, "gws"], (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+      execFile(
+        "tar",
+        ["xzf", tarGzPath, "-C", BIN_DIR, "gws"],
+        { timeout: 30_000 },
+        (err) => {
+          if (err) reject(err);
+          else resolve();
+        },
+      );
     });
     binaryWritten = true;
-    fs.unlinkSync(tarPath);
 
     fs.chmodSync(gwsPath, 0o755);
+    try { fs.unlinkSync(tarGzPath); } catch { /* temp cleanup, ignore */ }
     console.log(`[gws] installed binary to ${gwsPath}`);
   } catch (err) {
     console.error("[gws] binary install failed:", err);
