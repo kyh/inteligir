@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { Button } from "@repo/ui/button";
-import { Input } from "@repo/ui/input";
-import { Label } from "@repo/ui/label";
-import { Textarea } from "@repo/ui/textarea";
+import { Button } from "@repo/ui/components/button";
+import { Input } from "@repo/ui/components/input";
+import { Label } from "@repo/ui/components/label";
+import { Textarea } from "@repo/ui/components/textarea";
 
 import { formatSchedule, type CreateTaskParams, type TaskSchedule } from "@/shared/task";
 import { useTaskStore } from "@/renderer/stores/task-store";

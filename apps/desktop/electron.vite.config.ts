@@ -35,7 +35,7 @@ export default defineConfig(() => ({
       outDir: ".output/app/preload",
       lib: {
         entry: resolve(__dirname, "src/preload/index.ts"),
-        formats: ["cjs"],
+        formats: ["cjs" as const],
       },
       rollupOptions: {
         output: {
