@@ -4,8 +4,8 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@repo/ui/collapsible";
-import { cn } from "@repo/ui/utils";
+} from "@repo/ui/components/collapsible";
+import { cn } from "@repo/ui/lib/utils";
 
 import type { ToolExecution } from "@/renderer/stores/agent-store";
 

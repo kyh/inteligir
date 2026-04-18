@@ -1,8 +1,8 @@
 "use client";
 
-import type { ComponentProps, HTMLAttributes, ReactElement, ReactNode } from "react";
+import type { ComponentProps, HTMLAttributes, ReactNode } from "react";
 import type { BundledLanguage, CodeOptionsMultipleThemes } from "shiki";
-import { cloneElement, createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import {
   SiAstro,
   SiBiome,
@@ -87,7 +87,7 @@ import { codeToHtml } from "shiki";
 import type { IconType } from "@icons-pack/react-simple-icons";
 import { Button } from "./button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select";
-import { cn } from "./utils";
+import { cn } from "@repo/ui/lib/utils";
 
 export type { BundledLanguage } from "shiki";
 const filenameIconMap = {
@@ -355,7 +355,15 @@ export const CodeBlockFilename = ({
 export type CodeBlockSelectProps = ComponentProps<typeof Select>;
 export const CodeBlockSelect = (props: CodeBlockSelectProps) => {
   const { value, onValueChange } = useContext(CodeBlockContext);
-  return <Select onValueChange={onValueChange} value={value} {...props} />;
+  return (
+    <Select
+      onValueChange={(v) => {
+        if (typeof v === "string") onValueChange?.(v);
+      }}
+      value={value}
+      {...props}
+    />
+  );
 };
 export type CodeBlockSelectTriggerProps = ComponentProps<typeof SelectTrigger>;
 export const CodeBlockSelectTrigger = ({ className, ...props }: CodeBlockSelectTriggerProps) => (
@@ -385,7 +393,6 @@ export type CodeBlockCopyButtonProps = ComponentProps<typeof Button> & {
   timeout?: number;
 };
 export const CodeBlockCopyButton = ({
-  asChild,
   onCopy,
   onError,
   timeout = 2000,
@@ -406,12 +413,6 @@ export const CodeBlockCopyButton = ({
       setTimeout(() => setIsCopied(false), timeout);
     }, onError);
   };
-  if (asChild) {
-    return cloneElement(children as ReactElement, {
-      // @ts-expect-error - we know this is a button
-      onClick: copyToClipboard,
-    });
-  }
   const Icon = isCopied ? CheckIcon : CopyIcon;
   return (
     <Button

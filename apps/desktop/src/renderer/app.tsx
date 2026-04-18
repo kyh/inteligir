@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
-import { GeometricOrb, type DisplayStatus } from "@repo/ui/geometric-orb";
+import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 

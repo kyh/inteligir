@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 
-import { GeometricOrb } from "@repo/ui/geometric-orb";
+import { GeometricOrb } from "@repo/ui/components/geometric-orb";
 
 const GITHUB_REPO = "kyh/inteligir";
 const FALLBACK_URL = `https://github.com/${GITHUB_REPO}/releases`;

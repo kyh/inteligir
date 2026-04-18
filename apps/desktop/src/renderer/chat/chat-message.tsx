@@ -1,4 +1,4 @@
-import { cn } from "@repo/ui/utils";
+import { cn } from "@repo/ui/lib/utils";
 
 import { Markdown } from "@/renderer/components/markdown";
 import { ToolExecutionView } from "@/renderer/components/tool-execution";

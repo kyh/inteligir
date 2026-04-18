@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Button } from "@repo/ui/button";
-import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@repo/ui/field";
-import { Input } from "@repo/ui/input";
-import { toast } from "@repo/ui/toast";
-import { cn } from "@repo/ui/utils";
+import { Button } from "@repo/ui/components/button";
+import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@repo/ui/components/field";
+import { Input } from "@repo/ui/components/input";
+import { toast } from "@repo/ui/components/sonner";
+import { cn } from "@repo/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
 import { z } from "zod";
 
@@ -184,7 +184,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
             }}
           </form.Field>
         </FieldGroup>
-        <Button loading={form.state.isSubmitting}>{type === "login" ? "Login" : "Register"}</Button>
+        <Button type="submit" loading={form.state.isSubmitting}>{type === "login" ? "Login" : "Register"}</Button>
       </form>
     </div>
   );
@@ -273,7 +273,7 @@ export const RequestPasswordResetForm = () => {
           }}
         </form.Field>
       </FieldGroup>
-      <Button loading={form.state.isSubmitting}>Request Password Reset</Button>
+      <Button type="submit" loading={form.state.isSubmitting}>Request Password Reset</Button>
     </form>
   );
 };
@@ -408,7 +408,7 @@ export const UpdatePasswordForm = () => {
           }}
         </form.Field>
       </FieldGroup>
-      <Button loading={form.state.isSubmitting}>Update Password</Button>
+      <Button type="submit" loading={form.state.isSubmitting}>Update Password</Button>
     </form>
   );
 };
