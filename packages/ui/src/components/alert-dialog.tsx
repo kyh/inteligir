@@ -156,6 +156,10 @@ export {
   AlertDialogTrigger,
 };
 
+/**
+ * Imperative global alert dialog. Call `alertDialog.open(title, options)` from
+ * anywhere; render <GlobalAlertDialog /> once at the root.
+ */
 export type AlertState = {
   open: boolean;
   title: React.ReactNode;

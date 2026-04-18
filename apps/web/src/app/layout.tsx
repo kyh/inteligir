@@ -4,7 +4,6 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 
 import { siteConfig } from "@/lib/site-config";
-import { ThemeProvider } from "@/components/theme-provider";
 import { TRPCReactProvider } from "@/trpc/react";
 
 import "./styles/globals.css";
@@ -85,15 +84,13 @@ type LayoutProps = {
 
 const RootLayout = (props: LayoutProps) => {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en">
       <body className="bg-background text-foreground font-sans antialiased">
-        <ThemeProvider>
-          <TooltipProvider>
-            <TRPCReactProvider>{props.children}</TRPCReactProvider>
-            <Toaster />
-            <GlobalAlertDialog />
-          </TooltipProvider>
-        </ThemeProvider>
+        <TooltipProvider>
+          <TRPCReactProvider>{props.children}</TRPCReactProvider>
+          <Toaster />
+          <GlobalAlertDialog />
+        </TooltipProvider>
       </body>
     </html>
   );
