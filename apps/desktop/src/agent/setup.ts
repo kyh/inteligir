@@ -172,9 +172,33 @@ export async function installGws(): Promise<void> {
   await installGwsSkills();
 }
 
+/**
+ * Query `gws --version` and return the version string (e.g. "0.22.5"),
+ * or null if the binary is missing or doesn't report a parseable version.
+ */
+async function getInstalledGwsVersion(gwsPath: string): Promise<string | null> {
+  if (!fs.existsSync(gwsPath)) return null;
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile(gwsPath, ["--version"], { timeout: 5_000 }, (err, out) => {
+        if (err) reject(err);
+        else resolve(out);
+      });
+    });
+    // `gws --version` prints something like "gws 0.22.5"; grab the first semver-ish token
+    const match = stdout.match(/\d+\.\d+\.\d+/);
+    return match?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function installGwsBinary(): Promise<void> {
   const gwsPath = path.join(BIN_DIR, "gws");
-  if (fs.existsSync(gwsPath)) return;
+
+  // Skip only if the installed version matches the target version
+  const installedVersion = await getInstalledGwsVersion(gwsPath);
+  if (installedVersion === GWS_VERSION) return;
 
   const arch = gwsArchSuffix();
   if (!arch) {
@@ -198,10 +222,10 @@ async function installGwsBinary(): Promise<void> {
   try {
     console.log(`[gws] downloading binary from ${tarballUrl}`);
 
-    // Fetch tarball and expected sha256 in parallel
+    // Fetch tarball and expected sha256 in parallel (60s timeout to avoid hanging onboarding)
     const [tarResp, shaResp] = await Promise.all([
-      fetch(tarballUrl, { redirect: "follow" }),
-      fetch(shaUrl, { redirect: "follow" }),
+      fetch(tarballUrl, { redirect: "follow", signal: AbortSignal.timeout(60_000) }),
+      fetch(shaUrl, { redirect: "follow", signal: AbortSignal.timeout(60_000) }),
     ]);
     if (!tarResp.ok || !tarResp.body) {
       throw new Error(`tarball fetch failed: ${tarResp.status} ${tarResp.statusText}`);
