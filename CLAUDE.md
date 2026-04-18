@@ -31,23 +31,20 @@ packages/
 
 ```bash
 pnpm dev              # Dev all workspaces
-pnpm dev-web          # Dev web app only
+pnpm dev:web          # Dev web app only
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all
-pnpm lint-fix         # Lint fix all
+pnpm lint:fix         # Lint fix all
 pnpm format           # Format check
-pnpm format-fix       # Format fix
+pnpm format:fix       # Format fix
 
 # Database
-pnpm db-start         # Start local Supabase
-pnpm db-stop          # Stop local Supabase
-pnpm db-push          # Push schema to local
-pnpm db-push-remote   # Push schema to prod
-pnpm db-reset         # Reset local DB
-
-# UI
-pnpm gen-ui           # Add shadcn component
+pnpm db:start         # Start local Supabase
+pnpm db:stop          # Stop local Supabase
+pnpm db:push          # Push schema to local
+pnpm db:push-remote   # Push schema to prod
+pnpm db:reset         # Reset local DB
 ```
 
 ## Quality Gates
