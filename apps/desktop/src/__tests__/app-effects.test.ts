@@ -33,10 +33,11 @@ describe("runEffect", () => {
 
   // ---- SETUP ----------------------------------------------------------------
 
-  it("SETUP calls deps.seedResources and returns SETUP_OK", async () => {
+  it("SETUP calls deps.seedResources and deps.installGws, returns SETUP_OK", async () => {
     const deps = makeDeps();
     const result = await runEffect("SETUP", deps);
     expect(deps.seedResources).toHaveBeenCalledOnce();
+    expect(deps.installGws).toHaveBeenCalledOnce();
     expect(result).toEqual({ type: "SETUP_OK" });
   });
 

@@ -70,13 +70,14 @@ describe("AppMachine", () => {
     });
   });
 
-  it("SETUP → setting_up → seedResources() → ready", async () => {
+  it("SETUP → setting_up → seedResources() + installGws() → ready", async () => {
     const deps = fakeDeps();
     const machine = new AppMachine(deps, vi.fn(), { phase: "logged_in" });
 
     await machine.send({ type: "SETUP" });
 
     expect(deps.seedResources).toHaveBeenCalledOnce();
+    expect(deps.installGws).toHaveBeenCalledOnce();
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 
