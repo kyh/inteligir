@@ -1,27 +1,25 @@
 // ---------------------------------------------------------------------------
-// Voice pipeline — orchestrates Deepgram STT + ElevenLabs TTS
+// Voice pipeline — Gemini 3.1 Flash Live (audio-to-audio, single WebSocket)
 // ---------------------------------------------------------------------------
 
-import { startSTT, type STTHandle } from "./stt";
-import { createTTS, type TTSHandle } from "./tts";
+import { startGeminiLive, type GeminiLiveHandle } from "./gemini-live";
 import type { VoiceSessionState } from "@/shared/voice";
 
 export type VoicePipelineEvent =
   | { type: "state_changed"; state: VoiceSessionState; error?: string }
   | { type: "transcript_partial"; text: string }
-  | { type: "transcript_final"; text: string };
+  | { type: "transcript_final"; text: string }
+  | { type: "assistant_transcript"; text: string };
 
 export type VoicePipelineListener = (event: VoicePipelineEvent) => void;
 
 export type VoicePipelineConfig = {
-  deepgramApiKey: string;
-  elevenlabsApiKey: string;
-  elevenlabsVoiceId?: string;
+  googleApiKey: string;
+  geminiVoice?: string;
 };
 
 export class VoicePipeline {
-  private stt: STTHandle | null = null;
-  private tts: TTSHandle | null = null;
+  private live: GeminiLiveHandle | null = null;
   private state: VoiceSessionState = "inactive";
   private readonly listeners = new Set<VoicePipelineListener>();
 
@@ -41,34 +39,30 @@ export class VoicePipeline {
     this.setState("connecting");
 
     try {
-      // TTS connects lazily on first sendText — just create the handle
-      this.tts = createTTS(
-        this.config.elevenlabsApiKey,
-        this.config.elevenlabsVoiceId,
-      );
-
-      // STT requests mic permission + opens Deepgram WebSocket
-      this.stt = await startSTT(
-        this.config.deepgramApiKey,
-        (text, isFinal) => {
-          if (isFinal) {
-            this.emit({ type: "transcript_partial", text: "" });
-            if (text.trim()) {
-              this.emit({ type: "transcript_final", text: text.trim() });
+      this.live = await startGeminiLive(
+        this.config.googleApiKey,
+        this.config.geminiVoice,
+        {
+          onUserTranscript: (text, isFinal) => {
+            if (isFinal) {
+              this.emit({ type: "transcript_partial", text: "" });
+              if (text.trim()) {
+                this.emit({ type: "transcript_final", text: text.trim() });
+              }
+            } else if (text.trim()) {
+              this.emit({ type: "transcript_partial", text });
             }
-          } else if (text.trim()) {
-            // Interrupt TTS when user starts speaking
-            this.tts?.interrupt();
-            this.emit({ type: "transcript_partial", text });
-          }
-        },
-        (error) => {
-          console.error("[voice] STT error:", error);
-          this.disconnect();
-          this.setState("error", error);
+          },
+          onAssistantTranscript: (text) => {
+            this.emit({ type: "assistant_transcript", text });
+          },
+          onError: (error) => {
+            console.error("[voice] Gemini Live error:", error);
+            this.disconnect();
+            this.setState("error", error);
+          },
         },
       );
-
       this.setState("connected");
     } catch (err) {
       this.disconnect();
@@ -77,20 +71,19 @@ export class VoicePipeline {
   }
 
   disconnect(): void {
-    this.stt?.stop();
-    this.stt = null;
-    this.tts?.close();
-    this.tts = null;
+    this.live?.stop();
+    this.live = null;
     this.setState("inactive");
   }
 
+  // Gemini Live generates audio itself — route text-channel messages from the
+  // agent into the session so they are spoken aloud alongside voice turns.
   speakText(text: string): void {
-    this.tts?.sendText(text);
+    this.live?.sendText(text);
   }
 
-  flushSpeech(): void {
-    this.tts?.flush();
-  }
+  // No-op retained for callers; Live API has no explicit flush frame.
+  flushSpeech(): void {}
 
   private setState(state: VoiceSessionState, error?: string): void {
     this.state = state;

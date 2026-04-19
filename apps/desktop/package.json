@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^1.48.0",
     "@mariozechner/pi-ai": "^0.63.1",
     "@mariozechner/pi-coding-agent": "^0.63.1",
     "@react-three/drei": "^10.7.7",

@@ -104,9 +104,8 @@ export type DesktopBridge = {
 
   // Voice
   getVoiceConfig: () => Promise<{
-    deepgramApiKey: string;
-    elevenlabsApiKey: string;
-    elevenlabsVoiceId?: string;
+    googleApiKey: string;
+    geminiVoice?: string;
   } | null>;
 };
 

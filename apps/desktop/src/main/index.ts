@@ -10,7 +10,7 @@ import electronUpdater from "electron-updater";
 
 declare const __PROJECT_ROOT__: string;
 
-// Load .env at runtime for voice API keys (DEEPGRAM_API_KEY, ELEVENLABS_API_KEY)
+// Load .env at runtime for voice API keys (GOOGLE_GENERATIVE_AI_API_KEY)
 try {
   process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
 } catch {
@@ -207,13 +207,11 @@ function registerIpcHandlers(): void {
   // ---- Voice ----------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.VOICE_CONFIG, () => {
-    const deepgramApiKey = process.env["DEEPGRAM_API_KEY"];
-    const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
-    if (!deepgramApiKey || !elevenlabsApiKey) return null;
+    const googleApiKey = process.env["GOOGLE_GENERATIVE_AI_API_KEY"];
+    if (!googleApiKey) return null;
     return {
-      deepgramApiKey,
-      elevenlabsApiKey,
-      elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
+      googleApiKey,
+      geminiVoice: process.env["GEMINI_VOICE"],
     };
   });
 }
