@@ -73,6 +73,9 @@ export async function startGeminiLive(
   let userBuffer = "";
   let assistantBuffer = "";
   let userFinalized = false;
+  // Flips false once the server-side session is no longer usable so
+  // onaudioprocess stops pushing audio into a dead socket.
+  let sessionAlive = false;
 
   function playChunk(pcm: ArrayBuffer): void {
     const int16 = new Int16Array(pcm);
@@ -123,8 +126,9 @@ export async function startGeminiLive(
       },
       callbacks: {
         onopen: () => {
+          sessionAlive = true;
           processorNode.onaudioprocess = (event) => {
-            if (stopped || !session) return;
+            if (stopped || !sessionAlive || !session) return;
             const float32 = event.inputBuffer.getChannelData(0);
             const int16 = new Int16Array(float32.length);
             for (let i = 0; i < float32.length; i++) {
@@ -204,11 +208,18 @@ export async function startGeminiLive(
         },
 
         onclose: (e: CloseEvent) => {
-          if (!stopped && e.code !== 1000) {
-            callbacks.onError(
-              `Gemini Live disconnected: ${e.reason || `code ${String(e.code)}`}`,
-            );
-          }
+          // Mark the session dead first so onaudioprocess stops pumping audio
+          // into it, regardless of close code.
+          sessionAlive = false;
+          if (stopped) return;
+          // Any server-initiated close (even a clean 1000 from session-cap
+          // timeout) must surface so the pipeline transitions out of
+          // "connected" — otherwise the mic keeps capturing into the void.
+          callbacks.onError(
+            e.code === 1000
+              ? "Gemini Live session ended"
+              : `Gemini Live disconnected: ${e.reason || `code ${String(e.code)}`}`,
+          );
         },
       },
     });
