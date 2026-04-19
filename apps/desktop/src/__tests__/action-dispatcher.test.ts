@@ -94,8 +94,9 @@ describe("action-dispatcher", () => {
 
     it("navigates for valid http URL", async () => {
       // Mock awaitNavigation — Page.loadEventFired fires immediately
-      vi.mocked(mockCDP.on).mockImplementation((event: string, handler: () => void) => {
-        if (event === "Page.loadEventFired") setTimeout(handler, 0);
+      vi.mocked(mockCDP.on).mockImplementation((event, handler) => {
+        if (event === "Page.loadEventFired")
+          setTimeout(() => (handler as () => void)(), 0);
       });
       const result = await dispatchAction({ action: "open", url: "https://example.com" }, ctx);
       expect(textContent(result)).toContain("Navigated to");

@@ -12,7 +12,7 @@ Turborepo monorepo with Next.js marketing site + shared packages.
 - **Frontend**: Next.js 15, React 19, Tailwind CSS 4
 - **API**: tRPC, better-auth
 - **Database**: Supabase + Drizzle ORM + PostgreSQL
-- **UI**: shadcn/ui (Radix), lucide-react, vaul, sonner
+- **UI**: shadcn/ui (Base UI), lucide-react, vaul, sonner
 - **Desktop** (planned): Electron + electron-vite
 - **AI Agent** (planned): pi coding agent framework (RPC mode)
 
@@ -32,6 +32,7 @@ packages/
 ```bash
 pnpm dev              # Dev all workspaces
 pnpm dev:web          # Dev web app only
+pnpm dev:desktop      # Dev desktop app only
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all

@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
+import type { LibraryFormats } from "vite";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,7 +36,7 @@ export default defineConfig(() => ({
       outDir: ".output/app/preload",
       lib: {
         entry: resolve(__dirname, "src/preload/index.ts"),
-        formats: ["cjs"],
+        formats: ["cjs"] satisfies LibraryFormats[],
       },
       rollupOptions: {
         output: {

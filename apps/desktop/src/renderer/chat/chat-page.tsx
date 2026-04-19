@@ -10,12 +10,12 @@ import {
   SettingsIcon,
   SquareIcon,
 } from "lucide-react";
-import { cn } from "@repo/ui/utils";
+import { cn } from "@repo/ui/lib/utils";
 import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
-} from "@repo/ui/conversation";
+} from "@repo/ui/components/conversation";
 
 import { getSessionStatus } from "@/shared/agent";
 import type { VoiceSessionState } from "@/shared/voice";
@@ -25,8 +25,8 @@ import { TaskPanel } from "@/renderer/chat/task-panel";
 import { DraggablePanel } from "@/renderer/components/draggable-panel";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-import { Button } from "@repo/ui/button";
-import { Label } from "@repo/ui/label";
+import { Button } from "@repo/ui/components/button";
+import { Label } from "@repo/ui/components/label";
 
 // ---------------------------------------------------------------------------
 // Types

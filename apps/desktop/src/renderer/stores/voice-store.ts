@@ -35,7 +35,8 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       pipeline.on(handlePipelineEvent);
     });
 
-    function handlePipelineEvent(event: VoicePipelineEvent) {
+    function handlePipelineEvent(this: void, event: VoicePipelineEvent) {
+      if (!bridge) return;
       switch (event.type) {
         case "state_changed":
           set({
