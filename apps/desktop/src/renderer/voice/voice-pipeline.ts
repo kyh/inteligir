@@ -60,17 +60,17 @@ export class VoicePipeline {
           },
           onError: (error) => {
             console.error("[voice] Gemini Live error:", error);
-            this.disconnect();
+            this.teardown();
             this.setState("error", error);
           },
           onClose: (clean, reason) => {
+            this.teardown();
             if (clean) {
               // Expected end-of-session (e.g. 15-min cap). Transition back
               // to inactive without surfacing an error banner.
-              this.disconnect();
+              this.setState("inactive");
             } else {
               console.error("[voice] Gemini Live disconnected:", reason);
-              this.disconnect();
               this.setState("error", `Gemini Live disconnected: ${reason}`);
             }
           },
@@ -78,15 +78,19 @@ export class VoicePipeline {
       );
       this.setState("connected");
     } catch (err) {
-      this.disconnect();
+      this.teardown();
       this.setState("error", err instanceof Error ? err.message : String(err));
     }
   }
 
   disconnect(): void {
+    this.teardown();
+    this.setState("inactive");
+  }
+
+  private teardown(): void {
     this.live?.stop();
     this.live = null;
-    this.setState("inactive");
   }
 
   // Gemini Live generates and voices responses itself — there is no text-in
