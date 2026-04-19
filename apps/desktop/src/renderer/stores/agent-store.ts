@@ -37,6 +37,7 @@ type AgentStore = {
   steer: (text: string) => void;
   interrupt: () => void;
   addUserMessage: (text: string) => void;
+  addAssistantMessage: (text: string) => void;
   addSteerMessage: (text: string) => void;
 };
 
@@ -252,6 +253,12 @@ export const useAgentStore = create<AgentStore>((set) => ({
   addUserMessage: (text: string) => {
     set((s) => ({
       messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+    }));
+  },
+
+  addAssistantMessage: (text: string) => {
+    set((s) => ({
+      messages: [...s.messages, { id: nextMsgId++, kind: "assistant", text }],
     }));
   },
 

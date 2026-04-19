@@ -53,8 +53,10 @@ export class VoicePipeline {
               this.emit({ type: "transcript_partial", text });
             }
           },
-          onAssistantTranscript: (text) => {
-            this.emit({ type: "assistant_transcript", text });
+          onAssistantTranscript: (text, isFinal) => {
+            if (isFinal && text.trim()) {
+              this.emit({ type: "assistant_transcript", text: text.trim() });
+            }
           },
           onError: (error) => {
             console.error("[voice] Gemini Live error:", error);
@@ -76,13 +78,12 @@ export class VoicePipeline {
     this.setState("inactive");
   }
 
-  // Gemini Live generates audio itself — route text-channel messages from the
-  // agent into the session so they are spoken aloud alongside voice turns.
-  speakText(text: string): void {
-    this.live?.sendText(text);
-  }
+  // Gemini Live generates and voices responses itself — there is no text-in
+  // path mid-conversation, so these are no-ops. Retained because agent-store
+  // fires them on every streaming delta from the pi-agent's (text-channel)
+  // output, which should not be routed back into the voice session.
+  speakText(_text: string): void {}
 
-  // No-op retained for callers; Live API has no explicit flush frame.
   flushSpeech(): void {}
 
   private setState(state: VoiceSessionState, error?: string): void {

@@ -29,13 +29,16 @@ const OUTPUT_SAMPLE_RATE = 24000;
 const DEFAULT_VOICE = "Aoede";
 
 export type GeminiLiveCallbacks = {
+  // Fires incrementally with accumulated user speech; `isFinal` true once
+  // Gemini signals the user's turn ended (first output-transcription arrives).
   onUserTranscript: (text: string, isFinal: boolean) => void;
-  onAssistantTranscript: (text: string) => void;
+  // Fires incrementally with accumulated assistant speech; `isFinal` true on
+  // `turnComplete`.
+  onAssistantTranscript: (text: string, isFinal: boolean) => void;
   onError: (error: string) => void;
 };
 
 export type GeminiLiveHandle = {
-  sendText: (text: string) => void;
   interrupt: () => void;
   stop: () => void;
 };
@@ -60,6 +63,16 @@ export async function startGeminiLive(
   let nextPlayTime = 0;
   const activeSources = new Set<AudioBufferSourceNode>();
   let stopped = false;
+
+  // Per-turn transcript accumulators. Gemini streams both input (user) and
+  // output (assistant) transcription as incremental fragments; we only emit
+  // `isFinal=true` at meaningful boundaries:
+  //   - user final: first output fragment of a turn (= Gemini decided user
+  //     stopped speaking and began generating)
+  //   - assistant final: `turnComplete` signal
+  let userBuffer = "";
+  let assistantBuffer = "";
+  let userFinalized = false;
 
   function playChunk(pcm: ArrayBuffer): void {
     const int16 = new Int16Array(pcm);
@@ -104,7 +117,7 @@ export async function startGeminiLive(
         speechConfig: {
           voiceConfig: { prebuiltVoiceConfig: { voiceName: voice } },
         },
-        // Surface transcripts for UI + agent-history logging
+        // Surface transcripts for UI + chat-history logging
         inputAudioTranscription: {},
         outputAudioTranscription: {},
       },
@@ -136,6 +149,8 @@ export async function startGeminiLive(
           // Server-initiated interrupt (user spoke over model)
           if (msg.serverContent?.interrupted) {
             stopPlayback();
+            // Reset any partial assistant transcript — it's no longer being spoken.
+            assistantBuffer = "";
             return;
           }
 
@@ -149,15 +164,35 @@ export async function startGeminiLive(
             }
           }
 
-          // Transcripts (both directions)
-          const userText = msg.serverContent?.inputTranscription?.text;
-          if (userText) callbacks.onUserTranscript(userText, false);
-          if (msg.serverContent?.turnComplete) {
-            callbacks.onUserTranscript("", true);
+          const userFragment = msg.serverContent?.inputTranscription?.text;
+          if (userFragment) {
+            userBuffer += userFragment;
+            callbacks.onUserTranscript(userBuffer, false);
           }
 
-          const assistantText = msg.serverContent?.outputTranscription?.text;
-          if (assistantText) callbacks.onAssistantTranscript(assistantText);
+          const assistantFragment = msg.serverContent?.outputTranscription?.text;
+          if (assistantFragment) {
+            // First assistant fragment of this turn → user turn is done.
+            if (!userFinalized && userBuffer) {
+              callbacks.onUserTranscript(userBuffer, true);
+              userFinalized = true;
+            }
+            assistantBuffer += assistantFragment;
+            callbacks.onAssistantTranscript(assistantBuffer, false);
+          }
+
+          // `turnComplete` = model finished its reply; reset per-turn state.
+          if (msg.serverContent?.turnComplete) {
+            if (!userFinalized && userBuffer) {
+              callbacks.onUserTranscript(userBuffer, true);
+            }
+            if (assistantBuffer) {
+              callbacks.onAssistantTranscript(assistantBuffer, true);
+            }
+            userBuffer = "";
+            assistantBuffer = "";
+            userFinalized = false;
+          }
         },
 
         onerror: (e: ErrorEvent) => {
@@ -181,16 +216,11 @@ export async function startGeminiLive(
   }
 
   return {
-    sendText: (text: string) => {
-      session?.sendClientContent({
-        turns: [{ role: "user", parts: [{ text }] }],
-        turnComplete: true,
-      });
-    },
     interrupt: () => {
       stopPlayback();
-      // No explicit "cancel" frame in Live API — stopping playback and letting
-      // the next user utterance trigger server-side interruption is sufficient.
+      // No explicit cancel frame in the Live API — stopping playback and
+      // letting the next user utterance trigger server-side interruption is
+      // sufficient.
     },
     stop: () => {
       stopped = true;

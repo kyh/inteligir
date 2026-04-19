@@ -51,9 +51,18 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
         case "transcript_final":
           set({ currentTranscript: "" });
           if (event.text) {
-            void bridge.sendAgentCommand({ type: "user_message", text: event.text });
+            // Gemini Live is the voice brain — do NOT forward voice turns to
+            // the pi-agent, which would double-process them. Voice and
+            // text-channel chat are independent paths.
             void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
               useAgentStore.getState().addUserMessage(event.text);
+            });
+          }
+          break;
+        case "assistant_transcript":
+          if (event.text) {
+            void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
+              useAgentStore.getState().addAssistantMessage(event.text);
             });
           }
           break;
