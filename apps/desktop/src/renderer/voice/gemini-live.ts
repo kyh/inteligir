@@ -36,6 +36,10 @@ export type GeminiLiveCallbacks = {
   // `turnComplete`.
   onAssistantTranscript: (text: string, isFinal: boolean) => void;
   onError: (error: string) => void;
+  // Fires on any server-initiated close the caller didn't initiate. Clean =
+  // normal end-of-session (e.g. 15-min cap, code 1000); unclean = dropped
+  // connection. Pipeline decides whether to surface this as an error.
+  onClose: (clean: boolean, reason: string) => void;
 };
 
 export type GeminiLiveHandle = {
@@ -212,13 +216,9 @@ export async function startGeminiLive(
           // into it, regardless of close code.
           sessionAlive = false;
           if (stopped) return;
-          // Any server-initiated close (even a clean 1000 from session-cap
-          // timeout) must surface so the pipeline transitions out of
-          // "connected" — otherwise the mic keeps capturing into the void.
-          callbacks.onError(
-            e.code === 1000
-              ? "Gemini Live session ended"
-              : `Gemini Live disconnected: ${e.reason || `code ${String(e.code)}`}`,
+          callbacks.onClose(
+            e.code === 1000,
+            e.reason || `code ${String(e.code)}`,
           );
         },
       },

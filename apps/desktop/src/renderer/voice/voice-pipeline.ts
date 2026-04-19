@@ -63,6 +63,17 @@ export class VoicePipeline {
             this.disconnect();
             this.setState("error", error);
           },
+          onClose: (clean, reason) => {
+            if (clean) {
+              // Expected end-of-session (e.g. 15-min cap). Transition back
+              // to inactive without surfacing an error banner.
+              this.disconnect();
+            } else {
+              console.error("[voice] Gemini Live disconnected:", reason);
+              this.disconnect();
+              this.setState("error", `Gemini Live disconnected: ${reason}`);
+            }
+          },
         },
       );
       this.setState("connected");
