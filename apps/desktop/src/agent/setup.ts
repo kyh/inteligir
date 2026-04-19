@@ -220,18 +220,14 @@ async function installGwsBinary(): Promise<void> {
   const tarballUrl = `${baseUrl}/${tarball}`;
   const shaUrl = `${tarballUrl}.sha256`;
   const tarGzPath = path.join(BIN_DIR, tarball);
+  // Extract into a staging dir so a mid-extraction failure can't corrupt the
+  // currently-installed binary at gwsPath — we atomically rename on success.
+  const stagingDir = path.join(BIN_DIR, `.gws-staging-${process.pid}`);
+  const stagedGwsPath = path.join(stagingDir, "gws");
 
-  // On upgrade failure, preserve the previously working binary. Only remove
-  // gwsPath if this run is a fresh install AND tar hasn't yet written the
-  // binary — after tar extraction, the new binary is committed and post-steps
-  // (chmod) are trivial enough that we shouldn't nuke the result on failure.
-  let binaryWritten = false;
   const cleanup = () => {
-    const temp: string[] = [tarGzPath];
-    if (installedVersion === null && !binaryWritten) temp.push(gwsPath);
-    for (const f of temp) {
-      try { fs.unlinkSync(f); } catch { /* ignore */ }
-    }
+    try { fs.unlinkSync(tarGzPath); } catch { /* ignore */ }
+    try { fs.rmSync(stagingDir, { recursive: true, force: true }); } catch { /* ignore */ }
   };
 
   try {
@@ -271,11 +267,12 @@ async function installGwsBinary(): Promise<void> {
       throw new Error(`checksum mismatch: expected ${expectedSha}, got ${actualSha}`);
     }
 
-    // Extract gws binary directly from .tar.gz (30s timeout against hangs)
+    // Extract gws binary into staging dir (30s timeout against hangs)
+    fs.mkdirSync(stagingDir, { recursive: true });
     await new Promise<void>((resolve, reject) => {
       execFile(
         "tar",
-        ["xzf", tarGzPath, "-C", BIN_DIR, "gws"],
+        ["xzf", tarGzPath, "-C", stagingDir, "gws"],
         { timeout: 30_000 },
         (err) => {
           if (err) reject(err);
@@ -283,10 +280,12 @@ async function installGwsBinary(): Promise<void> {
         },
       );
     });
-    binaryWritten = true;
 
-    fs.chmodSync(gwsPath, 0o755);
-    try { fs.unlinkSync(tarGzPath); } catch { /* temp cleanup, ignore */ }
+    // Atomically swap the new binary into place. fs.renameSync is atomic on
+    // the same filesystem, so the old binary is never partially overwritten.
+    fs.chmodSync(stagedGwsPath, 0o755);
+    fs.renameSync(stagedGwsPath, gwsPath);
+    cleanup();
     console.log(`[gws] installed binary to ${gwsPath}`);
   } catch (err) {
     console.error("[gws] binary install failed:", err);
