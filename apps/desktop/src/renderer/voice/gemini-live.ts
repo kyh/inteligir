@@ -149,8 +149,12 @@ export async function startGeminiLive(
           // Server-initiated interrupt (user spoke over model)
           if (msg.serverContent?.interrupted) {
             stopPlayback();
-            // Reset any partial assistant transcript — it's no longer being spoken.
+            // Reset all per-turn state — the interrupting utterance starts a
+            // fresh turn, so any partial user/assistant accumulation from the
+            // interrupted turn must not leak into the next one.
+            userBuffer = "";
             assistantBuffer = "";
+            userFinalized = false;
             return;
           }
 
