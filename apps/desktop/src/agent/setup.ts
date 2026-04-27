@@ -115,6 +115,12 @@ export function seedResources(): void {
     process.env["PATH"] = currentPath ? `${BIN_DIR}${path.delimiter}${currentPath}` : BIN_DIR;
   }
 
+  // Run independently of the bundled agent resources dir below — the bridge
+  // binary is shipped via electron-builder extraResources at a different path
+  // (process.resourcesPath/computer-use/), so it must not be coupled to the
+  // early-return when ~/resources/agent is missing.
+  seedComputerUseHelper();
+
   const src = getBundledResourcesDir();
   if (!fs.existsSync(src)) {
     console.warn("[agent] bundled resources not found at", src);
@@ -135,7 +141,6 @@ export function seedResources(): void {
   }
 
   seedGwsClientSecret(src);
-  seedComputerUseHelper();
 }
 
 /**
