@@ -32,7 +32,7 @@ import type {
 } from "@/shared/agent";
 
 type ExtensionFactory = (pi: import("@mariozechner/pi-coding-agent").ExtensionAPI) => void;
-import { seedComputerUseHelper } from "@/agent/computer-use-tool";
+import { seedComputerUseHelper } from "@/agent/computer-use-helper";
 import { inteligirPath } from "@/main/lib/json-store";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
