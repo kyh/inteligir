@@ -34,6 +34,17 @@ export const BrowserActionSchema = Type.Object({
       Type.Literal("forward"),
       Type.Literal("reload"),
       Type.Literal("close"),
+      Type.Literal("cookies_get"),
+      Type.Literal("cookies_set"),
+      Type.Literal("cookies_clear"),
+      Type.Literal("storage_get"),
+      Type.Literal("storage_set"),
+      Type.Literal("storage_clear"),
+      Type.Literal("network_log"),
+      Type.Literal("tab_list"),
+      Type.Literal("tab_new"),
+      Type.Literal("tab_switch"),
+      Type.Literal("tab_close"),
     ],
     { description: "Browser action to perform" },
   ),
@@ -63,11 +74,35 @@ export const BrowserActionSchema = Type.Object({
   fullPage: Type.Optional(
     Type.Boolean({ description: "Full page screenshot (default: false)" }),
   ),
+  annotate: Type.Optional(
+    Type.Boolean({
+      description:
+        "Overlay numbered labels matching @ref handles on the screenshot (default: false). Requires a recent snapshot.",
+    }),
+  ),
   timeout: Type.Optional(
     Type.Number({ description: "Timeout in ms for wait action (default: 5000)" }),
   ),
   checked: Type.Optional(
     Type.Boolean({ description: "Desired checked state for check action (default: true)" }),
+  ),
+  name: Type.Optional(
+    Type.String({ description: "Cookie or storage key name" }),
+  ),
+  value: Type.Optional(
+    Type.String({ description: "Cookie or storage value" }),
+  ),
+  domain: Type.Optional(
+    Type.String({ description: "Cookie domain (defaults to current page host)" }),
+  ),
+  filter: Type.Optional(
+    Type.String({ description: "Substring filter for network_log (matches URL)" }),
+  ),
+  tabId: Type.Optional(
+    Type.String({ description: "Tab id (e.g. t1) for tab_switch / tab_close" }),
+  ),
+  label: Type.Optional(
+    Type.String({ description: "Optional human-readable label for tab_new" }),
   ),
 });
 

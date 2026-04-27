@@ -82,8 +82,17 @@ export async function dispatchAction(
     }
   }
 
-  // Actions other than "open" require a page to already be loaded
-  if (action.action !== "open" && !session.hasLoadedPage()) {
+  // Actions that do not require a page to already be loaded.
+  const NO_PAGE_REQUIRED = new Set([
+    "open",
+    "tab_list",
+    "tab_new",
+    "tab_switch",
+    "tab_close",
+    "cookies_clear",
+    "network_log",
+  ]);
+  if (!NO_PAGE_REQUIRED.has(action.action) && !session.hasLoadedPage()) {
     return text('Error: No page loaded. Use the "open" action first to navigate to a URL.');
   }
 
@@ -207,37 +216,164 @@ export async function dispatchAction(
     }
 
     case "screenshot": {
-      if (action.fullPage) {
-        const MAX_WIDTH = 1280;
-        const MAX_HEIGHT = 16384;
-        const size = (await evaluate(cdp, `
-          ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })
-        `)) as { width: number; height: number };
-        const captureWidth = Math.min(size.width, MAX_WIDTH);
-        const captureHeight = Math.min(size.height, MAX_HEIGHT);
-        const devicePixelRatio = (await evaluate(cdp, "window.devicePixelRatio || 1")) as number;
-        const cdpResult = await cdp.send("Page.captureScreenshot", {
-          format: "png",
-          captureBeyondViewport: true,
-          clip: {
-            x: 0,
-            y: 0,
-            width: captureWidth,
-            height: captureHeight,
-            scale: 1 / devicePixelRatio,
-          },
-        });
+      const annotateOn = action.annotate === true;
+      if (annotateOn) await injectRefOverlay(cdp, session);
+      try {
+        if (action.fullPage) {
+          const MAX_WIDTH = 1280;
+          const MAX_HEIGHT = 16384;
+          const size = (await evaluate(cdp, `
+            ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })
+          `)) as { width: number; height: number };
+          const captureWidth = Math.min(size.width, MAX_WIDTH);
+          const captureHeight = Math.min(size.height, MAX_HEIGHT);
+          const devicePixelRatio = (await evaluate(cdp, "window.devicePixelRatio || 1")) as number;
+          const cdpResult = await cdp.send("Page.captureScreenshot", {
+            format: "png",
+            captureBeyondViewport: true,
+            clip: {
+              x: 0,
+              y: 0,
+              width: captureWidth,
+              height: captureHeight,
+              scale: 1 / devicePixelRatio,
+            },
+          });
+          return {
+            content: [{ type: "image", data: cdpResult["data"] as string, mimeType: "image/png" }],
+            details: {},
+          };
+        }
+        // Viewport screenshot — same CDP command without clip
+        const cdpResult = await cdp.send("Page.captureScreenshot", { format: "png" });
         return {
           content: [{ type: "image", data: cdpResult["data"] as string, mimeType: "image/png" }],
           details: {},
         };
+      } finally {
+        if (annotateOn) await removeRefOverlay(cdp);
       }
-      // Viewport screenshot — same CDP command without clip
-      const cdpResult = await cdp.send("Page.captureScreenshot", { format: "png" });
-      return {
-        content: [{ type: "image", data: cdpResult["data"] as string, mimeType: "image/png" }],
-        details: {},
+    }
+
+    case "cookies_get": {
+      const result = await cdp.send("Network.getCookies");
+      const cookies = (result["cookies"] as Array<Record<string, unknown>>) ?? [];
+      const lines = cookies.map((c) =>
+        `${String(c["name"])}=${String(c["value"])}\tdomain=${String(c["domain"])}\tpath=${String(c["path"])}`,
+      );
+      return text(lines.length === 0 ? "(no cookies)" : lines.join("\n"));
+    }
+
+    case "cookies_set": {
+      if (!action.name) return text("Error: name is required for cookies_set");
+      if (action.value === undefined) return text("Error: value is required for cookies_set");
+      const url = (await evaluate(cdp, "location.href")) as string;
+      const params: Record<string, unknown> = {
+        name: action.name,
+        value: action.value,
+        url,
       };
+      if (action.domain) params["domain"] = action.domain;
+      const ok = await cdp.send("Network.setCookie", params);
+      if (ok["success"] === false) return text(`Error: failed to set cookie ${action.name}`);
+      return text(`Set cookie ${action.name}`);
+    }
+
+    case "cookies_clear": {
+      await cdp.send("Network.clearBrowserCookies");
+      return text("Cleared all cookies");
+    }
+
+    case "storage_get": {
+      if (action.name) {
+        const value = (await evaluate(cdp, `localStorage.getItem(${JSON.stringify(action.name)})`)) as string | null;
+        return text(value === null ? `(${action.name} not set)` : value);
+      }
+      const all = (await evaluate(cdp, `
+        (function() {
+          const out = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k !== null) out[k] = localStorage.getItem(k);
+          }
+          return out;
+        })()
+      `)) as Record<string, string>;
+      const keys = Object.keys(all);
+      if (keys.length === 0) return text("(localStorage is empty)");
+      return text(keys.map((k) => `${k}=${all[k]}`).join("\n"));
+    }
+
+    case "storage_set": {
+      if (!action.name) return text("Error: name is required for storage_set");
+      if (action.value === undefined) return text("Error: value is required for storage_set");
+      await evaluate(cdp, `localStorage.setItem(${JSON.stringify(action.name)}, ${JSON.stringify(action.value)})`);
+      return text(`Set localStorage ${action.name}`);
+    }
+
+    case "storage_clear": {
+      await evaluate(cdp, "localStorage.clear()");
+      return text("Cleared localStorage");
+    }
+
+    case "network_log": {
+      const log = session.getNetworkLog();
+      const filter = action.filter?.toLowerCase();
+      const filtered = filter ? log.filter((r) => r.url.toLowerCase().includes(filter)) : log;
+      if (filtered.length === 0) return text("(no recent requests)");
+      const lines = filtered.map((r) => {
+        const status = r.status !== undefined ? String(r.status) : "...";
+        return `${status}\t${r.method}\t${r.resourceType}\t${r.url}`;
+      });
+      return text(lines.join("\n"));
+    }
+
+    case "tab_list": {
+      const list = session.listTabs();
+      if (list.length === 0) return text("(no open tabs)");
+      const lines = list.map((t) => {
+        const marker = t.current ? "*" : " ";
+        const label = t.label ? ` [${t.label}]` : "";
+        return `${marker} ${t.id}${label}\t${t.url || "about:blank"}`;
+      });
+      return text(lines.join("\n"));
+    }
+
+    case "tab_new": {
+      if (action.url) {
+        try {
+          const parsed = new URL(action.url);
+          if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
+            return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
+          }
+        } catch {
+          return text(`Error: Invalid URL "${action.url}"`);
+        }
+      }
+      // Always open the tab at about:blank, then drive an explicit navigation so
+      // we can await Page.loadEventFired (matches the `open` action's semantics).
+      const summary = await session.newTab({ label: action.label });
+      if (action.url) {
+        const newCdp = await session.ensureConnected();
+        const navPromise = awaitNavigation(newCdp);
+        await newCdp.send("Page.navigate", { url: action.url });
+        await navPromise;
+      }
+      const label = summary.label ? ` [${summary.label}]` : "";
+      return text(`Opened tab ${summary.id}${label}${action.url ? ` at ${action.url}` : ""}`);
+    }
+
+    case "tab_switch": {
+      if (!action.tabId) return text("Error: tabId is required for tab_switch");
+      const summary = session.switchTab(action.tabId);
+      return text(`Switched to ${summary.id} (${summary.url || "about:blank"})`);
+    }
+
+    case "tab_close": {
+      const target = action.tabId ?? session.currentTabId();
+      if (!target) return text("Error: no tab to close");
+      await session.closeTab(target);
+      return text(`Closed tab ${target}`);
     }
 
     case "get_text": {
@@ -354,4 +490,57 @@ export async function dispatchAction(
     default:
       return text(`Unknown action: ${(action as BrowserAction).action}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Annotated screenshot overlay
+// ---------------------------------------------------------------------------
+
+const OVERLAY_ID = "__inteligir_ref_overlay__";
+
+async function injectRefOverlay(cdp: CDPClient, session: BrowserSession): Promise<void> {
+  const refs = Array.from(session.getRefs().entries()).map(([ref, selector]) => ({
+    ref,
+    selector,
+  }));
+  if (refs.length === 0) return;
+  await evaluate(cdp, `
+    (function() {
+      const refs = ${JSON.stringify(refs)};
+      const old = document.getElementById(${JSON.stringify(OVERLAY_ID)});
+      if (old) old.remove();
+      const container = document.createElement("div");
+      container.id = ${JSON.stringify(OVERLAY_ID)};
+      container.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647;";
+      const sx = window.scrollX || 0;
+      const sy = window.scrollY || 0;
+      for (const { ref, selector } of refs) {
+        try {
+          const el = document.querySelector(selector);
+          if (!el) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width === 0 || r.height === 0) continue;
+          const box = document.createElement("div");
+          box.style.cssText =
+            "position:absolute;left:" + (r.left + sx) + "px;top:" + (r.top + sy) + "px;" +
+            "width:" + r.width + "px;height:" + r.height + "px;" +
+            "outline:2px solid #ef4444;background:rgba(239,68,68,0.08);box-sizing:border-box;";
+          const tag = document.createElement("div");
+          tag.textContent = ref;
+          tag.style.cssText =
+            "position:absolute;left:0;top:-18px;background:#ef4444;color:#fff;" +
+            "font:600 11px/1 ui-sans-serif,system-ui,sans-serif;padding:2px 4px;border-radius:3px;white-space:nowrap;";
+          box.appendChild(tag);
+          container.appendChild(box);
+        } catch {}
+      }
+      document.documentElement.appendChild(container);
+    })()
+  `);
+}
+
+async function removeRefOverlay(cdp: CDPClient): Promise<void> {
+  await evaluate(cdp, `
+    document.getElementById(${JSON.stringify(OVERLAY_ID)})?.remove()
+  `).catch(() => {});
 }

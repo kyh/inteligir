@@ -20,33 +20,66 @@ installation required.
    - `browser({ action: "fill", selector: "@e3", text: "search query" })`
    - `browser({ action: "press", text: "Enter" })`
 4. Extract data: `browser({ action: "get_text" })` or `browser({ action: "get_text", selector: "@e2" })`
-5. Screenshot: `browser({ action: "screenshot" })` or `browser({ action: "screenshot", fullPage: true })`
+5. Screenshot: `browser({ action: "screenshot" })` — add `annotate: true` to overlay @ref labels for vision models
 6. Close when done: `browser({ action: "close" })`
 
 ## Actions
 
+### Navigation & interaction
+
 | Action       | Required params          | Description                                |
 | ------------ | ------------------------ | ------------------------------------------ |
-| `open`       | `url`                    | Navigate to a URL                          |
+| `open`       | `url`                    | Navigate the current tab to a URL          |
 | `click`      | `selector`               | Click an element (@ref or CSS selector)    |
 | `fill`       | `selector`, `text`       | Clear and type into a field                |
 | `type`       | `text`, opt. `selector`  | Type text (into element or focused field)  |
 | `press`      | `text` (key name)        | Press a keyboard key (e.g. "Enter", "Tab") |
 | `hover`      | `selector`               | Hover over an element                      |
-| `select`     | `selector`, `text`       | Select a `<select>` option by its `value` attribute |
+| `select`     | `selector`, `text`       | Select a `<select>` option by its `value`  |
 | `check`      | `selector`, opt `checked`| Check/uncheck a checkbox (default: check)  |
-| `snapshot`   | —                        | Get accessibility tree with @refs          |
-| `screenshot` | opt. `fullPage`          | Take a PNG screenshot                      |
-| `get_text`   | opt. `selector`          | Get text content of page or element        |
-| `get_url`    | —                        | Get current page URL                       |
-| `get_title`  | —                        | Get current page title                     |
-| `evaluate`   | `script`, opt. `timeout` | Run JavaScript in the page (30s default timeout) |
-| `wait`       | opt. `selector`/`timeout`| Wait for element or fixed duration (ms)    |
 | `scroll`     | opt. `direction`/`amount`| Scroll up or down (default: down 500px)    |
 | `back`       | —                        | Navigate back                              |
 | `forward`    | —                        | Navigate forward                           |
 | `reload`     | —                        | Reload the page                            |
-| `close`      | —                        | Close the browser                          |
+| `wait`       | opt. `selector`/`timeout`| Wait for element or fixed duration (ms)    |
+| `close`      | —                        | Close the entire browser session           |
+
+### Inspection
+
+| Action       | Required params              | Description                                          |
+| ------------ | ---------------------------- | ---------------------------------------------------- |
+| `snapshot`   | —                            | Get accessibility tree with @refs                    |
+| `screenshot` | opt. `fullPage`, `annotate`  | PNG screenshot. `annotate: true` overlays @ref labels |
+| `get_text`   | opt. `selector`              | Get text content of page or element                  |
+| `get_url`    | —                            | Get current page URL                                 |
+| `get_title`  | —                            | Get current page title                               |
+| `evaluate`   | `script`, opt. `timeout`     | Run JavaScript in the page (30s default timeout)     |
+
+### Cookies & storage
+
+| Action          | Required params             | Description                                     |
+| --------------- | --------------------------- | ----------------------------------------------- |
+| `cookies_get`   | —                           | List all cookies (`name=value\tdomain\tpath`)   |
+| `cookies_set`   | `name`, `value`, opt `domain`| Set a cookie on the current page's URL          |
+| `cookies_clear` | —                           | Delete every cookie                             |
+| `storage_get`   | opt. `name`                 | Read a localStorage key, or all keys if omitted |
+| `storage_set`   | `name`, `value`             | Write a localStorage key                        |
+| `storage_clear` | —                           | Clear localStorage for the current origin       |
+
+### Network
+
+| Action         | Required params | Description                                                       |
+| -------------- | --------------- | ----------------------------------------------------------------- |
+| `network_log`  | opt. `filter`   | Recent requests (status / method / type / URL). Ring-buffered ~200 |
+
+### Tabs
+
+| Action       | Required params         | Description                                                       |
+| ------------ | ----------------------- | ----------------------------------------------------------------- |
+| `tab_list`   | —                       | List open tabs. Current tab marked with `*`                       |
+| `tab_new`    | opt. `url`, `label`     | Open a new tab and switch to it                                   |
+| `tab_switch` | `tabId`                 | Switch the current tab (use `tabId` from `tab_list`, e.g. `t2`)   |
+| `tab_close`  | opt. `tabId`            | Close a tab. Defaults to the current tab                          |
 
 ## Element Selection
 
@@ -65,18 +98,12 @@ selectors like `#submit-btn` or `.search-input`.
   `document.querySelector("...").innerHTML` (specific element)
 - The `evaluate` action only captures synchronous return values. If your script
   returns a Promise, wrap it so the final value is returned (e.g. `await fetch(...).then(r => r.text())`).
-  Unhandled async rejections inside evaluated scripts are not captured — the
-  action will return the synchronous result while the error logs to the console.
-  Note: timed-out scripts continue running in the page context until navigation or close.
 - The `select` action matches by the `<option>` `value` attribute, not the visible label.
-  Run `snapshot` or `evaluate` to inspect option values if the visible text differs.
+- `screenshot` with `annotate: true` requires a recent `snapshot` to know the refs to draw.
+- `network_log` only shows requests since the tab was opened. Use `filter` to narrow by URL substring.
 
 ## Known Limitations
 
-- **Single browser window**: This tool operates a single browser instance. Tab
-  management (new/switch/close), network interception, cookie/storage inspection,
-  and visual diff features from the previous CLI-based tool are not supported.
-  Use `evaluate` for cookie/storage reads if needed.
 - **Shadow DOM**: The `fill`, `select`, and `check` actions use native prototype
   setters to work with React/Vue controlled inputs, but cannot reach inputs
   inside Web Component shadow DOM. Use `evaluate` to interact with shadow roots.
