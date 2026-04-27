@@ -360,10 +360,7 @@ function seedGwsClientSecret(bundledResourcesDir: string): void {
 
 async function getExtensionFactories(): Promise<ExtensionFactory[]> {
   const { registerBrowserExtension } = await import("@/agent/browser-tool");
-  const { registerComputerUseExtension, applyComputerUseEnv } = await import(
-    "@/agent/computer-use-tool"
-  );
-  applyComputerUseEnv();
+  const { registerComputerUseExtension } = await import("@/agent/computer-use-tool");
   return [registerTasksExtension, registerBrowserExtension, registerComputerUseExtension];
 }
 

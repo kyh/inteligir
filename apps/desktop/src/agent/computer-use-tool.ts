@@ -9,8 +9,9 @@
 // copy the right arch into place during onboarding (see seedComputerUseHelper).
 //
 // Browser windows are intentionally out of scope here — our CDP-based browser
-// tool covers the web. We force pi-computer-use's `browser_use` flag off via
-// PI_COMPUTER_USE_BROWSER_USE=0 so the bridge refuses browser targets.
+// tool covers the web. computer-use-env.ts (imported below) sets
+// PI_COMPUTER_USE_BROWSER_USE=0 so the bridge refuses browser targets; that
+// import must precede the pi-computer-use import to take effect.
 // ---------------------------------------------------------------------------
 
 import { execFile } from "node:child_process";
@@ -19,6 +20,10 @@ import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
 
+// MUST stay first — sets PI_COMPUTER_USE_BROWSER_USE=0 before the package loads.
+// ESM evaluates imports depth-first in source order, so any side-effect import
+// listed before the pi-computer-use import is guaranteed to run first.
+import "@/agent/computer-use-env";
 import computerUseExtension from "@injaneity/pi-computer-use/extensions/computer-use.ts";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
@@ -91,15 +96,6 @@ export function seedComputerUseHelper(): void {
   } catch (err) {
     console.error("[computer-use] failed to seed helper:", err);
   }
-}
-
-/**
- * Force browser_use off so the bridge declines browser windows. Our CDP-based
- * browser tool handles the web; pi-computer-use is for native apps only.
- * Must run before any extension factory imports the config module.
- */
-export function applyComputerUseEnv(): void {
-  process.env["PI_COMPUTER_USE_BROWSER_USE"] = "0";
 }
 
 /** Pi extension factory — registers list_apps, screenshot, click, etc. */
