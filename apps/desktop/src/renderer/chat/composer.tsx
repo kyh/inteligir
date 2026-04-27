@@ -48,8 +48,6 @@ function readFileAsBase64(file: File): Promise<ImageAttachment> {
 export function Composer() {
   const [input, setInput] = useState("");
   const [images, setImages] = useState<ImageAttachment[]>([]);
-  // Object URLs for inline previews — released when the attachment is removed.
-  const previewUrls = useRef<Map<number, string>>(new Map());
 
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -67,15 +65,6 @@ export function Composer() {
 
   useEffect(() => {
     inputRef.current?.focus();
-  }, []);
-
-  // Free object URLs on unmount.
-  useEffect(() => {
-    const urls = previewUrls.current;
-    return () => {
-      for (const url of urls.values()) URL.revokeObjectURL(url);
-      urls.clear();
-    };
   }, []);
 
   const attachFiles = useCallback(async (files: FileList | File[]) => {
@@ -118,11 +107,6 @@ export function Composer() {
 
   const removeImage = useCallback((index: number) => {
     setImages((prev) => prev.filter((_, i) => i !== index));
-    const url = previewUrls.current.get(index);
-    if (url) {
-      URL.revokeObjectURL(url);
-      previewUrls.current.delete(index);
-    }
   }, []);
 
   // While busy, default to queueing as follow-up (the agent will pick it up

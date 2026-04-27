@@ -199,10 +199,17 @@ function registerTasksExtension(pi: ExtensionAPI): void {
 }
 
 // ---------------------------------------------------------------------------
-// Auth — thin wrapper around @repo/pi-driver
+// Auth — thin wrapper around @repo/pi-driver. Lazily constructed and reset
+// by teardownResources() so a logout-then-login flow doesn't keep the prior
+// AuthStorage's cached credentials around after we've deleted auth.json.
 // ---------------------------------------------------------------------------
 
-const authStorage = createAuthStorage(AUTH_PATH);
+let _authStorage: ReturnType<typeof createAuthStorage> | null = null;
+
+function getAuthStorage(): ReturnType<typeof createAuthStorage> {
+  if (!_authStorage) _authStorage = createAuthStorage(AUTH_PATH);
+  return _authStorage;
+}
 
 export function isSetupComplete(): boolean {
   return fs.existsSync(WORKSPACE_DIR);
@@ -210,15 +217,16 @@ export function isSetupComplete(): boolean {
 
 export function teardownResources(): void {
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
+  _authStorage = null;
 }
 
 export function isLoggedIn(): boolean {
   if (!fs.existsSync(AUTH_PATH)) return false;
-  return hasAuth(authStorage, AUTH_PROVIDER);
+  return hasAuth(getAuthStorage(), AUTH_PROVIDER);
 }
 
 export async function login(): Promise<void> {
-  await loginWithProvider(authStorage, AUTH_PROVIDER, {
+  await loginWithProvider(getAuthStorage(), AUTH_PROVIDER, {
     onAuth: (info) => {
       void open(info.url);
     },
@@ -261,7 +269,7 @@ export class Agent {
     this.pi = new PiAgent({
       cwd: WORKSPACE_DIR,
       agentDir: AGENT_DIR,
-      authStorage,
+      authStorage: getAuthStorage(),
       model: resolveModel(AUTH_PROVIDER, MODEL_ID),
       sessionManager: resolveSessionManager(),
       // Lazy: registerBrowserExtension dynamic-imports CDP plumbing — defer
