@@ -47,6 +47,15 @@ export class NotificationsManager {
     return this.store.read();
   }
 
+  /**
+   * Drop the cached settings so the next `getSettings()` re-reads from disk.
+   * Used after teardownResources() deletes ~/.inteligir/notifications.json so
+   * we don't keep serving the pre-teardown cache.
+   */
+  invalidate(): void {
+    this.store.invalidate();
+  }
+
   updateSettings(patch: Partial<NotificationSettings>): NotificationSettings {
     // Don't blindly spread the patch — Zod input allows `enabled: undefined`,
     // which would overwrite the live setting and round-trip through the
@@ -102,10 +111,12 @@ export function getNotifications(): NotificationsManager {
 }
 
 /**
- * Drop the cached singleton. Called from teardownResources() so the next
- * read goes through a fresh JsonStore — otherwise the manager holds a
- * cache pointing at notifications.json after AGENT_DIR has been deleted.
+ * Invalidate the singleton's JsonStore cache. Called from teardownResources()
+ * so the next read goes back to disk after AGENT_DIR is wiped. Note: we
+ * deliberately do NOT null the singleton — that would also drop the target
+ * window registration set up at app startup, leaving notification clicks as
+ * silent no-ops after a logout/re-login cycle.
  */
 export function resetNotifications(): void {
-  _instance = null;
+  _instance?.invalidate();
 }
