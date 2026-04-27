@@ -51,24 +51,27 @@ export function ExtensionsPanel() {
 
   const toggleTool = useCallback(
     (name: string, nextActive: boolean) => {
-      const current = toolsRef.current;
-      if (!current) return;
+      const previous = toolsRef.current;
+      if (!previous) return;
 
       // Optimistic update: compute next state synchronously from the ref so
       // rapid back-to-back toggles compose against the latest snapshot.
-      const next = current.map((t) =>
+      const next = previous.map((t) =>
         t.name === name ? { ...t, active: nextActive } : t,
       );
       applyTools(next);
 
       const nextActiveNames = next.filter((t) => t.active).map((t) => t.name);
 
-      // Fire-and-forget; applying the response would let a stale in-flight
-      // reply clobber a more-recent optimistic toggle.
+      // Fire-and-forget on success — applying the response would let a stale
+      // in-flight reply clobber a more-recent optimistic toggle. On failure,
+      // roll back to `previous` so the UI doesn't permanently diverge from
+      // the agent's actual tool set.
       void getBridge()
         ?.setActiveExtensions(nextActiveNames)
         .catch((err) => {
           console.warn("[extensions] setActiveExtensions failed:", err);
+          if (toolsRef.current === next) applyTools(previous);
         });
     },
     [applyTools],
