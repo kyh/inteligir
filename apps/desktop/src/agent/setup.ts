@@ -274,38 +274,41 @@ function resolveSessionManager(): SessionManager {
 }
 
 export class Agent {
-  private readonly pi: PiAgent;
-
-  constructor() {
-    this.pi = new PiAgent({
-      cwd: WORKSPACE_DIR,
-      agentDir: AGENT_DIR,
-      authStorage: getAuthStorage(),
-      model: resolveModel(AUTH_PROVIDER, MODEL_ID),
-      sessionManager: resolveSessionManager(),
-      // Lazy: registerBrowserExtension dynamic-imports CDP plumbing — defer
-      // that cost until the agent actually starts.
-      extensionFactories: () => getExtensionFactories(),
-    });
-  }
+  // Lazily constructed in start() so that synchronous failures from
+  // resolveModel / resolveSessionManager surface through the async path
+  // (logged + bubbled up to the state machine) rather than being thrown
+  // out of `new Agent()` and silently swallowed in app-effects.
+  private pi: PiAgent | null = null;
 
   async start(): Promise<void> {
+    if (!this.pi) {
+      this.pi = new PiAgent({
+        cwd: WORKSPACE_DIR,
+        agentDir: AGENT_DIR,
+        authStorage: getAuthStorage(),
+        model: resolveModel(AUTH_PROVIDER, MODEL_ID),
+        sessionManager: resolveSessionManager(),
+        // registerBrowserExtension dynamic-imports CDP plumbing — defer
+        // that cost (and any import failure) until start().
+        extensionFactories: () => getExtensionFactories(),
+      });
+    }
     await this.pi.start();
   }
 
   async stop(): Promise<void> {
-    await this.pi.stop();
+    await this.pi?.stop();
   }
 
   waitForIdle(timeoutMs: number): Promise<boolean> {
-    return this.pi.waitForIdle(timeoutMs);
+    return this.pi?.waitForIdle(timeoutMs) ?? Promise.resolve(true);
   }
 
   async sendMessage(
     message: string,
     images?: ImageContent[],
   ): Promise<SendMessageResult> {
-    await this.pi.sendMessage(message, images);
+    await this.ensurePi().sendMessage(message, images);
     return { accepted: true };
   }
 
@@ -313,7 +316,7 @@ export class Agent {
     message: string,
     images?: ImageContent[],
   ): Promise<SteerResult> {
-    await this.pi.steer(message, images);
+    await this.ensurePi().steer(message, images);
     return { accepted: true };
   }
 
@@ -321,32 +324,39 @@ export class Agent {
     message: string,
     images?: ImageContent[],
   ): Promise<SendMessageResult> {
-    await this.pi.followUp(message, images);
+    await this.ensurePi().followUp(message, images);
     return { accepted: true };
   }
 
   async interrupt(): Promise<InterruptResult> {
+    if (!this.pi) return { interrupted: false };
     const interrupted = await this.pi.interrupt();
     return { interrupted };
   }
 
   getState(): { status: SessionStatus; error: string | null } {
-    return this.pi.getState();
+    return this.pi?.getState() ?? { status: "starting", error: null };
   }
 
   getLastAssistantText(): string | undefined {
-    return this.pi.getLastAssistantText();
+    return this.pi?.getLastAssistantText();
   }
 
   listTools(): ExtensionToolInfo[] {
-    return this.pi.listTools();
+    return this.pi?.listTools() ?? [];
   }
 
   setActiveTools(toolNames: string[]): void {
-    this.pi.setActiveTools(toolNames);
+    this.pi?.setActiveTools(toolNames);
   }
 
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {
+    if (!this.pi) return () => {};
     return this.pi.subscribe(listener);
+  }
+
+  private ensurePi(): PiAgent {
+    if (!this.pi) throw new Error("Agent not started — call start() first");
+    return this.pi;
   }
 }

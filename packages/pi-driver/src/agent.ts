@@ -158,16 +158,17 @@ export class PiAgent {
 
   async sendMessage(message: string, images?: ImageContent[]): Promise<void> {
     const session = this.ensureSession();
+    const imgs = nonEmpty(images);
 
     if (this.status === "busy") {
-      await session.followUp(message, images);
+      await session.followUp(message, imgs);
       return;
     }
 
     this.status = "busy";
 
     void session
-      .prompt(message, images && images.length > 0 ? { images } : undefined)
+      .prompt(message, imgs ? { images: imgs } : undefined)
       .catch((err: unknown) => {
         this.status = "error";
         this.error = errorMessage(err);
@@ -176,11 +177,11 @@ export class PiAgent {
   }
 
   async steer(message: string, images?: ImageContent[]): Promise<void> {
-    await this.ensureSession().steer(message, images);
+    await this.ensureSession().steer(message, nonEmpty(images));
   }
 
   async followUp(message: string, images?: ImageContent[]): Promise<void> {
-    await this.ensureSession().followUp(message, images);
+    await this.ensureSession().followUp(message, nonEmpty(images));
   }
 
   async interrupt(): Promise<boolean> {
@@ -255,4 +256,13 @@ export class PiAgent {
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Normalize an optional image array: an empty array becomes undefined.
+ * pi's `prompt`/`steer`/`followUp` accept either, but we want a single
+ * representation so behavior stays consistent across all three call sites.
+ */
+function nonEmpty(images: ImageContent[] | undefined): ImageContent[] | undefined {
+  return images && images.length > 0 ? images : undefined;
 }
