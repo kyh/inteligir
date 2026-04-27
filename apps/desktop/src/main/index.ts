@@ -395,6 +395,7 @@ app
     registerIpcHandlers();
 
     mainWindow = createWindow();
+    getNotifications().setTargetWindow(mainWindow);
 
     // Resolve session file path before initMachine() starts the agent
     readSessionHistory();

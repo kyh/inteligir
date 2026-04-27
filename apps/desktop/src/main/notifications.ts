@@ -20,6 +20,13 @@ const DEFAULT_SETTINGS: NotificationSettings = {
 
 export class NotificationsManager {
   private readonly store: JsonStore<NotificationSettings>;
+  /**
+   * The window the click handler should focus. Registered explicitly so we
+   * don't rely on BrowserWindow.getAllWindows()[0], whose ordering Electron
+   * does not guarantee — auxiliary windows (devtools, about panels) could
+   * otherwise be targeted instead of the main app window.
+   */
+  private targetWindow: BrowserWindow | null = null;
 
   constructor(storePath?: string) {
     this.store = new JsonStore(
@@ -27,6 +34,13 @@ export class NotificationsManager {
       NotificationSettingsSchema,
       DEFAULT_SETTINGS,
     );
+  }
+
+  setTargetWindow(window: BrowserWindow): void {
+    this.targetWindow = window;
+    window.on("closed", () => {
+      if (this.targetWindow === window) this.targetWindow = null;
+    });
   }
 
   getSettings(): NotificationSettings {
@@ -63,7 +77,7 @@ export class NotificationsManager {
     });
 
     notification.on("click", () => {
-      const win = BrowserWindow.getAllWindows()[0];
+      const win = this.targetWindow;
       if (!win || win.isDestroyed()) return;
       if (win.isMinimized()) win.restore();
       win.show();
