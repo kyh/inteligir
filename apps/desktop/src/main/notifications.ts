@@ -101,7 +101,8 @@ export class NotificationsManager {
     // scanning every window. The scan still runs when the main window is
     // unfocused, since auxiliary windows (devtools, etc) also count as
     // "the app is in the foreground" from the user's POV.
-    if (this.targetWindow?.isFocused()) return true;
+    const target = this.targetWindow;
+    if (target && !target.isDestroyed() && target.isFocused()) return true;
     return BrowserWindow.getAllWindows().some(
       (w) => !w.isDestroyed() && w.isFocused(),
     );
