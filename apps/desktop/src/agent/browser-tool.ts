@@ -31,24 +31,7 @@ export function registerBrowserExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "browser",
     label: "browser",
-    description: `Browse the web using Chrome via CDP. Launches a dedicated Chrome instance, or connects to an existing one on port 9222.
-
-Core workflow — every browser task follows this pattern:
-1. open: Navigate to a URL (opens a new Chrome tab)
-2. snapshot: Get the accessibility tree with element refs (@e1, @e2, ...)
-3. Interact: Use refs to click, fill, type, select, check, hover
-4. Re-snapshot: After navigation or DOM changes, ALWAYS get fresh refs
-
-IMPORTANT: Refs (@e1, @e2) are INVALIDATED after any page change. Always re-snapshot after:
-- Clicking links or buttons that navigate
-- Form submissions
-- Dynamic content loading (dropdowns, modals, SPAs)
-
-Actions:
-- Navigation/input: open, click, fill, type, press, hover, select, check, scroll, back, forward, reload, wait, close
-- Inspection: snapshot, screenshot, get_text, get_url, get_title, evaluate
-- Cookies/storage: cookies_get, cookies_set, cookies_clear, storage_get, storage_set, storage_clear
-- Tabs: tab_list, tab_new, tab_switch, tab_close`,
+    description: `Drive a Chrome browser via CDP. Use for any task that needs web interaction: opening URLs, reading page content, filling forms, clicking buttons, screenshots, scraping. Workflow: open → snapshot (returns @e1, @e2... refs) → interact via refs → re-snapshot after any DOM change. Refs are invalidated by every navigation or SPA update. Each action's description in the parameter schema lists its required fields. Only http:/https: URLs are accepted.`,
     parameters: BrowserActionSchema,
     execute: async (_toolCallId, params) => {
       try {
