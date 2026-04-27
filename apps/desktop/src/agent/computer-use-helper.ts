@@ -88,20 +88,15 @@ export function seedComputerUseHelper(): void {
 
     // Ad-hoc sign synchronously — without this, a copied unsigned binary may
     // fail to launch under hardened runtime. Must complete before the bridge
-    // is ever spawned.
-    try {
-      execFileSync("codesign", ["--force", "--sign", "-", HELPER_DEST], {
-        stdio: "ignore",
-      });
-    } catch (err) {
-      console.warn(
-        "[computer-use] codesign failed:",
-        err instanceof Error ? err.message : String(err),
-      );
-    }
+    // is ever spawned. A throw here propagates to the outer catch and skips
+    // the sentinel write below, so the next run retries from scratch.
+    execFileSync("codesign", ["--force", "--sign", "-", HELPER_DEST], {
+      stdio: "ignore",
+    });
 
-    // Write the sentinel only after copy + sign succeed; a torn install
-    // leaves no sentinel, so the next run retries from scratch.
+    // Sentinel records the source hash we just successfully installed +
+    // signed. Written last so a torn install (failed copy or codesign)
+    // leaves no sentinel and the next run retries.
     fs.writeFileSync(SENTINEL_PATH, sourceHash);
 
     console.log("[computer-use] installed bridge to", HELPER_DEST);
