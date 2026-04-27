@@ -63,18 +63,18 @@ export function ExtensionsPanel() {
 
       const nextActiveNames = next.filter((t) => t.active).map((t) => t.name);
 
-      // Fire-and-forget on success — applying the response would let a stale
-      // in-flight reply clobber a more-recent optimistic toggle. On failure,
-      // roll back to `previous` so the UI doesn't permanently diverge from
-      // the agent's actual tool set.
+      // Don't apply the success response — it could clobber a more-recent
+      // optimistic toggle. On failure, re-sync the whole list from the
+      // agent (canonical source) so the UI converges regardless of how
+      // many in-flight failures stack up.
       void getBridge()
         ?.setActiveExtensions(nextActiveNames)
         .catch((err) => {
           console.warn("[extensions] setActiveExtensions failed:", err);
-          if (toolsRef.current === next) applyTools(previous);
+          refresh();
         });
     },
-    [applyTools],
+    [applyTools, refresh],
   );
 
   const groups = useMemo(
