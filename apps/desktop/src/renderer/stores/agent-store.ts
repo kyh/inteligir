@@ -20,9 +20,9 @@ export type ToolExecution = {
 };
 
 export type ChatMessage =
-  | { id: number; kind: "user"; text: string }
+  | { id: number; kind: "user"; text: string; imageCount?: number }
   | { id: number; kind: "assistant"; text: string }
-  | { id: number; kind: "steer"; text: string }
+  | { id: number; kind: "steer"; text: string; imageCount?: number }
   | { id: number; kind: "tool"; execution: ToolExecution };
 
 // ---------------------------------------------------------------------------
@@ -245,7 +245,10 @@ export const useAgentStore = create<AgentStore>((set) => ({
     if (!bridge) return;
     void bridge.sendAgentCommand({ type: "user_message", text, images });
     set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+      messages: [
+        ...s.messages,
+        { id: nextMsgId++, kind: "user", text, imageCount: images?.length },
+      ],
     }));
   },
 
@@ -254,7 +257,10 @@ export const useAgentStore = create<AgentStore>((set) => ({
     if (!bridge) return;
     void bridge.sendAgentCommand({ type: "steer", text, images });
     set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
+      messages: [
+        ...s.messages,
+        { id: nextMsgId++, kind: "steer", text, imageCount: images?.length },
+      ],
     }));
   },
 
@@ -263,7 +269,10 @@ export const useAgentStore = create<AgentStore>((set) => ({
     if (!bridge) return;
     void bridge.sendAgentCommand({ type: "follow_up", text, images });
     set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+      messages: [
+        ...s.messages,
+        { id: nextMsgId++, kind: "user", text, imageCount: images?.length },
+      ],
     }));
   },
 

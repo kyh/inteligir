@@ -28,6 +28,17 @@ import { BrowserWindow } from "electron";
 
 let agent: Agent | null = null;
 
+/**
+ * Assistant text captured from the current turn's `message_end`. Read on
+ * `agent_end` to populate the OS notification, then reset. We track this
+ * locally rather than calling `agent.getLastAssistantText()` because that
+ * call returns whatever is on the session — which is the *previous* turn's
+ * text if the current turn ended without producing any assistant message
+ * (early abort, error before generation, etc.). Tracking the current turn
+ * explicitly keeps the notification in sync with this turn only.
+ */
+let currentTurnAssistantText: string | null = null;
+
 function broadcastToRenderer(channel: string, data: unknown): void {
   for (const win of BrowserWindow.getAllWindows()) {
     if (!win.isDestroyed()) {
@@ -43,11 +54,18 @@ function handleAgentEvent(event: AppAgentEvent): void {
 
   switch (event.type) {
     case "agent_start":
+      currentTurnAssistantText = null;
       machine?.ingest({ type: "AGENT_START" });
+      break;
+    case "message_end":
+      if (event.role === "assistant" && event.text) {
+        currentTurnAssistantText = event.text;
+      }
       break;
     case "agent_end":
       machine?.ingest({ type: "AGENT_END" });
-      getNotifications().notifyAgentIdle(agent?.getLastAssistantText());
+      getNotifications().notifyAgentIdle(currentTurnAssistantText ?? undefined);
+      currentTurnAssistantText = null;
       break;
   }
 
