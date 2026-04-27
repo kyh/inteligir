@@ -151,6 +151,10 @@ export class PiAgent {
     const session = this.ensureSession();
     const imgs = nonEmpty(images);
 
+    // Race-condition fallback: callers (renderer composer, voice transcripts)
+    // gate on their own snapshot of busy state, but the agent may have
+    // transitioned to busy by the time the IPC arrives. Route to followUp so
+    // pi can queue the message instead of throwing.
     if (this.status === "busy") {
       await session.followUp(message, imgs);
       return;
