@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "paths": {
+      "@/*": ["./src/*"],
+      "@repo/ui/*": ["../../packages/ui/src/*"],
+      "@injaneity/pi-computer-use/extensions/computer-use.ts": [
+        "./src/agent/types/pi-computer-use.d.ts"
+      ]
+    }
+  }
+}
