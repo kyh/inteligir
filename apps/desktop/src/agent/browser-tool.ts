@@ -48,7 +48,6 @@ Actions:
 - Navigation/input: open, click, fill, type, press, hover, select, check, scroll, back, forward, reload, wait, close
 - Inspection: snapshot, screenshot, get_text, get_url, get_title, evaluate
 - Cookies/storage: cookies_get, cookies_set, cookies_clear, storage_get, storage_set, storage_clear
-- Network: network_log (recent requests, optionally filtered by URL substring)
 - Tabs: tab_list, tab_new, tab_switch, tab_close`,
     parameters: BrowserActionSchema,
     execute: async (_toolCallId, params) => {

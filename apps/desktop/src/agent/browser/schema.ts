@@ -40,7 +40,6 @@ export const BrowserActionSchema = Type.Object({
       Type.Literal("storage_get"),
       Type.Literal("storage_set"),
       Type.Literal("storage_clear"),
-      Type.Literal("network_log"),
       Type.Literal("tab_list"),
       Type.Literal("tab_new"),
       Type.Literal("tab_switch"),
@@ -88,9 +87,6 @@ export const BrowserActionSchema = Type.Object({
   ),
   domain: Type.Optional(
     Type.String({ description: "Cookie domain (defaults to current page host)" }),
-  ),
-  filter: Type.Optional(
-    Type.String({ description: "Substring filter for network_log (matches URL)" }),
   ),
   tabId: Type.Optional(
     Type.String({ description: "Tab id (e.g. t1) for tab_switch / tab_close" }),

@@ -4,9 +4,6 @@
  * Manages a set of agent-owned tabs identified by stable ids (t1, t2, ...).
  * One tab is "current" at any time; existing actions operate on it. Tab
  * management actions (tab_new, tab_switch, ...) manipulate the set.
- *
- * Also keeps a ring buffer of recent network requests per tab, enabled when
- * a tab is opened so `network_log` always has data to return.
  */
 
 import {
@@ -19,15 +16,6 @@ import {
 // ---------------------------------------------------------------------------
 // Public interface
 // ---------------------------------------------------------------------------
-
-export interface NetworkRequest {
-  requestId: string;
-  url: string;
-  method: string;
-  resourceType: string;
-  status?: number;
-  startedAt: number;
-}
 
 export interface TabSummary {
   id: string;
@@ -42,8 +30,6 @@ export interface BrowserSession {
   hasLoadedPage(): boolean;
   updateRefs(refs: ReadonlyArray<{ ref: string; selector: string }>): void;
   resolveSelector(selector: string): string;
-  /** Recent network requests for the current tab (most recent last). */
-  getNetworkLog(): readonly NetworkRequest[];
 
   // Multi-tab API
   listTabs(): TabSummary[];
@@ -60,15 +46,12 @@ export interface BrowserSession {
 // Implementation
 // ---------------------------------------------------------------------------
 
-const NETWORK_LOG_LIMIT = 200;
-
 interface TabState {
   id: string;
   label?: string;
   targetId: string;
   cdp: CDPClient;
   currentUrl: string;
-  network: NetworkRequest[];
 }
 
 export function createBrowserSession(): BrowserSession {
@@ -97,7 +80,6 @@ export function createBrowserSession(): BrowserSession {
     const cdp = await CDPClient.connect(wsUrl);
     await cdp.send("Page.enable");
     await cdp.send("Runtime.enable");
-    await cdp.send("Network.enable");
 
     const state: TabState = {
       id,
@@ -105,7 +87,6 @@ export function createBrowserSession(): BrowserSession {
       targetId,
       cdp,
       currentUrl: "",
-      network: [],
     };
 
     cdp.on("Page.frameNavigated", (params) => {
@@ -118,39 +99,6 @@ export function createBrowserSession(): BrowserSession {
 
     cdp.on("Page.navigatedWithinDocument", () => {
       if (state.id === currentId) refSelectors.clear();
-    });
-
-    cdp.on("Network.requestWillBeSent", (params) => {
-      const request = params["request"] as Record<string, unknown> | undefined;
-      const requestId = params["requestId"] as string | undefined;
-      if (!request || !requestId) return;
-      const entry: NetworkRequest = {
-        requestId,
-        url: (request["url"] as string) ?? "",
-        method: (request["method"] as string) ?? "GET",
-        resourceType: (params["type"] as string) ?? "Other",
-        startedAt: Date.now(),
-      };
-      state.network.push(entry);
-      if (state.network.length > NETWORK_LOG_LIMIT) {
-        state.network.splice(0, state.network.length - NETWORK_LOG_LIMIT);
-      }
-    });
-
-    cdp.on("Network.responseReceived", (params) => {
-      const response = params["response"] as Record<string, unknown> | undefined;
-      const requestId = params["requestId"] as string | undefined;
-      if (!response || !requestId) return;
-      const status = response["status"] as number;
-      // CDP guarantees `requestId` correlates request and response events,
-      // even when multiple requests target the same URL (polling, retries).
-      for (let i = state.network.length - 1; i >= 0; i--) {
-        const entry = state.network[i];
-        if (entry && entry.requestId === requestId) {
-          entry.status = status;
-          break;
-        }
-      }
     });
 
     tabs.set(id, state);
@@ -196,12 +144,6 @@ export function createBrowserSession(): BrowserSession {
     throw new Error(
       `Unknown ref "${selector}". Run the "snapshot" action first to get element refs.`,
     );
-  }
-
-  function getNetworkLog(): readonly NetworkRequest[] {
-    if (!currentId) return [];
-    const tab = tabs.get(currentId);
-    return tab ? tab.network : [];
   }
 
   function listTabs(): TabSummary[] {
@@ -264,7 +206,6 @@ export function createBrowserSession(): BrowserSession {
     hasLoadedPage,
     updateRefs,
     resolveSelector,
-    getNetworkLog,
     listTabs,
     newTab,
     switchTab,

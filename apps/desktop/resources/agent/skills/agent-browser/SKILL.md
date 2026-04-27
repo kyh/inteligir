@@ -66,12 +66,6 @@ installation required.
 | `storage_set`   | `name`, `value`             | Write a localStorage key                        |
 | `storage_clear` | —                           | Clear localStorage for the current origin       |
 
-### Network
-
-| Action         | Required params | Description                                                       |
-| -------------- | --------------- | ----------------------------------------------------------------- |
-| `network_log`  | opt. `filter`   | Recent requests (status / method / type / URL). Ring-buffered ~200 |
-
 ### Tabs
 
 | Action       | Required params         | Description                                                       |
@@ -99,7 +93,6 @@ selectors like `#submit-btn` or `.search-input`.
 - The `evaluate` action only captures synchronous return values. If your script
   returns a Promise, wrap it so the final value is returned (e.g. `await fetch(...).then(r => r.text())`).
 - The `select` action matches by the `<option>` `value` attribute, not the visible label.
-- `network_log` only shows requests since the tab was opened. Use `filter` to narrow by URL substring.
 
 ## Known Limitations
 

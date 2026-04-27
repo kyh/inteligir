@@ -112,17 +112,6 @@ export async function dispatchAction(
       await session.closeTab(target);
       return text(`Closed tab ${target}`);
     }
-    case "network_log": {
-      const log = session.getNetworkLog();
-      const filter = action.filter?.toLowerCase();
-      const filtered = filter ? log.filter((r) => r.url.toLowerCase().includes(filter)) : log;
-      if (filtered.length === 0) return text("(no recent requests)");
-      const lines = filtered.map((r) => {
-        const status = r.status !== undefined ? String(r.status) : "...";
-        return `${status}\t${r.method}\t${r.resourceType}\t${r.url}`;
-      });
-      return text(lines.join("\n"));
-    }
     case "tab_new": {
       if (action.url) {
         try {
