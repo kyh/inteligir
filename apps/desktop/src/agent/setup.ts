@@ -351,8 +351,11 @@ export class Agent {
   }
 
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {
-    if (!this.pi) return () => {};
-    return this.pi.subscribe(listener);
+    // Throw rather than silently dropping the listener. The single call site
+    // today (startAgent) calls subscribe right after start() resolves, so a
+    // null pi here means a regression elsewhere — better to fail loudly than
+    // to leave the renderer with no agent events arriving.
+    return this.ensurePi().subscribe(listener);
   }
 
   private ensurePi(): PiAgent {
