@@ -13,6 +13,7 @@ import {
 } from "@/agent/setup";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
+import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
@@ -46,6 +47,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
       break;
     case "agent_end":
       machine?.ingest({ type: "AGENT_END" });
+      getNotifications().notifyAgentIdle(agent?.getLastAssistantText());
       break;
   }
 
