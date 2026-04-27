@@ -43,18 +43,25 @@ export function ExtensionsPanel() {
     refresh();
   }, [appState.phase, refresh]);
 
-  const toggleTool = useCallback(
-    async (name: string, nextActive: boolean) => {
-      if (!tools) return;
-      const nextActiveNames = tools
-        .map((t) => (t.name === name ? { ...t, active: nextActive } : t))
-        .filter((t) => t.active)
-        .map((t) => t.name);
-      const updated = await getBridge()?.setActiveExtensions(nextActiveNames);
-      if (updated) setTools(updated.tools);
-    },
-    [tools],
-  );
+  const toggleTool = useCallback(async (name: string, nextActive: boolean) => {
+    // Optimistically apply the toggle to local state and compute the next
+    // active list from the *latest* tools snapshot via the setState updater
+    // form. Closing over `tools` directly would mean rapid back-to-back
+    // toggles compute their payloads from a stale snapshot — the second
+    // toggle could revert the first.
+    let nextActiveNames: string[] | null = null;
+    setTools((prev) => {
+      if (!prev) return prev;
+      const next = prev.map((t) =>
+        t.name === name ? { ...t, active: nextActive } : t,
+      );
+      nextActiveNames = next.filter((t) => t.active).map((t) => t.name);
+      return next;
+    });
+    if (nextActiveNames === null) return;
+    const updated = await getBridge()?.setActiveExtensions(nextActiveNames);
+    if (updated) setTools(updated.tools);
+  }, []);
 
   if (appState.phase !== "ready") {
     return (

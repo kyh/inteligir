@@ -34,7 +34,13 @@ export class NotificationsManager {
   }
 
   updateSettings(patch: Partial<NotificationSettings>): NotificationSettings {
-    return this.store.update((current) => ({ ...current, ...patch }));
+    // Don't blindly spread the patch — Zod input allows `enabled: undefined`,
+    // which would overwrite the live setting and round-trip through the
+    // schema's default on next read, silently resetting the user's choice.
+    return this.store.update((current) => ({
+      ...current,
+      ...(patch.enabled !== undefined ? { enabled: patch.enabled } : {}),
+    }));
   }
 
   /**
