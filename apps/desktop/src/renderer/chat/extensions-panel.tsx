@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Label } from "@repo/ui/components/label";
 
@@ -23,45 +23,63 @@ function groupBySource(
 export function ExtensionsPanel() {
   const appState = useAgentStore((s) => s.appState);
   const [tools, setTools] = useState<ExtensionToolInfo[] | null>(null);
+  // Mirror of `tools` so toggleTool can read the latest synchronously without
+  // closing over stale state and without performing side effects inside a
+  // setState updater (which React allows to run twice in StrictMode or defer
+  // to the render phase).
+  const toolsRef = useRef<ExtensionToolInfo[] | null>(null);
+
+  const applyTools = useCallback((next: ExtensionToolInfo[] | null) => {
+    toolsRef.current = next;
+    setTools(next);
+  }, []);
 
   const refresh = useCallback(() => {
     const bridge = getBridge();
     if (!bridge) return;
     void bridge
       .listExtensions()
-      .then((list) => setTools(list.tools))
-      .catch(() => setTools([]));
-  }, []);
+      .then((list) => applyTools(list.tools))
+      .catch(() => applyTools([]));
+  }, [applyTools]);
 
   // Refetch whenever the agent transitions to ready — that's when the tool
   // registry first becomes populated. Also refetch on every panel mount.
   useEffect(() => {
     if (appState.phase !== "ready") {
-      setTools(null);
+      applyTools(null);
       return;
     }
     refresh();
-  }, [appState.phase, refresh]);
+  }, [appState.phase, refresh, applyTools]);
 
-  const toggleTool = useCallback(async (name: string, nextActive: boolean) => {
-    // Optimistically apply the toggle to local state and compute the next
-    // active list from the *latest* tools snapshot via the setState updater
-    // form. Closing over `tools` directly would mean rapid back-to-back
-    // toggles compute their payloads from a stale snapshot — the second
-    // toggle could revert the first.
-    let nextActiveNames: string[] | null = null;
-    setTools((prev) => {
-      if (!prev) return prev;
-      const next = prev.map((t) =>
+  const toggleTool = useCallback(
+    (name: string, nextActive: boolean) => {
+      const current = toolsRef.current;
+      if (!current) return;
+
+      // Optimistic update: compute next state synchronously from the ref so
+      // rapid back-to-back toggles compose against the latest snapshot.
+      const next = current.map((t) =>
         t.name === name ? { ...t, active: nextActive } : t,
       );
-      nextActiveNames = next.filter((t) => t.active).map((t) => t.name);
-      return next;
-    });
-    if (nextActiveNames === null) return;
-    const updated = await getBridge()?.setActiveExtensions(nextActiveNames);
-    if (updated) setTools(updated.tools);
-  }, []);
+      applyTools(next);
+
+      const nextActiveNames = next.filter((t) => t.active).map((t) => t.name);
+
+      // Fire-and-forget. We don't apply the IPC response — the response from
+      // an in-flight call would otherwise clobber a more-recent optimistic
+      // toggle, causing visible flicker. pi-coding-agent silently ignores
+      // unknown tool names, so the names we send (all from a prior list)
+      // can only fail by being dropped silently — local state stays correct.
+      void getBridge()
+        ?.setActiveExtensions(nextActiveNames)
+        .catch((err) => {
+          console.warn("[extensions] setActiveExtensions failed:", err);
+        });
+    },
+    [applyTools],
+  );
 
   if (appState.phase !== "ready") {
     return (
@@ -101,7 +119,7 @@ export function ExtensionsPanel() {
               <Checkbox
                 checked={tool.active}
                 onCheckedChange={(checked) => {
-                  void toggleTool(tool.name, checked === true);
+                  toggleTool(tool.name, checked === true);
                 }}
                 className="mt-0.5"
               />
