@@ -97,9 +97,11 @@ export class NotificationsManager {
   }
 
   private anyWindowFocused(): boolean {
-    if (this.targetWindow && !this.targetWindow.isDestroyed()) {
-      return this.targetWindow.isFocused();
-    }
+    // Fast-path the common "main window is focused → suppress" case before
+    // scanning every window. The scan still runs when the main window is
+    // unfocused, since auxiliary windows (devtools, etc) also count as
+    // "the app is in the foreground" from the user's POV.
+    if (this.targetWindow?.isFocused()) return true;
     return BrowserWindow.getAllWindows().some(
       (w) => !w.isDestroyed() && w.isFocused(),
     );
