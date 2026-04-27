@@ -8,7 +8,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { ImageIcon, SendIcon, SquareIcon, XIcon, ZapIcon } from "lucide-react";
+import { ImageIcon, ListPlusIcon, SendIcon, SquareIcon, XIcon, ZapIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 
 import type { ImageAttachment } from "@/shared/voice";
@@ -23,6 +23,13 @@ const statusColors: Record<SessionStatus, string> = {
 };
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
+
+// Practical caps on attachments. The base64 payload is held in renderer state
+// and serialized over IPC, so unbounded pastes/picks can stall the UI and the
+// IPC channel. Limits chosen to comfortably fit a few screenshots without
+// approaching Electron's IPC message limits.
+const MAX_ATTACHMENT_COUNT = 8;
+const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MiB per image
 
 // Read a File as base64. Strips the `data:<mime>;base64,` prefix that
 // FileReader.readAsDataURL produces — pi-ai's ImageContent.data wants the
@@ -70,8 +77,34 @@ export function Composer() {
   const attachFiles = useCallback(async (files: FileList | File[]) => {
     const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
     if (list.length === 0) return;
-    const results = await Promise.all(list.map(readFileAsBase64));
-    setImages((prev) => [...prev, ...results]);
+
+    const accepted: File[] = [];
+    let skippedTooLarge = 0;
+    for (const file of list) {
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        skippedTooLarge++;
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (skippedTooLarge > 0) {
+      console.warn(
+        `[composer] skipped ${skippedTooLarge} image(s) exceeding ${MAX_ATTACHMENT_BYTES} bytes`,
+      );
+    }
+    if (accepted.length === 0) return;
+
+    const results = await Promise.all(accepted.map(readFileAsBase64));
+    setImages((prev) => {
+      const next = [...prev, ...results];
+      if (next.length > MAX_ATTACHMENT_COUNT) {
+        console.warn(
+          `[composer] capped attachments at ${MAX_ATTACHMENT_COUNT}, dropping ${next.length - MAX_ATTACHMENT_COUNT}`,
+        );
+        return next.slice(0, MAX_ATTACHMENT_COUNT);
+      }
+      return next;
+    });
   }, []);
 
   const onPickFiles = useCallback(
@@ -266,9 +299,14 @@ export function Composer() {
           <button
             type="submit"
             className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Send"
+            aria-label={busy ? "Queue for next turn" : "Send"}
+            title={busy ? "Queue for next turn" : "Send"}
           >
-            <SendIcon className="size-3.5" />
+            {busy ? (
+              <ListPlusIcon className="size-3.5" />
+            ) : (
+              <SendIcon className="size-3.5" />
+            )}
           </button>
         )}
       </form>
