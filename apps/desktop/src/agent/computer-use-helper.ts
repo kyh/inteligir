@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
 
-import { filesAreIdentical } from "@/main/lib/file-utils";
+import { hashFile } from "@/main/lib/file-utils";
 
 const HELPER_DEST = path.join(
   os.homedir(),
@@ -24,6 +24,11 @@ const HELPER_DEST = path.join(
   "pi-computer-use",
   "bridge",
 );
+
+// Sidecar that records the sha256 of the SOURCE binary we last installed from.
+// We can't compare hash(source) === hash(dest) directly because codesign
+// mutates dest after copy, so dest never byte-matches source.
+const SENTINEL_PATH = `${HELPER_DEST}.src-sha256`;
 
 declare const __PROJECT_ROOT__: string;
 
@@ -49,11 +54,20 @@ function findPrebuiltBridge(): string | null {
   return fs.existsSync(prebuilt) ? prebuilt : null;
 }
 
+function readSentinel(): string | null {
+  try {
+    return fs.readFileSync(SENTINEL_PATH, "utf8").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Copy the prebuilt Swift bridge into the path bridge.ts spawn() expects.
  * Synchronous from start to finish — including ad-hoc codesign — so callers
  * can rely on the binary being launchable the moment this returns. No-op on
- * non-macOS or when the destination already matches the source.
+ * non-macOS or when the source matches what we last installed (tracked via
+ * a sidecar sha256 file because codesign mutates dest after copy).
  */
 export function seedComputerUseHelper(): void {
   if (process.platform !== "darwin") return;
@@ -65,7 +79,8 @@ export function seedComputerUseHelper(): void {
   }
 
   try {
-    if (filesAreIdentical(source, HELPER_DEST)) return;
+    const sourceHash = hashFile(source);
+    if (fs.existsSync(HELPER_DEST) && readSentinel() === sourceHash) return;
 
     fs.mkdirSync(path.dirname(HELPER_DEST), { recursive: true });
     fs.copyFileSync(source, HELPER_DEST);
@@ -84,6 +99,10 @@ export function seedComputerUseHelper(): void {
         err instanceof Error ? err.message : String(err),
       );
     }
+
+    // Write the sentinel only after copy + sign succeed; a torn install
+    // leaves no sentinel, so the next run retries from scratch.
+    fs.writeFileSync(SENTINEL_PATH, sourceHash);
 
     console.log("[computer-use] installed bridge to", HELPER_DEST);
   } catch (err) {
