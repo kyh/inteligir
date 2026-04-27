@@ -21,6 +21,7 @@ import {
 // ---------------------------------------------------------------------------
 
 export interface NetworkRequest {
+  requestId: string;
   url: string;
   method: string;
   resourceType: string;
@@ -121,8 +122,10 @@ export function createBrowserSession(): BrowserSession {
 
     cdp.on("Network.requestWillBeSent", (params) => {
       const request = params["request"] as Record<string, unknown> | undefined;
-      if (!request) return;
+      const requestId = params["requestId"] as string | undefined;
+      if (!request || !requestId) return;
       const entry: NetworkRequest = {
+        requestId,
         url: (request["url"] as string) ?? "",
         method: (request["method"] as string) ?? "GET",
         resourceType: (params["type"] as string) ?? "Other",
@@ -136,13 +139,14 @@ export function createBrowserSession(): BrowserSession {
 
     cdp.on("Network.responseReceived", (params) => {
       const response = params["response"] as Record<string, unknown> | undefined;
-      if (!response) return;
-      const url = response["url"] as string;
+      const requestId = params["requestId"] as string | undefined;
+      if (!response || !requestId) return;
       const status = response["status"] as number;
-      // Match by URL — last unmatched request to that URL gets the status
+      // CDP guarantees `requestId` correlates request and response events,
+      // even when multiple requests target the same URL (polling, retries).
       for (let i = state.network.length - 1; i >= 0; i--) {
         const entry = state.network[i];
-        if (entry && entry.url === url && entry.status === undefined) {
+        if (entry && entry.requestId === requestId) {
           entry.status = status;
           break;
         }
