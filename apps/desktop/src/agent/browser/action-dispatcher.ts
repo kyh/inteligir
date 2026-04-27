@@ -24,6 +24,19 @@ const NAV_TIMEOUT_MS = 30_000;
 const EVALUATE_TIMEOUT_MS = 30_000;
 const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 
+/** Reject non-http(s) and malformed URLs. Returns a ToolResult on failure, null on success. */
+function validateUrl(url: string): ToolResult | null {
+  try {
+    const parsed = new URL(url);
+    if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
+      return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
+    }
+    return null;
+  } catch {
+    return text(`Error: Invalid URL "${url}"`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Navigation helper — wait for CDP Page.loadEventFired
 // ---------------------------------------------------------------------------
@@ -72,14 +85,8 @@ export async function dispatchAction(
   // Validate URL before connecting
   if (action.action === "open") {
     if (!action.url) return text("Error: url is required for open action");
-    try {
-      const parsed = new URL(action.url);
-      if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
-        return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
-      }
-    } catch {
-      return text(`Error: Invalid URL "${action.url}"`);
-    }
+    const err = validateUrl(action.url);
+    if (err) return err;
   }
 
   // Tab/network actions operate on session state only — they never need to
@@ -114,14 +121,8 @@ export async function dispatchAction(
     }
     case "tab_new": {
       if (action.url) {
-        try {
-          const parsed = new URL(action.url);
-          if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
-            return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
-          }
-        } catch {
-          return text(`Error: Invalid URL "${action.url}"`);
-        }
+        const err = validateUrl(action.url);
+        if (err) return err;
       }
       // Open a tab via the session — this creates the first CDP connection
       // when none exists, so we deliberately skip the dispatcher's
