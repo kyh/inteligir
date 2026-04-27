@@ -58,8 +58,17 @@ function handleAgentEvent(event: AppAgentEvent): void {
 
 async function startAgent(): Promise<void> {
   if (agent) return;
-  agent = new Agent();
-  await agent.start();
+  const next = new Agent();
+  try {
+    await next.start();
+  } catch (err) {
+    // Don't leave a half-constructed Agent in the singleton — a retry's
+    // `if (agent) return` would skip subscribe/scheduler setup and the
+    // machine would transition to ready with a non-functional agent.
+    await next.stop().catch(() => {});
+    throw err;
+  }
+  agent = next;
 
   agent.subscribe((raw) => {
     const event = parseAgentEvent(raw);
