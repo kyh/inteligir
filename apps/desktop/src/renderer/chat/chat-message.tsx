@@ -21,9 +21,9 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
         <div className="ml-8">
           <div className="bg-foreground/20 flex flex-col gap-1 rounded-md px-3 py-1.5 text-sm">
             {message.text && <span>{message.text}</span>}
-            {message.imageCount && message.imageCount > 0 ? (
-              <ImageAttachmentBadge count={message.imageCount} />
-            ) : null}
+            {(message.imageCount ?? 0) > 0 && (
+              <ImageAttachmentBadge count={message.imageCount ?? 0} />
+            )}
           </div>
         </div>
       );
@@ -33,9 +33,9 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
         <div className="ml-8">
           <div className="flex flex-col gap-1 rounded-md px-3 py-1.5 text-sm italic text-muted-foreground">
             {message.text && <span>{message.text}</span>}
-            {message.imageCount && message.imageCount > 0 ? (
-              <ImageAttachmentBadge count={message.imageCount} />
-            ) : null}
+            {(message.imageCount ?? 0) > 0 && (
+              <ImageAttachmentBadge count={message.imageCount ?? 0} />
+            )}
           </div>
         </div>
       );

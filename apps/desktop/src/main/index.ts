@@ -22,13 +22,22 @@ import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { TextChatMessageSchema } from "@/shared/voice";
+import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { ExtensionsList, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
+
+/** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
+function toImageContent(images: ImageAttachment[] | undefined) {
+  return images?.map((i) => ({
+    type: "image" as const,
+    data: i.data,
+    mimeType: i.mimeType,
+  }));
+}
 
 const isDevelopment = !app.isPackaged;
 const STARTUP_UPDATE_DELAY_MS = 15_000;
@@ -165,34 +174,13 @@ function registerIpcHandlers(): void {
     if (!agent) return;
     switch (command.type) {
       case "user_message":
-        void agent.sendMessage(
-          command.text,
-          command.images?.map((i) => ({
-            type: "image" as const,
-            data: i.data,
-            mimeType: i.mimeType,
-          })),
-        );
+        void agent.sendMessage(command.text, toImageContent(command.images));
         break;
       case "steer":
-        void agent.steer(
-          command.text,
-          command.images?.map((i) => ({
-            type: "image" as const,
-            data: i.data,
-            mimeType: i.mimeType,
-          })),
-        );
+        void agent.steer(command.text, toImageContent(command.images));
         break;
       case "follow_up":
-        void agent.followUp(
-          command.text,
-          command.images?.map((i) => ({
-            type: "image" as const,
-            data: i.data,
-            mimeType: i.mimeType,
-          })),
-        );
+        void agent.followUp(command.text, toImageContent(command.images));
         break;
       case "interrupt":
         void agent.interrupt();
