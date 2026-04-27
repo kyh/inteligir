@@ -149,9 +149,11 @@ export async function dispatchAction(
     }
   }
 
-  // tab_new validates its URL after dispatch, but the rest of the page-level
-  // actions need an open tab and a loaded page (other than `open` itself).
-  if (action.action !== "open" && !session.hasLoadedPage()) {
+  // Browser-wide CDP commands that need a connection but don't need any page
+  // navigated. Without this allowlist, `cookies_get` / `cookies_clear` would
+  // be blocked by the page-loaded guard after a fresh `tab_new` on about:blank.
+  const PAGE_OPTIONAL = new Set(["open", "cookies_get", "cookies_clear"]);
+  if (!PAGE_OPTIONAL.has(action.action) && !session.hasLoadedPage()) {
     return text('Error: No page loaded. Use the "open" action first to navigate to a URL.');
   }
 
