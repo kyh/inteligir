@@ -20,7 +20,7 @@ installation required.
    - `browser({ action: "fill", selector: "@e3", text: "search query" })`
    - `browser({ action: "press", text: "Enter" })`
 4. Extract data: `browser({ action: "get_text" })` or `browser({ action: "get_text", selector: "@e2" })`
-5. Screenshot: `browser({ action: "screenshot" })` — add `annotate: true` to overlay @ref labels for vision models
+5. Screenshot: `browser({ action: "screenshot" })` or `browser({ action: "screenshot", fullPage: true })`
 6. Close when done: `browser({ action: "close" })`
 
 ## Actions
@@ -49,7 +49,7 @@ installation required.
 | Action       | Required params              | Description                                          |
 | ------------ | ---------------------------- | ---------------------------------------------------- |
 | `snapshot`   | —                            | Get accessibility tree with @refs                    |
-| `screenshot` | opt. `fullPage`, `annotate`  | PNG screenshot. `annotate: true` overlays @ref labels |
+| `screenshot` | opt. `fullPage`              | PNG screenshot                                       |
 | `get_text`   | opt. `selector`              | Get text content of page or element                  |
 | `get_url`    | —                            | Get current page URL                                 |
 | `get_title`  | —                            | Get current page title                               |
@@ -99,7 +99,6 @@ selectors like `#submit-btn` or `.search-input`.
 - The `evaluate` action only captures synchronous return values. If your script
   returns a Promise, wrap it so the final value is returned (e.g. `await fetch(...).then(r => r.text())`).
 - The `select` action matches by the `<option>` `value` attribute, not the visible label.
-- `screenshot` with `annotate: true` requires a recent `snapshot` to know the refs to draw.
 - `network_log` only shows requests since the tab was opened. Use `filter` to narrow by URL substring.
 
 ## Known Limitations

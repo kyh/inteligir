@@ -38,7 +38,6 @@ function createMockSession(overrides?: Partial<BrowserSession>): BrowserSession 
     hasLoadedPage: vi.fn().mockReturnValue(true),
     updateRefs: vi.fn(),
     resolveSelector: vi.fn().mockImplementation((s: string) => s),
-    getRefs: vi.fn().mockReturnValue(new Map<string, string>()),
     getNetworkLog: vi.fn().mockReturnValue([]),
     listTabs: vi.fn().mockReturnValue([]),
     newTab: vi.fn().mockResolvedValue({ id: "t1", url: "", current: true }),

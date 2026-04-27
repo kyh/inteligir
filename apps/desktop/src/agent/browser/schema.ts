@@ -74,12 +74,6 @@ export const BrowserActionSchema = Type.Object({
   fullPage: Type.Optional(
     Type.Boolean({ description: "Full page screenshot (default: false)" }),
   ),
-  annotate: Type.Optional(
-    Type.Boolean({
-      description:
-        "Overlay numbered labels matching @ref handles on the screenshot (default: false). Requires a recent snapshot.",
-    }),
-  ),
   timeout: Type.Optional(
     Type.Number({ description: "Timeout in ms for wait action (default: 5000)" }),
   ),

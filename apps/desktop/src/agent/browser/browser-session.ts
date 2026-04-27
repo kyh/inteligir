@@ -41,8 +41,6 @@ export interface BrowserSession {
   hasLoadedPage(): boolean;
   updateRefs(refs: ReadonlyArray<{ ref: string; selector: string }>): void;
   resolveSelector(selector: string): string;
-  /** All known refs from the most recent snapshot of the current tab. */
-  getRefs(): ReadonlyMap<string, string>;
   /** Recent network requests for the current tab (most recent last). */
   getNetworkLog(): readonly NetworkRequest[];
 
@@ -69,7 +67,6 @@ interface TabState {
   targetId: string;
   cdp: CDPClient;
   currentUrl: string;
-  refs: Map<string, string>;
   network: NetworkRequest[];
 }
 
@@ -80,6 +77,11 @@ export function createBrowserSession(): BrowserSession {
   let connectPromise: Promise<TabState> | null = null;
   let httpEndpoint: string | null = null;
   let disposed = false;
+  // Refs live at the session level — they describe the most recent snapshot's
+  // interactive elements, are cleared on any navigation, and are usable even
+  // before a tab has been opened (the dispatcher may invoke `updateRefs`/
+  // `resolveSelector` independently of CDP for tests and tooling).
+  const refSelectors = new Map<string, string>();
 
   function requireTab(tabId?: string | null): TabState {
     const id = tabId ?? currentId;
@@ -102,7 +104,6 @@ export function createBrowserSession(): BrowserSession {
       targetId,
       cdp,
       currentUrl: "",
-      refs: new Map<string, string>(),
       network: [],
     };
 
@@ -110,12 +111,12 @@ export function createBrowserSession(): BrowserSession {
       const frame = params["frame"] as Record<string, unknown> | undefined;
       if (!frame || !frame["parentId"]) {
         state.currentUrl = (frame?.["url"] as string) ?? "";
-        state.refs.clear();
+        if (state.id === currentId) refSelectors.clear();
       }
     });
 
     cdp.on("Page.navigatedWithinDocument", () => {
-      state.refs.clear();
+      if (state.id === currentId) refSelectors.clear();
     });
 
     cdp.on("Network.requestWillBeSent", (params) => {
@@ -178,31 +179,25 @@ export function createBrowserSession(): BrowserSession {
   }
 
   function updateRefs(refs: ReadonlyArray<{ ref: string; selector: string }>): void {
-    const tab = requireTab();
-    tab.refs.clear();
+    refSelectors.clear();
     for (const { ref, selector } of refs) {
-      tab.refs.set(ref, selector);
+      refSelectors.set(ref, selector);
     }
   }
 
   function resolveSelector(selector: string): string {
     if (!selector.startsWith("@e")) return selector;
-    const tab = requireTab();
-    const resolved = tab.refs.get(selector);
+    const resolved = refSelectors.get(selector);
     if (resolved) return resolved;
     throw new Error(
       `Unknown ref "${selector}". Run the "snapshot" action first to get element refs.`,
     );
   }
 
-  function getRefs(): ReadonlyMap<string, string> {
-    const tab = requireTab();
-    return tab.refs;
-  }
-
   function getNetworkLog(): readonly NetworkRequest[] {
-    const tab = requireTab();
-    return tab.network;
+    if (!currentId) return [];
+    const tab = tabs.get(currentId);
+    return tab ? tab.network : [];
   }
 
   function listTabs(): TabSummary[] {
@@ -225,6 +220,7 @@ export function createBrowserSession(): BrowserSession {
   function switchTab(tabId: string): TabSummary {
     const tab = tabs.get(tabId);
     if (!tab) throw new Error(`Unknown tab id: ${tabId}`);
+    if (currentId !== tab.id) refSelectors.clear();
     currentId = tab.id;
     return { id: tab.id, label: tab.label, url: tab.currentUrl, current: true };
   }
@@ -248,6 +244,7 @@ export function createBrowserSession(): BrowserSession {
 
   function dispose(): void {
     disposed = true;
+    refSelectors.clear();
     for (const tab of tabs.values()) {
       tab.cdp.close();
       if (httpEndpoint) closeTab(httpEndpoint, tab.targetId).catch(() => {});
@@ -261,7 +258,6 @@ export function createBrowserSession(): BrowserSession {
     hasLoadedPage,
     updateRefs,
     resolveSelector,
-    getRefs,
     getNetworkLog,
     listTabs,
     newTab,

@@ -46,7 +46,7 @@ IMPORTANT: Refs (@e1, @e2) are INVALIDATED after any page change. Always re-snap
 
 Actions:
 - Navigation/input: open, click, fill, type, press, hover, select, check, scroll, back, forward, reload, wait, close
-- Inspection: snapshot, screenshot (set annotate=true to overlay @ref labels), get_text, get_url, get_title, evaluate
+- Inspection: snapshot, screenshot, get_text, get_url, get_title, evaluate
 - Cookies/storage: cookies_get, cookies_set, cookies_clear, storage_get, storage_set, storage_clear
 - Network: network_log (recent requests, optionally filtered by URL substring)
 - Tabs: tab_list, tab_new, tab_switch, tab_close`,
