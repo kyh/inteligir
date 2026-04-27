@@ -16,10 +16,9 @@ export function SettingsPanel() {
   );
 
   useEffect(() => {
-    void getBridge()
-      ?.getNotificationSettings()
-      .then(setNotifications)
-      .catch(() => {});
+    const promise = getBridge()?.getNotificationSettings();
+    if (!promise) return;
+    void promise.then(setNotifications).catch(() => {});
   }, []);
 
   const handleLogout = useCallback(() => {

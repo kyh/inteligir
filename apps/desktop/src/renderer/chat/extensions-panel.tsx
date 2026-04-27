@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Label } from "@repo/ui/components/label";
 
@@ -6,8 +6,6 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { ExtensionToolInfo } from "@/shared/ipc";
 
-// Group tools by their source so the dock shows "(core) read, bash, edit, ...",
-// "(manage_tasks) manage_tasks", "(browser) browser", etc.
 function groupBySource(
   tools: ExtensionToolInfo[],
 ): Map<string, ExtensionToolInfo[]> {
@@ -23,10 +21,8 @@ function groupBySource(
 export function ExtensionsPanel() {
   const appState = useAgentStore((s) => s.appState);
   const [tools, setTools] = useState<ExtensionToolInfo[] | null>(null);
-  // Mirror of `tools` so toggleTool can read the latest synchronously without
-  // closing over stale state and without performing side effects inside a
-  // setState updater (which React allows to run twice in StrictMode or defer
-  // to the render phase).
+  // Mirror so toggleTool reads the latest snapshot synchronously without
+  // closing over stale state or side-effecting inside a setState updater.
   const toolsRef = useRef<ExtensionToolInfo[] | null>(null);
 
   const applyTools = useCallback((next: ExtensionToolInfo[] | null) => {
@@ -47,7 +43,7 @@ export function ExtensionsPanel() {
   // registry first becomes populated. Also refetch on every panel mount.
   useEffect(() => {
     if (appState.phase !== "ready") {
-      applyTools(null);
+      if (toolsRef.current !== null) applyTools(null);
       return;
     }
     refresh();
@@ -67,11 +63,8 @@ export function ExtensionsPanel() {
 
       const nextActiveNames = next.filter((t) => t.active).map((t) => t.name);
 
-      // Fire-and-forget. We don't apply the IPC response — the response from
-      // an in-flight call would otherwise clobber a more-recent optimistic
-      // toggle, causing visible flicker. pi-coding-agent silently ignores
-      // unknown tool names, so the names we send (all from a prior list)
-      // can only fail by being dropped silently — local state stays correct.
+      // Fire-and-forget; applying the response would let a stale in-flight
+      // reply clobber a more-recent optimistic toggle.
       void getBridge()
         ?.setActiveExtensions(nextActiveNames)
         .catch((err) => {
@@ -79,6 +72,11 @@ export function ExtensionsPanel() {
         });
     },
     [applyTools],
+  );
+
+  const groups = useMemo(
+    () => (tools ? groupBySource(tools) : null),
+    [tools],
   );
 
   if (appState.phase !== "ready") {
@@ -89,7 +87,7 @@ export function ExtensionsPanel() {
     );
   }
 
-  if (tools === null) {
+  if (tools === null || groups === null) {
     return <div className="p-3 text-xs text-muted-foreground">Loading…</div>;
   }
 
@@ -100,8 +98,6 @@ export function ExtensionsPanel() {
       </div>
     );
   }
-
-  const groups = groupBySource(tools);
 
   return (
     <div className="flex flex-col gap-3 p-3">

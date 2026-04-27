@@ -241,9 +241,16 @@ export function seedGwsClientSecret(bundledResourcesDir: string): void {
     );
     return;
   }
-  if (fs.existsSync(secretDest)) return;
 
   fs.mkdirSync(GWS_CONFIG_DIR, { recursive: true });
-  fs.copyFileSync(secretSrc, secretDest);
-  console.log(`[gws] seeded client_secret.json → ${secretDest}`);
+  // COPYFILE_EXCL makes the copy fail with EEXIST if the destination already
+  // exists — atomic equivalent of "never overwrite". Avoids the TOCTOU window
+  // an existsSync()-then-copy pair leaves open.
+  try {
+    fs.copyFileSync(secretSrc, secretDest, fs.constants.COPYFILE_EXCL);
+    console.log(`[gws] seeded client_secret.json → ${secretDest}`);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") return;
+    throw err;
+  }
 }

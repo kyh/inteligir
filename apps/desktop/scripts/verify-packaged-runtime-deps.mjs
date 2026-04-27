@@ -4,14 +4,22 @@
 // electron-builder.yml's `files`, or asarUnpack was misconfigured.
 //
 // Runs after `electron-builder --mac dmg`. Walks the unpacked .app bundle
-// and asserts the presence of:
-//   - pi-coding-agent + pi-ai dist/index.js (inside app.asar)
-//   - resources/agent/AGENTS.md and resources/agent/skills/ (asar-unpacked)
+// and asserts:
+//   - resources/agent/AGENTS.md and resources/agent/skills/ are asar-unpacked
+//   - app.asar exists at all
+//   - pi-coding-agent + pi-ai are listed under "dependencies" in
+//     apps/desktop/package.json (not devDependencies). electron-builder
+//     bundles only declared prod deps into the asar, so a misplacement is
+//     the most likely way these would silently drop out of the DMG.
 
-import { existsSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const BIN_DIR = ".output/bin";
+const REQUIRED_RUNTIME_DEPS = [
+  "@mariozechner/pi-coding-agent",
+  "@mariozechner/pi-ai",
+];
 
 // `electron-builder --mac dmg` produces a .app inside .output/bin/mac{,-arm64}/
 function findAppBundle() {
@@ -58,16 +66,21 @@ assertExists(
 // asar exists at all
 assertExists(join(resources, "app.asar"), "app.asar");
 
-// Runtime npm deps that must ship inside app.asar (we can't read inside asar
-// without `asar` CLI, so we verify the source-of-truth: .output/app/main/index.js
-// imports them, and pnpm-installed copies exist in node_modules at build time).
-assertExists(
-  "node_modules/@mariozechner/pi-coding-agent/dist/index.js",
-  "pi-coding-agent dist (input)",
-);
-assertExists(
-  "node_modules/@mariozechner/pi-ai/dist/index.js",
-  "pi-ai dist (input)",
-);
+// Reading inside app.asar without the `asar` CLI is awkward, so verify the
+// source-of-truth that decides what ends up in the asar: every required
+// runtime dep must be in `dependencies` (not `devDependencies`) of
+// apps/desktop/package.json. electron-builder reads this file directly.
+const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+const declared = new Set(Object.keys(pkg.dependencies ?? {}));
+const devOnly = new Set(Object.keys(pkg.devDependencies ?? {}));
+for (const dep of REQUIRED_RUNTIME_DEPS) {
+  if (declared.has(dep)) {
+    console.log(`[verify-packaged] OK: ${dep} declared in dependencies`);
+  } else if (devOnly.has(dep)) {
+    fail(`${dep} is in devDependencies — won't be bundled into the DMG`);
+  } else {
+    fail(`${dep} is not declared in apps/desktop/package.json`);
+  }
+}
 
 console.log(`[verify-packaged] All checks passed for ${app}`);

@@ -18,6 +18,7 @@ try {
 }
 
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
@@ -59,11 +60,7 @@ let updateState: UpdateState = {
 
 function setUpdateState(patch: Partial<UpdateState>): void {
   updateState = { ...updateState, ...patch };
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send(IPC_CHANNELS.UPDATE_STATE, updateState);
-    }
-  }
+  broadcastToRenderer(IPC_CHANNELS.UPDATE_STATE, updateState);
 }
 
 // ---------------------------------------------------------------------------

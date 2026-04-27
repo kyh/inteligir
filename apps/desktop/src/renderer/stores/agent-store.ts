@@ -47,6 +47,14 @@ type AgentStore = {
 
 let nextMsgId = 0;
 
+function sameStrings(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 /**
  * Convert persisted session history entries into ChatMessages for the UI.
  */
@@ -101,10 +109,18 @@ export const useAgentStore = create<AgentStore>((set) => ({
           break;
 
         case "queue_update":
-          set({
-            queuedFollowUp: event.followUp,
-            queuedSteering: event.steering,
-          });
+          // Skip the set() if the queue is identical to what we already
+          // hold. pi can re-emit queue_update for unrelated mutations, and
+          // an unconditional set re-renders every Composer subscriber.
+          set((s) =>
+            sameStrings(s.queuedFollowUp, event.followUp) &&
+            sameStrings(s.queuedSteering, event.steering)
+              ? s
+              : {
+                  queuedFollowUp: event.followUp,
+                  queuedSteering: event.steering,
+                },
+          );
           break;
 
         case "message_start": {
@@ -205,7 +221,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       set({ appState: parsed.data });
 
       if (parsed.data.phase === "logged_out") {
-        set({ messages: [] });
+        set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
         useVoiceStore.getState().reset();
       }
     });

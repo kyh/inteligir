@@ -17,11 +17,7 @@ export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
 export type PiAgentEventListener = (event: AgentSessionEvent) => void;
 
-/**
- * Information about a registered tool — projected from pi's `ToolInfo` to a
- * plain shape the desktop app can serialize over IPC without dragging in
- * pi-coding-agent's types.
- */
+/** Plain projection of pi's `ToolInfo` so callers can serialize over IPC. */
 export type PiAgentTool = {
   name: string;
   description: string;
@@ -52,14 +48,7 @@ export type PiAgentConfig = {
   thinkingLevel?: "off" | "low" | "medium" | "high" | "xhigh";
 };
 
-/**
- * Lifecycle wrapper around pi-coding-agent's AgentSession.
- *
- * Owns the session, surfaces a small status FSM (starting → idle → busy →
- * error), fans out events to multiple listeners, and exposes the subset
- * of AgentSession the UI actually needs (sendMessage / steer / followUp /
- * interrupt / listTools / setActiveTools / getLastAssistantText).
- */
+/** Lifecycle wrapper around pi-coding-agent's AgentSession. */
 export class PiAgent {
   private session: AgentSession | null = null;
   private unsubscribe: (() => void) | null = null;
@@ -136,21 +125,23 @@ export class PiAgent {
     if (!this.session) return true;
     return new Promise<boolean>((resolve) => {
       let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      let unsub: (() => void) | undefined;
       const settle = (value: boolean) => {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
-        unsub();
+        if (timer) clearTimeout(timer);
+        unsub?.();
         resolve(value);
       };
-      const unsub = this.subscribe((event) => {
+      unsub = this.subscribe((event) => {
         if (event.type === "agent_end") settle(true);
       });
       if (this.status !== "busy") {
         settle(true);
         return;
       }
-      const timer = setTimeout(() => settle(false), timeoutMs);
+      timer = setTimeout(() => settle(false), timeoutMs);
     });
   }
 
@@ -171,7 +162,7 @@ export class PiAgent {
       .prompt(message, imgs ? { images: imgs } : undefined)
       .catch((err: unknown) => {
         this.status = "error";
-        this.error = errorMessage(err);
+        this.error = err instanceof Error ? err.message : String(err);
         console.error("[pi-driver] prompt error:", this.error);
       });
   }
@@ -254,15 +245,7 @@ export class PiAgent {
   }
 }
 
-function errorMessage(err: unknown): string {
-  return err instanceof Error ? err.message : String(err);
-}
-
-/**
- * Normalize an optional image array: an empty array becomes undefined.
- * pi's `prompt`/`steer`/`followUp` accept either, but we want a single
- * representation so behavior stays consistent across all three call sites.
- */
+/** Empty array → undefined so prompt/steer/followUp behave identically. */
 function nonEmpty(images: ImageContent[] | undefined): ImageContent[] | undefined {
   return images && images.length > 0 ? images : undefined;
 }

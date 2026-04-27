@@ -1,7 +1,3 @@
-// Public surface of @repo/pi-driver. App code should depend on this barrel
-// rather than reaching into pi-coding-agent or pi-ai directly — when those
-// SDKs change shape, only this package needs to absorb the diff.
-
 export { PiAgent } from "./agent";
 export type {
   PiAgentConfig,

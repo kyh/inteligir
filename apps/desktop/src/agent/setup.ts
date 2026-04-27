@@ -1,11 +1,4 @@
-// ---------------------------------------------------------------------------
-// Inteligir-specific composition: paths, bundled-resource discovery, the
-// scheduled-tasks extension, and exports the IPC layer talks to.
-//
-// Pi runtime plumbing (Agent class, auth, model resolution) lives in
-// @repo/pi-driver. Filesystem bootstrap (gws install, bundled-resource
-// seeding) lives in @repo/agent-runtime. This file is the orchestrator.
-// ---------------------------------------------------------------------------
+// Inteligir-specific composition over @repo/pi-driver and @repo/agent-runtime.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -205,12 +198,8 @@ function registerTasksExtension(pi: ExtensionAPI): void {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Auth — thin wrapper around @repo/pi-driver. Lazily constructed and reset
-// by teardownResources() so a logout-then-login flow doesn't keep the prior
-// AuthStorage's cached credentials around after we've deleted auth.json.
-// ---------------------------------------------------------------------------
-
+// Lazy + reset on teardown so a logout flow doesn't carry the prior
+// AuthStorage's cached credentials past auth.json being deleted.
 let _authStorage: ReturnType<typeof createAuthStorage> | null = null;
 
 function getAuthStorage(): ReturnType<typeof createAuthStorage> {
@@ -274,10 +263,8 @@ function resolveSessionManager(): SessionManager {
 }
 
 export class Agent {
-  // Lazily constructed in start() so that synchronous failures from
-  // resolveModel / resolveSessionManager surface through the async path
-  // (logged + bubbled up to the state machine) rather than being thrown
-  // out of `new Agent()` and silently swallowed in app-effects.
+  // Lazy so synchronous resolveModel/resolveSessionManager throws surface
+  // through the async start() path rather than out of `new Agent()`.
   private pi: PiAgent | null = null;
 
   async start(): Promise<void> {
@@ -351,10 +338,8 @@ export class Agent {
   }
 
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {
-    // Throw rather than silently dropping the listener. The single call site
-    // today (startAgent) calls subscribe right after start() resolves, so a
-    // null pi here means a regression elsewhere — better to fail loudly than
-    // to leave the renderer with no agent events arriving.
+    // Throw — silently dropping the listener would mean no agent events
+    // ever reach the renderer.
     return this.ensurePi().subscribe(listener);
   }
 

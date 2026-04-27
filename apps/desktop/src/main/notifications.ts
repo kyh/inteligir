@@ -97,6 +97,9 @@ export class NotificationsManager {
   }
 
   private anyWindowFocused(): boolean {
+    if (this.targetWindow && !this.targetWindow.isDestroyed()) {
+      return this.targetWindow.isFocused();
+    }
     return BrowserWindow.getAllWindows().some(
       (w) => !w.isDestroyed() && w.isFocused(),
     );

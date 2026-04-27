@@ -13,6 +13,7 @@ import {
 } from "@/agent/setup";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
+import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
@@ -20,32 +21,15 @@ import type { AppAgentEvent } from "@/shared/agent-events";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import type { AppState, MachineEvent } from "@/shared/app-state";
 
-import { BrowserWindow } from "electron";
-
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process
 // ---------------------------------------------------------------------------
 
 let agent: Agent | null = null;
 
-/**
- * Assistant text captured from the current turn's `message_end`. Read on
- * `agent_end` to populate the OS notification, then reset. We track this
- * locally rather than calling `agent.getLastAssistantText()` because that
- * call returns whatever is on the session — which is the *previous* turn's
- * text if the current turn ended without producing any assistant message
- * (early abort, error before generation, etc.). Tracking the current turn
- * explicitly keeps the notification in sync with this turn only.
- */
+// Track this turn's assistant text directly; getLastAssistantText() on the
+// session would return the *previous* turn's text after an early abort.
 let currentTurnAssistantText: string | null = null;
-
-function broadcastToRenderer(channel: string, data: unknown): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, data);
-    }
-  }
-}
 
 function handleAgentEvent(event: AppAgentEvent): void {
   if (event.type === "message_end" && event.stopReason === "error") {
