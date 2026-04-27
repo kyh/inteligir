@@ -302,7 +302,10 @@ export async function dispatchAction(
     }
 
     case "cookies_get": {
-      const result = await cdp.send("Network.getCookies");
+      // Storage.getCookies returns browser-wide cookies. Network.getCookies is
+      // scoped to the current page's origin, which would silently miss cookies
+      // for other domains in the user's session.
+      const result = await cdp.send("Storage.getCookies");
       const cookies = (result["cookies"] as Array<Record<string, unknown>>) ?? [];
       const lines = cookies.map((c) =>
         `${String(c["name"])}=${String(c["value"])}\tdomain=${String(c["domain"])}\tpath=${String(c["path"])}`,

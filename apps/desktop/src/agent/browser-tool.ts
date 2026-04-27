@@ -31,7 +31,7 @@ export function registerBrowserExtension(pi: ExtensionAPI): void {
   pi.registerTool({
     name: "browser",
     label: "browser",
-    description: `Drive a Chrome browser via CDP. Use for any task that needs web interaction: opening URLs, reading page content, filling forms, clicking buttons, screenshots, scraping. Workflow: open → snapshot (returns @e1, @e2... refs) → interact via refs → re-snapshot after any DOM change. Refs are invalidated by every navigation or SPA update. Each action's description in the parameter schema lists its required fields. Only http:/https: URLs are accepted.`,
+    description: `Drive a Chrome browser via CDP. Use for any task that needs web interaction: opening URLs, reading page content, filling forms, clicking buttons, screenshots, scraping. Workflow: open → snapshot (returns @e1, @e2... refs) → interact via refs → re-snapshot after any DOM change. Refs are invalidated by every navigation or SPA update. Each action's description in the parameter schema lists its required fields. Only http:// and https:// URLs are accepted.`,
     parameters: BrowserActionSchema,
     execute: async (_toolCallId, params) => {
       try {
