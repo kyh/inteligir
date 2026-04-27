@@ -32,7 +32,6 @@ export async function installGws(opts: GwsBootstrapOptions): Promise<void> {
   try {
     await installGwsBinary(opts);
     await installGwsSkills(opts);
-    seedGwsClientSecret(opts.bundledResourcesDir);
   } catch (err) {
     console.error("[gws] install failed (continuing without gws):", err);
   }
@@ -228,8 +227,13 @@ async function installGwsSkills(opts: GwsBootstrapOptions): Promise<void> {
  * Copy a bundled `client_secret.json` into `~/.config/gws/` if not already
  * present. Required for gws OAuth. Never overwrites — the user may have
  * replaced it with their own GCP credentials.
+ *
+ * Exported so callers can run it independent of the network-dependent
+ * binary/skills install — if the user is offline at first launch, the
+ * client_secret should still land on disk so OAuth works once gws is
+ * installed later.
  */
-function seedGwsClientSecret(bundledResourcesDir: string): void {
+export function seedGwsClientSecret(bundledResourcesDir: string): void {
   const secretSrc = path.join(bundledResourcesDir, "client_secret.json");
   const secretDest = path.join(GWS_CONFIG_DIR, "client_secret.json");
 

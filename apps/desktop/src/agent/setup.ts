@@ -27,6 +27,7 @@ import {
   prependPath,
   seedDirectory,
   seedFile,
+  seedGwsClientSecret,
 } from "@repo/agent-runtime";
 import open from "open";
 
@@ -91,6 +92,12 @@ export function seedResources(): void {
 
   seedDirectory(path.join(src, "skills"), path.join(AGENT_DIR, "skills"));
   seedFile(path.join(src, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
+
+  // Seed the gws OAuth client_secret unconditionally — independent of the
+  // network-dependent gws binary install. An offline first-run should still
+  // leave ~/.config/gws/client_secret.json on disk so OAuth works as soon
+  // as gws is installed on a later launch.
+  seedGwsClientSecret(src);
 }
 
 // ---------------------------------------------------------------------------
