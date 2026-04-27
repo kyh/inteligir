@@ -1,25 +1,17 @@
-// ---------------------------------------------------------------------------
-// Computer-use tool — native macOS GUI control via @injaneity/pi-computer-use
+// Native macOS GUI control via @injaneity/pi-computer-use. Loaded lazily
+// (dynamic import in setup.ts) so app startup doesn't pay for the package's
+// runtime. The seed-helper module is split out so onboarding can run without
+// pulling this in.
 //
-// This module imports the pi-computer-use package, so it should only be
-// loaded when the agent actually starts (via dynamic import in setup.ts).
-// The lightweight seed-helper logic lives in computer-use-helper.ts so
-// onboarding can run without pulling the package's runtime into memory.
-//
-// Browser windows are intentionally out of scope — our CDP-based browser
-// tool covers the web. computer-use-env.ts (imported below) sets
-// PI_COMPUTER_USE_BROWSER_USE=0 so the bridge refuses browser targets;
-// that import must precede the pi-computer-use import to take effect.
-// ---------------------------------------------------------------------------
+// computer-use-env.ts is imported below for its PI_COMPUTER_USE_BROWSER_USE=0
+// side effect. ESM evaluates imports depth-first in source order, so listing
+// it before the pi-computer-use import guarantees the env var is set before
+// any of the package's modules can read it.
 
-// MUST stay first — sets PI_COMPUTER_USE_BROWSER_USE=0 before the package loads.
-// ESM evaluates imports depth-first in source order, so any side-effect import
-// listed before the pi-computer-use import is guaranteed to run first.
 import "@/agent/computer-use-env";
 import computerUseExtension from "@injaneity/pi-computer-use/extensions/computer-use.ts";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
-/** Pi extension factory — registers list_apps, screenshot, click, etc. */
 export function registerComputerUseExtension(pi: ExtensionAPI): void {
   computerUseExtension(pi);
 }

@@ -1,24 +1,20 @@
-// ---------------------------------------------------------------------------
-// Computer-use helper seeding — lightweight module, no pi-computer-use import.
+// Lightweight bridge-binary seeding — kept free of pi-computer-use imports
+// so setup.ts can statically pull this in during onboarding without eagerly
+// loading the package's runtime. The extension factory is dynamically
+// imported when the agent actually starts.
 //
-// Kept separate from computer-use-tool.ts so setup.ts can statically import
-// the seed function during onboarding without eagerly pulling in the
-// @injaneity/pi-computer-use package and its Swift bridge runtime. The
-// extension factory itself is dynamically imported when the agent starts.
-//
-// The pi-computer-use bridge spawns its Swift helper at a hard-coded path:
-//   ~/.pi/agent/helpers/pi-computer-use/bridge
-// In dev the package's postinstall populates that path. Packaged builds skip
-// the postinstall, so we ship the prebuilt binary inside the app and copy
-// the right arch into place during onboarding.
-// ---------------------------------------------------------------------------
+// Background: bridge.ts in @injaneity/pi-computer-use spawns its Swift helper
+// at a hard-coded path under ~/.pi/agent/helpers/. The package's postinstall
+// populates that path in dev; packaged DMG users never run postinstall, so we
+// ship the prebuilt binary inside the app and copy the right arch into place.
 
 import { execFileSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
+
+import { filesAreIdentical } from "@/main/lib/file-utils";
 
 const HELPER_DEST = path.join(
   os.homedir(),
@@ -53,15 +49,11 @@ function findPrebuiltBridge(): string | null {
   return fs.existsSync(prebuilt) ? prebuilt : null;
 }
 
-function sha256(filePath: string): string {
-  return createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
-}
-
 /**
  * Copy the prebuilt Swift bridge into the path bridge.ts spawn() expects.
  * Synchronous from start to finish — including ad-hoc codesign — so callers
  * can rely on the binary being launchable the moment this returns. No-op on
- * non-macOS or when the destination already matches the source by sha256.
+ * non-macOS or when the destination already matches the source.
  */
 export function seedComputerUseHelper(): void {
   if (process.platform !== "darwin") return;
@@ -73,9 +65,8 @@ export function seedComputerUseHelper(): void {
   }
 
   try {
-    if (fs.existsSync(HELPER_DEST) && sha256(source) === sha256(HELPER_DEST)) {
-      return;
-    }
+    if (filesAreIdentical(source, HELPER_DEST)) return;
+
     fs.mkdirSync(path.dirname(HELPER_DEST), { recursive: true });
     fs.copyFileSync(source, HELPER_DEST);
     fs.chmodSync(HELPER_DEST, 0o755);

@@ -30,13 +30,14 @@ import type {
   SessionStatus,
   SteerResult,
 } from "@/shared/agent";
-
-type ExtensionFactory = (pi: import("@mariozechner/pi-coding-agent").ExtensionAPI) => void;
 import { seedComputerUseHelper } from "@/agent/computer-use-helper";
+import { filesAreIdentical } from "@/main/lib/file-utils";
 import { inteligirPath } from "@/main/lib/json-store";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
+
+type ExtensionFactory = (pi: import("@mariozechner/pi-coding-agent").ExtensionAPI) => void;
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -135,29 +136,12 @@ export function seedResources(): void {
 
   const agentsMdSrc = path.join(src, "AGENTS.md");
   const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
-  if (fs.existsSync(agentsMdSrc) && shouldUpdateBundledFile(agentsMdSrc, agentsMdDest)) {
+  if (fs.existsSync(agentsMdSrc) && !filesAreIdentical(agentsMdSrc, agentsMdDest)) {
     fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
     fs.copyFileSync(agentsMdSrc, agentsMdDest);
   }
 
   seedGwsClientSecret(src);
-}
-
-/**
- * True when the bundled file should overwrite the destination — either it's
- * missing, or the contents differ. We hash so legitimate upgrades land on
- * existing installs (the prior "missing only" check left users on stale
- * AGENTS.md after every release).
- */
-function shouldUpdateBundledFile(srcPath: string, destPath: string): boolean {
-  if (!fs.existsSync(destPath)) return true;
-  try {
-    const srcHash = createHash("sha256").update(fs.readFileSync(srcPath)).digest("hex");
-    const destHash = createHash("sha256").update(fs.readFileSync(destPath)).digest("hex");
-    return srcHash !== destHash;
-  } catch {
-    return true;
-  }
 }
 
 // ---------------------------------------------------------------------------
