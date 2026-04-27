@@ -15,6 +15,7 @@
 // ---------------------------------------------------------------------------
 
 import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -78,9 +79,8 @@ export function seedComputerUseHelper(): void {
   }
 
   try {
-    if (fs.existsSync(HELPER_DEST)) {
-      const [src, dst] = [fs.statSync(source).size, fs.statSync(HELPER_DEST).size];
-      if (src === dst) return;
+    if (fs.existsSync(HELPER_DEST) && sha256(source) === sha256(HELPER_DEST)) {
+      return;
     }
     fs.mkdirSync(path.dirname(HELPER_DEST), { recursive: true });
     fs.copyFileSync(source, HELPER_DEST);
@@ -96,6 +96,10 @@ export function seedComputerUseHelper(): void {
   } catch (err) {
     console.error("[computer-use] failed to seed helper:", err);
   }
+}
+
+function sha256(filePath: string): string {
+  return createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
 /** Pi extension factory — registers list_apps, screenshot, click, etc. */
