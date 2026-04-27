@@ -24,6 +24,11 @@ const NAV_TIMEOUT_MS = 30_000;
 const EVALUATE_TIMEOUT_MS = 30_000;
 const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 
+// Browser-wide CDP commands that need a connection but don't need any page
+// navigated. Without this allowlist, `cookies_get` / `cookies_clear` would
+// be blocked by the page-loaded guard after a fresh `tab_new` on about:blank.
+const PAGE_OPTIONAL = new Set(["open", "cookies_get", "cookies_clear"]);
+
 /** Reject non-http(s) and malformed URLs. Returns a ToolResult on failure, null on success. */
 function validateUrl(url: string): ToolResult | null {
   try {
@@ -139,10 +144,6 @@ export async function dispatchAction(
     }
   }
 
-  // Browser-wide CDP commands that need a connection but don't need any page
-  // navigated. Without this allowlist, `cookies_get` / `cookies_clear` would
-  // be blocked by the page-loaded guard after a fresh `tab_new` on about:blank.
-  const PAGE_OPTIONAL = new Set(["open", "cookies_get", "cookies_clear"]);
   if (!PAGE_OPTIONAL.has(action.action) && !session.hasLoadedPage()) {
     return text('Error: No page loaded. Use the "open" action first to navigate to a URL.');
   }
