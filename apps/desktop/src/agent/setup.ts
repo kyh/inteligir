@@ -32,6 +32,7 @@ import type {
 } from "@/shared/agent";
 
 type ExtensionFactory = (pi: import("@mariozechner/pi-coding-agent").ExtensionAPI) => void;
+import { seedComputerUseHelper } from "@/agent/computer-use-tool";
 import { inteligirPath } from "@/main/lib/json-store";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
@@ -134,6 +135,7 @@ export function seedResources(): void {
   }
 
   seedGwsClientSecret(src);
+  seedComputerUseHelper();
 }
 
 // ---------------------------------------------------------------------------
@@ -358,7 +360,11 @@ function seedGwsClientSecret(bundledResourcesDir: string): void {
 
 async function getExtensionFactories(): Promise<ExtensionFactory[]> {
   const { registerBrowserExtension } = await import("@/agent/browser-tool");
-  return [registerTasksExtension, registerBrowserExtension];
+  const { registerComputerUseExtension, applyComputerUseEnv } = await import(
+    "@/agent/computer-use-tool"
+  );
+  applyComputerUseEnv();
+  return [registerTasksExtension, registerBrowserExtension, registerComputerUseExtension];
 }
 
 // ---------------------------------------------------------------------------
@@ -502,7 +508,7 @@ export class Agent {
     if (this.session) return;
 
     const auth = getAuthStorage();
-    const modelRegistry = new ModelRegistry(auth);
+    const modelRegistry = ModelRegistry.create(auth);
 
     const resourceLoader = new DefaultResourceLoader({
       cwd: WORKSPACE_DIR,

@@ -4,6 +4,9 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "types": ["electron-vite/node"],
+    "allowImportingTsExtensions": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "paths": {
       "@/*": ["./src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
