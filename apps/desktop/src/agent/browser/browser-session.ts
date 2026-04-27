@@ -159,7 +159,8 @@ export function createBrowserSession(): BrowserSession {
     if (!httpEndpoint) httpEndpoint = await discoverChromeEndpoint();
     const tab = await openNewTab(httpEndpoint);
     const state = await attachTab(tab.id, tab.webSocketDebuggerUrl, opts?.label);
-    if (currentId !== state.id) refSelectors.clear();
+    // attachTab always mints a fresh id, so this is unconditionally a switch.
+    refSelectors.clear();
     currentId = state.id;
     return { id: state.id, label: state.label, url: state.currentUrl, current: true };
   }
