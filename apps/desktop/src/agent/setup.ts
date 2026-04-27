@@ -33,6 +33,7 @@ import open from "open";
 
 import type { ExtensionToolInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
+import { resetNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
@@ -109,7 +110,6 @@ export async function installGws(): Promise<void> {
     version: GWS_VERSION,
     binDir: BIN_DIR,
     skillsDir: path.join(AGENT_DIR, "skills"),
-    bundledResourcesDir: getBundledResourcesDir(),
   });
 }
 
@@ -224,7 +224,11 @@ export function isSetupComplete(): boolean {
 
 export function teardownResources(): void {
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
+  // Drop singletons that hold JsonStore caches pointing at files inside
+  // AGENT_DIR — otherwise a re-login would serve stale settings until the
+  // process restarts.
   _authStorage = null;
+  resetNotifications();
 }
 
 export function isLoggedIn(): boolean {

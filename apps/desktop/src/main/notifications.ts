@@ -80,3 +80,12 @@ export function getNotifications(): NotificationsManager {
   if (!_instance) _instance = new NotificationsManager();
   return _instance;
 }
+
+/**
+ * Drop the cached singleton. Called from teardownResources() so the next
+ * read goes through a fresh JsonStore — otherwise the manager holds a
+ * cache pointing at notifications.json after AGENT_DIR has been deleted.
+ */
+export function resetNotifications(): void {
+  _instance = null;
+}

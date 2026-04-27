@@ -14,8 +14,6 @@ export type GwsBootstrapOptions = {
   binDir: string;
   /** Directory where gws-installed skills should land. */
   skillsDir: string;
-  /** Bundled resources directory shipped with the app — searched for client_secret.json. */
-  bundledResourcesDir: string;
 };
 
 /**
