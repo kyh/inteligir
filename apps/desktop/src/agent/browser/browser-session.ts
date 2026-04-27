@@ -213,6 +213,7 @@ export function createBrowserSession(): BrowserSession {
     if (!httpEndpoint) httpEndpoint = await discoverChromeEndpoint();
     const tab = await openNewTab(httpEndpoint);
     const state = await attachTab(tab.id, tab.webSocketDebuggerUrl, opts?.label);
+    if (currentId !== state.id) refSelectors.clear();
     currentId = state.id;
     return { id: state.id, label: state.label, url: state.currentUrl, current: true };
   }
@@ -235,6 +236,7 @@ export function createBrowserSession(): BrowserSession {
     if (currentId === tab.id) {
       const next = tabs.values().next().value;
       currentId = next ? next.id : null;
+      refSelectors.clear();
     }
   }
 
