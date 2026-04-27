@@ -129,13 +129,30 @@ export function seedResources(): void {
 
   const agentsMdSrc = path.join(src, "AGENTS.md");
   const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
-  if (fs.existsSync(agentsMdSrc) && !fs.existsSync(agentsMdDest)) {
+  if (fs.existsSync(agentsMdSrc) && shouldUpdateBundledFile(agentsMdSrc, agentsMdDest)) {
     fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
     fs.copyFileSync(agentsMdSrc, agentsMdDest);
   }
 
   seedGwsClientSecret(src);
   seedComputerUseHelper();
+}
+
+/**
+ * True when the bundled file should overwrite the destination — either it's
+ * missing, or the contents differ. We hash so legitimate upgrades land on
+ * existing installs (the prior "missing only" check left users on stale
+ * AGENTS.md after every release).
+ */
+function shouldUpdateBundledFile(srcPath: string, destPath: string): boolean {
+  if (!fs.existsSync(destPath)) return true;
+  try {
+    const srcHash = createHash("sha256").update(fs.readFileSync(srcPath)).digest("hex");
+    const destHash = createHash("sha256").update(fs.readFileSync(destPath)).digest("hex");
+    return srcHash !== destHash;
+  } catch {
+    return true;
+  }
 }
 
 // ---------------------------------------------------------------------------
