@@ -8,7 +8,7 @@
  * with their sessions/cookies. No Electron dependency.
  */
 
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
+import type { ExtensionAPI } from "@repo/pi-driver";
 import { BrowserActionSchema } from "./browser/schema";
 import { text } from "./browser/schema";
 import { createBrowserSession, type BrowserSession } from "./browser/browser-session";

@@ -5,13 +5,13 @@ import path from "node:path";
 import { app } from "electron";
 
 import { Type, type Static } from "@sinclair/typebox";
-import { SessionManager } from "@mariozechner/pi-coding-agent";
 import {
   createAuthStorage,
   hasAuth,
   loginWithProvider,
   PiAgent,
   resolveModel,
+  SessionManager,
   type ExtensionAPI,
   type ExtensionFactory,
 } from "@repo/pi-driver";

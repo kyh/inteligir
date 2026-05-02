@@ -4,14 +4,12 @@
 
 import {
   SessionManager,
+  type Message,
   type SessionMessageEntry,
-} from "@mariozechner/pi-coding-agent";
-import type {
-  Message,
-  TextContent,
-  ToolCall,
-  ToolResultMessage,
-} from "@mariozechner/pi-ai";
+  type TextContent,
+  type ToolCall,
+  type ToolResultMessage,
+} from "@repo/pi-driver";
 
 import { inteligirPath } from "@/main/lib/json-store";
 import type { ChatHistoryEntry } from "@/shared/ipc";
