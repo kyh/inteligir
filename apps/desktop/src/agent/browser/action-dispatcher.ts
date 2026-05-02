@@ -24,6 +24,24 @@ const NAV_TIMEOUT_MS = 30_000;
 const EVALUATE_TIMEOUT_MS = 30_000;
 const ALLOWED_SCHEMES = new Set(["http:", "https:"]);
 
+// Browser-wide CDP commands that need a connection but don't need any page
+// navigated. Without this allowlist, `cookies_get` / `cookies_clear` would
+// be blocked by the page-loaded guard after a fresh `tab_new` on about:blank.
+const PAGE_OPTIONAL = new Set(["open", "cookies_get", "cookies_clear"]);
+
+/** Reject non-http(s) and malformed URLs. Returns a ToolResult on failure, null on success. */
+function validateUrl(url: string): ToolResult | null {
+  try {
+    const parsed = new URL(url);
+    if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
+      return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
+    }
+    return null;
+  } catch {
+    return text(`Error: Invalid URL "${url}"`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Navigation helper — wait for CDP Page.loadEventFired
 // ---------------------------------------------------------------------------
@@ -72,18 +90,61 @@ export async function dispatchAction(
   // Validate URL before connecting
   if (action.action === "open") {
     if (!action.url) return text("Error: url is required for open action");
-    try {
-      const parsed = new URL(action.url);
-      if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
-        return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
+    const err = validateUrl(action.url);
+    if (err) return err;
+  }
+
+  // Tab/network actions operate on session state only — they never need to
+  // open a CDP connection of their own. Dispatching them straight through
+  // also avoids an unconditional `ensureConnected()` creating a phantom tab
+  // before, e.g., `tab_new` opens the user's actual first tab.
+  switch (action.action) {
+    case "tab_list": {
+      const list = session.listTabs();
+      if (list.length === 0) return text("(no open tabs)");
+      const lines = list.map((t) => {
+        const marker = t.current ? "*" : " ";
+        const label = t.label ? ` [${t.label}]` : "";
+        return `${marker} ${t.id}${label}\t${t.url || "about:blank"}`;
+      });
+      return text(lines.join("\n"));
+    }
+    case "tab_switch": {
+      if (!action.tabId) return text("Error: tabId is required for tab_switch");
+      try {
+        const summary = session.switchTab(action.tabId);
+        return text(`Switched to ${summary.id} (${summary.url || "about:blank"})`);
+      } catch (err) {
+        return text(`Error: ${err instanceof Error ? err.message : String(err)}`);
       }
-    } catch {
-      return text(`Error: Invalid URL "${action.url}"`);
+    }
+    case "tab_close": {
+      const target = action.tabId ?? session.currentTabId();
+      if (!target) return text("Error: no tab to close");
+      await session.closeTab(target);
+      return text(`Closed tab ${target}`);
+    }
+    case "tab_new": {
+      if (action.url) {
+        const err = validateUrl(action.url);
+        if (err) return err;
+      }
+      // Open a tab via the session — this creates the first CDP connection
+      // when none exists, so we deliberately skip the dispatcher's
+      // `ensureConnected()` to avoid spawning a second, phantom tab.
+      const summary = await session.newTab({ label: action.label });
+      if (action.url) {
+        const newCdp = await session.ensureConnected();
+        const navPromise = awaitNavigation(newCdp);
+        await newCdp.send("Page.navigate", { url: action.url });
+        await navPromise;
+      }
+      const label = summary.label ? ` [${summary.label}]` : "";
+      return text(`Opened tab ${summary.id}${label}${action.url ? ` at ${action.url}` : ""}`);
     }
   }
 
-  // Actions other than "open" require a page to already be loaded
-  if (action.action !== "open" && !session.hasLoadedPage()) {
+  if (!PAGE_OPTIONAL.has(action.action) && !session.hasLoadedPage()) {
     return text('Error: No page loaded. Use the "open" action first to navigate to a URL.');
   }
 
@@ -238,6 +299,70 @@ export async function dispatchAction(
         content: [{ type: "image", data: cdpResult["data"] as string, mimeType: "image/png" }],
         details: {},
       };
+    }
+
+    case "cookies_get": {
+      // Storage.getCookies returns browser-wide cookies. Network.getCookies is
+      // scoped to the current page's origin, which would silently miss cookies
+      // for other domains in the user's session.
+      const result = await cdp.send("Storage.getCookies");
+      const cookies = (result["cookies"] as Array<Record<string, unknown>>) ?? [];
+      const lines = cookies.map((c) =>
+        `${String(c["name"])}=${String(c["value"])}\tdomain=${String(c["domain"])}\tpath=${String(c["path"])}`,
+      );
+      return text(lines.length === 0 ? "(no cookies)" : lines.join("\n"));
+    }
+
+    case "cookies_set": {
+      if (!action.name) return text("Error: name is required for cookies_set");
+      if (action.value === undefined) return text("Error: value is required for cookies_set");
+      const url = (await evaluate(cdp, "location.href")) as string;
+      const params: Record<string, unknown> = {
+        name: action.name,
+        value: action.value,
+        url,
+      };
+      if (action.domain) params["domain"] = action.domain;
+      const ok = await cdp.send("Network.setCookie", params);
+      if (ok["success"] === false) return text(`Error: failed to set cookie ${action.name}`);
+      return text(`Set cookie ${action.name}`);
+    }
+
+    case "cookies_clear": {
+      await cdp.send("Network.clearBrowserCookies");
+      return text("Cleared all cookies");
+    }
+
+    case "storage_get": {
+      if (action.name) {
+        const value = (await evaluate(cdp, `localStorage.getItem(${JSON.stringify(action.name)})`)) as string | null;
+        return text(value === null ? `(${action.name} not set)` : value);
+      }
+      const all = (await evaluate(cdp, `
+        (function() {
+          const out = {};
+          for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k !== null) out[k] = localStorage.getItem(k);
+          }
+          return out;
+        })()
+      `)) as Record<string, string>;
+      const keys = Object.keys(all);
+      if (keys.length === 0) return text("(localStorage is empty)");
+      return text(keys.map((k) => `${k}=${all[k]}`).join("\n"));
+    }
+
+    case "storage_set": {
+      if (!action.name) return text("Error: name is required for storage_set");
+      if (action.value === undefined) return text("Error: value is required for storage_set");
+      await evaluate(cdp, `localStorage.setItem(${JSON.stringify(action.name)}, ${JSON.stringify(action.value)})`);
+      return text(`Set localStorage ${action.name}`);
+    }
+
+    case "storage_clear": {
+      await evaluate(cdp, "localStorage.clear()");
+      return text("Cleared localStorage");
     }
 
     case "get_text": {
