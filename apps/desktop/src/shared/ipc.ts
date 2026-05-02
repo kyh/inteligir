@@ -140,14 +140,9 @@ export type NotificationSettings = {
 // Extensions (#7) — projection of pi-coding-agent's tool registry for the dock
 // ---------------------------------------------------------------------------
 
-export type ExtensionToolInfo = {
-  name: string;
-  description: string;
-  /** Where the tool came from: "core" (built-in), extension id, or "custom". */
-  source: string;
-  /** Whether the agent currently has this tool active. */
-  active: boolean;
-};
+import type { PiAgentTool } from "@repo/pi-driver";
+
+export type ExtensionToolInfo = PiAgentTool;
 
 export type ExtensionsList = {
   tools: ExtensionToolInfo[];

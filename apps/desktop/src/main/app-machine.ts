@@ -65,7 +65,10 @@ async function startAgent(): Promise<void> {
       const event = parseAgentEvent(raw);
       if (event) handleAgentEvent(event);
     });
-    taskManager.startScheduler(() => agent);
+    // Capture `next` in the closure rather than the module ref so the
+    // scheduler's first tick can't observe a still-null `agent` during
+    // the microtask between startScheduler and `agent = next`.
+    taskManager.startScheduler(() => next);
   } catch (err) {
     // Don't leave a half-constructed Agent in the singleton — a retry's
     // `if (agent) return` would skip the rest of setup and the machine
