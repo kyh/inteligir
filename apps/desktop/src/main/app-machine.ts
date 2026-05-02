@@ -61,21 +61,20 @@ async function startAgent(): Promise<void> {
   const next = new Agent();
   try {
     await next.start();
+    next.subscribe((raw) => {
+      const event = parseAgentEvent(raw);
+      if (event) handleAgentEvent(event);
+    });
+    taskManager.startScheduler(() => agent);
   } catch (err) {
     // Don't leave a half-constructed Agent in the singleton — a retry's
-    // `if (agent) return` would skip subscribe/scheduler setup and the
-    // machine would transition to ready with a non-functional agent.
+    // `if (agent) return` would skip the rest of setup and the machine
+    // would transition to ready with a non-functional agent.
+    taskManager.stopScheduler();
     await next.stop().catch(() => {});
     throw err;
   }
   agent = next;
-
-  agent.subscribe((raw) => {
-    const event = parseAgentEvent(raw);
-    if (event) handleAgentEvent(event);
-  });
-
-  taskManager.startScheduler(() => agent);
 }
 
 async function stopAgent(): Promise<void> {
@@ -84,6 +83,7 @@ async function stopAgent(): Promise<void> {
     await agent.stop();
     agent = null;
   }
+  currentTurnAssistantText = null;
 }
 
 export function getAgent(): Agent | null {
@@ -178,16 +178,15 @@ export function transition(event: MachineEvent): void {
 
 /** Determine initial state from persisted auth/setup and auto-start if ready. */
 export function initMachine(): void {
-  if (isLoggedIn() && isSetupComplete()) {
-    machine = new AppMachine(realDeps, broadcast, { phase: "logged_in" });
+  const loggedIn = isLoggedIn();
+  const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
+  machine = new AppMachine(realDeps, broadcast, initial);
+
+  if (loggedIn && isSetupComplete()) {
     void machine.send({ type: "SETUP" }).catch((err) => {
       console.error("[machine] init setup failed:", err);
     });
-  } else if (isLoggedIn()) {
-    machine = new AppMachine(realDeps, broadcast, { phase: "logged_in" });
-    broadcast(machine.getState());
   } else {
-    machine = new AppMachine(realDeps, broadcast);
     broadcast(machine.getState());
   }
 }
