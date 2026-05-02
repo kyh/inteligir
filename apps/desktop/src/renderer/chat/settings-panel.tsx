@@ -70,7 +70,7 @@ export function SettingsPanel() {
             </span>
           </span>
           <Checkbox
-            checked={notifications?.enabled ?? true}
+            checked={notifications?.enabled === true}
             onCheckedChange={(checked) => {
               void toggleNotifications(checked === true);
             }}
