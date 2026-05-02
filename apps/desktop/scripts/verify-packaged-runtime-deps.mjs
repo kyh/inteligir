@@ -13,9 +13,14 @@
 //     the most likely way these would silently drop out of the DMG.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const BIN_DIR = ".output/bin";
+// Resolve paths relative to the desktop app root (this script's parent
+// directory) so the script behaves the same regardless of CWD.
+const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const BIN_DIR = join(APP_ROOT, ".output/bin");
+const PACKAGE_JSON = join(APP_ROOT, "package.json");
 const REQUIRED_RUNTIME_DEPS = [
   "@mariozechner/pi-coding-agent",
   "@mariozechner/pi-ai",
@@ -70,7 +75,7 @@ assertExists(join(resources, "app.asar"), "app.asar");
 // source-of-truth that decides what ends up in the asar: every required
 // runtime dep must be in `dependencies` (not `devDependencies`) of
 // apps/desktop/package.json. electron-builder reads this file directly.
-const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+const pkg = JSON.parse(readFileSync(PACKAGE_JSON, "utf8"));
 const declared = new Set(Object.keys(pkg.dependencies ?? {}));
 const devOnly = new Set(Object.keys(pkg.devDependencies ?? {}));
 for (const dep of REQUIRED_RUNTIME_DEPS) {

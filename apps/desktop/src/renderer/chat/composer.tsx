@@ -298,7 +298,8 @@ export function Composer() {
         ) : (
           <button
             type="submit"
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
+            disabled={input.trim().length === 0 && images.length === 0}
+            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             aria-label={busy ? "Queue for next turn" : "Send"}
             title={busy ? "Queue for next turn" : "Send"}
           >
