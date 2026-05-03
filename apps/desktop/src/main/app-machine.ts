@@ -4,6 +4,7 @@
 
 import {
   Agent,
+  installAgentBrowser,
   installGws,
   isLoggedIn,
   isSetupComplete,
@@ -176,6 +177,7 @@ const realDeps: EffectDeps = {
   login,
   seedResources,
   installGws,
+  installAgentBrowser,
   startAgent,
   stopAgent,
   teardownResources,

@@ -14,6 +14,7 @@ vi.mock("@/agent/setup", () => ({
   login: vi.fn().mockResolvedValue(undefined),
   seedResources: vi.fn(),
   installGws: vi.fn().mockResolvedValue(undefined),
+  installAgentBrowser: vi.fn().mockResolvedValue(undefined),
   teardownResources: vi.fn(),
 }));
 
@@ -22,6 +23,7 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     login: vi.fn().mockResolvedValue(undefined),
     seedResources: vi.fn(),
     installGws: vi.fn().mockResolvedValue(undefined),
+    installAgentBrowser: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(undefined),
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
@@ -41,7 +43,7 @@ describe("AppMachine", () => {
     expect(machine.getState()).toEqual({ phase: "logged_in" });
   });
 
-  it("LOGIN → logging_in → login() → logged_in", async () => {
+  it("LOGIN -> logging_in -> login() -> logged_in", async () => {
     const broadcasts: AppState[] = [];
     const deps = fakeDeps();
     const machine = new AppMachine(deps, (s) => broadcasts.push(s));
@@ -53,7 +55,7 @@ describe("AppMachine", () => {
     expect(broadcasts).toEqual([{ phase: "logging_in" }, { phase: "logged_in" }]);
   });
 
-  it("LOGIN failure → error state", async () => {
+  it("LOGIN failure -> error state", async () => {
     const deps = fakeDeps({
       login: vi.fn().mockRejectedValue(new Error("auth failed")),
     });
@@ -68,7 +70,7 @@ describe("AppMachine", () => {
     });
   });
 
-  it("SETUP → setting_up → seedResources() + installGws() → ready", async () => {
+  it("SETUP -> setting_up -> seed + install CLIs -> ready", async () => {
     const deps = fakeDeps();
     const machine = new AppMachine(deps, vi.fn(), { phase: "logged_in" });
 
@@ -76,10 +78,11 @@ describe("AppMachine", () => {
 
     expect(deps.seedResources).toHaveBeenCalledOnce();
     expect(deps.installGws).toHaveBeenCalledOnce();
+    expect(deps.installAgentBrowser).toHaveBeenCalledOnce();
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 
-  it("LOGOUT → logging_out → teardown → logged_out", async () => {
+  it("LOGOUT -> logging_out -> teardown -> logged_out", async () => {
     const deps = fakeDeps();
     const machine = new AppMachine(deps, vi.fn(), { phase: "ready", agent: "idle" });
 

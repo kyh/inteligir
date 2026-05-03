@@ -2,7 +2,7 @@
   "name": "@repo/agent-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Filesystem bootstrap for the Inteligir desktop agent — bundled-resource seeding and gws (Google Workspace CLI) installation.",
+  "description": "Filesystem bootstrap for Inteligir desktop: resource seeding, gws, and agent-browser installation.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts",

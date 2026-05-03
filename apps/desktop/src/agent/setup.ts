@@ -16,6 +16,7 @@ import {
   type ExtensionFactory,
 } from "@repo/pi-driver";
 import {
+  installAgentBrowser as installAgentBrowserBootstrap,
   installGws as installGwsBootstrap,
   prependPath,
   seedDirectory,
@@ -38,6 +39,7 @@ import { toErrorMessage } from "@/shared/ipc";
 const AUTH_PROVIDER = "openai-codex";
 const MODEL_ID = "gpt-5.5";
 const GWS_VERSION = "0.22.5";
+const AGENT_BROWSER_VERSION = "0.26.0";
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here */
 const AGENT_DIR = inteligirPath();
@@ -65,7 +67,7 @@ function getBundledResourcesDir(): string {
 
 /**
  * Seed bundled skills + AGENTS.md into ~/.inteligir/ on first run, and
- * make sure the gws bin dir is on PATH so the agent's bash tool finds it.
+ * make sure the bundled CLI bin dir is on PATH so agent tools can find it.
  */
 export function seedResources(): void {
   fs.mkdirSync(AGENT_DIR, { recursive: true });
@@ -92,12 +94,19 @@ export function seedResources(): void {
 }
 
 // ---------------------------------------------------------------------------
-// gws install — delegated to @repo/agent-runtime
+// CLI installs
 // ---------------------------------------------------------------------------
 
 export async function installGws(): Promise<void> {
   await installGwsBootstrap({
     version: GWS_VERSION,
+    binDir: BIN_DIR,
+  });
+}
+
+export async function installAgentBrowser(): Promise<void> {
+  await installAgentBrowserBootstrap({
+    version: AGENT_BROWSER_VERSION,
     binDir: BIN_DIR,
   });
 }
@@ -290,8 +299,8 @@ export class Agent {
         authStorage: getAuthStorage(),
         model: resolveModel(AUTH_PROVIDER, MODEL_ID),
         sessionManager,
-        // registerBrowserExtension dynamic-imports CDP plumbing — defer
-        // that cost (and any import failure) until start().
+        // Defer extension imports until start so tool registration failures
+        // surface through the normal agent startup path.
         extensionFactories: () => getExtensionFactories(),
       });
     }
