@@ -45,6 +45,14 @@ export const IPC_CHANNELS = {
   DISPATCH_STATE: "dispatch:state",
   DISPATCH_GET_STATE: "dispatch:get-state",
   DISPATCH_REFRESH_CODE: "dispatch:refresh-code",
+
+  // Notifications
+  NOTIFICATIONS_GET: "notifications:get",
+  NOTIFICATIONS_UPDATE: "notifications:update",
+
+  // Extensions / tools (#7 dock)
+  EXTENSIONS_LIST: "extensions:list",
+  EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -119,6 +127,36 @@ export type DesktopBridge = {
   getDispatchState: () => Promise<DispatchState>;
   refreshDispatchCode: () => Promise<void>;
   onDispatchState: (listener: (state: DispatchState) => void) => () => void;
+
+  // Notifications
+  getNotificationSettings: () => Promise<NotificationSettings>;
+  updateNotificationSettings: (
+    patch: Partial<NotificationSettings>,
+  ) => Promise<NotificationSettings>;
+
+  // Extensions / tools
+  listExtensions: () => Promise<ExtensionsList>;
+  setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
+};
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+export type NotificationSettings = {
+  enabled: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// Extensions (#7) — projection of pi-coding-agent's tool registry for the dock
+// ---------------------------------------------------------------------------
+
+import type { PiAgentTool } from "@repo/pi-driver";
+
+export type ExtensionToolInfo = PiAgentTool;
+
+export type ExtensionsList = {
+  tools: ExtensionToolInfo[];
 };
 
 // ---------------------------------------------------------------------------
@@ -158,4 +196,3 @@ export function extractText(message: unknown): string {
   }
   return parts.join("");
 }
-

@@ -7,7 +7,9 @@ function memoryFs(): FsAdapter {
   const files = new Map<string, string>();
   return {
     read: (path) => files.get(path) ?? null,
-    write: (path, content) => { files.set(path, content); },
+    write: (path, content) => {
+      files.set(path, content);
+    },
   };
 }
 

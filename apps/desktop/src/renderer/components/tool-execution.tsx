@@ -4,8 +4,8 @@ import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
-} from "@repo/ui/collapsible";
-import { cn } from "@repo/ui/utils";
+} from "@repo/ui/components/collapsible";
+import { cn } from "@repo/ui/lib/utils";
 
 import type { ToolExecution } from "@/renderer/stores/agent-store";
 
@@ -21,11 +21,7 @@ const statusIcon: Record<ToolExecution["status"], string> = {
   error: "✗",
 };
 
-export function ToolExecutionView({
-  execution,
-}: {
-  execution: ToolExecution;
-}) {
+export function ToolExecutionView({ execution }: { execution: ToolExecution }) {
   const [open, setOpen] = useState(false);
   const hasResult = execution.resultText.length > 0;
 

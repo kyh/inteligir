@@ -4,6 +4,8 @@
 
 import {
   Agent,
+  installAgentBrowser,
+  installGws,
   isLoggedIn,
   isSetupComplete,
   login,
@@ -11,15 +13,17 @@ import {
   teardownResources,
 } from "@/agent/setup";
 import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
+import { getPersistedActiveTools } from "@/main/active-tools";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
+import { broadcastToRenderer } from "@/main/lib/broadcast";
+import { getNotifications } from "@/main/notifications";
+import { clearResolvedSessionFile } from "@/main/session-history";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import type { AppState, MachineEvent } from "@/shared/app-state";
-
-import { BrowserWindow } from "electron";
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process
@@ -27,13 +31,9 @@ import { BrowserWindow } from "electron";
 
 let agent: Agent | null = null;
 
-function broadcastToRenderer(channel: string, data: unknown): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send(channel, data);
-    }
-  }
-}
+// Track this turn's assistant text directly; getLastAssistantText() on the
+// session would return the *previous* turn's text after an early abort.
+let currentTurnAssistantText: string | null = null;
 
 function handleAgentEvent(event: AppAgentEvent): void {
   if (event.type === "message_end" && event.stopReason === "error") {
@@ -42,10 +42,18 @@ function handleAgentEvent(event: AppAgentEvent): void {
 
   switch (event.type) {
     case "agent_start":
+      currentTurnAssistantText = null;
       machine?.ingest({ type: "AGENT_START" });
+      break;
+    case "message_end":
+      if (event.role === "assistant" && event.text) {
+        currentTurnAssistantText = event.text;
+      }
       break;
     case "agent_end":
       machine?.ingest({ type: "AGENT_END" });
+      getNotifications().notifyAgentIdle(currentTurnAssistantText ?? undefined);
+      currentTurnAssistantText = null;
       break;
   }
 
@@ -55,17 +63,30 @@ function handleAgentEvent(event: AppAgentEvent): void {
   void sendDispatchResponse(event);
 }
 
-async function startAgent(): Promise<void> {
+async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
-  agent = new Agent();
-  await agent.start();
-
-  agent.subscribe((raw) => {
-    const event = parseAgentEvent(raw);
-    if (event) handleAgentEvent(event);
-  });
-
-  taskManager.startScheduler(() => agent);
+  const next = new Agent(opts);
+  try {
+    await next.start();
+    const persisted = getPersistedActiveTools();
+    if (persisted) next.setActiveTools(persisted);
+    next.subscribe((raw) => {
+      const event = parseAgentEvent(raw);
+      if (event) handleAgentEvent(event);
+    });
+    // Capture `next` in the closure rather than the module ref so the
+    // scheduler's first tick can't observe a still-null `agent` during
+    // the microtask between startScheduler and `agent = next`.
+    taskManager.startScheduler(() => next);
+  } catch (err) {
+    // Don't leave a half-constructed Agent in the singleton — a retry's
+    // `if (agent) return` would skip the rest of setup and the machine
+    // would transition to ready with a non-functional agent.
+    taskManager.stopScheduler();
+    await next.stop().catch(() => {});
+    throw err;
+  }
+  agent = next;
 }
 
 async function stopAgent(): Promise<void> {
@@ -74,6 +95,13 @@ async function stopAgent(): Promise<void> {
     await agent.stop();
     agent = null;
   }
+  currentTurnAssistantText = null;
+}
+
+async function newSession(): Promise<void> {
+  clearResolvedSessionFile();
+  await stopAgent();
+  await startAgent({ newSession: true });
 }
 
 export function getAgent(): Agent | null {
@@ -152,9 +180,12 @@ function broadcast(state: AppState): void {
 const realDeps: EffectDeps = {
   login,
   seedResources,
+  installGws,
+  installAgentBrowser,
   startAgent,
   stopAgent,
   teardownResources,
+  newSession,
 };
 
 export function getAppState(): AppState {
@@ -167,16 +198,15 @@ export function transition(event: MachineEvent): void {
 
 /** Determine initial state from persisted auth/setup and auto-start if ready. */
 export function initMachine(): void {
-  if (isLoggedIn() && isSetupComplete()) {
-    machine = new AppMachine(realDeps, broadcast, { phase: "logged_in" });
+  const loggedIn = isLoggedIn();
+  const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
+  machine = new AppMachine(realDeps, broadcast, initial);
+
+  if (loggedIn && isSetupComplete()) {
     void machine.send({ type: "SETUP" }).catch((err) => {
       console.error("[machine] init setup failed:", err);
     });
-  } else if (isLoggedIn()) {
-    machine = new AppMachine(realDeps, broadcast, { phase: "logged_in" });
-    broadcast(machine.getState());
   } else {
-    machine = new AppMachine(realDeps, broadcast);
     broadcast(machine.getState());
   }
 }

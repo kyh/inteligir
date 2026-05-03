@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { Button } from "@repo/ui/button";
-import { Input } from "@repo/ui/input";
-import { Label } from "@repo/ui/label";
-import { Textarea } from "@repo/ui/textarea";
+import { Button } from "@repo/ui/components/button";
+import { Input } from "@repo/ui/components/input";
+import { Label } from "@repo/ui/components/label";
+import { Textarea } from "@repo/ui/components/textarea";
 
 import { formatSchedule, type CreateTaskParams, type TaskSchedule } from "@/shared/task";
 import { useTaskStore } from "@/renderer/stores/task-store";
@@ -158,9 +158,7 @@ export function TaskPanel() {
       </div>
 
       {tasks.length === 0 && !creating && (
-        <div className="py-4 text-center text-[10px] text-muted-foreground">
-          No scheduled tasks
-        </div>
+        <div className="py-4 text-center text-[10px] text-muted-foreground">No scheduled tasks</div>
       )}
 
       {tasks.length > 0 && (

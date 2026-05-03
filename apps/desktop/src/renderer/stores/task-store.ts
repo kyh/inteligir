@@ -49,9 +49,7 @@ export const useTaskStore = create<TaskStore>((set) => ({
     if (!bridge) return;
     // Optimistic update
     set((s) => ({
-      tasks: s.tasks.map((t) =>
-        t.id === id ? { ...t, enabled: !t.enabled } : t,
-      ),
+      tasks: s.tasks.map((t) => (t.id === id ? { ...t, enabled: !t.enabled } : t)),
     }));
     void bridge.toggleTask(id).catch(() => {});
   },

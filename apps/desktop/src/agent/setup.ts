@@ -1,34 +1,33 @@
-// ---------------------------------------------------------------------------
-// Agent setup — manages agent lifecycle in the main process
-// ---------------------------------------------------------------------------
+// Inteligir-specific composition over @repo/pi-driver and @repo/agent-runtime.
 
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 
-import {
-  AuthStorage,
-  createAgentSession,
-  DefaultResourceLoader,
-  ModelRegistry,
-  SessionManager,
-  SettingsManager,
-} from "@mariozechner/pi-coding-agent";
-import type { AgentSession, AgentSessionEvent, ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type, type Static } from "@sinclair/typebox";
-import { getModel } from "@mariozechner/pi-ai";
-import type { Api, Model } from "@mariozechner/pi-ai";
+import {
+  createAuthStorage,
+  hasAuth,
+  loginWithProvider,
+  PiAgent,
+  resolveModel,
+  SessionManager,
+  type ExtensionAPI,
+  type ExtensionFactory,
+} from "@repo/pi-driver";
+import {
+  installAgentBrowser as installAgentBrowserBootstrap,
+  installGws as installGwsBootstrap,
+  prependPath,
+  seedDirectory,
+  seedFile,
+  seedGwsClientSecret,
+} from "@repo/agent-runtime";
 import open from "open";
 
-import type {
-  InterruptResult,
-  SendMessageResult,
-  SessionStatus,
-  SteerResult,
-} from "@/shared/agent";
-
-type ExtensionFactory = (pi: import("@mariozechner/pi-coding-agent").ExtensionAPI) => void;
+import type { ExtensionToolInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
+import { resetNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
@@ -38,52 +37,25 @@ import { toErrorMessage } from "@/shared/ipc";
 // ---------------------------------------------------------------------------
 
 const AUTH_PROVIDER = "openai-codex";
+const MODEL_ID = "gpt-5.5";
+const GWS_VERSION = "0.22.5";
+const AGENT_BROWSER_VERSION = "0.26.0";
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here */
 const AGENT_DIR = inteligirPath();
 const AUTH_PATH = inteligirPath("auth.json");
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
+const BIN_DIR = inteligirPath("bin");
+const EXTENSIONS_DIR = inteligirPath("extensions");
 
 // Override pi-coding-agent's default getAgentDir() (~/.pi/agent)
 process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
 
-/**
- * Resolve the SessionManager for the agent. If the main process already
- * identified a session file (via INTELIGIR_SESSION_FILE env), open that
- * exact file so the agent continues the same session the UI loaded.
- * Otherwise fall back to continueRecent.
- */
-function resolveSessionManager(): SessionManager {
-  const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
-  if (sessionFile) {
-    try {
-      return SessionManager.open(sessionFile, SESSION_DIR);
-    } catch (err) {
-      console.warn("[agent] failed to open session file, falling back to continueRecent:", err);
-    }
-  }
-  return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
-}
+// ---------------------------------------------------------------------------
+// Bundled resource discovery
+// ---------------------------------------------------------------------------
 
-let _defaultModel: Model<Api> | null = null;
-
-function getDefaultModel(): Model<Api> {
-  if (!_defaultModel) {
-    const model = getModel(AUTH_PROVIDER, "gpt-5.4");
-    if (!model) {
-      throw new Error('Model "openai-codex/gpt-5.4" not found in pi-ai model registry');
-    }
-    _defaultModel = model;
-  }
-  return _defaultModel;
-}
-
-/**
- * Bundled resources shipped inside the app (resources/agent/).
- * In production these are unpacked via asarUnpack.
- * In dev they're at the repo's resources/agent/ directory.
- */
 declare const __PROJECT_ROOT__: string;
 
 function getBundledResourcesDir(): string {
@@ -94,12 +66,16 @@ function getBundledResourcesDir(): string {
 }
 
 /**
- * Seed bundled skills and AGENTS.md into ~/.inteligir/ on first run
- * or when the bundled version is newer.
+ * Seed bundled skills + AGENTS.md into ~/.inteligir/ on first run, and
+ * make sure the bundled CLI bin dir is on PATH so agent tools can find it.
  */
 export function seedResources(): void {
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+  fs.mkdirSync(EXTENSIONS_DIR, { recursive: true });
+
+  prependPath(BIN_DIR);
 
   const src = getBundledResourcesDir();
   if (!fs.existsSync(src)) {
@@ -107,18 +83,32 @@ export function seedResources(): void {
     return;
   }
 
-  const skillsSrc = path.join(src, "skills");
-  const skillsDest = path.join(AGENT_DIR, "skills");
-  if (fs.existsSync(skillsSrc) && !fs.existsSync(skillsDest)) {
-    fs.cpSync(skillsSrc, skillsDest, { recursive: true });
-  }
+  seedDirectory(path.join(src, "skills"), path.join(AGENT_DIR, "skills"));
+  seedFile(path.join(src, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
 
-  const agentsMdSrc = path.join(src, "AGENTS.md");
-  const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
-  if (fs.existsSync(agentsMdSrc) && !fs.existsSync(agentsMdDest)) {
-    fs.mkdirSync(path.dirname(agentsMdDest), { recursive: true });
-    fs.copyFileSync(agentsMdSrc, agentsMdDest);
-  }
+  // Seed the gws OAuth client_secret unconditionally — independent of the
+  // network-dependent gws binary install. An offline first-run should still
+  // leave ~/.config/gws/client_secret.json on disk so OAuth works as soon
+  // as gws is installed on a later launch.
+  seedGwsClientSecret(src);
+}
+
+// ---------------------------------------------------------------------------
+// CLI installs
+// ---------------------------------------------------------------------------
+
+export async function installGws(): Promise<void> {
+  await installGwsBootstrap({
+    version: GWS_VERSION,
+    binDir: BIN_DIR,
+  });
+}
+
+export async function installAgentBrowser(): Promise<void> {
+  await installAgentBrowserBootstrap({
+    version: AGENT_BROWSER_VERSION,
+    binDir: BIN_DIR,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +117,8 @@ export function seedResources(): void {
 
 async function getExtensionFactories(): Promise<ExtensionFactory[]> {
   const { registerBrowserExtension } = await import("@/agent/browser-tool");
-  return [registerTasksExtension, registerBrowserExtension];
+  const { registerGwsExtension } = await import("@/agent/gws-tool");
+  return [registerTasksExtension, registerBrowserExtension, registerGwsExtension];
 }
 
 // ---------------------------------------------------------------------------
@@ -136,17 +127,25 @@ async function getExtensionFactories(): Promise<ExtensionFactory[]> {
 
 function registerTasksExtension(pi: ExtensionAPI): void {
   const manageTasksSchema = Type.Object({
-    action: Type.Union([
-      Type.Literal("create"),
-      Type.Literal("list"),
-      Type.Literal("toggle"),
-      Type.Literal("delete"),
-    ], { description: "Action to perform" }),
+    action: Type.Union(
+      [
+        Type.Literal("create"),
+        Type.Literal("list"),
+        Type.Literal("toggle"),
+        Type.Literal("delete"),
+      ],
+      { description: "Action to perform" },
+    ),
     label: Type.Optional(Type.String({ description: "Task label (required for create)" })),
-    prompt: Type.Optional(Type.String({ description: "Prompt to run when task fires (required for create)" })),
-    schedule: Type.Optional(Type.Unsafe<TaskSchedule>({
-      description: "Schedule: {type:'cron',cron:string} | {type:'interval',intervalMs:number} | {type:'once',runAt:number}",
-    })),
+    prompt: Type.Optional(
+      Type.String({ description: "Prompt to run when task fires (required for create)" }),
+    ),
+    schedule: Type.Optional(
+      Type.Unsafe<TaskSchedule>({
+        description:
+          "Schedule: {type:'cron',cron:string} | {type:'interval',intervalMs:number} | {type:'once',runAt:number}",
+      }),
+    ),
     taskId: Type.Optional(Type.String({ description: "Task ID (required for toggle/delete)" })),
   });
 
@@ -202,7 +201,10 @@ function registerTasksExtension(pi: ExtensionAPI): void {
     if (tasks.length === 0) return;
 
     const summary = tasks
-      .map((t) => `- ${t.label}: ${t.prompt.slice(0, 80)}${t.prompt.length > 80 ? "..." : ""} (${t.schedule.type})`)
+      .map(
+        (t) =>
+          `- ${t.label}: ${t.prompt.slice(0, 80)}${t.prompt.length > 80 ? "..." : ""} (${t.schedule.type})`,
+      )
       .join("\n");
 
     pi.sendMessage({
@@ -213,17 +215,13 @@ function registerTasksExtension(pi: ExtensionAPI): void {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Auth — delegates to pi's AuthStorage
-// ---------------------------------------------------------------------------
+// Lazy + reset on teardown so a logout flow doesn't carry the prior
+// AuthStorage's cached credentials past auth.json being deleted.
+let _authStorage: ReturnType<typeof createAuthStorage> | null = null;
 
-let authStorage: AuthStorage | null = null;
-
-function getAuthStorage(): AuthStorage {
-  if (!authStorage) {
-    authStorage = AuthStorage.create(AUTH_PATH);
-  }
-  return authStorage;
+function getAuthStorage(): ReturnType<typeof createAuthStorage> {
+  if (!_authStorage) _authStorage = createAuthStorage(AUTH_PATH);
+  return _authStorage;
 }
 
 export function isSetupComplete(): boolean {
@@ -232,183 +230,136 @@ export function isSetupComplete(): boolean {
 
 export function teardownResources(): void {
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
-  authStorage = null;
+  // Drop singletons that hold JsonStore caches pointing at files inside
+  // AGENT_DIR — otherwise a re-login would serve stale settings until the
+  // process restarts.
+  _authStorage = null;
+  resetNotifications();
 }
 
 export function isLoggedIn(): boolean {
   if (!fs.existsSync(AUTH_PATH)) return false;
-  return getAuthStorage().hasAuth(AUTH_PROVIDER);
+  return hasAuth(getAuthStorage(), AUTH_PROVIDER);
 }
 
 export async function login(): Promise<void> {
-  const auth = getAuthStorage();
-  await auth.login(AUTH_PROVIDER, {
+  await loginWithProvider(getAuthStorage(), AUTH_PROVIDER, {
     onAuth: (info) => {
       void open(info.url);
-    },
-    onPrompt: () => {
-      return Promise.reject(new Error("Interactive prompt not supported"));
     },
   });
 }
 
 // ---------------------------------------------------------------------------
-// Agent — thin wrapper around pi-coding-agent's AgentSession
+// Agent — Inteligir wrapper around PiAgent that fixes paths + extensions and
+// keeps the legacy public surface app code expects (sendMessage returning
+// SendMessageResult, listTools returning ExtensionToolInfo[]).
 // ---------------------------------------------------------------------------
 
-type EventListener = (event: AgentSessionEvent) => void;
+import type {
+  InterruptResult,
+  SendMessageResult,
+  SteerResult,
+  SessionStatus,
+} from "@/shared/agent";
+import type { ImageContent, AgentSessionEvent } from "@repo/pi-driver";
+
+function resolveSessionManager(): SessionManager {
+  const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
+  if (sessionFile) {
+    try {
+      return SessionManager.open(sessionFile, SESSION_DIR);
+    } catch (err) {
+      console.warn("[agent] failed to open session file, falling back to continueRecent:", err);
+    }
+  }
+  return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
+}
+
+export type AgentOptions = {
+  /** If true, start a fresh session instead of resuming the most recent one. */
+  newSession?: boolean;
+};
 
 export class Agent {
-  private session: AgentSession | null = null;
-  private unsubscribe: (() => void) | null = null;
-  private listeners = new Set<EventListener>();
-  private status: SessionStatus = "starting";
-  private error: string | null = null;
+  // Lazy so synchronous resolveModel/resolveSessionManager throws surface
+  // through the async start() path rather than out of `new Agent()`.
+  private pi: PiAgent | null = null;
 
-  // ---- lifecycle -----------------------------------------------------------
+  constructor(private readonly opts: AgentOptions = {}) {}
 
   async start(): Promise<void> {
-    if (this.session) return;
-
-    const auth = getAuthStorage();
-    const modelRegistry = new ModelRegistry(auth);
-
-    const resourceLoader = new DefaultResourceLoader({
-      cwd: WORKSPACE_DIR,
-      agentDir: AGENT_DIR,
-      extensionFactories: await getExtensionFactories(),
-    });
-    await resourceLoader.reload();
-
-    const { session } = await createAgentSession({
-      cwd: WORKSPACE_DIR,
-      agentDir: AGENT_DIR,
-      authStorage: auth,
-      modelRegistry,
-      resourceLoader,
-      model: getDefaultModel(),
-      thinkingLevel: "off",
-      sessionManager: resolveSessionManager(),
-      settingsManager: SettingsManager.create(WORKSPACE_DIR, AGENT_DIR),
-    });
-
-    this.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
-      this.handleEvent(event);
-    });
-
-    this.session = session;
-    this.status = "idle";
+    if (!this.pi) {
+      const sessionManager = this.opts.newSession
+        ? SessionManager.create(WORKSPACE_DIR, SESSION_DIR)
+        : resolveSessionManager();
+      this.pi = new PiAgent({
+        cwd: WORKSPACE_DIR,
+        agentDir: AGENT_DIR,
+        authStorage: getAuthStorage(),
+        model: resolveModel(AUTH_PROVIDER, MODEL_ID),
+        sessionManager,
+        // Defer extension imports until start so tool registration failures
+        // surface through the normal agent startup path.
+        extensionFactories: () => getExtensionFactories(),
+      });
+    }
+    await this.pi.start();
   }
 
   async stop(): Promise<void> {
-    this.unsubscribe?.();
-    this.unsubscribe = null;
-
-    if (this.session) {
-      await this.session.abort();
-      this.session.dispose();
-      this.session = null;
-    }
-
-    this.status = "starting";
-    this.error = null;
+    await this.pi?.stop();
   }
 
-  async waitForIdle(timeoutMs: number): Promise<boolean> {
-    if (!this.session) return true;
-    return new Promise<boolean>((resolve) => {
-      let settled = false;
-      const settle = (value: boolean) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        unsub();
-        resolve(value);
-      };
-      // Subscribe BEFORE checking this.status to avoid a race where
-      // agent_end fires between the status check and the subscription.
-      const unsub = this.subscribe((event) => {
-        if (event.type === "agent_end") settle(true);
-      });
-      if (this.status !== "busy") {
-        settle(true);
-        return;
-      }
-      const timer = setTimeout(() => settle(false), timeoutMs);
-    });
+  waitForIdle(timeoutMs: number): Promise<boolean> {
+    return this.pi?.waitForIdle(timeoutMs) ?? Promise.resolve(true);
   }
 
-  // ---- public API ----------------------------------------------------------
-
-  async sendMessage(message: string): Promise<SendMessageResult> {
-    const session = this.ensureSession();
-
-    if (this.status === "busy") {
-      await session.followUp(message);
-      return { accepted: true };
-    }
-
-    this.status = "busy";
-
-    void session.prompt(message).catch((err: unknown) => {
-      this.status = "error";
-      this.error = toErrorMessage(err);
-      console.error("[agent] prompt error:", this.error);
-    });
-
+  async sendMessage(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
+    await this.ensurePi().sendMessage(message, images);
     return { accepted: true };
   }
 
-  async steer(message: string): Promise<SteerResult> {
-    const session = this.ensureSession();
-    await session.steer(message);
+  async steer(message: string, images?: ImageContent[]): Promise<SteerResult> {
+    await this.ensurePi().steer(message, images);
+    return { accepted: true };
+  }
+
+  async followUp(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
+    await this.ensurePi().followUp(message, images);
     return { accepted: true };
   }
 
   async interrupt(): Promise<InterruptResult> {
-    if (!this.session) return { interrupted: false };
-    await this.session.abort();
-    return { interrupted: true };
+    if (!this.pi) return { interrupted: false };
+    const interrupted = await this.pi.interrupt();
+    return { interrupted };
   }
 
   getState(): { status: SessionStatus; error: string | null } {
-    return { status: this.status, error: this.error };
+    return this.pi?.getState() ?? { status: "starting", error: null };
   }
 
   getLastAssistantText(): string | undefined {
-    return this.session?.getLastAssistantText();
+    return this.pi?.getLastAssistantText();
   }
 
-  // ---- subscriptions -------------------------------------------------------
-
-  subscribe(listener: EventListener): () => void {
-    this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+  listTools(): ExtensionToolInfo[] {
+    return this.pi?.listTools() ?? [];
   }
 
-  // ---- internals -----------------------------------------------------------
-
-  private handleEvent(event: AgentSessionEvent): void {
-    switch (event.type) {
-      case "agent_start":
-        this.status = "busy";
-        break;
-      case "agent_end":
-        this.status = "idle";
-        break;
-    }
-
-    this.broadcast(event);
+  setActiveTools(toolNames: string[]): void {
+    this.pi?.setActiveTools(toolNames);
   }
 
-  private broadcast(event: AgentSessionEvent): void {
-    for (const listener of this.listeners) {
-      try { listener(event); } catch { /* */ }
-    }
+  subscribe(listener: (event: AgentSessionEvent) => void): () => void {
+    // Throw — silently dropping the listener would mean no agent events
+    // ever reach the renderer.
+    return this.ensurePi().subscribe(listener);
   }
 
-  private ensureSession(): AgentSession {
-    if (!this.session) throw new Error("Agent not started — call start() first");
-    return this.session;
+  private ensurePi(): PiAgent {
+    if (!this.pi) throw new Error("Agent not started — call start() first");
+    return this.pi;
   }
 }

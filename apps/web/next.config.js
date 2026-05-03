@@ -1,7 +1,9 @@
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
+/** @returns {NonNullable<NonNullable<import("next").NextConfig["images"]>["remotePatterns"]>} */
 const getRemotePatterns = () => {
+  /** @type {NonNullable<NonNullable<import("next").NextConfig["images"]>["remotePatterns"]>} */
   const remotePatterns = [];
 
   if (SUPABASE_URL) {

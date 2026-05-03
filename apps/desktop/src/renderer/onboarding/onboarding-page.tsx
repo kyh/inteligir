@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from "react";
 
-import { Button } from "@repo/ui/button";
+import { Button } from "@repo/ui/components/button";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
@@ -10,9 +10,7 @@ export function OnboardingPage() {
   const triggered = useRef(false);
 
   const setupError =
-    appState.phase === "error" && appState.prev === "setting_up"
-      ? appState.message
-      : null;
+    appState.phase === "error" && appState.prev === "setting_up" ? appState.message : null;
 
   // Auto-trigger setup on mount
   useEffect(() => {

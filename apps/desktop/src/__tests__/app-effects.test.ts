@@ -5,9 +5,12 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     seedResources: vi.fn(),
+    installGws: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    installAgentBrowser: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
+    newSession: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -32,10 +35,12 @@ describe("runEffect", () => {
 
   // ---- SETUP ----------------------------------------------------------------
 
-  it("SETUP calls deps.seedResources and returns SETUP_OK", async () => {
+  it("SETUP installs CLIs and returns SETUP_OK", async () => {
     const deps = makeDeps();
     const result = await runEffect("SETUP", deps);
     expect(deps.seedResources).toHaveBeenCalledOnce();
+    expect(deps.installGws).toHaveBeenCalledOnce();
+    expect(deps.installAgentBrowser).toHaveBeenCalledOnce();
     expect(result).toEqual({ type: "SETUP_OK" });
   });
 

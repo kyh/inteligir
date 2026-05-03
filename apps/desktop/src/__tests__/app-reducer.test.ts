@@ -68,10 +68,7 @@ describe("reduce", () => {
   });
 
   it("LOGOUT from error → logging_out + LOGOUT effect", () => {
-    const result = reduce(
-      { phase: "error", prev: "ready", message: "oops" },
-      { type: "LOGOUT" },
-    );
+    const result = reduce({ phase: "error", prev: "ready", message: "oops" }, { type: "LOGOUT" });
     expect(result).toEqual({ next: { phase: "logging_out" }, effect: "LOGOUT" });
   });
 
@@ -105,10 +102,7 @@ describe("reduce", () => {
   });
 
   it("RETRY from error(ready) → setting_up + SETUP", () => {
-    const result = reduce(
-      { phase: "error", prev: "ready", message: "fail" },
-      { type: "RETRY" },
-    );
+    const result = reduce({ phase: "error", prev: "ready", message: "fail" }, { type: "RETRY" });
     expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP" });
   });
 
@@ -135,6 +129,8 @@ describe("reduce", () => {
   // ---- Unknown events -------------------------------------------------------
 
   it("unknown event type → null", () => {
-    expect(reduce({ phase: "logged_out" }, { type: "UNKNOWN" } as unknown as MachineEvent)).toBeNull();
+    expect(
+      reduce({ phase: "logged_out" }, { type: "UNKNOWN" } as unknown as MachineEvent),
+    ).toBeNull();
   });
 });

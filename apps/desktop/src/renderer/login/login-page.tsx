@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 
-import { Button } from "@repo/ui/button";
+import { Button } from "@repo/ui/components/button";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
@@ -10,9 +10,7 @@ export function LoginPage() {
 
   const loggingIn = appState.phase === "logging_in";
   const loginError =
-    appState.phase === "error" && appState.prev === "logging_in"
-      ? appState.message
-      : null;
+    appState.phase === "error" && appState.prev === "logging_in" ? appState.message : null;
 
   const handleLogin = useCallback(() => {
     getBridge()?.transition({ type: "LOGIN" });

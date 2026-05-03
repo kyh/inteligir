@@ -133,6 +133,7 @@ async function registerDevice(): Promise<void> {
     credentialStore.write({
       deviceId: result.deviceId,
       token: result.token,
+      paired: false,
     });
 
     setState({

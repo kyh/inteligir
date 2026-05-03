@@ -1,6 +1,6 @@
 import { Component, type ReactNode } from "react";
 
-import { Button } from "@repo/ui/button";
+import { Button } from "@repo/ui/components/button";
 
 type Props = {
   children: ReactNode;

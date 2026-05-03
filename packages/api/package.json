@@ -19,7 +19,6 @@
     "@supabase/supabase-js": "^2.100.1",
     "@trpc/server": "catalog:",
     "better-auth": "catalog:",
-    "drizzle-zod": "^0.8.3",
     "next": "catalog:",
     "react": "catalog:",
     "superjson": "catalog:",

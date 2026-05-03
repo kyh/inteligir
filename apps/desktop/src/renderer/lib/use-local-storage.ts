@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function useLocalStorage<T>(
   key: string,
@@ -24,7 +24,9 @@ export function useLocalStorage<T>(
       } else {
         window.localStorage.removeItem(key);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [key, value]);
 
   // Sync across tabs

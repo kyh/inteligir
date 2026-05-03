@@ -4,14 +4,12 @@
 
 import {
   SessionManager,
+  type Message,
   type SessionMessageEntry,
-} from "@mariozechner/pi-coding-agent";
-import type {
-  Message,
-  TextContent,
-  ToolCall,
-  ToolResultMessage,
-} from "@mariozechner/pi-ai";
+  type TextContent,
+  type ToolCall,
+  type ToolResultMessage,
+} from "@repo/pi-driver";
 
 import { inteligirPath } from "@/main/lib/json-store";
 import type { ChatHistoryEntry } from "@/shared/ipc";
@@ -76,7 +74,10 @@ function isToolResult(msg: unknown): msg is ToolResultMessage {
 function extractTextFromContent(content: Message["content"]): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-  return content.filter(isTextContent).map((b) => b.text).join("");
+  return content
+    .filter(isTextContent)
+    .map((b) => b.text)
+    .join("");
 }
 
 // ---------------------------------------------------------------------------
