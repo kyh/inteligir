@@ -50,10 +50,7 @@ describe("AppMachine", () => {
 
     expect(deps.login).toHaveBeenCalledOnce();
     expect(machine.getState()).toEqual({ phase: "logged_in" });
-    expect(broadcasts).toEqual([
-      { phase: "logging_in" },
-      { phase: "logged_in" },
-    ]);
+    expect(broadcasts).toEqual([{ phase: "logging_in" }, { phase: "logged_in" }]);
   });
 
   it("LOGIN failure → error state", async () => {
@@ -110,9 +107,7 @@ describe("AppMachine", () => {
 
   it("serializes concurrent sends", async () => {
     const deps = fakeDeps({
-      login: vi.fn().mockImplementation(
-        () => new Promise((resolve) => setTimeout(resolve, 50)),
-      ),
+      login: vi.fn().mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 50))),
     });
     const machine = new AppMachine(deps, vi.fn());
 

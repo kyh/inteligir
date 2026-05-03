@@ -140,9 +140,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
           const delta = event.delta;
           set((s) => ({
             messages: s.messages.map((m) =>
-              m.id === sid && m.kind === "assistant"
-                ? { ...m, text: m.text + delta }
-                : m,
+              m.id === sid && m.kind === "assistant" ? { ...m, text: m.text + delta } : m,
             ),
           }));
           {

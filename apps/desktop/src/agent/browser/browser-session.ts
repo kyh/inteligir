@@ -6,12 +6,7 @@
  * management actions (tab_new, tab_switch, ...) manipulate the set.
  */
 
-import {
-  CDPClient,
-  closeTab,
-  discoverChromeEndpoint,
-  openNewTab,
-} from "./cdp-client";
+import { CDPClient, closeTab, discoverChromeEndpoint, openNewTab } from "./cdp-client";
 
 // ---------------------------------------------------------------------------
 // Public interface
@@ -119,7 +114,9 @@ export function createBrowserSession(): BrowserSession {
       if (tab) return Promise.resolve(tab.cdp);
     }
     if (connectPromise) return connectPromise.then((t) => t.cdp);
-    connectPromise = connect().finally(() => { connectPromise = null; });
+    connectPromise = connect().finally(() => {
+      connectPromise = null;
+    });
     return connectPromise.then((t) => t.cdp);
   }
 

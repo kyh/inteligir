@@ -48,6 +48,19 @@ pnpm db:push-remote   # Push schema to prod
 pnpm db:reset         # Reset local DB
 ```
 
+## Desktop Debugging
+
+Desktop dev opens Electron with CDP on port 9222 by default.
+
+```bash
+pnpm dev:desktop
+agent-browser --session inteligir-desktop connect 9222
+agent-browser --session inteligir-desktop snapshot -i
+agent-browser --session inteligir-desktop screenshot /tmp/inteligir-desktop.png
+```
+
+Use `agent-browser` for desktop UI validation. Inspect the actual Electron app.
+
 ## Quality Gates
 
 Before committing:

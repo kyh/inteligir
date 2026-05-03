@@ -100,8 +100,7 @@ describe("action-dispatcher", () => {
     it("navigates for valid http URL", async () => {
       // Mock awaitNavigation — Page.loadEventFired fires immediately
       vi.mocked(mockCDP.on).mockImplementation((event, handler) => {
-        if (event === "Page.loadEventFired")
-          setTimeout(() => (handler as () => void)(), 0);
+        if (event === "Page.loadEventFired") setTimeout(() => (handler as () => void)(), 0);
       });
       const result = await dispatchAction({ action: "open", url: "https://example.com" }, ctx);
       expect(textContent(result)).toContain("Navigated to");
@@ -119,7 +118,12 @@ describe("action-dispatcher", () => {
       ctx = { session };
 
       const actions: BrowserAction["action"][] = [
-        "click", "fill", "snapshot", "get_url", "scroll", "screenshot",
+        "click",
+        "fill",
+        "snapshot",
+        "get_url",
+        "scroll",
+        "screenshot",
       ];
       for (const action of actions) {
         const result = await dispatchAction({ action } as BrowserAction, ctx);
@@ -164,10 +168,7 @@ describe("action-dispatcher", () => {
     });
 
     it("scrolls up with negative delta", async () => {
-      const result = await dispatchAction(
-        { action: "scroll", direction: "up", amount: 300 },
-        ctx,
-      );
+      const result = await dispatchAction({ action: "scroll", direction: "up", amount: 300 }, ctx);
       expect(textContent(result)).toBe("Scrolled up 300px");
       expect(evaluate).toHaveBeenCalledWith(mockCDP, "window.scrollBy(0, -300)");
     });

@@ -74,7 +74,10 @@ function isToolResult(msg: unknown): msg is ToolResultMessage {
 function extractTextFromContent(content: Message["content"]): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
-  return content.filter(isTextContent).map((b) => b.text).join("");
+  return content
+    .filter(isTextContent)
+    .map((b) => b.text)
+    .join("");
 }
 
 // ---------------------------------------------------------------------------

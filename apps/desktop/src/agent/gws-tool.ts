@@ -24,9 +24,7 @@ const GwsRunSchema = Type.Object({
     description:
       "Arguments to pass to gws, e.g. ['drive', 'files', 'list', '--params', '{\"pageSize\":10}']. Run with ['--help'] or [<service>, '--help'] to discover commands.",
   }),
-  stdin: Type.Optional(
-    Type.String({ description: "Optional stdin to pipe to gws." }),
-  ),
+  stdin: Type.Optional(Type.String({ description: "Optional stdin to pipe to gws." })),
 });
 
 export function registerGwsExtension(pi: ExtensionAPI): void {
@@ -53,9 +51,7 @@ export function registerGwsExtension(pi: ExtensionAPI): void {
         if (code !== 0) parts.push(`[exit ${code}]`);
         return text(parts.join("\n\n") || "(no output)");
       } catch (err) {
-        return text(
-          `gws error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        return text(`gws error: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   });
@@ -75,9 +71,7 @@ function runGws(
           reject(new Error("gws binary not installed"));
           return;
         }
-        const code =
-          (err as { code?: number } | null)?.code ??
-          (err ? 1 : 0);
+        const code = (err as { code?: number } | null)?.code ?? (err ? 1 : 0);
         resolve({ stdout: String(stdout), stderr: String(stderr), code });
       },
     );

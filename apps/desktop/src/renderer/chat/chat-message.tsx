@@ -44,11 +44,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
     case "user":
     case "steer":
       return (
-        <BubbleMessage
-          variant={message.kind}
-          text={message.text}
-          imageCount={message.imageCount}
-        />
+        <BubbleMessage variant={message.kind} text={message.text} imageCount={message.imageCount} />
       );
 
     case "assistant":

@@ -31,14 +31,17 @@ export async function getElementCenter(
   cdp: CDPClient,
   selector: string,
 ): Promise<{ x: number; y: number }> {
-  const rect = await evaluate(cdp, `
+  const rect = await evaluate(
+    cdp,
+    `
     (function() {
       const el = document.querySelector(${JSON.stringify(selector)});
       if (!el) return null;
       const r = el.getBoundingClientRect();
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     })()
-  `);
+  `,
+  );
   if (!rect) throw new Error(`Element not found: ${selector}`);
   return rect as { x: number; y: number };
 }

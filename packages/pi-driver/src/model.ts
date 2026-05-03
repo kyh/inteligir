@@ -15,9 +15,7 @@ export function resolveModel<Provider extends Parameters<typeof getModel>[0]>(
 ): Model<Api> {
   const model = getModel(provider, modelId as never);
   if (!model) {
-    throw new Error(
-      `Model "${String(provider)}/${modelId}" not found in pi-ai model registry`,
-    );
+    throw new Error(`Model "${String(provider)}/${modelId}" not found in pi-ai model registry`);
   }
   return model;
 }

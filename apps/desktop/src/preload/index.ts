@@ -2,10 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import { IPC_CHANNELS } from "@/shared/ipc";
 
-function forwardEvent(
-  channel: string,
-  listener: (data: unknown) => void,
-): () => void {
+function forwardEvent(channel: string, listener: (data: unknown) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
     listener(data);
   };

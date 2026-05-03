@@ -58,12 +58,7 @@ declare const __PROJECT_ROOT__: string;
 
 function getBundledResourcesDir(): string {
   if (app.isPackaged) {
-    return path.join(
-      process.resourcesPath,
-      "app.asar.unpacked",
-      "resources",
-      "agent",
-    );
+    return path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
   }
   return path.join(__PROJECT_ROOT__, "resources", "agent");
 }
@@ -123,17 +118,25 @@ async function getExtensionFactories(): Promise<ExtensionFactory[]> {
 
 function registerTasksExtension(pi: ExtensionAPI): void {
   const manageTasksSchema = Type.Object({
-    action: Type.Union([
-      Type.Literal("create"),
-      Type.Literal("list"),
-      Type.Literal("toggle"),
-      Type.Literal("delete"),
-    ], { description: "Action to perform" }),
+    action: Type.Union(
+      [
+        Type.Literal("create"),
+        Type.Literal("list"),
+        Type.Literal("toggle"),
+        Type.Literal("delete"),
+      ],
+      { description: "Action to perform" },
+    ),
     label: Type.Optional(Type.String({ description: "Task label (required for create)" })),
-    prompt: Type.Optional(Type.String({ description: "Prompt to run when task fires (required for create)" })),
-    schedule: Type.Optional(Type.Unsafe<TaskSchedule>({
-      description: "Schedule: {type:'cron',cron:string} | {type:'interval',intervalMs:number} | {type:'once',runAt:number}",
-    })),
+    prompt: Type.Optional(
+      Type.String({ description: "Prompt to run when task fires (required for create)" }),
+    ),
+    schedule: Type.Optional(
+      Type.Unsafe<TaskSchedule>({
+        description:
+          "Schedule: {type:'cron',cron:string} | {type:'interval',intervalMs:number} | {type:'once',runAt:number}",
+      }),
+    ),
     taskId: Type.Optional(Type.String({ description: "Task ID (required for toggle/delete)" })),
   });
 
@@ -189,7 +192,10 @@ function registerTasksExtension(pi: ExtensionAPI): void {
     if (tasks.length === 0) return;
 
     const summary = tasks
-      .map((t) => `- ${t.label}: ${t.prompt.slice(0, 80)}${t.prompt.length > 80 ? "..." : ""} (${t.schedule.type})`)
+      .map(
+        (t) =>
+          `- ${t.label}: ${t.prompt.slice(0, 80)}${t.prompt.length > 80 ? "..." : ""} (${t.schedule.type})`,
+      )
       .join("\n");
 
     pi.sendMessage({
@@ -255,10 +261,7 @@ function resolveSessionManager(): SessionManager {
     try {
       return SessionManager.open(sessionFile, SESSION_DIR);
     } catch (err) {
-      console.warn(
-        "[agent] failed to open session file, falling back to continueRecent:",
-        err,
-      );
+      console.warn("[agent] failed to open session file, falling back to continueRecent:", err);
     }
   }
   return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
@@ -303,26 +306,17 @@ export class Agent {
     return this.pi?.waitForIdle(timeoutMs) ?? Promise.resolve(true);
   }
 
-  async sendMessage(
-    message: string,
-    images?: ImageContent[],
-  ): Promise<SendMessageResult> {
+  async sendMessage(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
     await this.ensurePi().sendMessage(message, images);
     return { accepted: true };
   }
 
-  async steer(
-    message: string,
-    images?: ImageContent[],
-  ): Promise<SteerResult> {
+  async steer(message: string, images?: ImageContent[]): Promise<SteerResult> {
     await this.ensurePi().steer(message, images);
     return { accepted: true };
   }
 
-  async followUp(
-    message: string,
-    images?: ImageContent[],
-  ): Promise<SendMessageResult> {
+  async followUp(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
     await this.ensurePi().followUp(message, images);
     return { accepted: true };
   }

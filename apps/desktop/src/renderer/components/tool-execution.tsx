@@ -21,11 +21,7 @@ const statusIcon: Record<ToolExecution["status"], string> = {
   error: "✗",
 };
 
-export function ToolExecutionView({
-  execution,
-}: {
-  execution: ToolExecution;
-}) {
+export function ToolExecutionView({ execution }: { execution: ToolExecution }) {
   const [open, setOpen] = useState(false);
   const hasResult = execution.resultText.length > 0;
 

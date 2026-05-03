@@ -18,9 +18,6 @@ export function createIpcHandler<T>(
 }
 
 /** Register an IPC handler that takes no input. */
-export function createVoidIpcHandler(
-  channel: string,
-  fn: () => unknown,
-): void {
+export function createVoidIpcHandler(channel: string, fn: () => unknown): void {
   ipcMain.handle(channel, () => fn());
 }

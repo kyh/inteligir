@@ -10,9 +10,7 @@ const MODEL_ID = "gpt-5.5";
 const model = getModel(PROVIDER, MODEL_ID);
 
 if (!model) {
-  console.error(
-    `[verify] Model "${PROVIDER}/${MODEL_ID}" not found in pi-ai model registry.`,
-  );
+  console.error(`[verify] Model "${PROVIDER}/${MODEL_ID}" not found in pi-ai model registry.`);
   console.error(
     `[verify] Either bump pi-ai to a version that ships this model, or update apps/desktop/src/agent/setup.ts to a model that exists.`,
   );
