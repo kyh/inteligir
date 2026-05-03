@@ -63,10 +63,6 @@ export function registerBrowserExtension(pi: ExtensionAPI): void {
   });
 }
 
-export function disposeBrowserTool(): void {
-  // agent-browser owns its daemon lifecycle. Leave the shared session alive.
-}
-
 function textResult(value: string): BrowserToolResult {
   return { content: [{ type: "text", text: value }], details: {} };
 }
