@@ -111,7 +111,8 @@ export async function installGws(): Promise<void> {
 
 async function getExtensionFactories(): Promise<ExtensionFactory[]> {
   const { registerBrowserExtension } = await import("@/agent/browser-tool");
-  return [registerTasksExtension, registerBrowserExtension];
+  const { registerGwsExtension } = await import("@/agent/gws-tool");
+  return [registerTasksExtension, registerBrowserExtension, registerGwsExtension];
 }
 
 // ---------------------------------------------------------------------------
