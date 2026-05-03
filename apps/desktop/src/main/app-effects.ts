@@ -12,6 +12,7 @@ export type EffectDeps = {
   login: () => Promise<void>;
   seedResources: () => void;
   installGws: () => Promise<void>;
+  installAgentBrowser: () => Promise<void>;
   startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   teardownResources: () => void;
@@ -32,7 +33,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     case "SETUP": {
       try {
         deps.seedResources();
-        await deps.installGws();
+        await Promise.all([deps.installGws(), deps.installAgentBrowser()]);
         await deps.startAgent();
         return { type: "SETUP_OK" };
       } catch (err) {
