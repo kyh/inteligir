@@ -21,10 +21,7 @@ import { fileURLToPath } from "node:url";
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(APP_ROOT, ".output/bin");
 const PACKAGE_JSON = join(APP_ROOT, "package.json");
-const REQUIRED_RUNTIME_DEPS = [
-  "@mariozechner/pi-coding-agent",
-  "@mariozechner/pi-ai",
-];
+const REQUIRED_RUNTIME_DEPS = ["@mariozechner/pi-coding-agent", "@mariozechner/pi-ai"];
 
 // `electron-builder --mac dmg` produces a .app inside .output/bin/mac{,-arm64}/
 function findAppBundle() {

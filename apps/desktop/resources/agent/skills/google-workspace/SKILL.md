@@ -36,12 +36,14 @@ gws <service> <resource> <method> [flags]
 ```
 
 Common flags:
+
 - `--params '{...}'` — query/path parameters as JSON
 - `--json '{...}'` — request body as JSON
 - `--page-all` — auto-paginate and stream all results as NDJSON
 - `--dry-run` — preview the request without executing
 
 Discover available services and commands:
+
 ```bash
 gws <service> --help
 ```
@@ -51,6 +53,7 @@ gws <service> --help
 Prefixed with `+`, these are high-level workflows:
 
 ### Gmail
+
 ```bash
 gws gmail +triage                                    # inbox summary
 gws gmail +send --to a@b.com --subject "Hi" --body "Hello"
@@ -62,6 +65,7 @@ gws gmail messages get --params '{"id":"<id>","userId":"me"}'
 ```
 
 ### Calendar
+
 ```bash
 gws calendar +agenda                                 # upcoming events
 gws calendar +agenda --timezone America/New_York
@@ -70,6 +74,7 @@ gws calendar events list --params '{"calendarId":"primary","maxResults":10}'
 ```
 
 ### Drive
+
 ```bash
 gws drive +upload ./file.pdf --name "Report"
 gws drive files list --params '{"pageSize":10}'
@@ -77,12 +82,14 @@ gws drive files get --params '{"fileId":"<id>"}'
 ```
 
 ### Docs
+
 ```bash
 gws docs +write --title "Meeting Notes" --body "# Notes\n\nContent here"
 gws docs documents get --params '{"documentId":"<id>"}'
 ```
 
 ### Sheets
+
 ```bash
 gws sheets +read --spreadsheet-id <id> --range "Sheet1!A1:C10"
 gws sheets +append --spreadsheet-id <id> --range "Sheet1" --values '[["a","b"],["c","d"]]'
@@ -90,12 +97,14 @@ gws sheets spreadsheets create --json '{"properties":{"title":"Budget"}}'
 ```
 
 ### Slides
+
 ```bash
 gws slides presentations create --json '{"title":"Deck"}'
 gws slides presentations get --params '{"presentationId":"<id>"}'
 ```
 
 ### Tasks
+
 ```bash
 gws tasks tasklists list
 gws tasks tasks list --params '{"tasklist":"<id>"}'
@@ -103,22 +112,26 @@ gws tasks tasks insert --params '{"tasklist":"<id>"}' --json '{"title":"Do thing
 ```
 
 ### Contacts (People API)
+
 ```bash
 gws people people.connections list --params '{"resourceName":"people/me","personFields":"names,emailAddresses"}'
 ```
 
 ### Chat
+
 ```bash
 gws chat spaces list
 gws chat spaces.messages create --params '{"parent":"spaces/<id>"}' --json '{"text":"Hello"}'
 ```
 
 ### Meet
+
 ```bash
 gws meet conferenceRecords list
 ```
 
 ### Admin
+
 ```bash
 gws admin users list --params '{"domain":"example.com"}'
 ```

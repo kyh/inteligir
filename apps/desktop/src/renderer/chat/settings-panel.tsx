@@ -13,9 +13,7 @@ export function SettingsPanel() {
   const isReady = appState.phase === "ready";
   const canStartNewSession = isReady && appState.agent === "idle";
 
-  const [notifications, setNotifications] = useState<NotificationSettings | null>(
-    null,
-  );
+  const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
 
   useEffect(() => {
     const promise = getBridge()?.getNotificationSettings();
@@ -41,9 +39,7 @@ export function SettingsPanel() {
   return (
     <div className="flex flex-col gap-4 p-3">
       <div className="flex flex-col gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">
-          OpenAI Account
-        </Label>
+        <Label className="text-xs font-medium text-muted-foreground">OpenAI Account</Label>
         {isReady ? (
           <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
             <span className="text-xs text-foreground">Connected</span>
@@ -64,9 +60,7 @@ export function SettingsPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">
-          Session
-        </Label>
+        <Label className="text-xs font-medium text-muted-foreground">Session</Label>
         <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
           <span className="flex flex-col">
             <span className="text-xs text-foreground">Start new session</span>
@@ -87,15 +81,13 @@ export function SettingsPanel() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label className="text-xs font-medium text-muted-foreground">
-          Notifications
-        </Label>
+        <Label className="text-xs font-medium text-muted-foreground">Notifications</Label>
         <label className="flex cursor-pointer items-center justify-between rounded-md border border-border px-3 py-2">
           <span className="flex flex-col">
             <span className="text-xs text-foreground">Notify when idle</span>
             <span className="text-[10px] text-muted-foreground">
-              Show an OS notification when the agent finishes a turn while
-              Inteligir is in the background.
+              Show an OS notification when the agent finishes a turn while Inteligir is in the
+              background.
             </span>
           </span>
           <Checkbox

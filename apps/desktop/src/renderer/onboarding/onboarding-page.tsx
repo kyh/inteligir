@@ -10,9 +10,7 @@ export function OnboardingPage() {
   const triggered = useRef(false);
 
   const setupError =
-    appState.phase === "error" && appState.prev === "setting_up"
-      ? appState.message
-      : null;
+    appState.phase === "error" && appState.prev === "setting_up" ? appState.message : null;
 
   // Auto-trigger setup on mount
   useEffect(() => {

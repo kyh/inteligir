@@ -13,10 +13,7 @@ export type TTSHandle = {
   close: () => void;
 };
 
-export function createTTS(
-  apiKey: string,
-  voiceId: string = DEFAULT_VOICE_ID,
-): TTSHandle {
+export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): TTSHandle {
   const baseUri =
     `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input` +
     `?model_id=${MODEL_ID}&output_format=pcm_${SAMPLE_RATE}`;
@@ -102,7 +99,11 @@ export function createTTS(
 
   function stopAllSources(): void {
     for (const source of activeSources) {
-      try { source.stop(); } catch { /* already stopped */ }
+      try {
+        source.stop();
+      } catch {
+        /* already stopped */
+      }
     }
     activeSources.clear();
     nextPlayTime = 0;

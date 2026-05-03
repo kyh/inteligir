@@ -41,9 +41,8 @@ export function AppLayout() {
   useEffect(() => init(), [init]);
 
   useEffect(() => {
-    const target = appState.phase === "error"
-      ? phaseToPath(appState.prev)
-      : phaseToPath(appState.phase);
+    const target =
+      appState.phase === "error" ? phaseToPath(appState.prev) : phaseToPath(appState.phase);
 
     if (pathnameRef.current !== target) {
       void navigate(target);

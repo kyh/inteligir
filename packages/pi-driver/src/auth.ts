@@ -32,7 +32,6 @@ export async function loginWithProvider(
 ): Promise<void> {
   await authStorage.login(provider, {
     onAuth: callbacks.onAuth,
-    onPrompt: () =>
-      Promise.reject(new Error("Interactive prompt not supported")),
+    onPrompt: () => Promise.reject(new Error("Interactive prompt not supported")),
   });
 }

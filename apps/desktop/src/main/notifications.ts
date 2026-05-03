@@ -103,9 +103,7 @@ export class NotificationsManager {
     // "the app is in the foreground" from the user's POV.
     const target = this.targetWindow;
     if (target && !target.isDestroyed() && target.isFocused()) return true;
-    return BrowserWindow.getAllWindows().some(
-      (w) => !w.isDestroyed() && w.isFocused(),
-    );
+    return BrowserWindow.getAllWindows().some((w) => !w.isDestroyed() && w.isFocused());
   }
 }
 

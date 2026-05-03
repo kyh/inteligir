@@ -8,13 +8,7 @@ import { Line2 } from "three/examples/jsm/lines/Line2.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 
-export type DisplayStatus =
-  | "idle"
-  | "busy"
-  | "error"
-  | "starting"
-  | "listening"
-  | "speaking";
+export type DisplayStatus = "idle" | "busy" | "error" | "starting" | "listening" | "speaking";
 
 extend({ Line2, LineMaterial, LineGeometry });
 
@@ -107,7 +101,7 @@ const moods: Record<DisplayStatus, Mood> = {
   },
   speaking: {
     speed: 8,
-    squiggleAmount: 0.10,
+    squiggleAmount: 0.1,
     squiggleFrequency: 7,
     squiggleSpeed: 6,
     morphProgress: 1,
@@ -139,21 +133,15 @@ function referenceEasing(t: number): number {
 }
 
 function easeInOutCubic(t: number): number {
-  return t < 0.5
-    ? 4 * t * t * t
-    : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
 function lerpMood(current: Mood, target: Mood, alpha: number): void {
   current.speed += (target.speed - current.speed) * alpha;
-  current.squiggleAmount +=
-    (target.squiggleAmount - current.squiggleAmount) * alpha;
-  current.squiggleFrequency +=
-    (target.squiggleFrequency - current.squiggleFrequency) * alpha;
-  current.squiggleSpeed +=
-    (target.squiggleSpeed - current.squiggleSpeed) * alpha;
-  current.morphProgress +=
-    (target.morphProgress - current.morphProgress) * alpha;
+  current.squiggleAmount += (target.squiggleAmount - current.squiggleAmount) * alpha;
+  current.squiggleFrequency += (target.squiggleFrequency - current.squiggleFrequency) * alpha;
+  current.squiggleSpeed += (target.squiggleSpeed - current.squiggleSpeed) * alpha;
+  current.morphProgress += (target.morphProgress - current.morphProgress) * alpha;
   current.helixSpin += (target.helixSpin - current.helixSpin) * alpha;
   current.r += (target.r - current.r) * alpha;
   current.g += (target.g - current.g) * alpha;
@@ -172,8 +160,7 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
     const quarter = percent % 0.25;
     const tNorm = quarter / 0.25;
     const segment = Math.floor(percent / 0.25);
-    let t =
-      quarter - (2 * (1 - tNorm) * tNorm * -0.0185 + tNorm * tNorm * 0.25);
+    let t = quarter - (2 * (1 - tNorm) * tNorm * -0.0185 + tNorm * tNorm * 0.25);
     if (segment === 0 || segment === 2) {
       t *= -1;
     }
@@ -183,18 +170,14 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
   }
 }
 
-function helixPoint(
-  percent: number,
-  tubeAngle: number,
-): [number, number, number] {
+function helixPoint(percent: number, tubeAngle: number): [number, number, number] {
   const x = HELIX_LENGTH * Math.sin(PI2 * percent);
   const y = HELIX_AMPLITUDE * Math.cos(PI2 * 3 * percent);
 
   const quarter = percent % 0.25;
   const tNorm = quarter / 0.25;
   const segment = Math.floor(percent / 0.25);
-  let t =
-    quarter - (2 * (1 - tNorm) * tNorm * -0.0185 + tNorm * tNorm * 0.25);
+  let t = quarter - (2 * (1 - tNorm) * tNorm * -0.0185 + tNorm * tNorm * 0.25);
   if (segment === 0 || segment === 2) {
     t *= -1;
   }
@@ -215,9 +198,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
   const spinGroupRef = useRef<THREE.Group>(null);
   const camDirRef = useRef(new THREE.Vector3());
   const helixRotationRef = useRef(0);
-  const sphereExpandRef = useRef(
-    moods[status].morphProgress > 0.5 ? 1 : 0,
-  );
+  const sphereExpandRef = useRef(moods[status].morphProgress > 0.5 ? 1 : 0);
   const { size } = useThree();
 
   const moodRef = useRef<Mood>({ ...moods[status] });
@@ -299,10 +280,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
     [],
   );
 
-  const geometries = useMemo(
-    () => Array.from({ length: NUM_LINES }, () => new LineGeometry()),
-    [],
-  );
+  const geometries = useMemo(() => Array.from({ length: NUM_LINES }, () => new LineGeometry()), []);
 
   useEffect(() => {
     return () => {
@@ -320,14 +298,8 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
   }, [materials, size.width, size.height]);
 
   const vertexCount = POINTS_PER_LINE + 1;
-  const positionBuffer = useMemo(
-    () => new Float32Array(vertexCount * 3),
-    [vertexCount],
-  );
-  const colorBuffer = useMemo(
-    () => new Float32Array(vertexCount * 3),
-    [vertexCount],
-  );
+  const positionBuffer = useMemo(() => new Float32Array(vertexCount * 3), [vertexCount]);
+  const colorBuffer = useMemo(() => new Float32Array(vertexCount * 3), [vertexCount]);
 
   useFrame((state, delta) => {
     const mood = moodRef.current;
@@ -350,14 +322,10 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
 
       if (spinUp.elapsed <= ACCEL_DURATION) {
         // Acceleration: helix spins + turns to -π/2
-        const normalizedTime = Math.min(
-          spinUp.elapsed / ACCEL_DURATION,
-          1,
-        );
+        const normalizedTime = Math.min(spinUp.elapsed / ACCEL_DURATION, 1);
         const acceleration = referenceEasing(normalizedTime);
 
-        helixRotationRef.current +=
-          (ROTATE_VALUE + acceleration) * delta * 60;
+        helixRotationRef.current += (ROTATE_VALUE + acceleration) * delta * 60;
         mood.morphProgress = 0;
         sphereExpandRef.current = 0;
 
@@ -387,8 +355,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
         const easedMorph = easeInOutCubic(morph);
 
         // Decelerate spin
-        helixRotationRef.current +=
-          (ROTATE_VALUE + 1) * (1 - easedMorph) * delta * 60;
+        helixRotationRef.current += (ROTATE_VALUE + 1) * (1 - easedMorph) * delta * 60;
 
         // morphProgress: helix positions → circle/sphere positions
         mood.morphProgress = easedMorph;
@@ -414,12 +381,9 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
         const target = moods[spinUp.target];
         const a = easedMorph * 0.1;
         mood.speed += (target.speed - mood.speed) * a;
-        mood.squiggleAmount +=
-          (target.squiggleAmount - mood.squiggleAmount) * a;
-        mood.squiggleFrequency +=
-          (target.squiggleFrequency - mood.squiggleFrequency) * a;
-        mood.squiggleSpeed +=
-          (target.squiggleSpeed - mood.squiggleSpeed) * a;
+        mood.squiggleAmount += (target.squiggleAmount - mood.squiggleAmount) * a;
+        mood.squiggleFrequency += (target.squiggleFrequency - mood.squiggleFrequency) * a;
+        mood.squiggleSpeed += (target.squiggleSpeed - mood.squiggleSpeed) * a;
         mood.r += (target.r - mood.r) * a;
         mood.g += (target.g - mood.g) * a;
         mood.b += (target.b - mood.b) * a;
@@ -443,8 +407,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
 
       // sphereExpand tracks morphProgress in normal mode
       const expandTarget = mood.morphProgress > 0.5 ? 1 : 0;
-      sphereExpandRef.current +=
-        (expandTarget - sphereExpandRef.current) * alpha;
+      sphereExpandRef.current += (expandTarget - sphereExpandRef.current) * alpha;
 
       const morph = mood.morphProgress;
       setTubeVisible(1 - morph);
@@ -459,9 +422,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
 
     // During spin-up: kill spin quickly before group unwind (at morph≈0.2)
     // During normal transitions: spin fades linearly with morph
-    const spinFade = spinUpRef.current
-      ? Math.max(0, 1 - morph * 5)
-      : 1 - morph;
+    const spinFade = spinUpRef.current ? Math.max(0, 1 - morph * 5) : 1 - morph;
     if (spinGroupRef.current) {
       spinGroupRef.current.rotation.x = helixRotationRef.current * spinFade;
     }
@@ -501,28 +462,17 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
 
         // --- Sphere position (scaled, with squiggle scaled by expand) ---
         const squiggle =
-          Math.sin(
-            angle * mood.squiggleFrequency +
-              time * mood.squiggleSpeed +
-              lineIdx * 0.5,
-          ) *
+          Math.sin(angle * mood.squiggleFrequency + time * mood.squiggleSpeed + lineIdx * 0.5) *
           mood.squiggleAmount *
           expand;
         const radiusSquiggle =
-          Math.cos(
-            angle * mood.squiggleFrequency * 1.3 +
-              time * mood.squiggleSpeed * 0.8,
-          ) *
+          Math.cos(angle * mood.squiggleFrequency * 1.3 + time * mood.squiggleSpeed * 0.8) *
           mood.squiggleAmount *
           0.5 *
           expand;
-        const displacedRadius =
-          circleRadius + (squiggle + radiusSquiggle) * circleRadius;
+        const displacedRadius = circleRadius + (squiggle + radiusSquiggle) * circleRadius;
         const ySquiggle =
-          Math.sin(
-            angle * mood.squiggleFrequency * 0.7 +
-              time * mood.squiggleSpeed * 1.2,
-          ) *
+          Math.sin(angle * mood.squiggleFrequency * 0.7 + time * mood.squiggleSpeed * 1.2) *
           mood.squiggleAmount *
           0.4 *
           expand;
@@ -619,7 +569,13 @@ function OrbLine({
   return (
     <group ref={ref}>
       {/* Line2 from three/examples/jsm — extended via extend() at runtime */}
-      {(React.createElement as (type: string, props: object, ...children: React.ReactNode[]) => React.ReactElement)(
+      {(
+        React.createElement as (
+          type: string,
+          props: object,
+          ...children: React.ReactNode[]
+        ) => React.ReactElement
+      )(
         "line2",
         {},
         React.createElement("primitive", { object: geometry, attach: "geometry" }),

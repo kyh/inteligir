@@ -303,11 +303,7 @@ export function Composer() {
             aria-label={busy ? "Queue for next turn" : "Send"}
             title={busy ? "Queue for next turn" : "Send"}
           >
-            {busy ? (
-              <ListPlusIcon className="size-3.5" />
-            ) : (
-              <SendIcon className="size-3.5" />
-            )}
+            {busy ? <ListPlusIcon className="size-3.5" /> : <SendIcon className="size-3.5" />}
           </button>
         )}
       </form>

@@ -48,7 +48,9 @@ export class CDPClient {
       this.ws = ws;
 
       ws.addEventListener("open", () => resolve(), { once: true });
-      ws.addEventListener("error", (e) => reject(new Error(`CDP WebSocket error: ${String(e)}`)), { once: true });
+      ws.addEventListener("error", (e) => reject(new Error(`CDP WebSocket error: ${String(e)}`)), {
+        once: true,
+      });
 
       ws.addEventListener("message", (event) => {
         const data = JSON.parse(String(event.data)) as Record<string, unknown>;
@@ -74,7 +76,11 @@ export class CDPClient {
           const handlers = this.listeners.get(method);
           if (handlers) {
             for (const handler of handlers) {
-              try { handler(params); } catch { /* listener error */ }
+              try {
+                handler(params);
+              } catch {
+                /* listener error */
+              }
             }
           }
         }
@@ -214,19 +220,25 @@ export async function launchChrome(port = DEFAULT_CDP_PORT): Promise<void> {
 
   console.log(`[browser] launching Chrome: ${binary} (port ${port}, profile: ${profileDir})`);
 
-  chromeProcess = spawn(binary, [
-    `--remote-debugging-port=${port}`,
-    `--user-data-dir=${profileDir}`,
-    "--no-first-run",
-    "--no-default-browser-check",
-    "about:blank",
-  ], {
-    stdio: "ignore",
-    detached: true,
-  });
+  chromeProcess = spawn(
+    binary,
+    [
+      `--remote-debugging-port=${port}`,
+      `--user-data-dir=${profileDir}`,
+      "--no-first-run",
+      "--no-default-browser-check",
+      "about:blank",
+    ],
+    {
+      stdio: "ignore",
+      detached: true,
+    },
+  );
 
   chromeProcess.unref();
-  chromeProcess.on("exit", () => { chromeProcess = null; });
+  chromeProcess.on("exit", () => {
+    chromeProcess = null;
+  });
 
   // Wait for CDP endpoint to become available
   const maxAttempts = 30;
@@ -270,10 +282,7 @@ export async function discoverChromeEndpoint(port = DEFAULT_CDP_PORT): Promise<s
 }
 
 /** Open a new tab and return its WebSocket URL. */
-export async function openNewTab(
-  httpEndpoint: string,
-  url = "about:blank",
-): Promise<TabInfo> {
+export async function openNewTab(httpEndpoint: string, url = "about:blank"): Promise<TabInfo> {
   const resp = await fetch(`${httpEndpoint}/json/new?${encodeURIComponent(url)}`);
   if (!resp.ok) throw new Error(`Failed to open new tab: ${resp.status} ${resp.statusText}`);
   const tab = (await resp.json()) as Record<string, string>;

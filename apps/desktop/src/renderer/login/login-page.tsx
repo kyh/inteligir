@@ -10,9 +10,7 @@ export function LoginPage() {
 
   const loggingIn = appState.phase === "logging_in";
   const loginError =
-    appState.phase === "error" && appState.prev === "logging_in"
-      ? appState.message
-      : null;
+    appState.phase === "error" && appState.prev === "logging_in" ? appState.message : null;
 
   const handleLogin = useCallback(() => {
     getBridge()?.transition({ type: "LOGIN" });

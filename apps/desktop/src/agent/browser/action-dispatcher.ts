@@ -34,7 +34,9 @@ function validateUrl(url: string): ToolResult | null {
   try {
     const parsed = new URL(url);
     if (!ALLOWED_SCHEMES.has(parsed.protocol)) {
-      return text(`Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`);
+      return text(
+        `Error: URL scheme "${parsed.protocol}" is not allowed. Use http: or https: URLs only.`,
+      );
     }
     return null;
   } catch {
@@ -169,7 +171,9 @@ export async function dispatchAction(
       if (!action.selector) return text("Error: selector is required for fill");
       if (action.text === undefined) return text("Error: text is required for fill");
       const sel = session.resolveSelector(action.selector);
-      const cleared = await evaluate(cdp, `
+      const cleared = await evaluate(
+        cdp,
+        `
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return false;
@@ -185,7 +189,8 @@ export async function dispatchAction(
           el.dispatchEvent(new Event("change", { bubbles: true }));
           return true;
         })()
-      `);
+      `,
+      );
       if (!cleared) return text(`Error: Element not found: ${sel}`);
       await cdpType(cdp, action.text);
       return text(`Filled ${action.selector} with "${action.text}"`);
@@ -218,7 +223,9 @@ export async function dispatchAction(
       if (!action.selector) return text("Error: selector is required for select");
       if (!action.text) return text("Error: text (option value) is required for select");
       const sel = session.resolveSelector(action.selector);
-      const selectResult = await evaluate(cdp, `
+      const selectResult = (await evaluate(
+        cdp,
+        `
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return "not_found";
@@ -231,7 +238,8 @@ export async function dispatchAction(
           el.dispatchEvent(new Event("change", { bubbles: true }));
           return "ok";
         })()
-      `) as string;
+      `,
+      )) as string;
       if (selectResult === "not_found") return text(`Error: Element not found: ${sel}`);
       if (selectResult === "invalid_option") {
         return text(`Error: No <option> with value "${action.text}" found in ${action.selector}`);
@@ -243,7 +251,9 @@ export async function dispatchAction(
       if (!action.selector) return text("Error: selector is required for check");
       const sel = session.resolveSelector(action.selector);
       const desired = action.checked !== false;
-      const checkResult = await evaluate(cdp, `
+      const checkResult = (await evaluate(
+        cdp,
+        `
         (function() {
           const el = document.querySelector(${JSON.stringify(sel)});
           if (!el) return "not_found";
@@ -256,9 +266,11 @@ export async function dispatchAction(
           el.dispatchEvent(new Event("change", { bubbles: true }));
           return "toggled";
         })()
-      `) as string;
+      `,
+      )) as string;
       if (checkResult === "not_found") return text(`Error: Element not found: ${sel}`);
-      if (checkResult === "already") return text(`Checkbox ${action.selector} already ${desired ? "checked" : "unchecked"}`);
+      if (checkResult === "already")
+        return text(`Checkbox ${action.selector} already ${desired ? "checked" : "unchecked"}`);
       return text(`${desired ? "Checked" : "Unchecked"} ${action.selector}`);
     }
 
@@ -271,9 +283,12 @@ export async function dispatchAction(
       if (action.fullPage) {
         const MAX_WIDTH = 1280;
         const MAX_HEIGHT = 16384;
-        const size = (await evaluate(cdp, `
+        const size = (await evaluate(
+          cdp,
+          `
           ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight })
-        `)) as { width: number; height: number };
+        `,
+        )) as { width: number; height: number };
         const captureWidth = Math.min(size.width, MAX_WIDTH);
         const captureHeight = Math.min(size.height, MAX_HEIGHT);
         const devicePixelRatio = (await evaluate(cdp, "window.devicePixelRatio || 1")) as number;
@@ -307,8 +322,9 @@ export async function dispatchAction(
       // for other domains in the user's session.
       const result = await cdp.send("Storage.getCookies");
       const cookies = (result["cookies"] as Array<Record<string, unknown>>) ?? [];
-      const lines = cookies.map((c) =>
-        `${String(c["name"])}=${String(c["value"])}\tdomain=${String(c["domain"])}\tpath=${String(c["path"])}`,
+      const lines = cookies.map(
+        (c) =>
+          `${String(c["name"])}=${String(c["value"])}\tdomain=${String(c["domain"])}\tpath=${String(c["path"])}`,
       );
       return text(lines.length === 0 ? "(no cookies)" : lines.join("\n"));
     }
@@ -335,10 +351,15 @@ export async function dispatchAction(
 
     case "storage_get": {
       if (action.name) {
-        const value = (await evaluate(cdp, `localStorage.getItem(${JSON.stringify(action.name)})`)) as string | null;
+        const value = (await evaluate(
+          cdp,
+          `localStorage.getItem(${JSON.stringify(action.name)})`,
+        )) as string | null;
         return text(value === null ? `(${action.name} not set)` : value);
       }
-      const all = (await evaluate(cdp, `
+      const all = (await evaluate(
+        cdp,
+        `
         (function() {
           const out = {};
           for (let i = 0; i < localStorage.length; i++) {
@@ -347,7 +368,8 @@ export async function dispatchAction(
           }
           return out;
         })()
-      `)) as Record<string, string>;
+      `,
+      )) as Record<string, string>;
       const keys = Object.keys(all);
       if (keys.length === 0) return text("(localStorage is empty)");
       return text(keys.map((k) => `${k}=${all[k]}`).join("\n"));
@@ -356,7 +378,10 @@ export async function dispatchAction(
     case "storage_set": {
       if (!action.name) return text("Error: name is required for storage_set");
       if (action.value === undefined) return text("Error: value is required for storage_set");
-      await evaluate(cdp, `localStorage.setItem(${JSON.stringify(action.name)}, ${JSON.stringify(action.value)})`);
+      await evaluate(
+        cdp,
+        `localStorage.setItem(${JSON.stringify(action.name)}, ${JSON.stringify(action.value)})`,
+      );
       return text(`Set localStorage ${action.name}`);
     }
 
@@ -369,9 +394,12 @@ export async function dispatchAction(
       let result: string;
       if (action.selector) {
         const sel = session.resolveSelector(action.selector);
-        result = (await evaluate(cdp, `
+        result = (await evaluate(
+          cdp,
+          `
           document.querySelector(${JSON.stringify(sel)})?.textContent ?? "(element not found)"
-        `)) as string;
+        `,
+        )) as string;
       } else {
         result = (await evaluate(cdp, "document.body.innerText")) as string;
       }
@@ -405,9 +433,12 @@ export async function dispatchAction(
         });
         return text(`Error: evaluate timed out after ${timeout}ms`);
       }
-      const output = result === undefined ? "undefined"
-        : typeof result === "string" ? result
-        : JSON.stringify(result, null, 2);
+      const output =
+        result === undefined
+          ? "undefined"
+          : typeof result === "string"
+            ? result
+            : JSON.stringify(result, null, 2);
       return text(output);
     }
 
@@ -415,7 +446,9 @@ export async function dispatchAction(
       const ms = action.timeout ?? 5000;
       if (action.selector) {
         const sel = session.resolveSelector(action.selector);
-        const waitPromise = evaluate(cdp, `
+        const waitPromise = evaluate(
+          cdp,
+          `
           new Promise((resolve) => {
             const el = document.querySelector(${JSON.stringify(sel)});
             if (el) return resolve(true);
@@ -428,7 +461,8 @@ export async function dispatchAction(
             observer.observe(document.documentElement, { childList: true, subtree: true });
             setTimeout(() => { observer.disconnect(); resolve(false); }, ${ms});
           })
-        `);
+        `,
+        );
         const found = await Promise.race([
           waitPromise,
           new Promise<false>((resolve) => setTimeout(() => resolve(false), ms + 1000)),

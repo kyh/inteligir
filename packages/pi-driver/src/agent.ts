@@ -41,9 +41,7 @@ export type PiAgentConfig = {
    * callers can defer dynamic imports (e.g. extensions that pull in heavy
    * native deps) until `start()` is invoked.
    */
-  extensionFactories:
-    | ExtensionFactory[]
-    | (() => ExtensionFactory[] | Promise<ExtensionFactory[]>);
+  extensionFactories: ExtensionFactory[] | (() => ExtensionFactory[] | Promise<ExtensionFactory[]>);
   /** Optional thinking level. Defaults to "off". */
   thinkingLevel?: "off" | "low" | "medium" | "high" | "xhigh";
 };
@@ -86,10 +84,7 @@ export class PiAgent {
       model: this.config.model,
       thinkingLevel: this.config.thinkingLevel ?? "off",
       sessionManager: this.config.sessionManager,
-      settingsManager: SettingsManager.create(
-        this.config.cwd,
-        this.config.agentDir,
-      ),
+      settingsManager: SettingsManager.create(this.config.cwd, this.config.agentDir),
     });
 
     this.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
@@ -162,13 +157,11 @@ export class PiAgent {
 
     this.status = "busy";
 
-    void session
-      .prompt(message, imgs ? { images: imgs } : undefined)
-      .catch((err: unknown) => {
-        this.status = "error";
-        this.error = err instanceof Error ? err.message : String(err);
-        console.error("[pi-driver] prompt error:", this.error);
-      });
+    void session.prompt(message, imgs ? { images: imgs } : undefined).catch((err: unknown) => {
+      this.status = "error";
+      this.error = err instanceof Error ? err.message : String(err);
+      console.error("[pi-driver] prompt error:", this.error);
+    });
   }
 
   async steer(message: string, images?: ImageContent[]): Promise<void> {

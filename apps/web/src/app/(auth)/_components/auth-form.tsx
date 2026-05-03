@@ -184,7 +184,9 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
             }}
           </form.Field>
         </FieldGroup>
-        <Button type="submit" loading={form.state.isSubmitting}>{type === "login" ? "Login" : "Register"}</Button>
+        <Button type="submit" loading={form.state.isSubmitting}>
+          {type === "login" ? "Login" : "Register"}
+        </Button>
       </form>
     </div>
   );
@@ -273,7 +275,9 @@ export const RequestPasswordResetForm = () => {
           }}
         </form.Field>
       </FieldGroup>
-      <Button type="submit" loading={form.state.isSubmitting}>Request Password Reset</Button>
+      <Button type="submit" loading={form.state.isSubmitting}>
+        Request Password Reset
+      </Button>
     </form>
   );
 };
@@ -408,7 +412,9 @@ export const UpdatePasswordForm = () => {
           }}
         </form.Field>
       </FieldGroup>
-      <Button type="submit" loading={form.state.isSubmitting}>Update Password</Button>
+      <Button type="submit" loading={form.state.isSubmitting}>
+        Update Password
+      </Button>
     </form>
   );
 };

@@ -120,8 +120,14 @@ export function DraggablePanel({
 
         newWidth = Math.min(newWidth, window.innerWidth - newLeft);
         newHeight = Math.min(newHeight, window.innerHeight - newTop);
-        if (newLeft < 0) { newWidth += newLeft; newLeft = 0; }
-        if (newTop < 0) { newHeight += newTop; newTop = 0; }
+        if (newLeft < 0) {
+          newWidth += newLeft;
+          newLeft = 0;
+        }
+        if (newTop < 0) {
+          newHeight += newTop;
+          newTop = 0;
+        }
 
         setPanelState({
           position: { x: newLeft, y: newTop },

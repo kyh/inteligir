@@ -76,9 +76,7 @@ async function installGwsBinary(opts: GwsBootstrapOptions): Promise<void> {
 
   const arch = gwsArchSuffix();
   if (!arch) {
-    console.warn(
-      `[gws] unsupported platform/arch: ${process.platform}/${process.arch}`,
-    );
+    console.warn(`[gws] unsupported platform/arch: ${process.platform}/${process.arch}`);
     return;
   }
 
@@ -122,14 +120,10 @@ async function installGwsBinary(opts: GwsBootstrapOptions): Promise<void> {
       }),
     ]);
     if (!tarResp.ok || !tarResp.body) {
-      throw new Error(
-        `tarball fetch failed: ${tarResp.status} ${tarResp.statusText}`,
-      );
+      throw new Error(`tarball fetch failed: ${tarResp.status} ${tarResp.statusText}`);
     }
     if (!shaResp.ok) {
-      throw new Error(
-        `checksum fetch failed: ${shaResp.status} ${shaResp.statusText}`,
-      );
+      throw new Error(`checksum fetch failed: ${shaResp.status} ${shaResp.statusText}`);
     }
 
     const shaText = await shaResp.text();
@@ -153,22 +147,15 @@ async function installGwsBinary(opts: GwsBootstrapOptions): Promise<void> {
 
     const actualSha = hash.digest("hex");
     if (actualSha !== expectedSha) {
-      throw new Error(
-        `checksum mismatch: expected ${expectedSha}, got ${actualSha}`,
-      );
+      throw new Error(`checksum mismatch: expected ${expectedSha}, got ${actualSha}`);
     }
 
     fs.mkdirSync(stagingDir, { recursive: true });
     await new Promise<void>((resolve, reject) => {
-      execFile(
-        "tar",
-        ["xzf", tarGzPath, "-C", stagingDir, "gws"],
-        { timeout: 30_000 },
-        (err) => {
-          if (err) reject(err);
-          else resolve();
-        },
-      );
+      execFile("tar", ["xzf", tarGzPath, "-C", stagingDir, "gws"], { timeout: 30_000 }, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
     });
 
     // fs.renameSync is atomic on the same filesystem, so the old binary is
@@ -199,9 +186,7 @@ export function seedGwsClientSecret(bundledResourcesDir: string): void {
   const secretDest = path.join(GWS_CONFIG_DIR, "client_secret.json");
 
   if (!fs.existsSync(secretSrc)) {
-    console.warn(
-      "[gws] client_secret.json not found in bundled resources — OAuth will not work",
-    );
+    console.warn("[gws] client_secret.json not found in bundled resources — OAuth will not work");
     return;
   }
 

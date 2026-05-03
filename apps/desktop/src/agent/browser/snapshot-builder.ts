@@ -35,7 +35,9 @@ export async function buildSnapshot(
   const maxDepth = opts?.maxDepth ?? DEFAULT_MAX_DEPTH;
   const maxNodes = opts?.maxNodes ?? DEFAULT_MAX_NODES;
 
-  const result = await evaluate(cdp, `
+  const result = await evaluate(
+    cdp,
+    `
     (function() {
       const interactiveRoles = new Set([
         "link", "button", "textbox", "checkbox", "radio", "combobox",
@@ -121,7 +123,8 @@ export async function buildSnapshot(
       const tree = walk(document.body, 0);
       return JSON.stringify({ tree: tree, refs: refs });
     })()
-  `);
+  `,
+  );
 
   const parsed = JSON.parse(result as string) as {
     tree: string;

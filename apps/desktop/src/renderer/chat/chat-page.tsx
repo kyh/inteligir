@@ -132,8 +132,7 @@ export function ChatPage() {
 
   const sessionState = useVoiceStore((s) => s.sessionState);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
-  const voiceActive =
-    sessionState === "connected" || sessionState === "connecting";
+  const voiceActive = sessionState === "connected" || sessionState === "connecting";
 
   const currentTranscript = useVoiceStore((s) => s.currentTranscript);
 
@@ -176,9 +175,7 @@ export function ChatPage() {
                       voiceActive ? "bg-green-400 animate-pulse" : "bg-muted-foreground/40",
                     )}
                   />
-                  <span className="text-xs text-muted-foreground">
-                    {voiceLabels[sessionState]}
-                  </span>
+                  <span className="text-xs text-muted-foreground">{voiceLabels[sessionState]}</span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button

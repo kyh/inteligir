@@ -37,9 +37,7 @@ export function registerBrowserExtension(pi: ExtensionAPI): void {
       try {
         return await dispatchAction(params, { session: currentSession });
       } catch (err) {
-        return text(
-          `Browser error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        return text(`Browser error: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   });

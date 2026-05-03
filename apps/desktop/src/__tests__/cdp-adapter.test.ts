@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getElementCenter, cdpClick, cdpType, cdpPress, cdpHover } from "@/agent/browser/cdp-adapter";
+import {
+  getElementCenter,
+  cdpClick,
+  cdpType,
+  cdpPress,
+  cdpHover,
+} from "@/agent/browser/cdp-adapter";
 import type { CDPClient } from "@/agent/browser/cdp-client";
 
 function createMockCDP() {
@@ -28,9 +34,12 @@ describe("cdp-adapter", () => {
       mockEvaluateResult(cdp, { x: 100, y: 200 });
       const result = await getElementCenter(cdp, "#btn");
       expect(result).toEqual({ x: 100, y: 200 });
-      expect(cdp.send).toHaveBeenCalledWith("Runtime.evaluate", expect.objectContaining({
-        returnByValue: true,
-      }));
+      expect(cdp.send).toHaveBeenCalledWith(
+        "Runtime.evaluate",
+        expect.objectContaining({
+          returnByValue: true,
+        }),
+      );
     });
 
     it("throws when element not found (null result)", async () => {

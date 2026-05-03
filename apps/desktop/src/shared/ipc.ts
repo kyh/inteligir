@@ -185,4 +185,3 @@ export function extractText(message: unknown): string {
   }
   return parts.join("");
 }
-
