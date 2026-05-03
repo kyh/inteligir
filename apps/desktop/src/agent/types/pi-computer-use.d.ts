@@ -11,7 +11,7 @@
 // still resolves to the real package and inlines the implementation.
 
 declare const computerUseExtension: (
-  pi: import("@mariozechner/pi-coding-agent").ExtensionAPI,
+  pi: import("@repo/pi-driver").ExtensionAPI,
 ) => void;
 
 export default computerUseExtension;

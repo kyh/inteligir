@@ -9,12 +9,11 @@
 // ship the prebuilt binary inside the app and copy the right arch into place.
 
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { app } from "electron";
-
-import { hashFile } from "@/main/lib/file-utils";
 
 const HELPER_DEST = path.join(
   os.homedir(),
@@ -60,6 +59,10 @@ function readSentinel(): string | null {
   } catch {
     return null;
   }
+}
+
+function hashFile(filePath: string): string {
+  return createHash("sha256").update(fs.readFileSync(filePath)).digest("hex");
 }
 
 /**

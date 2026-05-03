@@ -13,6 +13,7 @@ export const AppEventSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("SETUP") }),
   z.object({ type: z.literal("LOGOUT") }),
   z.object({ type: z.literal("RETRY") }),
+  z.object({ type: z.literal("NEW_SESSION") }),
 ]);
 
 export type AppEvent = z.infer<typeof AppEventSchema>;
@@ -28,7 +29,8 @@ export type InternalEvent =
   | { type: "SETUP_FAIL"; message: string }
   | { type: "LOGOUT_OK" }
   | { type: "AGENT_START" }
-  | { type: "AGENT_END" };
+  | { type: "AGENT_END" }
+  | { type: "NEW_SESSION_OK" };
 
 /** All events the machine can process — external + internal */
 export type MachineEvent = AppEvent | InternalEvent;

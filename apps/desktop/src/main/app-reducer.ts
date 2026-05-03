@@ -5,7 +5,7 @@
 
 import type { AppState, MachineEvent } from "@/shared/app-state";
 
-export type EffectTag = "LOGIN" | "SETUP" | "LOGOUT";
+export type EffectTag = "LOGIN" | "SETUP" | "LOGOUT" | "NEW_SESSION";
 
 export type ReducerResult = {
   next: AppState;
@@ -31,6 +31,14 @@ export function reduce(state: AppState, event: MachineEvent): ReducerResult | nu
     case "LOGOUT":
       if (state.phase !== "ready" && state.phase !== "error") return null;
       return { next: { phase: "logging_out" }, effect: "LOGOUT" };
+
+    case "NEW_SESSION":
+      if (state.phase !== "ready" || state.agent !== "idle") return null;
+      return { next: state, effect: "NEW_SESSION" };
+
+    case "NEW_SESSION_OK":
+      if (state.phase !== "ready") return null;
+      return { next: state, effect: null };
 
     case "RETRY": {
       if (state.phase !== "error") return null;

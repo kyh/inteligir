@@ -2,10 +2,7 @@ import { contextBridge, ipcRenderer } from "electron";
 
 import { IPC_CHANNELS } from "@/shared/ipc";
 
-function forwardEvent(
-  channel: string,
-  listener: (data: unknown) => void,
-): () => void {
+function forwardEvent(channel: string, listener: (data: unknown) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
     listener(data);
   };
@@ -44,4 +41,14 @@ contextBridge.exposeInMainWorld("desktopBridge", {
 
   // Voice
   getVoiceConfig: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_CONFIG),
+
+  // Notifications
+  getNotificationSettings: () => ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATIONS_GET),
+  updateNotificationSettings: (patch: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATIONS_UPDATE, patch),
+
+  // Extensions
+  listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
+  setActiveExtensions: (toolNames: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
 });

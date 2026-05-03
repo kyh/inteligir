@@ -8,9 +8,10 @@
 // it before the pi-computer-use import guarantees the env var is set before
 // any of the package's modules can read it.
 
+import type { ExtensionAPI } from "@repo/pi-driver";
+
 import "@/agent/computer-use-env";
 import computerUseExtension from "@injaneity/pi-computer-use/extensions/computer-use.ts";
-import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 
 export function registerComputerUseExtension(pi: ExtensionAPI): void {
   computerUseExtension(pi);

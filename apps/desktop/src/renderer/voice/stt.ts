@@ -34,10 +34,10 @@ export async function startSTT(
     sample_rate: "16000",
   });
 
-  const ws = new WebSocket(
-    `wss://api.deepgram.com/v1/listen?${params.toString()}`,
-    ["token", apiKey],
-  );
+  const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [
+    "token",
+    apiKey,
+  ]);
 
   let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
   let audioContext: AudioContext | null = null;

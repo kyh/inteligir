@@ -49,6 +49,12 @@ const ToolExecutionEndSchema = z.object({
   result: z.unknown(),
 });
 
+const QueueUpdateSchema = z.object({
+  type: z.literal("queue_update"),
+  steering: z.array(z.string()).default([]),
+  followUp: z.array(z.string()).default([]),
+});
+
 // ---------------------------------------------------------------------------
 // Main parser — unknown → AppAgentEvent | null
 // ---------------------------------------------------------------------------
@@ -118,6 +124,16 @@ export function parseAgentEvent(raw: unknown): AppAgentEvent | null {
         toolCallId: r.data.toolCallId,
         isError: r.data.isError,
         resultText: extractText(r.data.result),
+      };
+    }
+
+    case "queue_update": {
+      const r = QueueUpdateSchema.safeParse(raw);
+      if (!r.success) return null;
+      return {
+        type: "queue_update",
+        steering: [...r.data.steering],
+        followUp: [...r.data.followUp],
       };
     }
 

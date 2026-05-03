@@ -24,7 +24,9 @@ export function useLocalStorage<T>(
       } else {
         window.localStorage.removeItem(key);
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }, [key, value]);
 
   // Sync across tabs

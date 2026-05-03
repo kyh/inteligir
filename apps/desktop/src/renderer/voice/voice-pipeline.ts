@@ -29,7 +29,9 @@ export class VoicePipeline {
 
   on(listener: VoicePipelineListener): () => void {
     this.listeners.add(listener);
-    return () => { this.listeners.delete(listener); };
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   getState(): VoiceSessionState {
@@ -42,10 +44,7 @@ export class VoicePipeline {
 
     try {
       // TTS connects lazily on first sendText — just create the handle
-      this.tts = createTTS(
-        this.config.elevenlabsApiKey,
-        this.config.elevenlabsVoiceId,
-      );
+      this.tts = createTTS(this.config.elevenlabsApiKey, this.config.elevenlabsVoiceId);
 
       // STT requests mic permission + opens Deepgram WebSocket
       this.stt = await startSTT(
@@ -99,7 +98,11 @@ export class VoicePipeline {
 
   private emit(event: VoicePipelineEvent): void {
     for (const fn of this.listeners) {
-      try { fn(event); } catch { /* listener error */ }
+      try {
+        fn(event);
+      } catch {
+        /* listener error */
+      }
     }
   }
 }

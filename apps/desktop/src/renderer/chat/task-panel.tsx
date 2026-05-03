@@ -158,9 +158,7 @@ export function TaskPanel() {
       </div>
 
       {tasks.length === 0 && !creating && (
-        <div className="py-4 text-center text-[10px] text-muted-foreground">
-          No scheduled tasks
-        </div>
+        <div className="py-4 text-center text-[10px] text-muted-foreground">No scheduled tasks</div>
       )}
 
       {tasks.length > 0 && (

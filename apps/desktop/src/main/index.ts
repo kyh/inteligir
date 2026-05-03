@@ -17,17 +17,29 @@ try {
   // .env file is optional
 }
 
+import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
+import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { TextChatMessageSchema } from "@/shared/voice";
+import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { UpdateState } from "@/shared/ipc";
+import type { ExtensionsList, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
+
+/** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
+function toImageContent(images: ImageAttachment[] | undefined) {
+  return images?.map((i) => ({
+    type: "image" as const,
+    data: i.data,
+    mimeType: i.mimeType,
+  }));
+}
 
 const isDevelopment = !app.isPackaged;
 const STARTUP_UPDATE_DELAY_MS = 15_000;
@@ -49,11 +61,7 @@ let updateState: UpdateState = {
 
 function setUpdateState(patch: Partial<UpdateState>): void {
   updateState = { ...updateState, ...patch };
-  for (const window of BrowserWindow.getAllWindows()) {
-    if (!window.isDestroyed()) {
-      window.webContents.send(IPC_CHANNELS.UPDATE_STATE, updateState);
-    }
-  }
+  broadcastToRenderer(IPC_CHANNELS.UPDATE_STATE, updateState);
 }
 
 // ---------------------------------------------------------------------------
@@ -67,8 +75,6 @@ function configureAppIdentity(): void {
     applicationVersion: app.getVersion(),
   });
 }
-
-
 
 function configureApplicationMenu(): void {
   const template: MenuItemConstructorOptions[] = [
@@ -92,9 +98,7 @@ function configureApplicationMenu(): void {
     },
     {
       label: "File",
-      submenu: [
-        { role: "close" },
-      ],
+      submenu: [{ role: "close" }],
     },
     { role: "editMenu" },
     { role: "viewMenu" },
@@ -164,10 +168,13 @@ function registerIpcHandlers(): void {
     if (!agent) return;
     switch (command.type) {
       case "user_message":
-        void agent.sendMessage(command.text);
+        void agent.sendMessage(command.text, toImageContent(command.images));
         break;
       case "steer":
-        void agent.steer(command.text);
+        void agent.steer(command.text, toImageContent(command.images));
+        break;
+      case "follow_up":
+        void agent.followUp(command.text, toImageContent(command.images));
         break;
       case "interrupt":
         void agent.interrupt();
@@ -216,6 +223,40 @@ function registerIpcHandlers(): void {
       elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
     };
   });
+
+  // ---- Notifications --------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.NOTIFICATIONS_GET, () => {
+    return getNotifications().getSettings();
+  });
+
+  createIpcHandler(
+    IPC_CHANNELS.NOTIFICATIONS_UPDATE,
+    z.object({ enabled: z.boolean().optional() }),
+    (patch) => {
+      return getNotifications().updateSettings(patch);
+    },
+  );
+
+  // ---- Extensions (#7) ------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.EXTENSIONS_LIST, (): ExtensionsList => {
+    const agent = getAgent();
+    if (!agent) return { tools: [] };
+    return { tools: agent.listTools() };
+  });
+
+  createIpcHandler(
+    IPC_CHANNELS.EXTENSIONS_SET_ACTIVE,
+    z.array(z.string()),
+    (toolNames): ExtensionsList => {
+      const agent = getAgent();
+      if (!agent) return { tools: [] };
+      agent.setActiveTools(toolNames);
+      persistActiveTools(toolNames);
+      return { tools: agent.listTools() };
+    },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -349,6 +390,7 @@ app
     registerIpcHandlers();
 
     mainWindow = createWindow();
+    getNotifications().setTargetWindow(mainWindow);
 
     // Resolve session file path before initMachine() starts the agent
     readSessionHistory();
