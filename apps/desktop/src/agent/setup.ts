@@ -45,6 +45,7 @@ const AUTH_PATH = inteligirPath("auth.json");
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
 const BIN_DIR = inteligirPath("bin");
+const EXTENSIONS_DIR = inteligirPath("extensions");
 
 // Override pi-coding-agent's default getAgentDir() (~/.pi/agent)
 process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
@@ -75,6 +76,7 @@ export function seedResources(): void {
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
   fs.mkdirSync(BIN_DIR, { recursive: true });
+  fs.mkdirSync(EXTENSIONS_DIR, { recursive: true });
 
   prependPath(BIN_DIR);
 
