@@ -17,9 +17,25 @@ try {
   // .env file is optional
 }
 
-import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { disposeBrowserTool } from "@/agent/browser-tool";
+import { installGws, seedResources } from "@/agent/setup";
+import {
+  getAgent,
+  getAppState,
+  initMachine,
+  shutdown,
+  startAgent,
+  transition,
+} from "@/main/app-machine";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
+import {
+  registerSetup,
+  registerShutdown,
+  registerStartup,
+  runShutdown,
+  runStartup,
+} from "@/main/lifecycle";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
@@ -371,6 +387,33 @@ function createWindow(): BrowserWindow {
 }
 
 // ---------------------------------------------------------------------------
+// Lifecycle wiring — registered once at module load, executed on whenReady().
+// Startup = every launch. Setup = first sign-in. Shutdown = LIFO on quit.
+// ---------------------------------------------------------------------------
+
+registerStartup({ name: "app-identity", run: configureAppIdentity });
+registerStartup({ name: "application-menu", run: configureApplicationMenu });
+registerStartup({ name: "auto-updater", run: configureAutoUpdater });
+registerStartup({ name: "ipc-handlers", run: registerIpcHandlers });
+registerStartup({
+  name: "main-window",
+  run: () => {
+    mainWindow = createWindow();
+    getNotifications().setTargetWindow(mainWindow);
+  },
+});
+// Resolve session file path so Agent opens the same session the UI loaded.
+registerStartup({ name: "session-history", run: () => { readSessionHistory(); } });
+registerStartup({ name: "app-machine", run: initMachine });
+
+registerSetup({ name: "seed-resources", run: seedResources });
+registerSetup({ name: "install-gws", run: installGws });
+registerSetup({ name: "start-agent", run: startAgent });
+
+registerShutdown({ name: "browser-tool", run: disposeBrowserTool });
+registerShutdown({ name: "app-machine", run: shutdown });
+
+// ---------------------------------------------------------------------------
 // App lifecycle
 // ---------------------------------------------------------------------------
 
@@ -378,27 +421,14 @@ app.on("before-quit", (event) => {
   if (isQuitting) return;
   isQuitting = true;
   event.preventDefault();
-  void shutdown().finally(() => {
+  void runShutdown().finally(() => {
     app.quit();
   });
 });
 
 app
   .whenReady()
-  .then(async () => {
-    configureAppIdentity();
-    configureApplicationMenu();
-    configureAutoUpdater();
-    registerIpcHandlers();
-
-    mainWindow = createWindow();
-    getNotifications().setTargetWindow(mainWindow);
-
-    // Resolve session file path before initMachine() starts the agent
-    readSessionHistory();
-
-    initMachine();
-  })
+  .then(() => runStartup())
   .catch((error) => {
     console.error("[desktop] fatal startup error", error);
     dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));

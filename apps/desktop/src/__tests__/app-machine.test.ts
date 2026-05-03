@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { AppMachine } from "@/main/app-machine";
 import type { EffectDeps } from "@/main/app-effects";
+import { registerSetup, resetSetup } from "@/main/lifecycle";
 import type { AppState } from "@/shared/app-state";
 
 vi.mock("electron", () => ({
@@ -12,22 +13,25 @@ vi.mock("@/agent/setup", () => ({
   isLoggedIn: vi.fn().mockReturnValue(false),
   isSetupComplete: vi.fn().mockReturnValue(false),
   login: vi.fn().mockResolvedValue(undefined),
-  seedResources: vi.fn(),
-  installGws: vi.fn().mockResolvedValue(undefined),
   teardownResources: vi.fn(),
+}));
+
+vi.mock("@/main/notifications", () => ({
+  getNotifications: () => ({ notifyAgentIdle: vi.fn() }),
 }));
 
 function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
-    login: vi.fn().mockResolvedValue(undefined),
-    seedResources: vi.fn(),
-    installGws: vi.fn().mockResolvedValue(undefined),
-    startAgent: vi.fn().mockResolvedValue(undefined),
-    stopAgent: vi.fn().mockResolvedValue(undefined),
+    login: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
     ...overrides,
   };
 }
+
+beforeEach(() => {
+  resetSetup();
+});
 
 describe("AppMachine", () => {
   it("starts in logged_out by default", () => {
@@ -57,7 +61,7 @@ describe("AppMachine", () => {
 
   it("LOGIN failure → error state", async () => {
     const deps = fakeDeps({
-      login: vi.fn().mockRejectedValue(new Error("auth failed")),
+      login: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("auth failed")),
     });
     const machine = new AppMachine(deps, vi.fn());
 
@@ -70,15 +74,31 @@ describe("AppMachine", () => {
     });
   });
 
-  it("SETUP → setting_up → seedResources() + installGws() → ready", async () => {
-    const deps = fakeDeps();
-    const machine = new AppMachine(deps, vi.fn(), { phase: "logged_in" });
+  it("SETUP runs registered steps and transitions to ready", async () => {
+    const seed = vi.fn();
+    const install = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    registerSetup({ name: "seed", run: seed });
+    registerSetup({ name: "install", run: install });
 
+    const machine = new AppMachine(fakeDeps(), vi.fn(), { phase: "logged_in" });
     await machine.send({ type: "SETUP" });
 
-    expect(deps.seedResources).toHaveBeenCalledOnce();
-    expect(deps.installGws).toHaveBeenCalledOnce();
+    expect(seed).toHaveBeenCalledOnce();
+    expect(install).toHaveBeenCalledOnce();
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
+  });
+
+  it("SETUP step failure → error state carries step name", async () => {
+    registerSetup({ name: "install-gws", run: () => { throw new Error("boom"); } });
+
+    const machine = new AppMachine(fakeDeps(), vi.fn(), { phase: "logged_in" });
+    await machine.send({ type: "SETUP" });
+
+    expect(machine.getState()).toEqual({
+      phase: "error",
+      prev: "setting_up",
+      message: "install-gws: boom",
+    });
   });
 
   it("LOGOUT → logging_out → teardown → logged_out", async () => {
@@ -103,13 +123,13 @@ describe("AppMachine", () => {
 
   it("ignores invalid events", async () => {
     const machine = new AppMachine(fakeDeps(), vi.fn());
-    await machine.send({ type: "SETUP" }); // invalid from logged_out
+    await machine.send({ type: "SETUP" });
     expect(machine.getState()).toEqual({ phase: "logged_out" });
   });
 
   it("serializes concurrent sends", async () => {
     const deps = fakeDeps({
-      login: vi.fn().mockImplementation(
+      login: vi.fn<() => Promise<void>>().mockImplementation(
         () => new Promise((resolve) => setTimeout(resolve, 50)),
       ),
     });

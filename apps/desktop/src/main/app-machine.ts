@@ -4,11 +4,9 @@
 
 import {
   Agent,
-  installGws,
   isLoggedIn,
   isSetupComplete,
   login,
-  seedResources,
   teardownResources,
 } from "@/agent/setup";
 import { reduce } from "@/main/app-reducer";
@@ -56,7 +54,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
   broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
 }
 
-async function startAgent(): Promise<void> {
+export async function startAgent(): Promise<void> {
   if (agent) return;
   const next = new Agent();
   try {
@@ -80,7 +78,7 @@ async function startAgent(): Promise<void> {
   agent = next;
 }
 
-async function stopAgent(): Promise<void> {
+export async function stopAgent(): Promise<void> {
   taskManager.stopScheduler();
   if (agent) {
     await agent.stop();
@@ -164,9 +162,6 @@ function broadcast(state: AppState): void {
 
 const realDeps: EffectDeps = {
   login,
-  seedResources,
-  installGws,
-  startAgent,
   stopAgent,
   teardownResources,
 };

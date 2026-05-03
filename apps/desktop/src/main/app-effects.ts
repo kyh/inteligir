@@ -3,6 +3,7 @@
 // Returns a completion MachineEvent to feed back into the reducer.
 // ---------------------------------------------------------------------------
 
+import { runSetup } from "@/main/lifecycle";
 import { toErrorMessage } from "@/shared/ipc";
 import type { MachineEvent } from "@/shared/app-state";
 import { clearResolvedSessionFile } from "./session-history";
@@ -10,9 +11,6 @@ import type { EffectTag } from "./app-reducer";
 
 export type EffectDeps = {
   login: () => Promise<void>;
-  seedResources: () => void;
-  installGws: () => Promise<void>;
-  startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   teardownResources: () => void;
 };
@@ -29,14 +27,9 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     }
 
     case "SETUP": {
-      try {
-        deps.seedResources();
-        await deps.installGws();
-        await deps.startAgent();
-        return { type: "SETUP_OK" };
-      } catch (err) {
-        return { type: "SETUP_FAIL", message: toErrorMessage(err) };
-      }
+      const result = await runSetup();
+      if (result.ok) return { type: "SETUP_OK" };
+      return { type: "SETUP_FAIL", message: `${result.step}: ${result.message}` };
     }
 
     case "LOGOUT": {
