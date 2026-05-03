@@ -102,7 +102,6 @@ export async function installGws(): Promise<void> {
   await installGwsBootstrap({
     version: GWS_VERSION,
     binDir: BIN_DIR,
-    skillsDir: path.join(AGENT_DIR, "skills"),
   });
 }
 

@@ -12,13 +12,11 @@ export type GwsBootstrapOptions = {
   version: string;
   /** Directory the binary lives in — added to PATH by the caller. */
   binDir: string;
-  /** Directory where gws-installed skills should land. */
-  skillsDir: string;
 };
 
 /**
- * Best-effort install of the gws CLI plus its built-in skills, and seed an
- * OAuth client_secret if the user doesn't already have one.
+ * Best-effort install of the gws CLI and seed an OAuth client_secret if the
+ * user doesn't already have one.
  *
  * Failures are swallowed and logged; gws is optional, so onboarding must
  * still succeed when the network is unavailable. If install fails, the
@@ -29,7 +27,6 @@ export type GwsBootstrapOptions = {
 export async function installGws(opts: GwsBootstrapOptions): Promise<void> {
   try {
     await installGwsBinary(opts);
-    await installGwsSkills(opts);
   } catch (err) {
     console.error("[gws] install failed (continuing without gws):", err);
   }
@@ -185,40 +182,6 @@ async function installGwsBinary(opts: GwsBootstrapOptions): Promise<void> {
     cleanup();
     throw err;
   }
-}
-
-/**
- * Install gws's built-in skills (~95 directories) into the agent's skills
- * directory using `gws skills install --all`. A sentinel file records the
- * version last installed; partial/failed installs leave no sentinel, so
- * the next run retries.
- */
-async function installGwsSkills(opts: GwsBootstrapOptions): Promise<void> {
-  const gwsPath = path.join(opts.binDir, "gws");
-  if (!fs.existsSync(gwsPath)) return;
-
-  fs.mkdirSync(opts.skillsDir, { recursive: true });
-
-  const sentinel = path.join(opts.skillsDir, ".gws-install-complete");
-  if (fs.existsSync(sentinel)) {
-    const installedVersion = fs.readFileSync(sentinel, "utf8").trim();
-    if (installedVersion === opts.version) return;
-  }
-
-  console.log("[gws] installing built-in skills");
-  await new Promise<void>((resolve, reject) => {
-    execFile(
-      gwsPath,
-      ["skills", "install", "--all", "--dir", opts.skillsDir],
-      { timeout: 120_000 },
-      (err) => {
-        if (err) reject(err);
-        else resolve();
-      },
-    );
-  });
-  fs.writeFileSync(sentinel, opts.version);
-  console.log(`[gws] installed skills to ${opts.skillsDir}`);
 }
 
 /**
