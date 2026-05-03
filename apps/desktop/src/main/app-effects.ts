@@ -15,6 +15,7 @@ export type EffectDeps = {
   startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   teardownResources: () => void;
+  newSession: () => Promise<void>;
 };
 
 export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<MachineEvent> {
@@ -44,6 +45,11 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
       await deps.stopAgent();
       deps.teardownResources();
       return { type: "LOGOUT_OK" };
+    }
+
+    case "NEW_SESSION": {
+      await deps.newSession();
+      return { type: "NEW_SESSION_OK" };
     }
   }
 }

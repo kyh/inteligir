@@ -17,6 +17,7 @@ try {
   // .env file is optional
 }
 
+import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
@@ -256,6 +257,7 @@ function registerIpcHandlers(): void {
       const agent = getAgent();
       if (!agent) return { tools: [] };
       agent.setActiveTools(toolNames);
+      persistActiveTools(toolNames);
       return { tools: agent.listTools() };
     },
   );

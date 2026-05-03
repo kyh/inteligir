@@ -25,6 +25,7 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     startAgent: vi.fn().mockResolvedValue(undefined),
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
+    newSession: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }

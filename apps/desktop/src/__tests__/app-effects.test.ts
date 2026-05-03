@@ -9,6 +9,7 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
+    newSession: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     ...overrides,
   };
 }

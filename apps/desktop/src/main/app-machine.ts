@@ -11,10 +11,12 @@ import {
   seedResources,
   teardownResources,
 } from "@/agent/setup";
+import { getPersistedActiveTools } from "@/main/active-tools";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
+import { clearResolvedSessionFile } from "@/main/session-history";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
@@ -56,11 +58,13 @@ function handleAgentEvent(event: AppAgentEvent): void {
   broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
 }
 
-async function startAgent(): Promise<void> {
+async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
-  const next = new Agent();
+  const next = new Agent(opts);
   try {
     await next.start();
+    const persisted = getPersistedActiveTools();
+    if (persisted) next.setActiveTools(persisted);
     next.subscribe((raw) => {
       const event = parseAgentEvent(raw);
       if (event) handleAgentEvent(event);
@@ -87,6 +91,12 @@ async function stopAgent(): Promise<void> {
     agent = null;
   }
   currentTurnAssistantText = null;
+}
+
+async function newSession(): Promise<void> {
+  clearResolvedSessionFile();
+  await stopAgent();
+  await startAgent({ newSession: true });
 }
 
 export function getAgent(): Agent | null {
@@ -169,6 +179,7 @@ const realDeps: EffectDeps = {
   startAgent,
   stopAgent,
   teardownResources,
+  newSession,
 };
 
 export function getAppState(): AppState {

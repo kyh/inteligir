@@ -264,19 +264,29 @@ function resolveSessionManager(): SessionManager {
   return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
 }
 
+export type AgentOptions = {
+  /** If true, start a fresh session instead of resuming the most recent one. */
+  newSession?: boolean;
+};
+
 export class Agent {
   // Lazy so synchronous resolveModel/resolveSessionManager throws surface
   // through the async start() path rather than out of `new Agent()`.
   private pi: PiAgent | null = null;
 
+  constructor(private readonly opts: AgentOptions = {}) {}
+
   async start(): Promise<void> {
     if (!this.pi) {
+      const sessionManager = this.opts.newSession
+        ? SessionManager.create(WORKSPACE_DIR, SESSION_DIR)
+        : resolveSessionManager();
       this.pi = new PiAgent({
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,
         authStorage: getAuthStorage(),
         model: resolveModel(AUTH_PROVIDER, MODEL_ID),
-        sessionManager: resolveSessionManager(),
+        sessionManager,
         // registerBrowserExtension dynamic-imports CDP plumbing — defer
         // that cost (and any import failure) until start().
         extensionFactories: () => getExtensionFactories(),

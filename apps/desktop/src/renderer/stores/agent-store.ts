@@ -41,6 +41,7 @@ type AgentStore = {
   steer: (text: string, images?: ImageAttachment[]) => void;
   followUp: (text: string, images?: ImageAttachment[]) => void;
   interrupt: () => void;
+  newSession: () => Promise<void>;
   addUserMessage: (text: string) => void;
   addSteerMessage: (text: string) => void;
 };
@@ -294,6 +295,11 @@ export const useAgentStore = create<AgentStore>((set) => ({
 
   interrupt: () => {
     void getBridge()?.sendAgentCommand({ type: "interrupt" });
+  },
+
+  newSession: async () => {
+    set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
+    await getBridge()?.transition({ type: "NEW_SESSION" });
   },
 
   // --- UI-only message additions (used by voice transcripts) ----------------
