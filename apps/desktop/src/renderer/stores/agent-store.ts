@@ -3,6 +3,7 @@ import { create } from "zustand";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { AppStateSchema, type AppState } from "@/shared/app-state";
 import type { ChatHistoryEntry } from "@/shared/ipc";
+import type { ImageAttachment } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -19,9 +20,9 @@ export type ToolExecution = {
 };
 
 export type ChatMessage =
-  | { id: number; kind: "user"; text: string }
+  | { id: number; kind: "user"; text: string; imageCount?: number }
   | { id: number; kind: "assistant"; text: string }
-  | { id: number; kind: "steer"; text: string }
+  | { id: number; kind: "steer"; text: string; imageCount?: number }
   | { id: number; kind: "tool"; execution: ToolExecution };
 
 // ---------------------------------------------------------------------------
@@ -31,16 +32,28 @@ export type ChatMessage =
 type AgentStore = {
   messages: ChatMessage[];
   appState: AppState;
+  /** Queued messages reported by pi (steer + followUp). Cleared on agent_end. */
+  queuedFollowUp: string[];
+  queuedSteering: string[];
 
   init: () => () => void;
-  sendMessage: (text: string) => void;
-  steer: (text: string) => void;
+  sendMessage: (text: string, images?: ImageAttachment[]) => void;
+  steer: (text: string, images?: ImageAttachment[]) => void;
+  followUp: (text: string, images?: ImageAttachment[]) => void;
   interrupt: () => void;
   addUserMessage: (text: string) => void;
   addSteerMessage: (text: string) => void;
 };
 
 let nextMsgId = 0;
+
+function sameStrings(a: readonly string[], b: readonly string[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
 
 /**
  * Convert persisted session history entries into ChatMessages for the UI.
@@ -76,6 +89,8 @@ function historyToChatMessages(history: ChatHistoryEntry[]): ChatMessage[] {
 export const useAgentStore = create<AgentStore>((set) => ({
   messages: [],
   appState: { phase: "logged_out" },
+  queuedFollowUp: [],
+  queuedSteering: [],
 
   init: () => {
     const bridge = getBridge();
@@ -90,6 +105,22 @@ export const useAgentStore = create<AgentStore>((set) => ({
         case "agent_end":
           streamingMsgId = null;
           toolMsgIds.clear();
+          set({ queuedFollowUp: [], queuedSteering: [] });
+          break;
+
+        case "queue_update":
+          // Skip the set() if the queue is identical to what we already
+          // hold. pi can re-emit queue_update for unrelated mutations, and
+          // an unconditional set re-renders every Composer subscriber.
+          set((s) =>
+            sameStrings(s.queuedFollowUp, event.followUp) &&
+            sameStrings(s.queuedSteering, event.steering)
+              ? s
+              : {
+                  queuedFollowUp: event.followUp,
+                  queuedSteering: event.steering,
+                },
+          );
           break;
 
         case "message_start": {
@@ -190,7 +221,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
       set({ appState: parsed.data });
 
       if (parsed.data.phase === "logged_out") {
-        set({ messages: [] });
+        set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
         useVoiceStore.getState().reset();
       }
     });
@@ -225,21 +256,39 @@ export const useAgentStore = create<AgentStore>((set) => ({
 
   // --- Agent commands (IPC) -------------------------------------------------
 
-  sendMessage: (text: string) => {
+  sendMessage: (text: string, images?: ImageAttachment[]) => {
     const bridge = getBridge();
     if (!bridge) return;
-    void bridge.sendAgentCommand({ type: "user_message", text });
+    void bridge.sendAgentCommand({ type: "user_message", text, images });
     set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "user", text }],
+      messages: [
+        ...s.messages,
+        { id: nextMsgId++, kind: "user", text, imageCount: images?.length },
+      ],
     }));
   },
 
-  steer: (text: string) => {
+  steer: (text: string, images?: ImageAttachment[]) => {
     const bridge = getBridge();
     if (!bridge) return;
-    void bridge.sendAgentCommand({ type: "steer", text });
+    void bridge.sendAgentCommand({ type: "steer", text, images });
     set((s) => ({
-      messages: [...s.messages, { id: nextMsgId++, kind: "steer", text }],
+      messages: [
+        ...s.messages,
+        { id: nextMsgId++, kind: "steer", text, imageCount: images?.length },
+      ],
+    }));
+  },
+
+  followUp: (text: string, images?: ImageAttachment[]) => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    void bridge.sendAgentCommand({ type: "follow_up", text, images });
+    set((s) => ({
+      messages: [
+        ...s.messages,
+        { id: nextMsgId++, kind: "user", text, imageCount: images?.length },
+      ],
     }));
   },
 

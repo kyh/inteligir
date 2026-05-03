@@ -39,6 +39,14 @@ export const IPC_CHANNELS = {
 
   // Voice
   VOICE_CONFIG: "voice:config",
+
+  // Notifications
+  NOTIFICATIONS_GET: "notifications:get",
+  NOTIFICATIONS_UPDATE: "notifications:update",
+
+  // Extensions / tools (#7 dock)
+  EXTENSIONS_LIST: "extensions:list",
+  EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -108,6 +116,36 @@ export type DesktopBridge = {
     elevenlabsApiKey: string;
     elevenlabsVoiceId?: string;
   } | null>;
+
+  // Notifications
+  getNotificationSettings: () => Promise<NotificationSettings>;
+  updateNotificationSettings: (
+    patch: Partial<NotificationSettings>,
+  ) => Promise<NotificationSettings>;
+
+  // Extensions / tools
+  listExtensions: () => Promise<ExtensionsList>;
+  setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
+};
+
+// ---------------------------------------------------------------------------
+// Notifications
+// ---------------------------------------------------------------------------
+
+export type NotificationSettings = {
+  enabled: boolean;
+};
+
+// ---------------------------------------------------------------------------
+// Extensions (#7) — projection of pi-coding-agent's tool registry for the dock
+// ---------------------------------------------------------------------------
+
+import type { PiAgentTool } from "@repo/pi-driver";
+
+export type ExtensionToolInfo = PiAgentTool;
+
+export type ExtensionsList = {
+  tools: ExtensionToolInfo[];
 };
 
 // ---------------------------------------------------------------------------

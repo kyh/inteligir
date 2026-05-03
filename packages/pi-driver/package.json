@@ -1,0 +1,26 @@
+{
+  "name": "@repo/pi-driver",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pi-coding-agent wrapper used by the Inteligir desktop app. Exposes a stable Agent class so app code does not depend on pi-coding-agent internals directly.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsc",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "^0.70.2",
+    "@mariozechner/pi-coding-agent": "^0.70.2"
+  },
+  "devDependencies": {
+    "@kyh/tsconfig": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}
