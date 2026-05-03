@@ -22,10 +22,10 @@
     "verify:packaged": "pnpm verify:packaged-runtime-deps"
   },
   "dependencies": {
-    "@mariozechner/pi-ai": "^0.70.2",
-    "@mariozechner/pi-coding-agent": "^0.70.2",
+    "@mariozechner/pi-ai": "^0.72.1",
+    "@mariozechner/pi-coding-agent": "^0.72.1",
     "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.5.0",
+    "@react-three/fiber": "^9.6.1",
     "@repo/agent-runtime": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@repo/ui": "workspace:^",
@@ -37,10 +37,10 @@
     "open": "^11.0.0",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "react-router": "^7.13.2",
+    "react-router": "^7.14.2",
     "streamdown": "^2.5.0",
     "tailwindcss": "catalog:",
-    "three": "^0.183.2",
+    "three": "^0.184.0",
     "zod": "catalog:",
     "zustand": "^5.0.12"
   },
@@ -51,12 +51,12 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
-    "electron": "^41.1.0",
+    "electron": "^41.5.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
-    "lucide-react": "^1.7.0",
+    "lucide-react": "^1.14.0",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.5"
   }
 }
