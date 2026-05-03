@@ -124,15 +124,17 @@ async function installAgentBrowserBinary(
 
     await pipeline(response.body, fs.createWriteStream(stagedBinaryPath));
     fs.chmodSync(stagedBinaryPath, 0o755);
-    fs.renameSync(stagedBinaryPath, agentBrowserPath);
-    cleanup();
 
-    const version = await getInstalledAgentBrowserVersion(agentBrowserPath);
+    const version = await getInstalledAgentBrowserVersion(stagedBinaryPath);
     if (version !== opts.version) {
       throw new Error(
         `version check failed: expected ${opts.version}, got ${version ?? "unknown"}`,
       );
     }
+
+    fs.renameSync(stagedBinaryPath, agentBrowserPath);
+    cleanup();
+
     console.log(`[agent-browser] installed binary to ${agentBrowserPath}`);
     return agentBrowserPath;
   } catch (err) {
