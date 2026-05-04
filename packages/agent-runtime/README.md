@@ -1,0 +1,89 @@
+# `@repo/agent-runtime`
+
+Filesystem + install primitives for the Inteligir desktop agent. Pure Node, **zero Electron deps** — anything that needs `app.isPackaged` or `process.resourcesPath` belongs in `apps/desktop/`, not here.
+
+## What's here
+
+```
+src/
+  seed.ts     seedDirectory, seedFile (atomic via COPYFILE_EXCL), prependPath
+  install.ts  installCliFromGithubRelease — fetch + verify + atomic rename
+```
+
+No `index.ts` barrel. Consumers import directly:
+
+```ts
+import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
+import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
+```
+
+## `installCliFromGithubRelease`
+
+Generic GitHub-release CLI installer. Caller supplies identity + an `artifactName()` that picks the release asset for the current platform; the library does fetch + verify + atomic-rename.
+
+Two artifact shapes are supported because upstream conventions diverge:
+
+```ts
+// Tarball (default) — release ships a .tar.gz, sha256 sidecar verifies download
+await installCliFromGithubRelease({
+  owner: "googleworkspace",
+  repo: "cli",
+  version: "0.22.5",
+  binName: "gws",
+  binDir: "/Users/me/.inteligir/bin",
+  artifactName: () =>
+    process.platform === "darwin" && process.arch === "arm64"
+      ? "google-workspace-cli-aarch64-apple-darwin.tar.gz"
+      : null,
+});
+
+// Plain binary — release ships the binary itself, version-check verifies it
+await installCliFromGithubRelease({
+  owner: "vercel-labs",
+  repo: "agent-browser",
+  version: "0.26.0",
+  binName: "agent-browser",
+  binDir: "/Users/me/.inteligir/bin",
+  artifactKind: "binary",
+  verify: "version-check",
+  artifactName: () =>
+    process.platform === "darwin" && process.arch === "arm64" ? "agent-browser-darwin-arm64" : null,
+  postInstall: async (binPath) => {
+    // run a one-time bootstrap (e.g. install a browser runtime)
+    await runOnce(binPath, ["install"]);
+  },
+});
+```
+
+### Knobs
+
+| Knob           | Default            | Why                                                                                                |
+| -------------- | ------------------ | -------------------------------------------------------------------------------------------------- |
+| `tagPrefix`    | `"v"`              | Some Go projects tag bare versions; set `""` to opt out                                            |
+| `artifactKind` | `"tarball"`        | Set `"binary"` when the release asset IS the bin                                                   |
+| `verify`       | `"sha256-sidecar"` | Set `"version-check"` when upstream doesn't publish checksums                                      |
+| `postInstall`  | none               | Hook for one-time post-install steps (browser runtime, plugin DB, etc.). Errors logged, not thrown |
+
+Why `artifactName` is caller-supplied: every upstream uses a different filename convention (LLVM triples, `darwin_amd64`, `darwin-arm64`, `macOS_arm64`…). Letting the caller compute it keeps this library out of the matching game.
+
+### Behavior
+
+- Skips install if `${binDir}/${binName} --version` already reports `version`.
+- Stages download/extract in `${binDir}/.${binName}-staging-${pid}/`. Atomic-renames into place. Mid-flight failure can't corrupt the currently-installed binary.
+- `sha256-sidecar` mode: only guards download corruption — same origin as the artifact, no protection against compromised upstream.
+- `version-check` mode: weaker, but the only option when upstream doesn't publish checksums. Probes the staged binary before rename so a wrong-arch download doesn't get installed.
+- Swallows failures with a `console.error`. Onboarding must succeed offline; the calling tool surfaces "binary not installed" later.
+
+## When to add to this package
+
+✅ **Yes** — when:
+
+- The primitive has zero Electron dependency.
+- It's pure infrastructure: filesystem, network download, PATH manipulation, checksum verification.
+- A future consumer (CLI, headless runner, test harness) might want it.
+
+❌ **No** — when:
+
+- It needs `app.isPackaged`, `process.resourcesPath`, `BrowserWindow`, etc. → `apps/desktop/src/main/`
+- It's a pi extension's tool registration → `apps/desktop/src/agent/<name>/extension.ts`
+- It's specific to one integration's quirks (e.g. gws's OAuth client_secret seed). Keep generic primitives here, glue in the consumer.

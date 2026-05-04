@@ -18,14 +18,23 @@ export function seedDirectory(src: string, dest: string): boolean {
 
 /**
  * Copy a single file from `src` to `dest` if `dest` does not yet exist.
- * Creates the parent directory if needed. Returns true if the copy happened.
+ * Creates the parent directory if needed. Returns true if the copy happened,
+ * false if `src` is missing or `dest` already existed.
+ *
+ * Uses COPYFILE_EXCL — atomic "never overwrite" with no TOCTOU window between
+ * an existence check and the copy. Matters for sensitive files (OAuth secrets,
+ * tokens) where a concurrent launch must not double-write.
  */
 export function seedFile(src: string, dest: string): boolean {
   if (!fs.existsSync(src)) return false;
-  if (fs.existsSync(dest)) return false;
   fs.mkdirSync(path.dirname(dest), { recursive: true });
-  fs.copyFileSync(src, dest);
-  return true;
+  try {
+    fs.copyFileSync(src, dest, fs.constants.COPYFILE_EXCL);
+    return true;
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw err;
+  }
 }
 
 /**
