@@ -58,16 +58,17 @@ async function installPeekabooBinary(opts: PeekabooBootstrapOptions): Promise<vo
 
   // Single universal binary (arm64 + x86_64) — no per-arch suffix.
   const tarball = "peekaboo-macos-universal.tar.gz";
-  // Tarball and its sha256 share the same origin, so the checksum only
+  // Tarball and its checksum share the same origin, so the hash check only
   // guards against download corruption — not a compromised release.
-  const baseUrl = `https://github.com/steipete/peekaboo/releases/download/v${opts.version}`;
+  const baseUrl = `https://github.com/openclaw/Peekaboo/releases/download/v${opts.version}`;
   const tarballUrl = `${baseUrl}/${tarball}`;
-  const shaUrl = `${tarballUrl}.sha256`;
+  const checksumsUrl = `${baseUrl}/checksums.txt`;
   const tarGzPath = path.join(opts.binDir, tarball);
   // Stage the extraction so a mid-extract failure can't corrupt the
   // currently-installed binary — we atomically rename on success.
   const stagingDir = path.join(opts.binDir, `.peekaboo-staging-${process.pid}`);
-  const stagedPeekabooPath = path.join(stagingDir, "peekaboo");
+  // Tarball nests the binary under `peekaboo-macos-universal/peekaboo`.
+  const stagedPeekabooPath = path.join(stagingDir, "peekaboo-macos-universal", "peekaboo");
 
   const cleanup = () => {
     try {
@@ -86,12 +87,12 @@ async function installPeekabooBinary(opts: PeekabooBootstrapOptions): Promise<vo
     fs.mkdirSync(opts.binDir, { recursive: true });
     console.log(`[peekaboo] downloading binary from ${tarballUrl}`);
 
-    const [tarResp, shaResp] = await Promise.all([
+    const [tarResp, checksumsResp] = await Promise.all([
       fetch(tarballUrl, {
         redirect: "follow",
         signal: AbortSignal.timeout(60_000),
       }),
-      fetch(shaUrl, {
+      fetch(checksumsUrl, {
         redirect: "follow",
         signal: AbortSignal.timeout(60_000),
       }),
@@ -99,14 +100,21 @@ async function installPeekabooBinary(opts: PeekabooBootstrapOptions): Promise<vo
     if (!tarResp.ok || !tarResp.body) {
       throw new Error(`tarball fetch failed: ${tarResp.status} ${tarResp.statusText}`);
     }
-    if (!shaResp.ok) {
-      throw new Error(`checksum fetch failed: ${shaResp.status} ${shaResp.statusText}`);
+    if (!checksumsResp.ok) {
+      throw new Error(`checksums fetch failed: ${checksumsResp.status} ${checksumsResp.statusText}`);
     }
 
-    const shaText = await shaResp.text();
-    const expectedSha = shaText.trim().split(/\s+/)[0]?.toLowerCase();
+    // checksums.txt is an aggregate file: each line is `<hex>  <filename>`.
+    // Find the line for our tarball — there's only one universal asset, but
+    // future-proof by matching on filename rather than line position.
+    const checksumsText = await checksumsResp.text();
+    const expectedSha = checksumsText
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/))
+      .find(([, name]) => name === tarball)?.[0]
+      ?.toLowerCase();
     if (!expectedSha || !/^[0-9a-f]{64}$/.test(expectedSha)) {
-      throw new Error(`invalid checksum format: ${shaText.slice(0, 80)}`);
+      throw new Error(`checksum for ${tarball} not found in checksums.txt`);
     }
 
     const hash = createHash("sha256");
@@ -128,10 +136,11 @@ async function installPeekabooBinary(opts: PeekabooBootstrapOptions): Promise<vo
     }
 
     fs.mkdirSync(stagingDir, { recursive: true });
+    // Tarball nests the binary one level deep — extract just that path.
     await new Promise<void>((resolve, reject) => {
       execFile(
         "tar",
-        ["xzf", tarGzPath, "-C", stagingDir, "peekaboo"],
+        ["xzf", tarGzPath, "-C", stagingDir, "peekaboo-macos-universal/peekaboo"],
         { timeout: 30_000 },
         (err) => {
           if (err) reject(err);

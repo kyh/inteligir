@@ -80,7 +80,11 @@ function runPeekaboo(
           reject(new Error("peekaboo binary not installed"));
           return;
         }
-        const code = (err as { code?: number } | null)?.code ?? (err ? 1 : 0);
+        // err.code is a number for normal non-zero exits, but a string for
+        // system errors like "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" — only trust
+        // numeric values; anything else means the child didn't run cleanly.
+        const rawCode = (err as { code?: unknown } | null)?.code;
+        const code = typeof rawCode === "number" ? rawCode : err ? 1 : 0;
         resolve({ stdout: String(stdout), stderr: String(stderr), code });
       },
     );
