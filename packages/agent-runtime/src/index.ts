@@ -12,3 +12,7 @@ export {
   installAgentBrowser,
   type AgentBrowserBootstrapOptions,
 } from "./agent-browser";
+export {
+  installPeekaboo,
+  type PeekabooBootstrapOptions,
+} from "./peekaboo";

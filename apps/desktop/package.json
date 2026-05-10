@@ -15,14 +15,13 @@
     "dev": "electron-vite dev --remoteDebuggingPort 9222",
     "start": "electron-vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "typecheck": "tsc --noEmit",
     "verify:runtime-model-registry": "node scripts/verify-runtime-model-registry.mjs",
     "verify:packaged-runtime-deps": "node scripts/verify-packaged-runtime-deps.mjs",
     "verify:release": "pnpm verify:runtime-model-registry",
     "verify:packaged": "pnpm verify:packaged-runtime-deps"
   },
   "dependencies": {
-    "@injaneity/pi-computer-use": "^0.2.1",
     "@mariozechner/pi-ai": "^0.72.1",
     "@mariozechner/pi-coding-agent": "^0.72.1",
     "@react-three/drei": "^10.7.7",

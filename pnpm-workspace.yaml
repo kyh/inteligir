@@ -31,7 +31,6 @@ catalog:
 linkWorkspacePackages: true
 
 onlyBuiltDependencies:
-  - "@injaneity/pi-computer-use"
   - "@tailwindcss/oxide"
   - electron
   - esbuild

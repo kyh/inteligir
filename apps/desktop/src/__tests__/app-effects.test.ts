@@ -7,6 +7,7 @@ function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     seedResources: vi.fn(),
     installGws: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     installAgentBrowser: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    installPeekaboo: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
@@ -41,6 +42,7 @@ describe("runEffect", () => {
     expect(deps.seedResources).toHaveBeenCalledOnce();
     expect(deps.installGws).toHaveBeenCalledOnce();
     expect(deps.installAgentBrowser).toHaveBeenCalledOnce();
+    expect(deps.installPeekaboo).toHaveBeenCalledOnce();
     expect(result).toEqual({ type: "SETUP_OK" });
   });
 

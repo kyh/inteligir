@@ -18,6 +18,7 @@ import {
 import {
   installAgentBrowser as installAgentBrowserBootstrap,
   installGws as installGwsBootstrap,
+  installPeekaboo as installPeekabooBootstrap,
   prependPath,
   seedDirectory,
   seedFile,
@@ -26,7 +27,6 @@ import {
 import open from "open";
 
 import type { ExtensionToolInfo } from "@/shared/ipc";
-import { seedComputerUseHelper } from "@/agent/computer-use-helper";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
@@ -41,6 +41,7 @@ const AUTH_PROVIDER = "openai-codex";
 const MODEL_ID = "gpt-5.5";
 const GWS_VERSION = "0.22.5";
 const AGENT_BROWSER_VERSION = "0.26.0";
+const PEEKABOO_VERSION = "3.0.0";
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here */
 const AGENT_DIR = inteligirPath();
@@ -78,12 +79,6 @@ export function seedResources(): void {
 
   prependPath(BIN_DIR);
 
-  // Run independently of the bundled agent resources dir below — the bridge
-  // binary is shipped via electron-builder extraResources at a different path
-  // (process.resourcesPath/computer-use/), so it must not be coupled to the
-  // early-return when ~/resources/agent is missing.
-  seedComputerUseHelper();
-
   const src = getBundledResourcesDir();
   if (!fs.existsSync(src)) {
     console.warn("[agent] bundled resources not found at", src);
@@ -118,6 +113,13 @@ export async function installAgentBrowser(): Promise<void> {
   });
 }
 
+export async function installPeekaboo(): Promise<void> {
+  await installPeekabooBootstrap({
+    version: PEEKABOO_VERSION,
+    binDir: BIN_DIR,
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Extension factories
 // ---------------------------------------------------------------------------
@@ -125,12 +127,12 @@ export async function installAgentBrowser(): Promise<void> {
 async function getExtensionFactories(): Promise<ExtensionFactory[]> {
   const { registerBrowserExtension } = await import("@/agent/browser-tool");
   const { registerGwsExtension } = await import("@/agent/gws-tool");
-  const { registerComputerUseExtension } = await import("@/agent/computer-use-tool");
+  const { registerPeekabooExtension } = await import("@/agent/peekaboo-tool");
   return [
     registerTasksExtension,
     registerBrowserExtension,
     registerGwsExtension,
-    registerComputerUseExtension,
+    registerPeekabooExtension,
   ];
 }
 

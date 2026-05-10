@@ -15,6 +15,7 @@ vi.mock("@/agent/setup", () => ({
   seedResources: vi.fn(),
   installGws: vi.fn().mockResolvedValue(undefined),
   installAgentBrowser: vi.fn().mockResolvedValue(undefined),
+  installPeekaboo: vi.fn().mockResolvedValue(undefined),
   teardownResources: vi.fn(),
 }));
 
@@ -24,6 +25,7 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
     seedResources: vi.fn(),
     installGws: vi.fn().mockResolvedValue(undefined),
     installAgentBrowser: vi.fn().mockResolvedValue(undefined),
+    installPeekaboo: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(undefined),
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
@@ -79,6 +81,7 @@ describe("AppMachine", () => {
     expect(deps.seedResources).toHaveBeenCalledOnce();
     expect(deps.installGws).toHaveBeenCalledOnce();
     expect(deps.installAgentBrowser).toHaveBeenCalledOnce();
+    expect(deps.installPeekaboo).toHaveBeenCalledOnce();
     expect(machine.getState()).toEqual({ phase: "ready", agent: "idle" });
   });
 
