@@ -24,11 +24,7 @@ const PEEKABOO_MAX_BUFFER = 50 * 1024 * 1024;
 
 const PeekabooRunSchema = Type.Object({
   args: Type.Array(Type.String(), {
-    description:
-      "Arguments to pass to peekaboo, e.g. ['see', '--mode=window'], ['click', '@e2'], " +
-      "['type', 'hello'], ['window', 'list', '--app', 'Safari'], ['menu', 'list', '--app', 'Finder']. " +
-      "Run with ['--help'] or [<command>, '--help'] to discover commands. Common workflow: " +
-      "['see'] to capture and inspect, then ['click', <ref>] / ['set-value', <ref>, <text>] / etc.",
+    description: "Arguments to pass to peekaboo, e.g. ['see'], ['click', '@e2'], ['type', 'hello'].",
   }),
   stdin: Type.Optional(Type.String({ description: "Optional stdin to pipe to peekaboo." })),
 });

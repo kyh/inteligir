@@ -56,8 +56,10 @@ async function installPeekabooBinary(opts: PeekabooBootstrapOptions): Promise<vo
   const installedVersion = await getInstalledPeekabooVersion(peekabooPath);
   if (installedVersion === opts.version) return;
 
-  // Single universal binary (arm64 + x86_64) — no per-arch suffix.
-  const tarball = "peekaboo-macos-universal.tar.gz";
+  // Universal binary (arm64 + x86_64); tarball nests it under a same-named
+  // directory which we strip during extract.
+  const assetDir = "peekaboo-macos-universal";
+  const tarball = `${assetDir}.tar.gz`;
   // Tarball and its checksum share the same origin, so the hash check only
   // guards against download corruption — not a compromised release.
   const baseUrl = `https://github.com/openclaw/Peekaboo/releases/download/v${opts.version}`;
@@ -67,8 +69,7 @@ async function installPeekabooBinary(opts: PeekabooBootstrapOptions): Promise<vo
   // Stage the extraction so a mid-extract failure can't corrupt the
   // currently-installed binary — we atomically rename on success.
   const stagingDir = path.join(opts.binDir, `.peekaboo-staging-${process.pid}`);
-  // Tarball nests the binary under `peekaboo-macos-universal/peekaboo`.
-  const stagedPeekabooPath = path.join(stagingDir, "peekaboo-macos-universal", "peekaboo");
+  const stagedPeekabooPath = path.join(stagingDir, assetDir, "peekaboo");
 
   const cleanup = () => {
     try {
@@ -136,11 +137,10 @@ async function installPeekabooBinary(opts: PeekabooBootstrapOptions): Promise<vo
     }
 
     fs.mkdirSync(stagingDir, { recursive: true });
-    // Tarball nests the binary one level deep — extract just that path.
     await new Promise<void>((resolve, reject) => {
       execFile(
         "tar",
-        ["xzf", tarGzPath, "-C", stagingDir, "peekaboo-macos-universal/peekaboo"],
+        ["xzf", tarGzPath, "-C", stagingDir, `${assetDir}/peekaboo`],
         { timeout: 30_000 },
         (err) => {
           if (err) reject(err);
