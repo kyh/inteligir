@@ -122,12 +122,20 @@ export const PromptInput = ({
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
-      return patterns.some((pattern) => {
-        if (pattern.endsWith("/*")) {
-          const prefix = pattern.slice(0, -1);
-          return f.type.startsWith(prefix);
+      const filename = f.name.toLowerCase();
+      const mime = f.type.toLowerCase();
+      return patterns.some((rawPattern) => {
+        const pattern = rawPattern.toLowerCase();
+        // ".png" / ".jpg" — extension match against filename
+        if (pattern.startsWith(".")) {
+          return filename.endsWith(pattern);
         }
-        return f.type === pattern;
+        // "image/*" — MIME prefix
+        if (pattern.endsWith("/*")) {
+          return mime.startsWith(pattern.slice(0, -1));
+        }
+        // "image/png" — exact MIME
+        return mime === pattern;
       });
     },
     [accept],

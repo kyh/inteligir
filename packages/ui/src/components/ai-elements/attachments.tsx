@@ -280,10 +280,10 @@ export const AttachmentRemove = ({
         variant === "list" && ["size-8 shrink-0 rounded p-0", "[&>svg]:size-4"],
         className,
       )}
-      onClick={handleClick}
       type="button"
       variant="ghost"
       {...props}
+      onClick={handleClick}
     >
       {children ?? <XIcon />}
       <span className="sr-only">{label}</span>

@@ -93,6 +93,9 @@ export const Reasoning = memo(
     useEffect(() => {
       if (isStreaming) {
         hasEverStreamedRef.current = true;
+        // Re-arm auto-close for the next end-of-streaming when a component
+        // instance is reused across multiple stream cycles.
+        setHasAutoClosed(false);
         if (startTimeRef.current === null) {
           startTimeRef.current = Date.now();
         }

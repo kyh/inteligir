@@ -209,7 +209,7 @@ function ComposerTextarea({
     <PromptInputTextarea
       className="min-h-10 text-xs"
       placeholder={busy ? "Queue message..." : "Message..."}
-      onChange={(e) => onHasInputChange(e.currentTarget.value.length > 0)}
+      onChange={(e) => onHasInputChange(e.currentTarget.value.trim().length > 0)}
       onKeyDown={handleKeyDown}
     />
   );
