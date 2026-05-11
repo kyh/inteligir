@@ -138,6 +138,9 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
   reset: () => {
     pipeline?.disconnect();
-    set({ sessionState: "inactive", currentTranscript: "", error: null });
+    // Null the reference so the ensureModelThenConnect entry-guard catches a
+    // reset during an in-flight download (same pattern as init's cleanup).
+    pipeline = null;
+    set({ sessionState: "inactive", currentTranscript: "", error: null, modelState: null });
   },
 }));
