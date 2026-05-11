@@ -24,21 +24,26 @@ async function ensureModelThenConnect(
   set: (patch: Partial<VoiceStore>) => void,
 ): Promise<void> {
   const bridge = getBridge();
-  if (!bridge || !pipeline) return;
+  // Capture the pipeline at call time. If the store is torn down and
+  // re-initialized during an await, the module-level `pipeline` will point at
+  // a NEW instance — checking `=== entryPipeline` prevents this stale path
+  // from auto-connecting (or writing state into) the replacement.
+  const entryPipeline = pipeline;
+  if (!bridge || !entryPipeline) return;
 
   try {
     const status = await bridge.getVoiceModelStatus();
-    if (!pipeline) return;
+    if (pipeline !== entryPipeline) return;
     if (status === "ready") {
-      void pipeline.connect();
+      void entryPipeline.connect();
       return;
     }
 
     set({ sessionState: "downloading_model", error: null });
     const result = await bridge.downloadVoiceModel();
-    if (!pipeline) return;
+    if (pipeline !== entryPipeline) return;
     if (result.ok) {
-      void pipeline.connect();
+      void entryPipeline.connect();
     } else {
       set({
         sessionState: "error",
@@ -46,7 +51,7 @@ async function ensureModelThenConnect(
       });
     }
   } catch (err) {
-    if (!pipeline) return;
+    if (pipeline !== entryPipeline) return;
     set({
       sessionState: "error",
       error: err instanceof Error ? err.message : String(err),
