@@ -264,11 +264,7 @@ function registerIpcHandlers(): void {
     isModelInstalled(__PROJECT_ROOT__) ? "ready" : "missing",
   );
 
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () =>
-    downloadModel(__PROJECT_ROOT__, (event) => {
-      broadcastToRenderer(IPC_CHANNELS.VOICE_MODEL_STATE, event);
-    }),
-  );
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () => downloadModel(__PROJECT_ROOT__));
 
   // ---- Notifications --------------------------------------------------------
 

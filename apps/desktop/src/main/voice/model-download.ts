@@ -9,26 +9,18 @@ import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 
-import type { VoiceModelStateEvent } from "@/shared/ipc";
+import { broadcastToRenderer } from "@/main/lib/broadcast";
+import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
 
 export const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
 const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_NAME}.tar.bz2`;
 
 export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 
-export type ProgressCallback = (event: VoiceModelStateEvent) => void;
-
 let downloadInflight: Promise<ModelDownloadResult> | null = null;
-const progressListeners = new Set<ProgressCallback>();
 
-function broadcastProgress(event: VoiceModelStateEvent): void {
-  for (const cb of progressListeners) {
-    try {
-      cb(event);
-    } catch {
-      /* listener errors shouldn't break the download */
-    }
-  }
+function emitProgress(event: VoiceModelStateEvent): void {
+  broadcastToRenderer(IPC_CHANNELS.VOICE_MODEL_STATE, event);
 }
 
 export function getModelDir(projectRoot: string): string {
@@ -39,26 +31,17 @@ export function isModelInstalled(projectRoot: string): boolean {
   return existsSync(join(getModelDir(projectRoot), "tokens.txt"));
 }
 
-export function downloadModel(
-  projectRoot: string,
-  onProgress: ProgressCallback,
-): Promise<ModelDownloadResult> {
-  // Latecomers join the in-flight download and still receive every event.
-  progressListeners.add(onProgress);
+export function downloadModel(projectRoot: string): Promise<ModelDownloadResult> {
   if (downloadInflight) return downloadInflight;
-  downloadInflight = doDownload(projectRoot, broadcastProgress).finally(() => {
+  downloadInflight = doDownload(projectRoot).finally(() => {
     downloadInflight = null;
-    progressListeners.clear();
   });
   return downloadInflight;
 }
 
-async function doDownload(
-  projectRoot: string,
-  onProgress: ProgressCallback,
-): Promise<ModelDownloadResult> {
+async function doDownload(projectRoot: string): Promise<ModelDownloadResult> {
   if (isModelInstalled(projectRoot)) {
-    onProgress({ status: "ready" });
+    emitProgress({ status: "ready" });
     return { ok: true };
   }
 
@@ -76,7 +59,7 @@ async function doDownload(
       // a renderer setState, and fetch fires onProgress per chunk read.
       if (percent === lastPercent) return;
       lastPercent = percent;
-      onProgress({
+      emitProgress({
         status: "downloading",
         percent,
         receivedBytes: received,
@@ -84,19 +67,19 @@ async function doDownload(
       });
     });
 
-    onProgress({ status: "extracting" });
+    emitProgress({ status: "extracting" });
     await extract(archive, outRoot);
     await rm(archive).catch(() => {});
 
     if (!isModelInstalled(projectRoot)) {
       throw new Error(`Extraction completed but expected files missing in ${dir}`);
     }
-    onProgress({ status: "ready" });
+    emitProgress({ status: "ready" });
     return { ok: true };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await rm(archive).catch(() => {});
-    onProgress({ status: "error", message });
+    emitProgress({ status: "error", message });
     return { ok: false, error: message };
   }
 }

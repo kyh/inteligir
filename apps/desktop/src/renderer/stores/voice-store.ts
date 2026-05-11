@@ -108,7 +108,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
       pipeline = null;
       // Reset transient state so a remount doesn't inherit "downloading_model"
       // / "connecting" / etc. from an in-flight teardown.
-      set({ sessionState: "inactive", currentTranscript: "", error: null });
+      set({ sessionState: "inactive", currentTranscript: "", error: null, modelState: null });
     };
   },
 

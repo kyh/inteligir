@@ -175,9 +175,7 @@ function broadcast(state: AppState): void {
 }
 
 async function downloadVoiceModel(): Promise<void> {
-  const result = await downloadModel(__PROJECT_ROOT__, (event) => {
-    broadcastToRenderer(IPC_CHANNELS.VOICE_MODEL_STATE, event);
-  });
+  const result = await downloadModel(__PROJECT_ROOT__);
   if (!result.ok) {
     throw new Error(result.error);
   }
