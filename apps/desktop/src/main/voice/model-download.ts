@@ -39,10 +39,6 @@ export function isModelInstalled(projectRoot: string): boolean {
   return existsSync(join(getModelDir(projectRoot), "tokens.txt"));
 }
 
-export function getModelStatus(projectRoot: string): "ready" | "missing" {
-  return isModelInstalled(projectRoot) ? "ready" : "missing";
-}
-
 export function downloadModel(
   projectRoot: string,
   onProgress: ProgressCallback,

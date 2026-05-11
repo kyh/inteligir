@@ -44,9 +44,8 @@ export async function startSTT(
   processorNode.onaudioprocess = (event) => {
     if (stopped) return;
     const float32 = event.inputBuffer.getChannelData(0);
-    // Copy because the underlying buffer is reused across callbacks.
-    const copy = new Float32Array(float32.length);
-    copy.set(float32);
+    // slice() copies because the source buffer is reused across callbacks.
+    const copy = float32.slice();
     try {
       bridge.sendSttAudio(copy.buffer);
     } catch (err) {

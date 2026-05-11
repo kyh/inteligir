@@ -23,7 +23,7 @@ import {
   startSession,
   stopSession,
 } from "@/main/voice/parakeet";
-import { downloadModel, getModelStatus } from "@/main/voice/model-download";
+import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
@@ -260,7 +260,9 @@ function registerIpcHandlers(): void {
     stopSession();
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_STATUS, () => getModelStatus(__PROJECT_ROOT__));
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_STATUS, () =>
+    isModelInstalled(__PROJECT_ROOT__) ? "ready" : "missing",
+  );
 
   createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () =>
     downloadModel(__PROJECT_ROOT__, (event) => {
