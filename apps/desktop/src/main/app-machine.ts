@@ -4,9 +4,6 @@
 
 import {
   Agent,
-  installAgentBrowser,
-  installGws,
-  installPeekaboo,
   isLoggedIn,
   isSetupComplete,
   login,
@@ -177,9 +174,6 @@ function broadcast(state: AppState): void {
 const realDeps: EffectDeps = {
   login,
   seedResources,
-  installGws,
-  installAgentBrowser,
-  installPeekaboo,
   startAgent,
   stopAgent,
   teardownResources,

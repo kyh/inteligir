@@ -1,9 +1,16 @@
 /**
- * Browser tool - thin proxy to the bundled `agent-browser` CLI.
+ * Browser extension — thin proxy to the bundled `agent-browser` CLI.
  *
- * `agent-browser` owns browser lifecycle, navigation waits, element refs,
- * screenshots, tabs, and its daemon session. Inteligir only owns the tool
- * affordance and result shaping.
+ * setup() installs the agent-browser binary from its GitHub release and
+ * runs `agent-browser install` once to provision the browser runtime.
+ * register() shells out to the binary on each tool invocation; agent-browser
+ * owns lifecycle, navigation waits, element refs, screenshots, tabs, and
+ * its daemon session. Inteligir only owns the tool affordance and result
+ * shaping (specifically: surfacing screenshots as image content).
+ *
+ * Bundle is non-critical — a failed install logs and continues. The tool
+ * itself reports "agent-browser binary not installed" on first invocation
+ * if the binary is missing.
  */
 
 import { execFile, type ExecFileException } from "node:child_process";
@@ -11,18 +18,18 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
-import type { ExtensionAPI } from "@repo/pi-driver";
+import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 
 import { inteligirPath } from "@/main/lib/json-store";
+import type { PiExtensionBundle } from "@/agent/extension";
 
-const BROWSER_PATH = path.join(
-  inteligirPath("bin"),
-  process.platform === "win32" ? "agent-browser.exe" : "agent-browser",
-);
-const SCREENSHOT_DIR = inteligirPath("screenshots");
+const AGENT_BROWSER_VERSION = "0.26.0";
 const BROWSER_TIMEOUT_MS = 120_000;
 const BROWSER_MAX_BUFFER = 20 * 1024 * 1024;
 const BROWSER_SESSION = "inteligir";
+const SCREENSHOT_DIR = inteligirPath("screenshots");
+
+const binaryName = process.platform === "win32" ? "agent-browser.exe" : "agent-browser";
 
 type BrowserTextContent = { type: "text"; text: string };
 type BrowserImageContent = { type: "image"; data: string; mimeType: string };
@@ -36,30 +43,80 @@ const BrowserRunSchema = Type.Object({
     description:
       "Arguments to pass to agent-browser, e.g. ['open', 'amazon.com'], ['snapshot', '-i'], ['click', '@e2'], ['screenshot', '--full']. Run ['--help'] to discover commands.",
   }),
-  stdin: Type.Optional(
-    Type.String({ description: "Optional stdin to pipe to agent-browser." }),
-  ),
+  stdin: Type.Optional(Type.String({ description: "Optional stdin to pipe to agent-browser." })),
 });
 
-export function registerBrowserExtension(pi: ExtensionAPI): void {
-  pi.registerTool({
-    name: "browser",
-    label: "browser",
-    description:
-      "Browser automation CLI powered by agent-browser. " +
-      "Use args exactly as CLI args after `agent-browser`: ['open', 'amazon.com'], ['snapshot', '-i'], ['click', '@e2'], ['fill', '@e3', 'text'], ['screenshot', '--full']. " +
-      "One shared headed session is used for all calls.",
-    parameters: BrowserRunSchema,
-    execute: async (_toolCallId, params: Static<typeof BrowserRunSchema>) => {
-      try {
-        const result = await runAgentBrowser(params.args, params.stdin);
-        return await toToolResult(params.args, result);
-      } catch (err) {
-        return textResult(
-          `browser error: ${err instanceof Error ? err.message : String(err)}`,
-        );
+const browserExtension: PiExtensionBundle = {
+  name: "browser",
+  setup: async ({ binDir }) => {
+    await installCliFromGithubRelease({
+      owner: "vercel-labs",
+      repo: "agent-browser",
+      version: AGENT_BROWSER_VERSION,
+      binName: binaryName,
+      binDir,
+      artifactKind: "binary",
+      verify: "version-check",
+      artifactName: agentBrowserAssetName,
+      postInstall: installBrowserRuntime,
+    });
+  },
+  register: ({ binDir }) => {
+    const browserPath = path.join(binDir, binaryName);
+
+    return (pi) => {
+      pi.registerTool({
+        name: "browser",
+        label: "browser",
+        description:
+          "Browser automation CLI powered by agent-browser. " +
+          "Use args exactly as CLI args after `agent-browser`: ['open', 'amazon.com'], ['snapshot', '-i'], ['click', '@e2'], ['fill', '@e3', 'text'], ['screenshot', '--full']. " +
+          "One shared headed session is used for all calls.",
+        parameters: BrowserRunSchema,
+        execute: async (_toolCallId, params: Static<typeof BrowserRunSchema>) => {
+          try {
+            const result = await runAgentBrowser(browserPath, params.args, params.stdin);
+            return await toToolResult(params.args, result);
+          } catch (err) {
+            return textResult(`browser error: ${err instanceof Error ? err.message : String(err)}`);
+          }
+        },
+      });
+    };
+  },
+};
+
+export default browserExtension;
+
+function agentBrowserAssetName(): string | null {
+  switch (`${process.platform}/${process.arch}`) {
+    case "darwin/arm64":
+      return "agent-browser-darwin-arm64";
+    case "darwin/x64":
+      return "agent-browser-darwin-x64";
+    case "linux/arm64":
+      return "agent-browser-linux-arm64";
+    case "linux/x64":
+      return "agent-browser-linux-x64";
+    case "win32/x64":
+      return "agent-browser-win32-x64.exe";
+    default:
+      return null;
+  }
+}
+
+function installBrowserRuntime(binPath: string): Promise<void> {
+  // agent-browser ships its own runtime install command — needs to run once
+  // post-binary-install to provision the browser engine. Up to 5 minutes;
+  // log-and-continue on failure since the binary is already in place.
+  return new Promise<void>((resolve, reject) => {
+    execFile(binPath, ["install"], { timeout: 300_000 }, (err, stdout, stderr) => {
+      if (err) {
+        reject(new Error(`browser runtime install failed: ${String(stdout)}${String(stderr)}`));
+        return;
       }
-    },
+      resolve();
+    });
   });
 }
 
@@ -72,12 +129,13 @@ function isEnoent(err: ExecFileException | null): boolean {
 }
 
 function runAgentBrowser(
+  browserPath: string,
   args: string[],
   stdin?: string,
 ): Promise<{ stdout: string; stderr: string; code: number }> {
   return new Promise((resolve, reject) => {
     const child = execFile(
-      BROWSER_PATH,
+      browserPath,
       args,
       {
         timeout: BROWSER_TIMEOUT_MS,

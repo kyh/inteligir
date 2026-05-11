@@ -1,0 +1,75 @@
+/**
+ * Pi extension bundle — pairs a pi extension factory with optional one-time
+ * setup (binary install, config seed, etc.) so each third-party integration
+ * can own its full lifecycle in one module.
+ *
+ * Bundles are auto-discovered from `./<name>/extension.ts` default exports
+ * by setup.ts. setup() and register() receive distinct contexts so each
+ * phase only sees what's meaningful at that point in the lifecycle.
+ */
+
+import type { ExtensionFactory } from "@repo/pi-driver";
+
+/**
+ * Available at agent-start time, every time register() is called. Long-lived
+ * paths the running tool may need (e.g. an installed binary location).
+ */
+export type ExtensionRegisterContext = {
+  /** Shared bin dir on PATH for installed CLIs (~/.inteligir/bin). */
+  binDir: string;
+};
+
+/**
+ * Available during onboarding, only inside setup(). Superset of register
+ * context — adds bundled-resources access since seeding from packaged assets
+ * is a setup-time concern (you can't copy them at agent-start, too late).
+ */
+export type ExtensionSetupContext = ExtensionRegisterContext & {
+  /** Bundled-resources root — packaged assets the extension may copy from. */
+  bundledResourcesDir: string;
+};
+
+export type PiExtensionBundle = {
+  /** Used for log prefixes and stable sort order. Should match the registered tool name. */
+  name: string;
+  /**
+   * If true, a thrown setup() aborts onboarding (SETUP_FAIL). Default false:
+   * setup is best-effort and the tool surfaces its own failure later (e.g.
+   * ENOENT when the agent invokes a missing binary).
+   */
+  critical?: boolean;
+  /**
+   * One-time setup. Idempotent — runs every SETUP, not just first launch.
+   * Omit when the integration is pure in-process (HTTP, in-process API)
+   * with nothing to install.
+   */
+  setup?: (ctx: ExtensionSetupContext) => Promise<void>;
+  /**
+   * Build a pi ExtensionFactory bound to the given context. Curried so the
+   * factory can close over paths (e.g. installed binary location) without
+   * the bundle reaching into module-level inteligir helpers.
+   */
+  register: (ctx: ExtensionRegisterContext) => ExtensionFactory;
+};
+
+/**
+ * Run each bundle's setup() in order. Non-critical failures log and continue;
+ * critical failures rethrow so callers can surface them (e.g. as SETUP_FAIL
+ * in the app state machine).
+ *
+ * Extracted for unit testing — see __tests__/extension.test.ts.
+ */
+export async function runBundleSetups(
+  bundles: PiExtensionBundle[],
+  ctx: ExtensionSetupContext,
+): Promise<void> {
+  for (const bundle of bundles) {
+    if (!bundle.setup) continue;
+    try {
+      await bundle.setup(ctx);
+    } catch (err) {
+      if (bundle.critical) throw err;
+      console.error(`[agent] ${bundle.name} setup failed (continuing):`, err);
+    }
+  }
+}

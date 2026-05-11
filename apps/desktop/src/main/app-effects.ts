@@ -10,10 +10,7 @@ import type { EffectTag } from "./app-reducer";
 
 export type EffectDeps = {
   login: () => Promise<void>;
-  seedResources: () => void;
-  installGws: () => Promise<void>;
-  installAgentBrowser: () => Promise<void>;
-  installPeekaboo: () => Promise<void>;
+  seedResources: () => Promise<void>;
   startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   teardownResources: () => void;
@@ -33,12 +30,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
 
     case "SETUP": {
       try {
-        deps.seedResources();
-        await Promise.all([
-          deps.installGws(),
-          deps.installAgentBrowser(),
-          deps.installPeekaboo(),
-        ]);
+        await deps.seedResources();
         await deps.startAgent();
         return { type: "SETUP_OK" };
       } catch (err) {
