@@ -1,15 +1,17 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type ClipboardEvent,
-  type FormEvent,
-  type KeyboardEvent,
-} from "react";
+import { useCallback, useState } from "react";
 import { ImageIcon, ListPlusIcon, SendIcon, SquareIcon, XIcon, ZapIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
+import {
+  PromptInput,
+  PromptInputBody,
+  PromptInputButton,
+  PromptInputSubmit,
+  PromptInputTextarea,
+  PromptInputToolbar,
+  PromptInputTools,
+  usePromptInputAttachments,
+  type PromptInputMessage,
+} from "@repo/ui/components/ai-elements/prompt-input";
 
 import type { ImageAttachment } from "@/shared/voice";
 import { getSessionStatus, type SessionStatus } from "@/shared/agent";
@@ -23,41 +25,20 @@ const statusColors: Record<SessionStatus, string> = {
 };
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
-
-// Practical caps on attachments. The base64 payload is held in renderer state
-// and serialized over IPC, so unbounded pastes/picks can stall the UI and the
-// IPC channel. Limits chosen to comfortably fit a few screenshots without
-// approaching Electron's IPC message limits.
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MiB per image
 
-// Read a File as base64. Strips the `data:<mime>;base64,` prefix that
-// FileReader.readAsDataURL produces — pi-ai's ImageContent.data wants the
-// raw base64 payload only.
-function readFileAsBase64(file: File): Promise<ImageAttachment> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result;
-      if (typeof result !== "string") {
-        reject(new Error("FileReader returned non-string"));
-        return;
-      }
-      const commaIdx = result.indexOf(",");
-      const data = commaIdx >= 0 ? result.slice(commaIdx + 1) : result;
-      resolve({ data, mimeType: file.type || "image/png" });
-    };
-    reader.onerror = () => reject(reader.error ?? new Error("FileReader error"));
-    reader.readAsDataURL(file);
-  });
+async function dataUrlToImageAttachment(url: string, mimeType: string): Promise<ImageAttachment> {
+  const commaIdx = url.indexOf(",");
+  const data = commaIdx >= 0 ? url.slice(commaIdx + 1) : url;
+  return { data, mimeType: mimeType || "image/png" };
 }
 
 export function Composer() {
-  const [input, setInput] = useState("");
-  const [images, setImages] = useState<ImageAttachment[]>([]);
-
-  const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // PromptInput is uncontrolled by default — we just track a flag for empty state
+  // to drive submit-disabled, plus a steer-intent flag toggled by the bolt button.
+  const [hasInput, setHasInput] = useState(false);
+  const [pendingSteer, setPendingSteer] = useState(false);
 
   const appState = useAgentStore((s) => s.appState);
   const sendMessage = useAgentStore((s) => s.sendMessage);
@@ -70,126 +51,45 @@ export function Composer() {
   const busy = appState.phase === "ready" && appState.agent === "busy";
   const sessionStatus = getSessionStatus(appState);
 
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const attachFiles = useCallback(async (files: FileList | File[]) => {
-    const list = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (list.length === 0) return;
-
-    const accepted: File[] = [];
-    let skippedTooLarge = 0;
-    for (const file of list) {
-      if (file.size > MAX_ATTACHMENT_BYTES) {
-        skippedTooLarge++;
-        continue;
-      }
-      accepted.push(file);
-    }
-    if (skippedTooLarge > 0) {
-      console.warn(
-        `[composer] skipped ${skippedTooLarge} image(s) exceeding ${MAX_ATTACHMENT_BYTES} bytes`,
+  const handleSubmit = useCallback(
+    async (message: PromptInputMessage) => {
+      const text = message.text.trim();
+      const fileImages = message.files.filter(
+        (f) => f.mediaType?.startsWith("image/") && f.url,
       );
-    }
-    if (accepted.length === 0) return;
+      if (!text && fileImages.length === 0) return;
 
-    const results = await Promise.all(accepted.map(readFileAsBase64));
-    setImages((prev) => {
-      const next = [...prev, ...results];
-      if (next.length > MAX_ATTACHMENT_COUNT) {
-        console.warn(
-          `[composer] capped attachments at ${MAX_ATTACHMENT_COUNT}, dropping ${next.length - MAX_ATTACHMENT_COUNT}`,
-        );
-        return next.slice(0, MAX_ATTACHMENT_COUNT);
-      }
-      return next;
-    });
-  }, []);
-
-  const onPickFiles = useCallback(
-    (e: ChangeEvent<HTMLInputElement>) => {
-      const files = e.target.files;
-      if (files && files.length > 0) void attachFiles(files);
-      // Allow re-selecting the same file later.
-      e.target.value = "";
-    },
-    [attachFiles],
-  );
-
-  const onPaste = useCallback(
-    (e: ClipboardEvent<HTMLInputElement>) => {
-      const items = e.clipboardData?.items;
-      if (!items) return;
-      const files: File[] = [];
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        if (!item) continue;
-        if (item.kind === "file" && item.type.startsWith("image/")) {
-          const file = item.getAsFile();
-          if (file) files.push(file);
-        }
-      }
-      if (files.length > 0) {
-        e.preventDefault();
-        void attachFiles(files);
-      }
-    },
-    [attachFiles],
-  );
-
-  const removeImage = useCallback((index: number) => {
-    setImages((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  // While busy, default to queueing as follow-up (the agent will pick it up
-  // after the current turn). The bolt button overrides to steer (interrupt).
-  const dispatch = useCallback(
-    (mode: "auto" | "steer") => {
-      const text = input.trim();
-      if (!text && images.length === 0) return;
+      const images: ImageAttachment[] = await Promise.all(
+        fileImages.map(async (f) => dataUrlToImageAttachment(f.url!, f.mediaType ?? "image/png")),
+      );
       const imgs = images.length > 0 ? images : undefined;
 
-      if (busy && mode === "steer") {
+      const shouldSteer = busy && pendingSteer;
+      setPendingSteer(false);
+
+      if (shouldSteer) {
         steer(text, imgs);
       } else if (busy) {
         followUp(text, imgs);
       } else {
         sendMessage(text, imgs);
       }
-      setInput("");
-      setImages([]);
+      setHasInput(false);
     },
-    [input, images, busy, steer, followUp, sendMessage],
+    [busy, pendingSteer, steer, followUp, sendMessage],
   );
 
-  const onSubmit = useCallback(
-    (e: FormEvent) => {
-      e.preventDefault();
-      dispatch("auto");
+  const onAttachError = useCallback(
+    (err: { code: string; message: string }) => {
+      console.warn(`[composer] attachment error: ${err.code} - ${err.message}`);
     },
-    [dispatch],
-  );
-
-  const onKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLInputElement>) => {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        if (busy) {
-          interrupt();
-        } else if (input.length > 0 || images.length > 0) {
-          setInput("");
-          setImages([]);
-        }
-      }
-    },
-    [busy, input, images.length, interrupt],
+    [],
   );
 
   const queueCount = queuedFollowUp.length + queuedSteering.length;
 
   return (
-    <div className="bg-foreground/8 px-3 py-2">
+    <div className="bg-foreground/8 px-3 py-2 backdrop-blur-sm">
       {queueCount > 0 && (
         <div className="mb-2 flex flex-col gap-1">
           {queuedSteering.map((msg, i) => (
@@ -214,99 +114,102 @@ export function Composer() {
         </div>
       )}
 
-      {images.length > 0 && (
-        <div className="mb-2 flex flex-wrap gap-1.5">
-          {images.map((img, i) => (
-            <div
-              key={i}
-              className="relative h-12 w-12 overflow-hidden rounded border border-border"
-            >
-              <img
-                src={`data:${img.mimeType};base64,${img.data}`}
-                alt=""
-                className="size-full object-cover"
+      <PromptInput
+        accept={ACCEPTED_IMAGE_MIME}
+        multiple
+        maxFiles={MAX_ATTACHMENT_COUNT}
+        maxFileSize={MAX_ATTACHMENT_BYTES}
+        onError={onAttachError}
+        onSubmit={handleSubmit}
+        className="rounded-2xl border-foreground/10 bg-foreground/5 backdrop-blur-sm"
+      >
+        <PromptInputBody>
+          <ComposerAttachments />
+          <PromptInputTextarea
+            className="min-h-10 text-xs"
+            placeholder={busy ? "Queue message..." : "Message..."}
+            onChange={(e) => setHasInput(e.currentTarget.value.length > 0)}
+          />
+          <PromptInputToolbar>
+            <PromptInputTools>
+              <span
+                className={cn(
+                  "ml-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                  statusColors[sessionStatus],
+                )}
               />
-              <button
-                type="button"
-                onClick={() => removeImage(i)}
-                className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5 text-foreground hover:bg-background"
-                aria-label="Remove image"
+              <AttachButton />
+              {busy && hasInput && (
+                <PromptInputButton
+                  tooltip="Send now (steer the agent)"
+                  onClick={() => setPendingSteer(true)}
+                >
+                  <ZapIcon className="size-3.5" />
+                </PromptInputButton>
+              )}
+            </PromptInputTools>
+
+            {busy && !hasInput ? (
+              <PromptInputButton tooltip="Stop" onClick={interrupt}>
+                <SquareIcon className="size-3.5" />
+              </PromptInputButton>
+            ) : (
+              <PromptInputSubmit
+                disabled={!hasInput}
+                variant="ghost"
+                aria-label={busy ? "Queue for next turn" : "Send"}
               >
-                <XIcon className="size-2.5" />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      <form onSubmit={onSubmit} className="flex items-center gap-2">
-        <span
-          className={cn(
-            "inline-block h-1.5 w-1.5 shrink-0 rounded-full",
-            statusColors[sessionStatus],
-          )}
-        />
-        <input
-          ref={inputRef}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-          placeholder={busy ? "Queue message..." : "Message..."}
-          className="min-w-0 flex-1 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none"
-        />
-
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={ACCEPTED_IMAGE_MIME}
-          multiple
-          className="hidden"
-          onChange={onPickFiles}
-        />
-        <button
-          type="button"
-          onClick={() => fileInputRef.current?.click()}
-          className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-          aria-label="Attach image"
-          title="Attach image"
-        >
-          <ImageIcon className="size-3.5" />
-        </button>
-
-        {busy && (input.trim().length > 0 || images.length > 0) && (
-          <button
-            type="button"
-            onClick={() => dispatch("steer")}
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Send now (steer)"
-            title="Send now (steer the agent)"
-          >
-            <ZapIcon className="size-3.5" />
-          </button>
-        )}
-
-        {busy && input.trim().length === 0 && images.length === 0 ? (
-          <button
-            type="button"
-            onClick={interrupt}
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground"
-            aria-label="Stop"
-          >
-            <SquareIcon className="size-3.5" />
-          </button>
-        ) : (
-          <button
-            type="submit"
-            disabled={input.trim().length === 0 && images.length === 0}
-            className="shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label={busy ? "Queue for next turn" : "Send"}
-            title={busy ? "Queue for next turn" : "Send"}
-          >
-            {busy ? <ListPlusIcon className="size-3.5" /> : <SendIcon className="size-3.5" />}
-          </button>
-        )}
-      </form>
+                {busy ? (
+                  <ListPlusIcon className="size-3.5" />
+                ) : (
+                  <SendIcon className="size-3.5" />
+                )}
+              </PromptInputSubmit>
+            )}
+          </PromptInputToolbar>
+        </PromptInputBody>
+      </PromptInput>
     </div>
   );
 }
+
+function AttachButton() {
+  const { openFileDialog } = usePromptInputAttachments();
+  return (
+    <PromptInputButton tooltip="Attach image" onClick={openFileDialog}>
+      <ImageIcon className="size-3.5" />
+    </PromptInputButton>
+  );
+}
+
+function ComposerAttachments() {
+  const { files, remove } = usePromptInputAttachments();
+  if (files.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 px-2 pt-2">
+      {files.map((file) => (
+        <div
+          key={file.id}
+          className="relative h-12 w-12 overflow-hidden rounded border border-border"
+        >
+          {file.url && file.mediaType?.startsWith("image/") ? (
+            <img src={file.url} alt={file.filename ?? ""} className="size-full object-cover" />
+          ) : (
+            <div className="grid size-full place-items-center bg-muted text-[10px] text-muted-foreground">
+              {file.filename}
+            </div>
+          )}
+          <button
+            type="button"
+            onClick={() => remove(file.id)}
+            className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5 text-foreground hover:bg-background"
+            aria-label="Remove image"
+          >
+            <XIcon className="size-2.5" />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+

@@ -12,8 +12,9 @@ import { cn } from "@repo/ui/lib/utils";
 import {
   Conversation,
   ConversationContent,
+  ConversationEmptyState,
   ConversationScrollButton,
-} from "@repo/ui/components/conversation";
+} from "@repo/ui/components/ai-elements/conversation";
 
 import type { VoiceSessionState } from "@/shared/voice";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
@@ -140,10 +141,16 @@ export function ChatPage() {
     <>
       <div className="flex h-full w-72 flex-col">
         <Conversation className="flex-1 px-3 pt-10">
-          <ConversationContent className="space-y-1 pb-2">
-            {messages.map((msg) => (
-              <ChatMessageView key={msg.id} message={msg} />
-            ))}
+          <ConversationContent className="space-y-2 p-0 pb-2">
+            {messages.length === 0 ? (
+              <ConversationEmptyState
+                title="No messages yet"
+                description="Start a conversation or speak to begin."
+                icon={<MessageSquareIcon className="size-6" />}
+              />
+            ) : (
+              messages.map((msg) => <ChatMessageView key={msg.id} message={msg} />)
+            )}
           </ConversationContent>
           <ConversationScrollButton />
         </Conversation>
