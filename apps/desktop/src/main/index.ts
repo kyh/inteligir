@@ -232,12 +232,9 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.handle(IPC_CHANNELS.VOICE_STT_START, async () => {
-    const ready = await initParakeet(__PROJECT_ROOT__);
-    if (!ready) {
-      return {
-        ok: false,
-        reason: "Parakeet model not installed. Run 'pnpm download-stt-model' in apps/desktop.",
-      };
+    const result = await initParakeet(__PROJECT_ROOT__);
+    if (!result.ok) {
+      return { ok: false, reason: result.reason };
     }
     startSession();
     return { ok: true };

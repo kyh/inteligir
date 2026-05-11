@@ -30,6 +30,8 @@ let lastEmittedText = "";
 
 export type ParakeetTranscript = { text: string; isFinal: boolean };
 
+export type InitResult = { ok: true } | { ok: false; reason: string };
+
 function resolveModelDir(projectRoot: string): string {
   return join(projectRoot, "resources", "stt", MODEL_NAME);
 }
@@ -40,16 +42,17 @@ export function isModelInstalled(projectRoot: string): boolean {
 }
 
 /**
- * Lazily constructs the OnlineRecognizer. Returns null if the model isn't
- * downloaded — caller should surface a friendly message to the renderer.
+ * Lazily constructs the OnlineRecognizer. Returns a discriminated result so
+ * callers can distinguish "model missing" from "native module failed to load"
+ * — the two have very different remediation steps.
  */
-export async function initParakeet(projectRoot: string): Promise<boolean> {
-  if (recognizer) return true;
+export async function initParakeet(projectRoot: string): Promise<InitResult> {
+  if (recognizer) return { ok: true };
   if (!isModelInstalled(projectRoot)) {
-    console.warn(
-      `[parakeet] model not found — run 'pnpm download-stt-model' in apps/desktop`,
-    );
-    return false;
+    const reason =
+      "Parakeet model not installed. Run 'pnpm download-stt-model' in apps/desktop.";
+    console.warn(`[parakeet] ${reason}`);
+    return { ok: false, reason };
   }
 
   const modelDir = resolveModelDir(projectRoot);
@@ -78,11 +81,14 @@ export async function initParakeet(projectRoot: string): Promise<boolean> {
       rule2MinTrailingSilence: 0.8,
       rule3MinUtteranceLength: 20,
     });
-    return true;
+    return { ok: true };
   } catch (err) {
     console.error("[parakeet] failed to load sherpa-onnx-node:", err);
     recognizer = null;
-    return false;
+    return {
+      ok: false,
+      reason: `Failed to load sherpa-onnx native module: ${err instanceof Error ? err.message : String(err)}`,
+    };
   }
 }
 
