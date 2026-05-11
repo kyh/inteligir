@@ -106,9 +106,14 @@ export const PromptInput = ({
 
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
   const filesRef = useRef(items);
+  // Live count for capacity accounting. Mutated synchronously in add/remove so
+  // multiple add() calls within a single React batch (e.g., paste + drop) see
+  // each other's contributions and don't both think they have full capacity.
+  const liveCountRef = useRef(0);
 
   useEffect(() => {
     filesRef.current = items;
+    liveCountRef.current = items.length;
   }, [items]);
 
   const openFileDialog = useCallback(() => {
@@ -156,15 +161,18 @@ export const PromptInput = ({
         return;
       }
 
-      // Compute capacity, side-effecty work (onError, nanoid, blob URLs) outside
-      // the setState updater so React Strict Mode double-invocation doesn't
-      // fire onError twice or leak object URLs.
+      // Compute capacity from a synchronous ref (not items.length) so back-to-back
+      // add() calls within the same React batch account for each other's pending
+      // additions. Side-effecty work (onError, nanoid, blob URLs) stays outside
+      // the setState updater so Strict Mode double-invocation doesn't fire
+      // onError twice or leak object URLs.
       const capacity =
-        typeof maxFiles === "number" ? Math.max(0, maxFiles - items.length) : undefined;
+        typeof maxFiles === "number" ? Math.max(0, maxFiles - liveCountRef.current) : undefined;
       const capped = typeof capacity === "number" ? sized.slice(0, capacity) : sized;
       if (typeof capacity === "number" && sized.length > capacity) {
         onError?.({ code: "max_files", message: "Too many files. Some were not added." });
       }
+      if (capped.length === 0) return;
       const newItems = capped.map((file) => ({
         filename: file.name,
         id: nanoid(),
@@ -172,22 +180,23 @@ export const PromptInput = ({
         type: "file" as const,
         url: URL.createObjectURL(file),
       }));
-      if (newItems.length > 0) setItems((prev) => [...prev, ...newItems]);
+      liveCountRef.current += newItems.length;
+      setItems((prev) => [...prev, ...newItems]);
     },
-    [matchesAccept, maxFiles, maxFileSize, onError, items.length],
+    [matchesAccept, maxFiles, maxFileSize, onError],
   );
 
-  const remove = useCallback(
-    (id: string) =>
-      setItems((prev) => {
-        const found = prev.find((file) => file.id === id);
-        if (found?.url) URL.revokeObjectURL(found.url);
-        return prev.filter((file) => file.id !== id);
-      }),
-    [],
-  );
+  const remove = useCallback((id: string) => {
+    liveCountRef.current = Math.max(0, liveCountRef.current - 1);
+    setItems((prev) => {
+      const found = prev.find((file) => file.id === id);
+      if (found?.url) URL.revokeObjectURL(found.url);
+      return prev.filter((file) => file.id !== id);
+    });
+  }, []);
 
   const clear = useCallback(() => {
+    liveCountRef.current = 0;
     setItems((prev) => {
       for (const file of prev) {
         if (file.url) URL.revokeObjectURL(file.url);
