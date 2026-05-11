@@ -63,6 +63,12 @@ export function Composer() {
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
+      // PromptInput already called form.reset() before invoking us, so the
+      // textarea is visually empty. Clear hasInput unconditionally to keep
+      // the submit/steer button state in sync — including on early-return
+      // for whitespace-only submits.
+      setHasInput(false);
+
       const text = message.text.trim();
       const fileImages = message.files.filter(
         (f) => f.mediaType?.startsWith("image/") && f.url,
@@ -84,7 +90,6 @@ export function Composer() {
       } else {
         sendMessage(text, imgs);
       }
-      setHasInput(false);
     },
     [busy, steer, followUp, sendMessage],
   );
