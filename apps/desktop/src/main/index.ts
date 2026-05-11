@@ -10,12 +10,20 @@ import electronUpdater from "electron-updater";
 
 declare const __PROJECT_ROOT__: string;
 
-// Load .env at runtime for voice API keys (DEEPGRAM_API_KEY, ELEVENLABS_API_KEY)
+// Load .env at runtime for voice API keys (ELEVENLABS_API_KEY)
 try {
   process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
 } catch {
   // .env file is optional
 }
+
+import {
+  initParakeet,
+  isModelInstalled,
+  pushAudio,
+  startSession,
+  stopSession,
+} from "@/main/voice/parakeet";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
@@ -214,14 +222,39 @@ function registerIpcHandlers(): void {
   // ---- Voice ----------------------------------------------------------------
 
   ipcMain.handle(IPC_CHANNELS.VOICE_CONFIG, () => {
-    const deepgramApiKey = process.env["DEEPGRAM_API_KEY"];
     const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
-    if (!deepgramApiKey || !elevenlabsApiKey) return null;
+    if (!elevenlabsApiKey) return null;
     return {
-      deepgramApiKey,
       elevenlabsApiKey,
       elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
+      sttAvailable: isModelInstalled(__PROJECT_ROOT__),
     };
+  });
+
+  ipcMain.handle(IPC_CHANNELS.VOICE_STT_START, async () => {
+    const ready = await initParakeet(__PROJECT_ROOT__);
+    if (!ready) {
+      return {
+        ok: false,
+        reason: "Parakeet model not installed. Run 'pnpm download-stt-model' in apps/desktop.",
+      };
+    }
+    startSession();
+    return { ok: true };
+  });
+
+  ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | Uint8Array) => {
+    const buf = payload instanceof ArrayBuffer ? payload : payload.buffer;
+    const samples = new Float32Array(buf);
+    const events = pushAudio(samples);
+    if (events.length === 0) return;
+    for (const ev of events) {
+      broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
+    }
+  });
+
+  ipcMain.handle(IPC_CHANNELS.VOICE_STT_STOP, () => {
+    stopSession();
   });
 
   // ---- Notifications --------------------------------------------------------

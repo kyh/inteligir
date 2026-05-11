@@ -1,5 +1,6 @@
 // ---------------------------------------------------------------------------
-// Voice pipeline — orchestrates Deepgram STT + ElevenLabs TTS
+// Voice pipeline — orchestrates local Parakeet STT (via main process IPC) +
+// ElevenLabs TTS.
 // ---------------------------------------------------------------------------
 
 import { startSTT, type STTHandle } from "./stt";
@@ -14,7 +15,6 @@ export type VoicePipelineEvent =
 export type VoicePipelineListener = (event: VoicePipelineEvent) => void;
 
 export type VoicePipelineConfig = {
-  deepgramApiKey: string;
   elevenlabsApiKey: string;
   elevenlabsVoiceId?: string;
 };
@@ -46,9 +46,8 @@ export class VoicePipeline {
       // TTS connects lazily on first sendText — just create the handle
       this.tts = createTTS(this.config.elevenlabsApiKey, this.config.elevenlabsVoiceId);
 
-      // STT requests mic permission + opens Deepgram WebSocket
+      // STT requests mic permission + streams PCM to main-process Parakeet
       this.stt = await startSTT(
-        this.config.deepgramApiKey,
         (text, isFinal) => {
           if (isFinal) {
             this.emit({ type: "transcript_partial", text: "" });

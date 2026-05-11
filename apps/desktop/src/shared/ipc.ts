@@ -39,6 +39,10 @@ export const IPC_CHANNELS = {
 
   // Voice
   VOICE_CONFIG: "voice:config",
+  VOICE_STT_START: "voice:stt:start",
+  VOICE_STT_AUDIO: "voice:stt:audio",
+  VOICE_STT_STOP: "voice:stt:stop",
+  VOICE_STT_TRANSCRIPT: "voice:stt:transcript",
 
   // Notifications
   NOTIFICATIONS_GET: "notifications:get",
@@ -112,10 +116,16 @@ export type DesktopBridge = {
 
   // Voice
   getVoiceConfig: () => Promise<{
-    deepgramApiKey: string;
     elevenlabsApiKey: string;
     elevenlabsVoiceId?: string;
+    sttAvailable: boolean;
   } | null>;
+  startStt: () => Promise<{ ok: boolean; reason?: string }>;
+  sendSttAudio: (samples: ArrayBuffer) => void;
+  stopStt: () => Promise<void>;
+  onSttTranscript: (
+    listener: (event: { text: string; isFinal: boolean }) => void,
+  ) => () => void;
 
   // Notifications
   getNotificationSettings: () => Promise<NotificationSettings>;

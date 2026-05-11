@@ -74,7 +74,7 @@ catalogs:
       version: 8.0.10
     zod:
       specifier: ^4.4.2
-      version: 4.4.2
+      version: 3.25.76
 
 importers:
 
@@ -149,6 +149,9 @@ importers:
       react-router:
         specifier: ^7.14.2
         version: 7.14.2(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      sherpa-onnx-node:
+        specifier: ^1.10.41
+        version: 1.13.1
       streamdown:
         specifier: ^2.5.0
         version: 2.5.0(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -245,7 +248,7 @@ importers:
         version: 6.0.174(zod@4.4.2)
       better-auth:
         specifier: 'catalog:'
-        version: 1.6.9(b50db4cfa10991c25f1c248ae6125885)
+        version: 1.6.9(9155114d1c1697d7513897c7b6190797)
       lucide-react:
         specifier: ^1.14.0
         version: 1.14.0(react@19.2.5)
@@ -321,7 +324,7 @@ importers:
         version: 11.17.0(typescript@6.0.3)
       better-auth:
         specifier: 'catalog:'
-        version: 1.6.9(b50db4cfa10991c25f1c248ae6125885)
+        version: 1.6.9(9155114d1c1697d7513897c7b6190797)
       next:
         specifier: 'catalog:'
         version: 16.2.4(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -8100,6 +8103,39 @@ packages:
     resolution: {integrity: sha512-ObmnIF4hXNg1BqhnHmgbDETF8dLPCggZWBjkQfhZpbszZnYur5DUljTcCHii5LC3J5E0yeO/1LIMyH+UvHQgyw==}
     engines: {node: '>= 0.4'}
 
+  sherpa-onnx-darwin-arm64@1.13.1:
+    resolution: {integrity: sha512-EGsNMF5srQgutZ7Fm9LLtpZjWX8DlyC+Et3xR4eoWfsjtt9YBmotBeGOlkssoR7fhMPQtgVsKvZpFt3dW3YYhA==}
+    cpu: [arm64]
+    os: [darwin]
+
+  sherpa-onnx-darwin-x64@1.13.1:
+    resolution: {integrity: sha512-yUPHlpuhzjU0wyCGd01GUneIh5rG9OvHBseSv1dnsYjsbkPFBcOmKNlCqJaoPI2w8Rguo6D53iBkG/2QqBp8mA==}
+    cpu: [x64]
+    os: [darwin]
+
+  sherpa-onnx-linux-arm64@1.13.1:
+    resolution: {integrity: sha512-pchaFOZTwWCyhIJg248ZwtmkuILf0Ix1ho/KVHDpz3+yr9y1ka1SluWPeSqBHbidydt5KqsgzSUDg92HqDQD0Q==}
+    cpu: [arm64]
+    os: [linux]
+
+  sherpa-onnx-linux-x64@1.13.1:
+    resolution: {integrity: sha512-OsVa8myeDKpHowHIhxCIIn3RZ0W71oD+IS++FcE/l48G/2QTUKtyBn6t3zR5qw1WxRW3Xeswq0IVR6dPEPKc1g==}
+    cpu: [x64]
+    os: [linux]
+
+  sherpa-onnx-node@1.13.1:
+    resolution: {integrity: sha512-x/6xM46Da+FnZ587rYAHPLP5PPIphIndg16cZjxSZdBIOW1mU8PPwkf8GyVdG9WMMO71hiTIBBwV6ijFgib0sw==}
+
+  sherpa-onnx-win-ia32@1.13.1:
+    resolution: {integrity: sha512-tFBLGXRKDjsZYrCJzVBtS3YxC2UBKyisavtR59dMx6AnrY/C0vjxhf4QHIQGOlLgwgYL2GglnFm1PhyyPMrMMQ==}
+    cpu: [ia32]
+    os: [win32]
+
+  sherpa-onnx-win-x64@1.13.1:
+    resolution: {integrity: sha512-BLj/P8vUYVwiAl3/mLuMRhTIIZofpjV9xdbf9SuDbTpPX9Iv9SK7kDO1e0Uoag1r07dzwjV6mmaR00Riu9N2EQ==}
+    cpu: [x64]
+    os: [win32]
+
   shiki@3.23.0:
     resolution: {integrity: sha512-55Dj73uq9ZXL5zyeRPzHQsK7Nbyt6Y10k5s7OjuFZGMhpp4r/rsLBH0o/0fstIzX1Lep9VxefWljK/SKCzygIA==}
 
@@ -10320,7 +10356,7 @@ snapshots:
     dependencies:
       '@better-auth/core': 1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.2))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0)
       '@better-fetch/fetch': 1.1.21
-      better-auth: 1.6.9(b50db4cfa10991c25f1c248ae6125885)
+      better-auth: 1.6.9(9155114d1c1697d7513897c7b6190797)
       better-call: 1.3.5(zod@4.4.2)
       zod: 4.4.2
     optionalDependencies:
@@ -13705,7 +13741,7 @@ snapshots:
 
   basic-ftp@5.3.1: {}
 
-  better-auth@1.6.9(b50db4cfa10991c25f1c248ae6125885):
+  better-auth@1.6.9(9155114d1c1697d7513897c7b6190797):
     dependencies:
       '@better-auth/core': 1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.2))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0)
       '@better-auth/drizzle-adapter': 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.2))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.2)(@opentelemetry/api@1.9.1)(@prisma/client@7.1.0(prisma@7.1.0(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3))(typescript@6.0.3))(@types/pg@8.15.6)(@upstash/redis@1.35.7)(kysely@0.28.17)(mysql2@3.15.3)(pg@8.16.3)(postgres@3.4.9)(prisma@7.1.0(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(typescript@6.0.3)))
@@ -18418,6 +18454,33 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   shell-quote@1.8.3:
+    optional: true
+
+  sherpa-onnx-darwin-arm64@1.13.1:
+    optional: true
+
+  sherpa-onnx-darwin-x64@1.13.1:
+    optional: true
+
+  sherpa-onnx-linux-arm64@1.13.1:
+    optional: true
+
+  sherpa-onnx-linux-x64@1.13.1:
+    optional: true
+
+  sherpa-onnx-node@1.13.1:
+    optionalDependencies:
+      sherpa-onnx-darwin-arm64: 1.13.1
+      sherpa-onnx-darwin-x64: 1.13.1
+      sherpa-onnx-linux-arm64: 1.13.1
+      sherpa-onnx-linux-x64: 1.13.1
+      sherpa-onnx-win-ia32: 1.13.1
+      sherpa-onnx-win-x64: 1.13.1
+
+  sherpa-onnx-win-ia32@1.13.1:
+    optional: true
+
+  sherpa-onnx-win-x64@1.13.1:
     optional: true
 
   shiki@3.23.0:

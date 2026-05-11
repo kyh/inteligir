@@ -19,7 +19,8 @@
     "verify:runtime-model-registry": "node scripts/verify-runtime-model-registry.mjs",
     "verify:packaged-runtime-deps": "node scripts/verify-packaged-runtime-deps.mjs",
     "verify:release": "pnpm verify:runtime-model-registry",
-    "verify:packaged": "pnpm verify:packaged-runtime-deps"
+    "verify:packaged": "pnpm verify:packaged-runtime-deps",
+    "download-stt-model": "node scripts/download-stt-model.mjs"
   },
   "dependencies": {
     "@mariozechner/pi-ai": "^0.72.1",
@@ -38,6 +39,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-router": "^7.14.2",
+    "sherpa-onnx-node": "^1.10.41",
     "streamdown": "^2.5.0",
     "tailwindcss": "catalog:",
     "three": "^0.184.0",
