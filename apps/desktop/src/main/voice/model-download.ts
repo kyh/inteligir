@@ -10,10 +10,10 @@ import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
+import { MODEL_NAME, MODEL_URL } from "@/main/voice/model-info.mjs";
 import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
 
-export const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
-const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_NAME}.tar.bz2`;
+export { MODEL_NAME };
 
 export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 

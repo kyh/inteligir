@@ -12,10 +12,10 @@ import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 
+import { MODEL_NAME, MODEL_URL } from "../src/main/voice/model-info.mjs";
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..");
-const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
-const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_NAME}.tar.bz2`;
 const OUT_DIR = join(PROJECT_ROOT, "resources", "stt");
 const MODEL_DIR = join(OUT_DIR, MODEL_NAME);
 const ARCHIVE_PATH = join(OUT_DIR, `${MODEL_NAME}.tar.bz2`);

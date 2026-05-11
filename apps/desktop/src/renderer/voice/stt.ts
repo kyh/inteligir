@@ -22,7 +22,13 @@ export async function startSTT(
   // session — if the user denies, there's no main-process state to leak.
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  const startResult = await bridge.startStt();
+  let startResult: Awaited<ReturnType<typeof bridge.startStt>>;
+  try {
+    startResult = await bridge.startStt();
+  } catch (err) {
+    stream.getTracks().forEach((t) => t.stop());
+    throw err;
+  }
   if (!startResult.ok) {
     stream.getTracks().forEach((t) => t.stop());
     throw new Error(startResult.reason ?? "Failed to start STT");
