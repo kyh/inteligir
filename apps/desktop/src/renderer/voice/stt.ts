@@ -18,12 +18,15 @@ export async function startSTT(
   const bridge = getBridge();
   if (!bridge) throw new Error("Desktop bridge unavailable");
 
+  // Request mic permission BEFORE starting the main-process recognizer
+  // session — if the user denies, there's no main-process state to leak.
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
   const startResult = await bridge.startStt();
   if (!startResult.ok) {
+    stream.getTracks().forEach((t) => t.stop());
     throw new Error(startResult.reason ?? "Failed to start STT");
   }
-
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
   const audioContext = new AudioContext({ sampleRate: 16000 });
   const sourceNode = audioContext.createMediaStreamSource(stream);
