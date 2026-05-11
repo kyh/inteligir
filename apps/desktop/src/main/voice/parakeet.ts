@@ -5,7 +5,7 @@
 
 import { join } from "node:path";
 
-import { isModelInstalled, MODEL_NAME } from "@/main/voice/model-download";
+import { getModelDir, isModelInstalled } from "@/main/voice/model-download";
 
 // sherpa-onnx-node is loaded lazily so the app still boots when the model
 // isn't downloaded yet (the renderer just sees STT unavailable).
@@ -32,10 +32,6 @@ export type ParakeetTranscript = { text: string; isFinal: boolean };
 
 export type InitResult = { ok: true } | { ok: false; reason: string };
 
-function resolveModelDir(projectRoot: string): string {
-  return join(projectRoot, "resources", "stt", MODEL_NAME);
-}
-
 /**
  * Lazily constructs the OnlineRecognizer. Returns a discriminated result so
  * callers can distinguish "model missing" from "native module failed to load"
@@ -58,7 +54,7 @@ async function doInit(projectRoot: string): Promise<InitResult> {
     return { ok: false, reason: "Parakeet model not installed." };
   }
 
-  const modelDir = resolveModelDir(projectRoot);
+  const modelDir = getModelDir(projectRoot);
 
   try {
     const mod = (await import("sherpa-onnx-node")) as unknown as {

@@ -26,23 +26,32 @@ async function ensureModelThenConnect(
   const bridge = getBridge();
   if (!bridge || !pipeline) return;
 
-  const status = await bridge.getVoiceModelStatus();
-  if (!pipeline) return; // user navigated away / pipeline torn down
-  if (status === "ready") {
-    void pipeline.connect();
-    return;
-  }
+  try {
+    const status = await bridge.getVoiceModelStatus();
+    if (!pipeline) return; // user navigated away / pipeline torn down
+    if (status === "ready") {
+      void pipeline.connect();
+      return;
+    }
 
-  // Model is missing — download with progress, then connect on success.
-  set({ sessionState: "downloading_model", error: null });
-  const result = await bridge.downloadVoiceModel();
-  if (!pipeline) return; // user navigated away / pipeline torn down
-  if (result.ok) {
-    void pipeline.connect();
-  } else {
+    // Model is missing — download with progress, then connect on success.
+    set({ sessionState: "downloading_model", error: null });
+    const result = await bridge.downloadVoiceModel();
+    if (!pipeline) return; // user navigated away / pipeline torn down
+    if (result.ok) {
+      void pipeline.connect();
+    } else {
+      set({
+        sessionState: "error",
+        error: result.error ?? "Failed to download speech model",
+      });
+    }
+  } catch (err) {
+    // IPC rejected (channel dropped, main crashed, etc.) — without this guard
+    // the store stays in "downloading_model" forever and the user can't retry.
     set({
       sessionState: "error",
-      error: result.error ?? "Failed to download speech model",
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 }

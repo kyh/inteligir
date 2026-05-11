@@ -24,6 +24,11 @@ function modelDir(projectRoot: string): string {
   return join(projectRoot, "resources", "stt", MODEL_NAME);
 }
 
+/** Absolute path to the unpacked model directory. Exported for reuse. */
+export function getModelDir(projectRoot: string): string {
+  return modelDir(projectRoot);
+}
+
 export function isModelInstalled(projectRoot: string): boolean {
   return existsSync(join(modelDir(projectRoot), "tokens.txt"));
 }
