@@ -118,7 +118,6 @@ export type DesktopBridge = {
   getVoiceConfig: () => Promise<{
     elevenlabsApiKey: string;
     elevenlabsVoiceId?: string;
-    sttAvailable: boolean;
   } | null>;
   startStt: () => Promise<{ ok: boolean; reason?: string }>;
   sendSttAudio: (samples: ArrayBuffer) => void;

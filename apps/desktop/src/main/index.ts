@@ -19,7 +19,6 @@ try {
 
 import {
   initParakeet,
-  isModelInstalled,
   pushAudio,
   startSession,
   stopSession,
@@ -227,7 +226,6 @@ function registerIpcHandlers(): void {
     return {
       elevenlabsApiKey,
       elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
-      sttAvailable: isModelInstalled(__PROJECT_ROOT__),
     };
   });
 
