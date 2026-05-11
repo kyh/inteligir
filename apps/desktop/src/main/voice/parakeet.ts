@@ -25,6 +25,7 @@ type Stream = {
 const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
 
 let recognizer: InstanceType<OnlineRecognizerCtor> | null = null;
+let initPromise: Promise<InitResult> | null = null;
 let stream: Stream | null = null;
 let lastEmittedText = "";
 
@@ -45,9 +46,20 @@ export function isModelInstalled(projectRoot: string): boolean {
  * Lazily constructs the OnlineRecognizer. Returns a discriminated result so
  * callers can distinguish "model missing" from "native module failed to load"
  * — the two have very different remediation steps.
+ *
+ * In-flight init is cached so concurrent calls don't double-load the ~140 MB
+ * model. Cleared on completion (success or failure) so retries are possible.
  */
 export async function initParakeet(projectRoot: string): Promise<InitResult> {
   if (recognizer) return { ok: true };
+  if (initPromise) return initPromise;
+  initPromise = doInit(projectRoot).finally(() => {
+    initPromise = null;
+  });
+  return initPromise;
+}
+
+async function doInit(projectRoot: string): Promise<InitResult> {
   if (!isModelInstalled(projectRoot)) {
     const reason =
       "Parakeet model not installed. Run 'pnpm download-stt-model' in apps/desktop.";
