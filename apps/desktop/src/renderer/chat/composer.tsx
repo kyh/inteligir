@@ -138,10 +138,10 @@ export function Composer() {
       >
         <PromptInputBody>
           <ComposerAttachments />
-          <PromptInputTextarea
-            className="min-h-10 text-xs"
-            placeholder={busy ? "Queue message..." : "Message..."}
-            onChange={(e) => setHasInput(e.currentTarget.value.length > 0)}
+          <ComposerTextarea
+            busy={busy}
+            onInterrupt={interrupt}
+            onHasInputChange={setHasInput}
           />
           <PromptInputToolbar>
             <PromptInputTools>
@@ -168,6 +168,45 @@ function AttachButton() {
     <PromptInputButton tooltip="Attach image" onClick={openFileDialog}>
       <ImageIcon className="size-3.5" />
     </PromptInputButton>
+  );
+}
+
+function ComposerTextarea({
+  busy,
+  onInterrupt,
+  onHasInputChange,
+}: {
+  busy: boolean;
+  onInterrupt: () => void;
+  onHasInputChange: (has: boolean) => void;
+}) {
+  const { files, clear } = usePromptInputAttachments();
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      if (busy) {
+        onInterrupt();
+        return;
+      }
+      const hasText = e.currentTarget.value.length > 0;
+      if (hasText) {
+        e.currentTarget.value = "";
+        onHasInputChange(false);
+      }
+      if (files.length > 0) clear();
+    },
+    [busy, onInterrupt, onHasInputChange, files.length, clear],
+  );
+
+  return (
+    <PromptInputTextarea
+      className="min-h-10 text-xs"
+      placeholder={busy ? "Queue message..." : "Message..."}
+      onChange={(e) => onHasInputChange(e.currentTarget.value.length > 0)}
+      onKeyDown={handleKeyDown}
+    />
   );
 }
 
