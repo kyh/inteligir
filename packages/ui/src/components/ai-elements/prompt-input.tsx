@@ -156,27 +156,25 @@ export const PromptInput = ({
         return;
       }
 
-      setItems((prev) => {
-        const capacity =
-          typeof maxFiles === "number" ? Math.max(0, maxFiles - prev.length) : undefined;
-        const capped = typeof capacity === "number" ? sized.slice(0, capacity) : sized;
-        if (typeof capacity === "number" && sized.length > capacity) {
-          onError?.({ code: "max_files", message: "Too many files. Some were not added." });
-        }
-        const next: (FileUIPart & { id: string })[] = [];
-        for (const file of capped) {
-          next.push({
-            filename: file.name,
-            id: nanoid(),
-            mediaType: file.type,
-            type: "file",
-            url: URL.createObjectURL(file),
-          });
-        }
-        return [...prev, ...next];
-      });
+      // Compute capacity, side-effecty work (onError, nanoid, blob URLs) outside
+      // the setState updater so React Strict Mode double-invocation doesn't
+      // fire onError twice or leak object URLs.
+      const capacity =
+        typeof maxFiles === "number" ? Math.max(0, maxFiles - items.length) : undefined;
+      const capped = typeof capacity === "number" ? sized.slice(0, capacity) : sized;
+      if (typeof capacity === "number" && sized.length > capacity) {
+        onError?.({ code: "max_files", message: "Too many files. Some were not added." });
+      }
+      const newItems = capped.map((file) => ({
+        filename: file.name,
+        id: nanoid(),
+        mediaType: file.type,
+        type: "file" as const,
+        url: URL.createObjectURL(file),
+      }));
+      if (newItems.length > 0) setItems((prev) => [...prev, ...newItems]);
     },
-    [matchesAccept, maxFiles, maxFileSize, onError],
+    [matchesAccept, maxFiles, maxFileSize, onError, items.length],
   );
 
   const remove = useCallback(

@@ -41,7 +41,13 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
       return (
         <Message from="assistant">
           <MessageContent>
-            {message.text ? <Response>{message.text}</Response> : "..."}
+            {message.text ? (
+              <Response shikiTheme={["github-dark-dimmed", "github-dark-dimmed"]}>
+                {message.text}
+              </Response>
+            ) : (
+              "..."
+            )}
           </MessageContent>
         </Message>
       );
