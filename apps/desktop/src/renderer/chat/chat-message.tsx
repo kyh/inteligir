@@ -12,7 +12,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
         <Message from="user">
           <MessageContent>
             {message.text && <span>{message.text}</span>}
-            {message.imageCount && message.imageCount > 0 ? (
+            {(message.imageCount ?? 0) > 0 ? (
               <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                 <ImageIcon className="size-3" />
                 {message.imageCount} image{message.imageCount === 1 ? "" : "s"}
@@ -27,7 +27,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
         <div className="ml-8">
           <div className="rounded-md px-3 py-1.5 text-sm italic text-muted-foreground backdrop-blur-sm">
             {message.text && <span>{message.text}</span>}
-            {message.imageCount && message.imageCount > 0 ? (
+            {(message.imageCount ?? 0) > 0 ? (
               <span className="ml-2 inline-flex items-center gap-1 text-[10px] text-muted-foreground">
                 <ImageIcon className="size-3" />
                 {message.imageCount}
