@@ -9,19 +9,14 @@ import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 
+import type { VoiceModelStateEvent } from "@/shared/ipc";
+
 export const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
 const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_NAME}.tar.bz2`;
 
-export type ModelDownloadEvent =
-  | { status: "idle" }
-  | { status: "downloading"; percent: number; receivedBytes: number; totalBytes: number }
-  | { status: "extracting" }
-  | { status: "ready" }
-  | { status: "error"; message: string };
-
 export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 
-export type ProgressCallback = (event: ModelDownloadEvent) => void;
+export type ProgressCallback = (event: VoiceModelStateEvent) => void;
 
 let downloadInflight: Promise<ModelDownloadResult> | null = null;
 

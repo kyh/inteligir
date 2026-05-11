@@ -27,6 +27,7 @@ async function ensureModelThenConnect(
   if (!bridge || !pipeline) return;
 
   const status = await bridge.getVoiceModelStatus();
+  if (!pipeline) return; // user navigated away / pipeline torn down
   if (status === "ready") {
     void pipeline.connect();
     return;
