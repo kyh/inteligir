@@ -22,9 +22,13 @@ export const Response = memo(
       {...props}
     />
   ),
+  // Re-render only when the streamed content, className, or animation state
+  // change. Hand-rolled because the hot path is markdown streaming where the
+  // parent may re-render on every token while the props are otherwise stable.
   (prevProps, nextProps) =>
     prevProps.children === nextProps.children &&
-    nextProps.isAnimating === prevProps.isAnimating,
+    prevProps.className === nextProps.className &&
+    prevProps.isAnimating === nextProps.isAnimating,
 );
 
 Response.displayName = "Response";
