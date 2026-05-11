@@ -19,6 +19,17 @@ export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 export type ProgressCallback = (event: VoiceModelStateEvent) => void;
 
 let downloadInflight: Promise<ModelDownloadResult> | null = null;
+const progressListeners = new Set<ProgressCallback>();
+
+function broadcastProgress(event: VoiceModelStateEvent): void {
+  for (const cb of progressListeners) {
+    try {
+      cb(event);
+    } catch {
+      /* listener errors shouldn't break the download */
+    }
+  }
+}
 
 function modelDir(projectRoot: string): string {
   return join(projectRoot, "resources", "stt", MODEL_NAME);
@@ -41,9 +52,14 @@ export function downloadModel(
   projectRoot: string,
   onProgress: ProgressCallback,
 ): Promise<ModelDownloadResult> {
+  // Each caller's listener gets every event for the in-flight download.
+  // Otherwise concurrent callers (e.g. onboarding + mic-click during a slow
+  // download) would silently drop progress on the latecomer.
+  progressListeners.add(onProgress);
   if (downloadInflight) return downloadInflight;
-  downloadInflight = doDownload(projectRoot, onProgress).finally(() => {
+  downloadInflight = doDownload(projectRoot, broadcastProgress).finally(() => {
     downloadInflight = null;
+    progressListeners.clear();
   });
   return downloadInflight;
 }
