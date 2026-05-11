@@ -244,8 +244,13 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | Uint8Array) => {
-    const buf = payload instanceof ArrayBuffer ? payload : payload.buffer;
-    const samples = new Float32Array(buf);
+    // Buffer/Uint8Array views may sit at a non-zero offset inside a larger
+    // pooled ArrayBuffer; honor byteOffset/byteLength to avoid reading
+    // unrelated pool memory.
+    const samples =
+      payload instanceof ArrayBuffer
+        ? new Float32Array(payload)
+        : new Float32Array(payload.buffer, payload.byteOffset, payload.byteLength / 4);
     const events = pushAudio(samples);
     if (events.length === 0) return;
     for (const ev of events) {
