@@ -31,17 +31,12 @@ function broadcastProgress(event: VoiceModelStateEvent): void {
   }
 }
 
-function modelDir(projectRoot: string): string {
+export function getModelDir(projectRoot: string): string {
   return join(projectRoot, "resources", "stt", MODEL_NAME);
 }
 
-/** Absolute path to the unpacked model directory. Exported for reuse. */
-export function getModelDir(projectRoot: string): string {
-  return modelDir(projectRoot);
-}
-
 export function isModelInstalled(projectRoot: string): boolean {
-  return existsSync(join(modelDir(projectRoot), "tokens.txt"));
+  return existsSync(join(getModelDir(projectRoot), "tokens.txt"));
 }
 
 export function getModelStatus(projectRoot: string): "ready" | "missing" {
@@ -52,9 +47,7 @@ export function downloadModel(
   projectRoot: string,
   onProgress: ProgressCallback,
 ): Promise<ModelDownloadResult> {
-  // Each caller's listener gets every event for the in-flight download.
-  // Otherwise concurrent callers (e.g. onboarding + mic-click during a slow
-  // download) would silently drop progress on the latecomer.
+  // Latecomers join the in-flight download and still receive every event.
   progressListeners.add(onProgress);
   if (downloadInflight) return downloadInflight;
   downloadInflight = doDownload(projectRoot, broadcastProgress).finally(() => {
@@ -73,15 +66,20 @@ async function doDownload(
     return { ok: true };
   }
 
-  const dir = modelDir(projectRoot);
+  const dir = getModelDir(projectRoot);
   const outRoot = dirname(dir);
   const archive = join(outRoot, `${MODEL_NAME}.tar.bz2`);
 
   try {
     mkdirSync(outRoot, { recursive: true });
 
+    let lastPercent = -1;
     await fetchToFile(MODEL_URL, archive, (received, total) => {
       const percent = total > 0 ? Math.floor((received / total) * 100) : 0;
+      // Skip duplicate-percent broadcasts: each event crosses IPC + triggers
+      // a renderer setState, and fetch fires onProgress per chunk read.
+      if (percent === lastPercent) return;
+      lastPercent = percent;
       onProgress({
         status: "downloading",
         percent,

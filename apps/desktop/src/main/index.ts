@@ -221,7 +221,7 @@ function registerIpcHandlers(): void {
 
   // ---- Voice ----------------------------------------------------------------
 
-  ipcMain.handle(IPC_CHANNELS.VOICE_CONFIG, () => {
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_CONFIG, () => {
     const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
     if (!elevenlabsApiKey) return null;
     return {
@@ -230,30 +230,24 @@ function registerIpcHandlers(): void {
     };
   });
 
-  ipcMain.handle(IPC_CHANNELS.VOICE_STT_START, async () => {
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_START, async () => {
     const result = await initParakeet(__PROJECT_ROOT__);
-    if (!result.ok) {
-      return { ok: false, reason: result.reason };
-    }
+    if (!result.ok) return { ok: false, reason: result.reason };
     startSession();
     return { ok: true };
   });
 
   ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | Uint8Array) => {
-    // Hot path — runs many times per second. ipcMain.on is fire-and-forget,
-    // so any throw here (misaligned buffer view, native sherpa-onnx error)
-    // would propagate to the event loop and crash the app. Swallow + log
-    // and let the session continue.
+    // Fire-and-forget hot path — uncaught throws on the event loop would crash
+    // the app, so swallow + log and keep the session alive.
     try {
-      // Buffer/Uint8Array views may sit at a non-zero offset inside a larger
-      // pooled ArrayBuffer; honor byteOffset/byteLength to avoid reading
-      // unrelated pool memory.
+      // Honor byteOffset/byteLength: a Buffer view may sit inside a larger
+      // pooled ArrayBuffer.
       const samples =
         payload instanceof ArrayBuffer
           ? new Float32Array(payload)
           : new Float32Array(payload.buffer, payload.byteOffset, payload.byteLength / 4);
       const events = pushAudio(samples);
-      if (events.length === 0) return;
       for (const ev of events) {
         broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
       }
@@ -262,18 +256,17 @@ function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.VOICE_STT_STOP, () => {
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_STOP, () => {
     stopSession();
   });
 
-  ipcMain.handle(IPC_CHANNELS.VOICE_MODEL_STATUS, () => getModelStatus(__PROJECT_ROOT__));
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_STATUS, () => getModelStatus(__PROJECT_ROOT__));
 
-  ipcMain.handle(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, async () => {
-    const result = await downloadModel(__PROJECT_ROOT__, (event) => {
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () =>
+    downloadModel(__PROJECT_ROOT__, (event) => {
       broadcastToRenderer(IPC_CHANNELS.VOICE_MODEL_STATE, event);
-    });
-    return result;
-  });
+    }),
+  );
 
   // ---- Notifications --------------------------------------------------------
 
