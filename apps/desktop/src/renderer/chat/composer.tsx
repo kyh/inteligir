@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ImageIcon, ListPlusIcon, SendIcon, SquareIcon, XIcon, ZapIcon } from "lucide-react";
+import { ImageIcon, ListPlusIcon, SendIcon, SquareIcon, ZapIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
+import {
+  Attachment,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+} from "@repo/ui/components/ai-elements/attachments";
 import {
   PromptInput,
   PromptInputBody,
@@ -274,29 +280,18 @@ function ComposerAttachments() {
   const { files, remove } = usePromptInputAttachments();
   if (files.length === 0) return null;
   return (
-    <div className="flex flex-wrap gap-1.5 px-2 pt-2">
+    <Attachments variant="grid" className="px-2 pt-2">
       {files.map((file) => (
-        <div
+        <Attachment
           key={file.id}
-          className="relative h-12 w-12 overflow-hidden rounded border border-border"
+          data={file}
+          onRemove={() => remove(file.id)}
+          className="size-12 rounded border border-border"
         >
-          {file.url && file.mediaType?.startsWith("image/") ? (
-            <img src={file.url} alt={file.filename ?? ""} className="size-full object-cover" />
-          ) : (
-            <div className="grid size-full place-items-center bg-muted text-[10px] text-muted-foreground">
-              {file.filename}
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={() => remove(file.id)}
-            className="absolute right-0 top-0 rounded-bl bg-background/80 p-0.5 text-foreground hover:bg-background"
-            aria-label="Remove image"
-          >
-            <XIcon className="size-2.5" />
-          </button>
-        </div>
+          <AttachmentPreview />
+          <AttachmentRemove className="size-4 top-0 right-0 rounded-none rounded-bl bg-background/80 [&>svg]:size-2.5" />
+        </Attachment>
       ))}
-    </div>
+    </Attachments>
   );
 }

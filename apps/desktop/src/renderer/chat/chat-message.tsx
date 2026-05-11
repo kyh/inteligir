@@ -1,9 +1,21 @@
 import { ImageIcon } from "lucide-react";
 import { Message, MessageContent } from "@repo/ui/components/ai-elements/message";
 import { Response } from "@repo/ui/components/ai-elements/response";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolOutput,
+  type ToolPart,
+} from "@repo/ui/components/ai-elements/tool";
 
-import { ToolExecutionView } from "@/renderer/components/tool-execution";
-import type { ChatMessage } from "@/renderer/stores/agent-store";
+import type { ChatMessage, ToolExecution } from "@/renderer/stores/agent-store";
+
+const executionStateMap: Record<ToolExecution["status"], ToolPart["state"]> = {
+  running: "input-available",
+  done: "output-available",
+  error: "output-error",
+};
 
 export function ChatMessageView({ message }: { message: ChatMessage }) {
   switch (message.kind) {
@@ -52,11 +64,28 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
         </Message>
       );
 
-    case "tool":
+    case "tool": {
+      const { execution } = message;
+      const hasResult = execution.resultText.length > 0;
       return (
         <div className="mr-8">
-          <ToolExecutionView execution={message.execution} />
+          <Tool className="bg-foreground/5 backdrop-blur-sm">
+            <ToolHeader
+              type="dynamic-tool"
+              toolName={execution.toolName}
+              state={executionStateMap[execution.status]}
+            />
+            {hasResult && (
+              <ToolContent>
+                <ToolOutput
+                  output={execution.isError ? null : execution.resultText}
+                  errorText={execution.isError ? execution.resultText : undefined}
+                />
+              </ToolContent>
+            )}
+          </Tool>
         </div>
       );
+    }
   }
 }
