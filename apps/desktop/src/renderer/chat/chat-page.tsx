@@ -141,7 +141,7 @@ export function ChatPage() {
     <>
       <div className="flex h-full w-72 flex-col">
         <Conversation className="flex-1 px-3 pt-10">
-          <ConversationContent className="space-y-2 p-0 pb-2">
+          <ConversationContent className="gap-1 p-0 pb-2">
             {messages.length === 0 ? (
               <ConversationEmptyState
                 title="No messages yet"

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ImageIcon, ListPlusIcon, SendIcon, SquareIcon, XIcon, ZapIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 import {
@@ -35,10 +35,14 @@ async function dataUrlToImageAttachment(url: string, mimeType: string): Promise<
 }
 
 export function Composer() {
-  // PromptInput is uncontrolled by default — we just track a flag for empty state
-  // to drive submit-disabled, plus a steer-intent flag toggled by the bolt button.
+  // PromptInput is uncontrolled by default. We track text presence via the
+  // textarea onChange and image presence via children that subscribe to the
+  // attachments context. The steer-intent flag is set immediately before the
+  // user-initiated submit and consumed inside handleSubmit. It's a ref so the
+  // onClick handler that sets it and the form submit that reads it run in the
+  // same React event tick without a stale closure.
   const [hasInput, setHasInput] = useState(false);
-  const [pendingSteer, setPendingSteer] = useState(false);
+  const pendingSteerRef = useRef(false);
 
   const appState = useAgentStore((s) => s.appState);
   const sendMessage = useAgentStore((s) => s.sendMessage);
@@ -50,6 +54,12 @@ export function Composer() {
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
   const sessionStatus = getSessionStatus(appState);
+
+  // If we leave the busy state without submitting, drop any leftover steer
+  // intent so it doesn't silently steer the next turn.
+  useEffect(() => {
+    if (!busy) pendingSteerRef.current = false;
+  }, [busy]);
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
@@ -64,8 +74,8 @@ export function Composer() {
       );
       const imgs = images.length > 0 ? images : undefined;
 
-      const shouldSteer = busy && pendingSteer;
-      setPendingSteer(false);
+      const shouldSteer = busy && pendingSteerRef.current;
+      pendingSteerRef.current = false;
 
       if (shouldSteer) {
         steer(text, imgs);
@@ -76,7 +86,7 @@ export function Composer() {
       }
       setHasInput(false);
     },
-    [busy, pendingSteer, steer, followUp, sendMessage],
+    [busy, steer, followUp, sendMessage],
   );
 
   const onAttachError = useCallback(
@@ -87,6 +97,9 @@ export function Composer() {
   );
 
   const queueCount = queuedFollowUp.length + queuedSteering.length;
+  const requestSteer = useCallback(() => {
+    pendingSteerRef.current = true;
+  }, []);
 
   return (
     <div className="bg-foreground/8 px-3 py-2 backdrop-blur-sm">
@@ -139,33 +152,9 @@ export function Composer() {
                 )}
               />
               <AttachButton />
-              {busy && hasInput && (
-                <PromptInputButton
-                  tooltip="Send now (steer the agent)"
-                  onClick={() => setPendingSteer(true)}
-                >
-                  <ZapIcon className="size-3.5" />
-                </PromptInputButton>
-              )}
+              <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
             </PromptInputTools>
-
-            {busy && !hasInput ? (
-              <PromptInputButton tooltip="Stop" onClick={interrupt}>
-                <SquareIcon className="size-3.5" />
-              </PromptInputButton>
-            ) : (
-              <PromptInputSubmit
-                disabled={!hasInput}
-                variant="ghost"
-                aria-label={busy ? "Queue for next turn" : "Send"}
-              >
-                {busy ? (
-                  <ListPlusIcon className="size-3.5" />
-                ) : (
-                  <SendIcon className="size-3.5" />
-                )}
-              </PromptInputSubmit>
-            )}
+            <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
           </PromptInputToolbar>
         </PromptInputBody>
       </PromptInput>
@@ -179,6 +168,61 @@ function AttachButton() {
     <PromptInputButton tooltip="Attach image" onClick={openFileDialog}>
       <ImageIcon className="size-3.5" />
     </PromptInputButton>
+  );
+}
+
+function SteerButton({
+  busy,
+  hasInput,
+  onSteer,
+}: {
+  busy: boolean;
+  hasInput: boolean;
+  onSteer: () => void;
+}) {
+  const { files } = usePromptInputAttachments();
+  const hasContent = hasInput || files.length > 0;
+  if (!busy || !hasContent) return null;
+
+  return (
+    <PromptInputButton
+      type="submit"
+      tooltip="Send now (steer the agent)"
+      onClick={onSteer}
+    >
+      <ZapIcon className="size-3.5" />
+    </PromptInputButton>
+  );
+}
+
+function SubmitOrStop({
+  busy,
+  hasInput,
+  onInterrupt,
+}: {
+  busy: boolean;
+  hasInput: boolean;
+  onInterrupt: () => void;
+}) {
+  const { files } = usePromptInputAttachments();
+  const hasContent = hasInput || files.length > 0;
+
+  if (busy && !hasContent) {
+    return (
+      <PromptInputButton tooltip="Stop" onClick={onInterrupt}>
+        <SquareIcon className="size-3.5" />
+      </PromptInputButton>
+    );
+  }
+
+  return (
+    <PromptInputSubmit
+      disabled={!hasContent}
+      variant="ghost"
+      aria-label={busy ? "Queue for next turn" : "Send"}
+    >
+      {busy ? <ListPlusIcon className="size-3.5" /> : <SendIcon className="size-3.5" />}
+    </PromptInputSubmit>
   );
 }
 
@@ -212,4 +256,3 @@ function ComposerAttachments() {
     </div>
   );
 }
-
