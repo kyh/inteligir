@@ -46,6 +46,7 @@ async function ensureModelThenConnect(
       });
     }
   } catch (err) {
+    if (!pipeline) return;
     set({
       sessionState: "error",
       error: err instanceof Error ? err.message : String(err),
