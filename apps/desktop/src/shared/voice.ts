@@ -4,7 +4,12 @@
 
 import { z } from "zod";
 
-export type VoiceSessionState = "inactive" | "connecting" | "connected" | "error";
+export type VoiceSessionState =
+  | "inactive"
+  | "downloading_model"
+  | "connecting"
+  | "connected"
+  | "error";
 
 // Image attachments — base64 data + mime, matches pi-ai's ImageContent shape.
 const ImageAttachmentSchema = z.object({

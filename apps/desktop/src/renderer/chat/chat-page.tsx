@@ -15,6 +15,7 @@ import {
   ConversationScrollButton,
 } from "@repo/ui/components/conversation";
 
+import type { VoiceModelStateEvent } from "@/shared/ipc";
 import type { VoiceSessionState } from "@/shared/voice";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
@@ -37,10 +38,24 @@ type ActionTab = "message" | "voice" | "other";
 
 const voiceLabels: Record<VoiceSessionState, string> = {
   inactive: "Voice",
+  downloading_model: "Downloading speech model...",
   connecting: "Connecting...",
   connected: "Listening",
   error: "Error",
 };
+
+function voicePaneLabel(
+  sessionState: VoiceSessionState,
+  modelState: VoiceModelStateEvent | null,
+): string {
+  if (sessionState === "downloading_model") {
+    if (modelState?.status === "downloading") {
+      return `Downloading speech model… ${String(modelState.percent)}%`;
+    }
+    if (modelState?.status === "extracting") return "Extracting speech model…";
+  }
+  return voiceLabels[sessionState];
+}
 
 // ---------------------------------------------------------------------------
 // Tab icon button
@@ -131,6 +146,7 @@ export function ChatPage() {
   useEffect(() => initVoice(), [initVoice]);
 
   const sessionState = useVoiceStore((s) => s.sessionState);
+  const voiceModelState = useVoiceStore((s) => s.modelState);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
   const voiceActive = sessionState === "connected" || sessionState === "connecting";
 
@@ -175,17 +191,21 @@ export function ChatPage() {
                       voiceActive ? "bg-green-400 animate-pulse" : "bg-muted-foreground/40",
                     )}
                   />
-                  <span className="text-xs text-muted-foreground">{voiceLabels[sessionState]}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {voicePaneLabel(sessionState, voiceModelState)}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={toggleVoice}
+                    disabled={sessionState === "downloading_model"}
                     className={cn(
                       "rounded-full p-2 transition-colors",
                       voiceActive
                         ? "bg-red-500/80 text-foreground hover:bg-red-500"
                         : "bg-foreground/15 text-foreground hover:bg-foreground/25",
+                      sessionState === "downloading_model" && "opacity-50",
                     )}
                     title={voiceActive ? "End call" : "Start call"}
                   >

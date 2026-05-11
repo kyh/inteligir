@@ -2,12 +2,14 @@ import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { VoicePipeline, type VoicePipelineEvent } from "@/renderer/voice/voice-pipeline";
+import type { VoiceModelStateEvent } from "@/shared/ipc";
 import type { VoiceSessionState } from "@/shared/voice";
 
 type VoiceStore = {
   sessionState: VoiceSessionState;
   currentTranscript: string;
   error: string | null;
+  modelState: VoiceModelStateEvent | null;
 
   init: () => () => void;
   reset: () => void;
@@ -18,16 +20,47 @@ type VoiceStore = {
 
 let pipeline: VoicePipeline | null = null;
 
+async function ensureModelThenConnect(
+  set: (patch: Partial<VoiceStore>) => void,
+): Promise<void> {
+  const bridge = getBridge();
+  if (!bridge || !pipeline) return;
+
+  const status = await bridge.getVoiceModelStatus();
+  if (status === "ready") {
+    void pipeline.connect();
+    return;
+  }
+
+  // Model is missing — download with progress, then connect on success.
+  set({ sessionState: "downloading_model", error: null });
+  const result = await bridge.downloadVoiceModel();
+  if (!pipeline) return; // user navigated away / pipeline torn down
+  if (result.ok) {
+    void pipeline.connect();
+  } else {
+    set({
+      sessionState: "error",
+      error: result.error ?? "Failed to download speech model",
+    });
+  }
+}
+
 export const useVoiceStore = create<VoiceStore>((set, get) => ({
   sessionState: "inactive",
   currentTranscript: "",
   error: null,
+  modelState: null,
 
   init: () => {
     const bridge = getBridge();
     if (!bridge) return () => {};
 
     let cancelled = false;
+
+    const unsubscribeModelState = bridge.onVoiceModelState((event) => {
+      set({ modelState: event });
+    });
 
     void bridge.getVoiceConfig().then((config) => {
       if (cancelled || !config) return;
@@ -62,6 +95,7 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
     return () => {
       cancelled = true;
+      unsubscribeModelState();
       pipeline?.disconnect();
       pipeline = null;
     };
@@ -70,8 +104,9 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   toggleVoice: () => {
     if (!pipeline) return;
     const { sessionState } = get();
+    if (sessionState === "downloading_model") return;
     if (sessionState === "inactive" || sessionState === "error") {
-      void pipeline.connect();
+      void ensureModelThenConnect(set);
     } else {
       pipeline.disconnect();
     }

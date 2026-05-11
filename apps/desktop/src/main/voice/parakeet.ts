@@ -3,8 +3,9 @@
 // Runs in the main process. Renderer pushes 16kHz mono PCM chunks via IPC.
 // ---------------------------------------------------------------------------
 
-import { existsSync } from "node:fs";
 import { join } from "node:path";
+
+import { isModelInstalled, MODEL_NAME } from "@/main/voice/model-download";
 
 // sherpa-onnx-node is loaded lazily so the app still boots when the model
 // isn't downloaded yet (the renderer just sees STT unavailable).
@@ -22,8 +23,6 @@ type Stream = {
   inputFinished: () => void;
 };
 
-const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
-
 let recognizer: InstanceType<OnlineRecognizerCtor> | null = null;
 let initPromise: Promise<InitResult> | null = null;
 let stream: Stream | null = null;
@@ -35,11 +34,6 @@ export type InitResult = { ok: true } | { ok: false; reason: string };
 
 function resolveModelDir(projectRoot: string): string {
   return join(projectRoot, "resources", "stt", MODEL_NAME);
-}
-
-export function isModelInstalled(projectRoot: string): boolean {
-  const dir = resolveModelDir(projectRoot);
-  return existsSync(join(dir, "tokens.txt"));
 }
 
 /**
@@ -61,10 +55,7 @@ export async function initParakeet(projectRoot: string): Promise<InitResult> {
 
 async function doInit(projectRoot: string): Promise<InitResult> {
   if (!isModelInstalled(projectRoot)) {
-    const reason =
-      "Parakeet model not installed. Run 'pnpm download-stt-model' in apps/desktop.";
-    console.warn(`[parakeet] ${reason}`);
-    return { ok: false, reason };
+    return { ok: false, reason: "Parakeet model not installed." };
   }
 
   const modelDir = resolveModelDir(projectRoot);

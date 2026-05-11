@@ -23,6 +23,7 @@ import {
   startSession,
   stopSession,
 } from "@/main/voice/parakeet";
+import { downloadModel, getModelStatus } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
@@ -263,6 +264,15 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.VOICE_STT_STOP, () => {
     stopSession();
+  });
+
+  ipcMain.handle(IPC_CHANNELS.VOICE_MODEL_STATUS, () => getModelStatus(__PROJECT_ROOT__));
+
+  ipcMain.handle(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, async () => {
+    const result = await downloadModel(__PROJECT_ROOT__, (event) => {
+      broadcastToRenderer(IPC_CHANNELS.VOICE_MODEL_STATE, event);
+    });
+    return result;
   });
 
   // ---- Notifications --------------------------------------------------------
