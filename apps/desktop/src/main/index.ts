@@ -241,17 +241,25 @@ function registerIpcHandlers(): void {
   });
 
   ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | Uint8Array) => {
-    // Buffer/Uint8Array views may sit at a non-zero offset inside a larger
-    // pooled ArrayBuffer; honor byteOffset/byteLength to avoid reading
-    // unrelated pool memory.
-    const samples =
-      payload instanceof ArrayBuffer
-        ? new Float32Array(payload)
-        : new Float32Array(payload.buffer, payload.byteOffset, payload.byteLength / 4);
-    const events = pushAudio(samples);
-    if (events.length === 0) return;
-    for (const ev of events) {
-      broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
+    // Hot path — runs many times per second. ipcMain.on is fire-and-forget,
+    // so any throw here (misaligned buffer view, native sherpa-onnx error)
+    // would propagate to the event loop and crash the app. Swallow + log
+    // and let the session continue.
+    try {
+      // Buffer/Uint8Array views may sit at a non-zero offset inside a larger
+      // pooled ArrayBuffer; honor byteOffset/byteLength to avoid reading
+      // unrelated pool memory.
+      const samples =
+        payload instanceof ArrayBuffer
+          ? new Float32Array(payload)
+          : new Float32Array(payload.buffer, payload.byteOffset, payload.byteLength / 4);
+      const events = pushAudio(samples);
+      if (events.length === 0) return;
+      for (const ev of events) {
+        broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
+      }
+    } catch (err) {
+      console.error("[voice] audio chunk handler failed:", err);
     }
   });
 
