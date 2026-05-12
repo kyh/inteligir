@@ -41,18 +41,20 @@ const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MiB per image
 
-// Extract the base64 payload from a `data:<mime>;base64,...` URL. Returns
-// null for any other URL shape (e.g., a blob: URL that came through when
-// PromptInput's blob → data URL conversion failed) so the agent never
+// Extract the base64 payload from a `data:<mime>;base64,<payload>` URL.
+// Returns null for any other URL shape — including blob: URLs that came
+// through when PromptInput's blob → data URL conversion failed, and
+// non-base64 data URLs (e.g. `data:text/plain,hello`) — so the agent never
 // receives a non-base64 string in the `data` field.
 function dataUrlToImageAttachment(
   url: string,
   mimeType: string,
 ): ImageAttachment | null {
   if (!url.startsWith("data:")) return null;
-  const commaIdx = url.indexOf(",");
-  if (commaIdx < 0) return null;
-  const data = url.slice(commaIdx + 1);
+  const marker = ";base64,";
+  const markerIdx = url.indexOf(marker);
+  if (markerIdx < 0) return null;
+  const data = url.slice(markerIdx + marker.length);
   if (!data) return null;
   return { data, mimeType: mimeType || "image/png" };
 }
