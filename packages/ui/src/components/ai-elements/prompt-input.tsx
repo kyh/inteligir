@@ -187,22 +187,20 @@ export const PromptInput = ({
   );
 
   const remove = useCallback((id: string) => {
+    // Revoke + count adjust outside the updater so it stays pure (consistent
+    // with `add`). filesRef is kept in sync via the useEffect above.
+    const target = filesRef.current.find((file) => file.id === id);
+    if (target?.url) URL.revokeObjectURL(target.url);
     liveCountRef.current = Math.max(0, liveCountRef.current - 1);
-    setItems((prev) => {
-      const found = prev.find((file) => file.id === id);
-      if (found?.url) URL.revokeObjectURL(found.url);
-      return prev.filter((file) => file.id !== id);
-    });
+    setItems((prev) => prev.filter((file) => file.id !== id));
   }, []);
 
   const clear = useCallback(() => {
+    for (const file of filesRef.current) {
+      if (file.url) URL.revokeObjectURL(file.url);
+    }
     liveCountRef.current = 0;
-    setItems((prev) => {
-      for (const file of prev) {
-        if (file.url) URL.revokeObjectURL(file.url);
-      }
-      return [];
-    });
+    setItems(() => []);
   }, []);
 
   useEffect(() => {
@@ -359,7 +357,10 @@ export const PromptInputTextarea = ({
         const submitButton = form?.querySelector(
           'button[type="submit"]',
         ) as HTMLButtonElement | null;
-        if (submitButton?.disabled) return;
+        // Skip if no submit button is in the DOM (e.g., parent renders a
+        // type="button" stop control instead while the agent is busy) or
+        // if it exists but is disabled.
+        if (!submitButton || submitButton.disabled) return;
         form?.requestSubmit();
       }
 

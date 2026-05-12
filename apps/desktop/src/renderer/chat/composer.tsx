@@ -219,6 +219,9 @@ function ComposerTextarea({
 
   return (
     <PromptInputTextarea
+      // Focus on mount so users can start typing immediately, matching the
+      // pre-AI-Elements composer behavior.
+      autoFocus
       className="min-h-10 text-xs"
       placeholder={busy ? "Queue message..." : "Message..."}
       onChange={(e) => onHasInputChange(e.currentTarget.value.trim().length > 0)}
