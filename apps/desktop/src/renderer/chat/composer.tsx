@@ -18,6 +18,13 @@ import {
   usePromptInputAttachments,
   type PromptInputMessage,
 } from "@repo/ui/components/ai-elements/prompt-input";
+import {
+  Queue,
+  QueueItem,
+  QueueItemContent,
+  QueueItemIndicator,
+  QueueList,
+} from "@repo/ui/components/ai-elements/queue";
 
 import type { ImageAttachment } from "@/shared/voice";
 import { getSessionStatus, type SessionStatus } from "@/shared/agent";
@@ -115,27 +122,26 @@ export function Composer() {
   return (
     <div className="bg-foreground/8 px-3 py-2 backdrop-blur-sm">
       {queueCount > 0 && (
-        <div className="mb-2 flex flex-col gap-1">
-          {queuedSteering.map((msg, i) => (
-            <div
-              key={`s-${i}`}
-              className="flex items-center gap-1.5 truncate rounded border border-yellow-500/40 bg-yellow-500/10 px-2 py-1 text-[10px] text-foreground"
-              title={msg}
-            >
-              <ZapIcon className="size-2.5 shrink-0" />
-              <span className="truncate">{msg}</span>
-            </div>
-          ))}
-          {queuedFollowUp.map((msg, i) => (
-            <div
-              key={`f-${i}`}
-              className="truncate rounded border border-foreground/20 bg-foreground/5 px-2 py-1 text-[10px] text-muted-foreground"
-              title={msg}
-            >
-              {msg}
-            </div>
-          ))}
-        </div>
+        <Queue className="mb-2 rounded-md bg-foreground/5 px-1.5 pb-1 pt-1 shadow-none">
+          <QueueList className="-mb-1 mt-0">
+            {queuedSteering.map((msg, i) => (
+              <QueueItem key={`s-${i}`} className="px-2 py-1" title={msg}>
+                <div className="flex items-center gap-1.5 text-[10px] text-foreground">
+                  <ZapIcon className="size-2.5 shrink-0 text-yellow-500" />
+                  <QueueItemContent className="text-foreground">{msg}</QueueItemContent>
+                </div>
+              </QueueItem>
+            ))}
+            {queuedFollowUp.map((msg, i) => (
+              <QueueItem key={`f-${i}`} className="px-2 py-1" title={msg}>
+                <div className="flex items-center gap-1.5 text-[10px]">
+                  <QueueItemIndicator className="size-1.5" />
+                  <QueueItemContent>{msg}</QueueItemContent>
+                </div>
+              </QueueItem>
+            ))}
+          </QueueList>
+        </Queue>
       )}
 
       <PromptInput
