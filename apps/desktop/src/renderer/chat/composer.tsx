@@ -41,9 +41,19 @@ const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MiB per image
 
-async function dataUrlToImageAttachment(url: string, mimeType: string): Promise<ImageAttachment> {
+// Extract the base64 payload from a `data:<mime>;base64,...` URL. Returns
+// null for any other URL shape (e.g., a blob: URL that came through when
+// PromptInput's blob → data URL conversion failed) so the agent never
+// receives a non-base64 string in the `data` field.
+function dataUrlToImageAttachment(
+  url: string,
+  mimeType: string,
+): ImageAttachment | null {
+  if (!url.startsWith("data:")) return null;
   const commaIdx = url.indexOf(",");
-  const data = commaIdx >= 0 ? url.slice(commaIdx + 1) : url;
+  if (commaIdx < 0) return null;
+  const data = url.slice(commaIdx + 1);
+  if (!data) return null;
   return { data, mimeType: mimeType || "image/png" };
 }
 
@@ -88,9 +98,18 @@ export function Composer() {
       );
       if (!text && fileImages.length === 0) return;
 
-      const images: ImageAttachment[] = await Promise.all(
-        fileImages.map(async (f) => dataUrlToImageAttachment(f.url!, f.mediaType ?? "image/png")),
+      const converted = fileImages.map((f) =>
+        dataUrlToImageAttachment(f.url!, f.mediaType ?? "image/png"),
       );
+      const images = converted.filter((img): img is ImageAttachment => img !== null);
+      const dropped = converted.length - images.length;
+      if (dropped > 0) {
+        console.warn(
+          `[composer] dropped ${dropped} attachment(s) that failed blob → data URL conversion`,
+        );
+      }
+      // If the only attachments failed to convert and there's no text, bail.
+      if (!text && images.length === 0) return;
       const imgs = images.length > 0 ? images : undefined;
 
       const shouldSteer = busy && pendingSteerRef.current;
