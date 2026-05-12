@@ -31,6 +31,7 @@
     "@repo/ui": "workspace:^",
     "@sinclair/typebox": "^0.34.49",
     "@streamdown/code": "^1.1.1",
+    "ai": "^6.0.105",
     "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
     "motion": "^12.38.0",
