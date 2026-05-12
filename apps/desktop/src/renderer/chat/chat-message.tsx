@@ -29,7 +29,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
           {first.state === "output-available" || first.state === "output-error" ? (
             <ToolContent>
               <ToolOutput
-                output={first.state === "output-available" ? (first.output as unknown) : null}
+                output={first.state === "output-available" ? (first.output as unknown) : undefined}
                 errorText={first.state === "output-error" ? first.errorText : undefined}
               />
             </ToolContent>

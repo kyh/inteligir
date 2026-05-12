@@ -130,16 +130,20 @@ export type ToolOutputProps = ComponentProps<"div"> & {
 };
 
 export const ToolOutput = ({ className, output, errorText, ...props }: ToolOutputProps) => {
-  if (!(output || errorText)) {
+  const hasOutput = output !== null && output !== undefined;
+  if (!(hasOutput || errorText)) {
     return null;
   }
 
-  let Output = <div>{output as ReactNode}</div>;
-
-  if (typeof output === "object" && !isValidElement(output)) {
-    Output = <JsonBlock code={JSON.stringify(output, null, 2)} />;
-  } else if (typeof output === "string") {
-    Output = <JsonBlock code={output} />;
+  let Output: ReactNode = null;
+  if (hasOutput) {
+    if (typeof output === "object" && !isValidElement(output)) {
+      Output = <JsonBlock code={JSON.stringify(output, null, 2)} />;
+    } else if (typeof output === "string") {
+      Output = <JsonBlock code={output} />;
+    } else {
+      Output = <div>{output as ReactNode}</div>;
+    }
   }
 
   return (
