@@ -100,9 +100,14 @@ export function Composer() {
       // PromptInput resets the form before invoking onSubmit, so the textarea
       // is already empty. Sync state unconditionally — including the
       // whitespace-only early return below — so the submit button doesn't
-      // stay falsely enabled.
+      // stay falsely enabled. Consume the steer intent up front too: an
+      // orphaned `true` on a failed-submit path would silently steer the
+      // next Enter-driven submission.
       setHasInput(false);
       submitInFlightRef.current = false;
+      const isBusy = busyRef.current;
+      const shouldSteer = isBusy && pendingSteerRef.current;
+      pendingSteerRef.current = false;
 
       const text = message.text.trim();
       const fileImages = message.files.filter(
@@ -127,12 +132,6 @@ export function Composer() {
         throw new Error("composer: nothing to submit after attachment conversion");
       }
       const imgs = images.length > 0 ? images : undefined;
-
-      // Read the live busy state, not the closure-captured one — agent_end
-      // can land during PromptInput's async file conversion.
-      const isBusy = busyRef.current;
-      const shouldSteer = isBusy && pendingSteerRef.current;
-      pendingSteerRef.current = false;
 
       if (shouldSteer) {
         steer(text, imgs);
