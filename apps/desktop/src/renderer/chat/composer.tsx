@@ -64,6 +64,10 @@ export function Composer() {
   // Ref (not state) so the steer button's onClick and the form submit it
   // triggers can run in the same event tick without a stale closure.
   const pendingSteerRef = useRef(false);
+  // PromptInput's handleSubmit awaits blob→data-URL conversion before invoking
+  // our onSubmit. During that gap an agent_end can land and the busy effect
+  // below would otherwise clear pendingSteerRef, dropping the user's intent.
+  const submitInFlightRef = useRef(false);
 
   const appState = useAgentStore((s) => s.appState);
   const sendMessage = useAgentStore((s) => s.sendMessage);
@@ -77,9 +81,10 @@ export function Composer() {
   const sessionStatus = getSessionStatus(appState);
 
   // If we leave the busy state without submitting, drop any leftover steer
-  // intent so it doesn't silently steer the next turn.
+  // intent so it doesn't silently steer the next turn. Skip when a submit
+  // is mid-flight — the steer intent will be consumed by handleSubmit.
   useEffect(() => {
-    if (!busy) pendingSteerRef.current = false;
+    if (!busy && !submitInFlightRef.current) pendingSteerRef.current = false;
   }, [busy]);
 
   const handleSubmit = useCallback(
@@ -89,6 +94,7 @@ export function Composer() {
       // whitespace-only early return below — so the submit button doesn't
       // stay falsely enabled.
       setHasInput(false);
+      submitInFlightRef.current = false;
 
       const text = message.text.trim();
       const fileImages = message.files.filter(
@@ -134,6 +140,7 @@ export function Composer() {
   const queueCount = queuedFollowUp.length + queuedSteering.length;
   const requestSteer = useCallback(() => {
     pendingSteerRef.current = true;
+    submitInFlightRef.current = true;
   }, []);
 
   return (
@@ -273,6 +280,10 @@ function SteerButton({
       tooltip="Send now (steer the agent)"
       onClick={(e) => {
         onSteer();
+        // requestSubmit triggers PromptInput's async handler, which awaits
+        // blob conversion before our onSubmit runs. The submit-in-flight
+        // flag (set in onSteer) keeps the busy effect from clearing the
+        // steer intent during that window.
         e.currentTarget.form?.requestSubmit();
       }}
     >
