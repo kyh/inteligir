@@ -266,9 +266,15 @@ function SteerButton({
 
   return (
     <PromptInputButton
-      type="submit"
+      // type="button" (not "submit") so PromptInputSubmit stays the only
+      // [type=submit] in the form — keeps the Enter handler's disabled-check
+      // unambiguous and lets us mark steer-intent before submitting.
+      type="button"
       tooltip="Send now (steer the agent)"
-      onClick={onSteer}
+      onClick={(e) => {
+        onSteer();
+        e.currentTarget.form?.requestSubmit();
+      }}
     >
       <ZapIcon className="size-3.5" />
     </PromptInputButton>
