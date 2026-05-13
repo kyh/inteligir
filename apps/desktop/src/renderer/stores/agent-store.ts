@@ -169,12 +169,15 @@ function mapMessageWithTextPart(
 ): ChatMessage {
   const first = msg.parts[0];
   if (!first || first.type !== "text") return msg;
-  return { ...msg, parts: [mutate(first), ...msg.parts.slice(1)] };
+  const next = mutate(first);
+  if (next === first) return msg;
+  return { ...msg, parts: [next, ...msg.parts.slice(1)] };
 }
 
 function replaceToolPart(msg: ChatMessage, next: DynamicToolUIPart): ChatMessage {
   const first = msg.parts[0];
   if (!first || first.type !== "dynamic-tool") return msg;
+  if (next === first) return msg;
   return { ...msg, parts: [next, ...msg.parts.slice(1)] };
 }
 

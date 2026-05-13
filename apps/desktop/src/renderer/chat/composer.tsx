@@ -60,13 +60,9 @@ function dataUrlToImageAttachment(
 }
 
 export function Composer() {
-  // PromptInput is uncontrolled by default. We track text presence via the
-  // textarea onChange and image presence via children that subscribe to the
-  // attachments context. The steer-intent flag is set immediately before the
-  // user-initiated submit and consumed inside handleSubmit. It's a ref so the
-  // onClick handler that sets it and the form submit that reads it run in the
-  // same React event tick without a stale closure.
   const [hasInput, setHasInput] = useState(false);
+  // Ref (not state) so the steer button's onClick and the form submit it
+  // triggers can run in the same event tick without a stale closure.
   const pendingSteerRef = useRef(false);
 
   const appState = useAgentStore((s) => s.appState);
@@ -88,10 +84,10 @@ export function Composer() {
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
-      // PromptInput already called form.reset() before invoking us, so the
-      // textarea is visually empty. Clear hasInput unconditionally to keep
-      // the submit/steer button state in sync — including on early-return
-      // for whitespace-only submits.
+      // PromptInput resets the form before invoking onSubmit, so the textarea
+      // is already empty. Sync state unconditionally — including the
+      // whitespace-only early return below — so the submit button doesn't
+      // stay falsely enabled.
       setHasInput(false);
 
       const text = message.text.trim();
@@ -240,8 +236,7 @@ function ComposerTextarea({
 
   return (
     <PromptInputTextarea
-      // Focus on mount so users can start typing immediately, matching the
-      // pre-AI-Elements composer behavior.
+      // Focus on mount so users can start typing immediately.
       autoFocus
       className="min-h-10 text-xs"
       placeholder={busy ? "Queue message..." : "Message..."}
@@ -249,6 +244,12 @@ function ComposerTextarea({
       onKeyDown={handleKeyDown}
     />
   );
+}
+
+// Text in the textarea or files in the attachments tray.
+function useHasContent(hasInput: boolean): boolean {
+  const { files } = usePromptInputAttachments();
+  return hasInput || files.length > 0;
 }
 
 function SteerButton({
@@ -260,8 +261,7 @@ function SteerButton({
   hasInput: boolean;
   onSteer: () => void;
 }) {
-  const { files } = usePromptInputAttachments();
-  const hasContent = hasInput || files.length > 0;
+  const hasContent = useHasContent(hasInput);
   if (!busy || !hasContent) return null;
 
   return (
@@ -284,8 +284,7 @@ function SubmitOrStop({
   hasInput: boolean;
   onInterrupt: () => void;
 }) {
-  const { files } = usePromptInputAttachments();
-  const hasContent = hasInput || files.length > 0;
+  const hasContent = useHasContent(hasInput);
 
   if (busy && !hasContent) {
     return (
