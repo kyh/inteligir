@@ -80,6 +80,14 @@ export function Composer() {
   const busy = appState.phase === "ready" && appState.agent === "busy";
   const sessionStatus = getSessionStatus(appState);
 
+  // Mirror busy into a ref so handleSubmit reads its current value after
+  // the async blob → data URL gap inside PromptInput. The closure-captured
+  // `busy` would otherwise be stale if agent_end lands during that gap.
+  const busyRef = useRef(busy);
+  useEffect(() => {
+    busyRef.current = busy;
+  }, [busy]);
+
   // If we leave the busy state without submitting, drop any leftover steer
   // intent so it doesn't silently steer the next turn. Skip when a submit
   // is mid-flight — the steer intent will be consumed by handleSubmit.
@@ -116,18 +124,21 @@ export function Composer() {
       if (!text && images.length === 0) return;
       const imgs = images.length > 0 ? images : undefined;
 
-      const shouldSteer = busy && pendingSteerRef.current;
+      // Read the live busy state, not the closure-captured one — agent_end
+      // can land during PromptInput's async file conversion.
+      const isBusy = busyRef.current;
+      const shouldSteer = isBusy && pendingSteerRef.current;
       pendingSteerRef.current = false;
 
       if (shouldSteer) {
         steer(text, imgs);
-      } else if (busy) {
+      } else if (isBusy) {
         followUp(text, imgs);
       } else {
         sendMessage(text, imgs);
       }
     },
-    [busy, steer, followUp, sendMessage],
+    [steer, followUp, sendMessage],
   );
 
   const onAttachError = useCallback(
