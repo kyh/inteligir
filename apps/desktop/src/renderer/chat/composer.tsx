@@ -120,8 +120,12 @@ export function Composer() {
           `[composer] dropped ${dropped} attachment(s) that failed blob → data URL conversion`,
         );
       }
-      // If the only attachments failed to convert and there's no text, bail.
-      if (!text && images.length === 0) return;
+      // If every attachment failed to convert and there's no text, throw so
+      // PromptInput's catch block skips clear() — keeps the original files
+      // in the tray for the user to retry instead of silently discarding them.
+      if (!text && images.length === 0) {
+        throw new Error("composer: nothing to submit after attachment conversion");
+      }
       const imgs = images.length > 0 ? images : undefined;
 
       // Read the live busy state, not the closure-captured one — agent_end
