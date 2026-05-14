@@ -20,6 +20,15 @@ const OUT_DIR = join(PROJECT_ROOT, "resources", "stt");
 const MODEL_DIR = join(OUT_DIR, MODEL_NAME);
 const ARCHIVE_PATH = join(OUT_DIR, `${MODEL_NAME}.tar.bz2`);
 
+// Files written by the tar extraction. All four must be present before the
+// recognizer can initialize — checking only tokens.txt would treat a partial
+// install (download interrupted between files) as already-done.
+const REQUIRED_FILES = ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"];
+
+function isModelReady() {
+  return REQUIRED_FILES.every((f) => existsSync(join(MODEL_DIR, f)));
+}
+
 function log(msg) {
   process.stdout.write(`[download-stt-model] ${msg}\n`);
 }
@@ -48,7 +57,7 @@ function extract(archive, outDir) {
 }
 
 async function main() {
-  if (existsSync(join(MODEL_DIR, "tokens.txt"))) {
+  if (isModelReady()) {
     log(`Model already present at ${MODEL_DIR} — skipping download.`);
     return;
   }
@@ -59,7 +68,7 @@ async function main() {
   await extract(ARCHIVE_PATH, OUT_DIR);
   await rm(ARCHIVE_PATH);
 
-  if (!existsSync(join(MODEL_DIR, "tokens.txt"))) {
+  if (!isModelReady()) {
     throw new Error(`Extraction completed but expected files missing in ${MODEL_DIR}`);
   }
   log(`Model ready at ${MODEL_DIR}`);

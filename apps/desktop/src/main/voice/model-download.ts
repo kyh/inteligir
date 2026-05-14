@@ -96,16 +96,23 @@ async function fetchToFile(
   let received = 0;
   const sink = createWriteStream(dest);
   const reader = res.body.getReader();
+  // Top-level error capture: a sink error during a write that didn't trigger
+  // backpressure (i.e. write() returned true) would otherwise propagate to
+  // the event loop and crash the main process.
+  let sinkError: Error | null = null;
+  const onSinkError = (err: Error) => {
+    sinkError = err;
+  };
+  sink.on("error", onSinkError);
   try {
     while (true) {
+      if (sinkError) throw sinkError;
       const { done, value } = await reader.read();
       if (done) break;
       received += value.byteLength;
       onProgress(received, total);
       if (!sink.write(value)) {
         await new Promise<void>((resolve, reject) => {
-          // Listen for both events; the loser is removed so it doesn't
-          // resolve/reject after the fact or accumulate as a leaked listener.
           const onDrain = () => {
             sink.off("error", onError);
             resolve();
@@ -119,15 +126,16 @@ async function fetchToFile(
         });
       }
     }
+    if (sinkError) throw sinkError;
     await new Promise<void>((resolve, reject) => {
       sink.end((err?: Error | null) => (err ? reject(err) : resolve()));
     });
   } catch (err) {
     sink.destroy();
-    // Cancel the web reader so the underlying HTTP connection is released
-    // instead of leaking until GC.
     await reader.cancel().catch(() => {});
     throw err;
+  } finally {
+    sink.off("error", onSinkError);
   }
 
   // Sanity-check size — content-length may be 0 on some CDNs, in which case
