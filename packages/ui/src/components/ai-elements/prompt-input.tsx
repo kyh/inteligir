@@ -103,6 +103,11 @@ export const PromptInput = ({
 }: PromptInputProps) => {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
+  // Guards against re-entrant submits. form.reset() runs synchronously but
+  // hasInput state in consumer components doesn't update until React flushes,
+  // and the file conversion below is async — so without this a rapid second
+  // Enter can fire onSubmit twice with the same payload.
+  const submittingRef = useRef(false);
 
   const [items, setItems] = useState<(FileUIPart & { id: string })[]>([]);
   const filesRef = useRef(items);
@@ -268,6 +273,8 @@ export const PromptInput = ({
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
     async (event) => {
       event.preventDefault();
+      if (submittingRef.current) return;
+      submittingRef.current = true;
       const form = event.currentTarget;
       const formData = new FormData(form);
       const text = (formData.get("message") as string) || "";
@@ -297,6 +304,8 @@ export const PromptInput = ({
         }
       } catch {
         // Don't clear on error - user may want to retry
+      } finally {
+        submittingRef.current = false;
       }
     },
     [items, onSubmit, clear],
