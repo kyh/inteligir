@@ -3,10 +3,10 @@ import { create } from "zustand";
 import { getBridge } from "@/renderer/lib/bridge";
 import { VoicePipeline, type VoicePipelineEvent } from "@/renderer/voice/voice-pipeline";
 import type { VoiceModelStateEvent } from "@/shared/ipc";
-import type { VoiceSessionState } from "@/shared/voice";
+import type { VoiceStoreSessionState } from "@/shared/voice";
 
 type VoiceStore = {
-  sessionState: VoiceSessionState;
+  sessionState: VoiceStoreSessionState;
   currentTranscript: string;
   error: string | null;
   modelState: VoiceModelStateEvent | null;

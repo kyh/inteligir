@@ -16,7 +16,7 @@ import {
 } from "@repo/ui/components/conversation";
 
 import type { VoiceModelStateEvent } from "@/shared/ipc";
-import type { VoiceSessionState } from "@/shared/voice";
+import type { VoiceStoreSessionState } from "@/shared/voice";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
 import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
@@ -36,7 +36,7 @@ type ActionTab = "message" | "voice" | "other";
 // Voice labels
 // ---------------------------------------------------------------------------
 
-const voiceLabels: Record<VoiceSessionState, string> = {
+const voiceLabels: Record<VoiceStoreSessionState, string> = {
   inactive: "Voice",
   downloading_model: "Downloading speech model...",
   connecting: "Connecting...",
@@ -45,7 +45,7 @@ const voiceLabels: Record<VoiceSessionState, string> = {
 };
 
 function voicePaneLabel(
-  sessionState: VoiceSessionState,
+  sessionState: VoiceStoreSessionState,
   modelState: VoiceModelStateEvent | null,
 ): string {
   if (sessionState === "downloading_model") {

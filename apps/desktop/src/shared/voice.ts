@@ -4,12 +4,15 @@
 
 import { z } from "zod";
 
-export type VoiceSessionState =
-  | "inactive"
-  | "downloading_model"
-  | "connecting"
-  | "connected"
-  | "error";
+/** Lifecycle states that the VoicePipeline itself can produce. */
+export type VoiceSessionState = "inactive" | "connecting" | "connected" | "error";
+
+/**
+ * Store-level session state. Adds "downloading_model" — a renderer-only state
+ * set by the store while the Parakeet model download is in flight before the
+ * pipeline.connect() call. The pipeline never produces this value itself.
+ */
+export type VoiceStoreSessionState = VoiceSessionState | "downloading_model";
 
 // Image attachments — base64 data + mime, matches pi-ai's ImageContent shape.
 const ImageAttachmentSchema = z.object({
