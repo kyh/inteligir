@@ -126,7 +126,28 @@ export function pushAudio(samples: Float32Array): ParakeetTranscript[] {
   return events;
 }
 
-export function stopSession(): void {
+/**
+ * End the current session. Flushes any pending audio through the recognizer
+ * and returns a final transcript for the tail-end utterance (the text since
+ * the last endpoint) so the caller can route it to the agent — otherwise the
+ * user's last words would be silently dropped.
+ */
+export function stopSession(): ParakeetTranscript[] {
+  if (!recognizer || !stream) {
+    stream = null;
+    lastEmittedText = "";
+    return [];
+  }
+
+  const localStream = stream;
+  stream.inputFinished();
+  while (recognizer.isReady(localStream)) {
+    recognizer.decode(localStream);
+  }
+  const text = recognizer.getResult(localStream).text.trim();
+
   stream = null;
   lastEmittedText = "";
+
+  return text ? [{ text, isFinal: true }] : [];
 }

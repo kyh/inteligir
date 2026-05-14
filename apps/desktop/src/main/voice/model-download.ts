@@ -103,7 +103,20 @@ async function fetchToFile(
       received += value.byteLength;
       onProgress(received, total);
       if (!sink.write(value)) {
-        await new Promise<void>((resolve) => sink.once("drain", () => resolve()));
+        await new Promise<void>((resolve, reject) => {
+          // Listen for both events; the loser is removed so it doesn't
+          // resolve/reject after the fact or accumulate as a leaked listener.
+          const onDrain = () => {
+            sink.off("error", onError);
+            resolve();
+          };
+          const onError = (err: Error) => {
+            sink.off("drain", onDrain);
+            reject(err);
+          };
+          sink.once("drain", onDrain);
+          sink.once("error", onError);
+        });
       }
     }
     await new Promise<void>((resolve, reject) => {
@@ -111,6 +124,9 @@ async function fetchToFile(
     });
   } catch (err) {
     sink.destroy();
+    // Cancel the web reader so the underlying HTTP connection is released
+    // instead of leaking until GC.
+    await reader.cancel().catch(() => {});
     throw err;
   }
 
