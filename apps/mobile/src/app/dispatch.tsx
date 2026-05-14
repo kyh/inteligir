@@ -51,7 +51,20 @@ export default function DispatchScreen() {
   /** Mirror of assistantText for synchronous reads in event handlers */
   const assistantTextRef = useRef("");
   /** Track message IDs received via broadcast to deduplicate on catch-up */
-  const seenIdsRef = useRef({ ids: new Set<string>(), add(id: string) { this.ids.add(id); if (this.ids.size > 5000) { const oldest = this.ids.values().next().value; if (oldest) this.ids.delete(oldest); } }, has(id: string) { return this.ids.has(id); } });
+  const seenIdsRef = useRef((() => {
+    const MAX = 5000;
+    const ids = new Set<string>();
+    return {
+      has: (id: string) => ids.has(id),
+      add: (id: string) => {
+        ids.add(id);
+        if (ids.size > MAX) {
+          const oldest = ids.values().next().value;
+          if (oldest) ids.delete(oldest);
+        }
+      },
+    };
+  })());
 
   // -- Supabase Realtime subscription ----------------------------------------
 
@@ -97,7 +110,7 @@ export default function DispatchScreen() {
           if (event.role === "assistant" && typeof event.text === "string") {
             assistantTextRef.current = "";
             setAssistantText("");
-            setEntries((prev) => [...prev, { role: "assistant", text: event.text as string }]);
+            setEntries((prev) => [...prev, { role: "assistant", text: String(event.text) }]);
           }
           break;
         case "tool_execution_start": {
@@ -148,7 +161,7 @@ export default function DispatchScreen() {
           seenIdsRef.current.add(msg.id);
           const event = msg.payload as AgentEvent;
           if (event.type === "message_end" && event.role === "assistant" && typeof event.text === "string") {
-            setEntries((prev) => [...prev, { role: "assistant", text: event.text as string }]);
+            setEntries((prev) => [...prev, { role: "assistant", text: String(event.text) }]);
           }
         }
       },

@@ -22,7 +22,7 @@ import {
   type DispatchInboundMessage,
   type DispatchState,
 } from "@/shared/dispatch";
-import { IPC_CHANNELS } from "@/shared/ipc";
+import { IPC_CHANNELS, toErrorMessage } from "@/shared/ipc";
 import type { AppAgentEvent } from "@/shared/agent-events";
 
 // ---------------------------------------------------------------------------
@@ -145,7 +145,7 @@ async function registerDevice(): Promise<void> {
   } catch (err) {
     setState({
       status: "error",
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     });
   }
 }
@@ -291,7 +291,7 @@ export function initDispatch(
     }
   } catch (err) {
     console.error("[dispatch] init failed (non-fatal):", err);
-    setState({ status: "error", error: err instanceof Error ? err.message : String(err) });
+    setState({ status: "error", error: toErrorMessage(err) });
   }
 }
 
@@ -324,7 +324,7 @@ export async function refreshPairingCode(): Promise<void> {
   } catch (err) {
     setState({
       status: "error",
-      error: err instanceof Error ? err.message : String(err),
+      error: toErrorMessage(err),
     });
   }
 }

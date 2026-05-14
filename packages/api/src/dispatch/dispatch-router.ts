@@ -52,7 +52,21 @@ async function resolveDeviceByToken(db: TRPCContext["db"], token: string) {
 }
 
 /** Cache token → deviceId to avoid DB lookup on every streaming event */
-const tokenDeviceCache = new Map<string, string>();
+const tokenDeviceCache = (() => {
+  const MAX = 10000;
+  const cache = new Map<string, string>();
+  return {
+    get: (k: string) => cache.get(k),
+    set: (k: string, v: string) => {
+      cache.set(k, v);
+      if (cache.size > MAX) {
+        const oldest = cache.keys().next().value;
+        if (oldest) cache.delete(oldest);
+      }
+    },
+    delete: (k: string) => cache.delete(k),
+  };
+})();
 
 const EPHEMERAL_EVENT_TYPES = new Set(["message_update", "message_start"]);
 
