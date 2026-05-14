@@ -72,12 +72,21 @@ export async function startSTT(
       stream.getTracks().forEach((t) => t.stop());
       // stopStt returns the flushed tail transcript directly (not via the
       // broadcast channel) so it can't race the listener teardown below.
-      void bridge.stopStt().then((tailEvents) => {
-        for (const ev of tailEvents) {
-          onTranscript(ev.text, ev.isFinal);
-        }
-        unsubscribe();
-      });
+      // .finally(unsubscribe) so a rejection (e.g. native stopSession throws)
+      // doesn't leave the IPC listener attached or surface as unhandled.
+      bridge
+        .stopStt()
+        .then((tailEvents) => {
+          for (const ev of tailEvents) {
+            onTranscript(ev.text, ev.isFinal);
+          }
+        })
+        .catch((err: unknown) => {
+          onError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          unsubscribe();
+        });
     },
   };
 }

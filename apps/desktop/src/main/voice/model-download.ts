@@ -10,7 +10,7 @@ import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
-import { MODEL_NAME, MODEL_URL } from "@/main/voice/model-info.mjs";
+import { MODEL_NAME, MODEL_URL, REQUIRED_MODEL_FILES } from "@/main/voice/model-info.mjs";
 import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
 
 export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
@@ -26,7 +26,8 @@ export function getModelDir(projectRoot: string): string {
 }
 
 export function isModelInstalled(projectRoot: string): boolean {
-  return existsSync(join(getModelDir(projectRoot), "tokens.txt"));
+  const dir = getModelDir(projectRoot);
+  return REQUIRED_MODEL_FILES.every((f) => existsSync(join(dir, f)));
 }
 
 export function downloadModel(projectRoot: string): Promise<ModelDownloadResult> {

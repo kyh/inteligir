@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream/promises";
 import { spawn } from "node:child_process";
 
-import { MODEL_NAME, MODEL_URL } from "../src/main/voice/model-info.mjs";
+import { MODEL_NAME, MODEL_URL, REQUIRED_MODEL_FILES } from "../src/main/voice/model-info.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "..");
@@ -20,13 +20,8 @@ const OUT_DIR = join(PROJECT_ROOT, "resources", "stt");
 const MODEL_DIR = join(OUT_DIR, MODEL_NAME);
 const ARCHIVE_PATH = join(OUT_DIR, `${MODEL_NAME}.tar.bz2`);
 
-// Files written by the tar extraction. All four must be present before the
-// recognizer can initialize — checking only tokens.txt would treat a partial
-// install (download interrupted between files) as already-done.
-const REQUIRED_FILES = ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"];
-
 function isModelReady() {
-  return REQUIRED_FILES.every((f) => existsSync(join(MODEL_DIR, f)));
+  return REQUIRED_MODEL_FILES.every((f) => existsSync(join(MODEL_DIR, f)));
 }
 
 function log(msg) {
