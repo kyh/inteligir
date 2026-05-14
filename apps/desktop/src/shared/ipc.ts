@@ -135,7 +135,7 @@ export type DesktopBridge = {
   } | null>;
   startStt: () => Promise<{ ok: boolean; reason?: string }>;
   sendSttAudio: (samples: ArrayBuffer) => void;
-  stopStt: () => Promise<void>;
+  stopStt: () => Promise<Array<{ text: string; isFinal: boolean }>>;
   onSttTranscript: (
     listener: (event: { text: string; isFinal: boolean }) => void,
   ) => () => void;

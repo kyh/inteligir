@@ -66,12 +66,18 @@ export async function startSTT(
   return {
     stop: () => {
       stopped = true;
-      unsubscribe();
       processorNode.disconnect();
       sourceNode.disconnect();
       void audioContext.close();
       stream.getTracks().forEach((t) => t.stop());
-      void bridge.stopStt();
+      // stopStt returns the flushed tail transcript directly (not via the
+      // broadcast channel) so it can't race the listener teardown below.
+      void bridge.stopStt().then((tailEvents) => {
+        for (const ev of tailEvents) {
+          onTranscript(ev.text, ev.isFinal);
+        }
+        unsubscribe();
+      });
     },
   };
 }

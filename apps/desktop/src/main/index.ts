@@ -256,14 +256,7 @@ function registerIpcHandlers(): void {
     }
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_STOP, () => {
-    // stopSession flushes any pending utterance; broadcast it so the user's
-    // last spoken words aren't silently dropped on mic-toggle-off.
-    const events = stopSession();
-    for (const ev of events) {
-      broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
-    }
-  });
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_STOP, () => stopSession());
 
   createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_STATUS, () =>
     isModelInstalled(__PROJECT_ROOT__) ? "ready" : "missing",
