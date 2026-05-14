@@ -280,9 +280,22 @@ export const PromptInput = ({
       const text = (formData.get("message") as string) || "";
       form.reset();
 
+      // Snapshot the IDs we're about to submit. Anything the user adds to
+      // the tray during the async gap below must survive the post-submit
+      // cleanup; only items in this set get revoked + removed.
+      const submittedItems = items;
+      const submittedIds = new Set(submittedItems.map((item) => item.id));
+      const cleanupSubmitted = () => {
+        for (const item of submittedItems) {
+          if (item.url) URL.revokeObjectURL(item.url);
+        }
+        liveCountRef.current = Math.max(0, liveCountRef.current - submittedIds.size);
+        setItems((prev) => prev.filter((file) => !submittedIds.has(file.id)));
+      };
+
       try {
         const convertedFiles: FileUIPart[] = await Promise.all(
-          items.map(async ({ id: _id, ...item }) => {
+          submittedItems.map(async ({ id: _id, ...item }) => {
             if (item.url?.startsWith("blob:")) {
               const dataUrl = await convertBlobUrlToDataUrl(item.url);
               return { ...item, url: dataUrl ?? item.url };
@@ -295,12 +308,12 @@ export const PromptInput = ({
         if (result instanceof Promise) {
           try {
             await result;
-            clear();
+            cleanupSubmitted();
           } catch {
             // Don't clear on error - user may want to retry
           }
         } else {
-          clear();
+          cleanupSubmitted();
         }
       } catch {
         // Don't clear on error - user may want to retry
@@ -308,7 +321,7 @@ export const PromptInput = ({
         submittingRef.current = false;
       }
     },
-    [items, onSubmit, clear],
+    [items, onSubmit],
   );
 
   return (
