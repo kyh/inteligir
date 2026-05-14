@@ -13,8 +13,6 @@ import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { MODEL_NAME, MODEL_URL } from "@/main/voice/model-info.mjs";
 import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
 
-export { MODEL_NAME };
-
 export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 
 let downloadInflight: Promise<ModelDownloadResult> | null = null;

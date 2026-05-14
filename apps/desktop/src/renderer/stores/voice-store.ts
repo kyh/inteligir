@@ -19,6 +19,7 @@ type VoiceStore = {
 };
 
 let pipeline: VoicePipeline | null = null;
+let unsubscribeModelState: (() => void) | null = null;
 
 async function ensureModelThenConnect(
   set: (patch: Partial<VoiceStore>) => void,
@@ -71,7 +72,10 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
     let cancelled = false;
 
-    const unsubscribeModelState = bridge.onVoiceModelState((event) => {
+    // Hoisted to module scope so reset() can also tear it down — otherwise a
+    // reset called outside the init cleanup leaks the IPC listener.
+    unsubscribeModelState?.();
+    unsubscribeModelState = bridge.onVoiceModelState((event) => {
       set({ modelState: event });
     });
 
@@ -108,7 +112,8 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
 
     return () => {
       cancelled = true;
-      unsubscribeModelState();
+      unsubscribeModelState?.();
+      unsubscribeModelState = null;
       pipeline?.disconnect();
       pipeline = null;
       // Reset transient state so a remount doesn't inherit "downloading_model"
@@ -137,6 +142,8 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   },
 
   reset: () => {
+    unsubscribeModelState?.();
+    unsubscribeModelState = null;
     pipeline?.disconnect();
     // Null the reference so the ensureModelThenConnect entry-guard catches a
     // reset during an in-flight download (same pattern as init's cleanup).

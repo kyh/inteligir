@@ -191,6 +191,30 @@ describe("voice-store", () => {
     });
   });
 
+  describe("model-state listener cleanup", () => {
+    it("init cleanup unsubscribes the onVoiceModelState listener", async () => {
+      const unsub = vi.fn();
+      helpers.bridgeMock.onVoiceModelState.mockReturnValue(unsub);
+
+      const cleanup = useVoiceStore.getState().init();
+      await flushMicrotasks();
+      cleanup();
+
+      expect(unsub).toHaveBeenCalledOnce();
+    });
+
+    it("reset() also unsubscribes the listener (not just init cleanup)", async () => {
+      const unsub = vi.fn();
+      helpers.bridgeMock.onVoiceModelState.mockReturnValue(unsub);
+
+      useVoiceStore.getState().init();
+      await flushMicrotasks();
+      useVoiceStore.getState().reset();
+
+      expect(unsub).toHaveBeenCalledOnce();
+    });
+  });
+
   describe("init cleanup", () => {
     it("resets transient state so a remount doesn't inherit downloading_model", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("missing");
