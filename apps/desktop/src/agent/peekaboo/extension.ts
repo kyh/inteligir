@@ -11,11 +11,11 @@
  * user for Accessibility + Screen Recording permissions on first invocation.
  */
 
-import { execFile } from "node:child_process";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
 import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
+import { runCli } from "@repo/agent-runtime/run-cli";
 
 import type { PiExtensionBundle } from "@/agent/extension";
 
@@ -73,7 +73,12 @@ const peekabooExtension: PiExtensionBundle = {
           });
 
           try {
-            const { stdout, stderr, code } = await runPeekaboo(peekabooPath, params.args, params.stdin);
+            const { stdout, stderr, code } = await runCli(peekabooPath, params.args, {
+              timeoutMs: PEEKABOO_TIMEOUT_MS,
+              maxBuffer: PEEKABOO_MAX_BUFFER,
+              stdin: params.stdin,
+              notFoundMessage: "peekaboo binary not installed",
+            });
             const parts: string[] = [];
             if (stdout) parts.push(stdout);
             if (stderr) parts.push(`[stderr]\n${stderr}`);
@@ -89,32 +94,3 @@ const peekabooExtension: PiExtensionBundle = {
 };
 
 export default peekabooExtension;
-
-function runPeekaboo(
-  peekabooPath: string,
-  args: string[],
-  stdin?: string,
-): Promise<{ stdout: string; stderr: string; code: number }> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      peekabooPath,
-      args,
-      { timeout: PEEKABOO_TIMEOUT_MS, maxBuffer: PEEKABOO_MAX_BUFFER },
-      (err, stdout, stderr) => {
-        if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-          reject(new Error("peekaboo binary not installed"));
-          return;
-        }
-        // err.code is a number for normal non-zero exits, but a string for
-        // system errors like "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" — only trust
-        // numeric values; anything else means the child didn't run cleanly.
-        const rawCode = (err as { code?: unknown } | null)?.code;
-        const code = typeof rawCode === "number" ? rawCode : err ? 1 : 0;
-        resolve({ stdout: String(stdout), stderr: String(stderr), code });
-      },
-    );
-    if (stdin !== undefined) {
-      child.stdin?.end(stdin);
-    }
-  });
-}
