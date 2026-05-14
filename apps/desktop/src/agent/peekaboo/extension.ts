@@ -39,14 +39,13 @@ const PeekabooRunSchema = Type.Object({
 const peekabooExtension: PiExtensionBundle = {
   name: "peekaboo",
   setup: async ({ binDir }) => {
-    if (process.platform !== "darwin") return;
     await installCliFromGithubRelease({
       owner: "openclaw",
       repo: "Peekaboo",
       version: PEEKABOO_VERSION,
       binName: "peekaboo",
       binDir,
-      artifactName: () => PEEKABOO_ARTIFACT,
+      artifactName: () => (process.platform === "darwin" ? PEEKABOO_ARTIFACT : null),
       archiveBinPath: `${PEEKABOO_ASSET_DIR}/peekaboo`,
       verify: "checksums-txt",
     });
