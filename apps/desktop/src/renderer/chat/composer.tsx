@@ -61,18 +61,13 @@ function dataUrlToImageAttachment(
 
 export function Composer() {
   const [hasInput, setHasInput] = useState(false);
-  // Ref (not state) so the steer button's onClick and the form submit it
-  // triggers can run in the same event tick without a stale closure.
+  // UI-local signal that the user clicked the Zap button. Consumed once on
+  // the next submit; cleared on agent_end so an unsubmitted Zap doesn't
+  // silently steer a future turn.
   const pendingSteerRef = useRef(false);
-  // PromptInput's handleSubmit awaits blob→data-URL conversion before invoking
-  // our onSubmit. During that gap an agent_end can land and the busy effect
-  // below would otherwise clear pendingSteerRef, dropping the user's intent.
-  const submitInFlightRef = useRef(false);
 
   const appState = useAgentStore((s) => s.appState);
-  const sendMessage = useAgentStore((s) => s.sendMessage);
-  const steer = useAgentStore((s) => s.steer);
-  const followUp = useAgentStore((s) => s.followUp);
+  const send = useAgentStore((s) => s.send);
   const interrupt = useAgentStore((s) => s.interrupt);
   const queuedFollowUp = useAgentStore((s) => s.queuedFollowUp);
   const queuedSteering = useAgentStore((s) => s.queuedSteering);
@@ -80,33 +75,16 @@ export function Composer() {
   const busy = appState.phase === "ready" && appState.agent === "busy";
   const sessionStatus = getSessionStatus(appState);
 
-  // Mirror busy into a ref so handleSubmit reads its current value after
-  // the async blob → data URL gap inside PromptInput. The closure-captured
-  // `busy` would otherwise be stale if agent_end lands during that gap.
-  const busyRef = useRef(busy);
   useEffect(() => {
-    busyRef.current = busy;
-  }, [busy]);
-
-  // If we leave the busy state without submitting, drop any leftover steer
-  // intent so it doesn't silently steer the next turn. Skip when a submit
-  // is mid-flight — the steer intent will be consumed by handleSubmit.
-  useEffect(() => {
-    if (!busy && !submitInFlightRef.current) pendingSteerRef.current = false;
+    if (!busy) pendingSteerRef.current = false;
   }, [busy]);
 
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
-      // PromptInput resets the form before invoking onSubmit, so the textarea
-      // is already empty. Sync state unconditionally — including the
-      // whitespace-only early return below — so the submit button doesn't
-      // stay falsely enabled. Consume the steer intent up front too: an
-      // orphaned `true` on a failed-submit path would silently steer the
-      // next Enter-driven submission.
+      // Clear unconditionally before any branch so failed-submit paths can't
+      // leak state to the next attempt.
       setHasInput(false);
-      submitInFlightRef.current = false;
-      const isBusy = busyRef.current;
-      const shouldSteer = isBusy && pendingSteerRef.current;
+      const wantsSteer = pendingSteerRef.current;
       pendingSteerRef.current = false;
 
       const text = message.text.trim();
@@ -131,17 +109,10 @@ export function Composer() {
       if (!text && images.length === 0) {
         throw new Error("composer: nothing to submit after attachment conversion");
       }
-      const imgs = images.length > 0 ? images : undefined;
 
-      if (shouldSteer) {
-        steer(text, imgs);
-      } else if (isBusy) {
-        followUp(text, imgs);
-      } else {
-        sendMessage(text, imgs);
-      }
+      send(text, images.length > 0 ? images : undefined, wantsSteer ? { intent: "steer" } : undefined);
     },
-    [steer, followUp, sendMessage],
+    [send],
   );
 
   const onAttachError = useCallback(
@@ -154,7 +125,6 @@ export function Composer() {
   const queueCount = queuedFollowUp.length + queuedSteering.length;
   const requestSteer = useCallback(() => {
     pendingSteerRef.current = true;
-    submitInFlightRef.current = true;
   }, []);
 
   return (
@@ -294,10 +264,6 @@ function SteerButton({
       tooltip="Send now (steer the agent)"
       onClick={(e) => {
         onSteer();
-        // requestSubmit triggers PromptInput's async handler, which awaits
-        // blob conversion before our onSubmit runs. The submit-in-flight
-        // flag (set in onSteer) keeps the busy effect from clearing the
-        // steer intent during that window.
         e.currentTarget.form?.requestSubmit();
       }}
     >
