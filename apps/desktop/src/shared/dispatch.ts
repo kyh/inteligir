@@ -31,10 +31,10 @@ export const DispatchCredentialsSchema = z.object({
 
 export type DispatchCredentials = z.infer<typeof DispatchCredentialsSchema>;
 
-/** Inbound message from mobile (received via polling) */
+/** Inbound message from mobile (received via catch-up or WebSocket) */
 export type DispatchInboundMessage = {
   id: string;
-  type: "user_message" | "steer" | "interrupt";
+  type: "user_message" | "steer" | "interrupt" | "device_paired";
   payload: Record<string, unknown>;
   createdAt: string;
 };

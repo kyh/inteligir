@@ -18,6 +18,11 @@ import { trpc } from "@/utils/api";
 import { getPartyHost } from "@/utils/base-url";
 import { clearSession, getMobileToken } from "@/utils/session-store";
 
+let msgCounter = 0;
+function generateClientId(): string {
+  return `m_${Date.now()}_${++msgCounter}`;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -174,7 +179,8 @@ export default function DispatchScreen() {
     setInput("");
     setEntries((prev) => [...prev, { role: "user", text }]);
 
-    const payload = { text };
+    const clientId = generateClientId();
+    const payload = { text, clientId };
 
     // Send via WebSocket for instant delivery
     partySocketRef.current?.send(JSON.stringify({
@@ -190,13 +196,15 @@ export default function DispatchScreen() {
   const handleInterrupt = useCallback(() => {
     if (!mobileToken) return;
 
+    const clientId = generateClientId();
+
     partySocketRef.current?.send(JSON.stringify({
       direction: "to_device",
       type: "interrupt",
-      payload: {},
+      payload: { clientId },
     }));
 
-    sendMutation.mutate({ mobileToken, type: "interrupt", payload: {} });
+    sendMutation.mutate({ mobileToken, type: "interrupt", payload: { clientId } });
   }, [mobileToken, sendMutation]);
 
   const handleDisconnect = useCallback(async () => {
