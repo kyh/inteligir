@@ -167,6 +167,20 @@ export class ArtifactsManager {
     this.store.invalidate();
   }
 
+  /**
+   * Clear the cache AND broadcast the post-clear (empty) state so the
+   * renderer's singleton zustand store doesn't keep stale data from the
+   * previous session. Called from teardownResources() after AGENT_DIR is
+   * wiped on logout.
+   */
+  invalidateAndBroadcast(): void {
+    this.store.invalidate();
+    // After teardown the file is gone; reading returns the empty default.
+    broadcastToRenderer(IPC_CHANNELS.ARTIFACTS_UPDATED, {
+      artifacts: this.store.read().artifacts,
+    } satisfies ArtifactsList);
+  }
+
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
@@ -201,5 +215,5 @@ export function getArtifacts(): ArtifactsManager {
 }
 
 export function resetArtifactsCache(): void {
-  _instance?.invalidate();
+  _instance?.invalidateAndBroadcast();
 }
