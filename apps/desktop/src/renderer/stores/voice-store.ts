@@ -128,8 +128,11 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
 
     return () => {
       cancelled = true;
-      unsubscribeMachine();
+      // teardown dispatches reset → the machine subscriber writes the idle
+      // state back into zustand BEFORE we remove the subscriber. Reversed
+      // order would leave the store stuck on the pre-teardown state.
       teardown();
+      unsubscribeMachine();
     };
   },
 
