@@ -53,6 +53,8 @@ export interface AttachmentsContext {
   remove: (id: string) => void;
   clear: () => void;
   openFileDialog: () => void;
+  /** Returns true if the given file would pass the parent's `accept` filter. */
+  matchesAccept: (file: File) => boolean;
 }
 
 const LocalAttachmentsContext = createContext<AttachmentsContext | null>(null);
@@ -266,8 +268,8 @@ export const PromptInput = ({
   );
 
   const attachmentsCtx = useMemo<AttachmentsContext>(
-    () => ({ add, clear, files: items, openFileDialog, remove }),
-    [items, add, remove, clear, openFileDialog],
+    () => ({ add, clear, files: items, matchesAccept, openFileDialog, remove }),
+    [items, add, remove, clear, openFileDialog, matchesAccept],
   );
 
   const handleSubmit: FormEventHandler<HTMLFormElement> = useCallback(
@@ -403,12 +405,15 @@ export const PromptInputTextarea = ({
     (event) => {
       const items = event.clipboardData?.items;
       if (!items) return;
+      // Only collect files the parent's `accept` filter would take. Otherwise
+      // we'd preventDefault on a paste that has both text and a non-matching
+      // file (e.g. a PDF copied from a file manager) and silently swallow
+      // both — text wouldn't paste and the file wouldn't attach.
       const files: File[] = [];
       for (const item of items) {
-        if (item.kind === "file") {
-          const file = item.getAsFile();
-          if (file) files.push(file);
-        }
+        if (item.kind !== "file") continue;
+        const file = item.getAsFile();
+        if (file && attachments.matchesAccept(file)) files.push(file);
       }
       if (files.length > 0) {
         event.preventDefault();

@@ -12,6 +12,14 @@ import {
 
 import type { ChatMessage } from "@/renderer/stores/agent-store";
 
+// Hoisted so the array reference is stable across renders — the previous
+// inline literal allocated a new array every cycle. Response's memo doesn't
+// inspect this prop today, but a stable ref future-proofs the render path.
+const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [
+  "github-dark-dimmed",
+  "github-dark-dimmed",
+];
+
 export function ChatMessageView({ message }: { message: ChatMessage }) {
   const first = message.parts[0];
   if (!first) return null;
@@ -66,7 +74,7 @@ function AssistantMessage({ text }: { text: string }) {
         {text ? (
           <Response
             className="prose prose-sm prose-invert max-w-none break-words"
-            shikiTheme={["github-dark-dimmed", "github-dark-dimmed"]}
+            shikiTheme={ASSISTANT_SHIKI_THEME}
           >
             {text}
           </Response>
