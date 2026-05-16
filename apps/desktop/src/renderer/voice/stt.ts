@@ -4,6 +4,7 @@
 // ---------------------------------------------------------------------------
 
 import { getBridge } from "@/renderer/lib/bridge";
+import sttWorkletUrl from "@/renderer/voice/stt-worklet.js?url";
 
 export type TranscriptCallback = (text: string, isFinal: boolean) => void;
 
@@ -35,10 +36,17 @@ export async function startSTT(
   }
 
   const audioContext = new AudioContext({ sampleRate: 16000 });
+  try {
+    await audioContext.audioWorklet.addModule(sttWorkletUrl);
+  } catch (err) {
+    void audioContext.close();
+    stream.getTracks().forEach((t) => t.stop());
+    void bridge.stopStt();
+    throw err;
+  }
+
   const sourceNode = audioContext.createMediaStreamSource(stream);
-  const processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-  const silentOutput = audioContext.createGain();
-  silentOutput.gain.value = 0;
+  const workletNode = new AudioWorkletNode(audioContext, "stt-processor");
 
   let stopped = false;
 
@@ -47,26 +55,24 @@ export async function startSTT(
     onTranscript(event.text, event.isFinal);
   });
 
-  processorNode.onaudioprocess = (event) => {
+  workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
     if (stopped) return;
-    const float32 = event.inputBuffer.getChannelData(0);
-    // slice() copies because the source buffer is reused across callbacks.
-    const copy = float32.slice();
     try {
-      bridge.sendSttAudio(copy.buffer);
+      // Worklet posts a fresh Float32Array (slice()'d in the worklet) so the
+      // backing buffer is always a plain ArrayBuffer, never SharedArrayBuffer.
+      bridge.sendSttAudio(event.data.buffer as ArrayBuffer);
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
     }
   };
 
-  sourceNode.connect(processorNode);
-  processorNode.connect(silentOutput);
-  silentOutput.connect(audioContext.destination);
+  sourceNode.connect(workletNode);
 
   return {
     stop: () => {
       stopped = true;
-      processorNode.disconnect();
+      workletNode.port.onmessage = null;
+      workletNode.disconnect();
       sourceNode.disconnect();
       void audioContext.close();
       stream.getTracks().forEach((t) => t.stop());
