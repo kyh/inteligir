@@ -1,5 +1,6 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
+import type { Artifact, ArtifactsList, ArtifactUpsertInput } from "./artifacts";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -7,7 +8,6 @@ import type {
   ListTasksResult,
   ToggleTaskResult,
 } from "./task";
-import type { UiSettingsConfig, UiSpec } from "./ui-settings";
 import type { TextChatMessage } from "./voice";
 
 // ---------------------------------------------------------------------------
@@ -49,11 +49,12 @@ export const IPC_CHANNELS = {
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 
-  // UI settings (JSON-driven settings panel)
-  UI_SETTINGS_GET: "ui-settings:get",
-  UI_SETTINGS_SET_SPEC: "ui-settings:set-spec",
-  UI_SETTINGS_RESET: "ui-settings:reset",
-  UI_SETTINGS_UPDATED: "ui-settings:updated",
+  // Artifacts — agent-rendered JSON UI panels
+  ARTIFACTS_LIST: "artifacts:list",
+  ARTIFACTS_GET: "artifacts:get",
+  ARTIFACTS_UPSERT: "artifacts:upsert",
+  ARTIFACTS_DELETE: "artifacts:delete",
+  ARTIFACTS_UPDATED: "artifacts:updated",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -134,11 +135,12 @@ export type DesktopBridge = {
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
 
-  // UI settings (JSON-driven settings panel)
-  getUiSettings: () => Promise<UiSettingsConfig>;
-  setUiSettingsSpec: (spec: UiSpec) => Promise<UiSettingsConfig>;
-  resetUiSettings: () => Promise<UiSettingsConfig>;
-  onUiSettingsUpdated: (listener: (next: UiSettingsConfig) => void) => () => void;
+  // Artifacts — agent-rendered JSON UI panels
+  listArtifacts: () => Promise<ArtifactsList>;
+  getArtifact: (id: string) => Promise<Artifact | null>;
+  upsertArtifact: (input: ArtifactUpsertInput) => Promise<Artifact>;
+  deleteArtifact: (id: string) => Promise<{ deleted: boolean }>;
+  onArtifactsUpdated: (listener: (next: ArtifactsList) => void) => () => void;
 };
 
 // ---------------------------------------------------------------------------

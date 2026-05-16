@@ -1,21 +1,19 @@
 // ---------------------------------------------------------------------------
-// json-render component registry for the settings panel.
-//
-// Each implementation here maps a catalog type onto an existing @repo/ui
-// shadcn component so the JSON-driven panel feels visually identical to the
-// rest of Inteligir. Components access two-way state via `bindings` for
-// inputs (Checkbox) and emit named events (`emit("press")`) for buttons
-// — the renderer then resolves the event to an action via the element's
-// `on` field.
+// json-render component registry for artifact panels. Each implementation
+// maps a catalog component onto a shadcn (@repo/ui) primitive so artifact
+// UIs match the rest of the app. Components emit events ("press", "change")
+// which the renderer resolves against each element's `on` field.
 // ---------------------------------------------------------------------------
 
 import { defineRegistry, useStateStore } from "@json-render/react";
 import { Button } from "@repo/ui/components/button";
 import { Checkbox } from "@repo/ui/components/checkbox";
+import { Input as UiInput } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
+import { Separator } from "@repo/ui/components/separator";
 import { cn } from "@repo/ui/lib/utils";
 
-import { settingsCatalog } from "@/renderer/chat/settings-catalog";
+import { artifactCatalog } from "@/renderer/chat/artifact-catalog";
 
 type BaseProps<P> = {
   props: P;
@@ -31,10 +29,7 @@ function Stack({ props, children }: BaseProps<{ gap?: "sm" | "md" | "lg" }>) {
   return <div className={cn("flex flex-col", gapClass(props.gap))}>{children}</div>;
 }
 
-function Section({
-  props,
-  children,
-}: BaseProps<{ title?: string }>) {
+function Section({ props, children }: BaseProps<{ title?: string }>) {
   return (
     <div className="flex flex-col gap-2">
       {props.title ? (
@@ -45,10 +40,7 @@ function Section({
   );
 }
 
-function Row({
-  props,
-  children,
-}: BaseProps<{ bordered?: boolean }>) {
+function Row({ props, children }: BaseProps<{ bordered?: boolean }>) {
   const bordered = props.bordered !== false;
   return (
     <div
@@ -72,22 +64,18 @@ function Heading({ props }: BaseProps<{ text: string; level?: "1" | "2" | "3" }>
 function Text({
   props,
 }: BaseProps<{ text: string; muted?: boolean; size?: "xs" | "sm" | "base" }>) {
-  // Default is "sm" (text-xs, 12px) to match the original panel's status text.
-  // "xs" maps to text-[11px] for tighter captions; "base" is text-sm (14px).
+  // Default size "sm" maps to text-xs (12px), matching the app's standard body
+  // size. "xs" is text-[11px] for captions, "base" is text-sm (14px).
   const size = props.size ?? "sm";
   const sizeClass = size === "base" ? "text-sm" : size === "sm" ? "text-xs" : "text-[11px]";
   return (
-    <span
-      className={cn(sizeClass, props.muted ? "text-muted-foreground" : "text-foreground")}
-    >
+    <span className={cn(sizeClass, props.muted ? "text-muted-foreground" : "text-foreground")}>
       {props.text}
     </span>
   );
 }
 
-function TextBlock({
-  props,
-}: BaseProps<{ title: string; description?: string }>) {
+function TextBlock({ props }: BaseProps<{ title: string; description?: string }>) {
   return (
     <span className="flex flex-col">
       <span className="text-xs text-foreground">{props.title}</span>
@@ -154,11 +142,46 @@ function CatalogCheckbox({
   );
 }
 
+function CatalogInput({
+  props,
+  emit,
+  bindings,
+}: BaseProps<{
+  label?: string;
+  placeholder?: string;
+  value?: string;
+  disabled?: boolean;
+}>) {
+  const store = useStateStore();
+  const bindPath = bindings?.["value"];
+  return (
+    <label className="flex flex-col gap-1">
+      {props.label ? (
+        <span className="text-[10px] font-medium text-muted-foreground">{props.label}</span>
+      ) : null}
+      <UiInput
+        value={props.value ?? ""}
+        placeholder={props.placeholder}
+        disabled={props.disabled === true}
+        onChange={(e) => {
+          const next = e.currentTarget.value;
+          if (bindPath) store.set(bindPath, next);
+          emit("change");
+        }}
+      />
+    </label>
+  );
+}
+
 function CatalogCard({ children }: BaseProps<Record<string, never>>) {
   return <div className="rounded-md border border-border p-3">{children}</div>;
 }
 
-export const { registry: settingsRegistry } = defineRegistry(settingsCatalog, {
+function CatalogSeparator() {
+  return <Separator />;
+}
+
+export const { registry: artifactRegistry } = defineRegistry(artifactCatalog, {
   components: {
     Stack,
     Section,
@@ -168,15 +191,14 @@ export const { registry: settingsRegistry } = defineRegistry(settingsCatalog, {
     TextBlock,
     Button: CatalogButton,
     Checkbox: CatalogCheckbox,
+    Input: CatalogInput,
     Card: CatalogCard,
+    Separator: CatalogSeparator,
   },
-  // Action handlers are provided per-mount in settings-panel.tsx so they can
-  // close over the live bridge / store. The catalog-required `actions` field
-  // here is just stub identifiers — the real impls live with the renderer.
+  // Action stubs — real handlers are mounted per-viewer in artifact-viewer.tsx
+  // so they can close over the bridge + toast singleton.
   actions: {
-    logout: async () => {},
-    newSession: async () => {},
-    setNotifications: async () => {},
-    resetUiSettings: async () => {},
+    notify: async () => {},
+    openUrl: async () => {},
   },
 });

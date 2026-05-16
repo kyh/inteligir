@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 
 import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
+import { Toaster } from "@repo/ui/components/sonner";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -65,6 +66,8 @@ export function AppLayout() {
       <div className="flex h-full flex-col">
         <Outlet />
       </div>
+
+      <Toaster />
     </div>
   );
 }

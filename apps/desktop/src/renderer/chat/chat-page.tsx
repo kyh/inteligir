@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   GridIcon,
+  LayoutTemplateIcon,
   ListTodoIcon,
   MessageSquareIcon,
   MicIcon,
@@ -17,12 +18,16 @@ import {
 } from "@repo/ui/components/ai-elements/conversation";
 
 import type { VoiceSessionState } from "@/shared/voice";
+import type { Artifact } from "@/shared/artifacts";
+import { ArtifactsPanel } from "@/renderer/chat/artifacts-panel";
+import { ArtifactViewer } from "@/renderer/chat/artifact-viewer";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
 import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
 import { SettingsPanel } from "@/renderer/chat/settings-panel";
 import { TaskPanel } from "@/renderer/chat/task-panel";
 import { DraggablePanel } from "@/renderer/components/draggable-panel";
+import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -125,6 +130,68 @@ export function ChatPage() {
   const [showTasks, setShowTasks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showExtensions, setShowExtensions] = useState(false);
+  const [showArtifacts, setShowArtifacts] = useState(false);
+
+  // Artifacts the user has open as floating panels — keyed by id so an
+  // agent rewrite that changes the title still tracks the same panel.
+  const [openArtifactIds, setOpenArtifactIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Mirror of the latest artifact list so each open DraggablePanel can read
+  // its title without each viewer fetching the full list.
+  const [artifactsById, setArtifactsById] = useState<Record<string, Artifact>>({});
+
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    let cancelled = false;
+    const apply = (list: { artifacts: Artifact[] }) => {
+      if (cancelled) return;
+      const map: Record<string, Artifact> = {};
+      for (const a of list.artifacts) map[a.id] = a;
+      setArtifactsById(map);
+      // Prune any open ids that no longer exist (agent deleted them).
+      setOpenArtifactIds((current) => {
+        let changed = false;
+        const next = new Set<string>();
+        for (const id of current) {
+          if (id in map) next.add(id);
+          else changed = true;
+        }
+        return changed ? next : current;
+      });
+    };
+    const off = bridge.onArtifactsUpdated(apply);
+    bridge
+      .listArtifacts()
+      .then((list) => {
+        if (!cancelled) apply(list);
+        return null;
+      })
+      .catch(() => null);
+    return () => {
+      cancelled = true;
+      off();
+    };
+  }, []);
+
+  const openArtifact = useCallback((id: string) => {
+    setOpenArtifactIds((current) => {
+      if (current.has(id)) return current;
+      const next = new Set(current);
+      next.add(id);
+      return next;
+    });
+  }, []);
+
+  const closeArtifact = useCallback((id: string) => {
+    setOpenArtifactIds((current) => {
+      if (!current.has(id)) return current;
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
+  }, []);
 
   const messages = useAgentStore((s) => s.messages);
 
@@ -216,6 +283,11 @@ export function ChatPage() {
                   onClick={() => setShowTasks(!showTasks)}
                 />
                 <GridOption
+                  icon={LayoutTemplateIcon}
+                  label="Artifacts"
+                  onClick={() => setShowArtifacts(!showArtifacts)}
+                />
+                <GridOption
                   icon={PlugIcon}
                   label="Extensions"
                   onClick={() => setShowExtensions(!showExtensions)}
@@ -287,6 +359,36 @@ export function ChatPage() {
       >
         <SettingsPanel />
       </DraggablePanel>
+
+      <DraggablePanel
+        title="Artifacts"
+        icon={<LayoutTemplateIcon className="size-3.5" />}
+        isOpen={showArtifacts}
+        onClose={() => setShowArtifacts(false)}
+        initialPosition={{ x: 300, y: 40 }}
+        initialSize={{ width: 360, height: 440 }}
+      >
+        <ArtifactsPanel openIds={openArtifactIds} onOpen={openArtifact} />
+      </DraggablePanel>
+
+      {/* One floating panel per opened artifact. Cascade their initial
+          positions so multiple opens don't stack on top of each other. */}
+      {Array.from(openArtifactIds).map((id, idx) => {
+        const artifact = artifactsById[id];
+        return (
+          <DraggablePanel
+            key={id}
+            title={artifact?.title ?? id}
+            icon={<LayoutTemplateIcon className="size-3.5" />}
+            isOpen={true}
+            onClose={() => closeArtifact(id)}
+            initialPosition={{ x: 340 + idx * 24, y: 80 + idx * 24 }}
+            initialSize={{ width: 380, height: 440 }}
+          >
+            <ArtifactViewer id={id} />
+          </DraggablePanel>
+        );
+      })}
     </>
   );
 }

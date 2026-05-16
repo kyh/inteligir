@@ -24,7 +24,7 @@ import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { getUiSettings, SpecSchema as UiSpecSchema } from "@/main/ui-settings";
+import { ArtifactUpsertInputSchema, getArtifacts } from "@/main/artifacts";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -259,24 +259,22 @@ function registerIpcHandlers(): void {
     },
   );
 
-  // ---- UI settings ----------------------------------------------------------
+  // ---- Artifacts (agent-rendered JSON UI panels) ----------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.UI_SETTINGS_GET, () => {
-    return getUiSettings().get();
+  createVoidIpcHandler(IPC_CHANNELS.ARTIFACTS_LIST, () => {
+    return getArtifacts().list();
   });
 
-  createIpcHandler(
-    IPC_CHANNELS.UI_SETTINGS_SET_SPEC,
-    // Shared with the on-disk store schema; renderer's catalog does strict
-    // prop-shape checking when it actually mounts the spec.
-    UiSpecSchema,
-    (spec) => {
-      return getUiSettings().setSpec(spec);
-    },
-  );
+  createIpcHandler(IPC_CHANNELS.ARTIFACTS_GET, z.string(), (id) => {
+    return getArtifacts().get(id);
+  });
 
-  createVoidIpcHandler(IPC_CHANNELS.UI_SETTINGS_RESET, () => {
-    return getUiSettings().reset();
+  createIpcHandler(IPC_CHANNELS.ARTIFACTS_UPSERT, ArtifactUpsertInputSchema, (input) => {
+    return getArtifacts().upsert(input);
+  });
+
+  createIpcHandler(IPC_CHANNELS.ARTIFACTS_DELETE, z.string(), (id) => {
+    return { deleted: getArtifacts().delete(id) };
   });
 }
 
