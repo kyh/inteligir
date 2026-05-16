@@ -31,13 +31,15 @@ import {
 // The on-disk spec is schema-validated only loosely — json-render does its own
 // strict validation against the catalog at render time, so the store accepts
 // any well-formed object shape and lets bad specs surface in the renderer.
+// Exported so the IPC handler in main/index.ts can validate writes against
+// the same shape (single source of truth for the spec contract).
 const ElementSchema = z.looseObject({
   type: z.string(),
   props: z.record(z.string(), z.unknown()).default({}),
   children: z.array(z.string()).optional(),
 });
 
-const SpecSchema = z.object({
+export const SpecSchema = z.object({
   root: z.string(),
   elements: z.record(z.string(), ElementSchema),
   state: z.record(z.string(), z.unknown()).optional(),

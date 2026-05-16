@@ -24,7 +24,7 @@ import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { getUiSettings } from "@/main/ui-settings";
+import { getUiSettings, SpecSchema as UiSpecSchema } from "@/main/ui-settings";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -267,20 +267,9 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.UI_SETTINGS_SET_SPEC,
-    // Validated loosely here; the renderer's catalog does strict prop-shape
-    // checking when it actually mounts the spec.
-    z.object({
-      root: z.string(),
-      elements: z.record(
-        z.string(),
-        z.looseObject({
-          type: z.string(),
-          props: z.record(z.string(), z.unknown()).default({}),
-          children: z.array(z.string()).optional(),
-        }),
-      ),
-      state: z.record(z.string(), z.unknown()).optional(),
-    }),
+    // Shared with the on-disk store schema; renderer's catalog does strict
+    // prop-shape checking when it actually mounts the spec.
+    UiSpecSchema,
     (spec) => {
       return getUiSettings().setSpec(spec);
     },

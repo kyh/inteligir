@@ -72,7 +72,9 @@ function Heading({ props }: BaseProps<{ text: string; level?: "1" | "2" | "3" }>
 function Text({
   props,
 }: BaseProps<{ text: string; muted?: boolean; size?: "xs" | "sm" | "base" }>) {
-  const size = props.size ?? "xs";
+  // Default is "sm" (text-xs, 12px) to match the original panel's status text.
+  // "xs" maps to text-[11px] for tighter captions; "base" is text-sm (14px).
+  const size = props.size ?? "sm";
   const sizeClass = size === "base" ? "text-sm" : size === "sm" ? "text-xs" : "text-[11px]";
   return (
     <span
