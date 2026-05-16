@@ -21,6 +21,17 @@ class STTProcessor extends AudioWorkletProcessor {
     super();
     this.buffer = new Float32Array(FRAME_SIZE);
     this.offset = 0;
+    // The renderer posts "flush" on stop. Forward whatever partial chunk we
+    // have so the trailing ~128ms of speech isn't dropped, then ack with
+    // "flushed" so the caller knows it's safe to tear down the recognizer.
+    this.port.onmessage = (event) => {
+      if (event.data !== "flush") return;
+      if (this.offset > 0) {
+        this.port.postMessage(this.buffer.slice(0, this.offset));
+        this.offset = 0;
+      }
+      this.port.postMessage("flushed");
+    };
   }
 
   process(inputs) {

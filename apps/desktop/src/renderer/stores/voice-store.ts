@@ -28,7 +28,11 @@ function teardown(): void {
 
 async function runConnect(): Promise<void> {
   const bridge = getBridge();
-  if (!bridge || !pipeline) return;
+  // Capture the pipeline reference at entry. A teardown + re-init while we're
+  // awaiting would replace the module-level `pipeline` — operating on the
+  // captured ref guarantees we only ever connect/disconnect THIS session.
+  const session = pipeline;
+  if (!bridge || !session) return;
   const gen = machine.generation;
 
   // Step 1: probe model availability.
@@ -71,9 +75,8 @@ async function runConnect(): Promise<void> {
   }
 
   // Step 3: pipeline.connect (mic + recognizer).
-  if (!pipeline) return;
   try {
-    await pipeline.connect();
+    await session.connect();
   } catch (err) {
     if (gen !== machine.generation) return;
     machine.dispatch({
@@ -83,8 +86,9 @@ async function runConnect(): Promise<void> {
     return;
   }
   if (gen !== machine.generation) {
-    // Connect succeeded but state moved on — drop the now-orphaned mic.
-    pipeline.disconnect();
+    // Connect succeeded but state moved on — drop the now-orphaned mic on
+    // the captured session, never the (possibly replaced) module-level ref.
+    session.disconnect();
     return;
   }
   machine.dispatch({ type: "connect_ok" });

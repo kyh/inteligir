@@ -43,6 +43,10 @@ export class VoicePipeline {
           }
         },
         (error) => {
+          // STT failed mid-session — release mic + TTS + recognizer before
+          // surfacing the error so resources don't keep running after the
+          // store moves to its error state.
+          this.disconnect();
           this.config.onError(error);
         },
       );

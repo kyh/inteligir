@@ -12,7 +12,7 @@ export function VoiceButton({ className }: { className?: string }) {
     toggleVoice();
   }, [toggleVoice]);
 
-  const isActive = stateKind !== "idle";
+  const isActive = stateKind === "listening";
   const Icon = isActive ? MicIcon : MicOffIcon;
   const title = isActive ? "Stop voice" : "Start voice";
 
@@ -20,7 +20,7 @@ export function VoiceButton({ className }: { className?: string }) {
     <button
       type="button"
       onClick={handleClick}
-      className={`bg-input/40 text-muted-foreground hover:text-foreground rounded-md p-2 backdrop-blur-sm transition ${stateKind === "listening" ? "animate-pulse" : ""} ${className ?? ""}`}
+      className={`bg-input/40 text-muted-foreground hover:text-foreground rounded-md p-2 backdrop-blur-sm transition ${isActive ? "animate-pulse" : ""} ${className ?? ""}`}
       title={title}
     >
       <Icon className="size-4" />
