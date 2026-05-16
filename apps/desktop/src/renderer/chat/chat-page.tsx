@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   GridIcon,
   LayoutTemplateIcon,
@@ -27,8 +27,8 @@ import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
 import { SettingsPanel } from "@/renderer/chat/settings-panel";
 import { TaskPanel } from "@/renderer/chat/task-panel";
 import { DraggablePanel } from "@/renderer/components/draggable-panel";
-import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import { initArtifacts, useArtifactsStore } from "@/renderer/stores/artifacts-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -134,46 +134,25 @@ export function ChatPage() {
 
   // Artifacts the user has open as floating panels — keyed by id so an
   // agent rewrite that changes the title still tracks the same panel.
+  // Deliberately NOT pruning on deletion: an ArtifactViewer for a missing
+  // id renders the "removed" placeholder; the user dismisses the panel.
   const [openArtifactIds, setOpenArtifactIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  // Mirror of the latest artifact list so each open DraggablePanel can read
-  // its title without each viewer fetching the full list.
-  const [artifactsById, setArtifactsById] = useState<Record<string, Artifact>>({});
 
+  // One bridge subscription feeds every artifact consumer (this map +
+  // ArtifactsPanel's library list). Initialized lazily here at the top of
+  // the chat tree.
   useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    let cancelled = false;
-    let broadcastSeen = false;
-    const apply = (list: { artifacts: Artifact[] }) => {
-      if (cancelled) return;
-      const map: Record<string, Artifact> = {};
-      for (const a of list.artifacts) map[a.id] = a;
-      setArtifactsById(map);
-      // Deliberately NOT pruning openArtifactIds on deletion — letting the
-      // panel unmount silently would hide that the artifact is gone.
-      // Instead the ArtifactViewer renders a "removed" placeholder for an
-      // unknown id, and the user dismisses the panel themselves.
-    };
-    const off = bridge.onArtifactsUpdated((list) => {
-      broadcastSeen = true;
-      apply(list);
-    });
-    bridge
-      .listArtifacts()
-      .then((list) => {
-        // Skip the stale read if a broadcast with newer data has already
-        // landed between subscribe and the IPC response.
-        if (!cancelled && !broadcastSeen) apply(list);
-        return null;
-      })
-      .catch(() => null);
-    return () => {
-      cancelled = true;
-      off();
-    };
+    initArtifacts();
   }, []);
+
+  const artifacts = useArtifactsStore((s) => s.artifacts);
+  const artifactsById = useMemo<Record<string, Artifact>>(() => {
+    const map: Record<string, Artifact> = {};
+    for (const a of artifacts) map[a.id] = a;
+    return map;
+  }, [artifacts]);
 
   const openArtifact = useCallback((id: string) => {
     setOpenArtifactIds((current) => {

@@ -1,65 +1,39 @@
-import { useEffect, useState } from "react";
+import { useMemo } from "react";
 import { ExternalLinkIcon, Trash2Icon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { useArtifactsStore } from "@/renderer/stores/artifacts-store";
 import type { Artifact } from "@/shared/artifacts";
 
 type Props = {
-  /** Currently-open artifact ids; the panel uses this to label the Open button. */
+  /** Currently-open artifact ids; the panel uses this to disable the Open button. */
   openIds: ReadonlySet<string>;
-  /** Open (or focus) the floating panel for an artifact. */
+  /** Open the floating panel for an artifact. */
   onOpen: (id: string) => void;
 };
 
 /**
  * Library view of all artifacts the agent has created. Lists them newest-first
- * and offers "Open" (spawn / focus a floating panel) and "Remove" controls.
- * The agent owns content; users only manage which artifacts exist and which
- * are visible.
+ * and offers Open and Remove controls. The agent owns content; users only
+ * manage which artifacts exist and which are visible.
+ *
+ * Data comes from the singleton artifacts store (one bridge subscription
+ * shared across the chat tree).
  */
 export function ArtifactsPanel({ openIds, onOpen }: Props) {
-  const [artifacts, setArtifacts] = useState<Artifact[] | null>(null);
-
-  useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    let cancelled = false;
-    let broadcastSeen = false;
-
-    const apply = (list: { artifacts: Artifact[] }) => {
-      if (cancelled) return;
-      setArtifacts(sortNewestFirst(list.artifacts));
-    };
-
-    const off = bridge.onArtifactsUpdated((list) => {
-      broadcastSeen = true;
-      apply(list);
-    });
-    bridge
-      .listArtifacts()
-      .then((list) => {
-        // Skip the stale read if a broadcast with newer data has already
-        // arrived between subscribe and the IPC response landing.
-        if (!cancelled && !broadcastSeen) apply(list);
-        return null;
-      })
-      .catch(() => null);
-
-    return () => {
-      cancelled = true;
-      off();
-    };
-  }, []);
+  const loading = useArtifactsStore((s) => s.loading);
+  const rawArtifacts = useArtifactsStore((s) => s.artifacts);
+  const artifacts = useMemo(() => sortNewestFirst(rawArtifacts), [rawArtifacts]);
 
   const handleDelete = async (id: string) => {
     await getBridge()?.deleteArtifact(id);
-    // The broadcast will refresh the list — no local mutation needed.
+    // The broadcast will refresh the store — no local mutation needed.
   };
 
-  if (artifacts === null) {
+  if (loading) {
     return <div className="p-3 text-xs text-muted-foreground">Loading…</div>;
   }
 
@@ -96,8 +70,9 @@ export function ArtifactsPanel({ openIds, onOpen }: Props) {
                   variant="ghost"
                   size="icon-xs"
                   onClick={() => onOpen(a.id)}
-                  aria-label={isOpen ? "Focus artifact" : "Open artifact"}
-                  title={isOpen ? "Focus" : "Open"}
+                  disabled={isOpen}
+                  aria-label={isOpen ? "Artifact already open" : "Open artifact"}
+                  title={isOpen ? "Already open" : "Open"}
                 >
                   <ExternalLinkIcon />
                 </Button>
