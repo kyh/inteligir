@@ -409,8 +409,6 @@ app
 
     initMachine();
 
-    // Dispatch — register device and subscribe to Supabase Realtime for
-    // mobile commands. Inbound messages are forwarded to the local agent.
     initDispatch((msg) => {
       const agent = getAgent();
       if (!agent) return;

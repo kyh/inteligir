@@ -1,20 +1,6 @@
-// ---------------------------------------------------------------------------
-// Dispatch client — connects the desktop app to the relay API so the mobile
-// app can send commands and receive agent events remotely.
-//
-// Uses PartySocket (WebSocket via PartyKit/Cloudflare Durable Objects) for
-// real-time message relay and tRPC HTTP mutations for persistence.
-//
-// Lifecycle:
-//   1. On startup, check for persisted credentials (~/.inteligir/dispatch.json)
-//   2. If none, register a new device and show pairing code
-//   3. Connect to PartySocket room for real-time messages
-//   4. On connect, catch up any messages missed while offline
-// ---------------------------------------------------------------------------
-
 import PartySocket from "partysocket";
-import { BrowserWindow } from "electron";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
+import { broadcastToRenderer } from "@/main/lib/broadcast";
 import {
   DispatchCredentialsSchema,
   DISPATCH_INITIAL_STATE,
@@ -25,16 +11,10 @@ import {
 import { IPC_CHANNELS, toErrorMessage } from "@/shared/ipc";
 import type { AppAgentEvent } from "@/shared/agent-events";
 
-// ---------------------------------------------------------------------------
-// Configuration
-// ---------------------------------------------------------------------------
 
 const API_BASE_URL = process.env["DISPATCH_API_URL"] ?? "http://localhost:3000";
 const PARTY_HOST = process.env["DISPATCH_PARTY_HOST"] ?? "localhost:1999";
 
-// ---------------------------------------------------------------------------
-// Persistent credential store
-// ---------------------------------------------------------------------------
 
 const credentialStore = new JsonStore<DispatchCredentials | null>(
   inteligirPath("dispatch.json"),
@@ -42,14 +22,11 @@ const credentialStore = new JsonStore<DispatchCredentials | null>(
   null,
 );
 
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
 
 let dispatchState: DispatchState = { ...DISPATCH_INITIAL_STATE };
 let partySocket: PartySocket | null = null;
 let onInboundMessage: ((msg: DispatchInboundMessage) => void) | null = null;
-/** Track message IDs to deduplicate between WebSocket and catch-up */
+
 const seenMessageIds = (() => {
   const MAX = 5000;
   const ids = new Set<string>();
@@ -58,7 +35,7 @@ const seenMessageIds = (() => {
     add: (id: string) => {
       ids.add(id);
       if (ids.size > MAX) {
-        const oldest = ids.values().next().value;
+        const oldest = ids.keys().next().value;
         if (oldest) ids.delete(oldest);
       }
     },
@@ -66,21 +43,18 @@ const seenMessageIds = (() => {
 })();
 
 function setState(patch: Partial<DispatchState>): void {
+  const hasChange = (Object.keys(patch) as (keyof DispatchState)[]).some(
+    (k) => dispatchState[k] !== patch[k],
+  );
+  if (!hasChange) return;
   dispatchState = { ...dispatchState, ...patch };
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (!win.isDestroyed()) {
-      win.webContents.send(IPC_CHANNELS.DISPATCH_STATE, dispatchState);
-    }
-  }
+  broadcastToRenderer(IPC_CHANNELS.DISPATCH_STATE, dispatchState);
 }
 
 export function getDispatchState(): DispatchState {
   return dispatchState;
 }
 
-// ---------------------------------------------------------------------------
-// API helpers (tRPC HTTP calls for persistence)
-// ---------------------------------------------------------------------------
 
 type TRPCResult<T> = { result: { data: { json: T } } };
 
@@ -99,9 +73,6 @@ async function trpcMutation<T>(procedure: string, input: unknown): Promise<T> {
   return json.result.data.json;
 }
 
-// ---------------------------------------------------------------------------
-// Registration
-// ---------------------------------------------------------------------------
 
 async function registerDevice(): Promise<void> {
   setState({ status: "registering", error: null });
@@ -135,9 +106,13 @@ async function registerDevice(): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// PartySocket connection (replaces SSE/Supabase)
-// ---------------------------------------------------------------------------
+
+function transitionToPaired(): void {
+  if (dispatchState.status === "paired") return;
+  const creds = credentialStore.read();
+  if (creds && !creds.paired) credentialStore.write({ ...creds, paired: true });
+  setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
+}
 
 function connectPartySocket(deviceId: string): void {
   if (partySocket) {
@@ -161,24 +136,11 @@ function connectPartySocket(deviceId: string): void {
       if (dedup) seenMessageIds.add(dedup);
 
       if (msg.type === "device_paired") {
-        const creds = credentialStore.read();
-        if (creds) credentialStore.write({ ...creds, paired: true });
-        setState({
-          status: "paired",
-          pairingCode: null,
-          pairingExpiresAt: null,
-          error: null,
-        });
+        transitionToPaired();
         return;
       }
 
-      // Transition to paired on first inbound message if not already
-      if (dispatchState.status !== "paired") {
-        const creds = credentialStore.read();
-        if (creds) credentialStore.write({ ...creds, paired: true });
-        setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
-      }
-
+      transitionToPaired();
       onInboundMessage?.({
         id: msg.id,
         type: msg.type,
@@ -211,17 +173,8 @@ async function catchUpPendingMessages(): Promise<void> {
       seenMessageIds.add(msg.id);
       if (typeof clientId === "string") seenMessageIds.add(clientId);
 
-      if (msg.type === "device_paired") {
-        if (!creds.paired) credentialStore.write({ ...creds, paired: true });
-        setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
-        continue;
-      }
-
-      if (dispatchState.status !== "paired") {
-        if (!creds.paired) credentialStore.write({ ...creds, paired: true });
-        setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
-      }
-
+      transitionToPaired();
+      if (msg.type === "device_paired") continue;
       onInboundMessage?.(msg);
     }
   } catch {
@@ -229,9 +182,6 @@ async function catchUpPendingMessages(): Promise<void> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// Send agent event back to mobile (desktop → mobile)
-// ---------------------------------------------------------------------------
 
 export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> {
   const creds = credentialStore.read();
@@ -240,14 +190,12 @@ export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> 
 
   const payload = event as Record<string, unknown>;
 
-  // Relay via WebSocket for instant delivery
   partySocket?.send(JSON.stringify({
     direction: "to_mobile",
     type: event.type,
     payload,
   }));
 
-  // Only persist non-ephemeral events via HTTP
   const isEphemeral = event.type === "message_update" || event.type === "message_start";
   if (!isEphemeral) {
     try {
@@ -262,13 +210,7 @@ export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> 
   }
 }
 
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
 
-/**
- * Initialize the dispatch system. Call once from main process startup.
- */
 export function initDispatch(
   handler: (msg: DispatchInboundMessage) => void,
 ): void {
@@ -302,9 +244,6 @@ export function initDispatch(
   }
 }
 
-/**
- * Request a new pairing code (e.g., if the previous one expired).
- */
 export async function refreshPairingCode(): Promise<void> {
   const creds = credentialStore.read();
   if (!creds) {
@@ -335,9 +274,6 @@ export async function refreshPairingCode(): Promise<void> {
   }
 }
 
-/**
- * Shut down the dispatch system. Call on app quit.
- */
 export function shutdownDispatch(): void {
   if (partySocket) {
     partySocket.close();

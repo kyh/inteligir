@@ -79,6 +79,38 @@ const tokenDeviceCache = (() => {
 
 const EPHEMERAL_EVENT_TYPES = new Set(["message_update", "message_start"]);
 
+async function drainPendingMessages(
+  database: TRPCContext["db"],
+  deviceId: string,
+  direction: "to_device" | "to_mobile",
+) {
+  const messages = await database.query.dispatchMessage.findMany({
+    where: (m, { eq: eq_, and: and_ }) =>
+      and_(
+        eq_(m.deviceId, deviceId),
+        eq_(m.direction, direction),
+        eq_(m.status, "pending"),
+      ),
+    orderBy: (m, { asc }) => asc(m.createdAt),
+  });
+
+  if (messages.length > 0) {
+    await database
+      .update(dispatchMessage)
+      .set({ status: "delivered" })
+      .where(inArray(dispatchMessage.id, messages.map((m) => m.id)));
+  }
+
+  return {
+    messages: messages.map((m) => ({
+      id: m.id,
+      type: m.type,
+      payload: m.payload,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
@@ -225,72 +257,20 @@ export const dispatchRouter = createTRPCRouter({
       return { messageId };
     }),
 
-  // ---- Catch-up (desktop fetches pending to_device on reconnect) -----------
+  // ---- Catch-up (fetch pending messages on reconnect) -----------------------
 
   catchUp: publicProcedure
     .input(catchUpInput)
     .mutation(async ({ ctx, input }) => {
       const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
-
-      const messages = await ctx.db.query.dispatchMessage.findMany({
-        where: (m, { eq: eq_, and: and_ }) =>
-          and_(
-            eq_(m.deviceId, device.id),
-            eq_(m.direction, "to_device"),
-            eq_(m.status, "pending"),
-          ),
-        orderBy: (m, { asc }) => asc(m.createdAt),
-      });
-
-      if (messages.length > 0) {
-        await ctx.db
-          .update(dispatchMessage)
-          .set({ status: "delivered" })
-          .where(inArray(dispatchMessage.id, messages.map((m) => m.id)));
-      }
-
-      return {
-        messages: messages.map((m) => ({
-          id: m.id,
-          type: m.type,
-          payload: m.payload,
-          createdAt: m.createdAt.toISOString(),
-        })),
-      };
+      return drainPendingMessages(ctx.db, device.id, "to_device");
     }),
-
-  // ---- Catch-up (mobile fetches pending to_mobile on reconnect) ------------
 
   mobileCatchUp: publicProcedure
     .input(mobileCatchUpInput)
     .mutation(async ({ ctx, input }) => {
       const device = await resolveDeviceByMobileToken(ctx.db, input.mobileToken);
-
-      const messages = await ctx.db.query.dispatchMessage.findMany({
-        where: (m, { eq: eq_, and: and_ }) =>
-          and_(
-            eq_(m.deviceId, device.id),
-            eq_(m.direction, "to_mobile"),
-            eq_(m.status, "pending"),
-          ),
-        orderBy: (m, { asc }) => asc(m.createdAt),
-      });
-
-      if (messages.length > 0) {
-        await ctx.db
-          .update(dispatchMessage)
-          .set({ status: "delivered" })
-          .where(inArray(dispatchMessage.id, messages.map((m) => m.id)));
-      }
-
-      return {
-        messages: messages.map((m) => ({
-          id: m.id,
-          type: m.type,
-          payload: m.payload,
-          createdAt: m.createdAt.toISOString(),
-        })),
-      };
+      return drainPendingMessages(ctx.db, device.id, "to_mobile");
     }),
 
   // ---- Unpair Device -------------------------------------------------------

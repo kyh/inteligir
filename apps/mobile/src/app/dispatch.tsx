@@ -165,11 +165,15 @@ export default function DispatchScreen() {
   const catchUpMutation = useMutation(
     trpc.dispatch.mobileCatchUp.mutationOptions({
       onSuccess(data) {
+        const restored: ChatEntry[] = [];
         for (const msg of data.messages) {
           const event = msg.payload as AgentEvent;
           if (event.type === "message_end" && event.role === "assistant" && typeof event.text === "string") {
-            setEntries((prev) => [...prev, { role: "assistant", text: String(event.text) }]);
+            restored.push({ role: "assistant", text: String(event.text) });
           }
+        }
+        if (restored.length > 0) {
+          setEntries((prev) => [...prev, ...restored]);
         }
       },
     }),
