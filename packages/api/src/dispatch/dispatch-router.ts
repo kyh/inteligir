@@ -101,11 +101,6 @@ async function* pollMessages(
     });
 
     if (messages.length > 0) {
-      await db
-        .update(dispatchMessage)
-        .set({ status: "delivered" })
-        .where(inArray(dispatchMessage.id, messages.map((m) => m.id)));
-
       for (const msg of messages) {
         yield {
           id: msg.id,
@@ -114,6 +109,10 @@ async function* pollMessages(
           payload: msg.payload,
           createdAt: msg.createdAt.toISOString(),
         };
+        await db
+          .update(dispatchMessage)
+          .set({ status: "delivered" })
+          .where(eq(dispatchMessage.id, msg.id));
       }
     }
 
