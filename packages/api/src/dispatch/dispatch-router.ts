@@ -4,9 +4,9 @@ import {
   dispatchDevice,
   dispatchMessage,
 } from "@repo/db/drizzle-schema";
-import { db } from "@repo/db/drizzle-client";
 import { TRPCError } from "@trpc/server";
 
+import type { TRPCContext } from "../trpc";
 import { createTRPCRouter, publicProcedure } from "../trpc";
 import {
   catchUpInput,
@@ -16,8 +16,6 @@ import {
   registerDeviceInput,
   respondInput,
   sendMessageInput,
-  subscribeDeviceInput,
-  subscribeMobileInput,
 } from "./dispatch-schema";
 
 /** Generate a cryptographically random 6-char uppercase alphanumeric code */
@@ -37,13 +35,12 @@ function generateToken(prefix: string): string {
 }
 
 const PAIRING_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
-const POLL_INTERVAL_MS = 1000;
 
 // ---------------------------------------------------------------------------
 // Helpers: resolve device from token
 // ---------------------------------------------------------------------------
 
-async function resolveDeviceByToken(token: string) {
+async function resolveDeviceByToken(db: TRPCContext["db"], token: string) {
   const device = await db.query.dispatchDevice.findFirst({
     where: (d, { eq: eq_ }) => eq_(d.token, token),
   });
@@ -53,7 +50,7 @@ async function resolveDeviceByToken(token: string) {
   return device;
 }
 
-async function resolveDeviceByMobileToken(mobileToken: string) {
+async function resolveDeviceByMobileToken(db: TRPCContext["db"], mobileToken: string) {
   const device = await db.query.dispatchDevice.findFirst({
     where: (d, { eq: eq_ }) => eq_(d.mobileToken, mobileToken),
   });
@@ -80,45 +77,7 @@ const tokenDeviceCache = (() => {
   };
 })();
 
-// ---------------------------------------------------------------------------
-// Helpers: poll for pending messages and yield them
-// ---------------------------------------------------------------------------
-
-async function* pollMessages(
-  deviceId: string,
-  direction: "to_device" | "to_mobile",
-  signal: AbortSignal,
-) {
-  while (!signal.aborted) {
-    const messages = await db.query.dispatchMessage.findMany({
-      where: (m, { eq: eq_, and: and_ }) =>
-        and_(
-          eq_(m.deviceId, deviceId),
-          eq_(m.direction, direction),
-          eq_(m.status, "pending"),
-        ),
-      orderBy: (m, { asc }) => asc(m.createdAt),
-    });
-
-    if (messages.length > 0) {
-      for (const msg of messages) {
-        yield {
-          id: msg.id,
-          direction: msg.direction,
-          type: msg.type,
-          payload: msg.payload,
-          createdAt: msg.createdAt.toISOString(),
-        };
-        await db
-          .update(dispatchMessage)
-          .set({ status: "delivered" })
-          .where(eq(dispatchMessage.id, msg.id));
-      }
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-  }
-}
+const EPHEMERAL_EVENT_TYPES = new Set(["message_update", "message_start"]);
 
 // ---------------------------------------------------------------------------
 // Router
@@ -157,7 +116,7 @@ export const dispatchRouter = createTRPCRouter({
   refreshPairingCode: publicProcedure
     .input(deviceTokenInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDeviceByToken(input.deviceToken);
+      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
 
       const pairingCode = generatePairingCode();
       const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MS);
@@ -198,8 +157,8 @@ export const dispatchRouter = createTRPCRouter({
         })
         .where(eq(dispatchDevice.id, device.id));
 
-      // Insert a system message so the desktop subscription picks up the
-      // pairing event naturally via the SSE stream.
+      // Persist a system message so the desktop picks up pairing via catch-up
+      // if it missed the WebSocket notification.
       await ctx.db.insert(dispatchMessage).values({
         deviceId: device.id,
         direction: "to_device",
@@ -214,12 +173,12 @@ export const dispatchRouter = createTRPCRouter({
       };
     }),
 
-  // ---- Send Message (mobile → desktop) -------------------------------------
+  // ---- Send Message (mobile → desktop) — persistence only -----------------
 
   sendMessage: publicProcedure
     .input(sendMessageInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDeviceByMobileToken(input.mobileToken);
+      const device = await resolveDeviceByMobileToken(ctx.db, input.mobileToken);
 
       const [message] = await ctx.db
         .insert(dispatchMessage)
@@ -234,49 +193,36 @@ export const dispatchRouter = createTRPCRouter({
       return { messageId: message!.id };
     }),
 
-  // ---- Respond (desktop → mobile) ------------------------------------------
+  // ---- Respond (desktop → mobile) — persistence only ----------------------
 
   respond: publicProcedure
     .input(respondInput)
     .mutation(async ({ ctx, input }) => {
+      const isEphemeral = EPHEMERAL_EVENT_TYPES.has(input.type);
+
       let deviceId = tokenDeviceCache.get(input.deviceToken);
       if (!deviceId) {
-        const device = await resolveDeviceByToken(input.deviceToken);
+        const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
         deviceId = device.id;
         tokenDeviceCache.set(input.deviceToken, deviceId);
       }
 
-      const [message] = await ctx.db
-        .insert(dispatchMessage)
-        .values({
-          deviceId,
-          direction: "to_mobile",
-          type: input.type,
-          payload: input.payload,
-        })
-        .returning();
+      let messageId: string | null = null;
 
-      return { messageId: message!.id };
-    }),
+      if (!isEphemeral) {
+        const [message] = await ctx.db
+          .insert(dispatchMessage)
+          .values({
+            deviceId,
+            direction: "to_mobile",
+            type: input.type,
+            payload: input.payload,
+          })
+          .returning();
+        messageId = message!.id;
+      }
 
-  // ---- SSE Subscription (desktop listens for to_device messages) ----------
-
-  subscribeDevice: publicProcedure
-    .input(subscribeDeviceInput)
-    .subscription(async function* ({ input, signal }) {
-      if (!signal) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Subscription requires an abort signal" });
-      const device = await resolveDeviceByToken(input.deviceToken);
-      yield* pollMessages(device.id, "to_device", signal);
-    }),
-
-  // ---- SSE Subscription (mobile listens for to_mobile messages) -----------
-
-  subscribeMobile: publicProcedure
-    .input(subscribeMobileInput)
-    .subscription(async function* ({ input, signal }) {
-      if (!signal) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Subscription requires an abort signal" });
-      const device = await resolveDeviceByMobileToken(input.mobileToken);
-      yield* pollMessages(device.id, "to_mobile", signal);
+      return { messageId };
     }),
 
   // ---- Catch-up (desktop fetches pending to_device on reconnect) -----------
@@ -284,7 +230,7 @@ export const dispatchRouter = createTRPCRouter({
   catchUp: publicProcedure
     .input(catchUpInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDeviceByToken(input.deviceToken);
+      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
 
       const messages = await ctx.db.query.dispatchMessage.findMany({
         where: (m, { eq: eq_, and: and_ }) =>
@@ -318,7 +264,7 @@ export const dispatchRouter = createTRPCRouter({
   mobileCatchUp: publicProcedure
     .input(mobileCatchUpInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDeviceByMobileToken(input.mobileToken);
+      const device = await resolveDeviceByMobileToken(ctx.db, input.mobileToken);
 
       const messages = await ctx.db.query.dispatchMessage.findMany({
         where: (m, { eq: eq_, and: and_ }) =>
@@ -352,7 +298,7 @@ export const dispatchRouter = createTRPCRouter({
   unpairDevice: publicProcedure
     .input(deviceTokenInput)
     .mutation(async ({ ctx, input }) => {
-      const device = await resolveDeviceByToken(input.deviceToken);
+      const device = await resolveDeviceByToken(ctx.db, input.deviceToken);
       tokenDeviceCache.delete(input.deviceToken);
       await ctx.db.delete(dispatchDevice).where(eq(dispatchDevice.id, device.id));
       return { ok: true };

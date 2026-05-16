@@ -12,8 +12,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
+import PartySocket from "partysocket";
 
-import { trpc, trpcClient } from "@/utils/api";
+import { trpc } from "@/utils/api";
+import { getPartyHost } from "@/utils/base-url";
 import { clearSession, getMobileToken } from "@/utils/session-store";
 
 // ---------------------------------------------------------------------------
@@ -48,31 +50,41 @@ export default function DispatchScreen() {
   const [isAgentBusy, setIsAgentBusy] = useState(false);
   const flatListRef = useRef<FlatList>(null);
   const assistantTextRef = useRef("");
+  const partySocketRef = useRef<PartySocket | null>(null);
 
-  // -- SSE subscription (replaces Supabase Realtime) -------------------------
+  // -- PartySocket connection (replaces Supabase Realtime) -------------------
 
   useEffect(() => {
     if (!deviceId || !mobileToken) return;
 
-    const subscription = trpcClient.dispatch.subscribeMobile.subscribe(
-      { mobileToken },
-      {
-        onData(envelope) {
-          // tracked() wraps as [id, data]
-          const msg = Array.isArray(envelope) ? envelope[1] : envelope;
-          if (!msg || msg.direction !== "to_mobile") return;
+    const ws = new PartySocket({
+      host: getPartyHost(),
+      party: "dispatch-server",
+      room: deviceId,
+    });
 
-          const event = msg.payload as AgentEvent;
-          handleAgentEvent(event);
-        },
-        onError(err) {
-          console.error("[dispatch] SSE error:", err);
-        },
-      },
-    );
+    partySocketRef.current = ws;
+
+    ws.addEventListener("message", (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.direction !== "to_mobile") return;
+        handleAgentEvent(msg.payload as AgentEvent);
+      } catch {
+        // Skip malformed messages
+      }
+    });
+
+    // Catch up on any missed messages on connect
+    ws.addEventListener("open", () => {
+      if (mobileToken) {
+        catchUpMutation.mutate({ mobileToken });
+      }
+    });
 
     return () => {
-      subscription.unsubscribe();
+      ws.close();
+      partySocketRef.current = null;
     };
   }, [deviceId, mobileToken]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -135,6 +147,21 @@ export default function DispatchScreen() {
     }
   }
 
+  // -- Catch-up on connect ---------------------------------------------------
+
+  const catchUpMutation = useMutation(
+    trpc.dispatch.mobileCatchUp.mutationOptions({
+      onSuccess(data) {
+        for (const msg of data.messages) {
+          const event = msg.payload as AgentEvent;
+          if (event.type === "message_end" && event.role === "assistant" && typeof event.text === "string") {
+            setEntries((prev) => [...prev, { role: "assistant", text: String(event.text) }]);
+          }
+        }
+      },
+    }),
+  );
+
   // -- Send message ----------------------------------------------------------
 
   const sendMutation = useMutation(
@@ -146,15 +173,29 @@ export default function DispatchScreen() {
     if (!text || !mobileToken) return;
     setInput("");
     setEntries((prev) => [...prev, { role: "user", text }]);
-    sendMutation.mutate({
-      mobileToken,
+
+    const payload = { text };
+
+    // Send via WebSocket for instant delivery
+    partySocketRef.current?.send(JSON.stringify({
+      direction: "to_device",
       type: "user_message",
-      payload: { text },
-    });
+      payload,
+    }));
+
+    // Persist via HTTP
+    sendMutation.mutate({ mobileToken, type: "user_message", payload });
   }, [input, mobileToken, sendMutation]);
 
   const handleInterrupt = useCallback(() => {
     if (!mobileToken) return;
+
+    partySocketRef.current?.send(JSON.stringify({
+      direction: "to_device",
+      type: "interrupt",
+      payload: {},
+    }));
+
     sendMutation.mutate({ mobileToken, type: "interrupt", payload: {} });
   }, [mobileToken, sendMutation]);
 

@@ -26,6 +26,7 @@
     "expo-status-bar": "~55.0.5",
     "expo-system-ui": "~55.0.15",
     "nativewind": "5.0.0-preview.3",
+    "partysocket": "^1.1.18",
     "react": "catalog:",
     "react-dom": "catalog:",
     "react-native": "~0.84.1",

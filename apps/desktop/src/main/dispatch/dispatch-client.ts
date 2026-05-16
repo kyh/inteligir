@@ -2,15 +2,17 @@
 // Dispatch client — connects the desktop app to the relay API so the mobile
 // app can send commands and receive agent events remotely.
 //
-// Uses tRPC SSE subscriptions (Server-Sent Events) for real-time delivery.
+// Uses PartySocket (WebSocket via PartyKit/Cloudflare Durable Objects) for
+// real-time message relay and tRPC HTTP mutations for persistence.
 //
 // Lifecycle:
 //   1. On startup, check for persisted credentials (~/.inteligir/dispatch.json)
 //   2. If none, register a new device and show pairing code
-//   3. Subscribe to SSE stream for inbound messages
-//   4. On connect, pending messages are delivered via the subscription
+//   3. Connect to PartySocket room for real-time messages
+//   4. On connect, catch up any messages missed while offline
 // ---------------------------------------------------------------------------
 
+import PartySocket from "partysocket";
 import { BrowserWindow } from "electron";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import {
@@ -28,7 +30,7 @@ import type { AppAgentEvent } from "@/shared/agent-events";
 // ---------------------------------------------------------------------------
 
 const API_BASE_URL = process.env["DISPATCH_API_URL"] ?? "http://localhost:3000";
-const SSE_RECONNECT_DELAY_MS = 3000;
+const PARTY_HOST = process.env["DISPATCH_PARTY_HOST"] ?? "localhost:1999";
 
 // ---------------------------------------------------------------------------
 // Persistent credential store
@@ -45,8 +47,23 @@ const credentialStore = new JsonStore<DispatchCredentials | null>(
 // ---------------------------------------------------------------------------
 
 let dispatchState: DispatchState = { ...DISPATCH_INITIAL_STATE };
-let sseAbortController: AbortController | null = null;
+let partySocket: PartySocket | null = null;
 let onInboundMessage: ((msg: DispatchInboundMessage) => void) | null = null;
+/** Track message IDs to deduplicate between WebSocket and catch-up */
+const seenMessageIds = (() => {
+  const MAX = 5000;
+  const ids = new Set<string>();
+  return {
+    has: (id: string) => ids.has(id),
+    add: (id: string) => {
+      ids.add(id);
+      if (ids.size > MAX) {
+        const oldest = ids.values().next().value;
+        if (oldest) ids.delete(oldest);
+      }
+    },
+  };
+})();
 
 function setState(patch: Partial<DispatchState>): void {
   dispatchState = { ...dispatchState, ...patch };
@@ -62,7 +79,7 @@ export function getDispatchState(): DispatchState {
 }
 
 // ---------------------------------------------------------------------------
-// API helpers (tRPC HTTP calls)
+// API helpers (tRPC HTTP calls for persistence)
 // ---------------------------------------------------------------------------
 
 type TRPCResult<T> = { result: { data: { json: T } } };
@@ -119,137 +136,81 @@ async function registerDevice(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// SSE subscription (replaces Supabase Realtime)
+// PartySocket connection (replaces SSE/Supabase)
 // ---------------------------------------------------------------------------
 
-function subscribeToSSE(deviceToken: string): void {
-  // Tear down existing connection
-  if (sseAbortController) {
-    sseAbortController.abort();
-    sseAbortController = null;
+function connectPartySocket(deviceId: string): void {
+  if (partySocket) {
+    partySocket.close();
+    partySocket = null;
   }
 
-  const controller = new AbortController();
-  sseAbortController = controller;
+  partySocket = new PartySocket({
+    host: PARTY_HOST,
+    party: "dispatch-server",
+    room: deviceId,
+  });
 
-  void connectSSE(deviceToken, controller);
-}
-
-async function connectSSE(
-  deviceToken: string,
-  controller: AbortController,
-): Promise<void> {
-  // Build tRPC SSE subscription URL
-  const input = encodeURIComponent(JSON.stringify({ json: { deviceToken } }));
-  const url = `${API_BASE_URL}/api/trpc/dispatch.subscribeDevice?input=${input}`;
-
-  while (!controller.signal.aborted) {
+  partySocket.addEventListener("message", (event) => {
     try {
-      const res = await fetch(url, {
-        headers: { Accept: "text/event-stream" },
-        signal: controller.signal,
+      const msg = JSON.parse(event.data);
+      if (msg.direction !== "to_device") return;
+
+      if (msg.id && seenMessageIds.has(msg.id)) return;
+      if (msg.id) seenMessageIds.add(msg.id);
+
+      if (msg.type === "device_paired") {
+        const creds = credentialStore.read();
+        if (creds) credentialStore.write({ ...creds, paired: true });
+        setState({
+          status: "paired",
+          pairingCode: null,
+          pairingExpiresAt: null,
+          error: null,
+        });
+        return;
+      }
+
+      // Transition to paired on first inbound message if not already
+      if (dispatchState.status !== "paired") {
+        const creds = credentialStore.read();
+        if (creds) credentialStore.write({ ...creds, paired: true });
+        setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
+      }
+
+      onInboundMessage?.({
+        id: msg.id,
+        type: msg.type,
+        payload: msg.payload,
+        createdAt: msg.createdAt,
       });
-
-      if (!res.ok) {
-        throw new Error(`SSE connection failed (${res.status})`);
-      }
-
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      while (!controller.signal.aborted) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        // Keep incomplete last line in buffer
-        buffer = lines.pop() ?? "";
-
-        for (const line of lines) {
-          if (!line.startsWith("data: ")) continue;
-
-          try {
-            const envelope = JSON.parse(line.slice(6));
-            handleSSEEvent(envelope);
-          } catch {
-            // Skip malformed lines
-          }
-        }
-      }
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      console.error("[dispatch] SSE error, reconnecting:", err);
+    } catch {
+      // Skip malformed messages
     }
+  });
 
-    if (controller.signal.aborted) return;
-    await new Promise((r) => setTimeout(r, SSE_RECONNECT_DELAY_MS));
-  }
-}
-
-function handleSSEEvent(envelope: unknown): void {
-  // tRPC tracked envelopes: [id, data] or { result: { data: ... } }
-  const msg = extractMessage(envelope);
-  if (!msg) return;
-
-  if (msg.type === "device_paired") {
-    const creds = credentialStore.read();
-    if (creds) credentialStore.write({ ...creds, paired: true });
-    setState({
-      status: "paired",
-      pairingCode: null,
-      pairingExpiresAt: null,
-      error: null,
-    });
-    return;
-  }
-
-  // Transition to paired on first inbound message if not already
-  if (dispatchState.status !== "paired") {
-    const creds = credentialStore.read();
-    if (creds) credentialStore.write({ ...creds, paired: true });
-    setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
-  }
-
-  onInboundMessage?.({
-    id: msg.id,
-    type: msg.type,
-    payload: msg.payload,
-    createdAt: msg.createdAt,
+  partySocket.addEventListener("open", () => {
+    void catchUpPendingMessages();
   });
 }
 
-type SSEMessage = {
-  id: string;
-  type: DispatchInboundMessage["type"] | "device_paired";
-  payload: Record<string, unknown>;
-  createdAt: string;
-};
+async function catchUpPendingMessages(): Promise<void> {
+  const creds = credentialStore.read();
+  if (!creds) return;
 
-function extractMessage(envelope: unknown): SSEMessage | null {
-  if (!envelope || typeof envelope !== "object") return null;
+  try {
+    const result = await trpcMutation<{
+      messages: DispatchInboundMessage[];
+    }>("dispatch.catchUp", { deviceToken: creds.token });
 
-  // tRPC SSE format: { result: { type: "data", data: { json: [id, data] } } }
-  const outer = envelope as Record<string, unknown>;
-  const result = outer["result"] as Record<string, unknown> | undefined;
-
-  if (result?.["type"] === "data") {
-    const dataWrapper = result["data"] as Record<string, unknown> | undefined;
-    const json = dataWrapper?.["json"];
-
-    // tracked() wraps as [id, data]
-    if (Array.isArray(json) && json.length === 2) {
-      return json[1] as SSEMessage;
+    for (const msg of result.messages) {
+      if (seenMessageIds.has(msg.id)) continue;
+      seenMessageIds.add(msg.id);
+      onInboundMessage?.(msg);
     }
-    if (json && typeof json === "object") {
-      return json as SSEMessage;
-    }
+  } catch {
+    // Catch-up failures are non-fatal
   }
-
-  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -261,14 +222,24 @@ export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> 
   if (!creds) return;
   if (dispatchState.status !== "paired") return;
 
+  const payload = event as Record<string, unknown>;
+
+  // Relay via WebSocket for instant delivery
+  partySocket?.send(JSON.stringify({
+    direction: "to_mobile",
+    type: event.type,
+    payload,
+  }));
+
+  // Persist non-ephemeral events via HTTP (fire-and-forget)
   try {
     await trpcMutation("dispatch.respond", {
       deviceToken: creds.token,
       type: event.type,
-      payload: event as Record<string, unknown>,
+      payload,
     });
   } catch {
-    // Response failures are non-fatal
+    // Persistence failures are non-fatal
   }
 }
 
@@ -294,7 +265,7 @@ export function initDispatch(
         pairingExpiresAt: null,
         error: null,
       });
-      subscribeToSSE(creds.token);
+      connectPartySocket(creds.deviceId);
       if (!creds.paired) {
         void refreshPairingCode();
       }
@@ -302,7 +273,7 @@ export function initDispatch(
       void registerDevice().then(() => {
         const updatedCreds = credentialStore.read();
         if (updatedCreds) {
-          subscribeToSSE(updatedCreds.token);
+          connectPartySocket(updatedCreds.deviceId);
         }
       });
     }
@@ -321,7 +292,7 @@ export async function refreshPairingCode(): Promise<void> {
     await registerDevice();
     const newCreds = credentialStore.read();
     if (newCreds) {
-      subscribeToSSE(newCreds.token);
+      connectPartySocket(newCreds.deviceId);
     }
     return;
   }
@@ -349,9 +320,9 @@ export async function refreshPairingCode(): Promise<void> {
  * Shut down the dispatch system. Call on app quit.
  */
 export function shutdownDispatch(): void {
-  if (sseAbortController) {
-    sseAbortController.abort();
-    sseAbortController = null;
+  if (partySocket) {
+    partySocket.close();
+    partySocket = null;
   }
   onInboundMessage = null;
 }
