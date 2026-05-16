@@ -142,10 +142,10 @@ function connectPartySocket(deviceId: string): void {
 
       transitionToPaired();
       onInboundMessage?.({
-        id: msg.id,
+        id: msg.id ?? msg.payload?.clientId ?? "",
         type: msg.type,
         payload: msg.payload,
-        createdAt: msg.createdAt,
+        createdAt: msg.createdAt ?? new Date().toISOString(),
       });
     } catch {
       // Skip malformed messages

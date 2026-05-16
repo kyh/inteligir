@@ -184,6 +184,7 @@ export default function DispatchScreen() {
   const sendMutation = useMutation(
     trpc.dispatch.sendMessage.mutationOptions({}),
   );
+  const { mutate: sendMessage } = sendMutation;
 
   const handleSend = useCallback(() => {
     const text = input.trim();
@@ -194,16 +195,14 @@ export default function DispatchScreen() {
     const clientId = generateClientId();
     const payload = { text, clientId };
 
-    // Send via WebSocket for instant delivery
     partySocketRef.current?.send(JSON.stringify({
       direction: "to_device",
       type: "user_message",
       payload,
     }));
 
-    // Persist via HTTP
-    sendMutation.mutate({ mobileToken, type: "user_message", payload });
-  }, [input, mobileToken, sendMutation]);
+    sendMessage({ mobileToken, type: "user_message", payload });
+  }, [input, mobileToken, sendMessage]);
 
   const handleInterrupt = useCallback(() => {
     if (!mobileToken) return;
@@ -216,8 +215,8 @@ export default function DispatchScreen() {
       payload: { clientId },
     }));
 
-    sendMutation.mutate({ mobileToken, type: "interrupt", payload: { clientId } });
-  }, [mobileToken, sendMutation]);
+    sendMessage({ mobileToken, type: "interrupt", payload: { clientId } });
+  }, [mobileToken, sendMessage]);
 
   const handleDisconnect = useCallback(async () => {
     await clearSession();
