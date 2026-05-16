@@ -151,11 +151,14 @@ export function ChatPage() {
       for (const a of list.artifacts) map[a.id] = a;
       setArtifactsById(map);
       // Prune any open ids that no longer exist (agent deleted them).
+      // Use Object.hasOwn — `id in map` walks the prototype chain, so an
+      // artifact id matching Object.prototype keys (e.g. "constructor")
+      // would falsely register as present and never get pruned.
       setOpenArtifactIds((current) => {
         let changed = false;
         const next = new Set<string>();
         for (const id of current) {
-          if (id in map) next.add(id);
+          if (Object.hasOwn(map, id)) next.add(id);
           else changed = true;
         }
         return changed ? next : current;
