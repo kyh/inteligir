@@ -111,6 +111,10 @@ export function ArtifactViewer({ id }: Props) {
   // Persist state changes via the state-only IPC. Critically NOT upsert —
   // upsert would carry our cached spec back to disk and could clobber an
   // agent-authored spec update that landed during the debounce window.
+  //
+  // Wired via the StateStore's own subscribe (NOT JSONUIProvider's
+  // `onStateChange`) — when a `store` prop is supplied, json-render docs
+  // explicitly state that onStateChange is ignored.
   const handleStateChange = useMemo(
     () => () => {
       if (suppressPersistRef.current) return;
@@ -129,6 +133,11 @@ export function ArtifactViewer({ id }: Props) {
     },
     [],
   );
+
+  useEffect(() => {
+    const unsubscribe = getStore().subscribe(handleStateChange);
+    return () => unsubscribe();
+  }, [handleStateChange]);
 
   const handlers = useMemo(
     () => ({
@@ -162,12 +171,7 @@ export function ArtifactViewer({ id }: Props) {
 
   return (
     <div className="flex flex-col gap-4 p-3">
-      <JSONUIProvider
-        registry={artifactRegistry}
-        store={getStore()}
-        handlers={handlers}
-        onStateChange={handleStateChange}
-      >
+      <JSONUIProvider registry={artifactRegistry} store={getStore()} handlers={handlers}>
         <Renderer spec={artifact.spec as unknown as Spec} registry={artifactRegistry} />
       </JSONUIProvider>
     </div>
