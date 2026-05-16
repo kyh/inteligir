@@ -39,41 +39,38 @@ export function SettingsPanel() {
     return storeRef.current;
   };
 
-  // Load config + initial OS notification state in parallel. App-fact paths
-  // (`/app/connected`, `/app/canStartSession`) are intentionally NOT written
-  // here — they have a dedicated effect below so this async callback can't
-  // overwrite a fresher value pushed in between mount and resolve.
+  // Subscribe first, then read. If a broadcast (LLM rewrite or reset) lands
+  // between the read request and the response, the broadcast wins and the
+  // stale initial-load snapshot is skipped — but we still seed the live
+  // OS-level notification value, which the broadcast doesn't carry.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
     let cancelled = false;
+    let broadcastSeen = false;
+    const off = bridge.onUiSettingsUpdated((next) => {
+      if (cancelled) return;
+      broadcastSeen = true;
+      getStore().update(mapToPointers(next.state));
+      setConfig(next);
+    });
     Promise.all([bridge.getUiSettings(), bridge.getNotificationSettings()])
       .then(([cfg, notif]) => {
         if (cancelled) return null;
-        getStore().update({
-          // Persisted state first so the authoritative live OS-level
-          // notification value (set below) wins on any key collision.
-          ...mapToPointers(cfg.state),
-          "/notifications/enabled": notif.enabled,
-        });
-        setConfig(cfg);
+        // Always seed the live OS-level notification value — broadcasts
+        // don't carry it.
+        getStore().update({ "/notifications/enabled": notif.enabled });
+        // Only apply the on-disk snapshot if no fresher broadcast has
+        // already overtaken us.
+        if (!broadcastSeen) {
+          getStore().update(mapToPointers(cfg.state));
+          setConfig(cfg);
+        }
         return null;
       })
       .catch(() => null);
     return () => {
       cancelled = true;
-    };
-  }, []);
-
-  // Subscribe to spec updates (LLM rewrites, reset, etc.).
-  useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    const off = bridge.onUiSettingsUpdated((next) => {
-      getStore().update(mapToPointers(next.state));
-      setConfig(next);
-    });
-    return () => {
       off();
     };
   }, []);
