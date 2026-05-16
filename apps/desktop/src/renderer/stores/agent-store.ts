@@ -374,7 +374,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const meta: ChatMessageMetadata = {};
     if (cmdType === "steer") meta.steer = true;
     if (images?.length) meta.imageCount = images.length;
-    const hasMeta = meta.steer !== undefined || meta.imageCount !== undefined;
+    const hasMeta = Object.keys(meta).length > 0;
 
     set((s) => ({
       messages: [...s.messages, userMessage(text, hasMeta ? meta : undefined)],
