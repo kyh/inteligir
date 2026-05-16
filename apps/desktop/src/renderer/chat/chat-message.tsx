@@ -1,37 +1,65 @@
+import type { DynamicToolUIPart } from "ai";
 import { ImageIcon } from "lucide-react";
-import { cn } from "@repo/ui/lib/utils";
+import { Message, MessageContent } from "@repo/ui/components/ai-elements/message";
+import { Response } from "@repo/ui/components/ai-elements/response";
+import {
+  Tool,
+  ToolContent,
+  ToolHeader,
+  ToolOutput,
+  type ToolPart,
+} from "@repo/ui/components/ai-elements/tool";
 
-import { Markdown } from "@/renderer/components/markdown";
-import { ToolExecutionView } from "@/renderer/components/tool-execution";
 import type { ChatMessage } from "@/renderer/stores/agent-store";
 
-const BUBBLE_VARIANTS = {
-  user: "bg-foreground/20",
-  steer: "italic text-muted-foreground",
-} as const;
+// Hoisted so the array reference is stable across renders — the previous
+// inline literal allocated a new array every cycle. Response's memo doesn't
+// inspect this prop today, but a stable ref future-proofs the render path.
+const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [
+  "github-dark-dimmed",
+  "github-dark-dimmed",
+];
 
-function BubbleMessage({
-  variant,
-  text,
-  imageCount = 0,
-}: {
-  variant: keyof typeof BUBBLE_VARIANTS;
-  text: string;
-  imageCount?: number;
-}) {
+export function ChatMessageView({ message }: { message: ChatMessage }) {
+  const first = message.parts[0];
+  if (!first) return null;
+
+  if (first.type === "dynamic-tool") {
+    return <ToolMessage part={first} />;
+  }
+  if (first.type !== "text") return null;
+
+  const text = first.text;
+  const imageCount = message.metadata?.imageCount ?? 0;
+
+  if (message.metadata?.steer) {
+    return <SteerMessage text={text} imageCount={imageCount} />;
+  }
+  if (message.role === "user") {
+    return <UserMessage text={text} imageCount={imageCount} />;
+  }
+  return <AssistantMessage text={text} />;
+}
+
+function UserMessage({ text, imageCount }: { text: string; imageCount: number }) {
+  return (
+    <Message from="user">
+      <MessageContent>
+        {text && <span>{text}</span>}
+        <ImageCount count={imageCount} withLabel />
+      </MessageContent>
+    </Message>
+  );
+}
+
+function SteerMessage({ text, imageCount }: { text: string; imageCount: number }) {
   return (
     <div className="ml-8">
-      <div
-        className={cn(
-          "flex flex-col gap-1 rounded-md px-3 py-1.5 text-sm",
-          BUBBLE_VARIANTS[variant],
-        )}
-      >
+      <div className="rounded-md px-3 py-1.5 text-sm italic text-muted-foreground backdrop-blur-sm">
         {text && <span>{text}</span>}
         {imageCount > 0 && (
-          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-            <ImageIcon className="size-3" />
-            {imageCount} image{imageCount === 1 ? "" : "s"}
+          <span className="ml-2">
+            <ImageCount count={imageCount} />
           </span>
         )}
       </div>
@@ -39,28 +67,55 @@ function BubbleMessage({
   );
 }
 
-export function ChatMessageView({ message }: { message: ChatMessage }) {
-  switch (message.kind) {
-    case "user":
-    case "steer":
-      return (
-        <BubbleMessage variant={message.kind} text={message.text} imageCount={message.imageCount} />
-      );
+function AssistantMessage({ text }: { text: string }) {
+  return (
+    <Message from="assistant">
+      <MessageContent>
+        {text ? (
+          <Response
+            className="prose prose-sm prose-invert max-w-none break-words"
+            shikiTheme={ASSISTANT_SHIKI_THEME}
+          >
+            {text}
+          </Response>
+        ) : (
+          "..."
+        )}
+      </MessageContent>
+    </Message>
+  );
+}
 
-    case "assistant":
-      return (
-        <div className="mr-8">
-          <div className="bg-foreground/10 text-foreground/80 rounded-md px-3 py-1.5 text-sm">
-            {message.text ? <Markdown content={message.text} /> : "..."}
-          </div>
-        </div>
-      );
+function ToolMessage({ part }: { part: DynamicToolUIPart }) {
+  const { state } = part;
+  const hasOutput = state === "output-available" || state === "output-error";
+  return (
+    <div className="mr-8">
+      <Tool className="bg-foreground/5 backdrop-blur-sm">
+        <ToolHeader
+          type="dynamic-tool"
+          toolName={part.toolName}
+          state={state as ToolPart["state"]}
+        />
+        {hasOutput && (
+          <ToolContent>
+            <ToolOutput
+              output={state === "output-available" ? (part.output as unknown) : undefined}
+              errorText={state === "output-error" ? part.errorText : undefined}
+            />
+          </ToolContent>
+        )}
+      </Tool>
+    </div>
+  );
+}
 
-    case "tool":
-      return (
-        <div className="mr-8">
-          <ToolExecutionView execution={message.execution} />
-        </div>
-      );
-  }
+function ImageCount({ count, withLabel }: { count: number; withLabel?: boolean }) {
+  if (count <= 0) return null;
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+      <ImageIcon className="size-3" />
+      {withLabel ? `${count} image${count === 1 ? "" : "s"}` : count}
+    </span>
+  );
 }
