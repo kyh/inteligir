@@ -19,8 +19,10 @@ mac:
   hardenedRuntime: true
   notarize: true
   extendInfo:
-    - NSCameraUsageDescription: Application requests access to the device's camera.
-    - NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSCameraUsageDescription: Application requests access to the device's camera.
+    NSMicrophoneUsageDescription: Application requests access to the device's microphone.
+    NSAppleEventsUsageDescription: Inteligir uses Apple Events to control other applications when you ask the agent to act on them.
+    NSScreenCaptureUsageDescription: Inteligir captures the screen so the agent can see and interact with native applications.
 dmg:
   artifactName: Inteligir-${version}-${arch}.${ext}
 npmRebuild: false

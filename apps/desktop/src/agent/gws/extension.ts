@@ -11,13 +11,13 @@
  * itself reports ENOENT on first invocation if the binary is missing.
  */
 
-import { execFile } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
 import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
+import { runCli } from "@repo/agent-runtime/run-cli";
 import { seedFile } from "@repo/agent-runtime/seed";
 
 import type { PiExtensionBundle } from "@/agent/extension";
@@ -71,7 +71,12 @@ const gwsExtension: PiExtensionBundle = {
           });
 
           try {
-            const { stdout, stderr, code } = await runGws(gwsPath, params.args, params.stdin);
+            const { stdout, stderr, code } = await runCli(gwsPath, params.args, {
+              timeoutMs: GWS_TIMEOUT_MS,
+              maxBuffer: GWS_MAX_BUFFER,
+              stdin: params.stdin,
+              notFoundMessage: "gws binary not installed",
+            });
             const parts: string[] = [];
             if (stdout) parts.push(stdout);
             if (stderr) parts.push(`[stderr]\n${stderr}`);
@@ -110,29 +115,4 @@ function seedClientSecret(bundledResourcesDir: string): void {
   if (seedFile(src, dest)) {
     console.log(`[gws] seeded client_secret.json → ${dest}`);
   }
-}
-
-function runGws(
-  gwsPath: string,
-  args: string[],
-  stdin?: string,
-): Promise<{ stdout: string; stderr: string; code: number }> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      gwsPath,
-      args,
-      { timeout: GWS_TIMEOUT_MS, maxBuffer: GWS_MAX_BUFFER },
-      (err, stdout, stderr) => {
-        if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
-          reject(new Error("gws binary not installed"));
-          return;
-        }
-        const code = (err as { code?: number } | null)?.code ?? (err ? 1 : 0);
-        resolve({ stdout: String(stdout), stderr: String(stderr), code });
-      },
-    );
-    if (stdin !== undefined) {
-      child.stdin?.end(stdin);
-    }
-  });
 }
