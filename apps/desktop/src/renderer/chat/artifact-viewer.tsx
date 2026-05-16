@@ -164,6 +164,9 @@ export function ArtifactViewer({ id }: Props) {
 /**
  * Flatten a nested object into a `{ "/json/pointer": value }` map for
  * `StateStore.update`. Arrays stay whole; only plain objects walk.
+ *
+ * An empty plain object at a non-root path emits a `{}` leaf so the
+ * equality check can distinguish `{ a: {} }` from `{}`.
  */
 function toPointerMap(
   value: unknown,
@@ -175,7 +178,13 @@ function toPointerMap(
     out[prefix] = value;
     return out;
   }
-  for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+  const entries = Object.entries(value as Record<string, unknown>);
+  if (entries.length === 0) {
+    if (prefix.length === 0) return out;
+    out[prefix] = {};
+    return out;
+  }
+  for (const [key, child] of entries) {
     toPointerMap(child, `${prefix}/${key}`, out);
   }
   return out;

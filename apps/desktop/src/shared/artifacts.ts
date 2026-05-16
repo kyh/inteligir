@@ -55,6 +55,9 @@ export type ArtifactUpsertInput = {
 /**
  * Slugify a title into a stable artifact id. Lowercase, hyphenated, ASCII,
  * trimmed, max 48 chars. Returns "artifact" if nothing usable remains.
+ *
+ * Order matters: strip → slice → strip again. The slice can land mid-run
+ * and reintroduce a trailing hyphen, so we strip a second time at the end.
  */
 export function slugifyArtifactId(title: string): string {
   const slug = title
@@ -62,6 +65,7 @@ export function slugifyArtifactId(title: string): string {
     .normalize("NFKD")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
+    .slice(0, 48)
+    .replace(/-+$/, "");
   return slug.length > 0 ? slug : "artifact";
 }
