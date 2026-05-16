@@ -53,6 +53,7 @@ export const IPC_CHANNELS = {
   ARTIFACTS_LIST: "artifacts:list",
   ARTIFACTS_GET: "artifacts:get",
   ARTIFACTS_UPSERT: "artifacts:upsert",
+  ARTIFACTS_PATCH_STATE: "artifacts:patch-state",
   ARTIFACTS_DELETE: "artifacts:delete",
   ARTIFACTS_UPDATED: "artifacts:updated",
 } as const;
@@ -139,6 +140,7 @@ export type DesktopBridge = {
   listArtifacts: () => Promise<ArtifactsList>;
   getArtifact: (id: string) => Promise<Artifact | null>;
   upsertArtifact: (input: ArtifactUpsertInput) => Promise<Artifact>;
+  patchArtifactState: (id: string, state: Record<string, unknown>) => Promise<Artifact | null>;
   deleteArtifact: (id: string) => Promise<{ deleted: boolean }>;
   onArtifactsUpdated: (listener: (next: ArtifactsList) => void) => () => void;
 };

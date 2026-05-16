@@ -273,6 +273,14 @@ function registerIpcHandlers(): void {
     return getArtifacts().upsert(input);
   });
 
+  createIpcHandler(
+    IPC_CHANNELS.ARTIFACTS_PATCH_STATE,
+    z.object({ id: z.string(), state: z.record(z.string(), z.unknown()) }),
+    ({ id, state }) => {
+      return getArtifacts().patchState(id, state);
+    },
+  );
+
   createIpcHandler(IPC_CHANNELS.ARTIFACTS_DELETE, z.string(), (id) => {
     return { deleted: getArtifacts().delete(id) };
   });

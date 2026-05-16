@@ -83,8 +83,9 @@ export function ArtifactViewer({ id }: Props) {
     };
   }, [id]);
 
-  // Persist state changes back to disk. Pulls the current spec from the ref so
-  // we don't need to re-derive the upsert input — it's just the state slice.
+  // Persist state changes via the state-only IPC. Critically NOT upsert —
+  // upsert would carry our cached spec back to disk and could clobber an
+  // agent-authored spec update that landed during the debounce window.
   const handleStateChange = useMemo(
     () => () => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
@@ -97,15 +98,7 @@ export function ArtifactViewer({ id }: Props) {
         // ARTIFACTS_UPDATED on every render cycle.
         if (shallowEqualPointers(current.state, snapshot)) return;
         lastArtifactRef.current = { ...current, state: snapshot };
-        void getBridge()
-          ?.upsertArtifact({
-            id: current.id,
-            title: current.title,
-            description: current.description,
-            spec: current.spec,
-            state: snapshot,
-          })
-          .catch(() => null);
+        void getBridge()?.patchArtifactState(current.id, snapshot).catch(() => null);
       }, STATE_PERSIST_DEBOUNCE_MS);
     },
     [],
