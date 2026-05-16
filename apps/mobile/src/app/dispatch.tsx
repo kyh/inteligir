@@ -82,6 +82,14 @@ export default function DispatchScreen() {
 
     // Catch up on any missed messages on connect
     ws.addEventListener("open", () => {
+      // Notify desktop of pairing via WebSocket (DB record already exists
+      // from the pair mutation, but the desktop may not have caught up yet)
+      ws.send(JSON.stringify({
+        direction: "to_device",
+        type: "device_paired",
+        payload: { deviceId },
+      }));
+
       if (mobileToken) {
         catchUpMutation.mutate({ mobileToken });
       }
