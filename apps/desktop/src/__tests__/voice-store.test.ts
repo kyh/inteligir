@@ -6,7 +6,7 @@ const helpers = vi.hoisted(() => ({
   pipelineInstances: [] as Array<{
     connect: ReturnType<typeof vi.fn>;
     disconnect: ReturnType<typeof vi.fn>;
-    on: ReturnType<typeof vi.fn>;
+    config: unknown;
   }>,
   bridgeMock: {
     getVoiceConfig: vi.fn<() => Promise<unknown>>(),
@@ -25,8 +25,9 @@ vi.mock("@/renderer/voice/voice-pipeline", () => ({
   VoicePipeline: class {
     connect = vi.fn().mockResolvedValue(undefined);
     disconnect = vi.fn();
-    on = vi.fn();
-    constructor() {
+    config: unknown;
+    constructor(config: unknown) {
+      this.config = config;
       helpers.pipelineInstances.push(this);
     }
   },
@@ -38,15 +39,6 @@ vi.mock("@/renderer/stores/agent-store", () => ({
 
 const { useVoiceStore } = await import("@/renderer/stores/voice-store");
 
-function resetStore() {
-  useVoiceStore.setState({
-    sessionState: "inactive",
-    currentTranscript: "",
-    error: null,
-    modelState: null,
-  });
-}
-
 async function flushMicrotasks() {
   await new Promise((r) => setImmediate(r));
   await new Promise((r) => setImmediate(r));
@@ -56,7 +48,7 @@ describe("voice-store", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     helpers.pipelineInstances.length = 0;
-    resetStore();
+    useVoiceStore.getState().reset();
     helpers.bridgeMock.getVoiceConfig.mockResolvedValue({
       elevenlabsApiKey: "k",
       elevenlabsVoiceId: "v",
@@ -68,7 +60,7 @@ describe("voice-store", () => {
   });
 
   describe("toggleVoice — happy path", () => {
-    it("connects immediately when model is ready", async () => {
+    it("downloads-then-connects when model is ready", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("ready");
       useVoiceStore.getState().init();
       await flushMicrotasks();
@@ -79,6 +71,7 @@ describe("voice-store", () => {
       expect(helpers.pipelineInstances).toHaveLength(1);
       expect(helpers.pipelineInstances[0]?.connect).toHaveBeenCalledOnce();
       expect(helpers.bridgeMock.downloadVoiceModel).not.toHaveBeenCalled();
+      expect(useVoiceStore.getState().state.kind).toBe("listening");
     });
 
     it("downloads then connects when model is missing", async () => {
@@ -92,6 +85,7 @@ describe("voice-store", () => {
 
       expect(helpers.bridgeMock.downloadVoiceModel).toHaveBeenCalledOnce();
       expect(helpers.pipelineInstances[0]?.connect).toHaveBeenCalledOnce();
+      expect(useVoiceStore.getState().state.kind).toBe("listening");
     });
 
     it("surfaces an error state when the download fails", async () => {
@@ -103,14 +97,15 @@ describe("voice-store", () => {
       useVoiceStore.getState().toggleVoice();
       await flushMicrotasks();
 
-      expect(useVoiceStore.getState().sessionState).toBe("error");
-      expect(useVoiceStore.getState().error).toBe("boom");
+      const state = useVoiceStore.getState().state;
+      expect(state.kind).toBe("error");
+      if (state.kind === "error") expect(state.message).toBe("boom");
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();
     });
   });
 
   describe("toggleVoice — race conditions", () => {
-    it("does not connect if the pipeline is torn down mid-getStatus", async () => {
+    it("does not connect if the store is torn down mid-getStatus", async () => {
       let resolveStatus: (v: "ready" | "missing") => void = () => {};
       helpers.bridgeMock.getVoiceModelStatus.mockReturnValue(
         new Promise<"ready" | "missing">((r) => {
@@ -128,7 +123,7 @@ describe("voice-store", () => {
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();
     });
 
-    it("does not connect if the pipeline is swapped mid-download (identity guard)", async () => {
+    it("does not connect if the store remounts mid-download", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("missing");
       let resolveDownload: (v: { ok: boolean }) => void = () => {};
       helpers.bridgeMock.downloadVoiceModel.mockReturnValue(
@@ -149,14 +144,16 @@ describe("voice-store", () => {
       resolveDownload({ ok: true });
       await flushMicrotasks();
 
+      // Generation bump on the cleanup means the stale flow's "model_download_ok"
+      // is dispatched after the bump and the runConnect function bails before
+      // calling pipeline.connect. Neither the original nor the replacement
+      // should connect.
       expect(helpers.pipelineInstances).toHaveLength(2);
-      // Neither the original nor the replacement should auto-connect from the
-      // stale ensureModelThenConnect call.
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();
       expect(helpers.pipelineInstances[1]?.connect).not.toHaveBeenCalled();
     });
 
-    it("reset() prevents an in-flight download from connecting after dismissal", async () => {
+    it("reset() prevents an in-flight download from connecting", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("missing");
       let resolveDownload: (v: { ok: boolean }) => void = () => {};
       helpers.bridgeMock.downloadVoiceModel.mockReturnValue(
@@ -175,9 +172,10 @@ describe("voice-store", () => {
       await flushMicrotasks();
 
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();
+      expect(useVoiceStore.getState().state.kind).toBe("idle");
     });
 
-    it("stops state writes from the catch block after teardown", async () => {
+    it("stops state writes after teardown when getStatus rejects", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockRejectedValue(new Error("ipc dropped"));
 
       const cleanup = useVoiceStore.getState().init();
@@ -186,8 +184,23 @@ describe("voice-store", () => {
       cleanup();
       await flushMicrotasks();
 
-      expect(useVoiceStore.getState().sessionState).toBe("inactive");
-      expect(useVoiceStore.getState().error).toBeNull();
+      expect(useVoiceStore.getState().state.kind).toBe("idle");
+    });
+  });
+
+  describe("init cleanup", () => {
+    it("resets transient state so a remount doesn't inherit downloading_model", async () => {
+      helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("missing");
+      helpers.bridgeMock.downloadVoiceModel.mockReturnValue(new Promise<never>(() => {}));
+
+      const cleanup = useVoiceStore.getState().init();
+      await flushMicrotasks();
+      useVoiceStore.getState().toggleVoice();
+      await flushMicrotasks();
+      expect(useVoiceStore.getState().state.kind).toBe("downloading_model");
+
+      cleanup();
+      expect(useVoiceStore.getState().state.kind).toBe("idle");
     });
   });
 
@@ -203,7 +216,7 @@ describe("voice-store", () => {
       expect(unsub).toHaveBeenCalledOnce();
     });
 
-    it("reset() also unsubscribes the listener (not just init cleanup)", async () => {
+    it("reset() also unsubscribes the listener", async () => {
       const unsub = vi.fn();
       helpers.bridgeMock.onVoiceModelState.mockReturnValue(unsub);
 
@@ -212,23 +225,6 @@ describe("voice-store", () => {
       useVoiceStore.getState().reset();
 
       expect(unsub).toHaveBeenCalledOnce();
-    });
-  });
-
-  describe("init cleanup", () => {
-    it("resets transient state so a remount doesn't inherit downloading_model", async () => {
-      helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("missing");
-      helpers.bridgeMock.downloadVoiceModel.mockReturnValue(new Promise<never>(() => {}));
-
-      const cleanup = useVoiceStore.getState().init();
-      await flushMicrotasks();
-      useVoiceStore.getState().toggleVoice();
-      await flushMicrotasks();
-      expect(useVoiceStore.getState().sessionState).toBe("downloading_model");
-
-      cleanup();
-      expect(useVoiceStore.getState().sessionState).toBe("inactive");
-      expect(useVoiceStore.getState().modelState).toBeNull();
     });
   });
 });

@@ -1,15 +1,11 @@
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { VoicePipeline, type VoicePipelineEvent } from "@/renderer/voice/voice-pipeline";
-import type { VoiceModelStateEvent } from "@/shared/ipc";
-import type { VoiceStoreSessionState } from "@/shared/voice";
+import { VoicePipeline } from "@/renderer/voice/voice-pipeline";
+import { VoiceMachine, type VoiceState } from "@/renderer/voice/voice-machine";
 
 type VoiceStore = {
-  sessionState: VoiceStoreSessionState;
-  currentTranscript: string;
-  error: string | null;
-  modelState: VoiceModelStateEvent | null;
+  state: VoiceState;
 
   init: () => () => void;
   reset: () => void;
@@ -18,119 +14,137 @@ type VoiceStore = {
   flushSpeech: () => void;
 };
 
+const machine = new VoiceMachine();
 let pipeline: VoicePipeline | null = null;
 let unsubscribeModelState: (() => void) | null = null;
 
-async function ensureModelThenConnect(
-  set: (patch: Partial<VoiceStore>) => void,
-): Promise<void> {
-  const bridge = getBridge();
-  // Capture the pipeline at call time. If the store is torn down and
-  // re-initialized during an await, the module-level `pipeline` will point at
-  // a NEW instance — checking `=== entryPipeline` prevents this stale path
-  // from auto-connecting (or writing state into) the replacement.
-  const entryPipeline = pipeline;
-  if (!bridge || !entryPipeline) return;
-
-  try {
-    const status = await bridge.getVoiceModelStatus();
-    if (pipeline !== entryPipeline) return;
-    if (status === "ready") {
-      void entryPipeline.connect();
-      return;
-    }
-
-    set({ sessionState: "downloading_model", error: null });
-    const result = await bridge.downloadVoiceModel();
-    if (pipeline !== entryPipeline) return;
-    if (result.ok) {
-      void entryPipeline.connect();
-    } else {
-      set({
-        sessionState: "error",
-        error: result.error ?? "Failed to download speech model",
-      });
-    }
-  } catch (err) {
-    if (pipeline !== entryPipeline) return;
-    set({
-      sessionState: "error",
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
+function teardown(): void {
+  unsubscribeModelState?.();
+  unsubscribeModelState = null;
+  pipeline?.disconnect();
+  pipeline = null;
+  machine.dispatch({ type: "reset" });
 }
 
-export const useVoiceStore = create<VoiceStore>((set, get) => ({
-  sessionState: "inactive",
-  currentTranscript: "",
-  error: null,
-  modelState: null,
+async function runConnect(): Promise<void> {
+  const bridge = getBridge();
+  if (!bridge || !pipeline) return;
+  const gen = machine.generation;
+
+  // Step 1: probe model availability.
+  let status: "ready" | "missing";
+  try {
+    status = await bridge.getVoiceModelStatus();
+  } catch (err) {
+    if (gen !== machine.generation) return;
+    machine.dispatch({
+      type: "model_download_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (gen !== machine.generation) return;
+  machine.dispatch({ type: "model_status_received", status });
+
+  // Step 2: download if missing.
+  if (status === "missing") {
+    let result: Awaited<ReturnType<typeof bridge.downloadVoiceModel>>;
+    try {
+      result = await bridge.downloadVoiceModel();
+    } catch (err) {
+      if (gen !== machine.generation) return;
+      machine.dispatch({
+        type: "model_download_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+    if (gen !== machine.generation) return;
+    if (!result.ok) {
+      machine.dispatch({
+        type: "model_download_failed",
+        message: result.error ?? "Failed to download speech model",
+      });
+      return;
+    }
+    machine.dispatch({ type: "model_download_ok" });
+  }
+
+  // Step 3: pipeline.connect (mic + recognizer).
+  if (!pipeline) return;
+  try {
+    await pipeline.connect();
+  } catch (err) {
+    if (gen !== machine.generation) return;
+    machine.dispatch({
+      type: "connect_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (gen !== machine.generation) {
+    // Connect succeeded but state moved on — drop the now-orphaned mic.
+    pipeline.disconnect();
+    return;
+  }
+  machine.dispatch({ type: "connect_ok" });
+}
+
+export const useVoiceStore = create<VoiceStore>((set, _get) => ({
+  state: machine.state,
 
   init: () => {
     const bridge = getBridge();
     if (!bridge) return () => {};
 
     let cancelled = false;
+    const unsubscribeMachine = machine.subscribe((s) => set({ state: s }));
 
-    // Hoisted to module scope so reset() can also tear it down — otherwise a
-    // reset called outside the init cleanup leaks the IPC listener.
     unsubscribeModelState?.();
     unsubscribeModelState = bridge.onVoiceModelState((event) => {
-      set({ modelState: event });
+      machine.dispatch({ type: "model_progress", progress: event });
     });
 
     void bridge.getVoiceConfig().then((config) => {
       if (cancelled || !config) return;
-      pipeline = new VoicePipeline(config);
-      pipeline.on(handlePipelineEvent);
-    });
-
-    function handlePipelineEvent(this: void, event: VoicePipelineEvent) {
-      if (!bridge) return;
-      switch (event.type) {
-        case "state_changed":
-          set({
-            sessionState: event.state,
-            error: event.error ?? null,
-            ...(event.state === "inactive" ? { currentTranscript: "" } : {}),
+      pipeline = new VoicePipeline({
+        elevenlabsApiKey: config.elevenlabsApiKey,
+        elevenlabsVoiceId: config.elevenlabsVoiceId,
+        onTranscriptPartial: (text) => {
+          machine.dispatch({ type: "transcript_partial", text });
+        },
+        onTranscriptFinal: (text) => {
+          machine.dispatch({ type: "transcript_final", text });
+          void bridge.sendAgentCommand({ type: "user_message", text });
+          void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
+            useAgentStore.getState().addUserMessage(text);
           });
-          break;
-        case "transcript_partial":
-          set({ currentTranscript: event.text });
-          break;
-        case "transcript_final":
-          set({ currentTranscript: "" });
-          if (event.text) {
-            void bridge.sendAgentCommand({ type: "user_message", text: event.text });
-            void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
-              useAgentStore.getState().addUserMessage(event.text);
-            });
-          }
-          break;
-      }
-    }
+        },
+        onError: (message) => {
+          machine.dispatch({ type: "pipeline_error", message });
+        },
+      });
+    });
 
     return () => {
       cancelled = true;
-      unsubscribeModelState?.();
-      unsubscribeModelState = null;
-      pipeline?.disconnect();
-      pipeline = null;
-      // Reset transient state so a remount doesn't inherit "downloading_model"
-      // / "connecting" / etc. from an in-flight teardown.
-      set({ sessionState: "inactive", currentTranscript: "", error: null, modelState: null });
+      unsubscribeMachine();
+      teardown();
     };
   },
 
   toggleVoice: () => {
     if (!pipeline) return;
-    const { sessionState } = get();
-    if (sessionState === "downloading_model") return;
-    if (sessionState === "inactive" || sessionState === "error") {
-      void ensureModelThenConnect(set);
-    } else {
+    const state = machine.state;
+    if (state.kind === "listening") {
       pipeline.disconnect();
+      machine.dispatch({ type: "pipeline_disconnected" });
+      return;
     }
+    if (state.kind === "downloading_model" || state.kind === "connecting") return;
+    // idle | error → start the dance.
+    machine.dispatch({ type: "user_toggle_on" });
+    void runConnect();
   },
 
   speakText: (text: string) => {
@@ -142,12 +156,6 @@ export const useVoiceStore = create<VoiceStore>((set, get) => ({
   },
 
   reset: () => {
-    unsubscribeModelState?.();
-    unsubscribeModelState = null;
-    pipeline?.disconnect();
-    // Null the reference so the ensureModelThenConnect entry-guard catches a
-    // reset during an in-flight download (same pattern as init's cleanup).
-    pipeline = null;
-    set({ sessionState: "inactive", currentTranscript: "", error: null, modelState: null });
+    teardown();
   },
 }));

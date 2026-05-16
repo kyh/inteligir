@@ -1,76 +1,55 @@
 // ---------------------------------------------------------------------------
-// Voice pipeline — orchestrates local Parakeet STT (via main process IPC) +
-// ElevenLabs TTS.
+// Voice pipeline — pure I/O wrapper over local Parakeet STT (via main process
+// IPC) + ElevenLabs TTS. Holds no internal state; the caller (voice-store +
+// VoiceMachine) owns the lifecycle and reacts to callbacks.
 // ---------------------------------------------------------------------------
 
 import { startSTT, type STTHandle } from "./stt";
 import { createTTS, type TTSHandle } from "./tts";
-import type { VoiceSessionState } from "@/shared/voice";
-
-export type VoicePipelineEvent =
-  | { type: "state_changed"; state: VoiceSessionState; error?: string }
-  | { type: "transcript_partial"; text: string }
-  | { type: "transcript_final"; text: string };
-
-export type VoicePipelineListener = (event: VoicePipelineEvent) => void;
 
 export type VoicePipelineConfig = {
   elevenlabsApiKey: string;
   elevenlabsVoiceId?: string;
+  onTranscriptPartial: (text: string) => void;
+  onTranscriptFinal: (text: string) => void;
+  onError: (message: string) => void;
 };
 
 export class VoicePipeline {
   private stt: STTHandle | null = null;
   private tts: TTSHandle | null = null;
-  private state: VoiceSessionState = "inactive";
-  private readonly listeners = new Set<VoicePipelineListener>();
 
   constructor(private readonly config: VoicePipelineConfig) {}
 
-  on(listener: VoicePipelineListener): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
-
-  getState(): VoiceSessionState {
-    return this.state;
-  }
-
+  /**
+   * Acquire mic + start the recognizer. Resolves when ready to receive audio;
+   * rejects on mic-denial or main-process start failure (no state side effect,
+   * the caller decides what to do).
+   */
   async connect(): Promise<void> {
-    if (this.state === "connecting" || this.state === "connected") return;
-    this.setState("connecting");
+    this.tts = createTTS(this.config.elevenlabsApiKey, this.config.elevenlabsVoiceId);
 
     try {
-      // TTS connects lazily on first sendText — just create the handle
-      this.tts = createTTS(this.config.elevenlabsApiKey, this.config.elevenlabsVoiceId);
-
-      // STT requests mic permission + streams PCM to main-process Parakeet
       this.stt = await startSTT(
         (text, isFinal) => {
           if (isFinal) {
-            this.emit({ type: "transcript_partial", text: "" });
-            if (text.trim()) {
-              this.emit({ type: "transcript_final", text: text.trim() });
-            }
+            this.config.onTranscriptPartial("");
+            const trimmed = text.trim();
+            if (trimmed) this.config.onTranscriptFinal(trimmed);
           } else if (text.trim()) {
-            // Interrupt TTS when user starts speaking
+            // Interrupt TTS the moment the user starts speaking.
             this.tts?.interrupt();
-            this.emit({ type: "transcript_partial", text });
+            this.config.onTranscriptPartial(text);
           }
         },
         (error) => {
-          console.error("[voice] STT error:", error);
-          this.disconnect();
-          this.setState("error", error);
+          this.config.onError(error);
         },
       );
-
-      this.setState("connected");
     } catch (err) {
-      this.disconnect();
-      this.setState("error", err instanceof Error ? err.message : String(err));
+      this.tts?.close();
+      this.tts = null;
+      throw err;
     }
   }
 
@@ -79,7 +58,6 @@ export class VoicePipeline {
     this.stt = null;
     this.tts?.close();
     this.tts = null;
-    this.setState("inactive");
   }
 
   speakText(text: string): void {
@@ -88,20 +66,5 @@ export class VoicePipeline {
 
   flushSpeech(): void {
     this.tts?.flush();
-  }
-
-  private setState(state: VoiceSessionState, error?: string): void {
-    this.state = state;
-    this.emit({ type: "state_changed", state, error });
-  }
-
-  private emit(event: VoicePipelineEvent): void {
-    for (const fn of this.listeners) {
-      try {
-        fn(event);
-      } catch {
-        /* listener error */
-      }
-    }
   }
 }

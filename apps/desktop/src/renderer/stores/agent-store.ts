@@ -145,7 +145,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
           }));
           {
             const voice = useVoiceStore.getState();
-            if (voice.sessionState === "connected") voice.speakText(delta);
+            if (voice.state.kind === "listening") voice.speakText(delta);
           }
           break;
         }
@@ -162,7 +162,7 @@ export const useAgentStore = create<AgentStore>((set) => ({
           streamingMsgId = null;
           {
             const voice = useVoiceStore.getState();
-            if (voice.sessionState === "connected") voice.flushSpeech();
+            if (voice.state.kind === "listening") voice.flushSpeech();
           }
           break;
         }
