@@ -18,6 +18,7 @@ import open from "open";
 import type { ExtensionToolInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetNotifications } from "@/main/notifications";
+import { resetUiSettingsCache } from "@/main/ui-settings";
 import {
   runBundleSetups,
   type ExtensionRegisterContext,
@@ -127,6 +128,7 @@ export function teardownResources(): void {
   // process restarts.
   _authStorage = null;
   resetNotifications();
+  resetUiSettingsCache();
 }
 
 export function isLoggedIn(): boolean {

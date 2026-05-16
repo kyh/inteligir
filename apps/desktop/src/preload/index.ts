@@ -51,4 +51,12 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
   setActiveExtensions: (toolNames: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
+
+  // UI settings
+  getUiSettings: () => ipcRenderer.invoke(IPC_CHANNELS.UI_SETTINGS_GET),
+  setUiSettingsSpec: (spec: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UI_SETTINGS_SET_SPEC, spec),
+  resetUiSettings: () => ipcRenderer.invoke(IPC_CHANNELS.UI_SETTINGS_RESET),
+  onUiSettingsUpdated: (listener: (next: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.UI_SETTINGS_UPDATED, listener),
 });

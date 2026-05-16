@@ -7,6 +7,7 @@ import type {
   ListTasksResult,
   ToggleTaskResult,
 } from "./task";
+import type { UiSettingsConfig, UiSpec } from "./ui-settings";
 import type { TextChatMessage } from "./voice";
 
 // ---------------------------------------------------------------------------
@@ -47,6 +48,12 @@ export const IPC_CHANNELS = {
   // Extensions / tools (#7 dock)
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
+
+  // UI settings (JSON-driven settings panel)
+  UI_SETTINGS_GET: "ui-settings:get",
+  UI_SETTINGS_SET_SPEC: "ui-settings:set-spec",
+  UI_SETTINGS_RESET: "ui-settings:reset",
+  UI_SETTINGS_UPDATED: "ui-settings:updated",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -126,6 +133,12 @@ export type DesktopBridge = {
   // Extensions / tools
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
+
+  // UI settings (JSON-driven settings panel)
+  getUiSettings: () => Promise<UiSettingsConfig>;
+  setUiSettingsSpec: (spec: UiSpec) => Promise<UiSettingsConfig>;
+  resetUiSettings: () => Promise<UiSettingsConfig>;
+  onUiSettingsUpdated: (listener: (next: UiSettingsConfig) => void) => () => void;
 };
 
 // ---------------------------------------------------------------------------
