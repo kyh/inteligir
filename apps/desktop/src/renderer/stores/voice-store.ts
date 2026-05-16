@@ -103,6 +103,10 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
 
     let cancelled = false;
     const unsubscribeMachine = machine.subscribe((s) => set({ state: s }));
+    // subscribe() only forwards future transitions. Sync the current machine
+    // state into zustand now so a re-mount after a stale callback (e.g. a
+    // late pipeline_error pushed the machine off idle) doesn't show stale UI.
+    set({ state: machine.state });
 
     unsubscribeModelState?.();
     unsubscribeModelState = bridge.onVoiceModelState((event) => {
