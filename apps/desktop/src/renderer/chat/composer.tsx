@@ -65,6 +65,10 @@ export function Composer() {
   // the next submit; cleared on agent_end so an unsubmitted Zap doesn't
   // silently steer a future turn.
   const pendingSteerRef = useRef(false);
+  // Ref to the composer's outer div so we can query the textarea after the
+  // async file-conversion gap inside PromptInput — event.currentTarget is
+  // not safe to read across that gap in React's synthetic event model.
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
 
   const appState = useAgentStore((s) => s.appState);
   const send = useAgentStore((s) => s.send);
@@ -80,15 +84,20 @@ export function Composer() {
   }, [busy]);
 
   const handleSubmit = useCallback(
-    async (message: PromptInputMessage, event: React.FormEvent<HTMLFormElement>) => {
+    async (message: PromptInputMessage) => {
       // Don't blanket-clear hasInput: PromptInput's blob-conversion gap lets
       // the user type into the (now-reset) textarea, and a top-of-handler
       // setHasInput(false) would clobber that fresh onChange. Re-sync from
       // the actual textarea DOM in a finally so every exit path leaves
       // hasInput consistent with what's really in the field.
-      const formEl = event.currentTarget;
+      // The wrapper ref is used (not event.currentTarget) because React
+      // nullifies the synthetic event after the synchronous handler returns,
+      // and our handler is invoked across PromptInput's async file
+      // conversion gap.
       const syncHasInputFromDOM = () => {
-        const ta = formEl?.querySelector<HTMLTextAreaElement>("textarea[name='message']");
+        const ta = wrapperRef.current?.querySelector<HTMLTextAreaElement>(
+          'textarea[name="message"]',
+        );
         setHasInput(!!(ta && ta.value.trim().length > 0));
       };
 
@@ -144,7 +153,7 @@ export function Composer() {
   }, []);
 
   return (
-    <div className="bg-foreground/8 px-3 py-2 backdrop-blur-sm">
+    <div ref={wrapperRef} className="bg-foreground/8 px-3 py-2 backdrop-blur-sm">
       {queueCount > 0 && (
         <Queue className="mb-2 rounded-md bg-foreground/5 px-1.5 pb-1 pt-1 shadow-none">
           <QueueList className="-mb-1 mt-0">
