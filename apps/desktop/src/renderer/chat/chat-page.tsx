@@ -375,7 +375,10 @@ export function ChatPage() {
       </DraggablePanel>
 
       {/* One floating panel per opened artifact. Cascade their initial
-          positions so multiple opens don't stack on top of each other. */}
+          positions so multiple opens don't stack on top of each other.
+          `storageKey` is pinned to the artifact id (not the title) so a
+          rename doesn't reset position/size and two artifacts can never
+          collide on the same localStorage key. */}
       {Array.from(openArtifactIds).map((id, idx) => {
         const artifact = artifactsById[id];
         return (
@@ -385,6 +388,7 @@ export function ChatPage() {
             icon={<LayoutTemplateIcon className="size-3.5" />}
             isOpen={true}
             onClose={() => closeArtifact(id)}
+            storageKey={`artifact-${id}`}
             initialPosition={{ x: 340 + idx * 24, y: 80 + idx * 24 }}
             initialSize={{ width: 380, height: 440 }}
           >

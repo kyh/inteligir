@@ -146,7 +146,10 @@ const artifactsExtension: PiExtensionBundle = {
                 title: params.title ?? existing.title,
                 description: params.description ?? existing.description,
                 spec: params.spec ?? existing.spec,
-                state: params.state,
+                // Mirror the other fields: omitted = preserve, explicit {} = wipe.
+                // upsert has its own ?? fallback but pre-resolving here keeps the
+                // four-field treatment consistent and easier to reason about.
+                state: params.state ?? existing.state,
               });
               return text(`Updated artifact '${updated.id}'.`);
             }
