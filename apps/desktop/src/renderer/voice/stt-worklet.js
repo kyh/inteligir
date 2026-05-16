@@ -2,9 +2,14 @@
 // samples into ~128ms chunks and posts them to the main thread.
 //
 // Loaded by stt.ts via Vite's ?url import + audioContext.audioWorklet.addModule.
-// Written in JS because AudioWorkletProcessor / registerProcessor are globals
-// only available inside the worklet thread — typing them in the TS project
-// requires a dedicated tsconfig.
+//
+// This file stays `.js` (not `.ts`) because Vite's `?url` query doesn't
+// transpile TypeScript — it returns the source path verbatim, which the
+// worklet thread can't execute. A `.js` file is copied as-is to the build
+// output and the URL points at a real loadable asset. The
+// AudioWorkletProcessor / registerProcessor globals also only exist inside
+// the worklet thread, which is another reason to keep the typed renderer
+// project from touching this file.
 
 // Web Audio's processing block size is 128 samples; at 16kHz that's 8ms per
 // callback. Sending each block over IPC would be ~125 messages/sec — wasteful.
