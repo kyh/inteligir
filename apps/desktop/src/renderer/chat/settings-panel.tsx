@@ -39,7 +39,10 @@ export function SettingsPanel() {
     return storeRef.current;
   };
 
-  // Load config + initial OS notification state in parallel.
+  // Load config + initial OS notification state in parallel. App-fact paths
+  // (`/app/connected`, `/app/canStartSession`) are intentionally NOT written
+  // here — they have a dedicated effect below so this async callback can't
+  // overwrite a fresher value pushed in between mount and resolve.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
@@ -49,8 +52,6 @@ export function SettingsPanel() {
         if (cancelled) return null;
         getStore().update({
           "/notifications/enabled": notif.enabled,
-          "/app/connected": isReady,
-          "/app/canStartSession": canStartSession,
           ...mapToPointers(cfg.state),
         });
         setConfig(cfg);
@@ -60,7 +61,6 @@ export function SettingsPanel() {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Subscribe to spec updates (LLM rewrites, reset, etc.).

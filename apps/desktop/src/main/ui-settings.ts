@@ -88,14 +88,6 @@ export class UiSettingsManager {
     return { spec: next.spec, state: next.state };
   }
 
-  patchState(patch: Record<string, unknown>): UiSettingsConfig {
-    const next = this.store.update((current) => ({
-      ...current,
-      state: { ...current.state, ...patch },
-    }));
-    return { spec: next.spec, state: next.state };
-  }
-
   reset(): UiSettingsConfig {
     this.store.write(DEFAULTS);
     this.broadcast(DEFAULTS);
