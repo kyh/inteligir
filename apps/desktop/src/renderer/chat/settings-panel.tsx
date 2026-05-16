@@ -51,8 +51,10 @@ export function SettingsPanel() {
       .then(([cfg, notif]) => {
         if (cancelled) return null;
         getStore().update({
-          "/notifications/enabled": notif.enabled,
+          // Persisted state first so the authoritative live OS-level
+          // notification value (set below) wins on any key collision.
           ...mapToPointers(cfg.state),
+          "/notifications/enabled": notif.enabled,
         });
         setConfig(cfg);
         return null;

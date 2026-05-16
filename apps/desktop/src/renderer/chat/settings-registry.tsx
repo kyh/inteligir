@@ -73,13 +73,10 @@ function Text({
   props,
 }: BaseProps<{ text: string; muted?: boolean; size?: "xs" | "sm" | "base" }>) {
   const size = props.size ?? "xs";
+  const sizeClass = size === "base" ? "text-sm" : size === "sm" ? "text-xs" : "text-[11px]";
   return (
     <span
-      className={cn(
-        size === "base" ? "text-sm" : size === "sm" ? "text-xs" : "text-xs",
-        size === "xs" && "text-[11px]",
-        props.muted ? "text-muted-foreground" : "text-foreground",
-      )}
+      className={cn(sizeClass, props.muted ? "text-muted-foreground" : "text-foreground")}
     >
       {props.text}
     </span>
