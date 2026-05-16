@@ -265,8 +265,9 @@ export const dispatchRouter = createTRPCRouter({
   subscribeDevice: publicProcedure
     .input(subscribeDeviceInput)
     .subscription(async function* ({ input, signal }) {
+      if (!signal) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Subscription requires an abort signal" });
       const device = await resolveDeviceByToken(input.deviceToken);
-      yield* pollMessages(device.id, "to_device", signal ?? new AbortController().signal);
+      yield* pollMessages(device.id, "to_device", signal);
     }),
 
   // ---- SSE Subscription (mobile listens for to_mobile messages) -----------
@@ -274,8 +275,9 @@ export const dispatchRouter = createTRPCRouter({
   subscribeMobile: publicProcedure
     .input(subscribeMobileInput)
     .subscription(async function* ({ input, signal }) {
+      if (!signal) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Subscription requires an abort signal" });
       const device = await resolveDeviceByMobileToken(input.mobileToken);
-      yield* pollMessages(device.id, "to_mobile", signal ?? new AbortController().signal);
+      yield* pollMessages(device.id, "to_mobile", signal);
     }),
 
   // ---- Catch-up (desktop fetches pending to_device on reconnect) -----------
