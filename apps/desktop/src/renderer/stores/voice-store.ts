@@ -17,6 +17,7 @@ type VoiceStore = {
 const machine = new VoiceMachine();
 let pipeline: VoicePipeline | null = null;
 let unsubscribeModelState: (() => void) | null = null;
+let unsubscribeMachine: (() => void) | null = null;
 
 function teardown(): void {
   unsubscribeModelState?.();
@@ -24,6 +25,11 @@ function teardown(): void {
   pipeline?.disconnect();
   pipeline = null;
   machine.dispatch({ type: "reset" });
+  // Run the machine subscriber AFTER the reset dispatch above so the zustand
+  // state syncs to idle, then drop it. Direct reset() calls used to leak this
+  // subscriber across reinit cycles.
+  unsubscribeMachine?.();
+  unsubscribeMachine = null;
 }
 
 async function runConnect(): Promise<void> {
@@ -102,7 +108,8 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
     if (!bridge) return () => {};
 
     let cancelled = false;
-    const unsubscribeMachine = machine.subscribe((s) => set({ state: s }));
+    unsubscribeMachine?.();
+    unsubscribeMachine = machine.subscribe((s) => set({ state: s }));
     // subscribe() only forwards future transitions. Sync the current machine
     // state into zustand now so a re-mount after a stale callback (e.g. a
     // late pipeline_error pushed the machine off idle) doesn't show stale UI.
@@ -136,11 +143,7 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
 
     return () => {
       cancelled = true;
-      // teardown dispatches reset → the machine subscriber writes the idle
-      // state back into zustand BEFORE we remove the subscriber. Reversed
-      // order would leave the store stuck on the pre-teardown state.
       teardown();
-      unsubscribeMachine();
     };
   },
 
