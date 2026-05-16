@@ -39,9 +39,14 @@ type Transition = { state: VoiceState; cancelInFlight?: boolean };
 function reduce(state: VoiceState, event: VoiceEvent): Transition {
   // Reset is unconditional — always returns to idle and cancels everything.
   if (event.type === "reset") return { state: IDLE, cancelInFlight: true };
-  // pipeline_error / pipeline_disconnected are valid in any active state.
+  // pipeline_error / pipeline_disconnected are only valid in an active state.
+  // A late callback firing after teardown (the machine already sits in idle)
+  // must NOT push us back into error / disturb the steady state — otherwise
+  // a remount would inherit the stale error.
   if (event.type === "pipeline_error") {
-    return { state: { kind: "error", message: event.message }, cancelInFlight: true };
+    return state.kind === "idle"
+      ? { state }
+      : { state: { kind: "error", message: event.message }, cancelInFlight: true };
   }
   if (event.type === "pipeline_disconnected") {
     return state.kind === "idle" ? { state } : { state: IDLE, cancelInFlight: true };
