@@ -16,7 +16,6 @@
   "dependencies": {
     "@better-auth/expo": "catalog:",
     "@repo/db": "workspace:^",
-    "@supabase/supabase-js": "^2.100.1",
     "@trpc/server": "catalog:",
     "better-auth": "catalog:",
     "next": "catalog:",

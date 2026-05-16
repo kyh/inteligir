@@ -2,17 +2,15 @@
 // Dispatch client — connects the desktop app to the relay API so the mobile
 // app can send commands and receive agent events remotely.
 //
-// Uses Supabase Realtime (Broadcast channels + Presence) instead of polling.
+// Uses tRPC SSE subscriptions (Server-Sent Events) for real-time delivery.
 //
 // Lifecycle:
 //   1. On startup, check for persisted credentials (~/.inteligir/dispatch.json)
 //   2. If none, register a new device and show pairing code
-//   3. Subscribe to Supabase Broadcast channel for inbound messages
-//   4. Track presence so mobile can see device is online
-//   5. On connect, catch up any messages missed while offline
+//   3. Subscribe to SSE stream for inbound messages
+//   4. On connect, pending messages are delivered via the subscription
 // ---------------------------------------------------------------------------
 
-import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
 import { BrowserWindow } from "electron";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import {
@@ -30,22 +28,7 @@ import type { AppAgentEvent } from "@/shared/agent-events";
 // ---------------------------------------------------------------------------
 
 const API_BASE_URL = process.env["DISPATCH_API_URL"] ?? "http://localhost:3000";
-
-// ---------------------------------------------------------------------------
-// Supabase client (for Realtime only) — lazy-initialized so env vars
-// loaded by process.loadEnvFile() in index.ts are available.
-// ---------------------------------------------------------------------------
-
-let _supabase: ReturnType<typeof createClient> | null = null;
-function getSupabase() {
-  if (!_supabase) {
-    _supabase = createClient(
-      process.env["NEXT_PUBLIC_SUPABASE_URL"] ?? "",
-      process.env["NEXT_PUBLIC_SUPABASE_ANON_KEY"] ?? "",
-    );
-  }
-  return _supabase;
-}
+const SSE_RECONNECT_DELAY_MS = 3000;
 
 // ---------------------------------------------------------------------------
 // Persistent credential store
@@ -62,23 +45,8 @@ const credentialStore = new JsonStore<DispatchCredentials | null>(
 // ---------------------------------------------------------------------------
 
 let dispatchState: DispatchState = { ...DISPATCH_INITIAL_STATE };
-let channel: RealtimeChannel | null = null;
+let sseAbortController: AbortController | null = null;
 let onInboundMessage: ((msg: DispatchInboundMessage) => void) | null = null;
-/** Track message IDs received via broadcast to deduplicate on catch-up */
-const seenMessageIds = (() => {
-  const MAX = 5000;
-  const ids = new Set<string>();
-  return {
-    has: (id: string) => ids.has(id),
-    add: (id: string) => {
-      ids.add(id);
-      if (ids.size > MAX) {
-        const oldest = ids.values().next().value;
-        if (oldest) ids.delete(oldest);
-      }
-    },
-  };
-})();
 
 function setState(patch: Partial<DispatchState>): void {
   dispatchState = { ...dispatchState, ...patch };
@@ -151,88 +119,137 @@ async function registerDevice(): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Supabase Realtime subscription
+// SSE subscription (replaces Supabase Realtime)
 // ---------------------------------------------------------------------------
 
-function subscribeToChannel(deviceId: string): void {
-  // Clean up existing channel
-  if (channel) {
-    getSupabase().removeChannel(channel);
-    channel = null;
+function subscribeToSSE(deviceToken: string): void {
+  // Tear down existing connection
+  if (sseAbortController) {
+    sseAbortController.abort();
+    sseAbortController = null;
   }
 
-  channel = getSupabase().channel(`dispatch:${deviceId}`);
+  const controller = new AbortController();
+  sseAbortController = controller;
 
-  // Listen for broadcast messages
-  channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
-    if (payload.direction === "to_device") {
-      // Dedup: skip if already processed via catch-up
-      if (payload.id && seenMessageIds.has(payload.id)) return;
-      if (payload.id) seenMessageIds.add(payload.id);
-      // If we receive a message from mobile but haven't transitioned to
-      // "paired" yet (e.g., missed the device_paired broadcast), do it now.
-      if (dispatchState.status !== "paired") {
-        const creds = credentialStore.read();
-        if (creds) credentialStore.write({ ...creds, paired: true });
-        setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
-      }
-      onInboundMessage?.({
-        id: payload.id,
-        type: payload.type,
-        payload: payload.payload,
-        createdAt: payload.createdAt,
+  void connectSSE(deviceToken, controller);
+}
+
+async function connectSSE(
+  deviceToken: string,
+  controller: AbortController,
+): Promise<void> {
+  // Build tRPC SSE subscription URL
+  const input = encodeURIComponent(JSON.stringify({ json: { deviceToken } }));
+  const url = `${API_BASE_URL}/api/trpc/dispatch.subscribeDevice?input=${input}`;
+
+  while (!controller.signal.aborted) {
+    try {
+      const res = await fetch(url, {
+        headers: { Accept: "text/event-stream" },
+        signal: controller.signal,
       });
-    }
-  });
 
-  // Listen for pairing completion
-  channel.on("broadcast", { event: "device_paired" }, () => {
-    // Persist the paired flag so restarts know we're paired
-    const creds = credentialStore.read();
-    if (creds) {
-      credentialStore.write({ ...creds, paired: true });
+      if (!res.ok) {
+        throw new Error(`SSE connection failed (${res.status})`);
+      }
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error("No response body");
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (!controller.signal.aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        // Keep incomplete last line in buffer
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+
+          try {
+            const envelope = JSON.parse(line.slice(6));
+            handleSSEEvent(envelope);
+          } catch {
+            // Skip malformed lines
+          }
+        }
+      }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      console.error("[dispatch] SSE error, reconnecting:", err);
     }
+
+    if (controller.signal.aborted) return;
+    await new Promise((r) => setTimeout(r, SSE_RECONNECT_DELAY_MS));
+  }
+}
+
+function handleSSEEvent(envelope: unknown): void {
+  // tRPC tracked envelopes: [id, data] or { result: { data: ... } }
+  const msg = extractMessage(envelope);
+  if (!msg) return;
+
+  if (msg.type === "device_paired") {
+    const creds = credentialStore.read();
+    if (creds) credentialStore.write({ ...creds, paired: true });
     setState({
       status: "paired",
       pairingCode: null,
       pairingExpiresAt: null,
       error: null,
     });
-  });
+    return;
+  }
 
-  // Track presence so mobile can see we're online
-  const ch = channel;
-  ch.subscribe(async (status) => {
-    if (status === "SUBSCRIBED") {
-      await ch.track({
-        deviceId,
-        online_at: new Date().toISOString(),
-      });
+  // Transition to paired on first inbound message if not already
+  if (dispatchState.status !== "paired") {
+    const creds = credentialStore.read();
+    if (creds) credentialStore.write({ ...creds, paired: true });
+    setState({ status: "paired", pairingCode: null, pairingExpiresAt: null, error: null });
+  }
 
-      // Catch up on any messages missed while offline
-      void catchUpPendingMessages();
-    }
+  onInboundMessage?.({
+    id: msg.id,
+    type: msg.type,
+    payload: msg.payload,
+    createdAt: msg.createdAt,
   });
 }
 
-async function catchUpPendingMessages(): Promise<void> {
-  const creds = credentialStore.read();
-  if (!creds) return;
+type SSEMessage = {
+  id: string;
+  type: DispatchInboundMessage["type"] | "device_paired";
+  payload: Record<string, unknown>;
+  createdAt: string;
+};
 
-  try {
-    const result = await trpcMutation<{
-      messages: DispatchInboundMessage[];
-    }>("dispatch.catchUp", { deviceToken: creds.token });
+function extractMessage(envelope: unknown): SSEMessage | null {
+  if (!envelope || typeof envelope !== "object") return null;
 
-    for (const msg of result.messages) {
-      // Skip messages already received via broadcast
-      if (seenMessageIds.has(msg.id)) continue;
-      seenMessageIds.add(msg.id);
-      onInboundMessage?.(msg);
+  // tRPC SSE format: { result: { type: "data", data: { json: [id, data] } } }
+  const outer = envelope as Record<string, unknown>;
+  const result = outer["result"] as Record<string, unknown> | undefined;
+
+  if (result?.["type"] === "data") {
+    const dataWrapper = result["data"] as Record<string, unknown> | undefined;
+    const json = dataWrapper?.["json"];
+
+    // tracked() wraps as [id, data]
+    if (Array.isArray(json) && json.length === 2) {
+      return json[1] as SSEMessage;
     }
-  } catch {
-    // Catch-up failures are non-fatal
+    if (json && typeof json === "object") {
+      return json as SSEMessage;
+    }
   }
+
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -277,7 +294,7 @@ export function initDispatch(
         pairingExpiresAt: null,
         error: null,
       });
-      subscribeToChannel(creds.deviceId);
+      subscribeToSSE(creds.token);
       if (!creds.paired) {
         void refreshPairingCode();
       }
@@ -285,7 +302,7 @@ export function initDispatch(
       void registerDevice().then(() => {
         const updatedCreds = credentialStore.read();
         if (updatedCreds) {
-          subscribeToChannel(updatedCreds.deviceId);
+          subscribeToSSE(updatedCreds.token);
         }
       });
     }
@@ -302,10 +319,9 @@ export async function refreshPairingCode(): Promise<void> {
   const creds = credentialStore.read();
   if (!creds) {
     await registerDevice();
-    // Subscribe so we receive the pairing broadcast
     const newCreds = credentialStore.read();
     if (newCreds) {
-      subscribeToChannel(newCreds.deviceId);
+      subscribeToSSE(newCreds.token);
     }
     return;
   }
@@ -333,9 +349,9 @@ export async function refreshPairingCode(): Promise<void> {
  * Shut down the dispatch system. Call on app quit.
  */
 export function shutdownDispatch(): void {
-  if (channel) {
-    getSupabase().removeChannel(channel);
-    channel = null;
+  if (sseAbortController) {
+    sseAbortController.abort();
+    sseAbortController = null;
   }
   onInboundMessage = null;
 }

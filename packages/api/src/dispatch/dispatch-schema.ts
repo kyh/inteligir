@@ -55,3 +55,15 @@ export const catchUpInput = z.object({
 export const mobileCatchUpInput = z.object({
   mobileToken: z.string().min(1),
 });
+
+// ---------------------------------------------------------------------------
+// SSE subscriptions
+// ---------------------------------------------------------------------------
+
+export const subscribeDeviceInput = z.object({
+  deviceToken: z.string().min(1),
+});
+
+export const subscribeMobileInput = z.object({
+  mobileToken: z.string().min(1),
+});

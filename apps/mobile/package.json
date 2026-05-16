@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@expo/metro-runtime": "~55.0.9",
-    "@supabase/supabase-js": "^2.100.1",
     "@tanstack/react-query": "catalog:",
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",

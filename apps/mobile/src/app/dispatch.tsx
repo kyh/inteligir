@@ -13,8 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useMutation } from "@tanstack/react-query";
 
-import { trpc } from "@/utils/api";
-import { supabase } from "@/utils/supabase";
+import { trpc, trpcClient } from "@/utils/api";
 import { clearSession, getMobileToken } from "@/utils/session-store";
 
 // ---------------------------------------------------------------------------
@@ -48,125 +47,93 @@ export default function DispatchScreen() {
   const [assistantText, setAssistantText] = useState("");
   const [isAgentBusy, setIsAgentBusy] = useState(false);
   const flatListRef = useRef<FlatList>(null);
-  /** Mirror of assistantText for synchronous reads in event handlers */
   const assistantTextRef = useRef("");
-  /** Track message IDs received via broadcast to deduplicate on catch-up */
-  const seenIdsRef = useRef((() => {
-    const MAX = 5000;
-    const ids = new Set<string>();
-    return {
-      has: (id: string) => ids.has(id),
-      add: (id: string) => {
-        ids.add(id);
-        if (ids.size > MAX) {
-          const oldest = ids.values().next().value;
-          if (oldest) ids.delete(oldest);
-        }
-      },
-    };
-  })());
 
-  // -- Supabase Realtime subscription ----------------------------------------
+  // -- SSE subscription (replaces Supabase Realtime) -------------------------
 
   useEffect(() => {
-    if (!deviceId) return;
+    if (!deviceId || !mobileToken) return;
 
-    const channel = supabase.channel(`dispatch:${deviceId}`);
+    const subscription = trpcClient.dispatch.subscribeMobile.subscribe(
+      { mobileToken },
+      {
+        onData(envelope) {
+          // tracked() wraps as [id, data]
+          const msg = Array.isArray(envelope) ? envelope[1] : envelope;
+          if (!msg || msg.direction !== "to_mobile") return;
 
-    channel.on("broadcast", { event: "dispatch_message" }, ({ payload }) => {
-      if (payload.direction !== "to_mobile") return;
-      if (payload.id && seenIdsRef.current.has(payload.id)) return;
-      if (payload.id) seenIdsRef.current.add(payload.id);
-      const event = payload.payload as AgentEvent;
+          const event = msg.payload as AgentEvent;
+          handleAgentEvent(event);
+        },
+        onError(err) {
+          console.error("[dispatch] SSE error:", err);
+        },
+      },
+    );
 
-      switch (event.type) {
-        case "agent_start":
-          setIsAgentBusy(true);
-          break;
-        case "agent_end":
-          setIsAgentBusy(false);
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [deviceId, mobileToken]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleAgentEvent(event: AgentEvent): void {
+    switch (event.type) {
+      case "agent_start":
+        setIsAgentBusy(true);
+        break;
+      case "agent_end":
+        setIsAgentBusy(false);
+        if (assistantTextRef.current) {
+          setEntries((prev) => [...prev, { role: "assistant", text: assistantTextRef.current }]);
+        }
+        assistantTextRef.current = "";
+        setAssistantText("");
+        break;
+      case "message_start":
+        if (event.role === "assistant") {
           if (assistantTextRef.current) {
             setEntries((prev) => [...prev, { role: "assistant", text: assistantTextRef.current }]);
           }
           assistantTextRef.current = "";
           setAssistantText("");
-          break;
-        case "message_start":
-          if (event.role === "assistant") {
-            if (assistantTextRef.current) {
-              setEntries((prev) => [...prev, { role: "assistant", text: assistantTextRef.current }]);
-            }
-            assistantTextRef.current = "";
-            setAssistantText("");
-          }
-          break;
-        case "message_update":
-          if (typeof event.delta === "string") {
-            assistantTextRef.current += event.delta;
-            setAssistantText(assistantTextRef.current);
-          }
-          break;
-        case "message_end":
-          if (event.role === "assistant" && typeof event.text === "string") {
-            assistantTextRef.current = "";
-            setAssistantText("");
-            setEntries((prev) => [...prev, { role: "assistant", text: String(event.text) }]);
-          }
-          break;
-        case "tool_execution_start": {
-          // Read ref synchronously, then flush + append tool in one update
-          const flushed = assistantTextRef.current;
+        }
+        break;
+      case "message_update":
+        if (typeof event.delta === "string") {
+          assistantTextRef.current += event.delta;
+          setAssistantText(assistantTextRef.current);
+        }
+        break;
+      case "message_end":
+        if (event.role === "assistant" && typeof event.text === "string") {
           assistantTextRef.current = "";
           setAssistantText("");
-          setEntries((prev) => [
-            ...prev,
-            ...(flushed ? [{ role: "assistant" as const, text: flushed }] : []),
-            { role: "tool" as const, text: `Running ${event.toolName}...`, isError: false },
-          ]);
-          break;
+          setEntries((prev) => [...prev, { role: "assistant", text: String(event.text) }]);
         }
-        case "tool_execution_end":
-          setEntries((prev) => [
-            ...prev,
-            {
-              role: "tool",
-              text: String(event.resultText).slice(0, 200),
-              isError: event.isError as boolean,
-            },
-          ]);
-          break;
+        break;
+      case "tool_execution_start": {
+        const flushed = assistantTextRef.current;
+        assistantTextRef.current = "";
+        setAssistantText("");
+        setEntries((prev) => [
+          ...prev,
+          ...(flushed ? [{ role: "assistant" as const, text: flushed }] : []),
+          { role: "tool" as const, text: `Running ${event.toolName}...`, isError: false },
+        ]);
+        break;
       }
-    });
-
-    // Subscribe + catch up on any missed messages
-    channel.subscribe(async (status) => {
-      if (status === "SUBSCRIBED" && mobileToken) {
-        catchUpMutation.mutate({ mobileToken });
-      }
-    });
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [deviceId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // -- Catch-up on connect ---------------------------------------------------
-
-  const catchUpMutation = useMutation(
-    trpc.dispatch.mobileCatchUp.mutationOptions({
-      onSuccess(data) {
-        for (const msg of data.messages) {
-          // Skip messages already received via broadcast
-          if (seenIdsRef.current.has(msg.id)) continue;
-          seenIdsRef.current.add(msg.id);
-          const event = msg.payload as AgentEvent;
-          if (event.type === "message_end" && event.role === "assistant" && typeof event.text === "string") {
-            setEntries((prev) => [...prev, { role: "assistant", text: String(event.text) }]);
-          }
-        }
-      },
-    }),
-  );
+      case "tool_execution_end":
+        setEntries((prev) => [
+          ...prev,
+          {
+            role: "tool",
+            text: String(event.resultText).slice(0, 200),
+            isError: event.isError as boolean,
+          },
+        ]);
+        break;
+    }
+  }
 
   // -- Send message ----------------------------------------------------------
 

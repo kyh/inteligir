@@ -1,5 +1,11 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createTRPCClient, httpBatchLink, loggerLink } from "@trpc/client";
+import {
+  createTRPCClient,
+  httpBatchLink,
+  httpSubscriptionLink,
+  loggerLink,
+  splitLink,
+} from "@trpc/client";
 import { createTRPCOptionsProxy } from "@trpc/tanstack-react-query";
 import superjson from "superjson";
 
@@ -14,24 +20,35 @@ export const queryClient = new QueryClient({
   },
 });
 
-export const trpc = createTRPCOptionsProxy<AppRouter>({
-  client: createTRPCClient({
-    links: [
-      loggerLink({
-        enabled: (opts) =>
-          process.env.NODE_ENV === "development" ||
-          (opts.direction === "down" && opts.result instanceof Error),
-        colorMode: "ansi",
-      }),
-      httpBatchLink({
+const url = `${getBaseUrl()}/api/trpc`;
+
+export const trpcClient = createTRPCClient<AppRouter>({
+  links: [
+    loggerLink({
+      enabled: (opts) =>
+        process.env.NODE_ENV === "development" ||
+        (opts.direction === "down" && opts.result instanceof Error),
+      colorMode: "ansi",
+    }),
+    splitLink({
+      condition: (op) => op.type === "subscription",
+      true: httpSubscriptionLink({
         transformer: superjson,
-        url: `${getBaseUrl()}/api/trpc`,
+        url,
+      }),
+      false: httpBatchLink({
+        transformer: superjson,
+        url,
         headers() {
           return { "x-trpc-source": "expo-react" };
         },
       }),
-    ],
-  }),
+    }),
+  ],
+});
+
+export const trpc = createTRPCOptionsProxy<AppRouter>({
+  client: trpcClient,
   queryClient,
 });
 
