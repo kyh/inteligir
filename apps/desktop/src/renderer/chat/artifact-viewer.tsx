@@ -37,26 +37,35 @@ export function ArtifactViewer({ id }: Props) {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastArtifactRef = useRef<Artifact | null>(null);
 
-  // Subscribe first, then read.
+  // Subscribe first, then read. Note: we seed the state store from disk ONLY
+  // on the first artifact we receive (initial load). Subsequent agent
+  // broadcasts update the spec but leave the state store alone — the store
+  // is owned by this viewer + the user, and clobbering it would
+  //   (a) discard unpersisted local interactions sitting in the debounce
+  //       window, and
+  //   (b) cause onStateChange to re-fire and trigger a persistence cycle
+  //       that loops back through ARTIFACTS_UPDATED.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
     let cancelled = false;
-    let broadcastSeen = false;
+    let initialized = false;
 
     const applyArtifact = (next: Artifact) => {
       lastArtifactRef.current = next;
-      getStore().update(toPointerMap(next.state));
+      if (!initialized) {
+        getStore().update(toPointerMap(next.state));
+        initialized = true;
+      }
       setArtifact(next);
     };
 
     const off = bridge.onArtifactsUpdated((list) => {
       if (cancelled) return;
-      broadcastSeen = true;
       const next = list.artifacts.find((a) => a.id === id);
       if (next) {
         applyArtifact(next);
-      } else if (lastArtifactRef.current) {
+      } else if (initialized) {
         // Was open, agent deleted it — show the placeholder.
         lastArtifactRef.current = null;
         setArtifact("missing");
@@ -66,7 +75,7 @@ export function ArtifactViewer({ id }: Props) {
     bridge
       .getArtifact(id)
       .then((found) => {
-        if (cancelled || broadcastSeen) return null;
+        if (cancelled || initialized) return null;
         if (!found) {
           setArtifact("missing");
           return null;
@@ -175,6 +184,11 @@ function toPointerMap(
 /**
  * Compare two state snapshots by flattening both to pointer maps and
  * checking value-by-value. Skips re-persistence when nothing changed.
+ *
+ * Leaf comparison handles arrays element-wise (toPointerMap keeps arrays
+ * whole, so reference equality would falsely flag every array as
+ * different). Plain objects don't appear as leaves — toPointerMap walks
+ * them into nested pointers — but we still fall back to JSON for safety.
  */
 function shallowEqualPointers(
   a: Record<string, unknown>,
@@ -183,10 +197,25 @@ function shallowEqualPointers(
   const aMap = toPointerMap(a);
   const bMap = toPointerMap(b);
   const aKeys = Object.keys(aMap);
-  const bKeys = Object.keys(bMap);
-  if (aKeys.length !== bKeys.length) return false;
+  if (aKeys.length !== Object.keys(bMap).length) return false;
   for (const k of aKeys) {
-    if (aMap[k] !== bMap[k]) return false;
+    if (!leafEqual(aMap[k], bMap[k])) return false;
   }
   return true;
+}
+
+function leafEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    return a.every((v, i) => leafEqual(v, b[i]));
+  }
+  if (a !== null && b !== null && typeof a === "object" && typeof b === "object") {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
