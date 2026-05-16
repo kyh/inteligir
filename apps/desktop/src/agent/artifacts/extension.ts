@@ -159,6 +159,13 @@ const artifactsExtension: PiExtensionBundle = {
                   : `No artifact with id '${params.id}' to delete.`,
               );
             }
+            default:
+              // Unreachable under the TypeBox schema, but guards against the
+              // tool framework passing through an unexpected action — without
+              // this, the function would implicitly return undefined.
+              return text(
+                `Error: unknown action '${(params as { action: string }).action}'`,
+              );
           }
         } catch (err) {
           return text(`Error: ${toErrorMessage(err)}`);
