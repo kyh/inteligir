@@ -105,5 +105,3 @@ export const artifactCatalog = defineCatalog(schema, {
     },
   },
 });
-
-export type ArtifactCatalog = typeof artifactCatalog;

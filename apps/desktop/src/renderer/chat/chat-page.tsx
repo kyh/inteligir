@@ -145,6 +145,7 @@ export function ChatPage() {
     const bridge = getBridge();
     if (!bridge) return;
     let cancelled = false;
+    let broadcastSeen = false;
     const apply = (list: { artifacts: Artifact[] }) => {
       if (cancelled) return;
       const map: Record<string, Artifact> = {};
@@ -155,11 +156,16 @@ export function ChatPage() {
       // Instead the ArtifactViewer renders a "removed" placeholder for an
       // unknown id, and the user dismisses the panel themselves.
     };
-    const off = bridge.onArtifactsUpdated(apply);
+    const off = bridge.onArtifactsUpdated((list) => {
+      broadcastSeen = true;
+      apply(list);
+    });
     bridge
       .listArtifacts()
       .then((list) => {
-        if (!cancelled) apply(list);
+        // Skip the stale read if a broadcast with newer data has already
+        // landed between subscribe and the IPC response.
+        if (!cancelled && !broadcastSeen) apply(list);
         return null;
       })
       .catch(() => null);

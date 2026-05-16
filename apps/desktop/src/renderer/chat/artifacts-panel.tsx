@@ -27,17 +27,23 @@ export function ArtifactsPanel({ openIds, onOpen }: Props) {
     const bridge = getBridge();
     if (!bridge) return;
     let cancelled = false;
+    let broadcastSeen = false;
 
     const apply = (list: { artifacts: Artifact[] }) => {
       if (cancelled) return;
       setArtifacts(sortNewestFirst(list.artifacts));
     };
 
-    const off = bridge.onArtifactsUpdated(apply);
+    const off = bridge.onArtifactsUpdated((list) => {
+      broadcastSeen = true;
+      apply(list);
+    });
     bridge
       .listArtifacts()
       .then((list) => {
-        if (!cancelled) apply(list);
+        // Skip the stale read if a broadcast with newer data has already
+        // arrived between subscribe and the IPC response landing.
+        if (!cancelled && !broadcastSeen) apply(list);
         return null;
       })
       .catch(() => null);
