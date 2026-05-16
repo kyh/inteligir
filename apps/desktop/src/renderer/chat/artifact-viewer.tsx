@@ -36,15 +36,18 @@ export function ArtifactViewer({ id }: Props) {
   // Debounced persistence. Only the latest snapshot wins.
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastArtifactRef = useRef<Artifact | null>(null);
+  // Set to true while applyArtifact mutates the store programmatically, so
+  // the debounced persist doesn't fire a round-trip on our own writes.
+  const suppressPersistRef = useRef(false);
 
-  // Subscribe first, then read. Note: we seed the state store from disk ONLY
-  // on the first artifact we receive (initial load). Subsequent agent
-  // broadcasts update the spec but leave the state store alone — the store
-  // is owned by this viewer + the user, and clobbering it would
-  //   (a) discard unpersisted local interactions sitting in the debounce
-  //       window, and
-  //   (b) cause onStateChange to re-fire and trigger a persistence cycle
-  //       that loops back through ARTIFACTS_UPDATED.
+  // Subscribe first, then read. On every artifact event we MERGE: take the
+  // broadcast's state as the baseline, then re-overlay any unpersisted
+  // user diff (paths the user changed since the last applied artifact) so
+  // neither side clobbers the other. Without this:
+  //   - always-overwrite would discard unpersisted local interactions, and
+  //     re-firing onStateChange would create a persistence loop;
+  //   - never-overwrite would mean the user's next interaction persists a
+  //     stale snapshot back to disk, silently reverting agent state changes.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
@@ -52,12 +55,25 @@ export function ArtifactViewer({ id }: Props) {
     let initialized = false;
 
     const applyArtifact = (next: Artifact) => {
+      const previous = lastArtifactRef.current;
+      const userDiff =
+        initialized && previous
+          ? computeDiff(previous.state, getStore().getSnapshot())
+          : null;
+
       lastArtifactRef.current = next;
-      if (!initialized) {
-        getStore().update(toPointerMap(next.state));
-        initialized = true;
-      }
       setArtifact(next);
+
+      suppressPersistRef.current = true;
+      try {
+        getStore().update(toPointerMap(next.state));
+        if (userDiff && Object.keys(userDiff).length > 0) {
+          getStore().update(userDiff);
+        }
+      } finally {
+        suppressPersistRef.current = false;
+      }
+      initialized = true;
     };
 
     const off = bridge.onArtifactsUpdated((list) => {
@@ -97,6 +113,7 @@ export function ArtifactViewer({ id }: Props) {
   // agent-authored spec update that landed during the debounce window.
   const handleStateChange = useMemo(
     () => () => {
+      if (suppressPersistRef.current) return;
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
       persistTimerRef.current = setTimeout(() => {
         const snapshot = getStore().getSnapshot();
@@ -227,4 +244,29 @@ function leafEqual(a: unknown, b: unknown): boolean {
     }
   }
   return false;
+}
+
+/**
+ * Compute the set of pointer paths where `snapshot` diverges from
+ * `baseline`. Returned as a `{ "/json/pointer": value }` map suitable for
+ * `StateStore.update`. Used by applyArtifact to preserve the user's
+ * unpersisted local changes when re-seeding the store from a broadcast.
+ *
+ * Only handles additions/changes — paths present in baseline but absent
+ * from snapshot aren't represented (StateStore.update has no delete
+ * semantics, and the bound-state model doesn't generate them in practice).
+ */
+function computeDiff(
+  baseline: Record<string, unknown>,
+  snapshot: Record<string, unknown>,
+): Record<string, unknown> {
+  const baseMap = toPointerMap(baseline);
+  const snapMap = toPointerMap(snapshot);
+  const diff: Record<string, unknown> = {};
+  for (const [path, value] of Object.entries(snapMap)) {
+    if (!leafEqual(value, baseMap[path])) {
+      diff[path] = value;
+    }
+  }
+  return diff;
 }
