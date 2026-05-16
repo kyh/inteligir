@@ -20,7 +20,6 @@ export type VoiceState =
 
 export type VoiceEvent =
   | { type: "user_toggle_on" }
-  | { type: "user_toggle_off" }
   | { type: "model_status_received"; status: "ready" | "missing" }
   | { type: "model_progress"; progress: VoiceModelStateEvent }
   | { type: "model_download_ok" }
@@ -40,10 +39,6 @@ type Transition = { state: VoiceState; cancelInFlight?: boolean };
 function reduce(state: VoiceState, event: VoiceEvent): Transition {
   // Reset is unconditional — always returns to idle and cancels everything.
   if (event.type === "reset") return { state: IDLE, cancelInFlight: true };
-  // User-initiated off is also unconditional from any non-idle state.
-  if (event.type === "user_toggle_off") {
-    return state.kind === "idle" ? { state } : { state: IDLE, cancelInFlight: true };
-  }
   // pipeline_error / pipeline_disconnected are valid in any active state.
   if (event.type === "pipeline_error") {
     return { state: { kind: "error", message: event.message }, cancelInFlight: true };
