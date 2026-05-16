@@ -231,15 +231,18 @@ export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> 
     payload,
   }));
 
-  // Persist non-ephemeral events via HTTP (fire-and-forget)
-  try {
-    await trpcMutation("dispatch.respond", {
-      deviceToken: creds.token,
-      type: event.type,
-      payload,
-    });
-  } catch {
-    // Persistence failures are non-fatal
+  // Only persist non-ephemeral events via HTTP
+  const isEphemeral = event.type === "message_update" || event.type === "message_start";
+  if (!isEphemeral) {
+    try {
+      await trpcMutation("dispatch.respond", {
+        deviceToken: creds.token,
+        type: event.type,
+        payload,
+      });
+    } catch {
+      // Persistence failures are non-fatal
+    }
   }
 }
 
