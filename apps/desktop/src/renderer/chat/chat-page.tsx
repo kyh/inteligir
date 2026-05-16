@@ -145,7 +145,8 @@ export function ChatPage() {
   const voiceState = useVoiceStore((s) => s.state);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
   const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
-  const voiceBusy = voiceState.kind === "downloading_model";
+  const voiceBusy =
+    voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
   const currentTranscript = voiceState.kind === "listening" ? voiceState.currentTranscript : "";
 
   return (

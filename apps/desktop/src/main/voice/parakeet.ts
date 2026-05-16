@@ -133,21 +133,23 @@ export function pushAudio(samples: Float32Array): ParakeetTranscript[] {
  * user's last words would be silently dropped.
  */
 export function stopSession(): ParakeetTranscript[] {
-  if (!recognizer || !stream) {
+  // Capture the stream reference at entry. If a new startSession() races us
+  // (renderer fires stopStt + startStt back-to-back, IPC ordering not
+  // guaranteed) and replaces the module-level `stream` before we finish, we
+  // must NOT call inputFinished / null it on the new session's stream.
+  const captured = stream;
+  if (!recognizer || !captured) return [];
+
+  captured.inputFinished();
+  while (recognizer.isReady(captured)) {
+    recognizer.decode(captured);
+  }
+  const text = recognizer.getResult(captured).text.trim();
+
+  if (stream === captured) {
     stream = null;
     lastEmittedText = "";
-    return [];
   }
-
-  const localStream = stream;
-  stream.inputFinished();
-  while (recognizer.isReady(localStream)) {
-    recognizer.decode(localStream);
-  }
-  const text = recognizer.getResult(localStream).text.trim();
-
-  stream = null;
-  lastEmittedText = "";
 
   return text ? [{ text, isFinal: true }] : [];
 }
