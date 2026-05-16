@@ -101,7 +101,6 @@ function CatalogButton({
       size={props.size ?? "sm"}
       disabled={props.disabled === true}
       onClick={() => emit("press")}
-      className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
     >
       {props.label}
     </Button>
