@@ -36,18 +36,22 @@ export function ArtifactViewer({ id }: Props) {
   // Debounced persistence. Only the latest snapshot wins.
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastArtifactRef = useRef<Artifact | null>(null);
-  // Set to true while applyArtifact mutates the store programmatically, so
-  // the debounced persist doesn't fire a round-trip on our own writes.
-  const suppressPersistRef = useRef(false);
 
   // Subscribe first, then read. On every artifact event we MERGE: take the
   // broadcast's state as the baseline, then re-overlay any unpersisted
   // user diff (paths the user changed since the last applied artifact) so
-  // neither side clobbers the other. Without this:
-  //   - always-overwrite would discard unpersisted local interactions, and
-  //     re-firing onStateChange would create a persistence loop;
-  //   - never-overwrite would mean the user's next interaction persists a
-  //     stale snapshot back to disk, silently reverting agent state changes.
+  // neither side clobbers the other. The store subscriber (handleStateChange)
+  // serves as the single source of truth for whether persistence is needed —
+  // it compares snapshot to lastArtifactRef.current.state and no-ops on
+  // equality. We do NOT suppress notifications during applyArtifact's
+  // store.update calls:
+  //   - If the merge leaves a user diff in the store, we WANT the listener
+  //     to schedule a persist so the diff lands on disk even if no further
+  //     user interaction follows.
+  //   - If the merge produces no diff, the equality check skips persistence,
+  //     so there's no loop.
+  // Relying on equality (not suppression) also avoids depending on whether
+  // the store fires its subscribers synchronously or asynchronously.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
@@ -64,14 +68,9 @@ export function ArtifactViewer({ id }: Props) {
       lastArtifactRef.current = next;
       setArtifact(next);
 
-      suppressPersistRef.current = true;
-      try {
-        getStore().update(toPointerMap(next.state));
-        if (userDiff && Object.keys(userDiff).length > 0) {
-          getStore().update(userDiff);
-        }
-      } finally {
-        suppressPersistRef.current = false;
+      getStore().update(toPointerMap(next.state));
+      if (userDiff && Object.keys(userDiff).length > 0) {
+        getStore().update(userDiff);
       }
       initialized = true;
     };
@@ -117,15 +116,16 @@ export function ArtifactViewer({ id }: Props) {
   // explicitly state that onStateChange is ignored.
   const handleStateChange = useMemo(
     () => () => {
-      if (suppressPersistRef.current) return;
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
       persistTimerRef.current = setTimeout(() => {
         const snapshot = getStore().getSnapshot();
         const current = lastArtifactRef.current;
         if (!current) return;
-        // Skip persistence if nothing actually changed vs. the last-known
-        // baseline — avoids round-tripping the same state back through
-        // ARTIFACTS_UPDATED on every render cycle.
+        // Single guard: skip persistence if the store snapshot matches the
+        // baseline (the last known on-disk / agent-broadcast state). This
+        // covers both "no real change" and "broadcast made store match disk",
+        // and means we don't need a separate suppress flag during
+        // applyArtifact's programmatic writes.
         if (shallowEqualPointers(current.state, snapshot)) return;
         lastArtifactRef.current = { ...current, state: snapshot };
         void getBridge()?.patchArtifactState(current.id, snapshot).catch(() => null);
