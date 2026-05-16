@@ -205,11 +205,11 @@ async function catchUpPendingMessages(): Promise<void> {
     }>("dispatch.catchUp", { deviceToken: creds.token });
 
     for (const msg of result.messages) {
-      const dedup = msg.id ?? (msg.payload as Record<string, unknown>)?.clientId;
-      if (typeof dedup === "string" && seenMessageIds.has(dedup)) continue;
-      if (typeof dedup === "string") seenMessageIds.add(dedup);
-      // Also track by DB id if clientId was the match key
-      if (msg.id && dedup !== msg.id) seenMessageIds.add(msg.id);
+      const clientId = (msg.payload as Record<string, unknown>)?.clientId;
+      if (seenMessageIds.has(msg.id)) continue;
+      if (typeof clientId === "string" && seenMessageIds.has(clientId)) continue;
+      seenMessageIds.add(msg.id);
+      if (typeof clientId === "string") seenMessageIds.add(clientId);
 
       if (msg.type === "device_paired") {
         if (!creds.paired) credentialStore.write({ ...creds, paired: true });
