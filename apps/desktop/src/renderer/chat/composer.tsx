@@ -80,37 +80,53 @@ export function Composer() {
   }, [busy]);
 
   const handleSubmit = useCallback(
-    async (message: PromptInputMessage) => {
-      // Clear unconditionally before any branch so failed-submit paths can't
-      // leak state to the next attempt.
-      setHasInput(false);
+    async (message: PromptInputMessage, event: React.FormEvent<HTMLFormElement>) => {
+      // Don't blanket-clear hasInput: PromptInput's blob-conversion gap lets
+      // the user type into the (now-reset) textarea, and a top-of-handler
+      // setHasInput(false) would clobber that fresh onChange. Re-sync from
+      // the actual textarea DOM in a finally so every exit path leaves
+      // hasInput consistent with what's really in the field.
+      const formEl = event.currentTarget;
+      const syncHasInputFromDOM = () => {
+        const ta = formEl?.querySelector<HTMLTextAreaElement>("textarea[name='message']");
+        setHasInput(!!(ta && ta.value.trim().length > 0));
+      };
+
       const wantsSteer = pendingSteerRef.current;
       pendingSteerRef.current = false;
 
-      const text = message.text.trim();
-      const fileImages = message.files.filter(
-        (f) => f.mediaType?.startsWith("image/") && f.url,
-      );
-      if (!text && fileImages.length === 0) return;
-
-      const converted = fileImages.map((f) =>
-        dataUrlToImageAttachment(f.url!, f.mediaType ?? "image/png"),
-      );
-      const images = converted.filter((img): img is ImageAttachment => img !== null);
-      const dropped = converted.length - images.length;
-      if (dropped > 0) {
-        console.warn(
-          `[composer] dropped ${dropped} attachment(s) that failed blob → data URL conversion`,
+      try {
+        const text = message.text.trim();
+        const fileImages = message.files.filter(
+          (f) => f.mediaType?.startsWith("image/") && f.url,
         );
-      }
-      // If every attachment failed to convert and there's no text, throw so
-      // PromptInput's catch block skips clear() — keeps the original files
-      // in the tray for the user to retry instead of silently discarding them.
-      if (!text && images.length === 0) {
-        throw new Error("composer: nothing to submit after attachment conversion");
-      }
+        if (!text && fileImages.length === 0) return;
 
-      send(text, images.length > 0 ? images : undefined, wantsSteer ? { intent: "steer" } : undefined);
+        const converted = fileImages.map((f) =>
+          dataUrlToImageAttachment(f.url!, f.mediaType ?? "image/png"),
+        );
+        const images = converted.filter((img): img is ImageAttachment => img !== null);
+        const dropped = converted.length - images.length;
+        if (dropped > 0) {
+          console.warn(
+            `[composer] dropped ${dropped} attachment(s) that failed blob → data URL conversion`,
+          );
+        }
+        // If every attachment failed to convert and there's no text, throw so
+        // PromptInput's catch block skips clear() — keeps the original files
+        // in the tray for the user to retry instead of silently discarding them.
+        if (!text && images.length === 0) {
+          throw new Error("composer: nothing to submit after attachment conversion");
+        }
+
+        send(
+          text,
+          images.length > 0 ? images : undefined,
+          wantsSteer ? { intent: "steer" } : undefined,
+        );
+      } finally {
+        syncHasInputFromDOM();
+      }
     },
     [send],
   );
