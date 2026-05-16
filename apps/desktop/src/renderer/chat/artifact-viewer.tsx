@@ -37,6 +37,31 @@ export function ArtifactViewer({ id }: Props) {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastArtifactRef = useRef<Artifact | null>(null);
 
+  // Persist state changes via the state-only IPC. Critically NOT upsert —
+  // upsert would carry our cached spec back to disk and could clobber an
+  // agent-authored spec update that landed during the debounce window.
+  //
+  // Defined before the subscribe effect so the effect's cleanup can flush
+  // the pending debounce on unmount instead of just clearing the timer.
+  const flushPersist = useMemo(
+    () => () => {
+      if (persistTimerRef.current) {
+        clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+      const snapshot = getStore().getSnapshot();
+      const current = lastArtifactRef.current;
+      if (!current) return;
+      // Skip persistence if the store snapshot matches the baseline (the
+      // last known on-disk / agent-broadcast state). Covers both "no real
+      // change" and "broadcast made store match disk".
+      if (shallowEqualPointers(current.state, snapshot)) return;
+      lastArtifactRef.current = { ...current, state: snapshot };
+      void getBridge()?.patchArtifactState(current.id, snapshot).catch(() => null);
+    },
+    [],
+  );
+
   // Subscribe first, then read. On every artifact event we MERGE: take the
   // broadcast's state as the baseline, then re-overlay any unpersisted
   // user diff (paths the user changed since the last applied artifact) so
@@ -103,35 +128,22 @@ export function ArtifactViewer({ id }: Props) {
     return () => {
       cancelled = true;
       off();
-      if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+      // Flush any pending state-change debounce synchronously so the
+      // user's last interaction within 400ms of closing the panel isn't
+      // discarded. flushPersist no-ops when there's nothing pending.
+      flushPersist();
     };
-  }, [id]);
+  }, [id, flushPersist]);
 
-  // Persist state changes via the state-only IPC. Critically NOT upsert —
-  // upsert would carry our cached spec back to disk and could clobber an
-  // agent-authored spec update that landed during the debounce window.
-  //
-  // Wired via the StateStore's own subscribe (NOT JSONUIProvider's
-  // `onStateChange`) — when a `store` prop is supplied, json-render docs
-  // explicitly state that onStateChange is ignored.
+  // Schedule a debounced flush whenever the StateStore notifies. Wired via
+  // `store.subscribe` (NOT JSONUIProvider's `onStateChange`) — when a
+  // `store` prop is supplied, json-render docs say onStateChange is ignored.
   const handleStateChange = useMemo(
     () => () => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-      persistTimerRef.current = setTimeout(() => {
-        const snapshot = getStore().getSnapshot();
-        const current = lastArtifactRef.current;
-        if (!current) return;
-        // Single guard: skip persistence if the store snapshot matches the
-        // baseline (the last known on-disk / agent-broadcast state). This
-        // covers both "no real change" and "broadcast made store match disk",
-        // and means we don't need a separate suppress flag during
-        // applyArtifact's programmatic writes.
-        if (shallowEqualPointers(current.state, snapshot)) return;
-        lastArtifactRef.current = { ...current, state: snapshot };
-        void getBridge()?.patchArtifactState(current.id, snapshot).catch(() => null);
-      }, STATE_PERSIST_DEBOUNCE_MS);
+      persistTimerRef.current = setTimeout(flushPersist, STATE_PERSIST_DEBOUNCE_MS);
     },
-    [],
+    [flushPersist],
   );
 
   useEffect(() => {
