@@ -242,7 +242,10 @@ function ComposerTextarea({
       }
       const hasText = e.currentTarget.value.length > 0;
       if (hasText) {
-        e.currentTarget.value = "";
+        // Use the form's reset path (same one PromptInput uses on submit)
+        // instead of poking the DOM value directly so the field clear is
+        // consistent across both paths.
+        e.currentTarget.form?.reset();
         onHasInputChange(false);
       }
       if (files.length > 0) clear();
