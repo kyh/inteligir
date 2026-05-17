@@ -1,10 +1,6 @@
-// ---------------------------------------------------------------------------
-// JsonStore-backed artifacts manager. Persists agent-authored UI panels to
-// ~/.inteligir/artifacts.json. List/get/upsert/delete operations are all
-// synchronous against the on-disk cache; writes broadcast an
-// ARTIFACTS_UPDATED event so open artifact viewers and the library panel
-// stay in sync without polling.
-// ---------------------------------------------------------------------------
+// Persistence layer for agent-authored UI panels at ~/.inteligir/artifacts.json.
+// Spec validation is loose here — the renderer catalog does strict prop-shape
+// checking at mount time.
 
 import { z } from "zod";
 
@@ -18,11 +14,6 @@ import {
   type ArtifactSpec,
   type ArtifactUpsertInput,
 } from "@/shared/artifacts";
-
-// ---------------------------------------------------------------------------
-// Schema — loose on spec shape (the renderer's catalog does strict prop
-// validation at mount time). Exported so the IPC handler can reuse it.
-// ---------------------------------------------------------------------------
 
 const ElementSchema = z.looseObject({
   type: z.string(),
@@ -52,9 +43,6 @@ const ArtifactsFileSchema = z.object({
 });
 
 export const ArtifactUpsertInputSchema = z.object({
-  // Reject empty strings explicitly — an empty `id` would bypass the
-  // auto-slug path in upsert() and slot in with `id: ""`, which could
-  // collide on subsequent calls.
   id: z.string().min(1).optional(),
   title: z.string().min(1),
   description: z.string().optional(),
@@ -69,19 +57,13 @@ type ArtifactsFile = {
 
 const DEFAULTS: ArtifactsFile = { version: 1, artifacts: [] };
 
-// ---------------------------------------------------------------------------
-// Manager
-// ---------------------------------------------------------------------------
-
 export class ArtifactsManager {
   private readonly store: JsonStore<ArtifactsFile>;
 
   constructor(storePath?: string) {
     this.store = new JsonStore(
       storePath ?? inteligirPath("artifacts.json"),
-      // Schema parse output is structurally compatible with ArtifactsFile —
-      // cast away the narrower inferred element type so the generic stays
-      // explicit (same pattern as ui-settings used).
+      // Cast: Zod's inferred element type is narrower than ArtifactsFile.
       ArtifactsFileSchema as unknown as z.ZodType<ArtifactsFile>,
       DEFAULTS,
     );
@@ -166,22 +148,14 @@ export class ArtifactsManager {
     return deleted;
   }
 
+  /**
+   * Drop the cached state and broadcast the post-invalidate read so the
+   * renderer's singleton store stays in sync. Called from teardownResources()
+   * after AGENT_DIR is wiped on logout — the read returns the empty default.
+   */
   invalidate(): void {
     this.store.invalidate();
-  }
-
-  /**
-   * Clear the cache AND broadcast the post-clear (empty) state so the
-   * renderer's singleton zustand store doesn't keep stale data from the
-   * previous session. Called from teardownResources() after AGENT_DIR is
-   * wiped on logout.
-   */
-  invalidateAndBroadcast(): void {
-    this.store.invalidate();
-    // After teardown the file is gone; reading returns the empty default.
-    broadcastToRenderer(IPC_CHANNELS.ARTIFACTS_UPDATED, {
-      artifacts: this.store.read().artifacts,
-    } satisfies ArtifactsList);
+    this.broadcast(this.store.read());
   }
 
   // -------------------------------------------------------------------------
@@ -218,5 +192,5 @@ export function getArtifacts(): ArtifactsManager {
 }
 
 export function resetArtifactsCache(): void {
-  _instance?.invalidateAndBroadcast();
+  _instance?.invalidate();
 }

@@ -1,14 +1,6 @@
-/**
- * Artifacts extension — exposes the `manage_artifacts` tool so the agent
- * can create, update, list, read, and delete JSON-rendered UI panels.
- *
- * Each artifact is a json-render flat spec stored at
- * ~/.inteligir/artifacts.json and surfaced in the renderer's "Artifacts"
- * library (and as a floating panel when the user opens it). Spec validation
- * is loose here — the renderer's catalog does the strict prop-shape check
- * at mount time, so a malformed spec will still surface render errors
- * gracefully rather than crashing the tool call.
- */
+// Spec validation is loose here — the renderer catalog does the strict
+// prop-shape check at mount time, so a malformed spec surfaces as a render
+// error rather than crashing the tool call.
 
 import { Type, type Static } from "@sinclair/typebox";
 
@@ -55,6 +47,7 @@ const ManageArtifactsSchema = Type.Object({
   ),
   id: Type.Optional(
     Type.String({
+      minLength: 1,
       description:
         "Artifact id (required for read/update/delete; optional for create — generated from title if omitted)",
     }),
@@ -129,8 +122,11 @@ const artifactsExtension: PiExtensionBundle = {
               if (!params.title) return text("Error: title is required for action='create'");
               if (!params.spec) return text("Error: spec is required for action='create'");
               // create is distinct from update — fail if the caller-supplied
-              // id already exists, instead of silently overwriting.
-              if (params.id && mgr.get(params.id)) {
+              // id already exists, instead of silently overwriting. Use an
+              // explicit undefined check rather than truthy so an empty
+              // string id (already rejected by the schema, but defensive)
+              // doesn't bypass the duplicate guard.
+              if (params.id !== undefined && mgr.get(params.id)) {
                 return text(
                   `Error: artifact '${params.id}' already exists. Use action='update' to modify it, or omit id to auto-generate one.`,
                 );

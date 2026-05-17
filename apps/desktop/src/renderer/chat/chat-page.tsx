@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   GridIcon,
   LayoutTemplateIcon,
@@ -18,7 +18,6 @@ import {
 } from "@repo/ui/components/ai-elements/conversation";
 
 import type { VoiceSessionState } from "@/shared/voice";
-import type { Artifact } from "@/shared/artifacts";
 import { ArtifactsPanel } from "@/renderer/chat/artifacts-panel";
 import { ArtifactViewer } from "@/renderer/chat/artifact-viewer";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
@@ -132,44 +131,25 @@ export function ChatPage() {
   const [showExtensions, setShowExtensions] = useState(false);
   const [showArtifacts, setShowArtifacts] = useState(false);
 
-  // Artifacts the user has open as floating panels — keyed by id so an
-  // agent rewrite that changes the title still tracks the same panel.
-  // Deliberately NOT pruning on deletion: an ArtifactViewer for a missing
-  // id renders the "removed" placeholder; the user dismisses the panel.
-  const [openArtifactIds, setOpenArtifactIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
+  // Open artifact ids (floating-panel state). Deliberately NOT pruned on
+  // deletion: ArtifactViewer renders a "removed" placeholder for an unknown
+  // id and the user dismisses the panel themselves.
+  const [openArtifactIds, setOpenArtifactIds] = useState<readonly string[]>([]);
 
-  // One bridge subscription feeds every artifact consumer (this map +
-  // ArtifactsPanel's library list). Initialized lazily here at the top of
-  // the chat tree.
   useEffect(() => {
     initArtifacts();
   }, []);
 
   const artifacts = useArtifactsStore((s) => s.artifacts);
-  const artifactsById = useMemo<Record<string, Artifact>>(() => {
-    const map: Record<string, Artifact> = {};
-    for (const a of artifacts) map[a.id] = a;
-    return map;
-  }, [artifacts]);
 
   const openArtifact = useCallback((id: string) => {
-    setOpenArtifactIds((current) => {
-      if (current.has(id)) return current;
-      const next = new Set(current);
-      next.add(id);
-      return next;
-    });
+    setOpenArtifactIds((current) => (current.includes(id) ? current : [...current, id]));
   }, []);
 
   const closeArtifact = useCallback((id: string) => {
-    setOpenArtifactIds((current) => {
-      if (!current.has(id)) return current;
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
+    setOpenArtifactIds((current) =>
+      current.includes(id) ? current.filter((x) => x !== id) : current,
+    );
   }, []);
 
   const messages = useAgentStore((s) => s.messages);
@@ -350,13 +330,10 @@ export function ChatPage() {
         <ArtifactsPanel openIds={openArtifactIds} onOpen={openArtifact} />
       </DraggablePanel>
 
-      {/* One floating panel per opened artifact. Cascade their initial
-          positions so multiple opens don't stack on top of each other.
-          `storageKey` is pinned to the artifact id (not the title) so a
-          rename doesn't reset position/size and two artifacts can never
-          collide on the same localStorage key. */}
-      {Array.from(openArtifactIds).map((id, idx) => {
-        const artifact = artifactsById[id];
+      {/* storageKey is pinned to the id (not title) so renames don't
+          reset position/size and two artifacts can't collide on the key. */}
+      {openArtifactIds.map((id, idx) => {
+        const artifact = artifacts.find((a) => a.id === id);
         return (
           <DraggablePanel
             key={id}

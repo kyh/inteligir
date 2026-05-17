@@ -10,7 +10,7 @@ import type { Artifact } from "@/shared/artifacts";
 
 type Props = {
   /** Currently-open artifact ids; the panel uses this to disable the Open button. */
-  openIds: ReadonlySet<string>;
+  openIds: readonly string[];
   /** Open the floating panel for an artifact. */
   onOpen: (id: string) => void;
 };
@@ -53,7 +53,7 @@ export function ArtifactsPanel({ openIds, onOpen }: Props) {
       <Label className="text-xs font-medium text-muted-foreground">Artifacts</Label>
       <div className="flex flex-col gap-2">
         {artifacts.map((a) => {
-          const isOpen = openIds.has(a.id);
+          const isOpen = openIds.includes(a.id);
           return (
             <div
               key={a.id}

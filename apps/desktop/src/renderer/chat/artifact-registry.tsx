@@ -54,22 +54,38 @@ function Row({ props, children }: BaseProps<{ bordered?: boolean }>) {
   );
 }
 
+const headingClass = {
+  "1": "text-base font-semibold",
+  "2": "text-sm font-semibold",
+  "3": "text-xs font-medium text-muted-foreground",
+} as const;
+
 function Heading({ props }: BaseProps<{ text: string; level?: "1" | "2" | "3" }>) {
   const level = props.level ?? "3";
-  if (level === "1") return <h1 className="text-base font-semibold">{props.text}</h1>;
-  if (level === "2") return <h2 className="text-sm font-semibold">{props.text}</h2>;
-  return <h3 className="text-xs font-medium text-muted-foreground">{props.text}</h3>;
+  const className = headingClass[level];
+  if (level === "1") return <h1 className={className}>{props.text}</h1>;
+  if (level === "2") return <h2 className={className}>{props.text}</h2>;
+  return <h3 className={className}>{props.text}</h3>;
 }
+
+// "sm" (12px) is the default body size. "xs" (11px) is for captions, "base"
+// (14px) for emphasized inline text.
+const textSizeClass = {
+  xs: "text-[11px]",
+  sm: "text-xs",
+  base: "text-sm",
+} as const;
 
 function Text({
   props,
 }: BaseProps<{ text: string; muted?: boolean; size?: "xs" | "sm" | "base" }>) {
-  // Default size "sm" maps to text-xs (12px), matching the app's standard body
-  // size. "xs" is text-[11px] for captions, "base" is text-sm (14px).
-  const size = props.size ?? "sm";
-  const sizeClass = size === "base" ? "text-sm" : size === "sm" ? "text-xs" : "text-[11px]";
   return (
-    <span className={cn(sizeClass, props.muted ? "text-muted-foreground" : "text-foreground")}>
+    <span
+      className={cn(
+        textSizeClass[props.size ?? "sm"],
+        props.muted ? "text-muted-foreground" : "text-foreground",
+      )}
+    >
       {props.text}
     </span>
   );

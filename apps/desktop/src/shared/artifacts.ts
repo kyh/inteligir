@@ -1,16 +1,6 @@
-// ---------------------------------------------------------------------------
-// Artifacts — agent-authored JSON UI panels (think Claude's artifacts).
-//
-// Each artifact is a json-render flat spec (`{ root, elements }`) plus an
-// optional state model that persists across re-opens. The agent owns the
-// spec via the `manage_artifacts` tool; the user can open or remove
-// artifacts but does not hand-edit the JSON.
-//
-// Spec/element shape mirrors json-render's `Spec` exactly so the renderer
-// can hand it to `<Renderer />` without conversion. We keep the type loose
-// in shared code (no @json-render/core import) so main + preload don't pull
-// the renderer dep graph in.
-// ---------------------------------------------------------------------------
+// Shape mirrors json-render's `Spec` so the renderer can hand it to
+// <Renderer /> without conversion. Types stay loose here so main/preload
+// don't pull @json-render/core into their dep graph.
 
 export type ArtifactSpecElement = {
   type: string;
@@ -41,9 +31,6 @@ export type ArtifactsList = {
   artifacts: Artifact[];
 };
 
-// Upsert input — `id` chooses create-vs-update. If omitted on create, the
-// store generates one from the title. `state` is optional; omitting it keeps
-// the existing state on update, or seeds {} on create.
 export type ArtifactUpsertInput = {
   id?: string;
   title: string;
@@ -52,13 +39,8 @@ export type ArtifactUpsertInput = {
   state?: Record<string, unknown>;
 };
 
-/**
- * Slugify a title into a stable artifact id. Lowercase, hyphenated, ASCII,
- * trimmed, max 48 chars. Returns "artifact" if nothing usable remains.
- *
- * Order matters: strip → slice → strip again. The slice can land mid-run
- * and reintroduce a trailing hyphen, so we strip a second time at the end.
- */
+// Order matters: strip → slice → strip again. The slice can land mid-run
+// and reintroduce a trailing hyphen.
 export function slugifyArtifactId(title: string): string {
   const slug = title
     .toLowerCase()
