@@ -46,5 +46,10 @@ export function initArtifacts(): void {
       useArtifactsStore.setState({ artifacts: list.artifacts, loading: false });
       return null;
     })
-    .catch(() => null);
+    .catch(() => {
+      // Clear loading even when the read fails — otherwise the library
+      // panel sits on a perpetual "Loading…" placeholder. Broadcasts will
+      // still update `artifacts` if the agent creates anything later.
+      if (!broadcastSeen) useArtifactsStore.setState({ loading: false });
+    });
 }

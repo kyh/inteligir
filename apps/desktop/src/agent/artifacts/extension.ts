@@ -128,6 +128,13 @@ const artifactsExtension: PiExtensionBundle = {
             case "create": {
               if (!params.title) return text("Error: title is required for action='create'");
               if (!params.spec) return text("Error: spec is required for action='create'");
+              // create is distinct from update — fail if the caller-supplied
+              // id already exists, instead of silently overwriting.
+              if (params.id && mgr.get(params.id)) {
+                return text(
+                  `Error: artifact '${params.id}' already exists. Use action='update' to modify it, or omit id to auto-generate one.`,
+                );
+              }
               const created = mgr.upsert({
                 id: params.id,
                 title: params.title,

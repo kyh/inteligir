@@ -93,7 +93,19 @@ export function ArtifactViewer({ id }: Props) {
       lastArtifactRef.current = next;
       setArtifact(next);
 
-      getStore().update(toPointerMap(next.state));
+      // Build the update map: new paths from the broadcast PLUS `undefined`
+      // for paths that were in the store but aren't in next.state. Without
+      // this, removed paths would linger in the store and get re-persisted
+      // to disk on the next sync. toPointerMap drops undefined leaves, so
+      // the equality check sees the cleared store and the broadcast state
+      // as matching.
+      const prevSnapshotPointers = toPointerMap(getStore().getSnapshot());
+      const nextPointers = toPointerMap(next.state);
+      const updateMap: Record<string, unknown> = { ...nextPointers };
+      for (const path of Object.keys(prevSnapshotPointers)) {
+        if (!(path in nextPointers)) updateMap[path] = undefined;
+      }
+      getStore().update(updateMap);
       if (userDiff && Object.keys(userDiff).length > 0) {
         getStore().update(userDiff);
       }
@@ -206,6 +218,11 @@ function toPointerMap(
   prefix = "",
   out: Record<string, unknown> = {},
 ): Record<string, unknown> {
+  // Skip undefined leaves entirely so a key that was explicitly cleared
+  // (set to undefined to "remove" a path from the JS state model) doesn't
+  // appear in the pointer map. Keeps equality checks and IPC payloads
+  // consistent between "no key" and "key=undefined" representations.
+  if (value === undefined) return out;
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
     if (prefix.length === 0) return out;
     out[prefix] = value;
@@ -218,7 +235,11 @@ function toPointerMap(
     return out;
   }
   for (const [key, child] of entries) {
-    toPointerMap(child, `${prefix}/${key}`, out);
+    // RFC 6901: escape `~` -> `~0` and `/` -> `~1` per JSON Pointer rules
+    // so keys containing those characters don't collide with the path
+    // separator or escape sentinel.
+    const escaped = key.replace(/~/g, "~0").replace(/\//g, "~1");
+    toPointerMap(child, `${prefix}/${escaped}`, out);
   }
   return out;
 }

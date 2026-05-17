@@ -52,7 +52,10 @@ const ArtifactsFileSchema = z.object({
 });
 
 export const ArtifactUpsertInputSchema = z.object({
-  id: z.string().optional(),
+  // Reject empty strings explicitly — an empty `id` would bypass the
+  // auto-slug path in upsert() and slot in with `id: ""`, which could
+  // collide on subsequent calls.
+  id: z.string().min(1).optional(),
   title: z.string().min(1),
   description: z.string().optional(),
   spec: ArtifactSpecSchema,
