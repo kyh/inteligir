@@ -243,13 +243,21 @@ function hasRelatedPath(target: string, paths: Set<string>): boolean {
   return false;
 }
 
-// toPointerMap walks objects into nested paths, so leaves are only ever
-// primitives or arrays. The plain-object branch would be dead code.
+// Leaves are usually primitives, but toPointerMap also emits `{}` for empty
+// plain objects (so `{a:{}}` is distinguishable from `{}`), and arrays are
+// kept whole — both need structural comparison, not reference equality.
 function leafEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
     return a.every((v, i) => leafEqual(v, b[i]));
+  }
+  if (a !== null && b !== null && typeof a === "object" && typeof b === "object") {
+    try {
+      return JSON.stringify(a) === JSON.stringify(b);
+    } catch {
+      return false;
+    }
   }
   return false;
 }
