@@ -227,6 +227,10 @@ export function resetArtifactsCache(): void {
 // RFC 6902 JSON Patch — minimal in-place implementation for spec edits.
 // ---------------------------------------------------------------------------
 
+// Object keys we refuse to traverse or write — patching these would let an
+// agent-supplied path mutate Object.prototype.
+const PROTO_RESERVED = new Set(["__proto__", "constructor", "prototype"]);
+
 function parsePointer(path: string): string[] {
   if (path === "") return [];
   if (!path.startsWith("/")) {
@@ -251,6 +255,9 @@ function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
       if (Number.isNaN(idx)) throw new Error(`Bad array index '${seg}' in ${op.path}`);
       parent = parent[idx];
     } else if (parent !== null && typeof parent === "object") {
+      if (PROTO_RESERVED.has(seg)) {
+        throw new Error(`Refusing to traverse prototype-reserved key '${seg}' in ${op.path}`);
+      }
       parent = (parent as Record<string, unknown>)[seg];
     } else {
       throw new Error(`${op.path} traverses non-container at segment ${i}`);
@@ -261,12 +268,31 @@ function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
   }
   const last = segments[segments.length - 1]!;
   if (Array.isArray(parent)) {
+    if (last === "-" && op.op !== "add") {
+      throw new Error(`'-' index is only valid for add in ${op.path}`);
+    }
     const idx = last === "-" ? parent.length : Number.parseInt(last, 10);
     if (Number.isNaN(idx)) throw new Error(`Bad array index '${last}' in ${op.path}`);
-    if (op.op === "add") parent.splice(idx, 0, op.value);
-    else if (op.op === "replace") parent[idx] = op.value;
-    else parent.splice(idx, 1);
+    if (op.op === "add") {
+      if (idx < 0 || idx > parent.length) {
+        throw new Error(`Array index ${idx} out of bounds for add in ${op.path}`);
+      }
+      parent.splice(idx, 0, op.value);
+    } else if (op.op === "replace") {
+      if (idx < 0 || idx >= parent.length) {
+        throw new Error(`Array index ${idx} out of bounds for replace in ${op.path}`);
+      }
+      parent[idx] = op.value;
+    } else {
+      if (idx < 0 || idx >= parent.length) {
+        throw new Error(`Array index ${idx} out of bounds for remove in ${op.path}`);
+      }
+      parent.splice(idx, 1);
+    }
   } else if (parent !== null && typeof parent === "object") {
+    if (PROTO_RESERVED.has(last)) {
+      throw new Error(`Refusing to ${op.op} prototype-reserved key '${last}' in ${op.path}`);
+    }
     const obj = parent as Record<string, unknown>;
     if (op.op === "add" || op.op === "replace") obj[last] = op.value;
     else delete obj[last];
