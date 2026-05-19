@@ -140,7 +140,10 @@ export type DesktopBridge = {
   listArtifacts: () => Promise<ArtifactsList>;
   getArtifact: (id: string) => Promise<Artifact | null>;
   upsertArtifact: (input: ArtifactUpsertInput) => Promise<Artifact>;
-  patchArtifactState: (id: string, state: Record<string, unknown>) => Promise<Artifact | null>;
+  patchArtifactState: (
+    id: string,
+    patch: Record<string, unknown>,
+  ) => Promise<Artifact | null>;
   deleteArtifact: (id: string) => Promise<{ deleted: boolean }>;
   onArtifactsUpdated: (listener: (next: ArtifactsList) => void) => () => void;
 };

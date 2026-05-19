@@ -141,18 +141,30 @@ export class ArtifactsManager {
   }
 
   /**
-   * Patch only the `state` of an existing artifact. Used by the renderer to
-   * persist user interactions (checkbox toggles, etc.) without touching the
-   * agent-owned spec. Returns the updated artifact or null if not found.
+   * Merge a sparse pointer-keyed patch into an artifact's state. Patch keys
+   * are JSON Pointers rooted at the state object, values are the new leaf
+   * values. Used by the renderer to persist user interactions without
+   * touching paths the agent set concurrently.
+   *
+   * A full-replacement patchState would race agent updates: if the agent
+   * writes new state keys while a renderer debounce is in flight, the
+   * later-arriving full snapshot would clobber the agent's keys.
    */
-  patchState(id: string, state: Record<string, unknown>): Artifact | null {
+  patchState(id: string, patch: Record<string, unknown>): Artifact | null {
     let result: Artifact | null = null;
     const next = this.store.update((current) => {
       const idx = current.artifacts.findIndex((a) => a.id === id);
       if (idx === -1) return current;
+      const draft = JSON.parse(JSON.stringify(current.artifacts[idx]!.state)) as Record<
+        string,
+        unknown
+      >;
+      for (const [pointer, value] of Object.entries(patch)) {
+        setByPointer(draft, pointer, value);
+      }
       const updated: Artifact = {
         ...current.artifacts[idx]!,
-        state,
+        state: draft,
         updatedAt: Date.now(),
       };
       result = updated;
@@ -230,6 +242,31 @@ export function resetArtifactsCache(): void {
 // Object keys we refuse to traverse or write — patching these would let an
 // agent-supplied path mutate Object.prototype.
 const PROTO_RESERVED = new Set(["__proto__", "constructor", "prototype"]);
+
+// Set a value at a JSON Pointer path, creating intermediate objects as
+// needed. Used by patchState to merge sparse user-driven state changes
+// without touching agent-set siblings.
+function setByPointer(target: Record<string, unknown>, pointer: string, value: unknown): void {
+  const segments = parsePointer(pointer);
+  if (segments.length === 0) throw new Error("Cannot set state root via patchState");
+  let current: Record<string, unknown> = target;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i]!;
+    if (PROTO_RESERVED.has(seg)) {
+      throw new Error(`Refusing to traverse prototype-reserved key '${seg}' in ${pointer}`);
+    }
+    const child = current[seg];
+    if (child === null || typeof child !== "object" || Array.isArray(child)) {
+      current[seg] = {};
+    }
+    current = current[seg] as Record<string, unknown>;
+  }
+  const last = segments[segments.length - 1]!;
+  if (PROTO_RESERVED.has(last)) {
+    throw new Error(`Refusing to set prototype-reserved key '${last}' in ${pointer}`);
+  }
+  current[last] = value;
+}
 
 function parsePointer(path: string): string[] {
   if (path === "") return [];

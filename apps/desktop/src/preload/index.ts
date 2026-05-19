@@ -56,8 +56,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listArtifacts: () => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_LIST),
   getArtifact: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_GET, id),
   upsertArtifact: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_UPSERT, input),
-  patchArtifactState: (id: string, state: unknown) =>
-    ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_PATCH_STATE, { id, state }),
+  patchArtifactState: (id: string, patch: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_PATCH_STATE, { id, patch }),
   deleteArtifact: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_DELETE, id),
   onArtifactsUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.ARTIFACTS_UPDATED, listener),

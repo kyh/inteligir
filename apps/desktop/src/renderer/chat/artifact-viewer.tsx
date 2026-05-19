@@ -30,8 +30,16 @@ export function ArtifactViewer({ id }: Props) {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastArtifactRef = useRef<Artifact | null>(null);
 
-  // NOT upsert — upsert would carry our cached spec back to disk and could
-  // clobber an agent spec update that landed during the debounce window.
+  // Send only the pointer paths the user actually changed (sparse merge
+  // patch). Two reasons NOT to send the whole snapshot:
+  //   1. upsert would carry our cached spec back to disk and could clobber
+  //      an agent spec update that landed during the debounce.
+  //   2. A full state replacement would also clobber any state keys the
+  //      agent set concurrently (between our debounce schedule and the
+  //      IPC arriving on the main side).
+  // lastArtifactRef.state is NOT eagerly updated — the broadcast handler
+  // (applyArtifact) is the only place that advances the baseline, so the
+  // next debounce correctly diffs against whatever actually landed on disk.
   const flushPersist = useMemo(
     () => () => {
       if (persistTimerRef.current) {
@@ -41,9 +49,9 @@ export function ArtifactViewer({ id }: Props) {
       const snapshot = getStore().getSnapshot();
       const current = lastArtifactRef.current;
       if (!current) return;
-      if (shallowEqualPointers(current.state, snapshot)) return;
-      lastArtifactRef.current = { ...current, state: snapshot };
-      void getBridge()?.patchArtifactState(current.id, snapshot).catch(() => null);
+      const patch = computeStatePatch(current.state, snapshot);
+      if (Object.keys(patch).length === 0) return;
+      void getBridge()?.patchArtifactState(current.id, patch).catch(() => null);
     },
     [],
   );
@@ -209,18 +217,21 @@ function toPointerMap(
   return out;
 }
 
-function shallowEqualPointers(
-  a: Record<string, unknown>,
-  b: Record<string, unknown>,
-): boolean {
-  const aMap = toPointerMap(a);
-  const bMap = toPointerMap(b);
-  const aKeys = Object.keys(aMap);
-  if (aKeys.length !== Object.keys(bMap).length) return false;
-  for (const k of aKeys) {
-    if (!leafEqual(aMap[k], bMap[k])) return false;
+// Diff snapshot vs baseline as a sparse pointer-keyed patch. Only paths in
+// snapshot that differ are emitted — the main side applies them as a merge,
+// leaving concurrent agent-set siblings intact. Deletions aren't expressed
+// (state paths are bound inputs; the model doesn't generate clears).
+function computeStatePatch(
+  baseline: Record<string, unknown>,
+  snapshot: Record<string, unknown>,
+): Record<string, unknown> {
+  const baseMap = toPointerMap(baseline);
+  const snapMap = toPointerMap(snapshot);
+  const patch: Record<string, unknown> = {};
+  for (const [path, value] of Object.entries(snapMap)) {
+    if (!leafEqual(value, baseMap[path])) patch[path] = value;
   }
-  return true;
+  return patch;
 }
 
 /**

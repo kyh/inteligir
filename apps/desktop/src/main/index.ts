@@ -275,9 +275,9 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.ARTIFACTS_PATCH_STATE,
-    z.object({ id: z.string(), state: z.record(z.string(), z.unknown()) }),
-    ({ id, state }) => {
-      return getArtifacts().patchState(id, state);
+    z.object({ id: z.string(), patch: z.record(z.string(), z.unknown()) }),
+    ({ id, patch }) => {
+      return getArtifacts().patchState(id, patch);
     },
   );
 
