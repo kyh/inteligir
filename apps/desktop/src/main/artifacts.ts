@@ -127,12 +127,15 @@ export class ArtifactsManager {
     if (!existing) throw new Error(`No artifact with id '${input.id}'`);
     const draft = JSON.parse(JSON.stringify(existing.spec)) as ArtifactSpec;
     for (const op of input.ops) applyPatchOp(draft, op);
-    ArtifactSpecSchema.parse(draft);
+    // Use the parse RESULT, not the draft — the schema's defaults (e.g.
+    // props: {}) only apply through parse output, so writing the raw draft
+    // would let normalizations slip past validation.
+    const validated = ArtifactSpecSchema.parse(draft) as ArtifactSpec;
     return this.upsert({
       id: existing.id,
       title: existing.title,
       description: existing.description,
-      spec: draft,
+      spec: validated,
       state: existing.state,
     });
   }
