@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { GlobalAlertDialog } from "@repo/ui/components/alert-dialog";
-import { Toaster } from "@repo/ui/components/toast";
+import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 
 import { siteConfig } from "@/lib/site-config";
