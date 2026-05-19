@@ -39,6 +39,19 @@ export type ArtifactUpsertInput = {
   state?: Record<string, unknown>;
 };
 
+// RFC 6902 JSON Patch operations. Path is a JSON Pointer rooted at the
+// artifact's spec object (e.g. "/elements/button-1/props/label"). The "-"
+// segment appends to arrays.
+export type ArtifactPatchOp =
+  | { op: "add"; path: string; value: unknown }
+  | { op: "replace"; path: string; value: unknown }
+  | { op: "remove"; path: string };
+
+export type ArtifactPatchInput = {
+  id: string;
+  ops: ArtifactPatchOp[];
+};
+
 // Order matters: strip → slice → strip again. The slice can land mid-run
 // and reintroduce a trailing hyphen.
 export function slugifyArtifactId(title: string): string {

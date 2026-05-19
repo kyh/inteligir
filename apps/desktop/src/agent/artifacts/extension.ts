@@ -34,6 +34,39 @@ const SpecParam = Type.Object(
   { additionalProperties: false },
 );
 
+const PatchOpParam = Type.Union(
+  [
+    Type.Object(
+      {
+        op: Type.Literal("add"),
+        path: Type.String({ description: "JSON Pointer rooted at the spec" }),
+        value: Type.Unknown(),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        op: Type.Literal("replace"),
+        path: Type.String({ description: "JSON Pointer rooted at the spec" }),
+        value: Type.Unknown(),
+      },
+      { additionalProperties: false },
+    ),
+    Type.Object(
+      {
+        op: Type.Literal("remove"),
+        path: Type.String({ description: "JSON Pointer rooted at the spec" }),
+      },
+      { additionalProperties: false },
+    ),
+  ],
+  {
+    description:
+      "RFC 6902 patch op. Paths target the spec, e.g. '/elements/btn1/props/label'. " +
+      "Use '-' as the last array segment to append.",
+  },
+);
+
 const ManageArtifactsSchema = Type.Object({
   action: Type.Union(
     [
@@ -41,6 +74,7 @@ const ManageArtifactsSchema = Type.Object({
       Type.Literal("read"),
       Type.Literal("create"),
       Type.Literal("update"),
+      Type.Literal("patch"),
       Type.Literal("delete"),
     ],
     { description: "Action to perform" },
@@ -78,6 +112,16 @@ const ManageArtifactsSchema = Type.Object({
         "Optional initial bound-state values. Omit to preserve existing state on update, or seed {} on create.",
     }),
   ),
+  ops: Type.Optional(
+    Type.Array(PatchOpParam, {
+      minItems: 1,
+      description:
+        "RFC 6902 patch operations (required for action='patch'). Applied in order, " +
+        "result validated against the catalog before writing. Use 'patch' instead of " +
+        "'update' for targeted edits on large specs — saves tokens vs. resending the " +
+        "whole tree.",
+    }),
+  ),
 });
 
 const artifactsExtension: PiExtensionBundle = {
@@ -87,10 +131,11 @@ const artifactsExtension: PiExtensionBundle = {
       name: "manage_artifacts",
       label: "manage_artifacts",
       description:
-        "Create, update, list, read, or delete agent-rendered UI panels (artifacts). " +
+        "Create, update, patch, list, read, or delete agent-rendered UI panels (artifacts). " +
         "Artifacts are JSON specs persisted across sessions; the user can open them as " +
-        "floating panels from the Artifacts library. Use 'create' to introduce a new panel, " +
-        "'update' to revise an existing one (same id), 'list' to see what already exists.",
+        "floating panels from the Artifacts library. 'create' introduces a new panel, " +
+        "'update' replaces an existing one (same id) in full, 'patch' applies RFC 6902 " +
+        "operations for targeted edits (cheap for large specs), 'list' shows what exists.",
       parameters: ManageArtifactsSchema,
       execute: async (_toolCallId, params: Static<typeof ManageArtifactsSchema>) => {
         const text = (s: string) => ({
@@ -155,6 +200,16 @@ const artifactsExtension: PiExtensionBundle = {
                 state: params.state ?? existing.state,
               });
               return text(`Updated artifact '${updated.id}'.`);
+            }
+            case "patch": {
+              if (!params.id) return text("Error: id is required for action='patch'");
+              if (!params.ops || params.ops.length === 0) {
+                return text("Error: ops is required for action='patch' (at least one operation)");
+              }
+              const patched = mgr.patch({ id: params.id, ops: params.ops });
+              return text(
+                `Patched artifact '${patched.id}' (${params.ops.length} op${params.ops.length === 1 ? "" : "s"}).`,
+              );
             }
             case "delete": {
               if (!params.id) return text("Error: id is required for action='delete'");

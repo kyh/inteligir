@@ -10,10 +10,14 @@ import { IPC_CHANNELS } from "@/shared/ipc";
 import {
   slugifyArtifactId,
   type Artifact,
+  type ArtifactPatchInput,
+  type ArtifactPatchOp,
   type ArtifactsList,
   type ArtifactSpec,
   type ArtifactUpsertInput,
 } from "@/shared/artifacts";
+
+
 
 const ElementSchema = z.looseObject({
   type: z.string(),
@@ -113,6 +117,27 @@ export class ArtifactsManager {
   }
 
   /**
+   * Apply RFC 6902 patch operations to an existing artifact's spec. Paths are
+   * JSON Pointers rooted at the spec object (e.g. "/elements/btn/props/label").
+   * The result is validated against ArtifactSpecSchema before being written —
+   * an invalid patch throws and the existing spec is unchanged.
+   */
+  patch(input: ArtifactPatchInput): Artifact {
+    const existing = this.get(input.id);
+    if (!existing) throw new Error(`No artifact with id '${input.id}'`);
+    const draft = JSON.parse(JSON.stringify(existing.spec)) as ArtifactSpec;
+    for (const op of input.ops) applyPatchOp(draft, op);
+    ArtifactSpecSchema.parse(draft);
+    return this.upsert({
+      id: existing.id,
+      title: existing.title,
+      description: existing.description,
+      spec: draft,
+      state: existing.state,
+    });
+  }
+
+  /**
    * Patch only the `state` of an existing artifact. Used by the renderer to
    * persist user interactions (checkbox toggles, etc.) without touching the
    * agent-owned spec. Returns the updated artifact or null if not found.
@@ -193,4 +218,56 @@ export function getArtifacts(): ArtifactsManager {
 
 export function resetArtifactsCache(): void {
   _instance?.invalidate();
+}
+
+// ---------------------------------------------------------------------------
+// RFC 6902 JSON Patch — minimal in-place implementation for spec edits.
+// ---------------------------------------------------------------------------
+
+function parsePointer(path: string): string[] {
+  if (path === "") return [];
+  if (!path.startsWith("/")) {
+    throw new Error(`Invalid JSON Pointer (must start with /): ${path}`);
+  }
+  return path
+    .slice(1)
+    .split("/")
+    .map((seg) => seg.replace(/~1/g, "/").replace(/~0/g, "~"));
+}
+
+function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
+  const segments = parsePointer(op.path);
+  if (segments.length === 0) {
+    throw new Error("Cannot patch the artifact spec root — use update instead");
+  }
+  let parent: unknown = root;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const seg = segments[i]!;
+    if (Array.isArray(parent)) {
+      const idx = Number.parseInt(seg, 10);
+      if (Number.isNaN(idx)) throw new Error(`Bad array index '${seg}' in ${op.path}`);
+      parent = parent[idx];
+    } else if (parent !== null && typeof parent === "object") {
+      parent = (parent as Record<string, unknown>)[seg];
+    } else {
+      throw new Error(`${op.path} traverses non-container at segment ${i}`);
+    }
+    if (parent === undefined) {
+      throw new Error(`${op.path} does not exist (missing segment '${segments[i]}')`);
+    }
+  }
+  const last = segments[segments.length - 1]!;
+  if (Array.isArray(parent)) {
+    const idx = last === "-" ? parent.length : Number.parseInt(last, 10);
+    if (Number.isNaN(idx)) throw new Error(`Bad array index '${last}' in ${op.path}`);
+    if (op.op === "add") parent.splice(idx, 0, op.value);
+    else if (op.op === "replace") parent[idx] = op.value;
+    else parent.splice(idx, 1);
+  } else if (parent !== null && typeof parent === "object") {
+    const obj = parent as Record<string, unknown>;
+    if (op.op === "add" || op.op === "replace") obj[last] = op.value;
+    else delete obj[last];
+  } else {
+    throw new Error(`Cannot ${op.op} at ${op.path}: parent is not a container`);
+  }
 }
