@@ -24,7 +24,7 @@ vi.mock("@/renderer/lib/bridge", () => ({
 vi.mock("@/renderer/voice/voice-pipeline", () => ({
   VoicePipeline: class {
     connect = vi.fn().mockResolvedValue(undefined);
-    disconnect = vi.fn();
+    disconnect = vi.fn().mockResolvedValue(undefined);
     config: unknown;
     constructor(config: unknown) {
       this.config = config;

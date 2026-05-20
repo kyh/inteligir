@@ -9,7 +9,14 @@ import sttWorkletUrl from "@/renderer/voice/stt-worklet.js?url";
 export type TranscriptCallback = (text: string, isFinal: boolean) => void;
 
 export type STTHandle = {
-  stop: () => void;
+  /**
+   * Resolves after the main-process recognizer has been told to stop and the
+   * tail transcript has been forwarded. Callers must AWAIT this before
+   * starting a new STT session — otherwise the new session's
+   * startStt/stopStt can interleave with the previous session's teardown,
+   * letting stopSession finalize the wrong stream.
+   */
+  stop: () => Promise<void>;
 };
 
 export async function startSTT(
@@ -105,7 +112,7 @@ export async function startSTT(
   return {
     stop: () => {
       stopped = true;
-      void flushWorklet()
+      return flushWorklet()
         .then(() => bridge.stopStt())
         .then((tailEvents) => {
           for (const ev of tailEvents) {

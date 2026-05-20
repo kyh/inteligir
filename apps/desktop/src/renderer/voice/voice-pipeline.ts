@@ -46,7 +46,7 @@ export class VoicePipeline {
           // STT failed mid-session — release mic + TTS + recognizer before
           // surfacing the error so resources don't keep running after the
           // store moves to its error state.
-          this.disconnect();
+          void this.disconnect();
           this.config.onError(error);
         },
       );
@@ -57,11 +57,17 @@ export class VoicePipeline {
     }
   }
 
-  disconnect(): void {
-    this.stt?.stop();
+  /**
+   * Tear down mic + recognizer + TTS. Resolves after the main-process
+   * stopStt response arrives so callers can safely start a new session
+   * without IPC interleaving.
+   */
+  disconnect(): Promise<void> {
+    const pendingStop = this.stt?.stop() ?? Promise.resolve();
     this.stt = null;
     this.tts?.close();
     this.tts = null;
+    return pendingStop;
   }
 
   speakText(text: string): void {

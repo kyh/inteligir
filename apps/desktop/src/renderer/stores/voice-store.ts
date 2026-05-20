@@ -18,12 +18,25 @@ const machine = new VoiceMachine();
 let pipeline: VoicePipeline | null = null;
 let unsubscribeModelState: (() => void) | null = null;
 let unsubscribeMachine: (() => void) | null = null;
+// In-flight pipeline teardown promise. runConnect awaits this before sending
+// a fresh startStt, so the previous session's stopStt can't arrive at the
+// main process AFTER the new startSession and finalize the wrong stream.
+let pendingTeardown: Promise<void> | null = null;
+
+function trackTeardown(p: Promise<void>): Promise<void> {
+  pendingTeardown = p.finally(() => {
+    if (pendingTeardown === p) pendingTeardown = null;
+  });
+  return pendingTeardown;
+}
 
 function teardown(): void {
   unsubscribeModelState?.();
   unsubscribeModelState = null;
-  pipeline?.disconnect();
-  pipeline = null;
+  if (pipeline) {
+    trackTeardown(pipeline.disconnect());
+    pipeline = null;
+  }
   machine.dispatch({ type: "reset" });
   // Run the machine subscriber AFTER the reset dispatch above so the zustand
   // state syncs to idle, then drop it. Direct reset() calls used to leak this
@@ -40,6 +53,18 @@ async function runConnect(): Promise<void> {
   const session = pipeline;
   if (!bridge || !session) return;
   const gen = machine.generation;
+
+  // Wait for any prior session's main-process stopSession to land before
+  // sending startStt — otherwise IPC interleaving lets the previous stop
+  // finalize the new session's recognizer stream.
+  if (pendingTeardown) {
+    try {
+      await pendingTeardown;
+    } catch {
+      /* prior teardown errors are surfaced via onError, ignore here */
+    }
+    if (gen !== machine.generation) return;
+  }
 
   // Step 1: probe model availability.
   let status: "ready" | "missing";
@@ -94,7 +119,7 @@ async function runConnect(): Promise<void> {
   if (gen !== machine.generation) {
     // Connect succeeded but state moved on — drop the now-orphaned mic on
     // the captured session, never the (possibly replaced) module-level ref.
-    session.disconnect();
+    trackTeardown(session.disconnect());
     return;
   }
   machine.dispatch({ type: "connect_ok" });
@@ -151,12 +176,13 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
     if (!pipeline) return;
     const state = machine.state;
     if (state.kind === "listening") {
-      pipeline.disconnect();
+      trackTeardown(pipeline.disconnect());
       machine.dispatch({ type: "pipeline_disconnected" });
       return;
     }
     if (state.kind === "downloading_model" || state.kind === "connecting") return;
-    // idle | error → start the dance.
+    // idle | error → start the dance. runConnect awaits pendingTeardown so
+    // a rapid stop/start can't interleave on the main side.
     machine.dispatch({ type: "user_toggle_on" });
     void runConnect();
   },
