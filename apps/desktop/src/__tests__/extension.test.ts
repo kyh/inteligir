@@ -5,7 +5,11 @@ import {
   type PiExtensionBundle,
 } from "@/agent/extension";
 
-const ctx: ExtensionSetupContext = { binDir: "/fake/bin", bundledResourcesDir: "/fake/resources" };
+const ctx: ExtensionSetupContext = {
+  binDir: "/fake/bin",
+  bundledResourcesDir: "/fake/resources",
+  onProgress: () => {},
+};
 
 function bundle(
   overrides: Partial<PiExtensionBundle> & Pick<PiExtensionBundle, "name">,

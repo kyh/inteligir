@@ -2,6 +2,7 @@ import type { DynamicToolUIPart } from "ai";
 import { ImageIcon } from "lucide-react";
 import { Message, MessageContent } from "@repo/ui/components/ai-elements/message";
 import { Response } from "@repo/ui/components/ai-elements/response";
+import { Shimmer } from "@repo/ui/components/ai-elements/shimmer";
 import {
   Tool,
   ToolContent,
@@ -19,6 +20,10 @@ const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [
   "github-dark-dimmed",
   "github-dark-dimmed",
 ];
+
+// MessageContent's text-sm is bigger than the pre-ai-elements bubbles used.
+// Drop to text-xs while keeping the (intentionally roomier) padding.
+const MESSAGE_TEXT = "text-xs";
 
 export function ChatMessageView({ message }: { message: ChatMessage }) {
   const first = message.parts[0];
@@ -44,7 +49,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
 function UserMessage({ text, imageCount }: { text: string; imageCount: number }) {
   return (
     <Message from="user">
-      <MessageContent>
+      <MessageContent className={MESSAGE_TEXT}>
         {text && <span>{text}</span>}
         <ImageCount count={imageCount} withLabel />
       </MessageContent>
@@ -55,7 +60,7 @@ function UserMessage({ text, imageCount }: { text: string; imageCount: number })
 function SteerMessage({ text, imageCount }: { text: string; imageCount: number }) {
   return (
     <div className="ml-8">
-      <div className="rounded-md px-3 py-1.5 text-sm italic text-muted-foreground backdrop-blur-sm">
+      <div className="rounded-md px-3 py-1.5 text-xs italic text-muted-foreground backdrop-blur-sm">
         {text && <span>{text}</span>}
         {imageCount > 0 && (
           <span className="ml-2">
@@ -70,16 +75,16 @@ function SteerMessage({ text, imageCount }: { text: string; imageCount: number }
 function AssistantMessage({ text }: { text: string }) {
   return (
     <Message from="assistant">
-      <MessageContent>
+      <MessageContent className={MESSAGE_TEXT}>
         {text ? (
           <Response
-            className="prose prose-sm prose-invert max-w-none break-words"
+            className="prose prose-sm prose-invert max-w-none break-words text-xs [&_*]:text-xs"
             shikiTheme={ASSISTANT_SHIKI_THEME}
           >
             {text}
           </Response>
         ) : (
-          "..."
+          <Shimmer duration={1.5}>Thinking...</Shimmer>
         )}
       </MessageContent>
     </Message>
@@ -91,7 +96,7 @@ function ToolMessage({ part }: { part: DynamicToolUIPart }) {
   const hasOutput = state === "output-available" || state === "output-error";
   return (
     <div className="mr-8">
-      <Tool className="bg-foreground/5 backdrop-blur-sm">
+      <Tool className="mb-0 rounded-lg border-foreground/10 bg-foreground/5 backdrop-blur-sm [&>button]:p-2 [&>button>div>span]:text-xs">
         <ToolHeader
           type="dynamic-tool"
           toolName={part.toolName}

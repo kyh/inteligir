@@ -184,29 +184,41 @@ export function Composer() {
         maxFileSize={MAX_ATTACHMENT_BYTES}
         onError={onAttachError}
         onSubmit={handleSubmit}
-        className="rounded-2xl border-foreground/10 bg-foreground/5 backdrop-blur-sm"
+        // The visible bubble is the inner InputGroup (which PromptInput
+        // renders); rewrite its default dark `border-input` + shadow + radius
+        // to match the floating-panel aesthetic. Targeted via data-slot
+        // selector so we don't re-style the form wrapper.
+        className="[&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-foreground/10 [&_[data-slot=input-group]]:bg-foreground/5 [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-sm"
       >
+        {/*
+          Match the canonical ai-elements layout: attachments + toolbar are
+          direct children of PromptInput, only the textarea sits inside
+          PromptInputBody. The toolbar's `data-align=block-end` is what flips
+          InputGroup to flex-col via `:has(> [data-align=block-end])`, and
+          that selector only sees direct DOM children — so wrapping the
+          toolbar in PromptInputBody (display:contents) breaks the stack.
+        */}
+        <ComposerAttachments />
         <PromptInputBody>
-          <ComposerAttachments />
           <ComposerTextarea
             busy={busy}
             onInterrupt={interrupt}
             onHasInputChange={setHasInput}
           />
-          <PromptInputToolbar>
-            <PromptInputTools>
-              <span
-                className={cn(
-                  "ml-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
-                  statusColors[sessionStatus],
-                )}
-              />
-              <AttachButton />
-              <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
-            </PromptInputTools>
-            <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
-          </PromptInputToolbar>
         </PromptInputBody>
+        <PromptInputToolbar>
+          <PromptInputTools>
+            <span
+              className={cn(
+                "ml-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
+                statusColors[sessionStatus],
+              )}
+            />
+            <AttachButton />
+            <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
+          </PromptInputTools>
+          <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
+        </PromptInputToolbar>
       </PromptInput>
     </div>
   );

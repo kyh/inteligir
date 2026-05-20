@@ -4,11 +4,14 @@ import { runEffect, type EffectDeps } from "@/main/app-effects";
 function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    seedResources: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    seedResources: vi
+      .fn<EffectDeps["seedResources"]>()
+      .mockResolvedValue(undefined),
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     teardownResources: vi.fn(),
     newSession: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+    reportSetupProgress: vi.fn(),
     ...overrides,
   };
 }
@@ -43,7 +46,9 @@ describe("runEffect", () => {
 
   it("SETUP returns SETUP_FAIL when seedResources rejects", async () => {
     const deps = makeDeps({
-      seedResources: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("seed broke")),
+      seedResources: vi
+        .fn<EffectDeps["seedResources"]>()
+        .mockRejectedValue(new Error("seed broke")),
     });
     const result = await runEffect("SETUP", deps);
     expect(result).toEqual({ type: "SETUP_FAIL", message: "seed broke" });

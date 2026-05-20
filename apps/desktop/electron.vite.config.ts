@@ -39,6 +39,10 @@ export default defineConfig(() => ({
         formats: ["cjs"] satisfies LibraryFormats[],
       },
       rollupOptions: {
+        // Externalize "electron" so the preload bundle uses the runtime API
+        // (contextBridge, ipcRenderer) provided at load time instead of
+        // inlining the npm package's binary-path loader.
+        external: ["electron"],
         output: {
           entryFileNames: "index.js",
         },
