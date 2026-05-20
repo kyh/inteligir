@@ -15,7 +15,7 @@ import {
 import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import open from "open";
 
-import type { ExtensionToolInfo } from "@/shared/ipc";
+import type { ExtensionToolInfo, SetupProgress } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetNotifications } from "@/main/notifications";
 import {
@@ -71,8 +71,8 @@ function getBundledResourcesDir(): string {
   return path.join(__PROJECT_ROOT__, "resources", "agent");
 }
 
-function buildSetupContext(): ExtensionSetupContext {
-  return { binDir: BIN_DIR, bundledResourcesDir: getBundledResourcesDir() };
+function buildSetupContext(onProgress: (p: SetupProgress) => void): ExtensionSetupContext {
+  return { binDir: BIN_DIR, bundledResourcesDir: getBundledResourcesDir(), onProgress };
 }
 
 function buildRegisterContext(): ExtensionRegisterContext {
@@ -87,7 +87,7 @@ function buildRegisterContext(): ExtensionRegisterContext {
  * Non-critical bundle setup failures log and continue; a critical bundle's
  * failure throws and surfaces as SETUP_FAIL in the app state machine.
  */
-export async function seedResources(): Promise<void> {
+export async function seedResources(onProgress: (p: SetupProgress) => void): Promise<void> {
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
   fs.mkdirSync(BIN_DIR, { recursive: true });
@@ -95,7 +95,7 @@ export async function seedResources(): Promise<void> {
 
   prependPath(BIN_DIR);
 
-  const ctx = buildSetupContext();
+  const ctx = buildSetupContext(onProgress);
   if (!fs.existsSync(ctx.bundledResourcesDir)) {
     console.warn("[agent] bundled resources not found at", ctx.bundledResourcesDir);
     return;

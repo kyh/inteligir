@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { Outlet, useLocation, useNavigate } from "react-router";
+import { useEffect } from "react";
+import { Navigate, Outlet, useLocation } from "react-router";
 
 import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
 import { useAgentStore } from "@/renderer/stores/agent-store";
@@ -33,26 +33,20 @@ function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
 export function AppLayout() {
   const appState = useAgentStore((s) => s.appState);
   const init = useAgentStore((s) => s.init);
-  const navigate = useNavigate();
   const { pathname } = useLocation();
-  const pathnameRef = useRef(pathname);
-  pathnameRef.current = pathname;
 
   useEffect(() => init(), [init]);
-
-  useEffect(() => {
-    const target =
-      appState.phase === "error" ? phaseToPath(appState.prev) : phaseToPath(appState.phase);
-
-    if (pathnameRef.current !== target) {
-      void navigate(target);
-    }
-  }, [appState, navigate]);
 
   // Voice store is initialized by ChatPage's useEffect(init). Before that,
   // state.kind defaults to "idle" — orb falls back to the agent-only status.
   const listening = useVoiceStore((s) => s.state.kind === "listening");
   const orbStatus = phaseToOrbStatus(appState.phase, listening);
+
+  // Redirect during render (not in useEffect) so we never flash the wrong
+  // route while the navigation effect runs after first paint.
+  const target =
+    appState.phase === "error" ? phaseToPath(appState.prev) : phaseToPath(appState.phase);
+  const needsRedirect = pathname !== target;
 
   return (
     <div className="relative h-full w-full font-mono">
@@ -63,7 +57,7 @@ export function AppLayout() {
       </div>
 
       <div className="flex h-full flex-col">
-        <Outlet />
+        {needsRedirect ? <Navigate to={target} replace /> : <Outlet />}
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 
 import { inteligirPath } from "@/main/lib/json-store";
 import type { PiExtensionBundle } from "@/agent/extension";
+import type { SetupProgress } from "@/shared/ipc";
 
 const AGENT_BROWSER_VERSION = "0.26.0";
 const BROWSER_TIMEOUT_MS = 120_000;
@@ -48,7 +49,8 @@ const BrowserRunSchema = Type.Object({
 
 const browserExtension: PiExtensionBundle = {
   name: "browser",
-  setup: async ({ binDir }) => {
+  setup: async ({ binDir, onProgress }) => {
+    onProgress({ step: "Downloading browser CLI", percent: null });
     await installCliFromGithubRelease({
       owner: "vercel-labs",
       repo: "agent-browser",
@@ -58,7 +60,7 @@ const browserExtension: PiExtensionBundle = {
       artifactKind: "binary",
       verify: "version-check",
       artifactName: agentBrowserAssetName,
-      postInstall: installBrowserRuntime,
+      postInstall: (binPath) => installBrowserRuntime(binPath, onProgress),
     });
   },
   register: ({ binDir }) => {
@@ -105,18 +107,57 @@ function agentBrowserAssetName(): string | null {
   }
 }
 
-function installBrowserRuntime(binPath: string): Promise<void> {
+// agent-browser's install command emits progress like:
+//   "  8/169 MB (5%)"
+//   "Downloading Chrome 148.0.7778.167 for mac-arm64"
+// We forward the percentage to onProgress so the onboarding bar can fill.
+const PERCENT_LINE = /(\d{1,3})\s*%/;
+const STEP_PREFIXES = ["Downloading", "Installing", "Extracting"];
+
+function parseStep(line: string): string | null {
+  const trimmed = line.trim();
+  if (!trimmed) return null;
+  for (const prefix of STEP_PREFIXES) {
+    if (trimmed.startsWith(prefix)) return trimmed;
+  }
+  return null;
+}
+
+function installBrowserRuntime(
+  binPath: string,
+  onProgress: (p: SetupProgress) => void,
+): Promise<void> {
   // agent-browser ships its own runtime install command — needs to run once
   // post-binary-install to provision the browser engine. Up to 5 minutes;
   // log-and-continue on failure since the binary is already in place.
   return new Promise<void>((resolve, reject) => {
-    execFile(binPath, ["install"], { timeout: 300_000 }, (err, stdout, stderr) => {
+    let buffered = "";
+    let lastStep = "Installing browser runtime";
+
+    const handle = (chunk: string | Buffer): void => {
+      // agent-browser emits progress lines without trailing \n (carriage-return
+      // updates in place), so split on \r and \n both. Last fragment is held.
+      buffered += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+      const parts = buffered.split(/[\r\n]+/);
+      buffered = parts.pop() ?? "";
+      for (const part of parts) {
+        const step = parseStep(part);
+        if (step) lastStep = step;
+        const match = part.match(PERCENT_LINE);
+        const percent = match ? Math.min(100, Math.max(0, Number(match[1]))) : null;
+        if (step || match) onProgress({ step: lastStep, percent });
+      }
+    };
+
+    const child = execFile(binPath, ["install"], { timeout: 300_000 }, (err, stdout, stderr) => {
       if (err) {
         reject(new Error(`browser runtime install failed: ${String(stdout)}${String(stderr)}`));
         return;
       }
       resolve();
     });
+    child.stdout?.on("data", handle);
+    child.stderr?.on("data", handle);
   });
 }
 

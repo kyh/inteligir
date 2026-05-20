@@ -29,6 +29,7 @@ function modelStatusLabel(state: VoiceModelStateEvent | null): string | null {
 
 export function OnboardingPage() {
   const appState = useAgentStore((s) => s.appState);
+  const setupProgress = useAgentStore((s) => s.setupProgress);
   const triggered = useRef(false);
   const [modelState, setModelState] = useState<VoiceModelStateEvent | null>(null);
 
@@ -57,7 +58,15 @@ export function OnboardingPage() {
     getBridge()?.transition({ type: "RETRY" });
   }, []);
 
+  // Prefer the granular model-download progress when the voice model step is
+  // active; otherwise fall back to the generic setup-step text + bar.
   const modelLabel = modelStatusLabel(modelState);
+  const modelDownloading = modelState?.status === "downloading";
+  const label = modelLabel ?? setupProgress?.step ?? "Setting up...";
+  const percent = modelDownloading
+    ? modelState.percent
+    : (setupProgress?.percent ?? null);
+  const isIndeterminate = percent === null;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-end px-6 pb-16">
@@ -75,17 +84,17 @@ export function OnboardingPage() {
           </>
         ) : (
           <>
-            <p className="text-xs text-muted-foreground">
-              {modelLabel ?? "Setting up..."}
-            </p>
-            {modelState?.status === "downloading" && (
-              <div className="h-1 w-full overflow-hidden rounded-full bg-foreground/10">
-                <div
-                  className="h-full bg-foreground/40 transition-[width] duration-200"
-                  style={{ width: `${String(modelState.percent)}%` }}
-                />
-              </div>
-            )}
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={
+                  isIndeterminate
+                    ? "h-full w-1/3 animate-pulse bg-foreground/40"
+                    : "h-full bg-foreground/60 transition-[width] duration-200 ease-out"
+                }
+                style={isIndeterminate ? undefined : { width: `${String(percent)}%` }}
+              />
+            </div>
           </>
         )}
       </div>
