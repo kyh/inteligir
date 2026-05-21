@@ -231,7 +231,7 @@ function registerIpcHandlers(): void {
   });
 
   createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_START, async () => {
-    const result = await initParakeet(__PROJECT_ROOT__);
+    const result = await initParakeet();
     if (!result.ok) return { ok: false, reason: result.reason };
     startSession();
     return { ok: true };
@@ -259,10 +259,10 @@ function registerIpcHandlers(): void {
   createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_STOP, () => stopSession());
 
   createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_STATUS, () =>
-    isModelInstalled(__PROJECT_ROOT__) ? "ready" : "missing",
+    isModelInstalled() ? "ready" : "missing",
   );
 
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () => downloadModel(__PROJECT_ROOT__));
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () => downloadModel());
 
   // ---- Notifications --------------------------------------------------------
 

@@ -40,21 +40,21 @@ export type InitResult = { ok: true } | { ok: false; reason: string };
  * In-flight init is cached so concurrent calls don't double-load the ~140 MB
  * model. Cleared on completion (success or failure) so retries are possible.
  */
-export async function initParakeet(projectRoot: string): Promise<InitResult> {
+export async function initParakeet(): Promise<InitResult> {
   if (recognizer) return { ok: true };
   if (initPromise) return initPromise;
-  initPromise = doInit(projectRoot).finally(() => {
+  initPromise = doInit().finally(() => {
     initPromise = null;
   });
   return initPromise;
 }
 
-async function doInit(projectRoot: string): Promise<InitResult> {
-  if (!isModelInstalled(projectRoot)) {
+async function doInit(): Promise<InitResult> {
+  if (!isModelInstalled()) {
     return { ok: false, reason: "Parakeet model not installed." };
   }
 
-  const modelDir = getModelDir(projectRoot);
+  const modelDir = getModelDir();
 
   try {
     const mod = (await import("sherpa-onnx-node")) as unknown as {

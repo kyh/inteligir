@@ -19,8 +19,7 @@
     "verify:runtime-model-registry": "node scripts/verify-runtime-model-registry.mjs",
     "verify:packaged-runtime-deps": "node scripts/verify-packaged-runtime-deps.mjs",
     "verify:release": "pnpm verify:runtime-model-registry",
-    "verify:packaged": "pnpm verify:packaged-runtime-deps",
-    "download-stt-model": "tsx scripts/download-stt-model.ts"
+    "verify:packaged": "pnpm verify:packaged-runtime-deps"
   },
   "dependencies": {
     "@mariozechner/pi-ai": "^0.73.1",

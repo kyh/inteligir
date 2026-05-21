@@ -21,7 +21,12 @@ import { fileURLToPath } from "node:url";
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(APP_ROOT, ".output/bin");
 const PACKAGE_JSON = join(APP_ROOT, "package.json");
-const REQUIRED_RUNTIME_DEPS = ["@mariozechner/pi-coding-agent", "@mariozechner/pi-ai"];
+const REQUIRED_RUNTIME_DEPS = [
+  "@mariozechner/pi-coding-agent",
+  "@mariozechner/pi-ai",
+  // Native STT binding — .node files must also be asar-unpacked; see check below.
+  "sherpa-onnx-node",
+];
 
 // `electron-builder --mac dmg` produces a .app inside .output/bin/mac{,-arm64}/
 function findAppBundle() {
@@ -67,6 +72,14 @@ assertExists(
 
 // asar exists at all
 assertExists(join(resources, "app.asar"), "app.asar");
+
+// sherpa-onnx-node must be asar-unpacked: .node binaries cannot be loaded
+// from inside an asar archive. Without unpacking, voice STT crashes on
+// first mic click in the packaged DMG.
+assertExists(
+  join(resources, "app.asar.unpacked", "node_modules", "sherpa-onnx-node"),
+  "sherpa-onnx-node (unpacked)",
+);
 
 // Reading inside app.asar without the `asar` CLI is awkward, so verify the
 // source-of-truth that decides what ends up in the asar: every required

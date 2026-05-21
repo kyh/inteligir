@@ -9,9 +9,16 @@ import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { spawn } from "node:child_process";
 
+import { app } from "electron";
+
 import { broadcastToRenderer } from "@/main/lib/broadcast";
-import { MODEL_NAME, MODEL_URL, REQUIRED_MODEL_FILES } from "@/main/voice/model-info";
 import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
+
+export const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
+const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_NAME}.tar.bz2`;
+// All four files must be present before the recognizer can initialize.
+// Checking only tokens.txt would treat an interrupted install as already-done.
+const REQUIRED_MODEL_FILES = ["encoder.onnx", "decoder.onnx", "joiner.onnx", "tokens.txt"];
 
 export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 
@@ -21,30 +28,35 @@ function emitProgress(event: VoiceModelStateEvent): void {
   broadcastToRenderer(IPC_CHANNELS.VOICE_MODEL_STATE, event);
 }
 
-export function getModelDir(projectRoot: string): string {
-  return join(projectRoot, "resources", "stt", MODEL_NAME);
+/**
+ * Resolve the model's on-disk location. Uses Electron's per-user data dir so
+ * the bundle stays writable, survives app updates, and doesn't depend on the
+ * build-time __PROJECT_ROOT__ (which points at the dev machine).
+ */
+export function getModelDir(): string {
+  return join(app.getPath("userData"), "stt", MODEL_NAME);
 }
 
-export function isModelInstalled(projectRoot: string): boolean {
-  const dir = getModelDir(projectRoot);
+export function isModelInstalled(): boolean {
+  const dir = getModelDir();
   return REQUIRED_MODEL_FILES.every((f) => existsSync(join(dir, f)));
 }
 
-export function downloadModel(projectRoot: string): Promise<ModelDownloadResult> {
+export function downloadModel(): Promise<ModelDownloadResult> {
   if (downloadInflight) return downloadInflight;
-  downloadInflight = doDownload(projectRoot).finally(() => {
+  downloadInflight = doDownload().finally(() => {
     downloadInflight = null;
   });
   return downloadInflight;
 }
 
-async function doDownload(projectRoot: string): Promise<ModelDownloadResult> {
-  if (isModelInstalled(projectRoot)) {
+async function doDownload(): Promise<ModelDownloadResult> {
+  if (isModelInstalled()) {
     emitProgress({ status: "ready" });
     return { ok: true };
   }
 
-  const dir = getModelDir(projectRoot);
+  const dir = getModelDir();
   const outRoot = dirname(dir);
   const archive = join(outRoot, `${MODEL_NAME}.tar.bz2`);
 
@@ -70,7 +82,7 @@ async function doDownload(projectRoot: string): Promise<ModelDownloadResult> {
     await extract(archive, outRoot);
     await rm(archive).catch(() => {});
 
-    if (!isModelInstalled(projectRoot)) {
+    if (!isModelInstalled()) {
       throw new Error(`Extraction completed but expected files missing in ${dir}`);
     }
     emitProgress({ status: "ready" });

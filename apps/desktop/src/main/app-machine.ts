@@ -175,7 +175,7 @@ function broadcast(state: AppState): void {
 }
 
 async function downloadVoiceModel(): Promise<void> {
-  const result = await downloadModel(__PROJECT_ROOT__);
+  const result = await downloadModel();
   if (!result.ok) {
     throw new Error(result.error);
   }
