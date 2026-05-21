@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -225,12 +225,12 @@ export default function DispatchScreen() {
 
   // -- Build display entries ------------------------------------------------
 
-  const displayEntries = [
+  const displayEntries = useMemo(() => [
     ...entries,
     ...(assistantText
       ? [{ role: "assistant" as const, text: assistantText }]
       : []),
-  ];
+  ], [entries, assistantText]);
 
   return (
     <SafeAreaView className="bg-background flex-1" edges={["bottom"]}>
