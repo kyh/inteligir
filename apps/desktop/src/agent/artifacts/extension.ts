@@ -34,29 +34,20 @@ const SpecParam = Type.Object(
   { additionalProperties: false },
 );
 
+const pointerField = Type.String({ description: "JSON Pointer rooted at the spec" });
+
 const PatchOpParam = Type.Union(
   [
     Type.Object(
-      {
-        op: Type.Literal("add"),
-        path: Type.String({ description: "JSON Pointer rooted at the spec" }),
-        value: Type.Unknown(),
-      },
+      { op: Type.Literal("add"), path: pointerField, value: Type.Unknown() },
       { additionalProperties: false },
     ),
     Type.Object(
-      {
-        op: Type.Literal("replace"),
-        path: Type.String({ description: "JSON Pointer rooted at the spec" }),
-        value: Type.Unknown(),
-      },
+      { op: Type.Literal("replace"), path: pointerField, value: Type.Unknown() },
       { additionalProperties: false },
     ),
     Type.Object(
-      {
-        op: Type.Literal("remove"),
-        path: Type.String({ description: "JSON Pointer rooted at the spec" }),
-      },
+      { op: Type.Literal("remove"), path: pointerField },
       { additionalProperties: false },
     ),
   ],

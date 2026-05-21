@@ -6,6 +6,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { getBridge } from "@/renderer/lib/bridge";
 import { artifactRegistry } from "@/renderer/chat/artifact-registry";
 import type { Artifact } from "@/shared/artifacts";
+import { escapeSegment } from "@/shared/json-pointer";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
@@ -30,16 +31,9 @@ export function ArtifactViewer({ id }: Props) {
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastArtifactRef = useRef<Artifact | null>(null);
 
-  // Send only the pointer paths the user actually changed (sparse merge
-  // patch). Two reasons NOT to send the whole snapshot:
-  //   1. upsert would carry our cached spec back to disk and could clobber
-  //      an agent spec update that landed during the debounce.
-  //   2. A full state replacement would also clobber any state keys the
-  //      agent set concurrently (between our debounce schedule and the
-  //      IPC arriving on the main side).
-  // lastArtifactRef.state is NOT eagerly updated — the broadcast handler
-  // (applyArtifact) is the only place that advances the baseline, so the
-  // next debounce correctly diffs against whatever actually landed on disk.
+  // Sparse merge patch — sending the whole snapshot would clobber state
+  // keys the agent set concurrently (between our debounce schedule and the
+  // IPC landing on the main side).
   const flushPersist = useMemo(
     () => () => {
       if (persistTimerRef.current) {
@@ -211,8 +205,7 @@ function toPointerMap(
     return out;
   }
   for (const [key, child] of entries) {
-    const escaped = key.replace(/~/g, "~0").replace(/\//g, "~1");
-    toPointerMap(child, `${prefix}/${escaped}`, out);
+    toPointerMap(child, `${prefix}/${escapeSegment(key)}`, out);
   }
   return out;
 }
@@ -254,21 +247,21 @@ function hasRelatedPath(target: string, paths: Set<string>): boolean {
   return false;
 }
 
-// Leaves are usually primitives, but toPointerMap also emits `{}` for empty
-// plain objects (so `{a:{}}` is distinguishable from `{}`), and arrays are
-// kept whole — both need structural comparison, not reference equality.
+// Leaves are primitives, arrays (kept whole), or `{}` (toPointerMap emits an
+// empty-object leaf so `{a:{}}` stays distinguishable from `{}`). Non-empty
+// objects are walked into nested paths and never reach this comparison.
 function leafEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.length !== b.length) return false;
     return a.every((v, i) => leafEqual(v, b[i]));
   }
-  if (a !== null && b !== null && typeof a === "object" && typeof b === "object") {
-    try {
-      return JSON.stringify(a) === JSON.stringify(b);
-    } catch {
-      return false;
-    }
-  }
+  if (isEmptyObject(a) && isEmptyObject(b)) return true;
   return false;
+}
+
+function isEmptyObject(v: unknown): boolean {
+  return (
+    v !== null && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0
+  );
 }

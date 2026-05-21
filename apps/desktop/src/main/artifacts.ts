@@ -6,7 +6,6 @@ import { z } from "zod";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
-import { IPC_CHANNELS } from "@/shared/ipc";
 import {
   slugifyArtifactId,
   type Artifact,
@@ -16,8 +15,8 @@ import {
   type ArtifactSpec,
   type ArtifactUpsertInput,
 } from "@/shared/artifacts";
-
-
+import { IPC_CHANNELS } from "@/shared/ipc";
+import { parsePointer, PROTO_RESERVED } from "@/shared/json-pointer";
 
 const ElementSchema = z.looseObject({
   type: z.string(),
@@ -125,7 +124,7 @@ export class ArtifactsManager {
   patch(input: ArtifactPatchInput): Artifact {
     const existing = this.get(input.id);
     if (!existing) throw new Error(`No artifact with id '${input.id}'`);
-    const draft = JSON.parse(JSON.stringify(existing.spec)) as ArtifactSpec;
+    const draft = deepClone(existing.spec);
     for (const op of input.ops) applyPatchOp(draft, op);
     // Use the parse RESULT, not the draft — the schema's defaults (e.g.
     // props: {}) only apply through parse output, so writing the raw draft
@@ -155,10 +154,7 @@ export class ArtifactsManager {
     const next = this.store.update((current) => {
       const idx = current.artifacts.findIndex((a) => a.id === id);
       if (idx === -1) return current;
-      const draft = JSON.parse(JSON.stringify(current.artifacts[idx]!.state)) as Record<
-        string,
-        unknown
-      >;
+      const draft = deepClone(current.artifacts[idx]!.state);
       for (const [pointer, value] of Object.entries(patch)) {
         setByPointer(draft, pointer, value);
       }
@@ -236,25 +232,29 @@ export function resetArtifactsCache(): void {
 }
 
 // ---------------------------------------------------------------------------
-// RFC 6902 JSON Patch — minimal in-place implementation for spec edits.
+// RFC 6902 JSON Patch — minimal in-place implementations for spec + state.
 // ---------------------------------------------------------------------------
 
-// Object keys we refuse to traverse or write — patching these would let an
-// agent-supplied path mutate Object.prototype.
-const PROTO_RESERVED = new Set(["__proto__", "constructor", "prototype"]);
+function deepClone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
+}
 
-// Set a value at a JSON Pointer path, creating intermediate objects as
-// needed. Used by patchState to merge sparse user-driven state changes
-// without touching agent-set siblings.
+function assertSafeKey(key: string, pointer: string, verb: string): void {
+  if (PROTO_RESERVED.has(key)) {
+    throw new Error(`Refusing to ${verb} prototype-reserved key '${key}' in ${pointer}`);
+  }
+}
+
+// Merge a sparse value into nested state, creating intermediate objects as
+// needed. patchState uses this so user-driven state changes don't touch
+// paths the agent set concurrently.
 function setByPointer(target: Record<string, unknown>, pointer: string, value: unknown): void {
   const segments = parsePointer(pointer);
   if (segments.length === 0) throw new Error("Cannot set state root via patchState");
   let current: Record<string, unknown> = target;
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]!;
-    if (PROTO_RESERVED.has(seg)) {
-      throw new Error(`Refusing to traverse prototype-reserved key '${seg}' in ${pointer}`);
-    }
+    assertSafeKey(seg, pointer, "traverse");
     const child = current[seg];
     if (child === null || typeof child !== "object" || Array.isArray(child)) {
       current[seg] = {};
@@ -262,21 +262,8 @@ function setByPointer(target: Record<string, unknown>, pointer: string, value: u
     current = current[seg] as Record<string, unknown>;
   }
   const last = segments[segments.length - 1]!;
-  if (PROTO_RESERVED.has(last)) {
-    throw new Error(`Refusing to set prototype-reserved key '${last}' in ${pointer}`);
-  }
+  assertSafeKey(last, pointer, "set");
   current[last] = value;
-}
-
-function parsePointer(path: string): string[] {
-  if (path === "") return [];
-  if (!path.startsWith("/")) {
-    throw new Error(`Invalid JSON Pointer (must start with /): ${path}`);
-  }
-  return path
-    .slice(1)
-    .split("/")
-    .map((seg) => seg.replace(/~1/g, "/").replace(/~0/g, "~"));
 }
 
 function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
@@ -292,9 +279,7 @@ function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
       if (Number.isNaN(idx)) throw new Error(`Bad array index '${seg}' in ${op.path}`);
       parent = parent[idx];
     } else if (parent !== null && typeof parent === "object") {
-      if (PROTO_RESERVED.has(seg)) {
-        throw new Error(`Refusing to traverse prototype-reserved key '${seg}' in ${op.path}`);
-      }
+      assertSafeKey(seg, op.path, "traverse");
       parent = (parent as Record<string, unknown>)[seg];
     } else {
       throw new Error(`${op.path} traverses non-container at segment ${i}`);
@@ -327,9 +312,7 @@ function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
       parent.splice(idx, 1);
     }
   } else if (parent !== null && typeof parent === "object") {
-    if (PROTO_RESERVED.has(last)) {
-      throw new Error(`Refusing to ${op.op} prototype-reserved key '${last}' in ${op.path}`);
-    }
+    assertSafeKey(last, op.path, op.op);
     const obj = parent as Record<string, unknown>;
     if (op.op === "add" || op.op === "replace") obj[last] = op.value;
     else delete obj[last];
