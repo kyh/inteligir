@@ -3,20 +3,19 @@
 // Returns a completion MachineEvent to feed back into the reducer.
 // ---------------------------------------------------------------------------
 
-import { toErrorMessage } from "@/shared/ipc";
+import { toErrorMessage, type SetupProgress } from "@/shared/ipc";
 import type { MachineEvent } from "@/shared/app-state";
 import { clearResolvedSessionFile } from "./session-history";
 import type { EffectTag } from "./app-reducer";
 
 export type EffectDeps = {
   login: () => Promise<void>;
-  seedResources: () => void;
-  installGws: () => Promise<void>;
-  installAgentBrowser: () => Promise<void>;
+  seedResources: (onProgress: (p: SetupProgress) => void) => Promise<void>;
   startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   teardownResources: () => void;
   newSession: () => Promise<void>;
+  reportSetupProgress: (progress: SetupProgress) => void;
 };
 
 export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<MachineEvent> {
@@ -32,9 +31,10 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
 
     case "SETUP": {
       try {
-        deps.seedResources();
-        await Promise.all([deps.installGws(), deps.installAgentBrowser()]);
+        await deps.seedResources(deps.reportSetupProgress);
+        deps.reportSetupProgress({ step: "Starting agent", percent: null });
         await deps.startAgent();
+        deps.reportSetupProgress({ step: "done", percent: 100 });
         return { type: "SETUP_OK" };
       } catch (err) {
         return { type: "SETUP_FAIL", message: toErrorMessage(err) };

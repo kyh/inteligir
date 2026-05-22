@@ -1,0 +1,239 @@
+import { execFile } from "node:child_process";
+import { createHash } from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { pipeline } from "node:stream/promises";
+
+export type InstallCliFromGithubReleaseOptions = {
+  /** GitHub org or user that owns the repo. */
+  owner: string;
+  /** Repository name. */
+  repo: string;
+  /** Release version (without tag prefix), e.g. "0.22.5". */
+  version: string;
+  /** Tag prefix on the GitHub release. Default "v" (so `version` 0.22.5 → tag v0.22.5). */
+  tagPrefix?: string;
+  /**
+   * Returns the release artifact filename for the current platform/arch.
+   * Caller picks the naming convention upstream uses — gws uses LLVM triples
+   * (`aarch64-apple-darwin`), agent-browser uses `darwin-arm64`, etc.
+   * Return null if unsupported; install warns and skips.
+   */
+  artifactName: () => string | null;
+  /** Binary name on disk under binDir. */
+  binName: string;
+  /** Install destination dir. Created if missing. */
+  binDir: string;
+  /**
+   * Artifact shape:
+   * - "tarball" (default): release asset is a .tar.gz; we extract the binary from it.
+   * - "binary": release asset IS the binary; we download + chmod it directly.
+   */
+  artifactKind?: "tarball" | "binary";
+  /**
+   * Path to the binary inside the tarball, when "tarball" kind. Defaults to
+   * `binName` for flat archives. Set to e.g. `"peekaboo-macos-universal/peekaboo"`
+   * when the archive nests its binary under a directory.
+   */
+  archiveBinPath?: string;
+  /**
+   * Integrity check:
+   * - "sha256-sidecar" (default): expects `${artifactUrl}.sha256` next to the artifact.
+   * - "checksums-txt": expects `checksums.txt` at the release root with
+   *   `<hex>  <filename>` lines; we find the row matching our artifact.
+   * - "version-check": runs `${binName} --version` on the staged binary and
+   *   matches against `version`. Use when upstream doesn't publish checksums.
+   */
+  verify?: "sha256-sidecar" | "checksums-txt" | "version-check";
+  /**
+   * Optional post-install hook — receives the installed binary path. Errors
+   * are logged but do not throw; the binary is already in place.
+   */
+  postInstall?: (binPath: string) => Promise<void>;
+};
+
+/**
+ * Best-effort install of a CLI binary from a GitHub release.
+ *
+ * Stages the download/extract, atomically renames into place. Skips if a binary
+ * at `${binDir}/${binName}` already reports the requested version via `--version`.
+ * Failures are swallowed and logged — onboarding must succeed offline. The caller's
+ * tool surfaces "binary not installed" later.
+ *
+ * NOTE on checksum-based verify modes: the checksum and the artifact share the
+ * same origin, so they only guard against download corruption — not a
+ * compromised upstream release.
+ */
+export async function installCliFromGithubRelease(
+  opts: InstallCliFromGithubReleaseOptions,
+): Promise<void> {
+  try {
+    await runInstall(opts);
+  } catch (err) {
+    console.error(`[install] ${opts.binName} install failed (continuing without it):`, err);
+  }
+}
+
+async function getInstalledVersion(binPath: string): Promise<string | null> {
+  if (!fs.existsSync(binPath)) return null;
+  try {
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile(binPath, ["--version"], { timeout: 5_000 }, (err, out) => {
+        if (err) reject(err);
+        else resolve(out);
+      });
+    });
+    return stdout.match(/\d+\.\d+\.\d+/)?.[0] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<void> {
+  const binPath = path.join(opts.binDir, opts.binName);
+  if ((await getInstalledVersion(binPath)) === opts.version) return;
+
+  const artifact = opts.artifactName();
+  if (!artifact) {
+    console.warn(
+      `[install] ${opts.binName}: unsupported platform/arch ${process.platform}/${process.arch}`,
+    );
+    return;
+  }
+
+  const artifactKind = opts.artifactKind ?? "tarball";
+  const verify = opts.verify ?? "sha256-sidecar";
+  const archiveBinPath = opts.archiveBinPath ?? opts.binName;
+  const tag = `${opts.tagPrefix ?? "v"}${opts.version}`;
+  const releaseBaseUrl = `https://github.com/${opts.owner}/${opts.repo}/releases/download/${tag}`;
+  const artifactUrl = `${releaseBaseUrl}/${artifact}`;
+  const stagingDir = path.join(opts.binDir, `.${opts.binName}-staging-${process.pid}`);
+  const stagedArtifactPath = path.join(stagingDir, artifact);
+  // For "binary" artifacts, the downloaded file IS the binary; for "tarball",
+  // the binary lands at stagingDir/<archiveBinPath> after extraction.
+  const stagedBinPath =
+    artifactKind === "tarball" ? path.join(stagingDir, archiveBinPath) : stagedArtifactPath;
+
+  fs.mkdirSync(opts.binDir, { recursive: true });
+  fs.mkdirSync(stagingDir, { recursive: true });
+  console.log(`[install] downloading ${opts.binName} from ${artifactUrl}`);
+
+  try {
+    if (verify === "sha256-sidecar" || verify === "checksums-txt") {
+      const expectedSha = await fetchExpectedSha(verify, artifactUrl, releaseBaseUrl, artifact);
+      await downloadVerified(artifactUrl, stagedArtifactPath, expectedSha);
+    } else {
+      await downloadFile(artifactUrl, stagedArtifactPath);
+    }
+
+    if (artifactKind === "tarball") {
+      await extractFromTarball(stagedArtifactPath, stagingDir, archiveBinPath);
+    }
+
+    fs.chmodSync(stagedBinPath, 0o755);
+
+    if (verify === "version-check") {
+      const reported = await getInstalledVersion(stagedBinPath);
+      if (reported !== opts.version) {
+        throw new Error(
+          `version check failed: expected ${opts.version}, got ${reported ?? "unknown"}`,
+        );
+      }
+    }
+
+    // renameSync is atomic on the same filesystem — the old binary is never
+    // partially overwritten.
+    fs.renameSync(stagedBinPath, binPath);
+    console.log(`[install] installed ${opts.binName} to ${binPath}`);
+  } finally {
+    try {
+      fs.rmSync(stagingDir, { recursive: true, force: true });
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (opts.postInstall) {
+    try {
+      await opts.postInstall(binPath);
+    } catch (err) {
+      console.error(`[install] ${opts.binName} post-install failed:`, err);
+    }
+  }
+}
+
+async function fetchExpectedSha(
+  mode: "sha256-sidecar" | "checksums-txt",
+  artifactUrl: string,
+  releaseBaseUrl: string,
+  artifact: string,
+): Promise<string> {
+  const url = mode === "sha256-sidecar" ? `${artifactUrl}.sha256` : `${releaseBaseUrl}/checksums.txt`;
+  const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
+  if (!resp.ok) {
+    throw new Error(`checksum fetch failed: ${resp.status} ${resp.statusText}`);
+  }
+  const text = await resp.text();
+
+  // sha256-sidecar files are `<hex>  <filename>` (one line); checksums.txt is
+  // the same line format but with one entry per release artifact. Both reduce
+  // to: find the line for our artifact and take its first whitespace-delimited
+  // token. For sidecar files we accept any single line since most upstreams
+  // omit the filename column entirely.
+  let expectedSha: string | undefined;
+  if (mode === "sha256-sidecar") {
+    expectedSha = text.trim().split(/\s+/)[0]?.toLowerCase();
+  } else {
+    expectedSha = text
+      .split("\n")
+      .map((line) => line.trim().split(/\s+/))
+      .find(([, name]) => name === artifact)?.[0]
+      ?.toLowerCase();
+  }
+
+  if (!expectedSha || !/^[0-9a-f]{64}$/.test(expectedSha)) {
+    throw new Error(`checksum for ${artifact} not found / invalid in ${url}`);
+  }
+  return expectedSha;
+}
+
+async function downloadVerified(url: string, dest: string, expectedSha: string): Promise<void> {
+  const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
+  if (!resp.ok || !resp.body) {
+    throw new Error(`artifact fetch failed: ${resp.status} ${resp.statusText}`);
+  }
+
+  const hash = createHash("sha256");
+  await pipeline(
+    resp.body,
+    async function* (source) {
+      for await (const chunk of source) {
+        hash.update(chunk as Uint8Array);
+        yield chunk;
+      }
+    },
+    fs.createWriteStream(dest),
+  );
+
+  const actualSha = hash.digest("hex");
+  if (actualSha !== expectedSha) {
+    throw new Error(`checksum mismatch: expected ${expectedSha}, got ${actualSha}`);
+  }
+}
+
+async function downloadFile(url: string, dest: string): Promise<void> {
+  const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
+  if (!resp.ok || !resp.body) {
+    throw new Error(`fetch failed: ${resp.status} ${resp.statusText}`);
+  }
+  await pipeline(resp.body, fs.createWriteStream(dest));
+}
+
+function extractFromTarball(tarballPath: string, outDir: string, entryName: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    execFile("tar", ["xzf", tarballPath, "-C", outDir, entryName], { timeout: 30_000 }, (err) => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
+}

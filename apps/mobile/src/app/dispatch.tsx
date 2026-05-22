@@ -263,7 +263,7 @@ export default function DispatchScreen() {
           data={displayEntries}
           keyExtractor={(_, i) => String(i)}
           className="flex-1"
-          contentContainerClassName="p-4 gap-2"
+          contentContainerStyle={{ padding: 16, gap: 8 }}
           onContentSizeChange={() =>
             flatListRef.current?.scrollToEnd({ animated: true })
           }
@@ -295,6 +295,8 @@ export default function DispatchScreen() {
                     </Text>
                   </View>
                 );
+              default:
+                return null;
             }
           }}
           ListEmptyComponent={

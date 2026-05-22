@@ -4,7 +4,6 @@ import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 
-import { Type, type Static } from "@sinclair/typebox";
 import {
   createAuthStorage,
   hasAuth,
@@ -12,25 +11,19 @@ import {
   PiAgent,
   resolveModel,
   SessionManager,
-  type ExtensionAPI,
-  type ExtensionFactory,
 } from "@repo/pi-driver";
-import {
-  installAgentBrowser as installAgentBrowserBootstrap,
-  installGws as installGwsBootstrap,
-  prependPath,
-  seedDirectory,
-  seedFile,
-  seedGwsClientSecret,
-} from "@repo/agent-runtime";
+import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import open from "open";
 
-import type { ExtensionToolInfo } from "@/shared/ipc";
+import type { ExtensionToolInfo, SetupProgress } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetNotifications } from "@/main/notifications";
-import { taskManager } from "@/main/tasks/task-singleton";
-import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
-import { toErrorMessage } from "@/shared/ipc";
+import {
+  runBundleSetups,
+  type ExtensionRegisterContext,
+  type ExtensionSetupContext,
+  type PiExtensionBundle,
+} from "@/agent/extension";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -38,8 +31,6 @@ import { toErrorMessage } from "@/shared/ipc";
 
 const AUTH_PROVIDER = "openai-codex";
 const MODEL_ID = "gpt-5.5";
-const GWS_VERSION = "0.22.5";
-const AGENT_BROWSER_VERSION = "0.26.0";
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here */
 const AGENT_DIR = inteligirPath();
@@ -51,6 +42,21 @@ const EXTENSIONS_DIR = inteligirPath("extensions");
 
 // Override pi-coding-agent's default getAgentDir() (~/.pi/agent)
 process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
+
+// ---------------------------------------------------------------------------
+// Extension bundles — auto-discovered from ./<name>/extension.ts default
+// exports. Adding a new extension is "create one folder"; setup.ts never
+// needs to be edited. Sorted by bundle name for deterministic registration
+// order across builds.
+// ---------------------------------------------------------------------------
+
+const bundleModules = import.meta.glob<{ default: PiExtensionBundle }>("./*/extension.ts", {
+  eager: true,
+});
+
+const EXTENSION_BUNDLES: PiExtensionBundle[] = Object.values(bundleModules)
+  .map((m) => m.default)
+  .sort((a, b) => a.name.localeCompare(b.name));
 
 // ---------------------------------------------------------------------------
 // Bundled resource discovery
@@ -65,11 +71,23 @@ function getBundledResourcesDir(): string {
   return path.join(__PROJECT_ROOT__, "resources", "agent");
 }
 
+function buildSetupContext(onProgress: (p: SetupProgress) => void): ExtensionSetupContext {
+  return { binDir: BIN_DIR, bundledResourcesDir: getBundledResourcesDir(), onProgress };
+}
+
+function buildRegisterContext(): ExtensionRegisterContext {
+  return { binDir: BIN_DIR };
+}
+
 /**
- * Seed bundled skills + AGENTS.md into ~/.inteligir/ on first run, and
- * make sure the bundled CLI bin dir is on PATH so agent tools can find it.
+ * Seed bundled skills + AGENTS.md into ~/.inteligir/ on first run, ensure the
+ * bundled CLI bin dir is on PATH so agent tools can find it, and run each
+ * extension bundle's setup() (binary install, OAuth seed, etc.).
+ *
+ * Non-critical bundle setup failures log and continue; a critical bundle's
+ * failure throws and surfaces as SETUP_FAIL in the app state machine.
  */
-export function seedResources(): void {
+export async function seedResources(onProgress: (p: SetupProgress) => void): Promise<void> {
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
   fs.mkdirSync(BIN_DIR, { recursive: true });
@@ -77,142 +95,16 @@ export function seedResources(): void {
 
   prependPath(BIN_DIR);
 
-  const src = getBundledResourcesDir();
-  if (!fs.existsSync(src)) {
-    console.warn("[agent] bundled resources not found at", src);
+  const ctx = buildSetupContext(onProgress);
+  if (!fs.existsSync(ctx.bundledResourcesDir)) {
+    console.warn("[agent] bundled resources not found at", ctx.bundledResourcesDir);
     return;
   }
 
-  seedDirectory(path.join(src, "skills"), path.join(AGENT_DIR, "skills"));
-  seedFile(path.join(src, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
+  seedDirectory(path.join(ctx.bundledResourcesDir, "skills"), path.join(AGENT_DIR, "skills"));
+  seedFile(path.join(ctx.bundledResourcesDir, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
 
-  // Seed the gws OAuth client_secret unconditionally — independent of the
-  // network-dependent gws binary install. An offline first-run should still
-  // leave ~/.config/gws/client_secret.json on disk so OAuth works as soon
-  // as gws is installed on a later launch.
-  seedGwsClientSecret(src);
-}
-
-// ---------------------------------------------------------------------------
-// CLI installs
-// ---------------------------------------------------------------------------
-
-export async function installGws(): Promise<void> {
-  await installGwsBootstrap({
-    version: GWS_VERSION,
-    binDir: BIN_DIR,
-  });
-}
-
-export async function installAgentBrowser(): Promise<void> {
-  await installAgentBrowserBootstrap({
-    version: AGENT_BROWSER_VERSION,
-    binDir: BIN_DIR,
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Extension factories
-// ---------------------------------------------------------------------------
-
-async function getExtensionFactories(): Promise<ExtensionFactory[]> {
-  const { registerBrowserExtension } = await import("@/agent/browser-tool");
-  const { registerGwsExtension } = await import("@/agent/gws-tool");
-  return [registerTasksExtension, registerBrowserExtension, registerGwsExtension];
-}
-
-// ---------------------------------------------------------------------------
-// manage_tasks extension
-// ---------------------------------------------------------------------------
-
-function registerTasksExtension(pi: ExtensionAPI): void {
-  const manageTasksSchema = Type.Object({
-    action: Type.Union(
-      [
-        Type.Literal("create"),
-        Type.Literal("list"),
-        Type.Literal("toggle"),
-        Type.Literal("delete"),
-      ],
-      { description: "Action to perform" },
-    ),
-    label: Type.Optional(Type.String({ description: "Task label (required for create)" })),
-    prompt: Type.Optional(
-      Type.String({ description: "Prompt to run when task fires (required for create)" }),
-    ),
-    schedule: Type.Optional(
-      Type.Unsafe<TaskSchedule>({
-        description:
-          "Schedule: {type:'cron',cron:string} | {type:'interval',intervalMs:number} | {type:'once',runAt:number}",
-      }),
-    ),
-    taskId: Type.Optional(Type.String({ description: "Task ID (required for toggle/delete)" })),
-  });
-
-  pi.registerTool({
-    name: "manage_tasks",
-    label: "manage_tasks",
-    description:
-      "Create, list, toggle, or delete scheduled tasks. " +
-      "Tasks run automatically on a cron/interval/once schedule.",
-    parameters: manageTasksSchema,
-    execute: async (_toolCallId, params: Static<typeof manageTasksSchema>) => {
-      const text = (s: string) => ({ content: [{ type: "text" as const, text: s }], details: {} });
-      const p = params;
-
-      switch (p.action) {
-        case "list": {
-          const tasks = taskManager.getTasks();
-          if (tasks.length === 0) return text("No tasks configured.");
-          const lines = tasks.map(
-            (t) =>
-              `- [${t.enabled ? "ON" : "OFF"}] ${t.label} (${t.id})\n  schedule: ${JSON.stringify(t.schedule)}\n  prompt: ${t.prompt.slice(0, 100)}${t.prompt.length > 100 ? "..." : ""}`,
-          );
-          return text(lines.join("\n\n"));
-        }
-        case "create": {
-          if (!p.label) return text("Error: label is required for create");
-          if (!p.prompt) return text("Error: prompt is required for create");
-          if (!p.schedule) return text("Error: schedule is required for create");
-          const schedule = TaskScheduleSchema.parse(p.schedule);
-          const task = taskManager.createTask({ label: p.label, prompt: p.prompt, schedule });
-          return text(`Created task "${task.label}" (${task.id})`);
-        }
-        case "toggle": {
-          if (!p.taskId) return text("Error: taskId is required for toggle");
-          try {
-            const task = taskManager.toggleTask(p.taskId);
-            return text(`Task "${task.label}" is now ${task.enabled ? "enabled" : "disabled"}`);
-          } catch (err) {
-            return text(`Error: ${toErrorMessage(err)}`);
-          }
-        }
-        case "delete": {
-          if (!p.taskId) return text("Error: taskId is required for delete");
-          taskManager.deleteTask(p.taskId);
-          return text(`Deleted task ${p.taskId}`);
-        }
-      }
-    },
-  });
-
-  pi.on("before_agent_start", (_event, _ctx) => {
-    const tasks = taskManager.getTasks().filter((t) => t.enabled);
-    if (tasks.length === 0) return;
-
-    const summary = tasks
-      .map(
-        (t) =>
-          `- ${t.label}: ${t.prompt.slice(0, 80)}${t.prompt.length > 80 ? "..." : ""} (${t.schedule.type})`,
-      )
-      .join("\n");
-
-    pi.sendMessage({
-      customType: "scheduled-tasks",
-      content: `[Active scheduled tasks]\n${summary}`,
-      display: false,
-    });
-  });
+  await runBundleSetups(EXTENSION_BUNDLES, ctx);
 }
 
 // Lazy + reset on teardown so a logout flow doesn't carry the prior
@@ -299,9 +191,10 @@ export class Agent {
         authStorage: getAuthStorage(),
         model: resolveModel(AUTH_PROVIDER, MODEL_ID),
         sessionManager,
-        // Defer extension imports until start so tool registration failures
-        // surface through the normal agent startup path.
-        extensionFactories: () => getExtensionFactories(),
+        extensionFactories: () => {
+          const ctx = buildRegisterContext();
+          return EXTENSION_BUNDLES.map((b) => b.register(ctx));
+        },
       });
     }
     await this.pi.start();

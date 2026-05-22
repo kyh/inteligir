@@ -26,6 +26,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   transition: (event: unknown) => ipcRenderer.invoke(IPC_CHANNELS.APP_TRANSITION, event),
   onAppState: (listener: (state: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.APP_STATE, listener),
+  onSetupProgress: (listener: (progress: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.SETUP_PROGRESS, listener),
 
   // Agent
   onAgentEvent: (listener: (event: unknown) => void) =>

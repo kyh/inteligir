@@ -7,6 +7,7 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 
 export function OnboardingPage() {
   const appState = useAgentStore((s) => s.appState);
+  const setupProgress = useAgentStore((s) => s.setupProgress);
   const triggered = useRef(false);
 
   const setupError =
@@ -24,6 +25,10 @@ export function OnboardingPage() {
     getBridge()?.transition({ type: "RETRY" });
   }, []);
 
+  // Indeterminate when percent is null — render a faint, slow pulse stripe.
+  const percent = setupProgress?.percent ?? null;
+  const isIndeterminate = percent === null;
+
   return (
     <div className="flex flex-1 flex-col items-center justify-end px-6 pb-16">
       <div className="flex w-full max-w-xs flex-col gap-3 text-center">
@@ -39,7 +44,16 @@ export function OnboardingPage() {
             </Button>
           </>
         ) : (
-          <p className="text-xs text-muted-foreground">Setting up...</p>
+          <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className={
+                isIndeterminate
+                  ? "h-full w-1/3 animate-pulse bg-foreground/40"
+                  : "h-full bg-foreground/60 transition-[width] duration-200 ease-out"
+              }
+              style={isIndeterminate ? undefined : { width: `${percent}%` }}
+            />
+          </div>
         )}
       </div>
     </div>

@@ -2,10 +2,9 @@
   "name": "@repo/agent-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Filesystem bootstrap for Inteligir desktop: resource seeding, gws, and agent-browser installation.",
+  "description": "Filesystem + install primitives for the Inteligir desktop agent — bundled-resource seeding, PATH wiring, and generic GitHub-release CLI install. Consumed via direct subpath imports (no barrel).",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
