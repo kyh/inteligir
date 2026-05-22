@@ -54,7 +54,7 @@ logged_out → logging_in → logged_in → setting_up → ready
 
 ## Voice
 
-Streaming voice is local: **Deepgram-class STT via NVIDIA NeMo Parakeet** (running through `sherpa-onnx-node` in the main process) + ElevenLabs Flash TTS. No audio leaves the device. Architecture:
+Streaming voice is local: **STT via NVIDIA NeMo Parakeet** (running through `sherpa-onnx-node` in the main process) + ElevenLabs Flash TTS. No audio leaves the device. Architecture:
 
 ```
 renderer:  mic → AudioWorklet (16kHz Float32 PCM, ~128ms frames)
