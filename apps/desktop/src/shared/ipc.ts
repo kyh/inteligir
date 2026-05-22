@@ -26,6 +26,7 @@ export const IPC_CHANNELS = {
   APP_STATE: "app:state",
   APP_TRANSITION: "app:transition",
   APP_GET_STATE: "app:get-state",
+  SETUP_PROGRESS: "app:setup-progress",
 
   // Agent
   AGENT_EVENT: "agent:event",
@@ -84,6 +85,20 @@ export type UpdateResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Setup progress (onboarding download/install)
+// ---------------------------------------------------------------------------
+
+/**
+ * Progress event emitted while seedResources runs bundle setups. `percent` is
+ * null when a step has no measurable progress (e.g. a binary download with
+ * unknown total). `null` after `step === "done"` signals completion.
+ */
+export type SetupProgress = {
+  step: string;
+  percent: number | null;
+};
+
+// ---------------------------------------------------------------------------
 // Desktop bridge (preload -> renderer)
 // ---------------------------------------------------------------------------
 
@@ -107,6 +122,7 @@ export type DesktopBridge = {
   getAppState: () => Promise<AppState>;
   transition: (event: AppEvent) => Promise<void>;
   onAppState: (listener: (state: AppState) => void) => () => void;
+  onSetupProgress: (listener: (progress: SetupProgress) => void) => () => void;
 
   // Agent
   onAgentEvent: (listener: (event: AppAgentEvent) => void) => () => void;

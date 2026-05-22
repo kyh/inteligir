@@ -3,7 +3,7 @@ import { create } from "zustand";
 
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { AppStateSchema, type AppState } from "@/shared/app-state";
-import type { DesktopBridge } from "@/shared/ipc";
+import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
 import type { ImageAttachment } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
@@ -43,6 +43,8 @@ type GetFn = () => AgentStore;
 type AgentStore = {
   messages: ChatMessage[];
   appState: AppState;
+  /** Latest onboarding setup progress, or null before the first event arrives. */
+  setupProgress: SetupProgress | null;
   /** Queued messages reported by pi (steer + followUp). Cleared on agent_end. */
   queuedFollowUp: string[];
   queuedSteering: string[];
@@ -262,11 +264,19 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
         if (streamingMsgId === null || event.role !== "assistant") break;
         const sid = streamingMsgId;
         const { text } = event;
-        set((s) => ({
-          messages: s.messages.map((m) =>
-            m.id === sid ? mapMessageWithTextPart(m, () => textPart(text)) : m,
-          ),
-        }));
+        // Tool-only assistant turns emit message_start/message_end with empty
+        // text. Drop those empty bubbles so the "Thinking..." shimmer doesn't
+        // linger between/after tool calls — the tool messages themselves
+        // already represent the agent's activity.
+        if (text.length === 0) {
+          set((s) => ({ messages: s.messages.filter((m) => m.id !== sid) }));
+        } else {
+          set((s) => ({
+            messages: s.messages.map((m) =>
+              m.id === sid ? mapMessageWithTextPart(m, () => textPart(text)) : m,
+            ),
+          }));
+        }
         streamingMsgId = null;
         const voice = useVoiceStore.getState();
         if (voice.sessionState === "connected") voice.flushSpeech();
@@ -308,9 +318,15 @@ function subscribeAppState(bridge: DesktopBridge, set: SetFn): () => void {
     set({ appState: parsed.data });
 
     if (parsed.data.phase === "logged_out") {
-      set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
+      set({ messages: [], queuedFollowUp: [], queuedSteering: [], setupProgress: null });
       useVoiceStore.getState().reset();
     }
+  });
+}
+
+function subscribeSetupProgress(bridge: DesktopBridge, set: SetFn): () => void {
+  return bridge.onSetupProgress((progress) => {
+    set({ setupProgress: progress });
   });
 }
 
@@ -341,6 +357,7 @@ async function loadInitialHistory(bridge: DesktopBridge, set: SetFn): Promise<vo
 export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   messages: [],
   appState: { phase: "logged_out" },
+  setupProgress: null,
   queuedFollowUp: [],
   queuedSteering: [],
 
@@ -350,11 +367,13 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
 
     const unsubAgent = subscribeAgentEvents(bridge, set);
     const unsubState = subscribeAppState(bridge, set);
+    const unsubProgress = subscribeSetupProgress(bridge, set);
     void loadInitialHistory(bridge, set);
 
     return () => {
       unsubAgent();
       unsubState();
+      unsubProgress();
     };
   },
 

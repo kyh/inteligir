@@ -10,6 +10,8 @@
 
 import type { ExtensionFactory } from "@repo/pi-driver";
 
+import type { SetupProgress } from "@/shared/ipc";
+
 /**
  * Available at agent-start time, every time register() is called. Long-lived
  * paths the running tool may need (e.g. an installed binary location).
@@ -27,6 +29,12 @@ export type ExtensionRegisterContext = {
 export type ExtensionSetupContext = ExtensionRegisterContext & {
   /** Bundled-resources root — packaged assets the extension may copy from. */
   bundledResourcesDir: string;
+  /**
+   * Report progress to the renderer (onboarding loading bar). Bundles call
+   * this around long-running operations (downloads, runtime installs). `percent`
+   * is null when the step has no measurable progress.
+   */
+  onProgress: (progress: SetupProgress) => void;
 };
 
 export type PiExtensionBundle = {

@@ -178,6 +178,7 @@ const realDeps: EffectDeps = {
   stopAgent,
   teardownResources,
   newSession,
+  reportSetupProgress: (progress) => broadcastToRenderer(IPC_CHANNELS.SETUP_PROGRESS, progress),
 };
 
 export function getAppState(): AppState {
