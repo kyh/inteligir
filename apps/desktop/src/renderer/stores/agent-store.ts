@@ -6,7 +6,7 @@ import { AppStateSchema, type AppState } from "@/shared/app-state";
 import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
 import type { ImageAttachment } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
-import { useVoiceStore } from "@/renderer/stores/voice-store";
+import { onUserTranscript, useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,8 +58,6 @@ type AgentStore = {
   send: (text: string, images?: ImageAttachment[], options?: SendOptions) => void;
   interrupt: () => void;
   newSession: () => Promise<void>;
-  addUserMessage: (text: string) => void;
-  addSteerMessage: (text: string) => void;
 };
 
 let nextMsgId = 0;
@@ -368,12 +366,20 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const unsubAgent = subscribeAgentEvents(bridge, set);
     const unsubState = subscribeAppState(bridge, set);
     const unsubProgress = subscribeSetupProgress(bridge, set);
+    // Voice transcripts that completed while the user was actually listening
+    // get routed through the same path as a typed user message: send to the
+    // agent + append to the local chat list.
+    const unsubVoice = onUserTranscript((text) => {
+      void bridge.sendAgentCommand({ type: "user_message", text });
+      set((s) => ({ messages: [...s.messages, userMessage(text)] }));
+    });
     void loadInitialHistory(bridge, set);
 
     return () => {
       unsubAgent();
       unsubState();
       unsubProgress();
+      unsubVoice();
     };
   },
 
@@ -407,15 +413,5 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   newSession: async () => {
     set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
     await getBridge()?.transition({ type: "NEW_SESSION" });
-  },
-
-  // --- UI-only message additions (used by voice transcripts) ----------------
-
-  addUserMessage: (text: string) => {
-    set((s) => ({ messages: [...s.messages, userMessage(text)] }));
-  },
-
-  addSteerMessage: (text: string) => {
-    set((s) => ({ messages: [...s.messages, userMessage(text, { steer: true })] }));
   },
 }));

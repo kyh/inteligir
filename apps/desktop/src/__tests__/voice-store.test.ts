@@ -33,11 +33,7 @@ vi.mock("@/renderer/voice/voice-pipeline", () => ({
   },
 }));
 
-vi.mock("@/renderer/stores/agent-store", () => ({
-  useAgentStore: { getState: () => ({ addUserMessage: vi.fn() }) },
-}));
-
-const { useVoiceStore } = await import("@/renderer/stores/voice-store");
+const { useVoiceStore, onUserTranscript } = await import("@/renderer/stores/voice-store");
 
 async function flushMicrotasks() {
   await new Promise((r) => setImmediate(r));
@@ -103,22 +99,28 @@ describe("voice-store", () => {
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();
     });
 
-    it("does not forward a tail final to the agent if the session ended", async () => {
+    it("does not fire onUserTranscript for a tail final after teardown", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("ready");
-      useVoiceStore.getState().init();
-      await flushMicrotasks();
-      useVoiceStore.getState().toggleVoice();
-      await flushMicrotasks();
-      // Simulate teardown between disconnect and the tail final's arrival.
-      useVoiceStore.getState().reset();
+      const listener = vi.fn();
+      const unsub = onUserTranscript(listener);
+      try {
+        useVoiceStore.getState().init();
+        await flushMicrotasks();
+        useVoiceStore.getState().toggleVoice();
+        await flushMicrotasks();
+        // Simulate teardown between disconnect and the tail final's arrival.
+        useVoiceStore.getState().reset();
 
-      const inst = helpers.pipelineInstances[0];
-      const callbacks = inst?.config as
-        | { onTranscriptFinal: (text: string) => void }
-        | undefined;
-      callbacks?.onTranscriptFinal("late tail words");
+        const inst = helpers.pipelineInstances[0];
+        const callbacks = inst?.config as
+          | { onTranscriptFinal: (text: string) => void }
+          | undefined;
+        callbacks?.onTranscriptFinal("late tail words");
 
-      expect(helpers.bridgeMock.sendAgentCommand).not.toHaveBeenCalled();
+        expect(listener).not.toHaveBeenCalled();
+      } finally {
+        unsub();
+      }
     });
   });
 

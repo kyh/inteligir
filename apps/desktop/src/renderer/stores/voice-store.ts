@@ -24,6 +24,23 @@ let unsubscribeMachine: (() => void) | null = null;
 // finalize the wrong stream.
 let pendingTeardown: Promise<void> | null = null;
 
+// Listeners for finalized user transcripts. Decoupled from agent-store via
+// callback injection so voice-store doesn't have to import (and statically
+// depend on) the consumer it would otherwise form a cycle with.
+const finalListeners = new Set<(text: string) => void>();
+
+/**
+ * Subscribe to finalized user transcripts. The callback fires only for
+ * transcripts produced while the machine was in `listening` — tail finals
+ * arriving after teardown are dropped. Returns an unsubscribe.
+ */
+export function onUserTranscript(listener: (text: string) => void): () => void {
+  finalListeners.add(listener);
+  return () => {
+    finalListeners.delete(listener);
+  };
+}
+
 function trackTeardown(p: Promise<void>): Promise<void> {
   pendingTeardown = p.finally(() => {
     if (pendingTeardown === p) pendingTeardown = null;
@@ -162,10 +179,7 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
           const wasListening = machine.state.kind === "listening";
           machine.dispatch({ type: "transcript_final", text });
           if (!wasListening) return;
-          void bridge.sendAgentCommand({ type: "user_message", text });
-          void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
-            useAgentStore.getState().addUserMessage(text);
-          });
+          for (const listener of finalListeners) listener(text);
         },
         onError: (message) => {
           machine.dispatch({ type: "pipeline_error", message });
