@@ -19,8 +19,9 @@ let pipeline: VoicePipeline | null = null;
 let unsubscribeModelState: (() => void) | null = null;
 let unsubscribeMachine: (() => void) | null = null;
 // In-flight pipeline teardown promise. runConnect awaits this before sending
-// a fresh startStt, so the previous session's stopStt can't arrive at the
-// main process AFTER the new startSession and finalize the wrong stream.
+// a fresh startStt, so a rapid stop/start can't let the prior session's
+// stopStt arrive at the main process AFTER the new startSession and
+// finalize the wrong stream.
 let pendingTeardown: Promise<void> | null = null;
 
 function trackTeardown(p: Promise<void>): Promise<void> {
@@ -38,9 +39,8 @@ function teardown(): void {
     pipeline = null;
   }
   machine.dispatch({ type: "reset" });
-  // Run the machine subscriber AFTER the reset dispatch above so the zustand
-  // state syncs to idle, then drop it. Direct reset() calls used to leak this
-  // subscriber across reinit cycles.
+  // Drop the subscriber AFTER the reset dispatch above so the zustand state
+  // syncs to idle first.
   unsubscribeMachine?.();
   unsubscribeMachine = null;
 }

@@ -1,12 +1,11 @@
 // ---------------------------------------------------------------------------
 // Voice state machine — single source of truth for renderer-side voice state.
 //
-// Replaces the per-callsite "capture pipeline reference at entry, compare
-// after every await" pattern with a centralized generation counter. Every
-// transition that cancels in-flight work bumps the generation; async actions
-// capture the generation at entry and check it at completion. The machine
-// itself decides whether a transition cancels in-flight work, so callers
-// can't forget to bump.
+// State transitions go through `dispatch`. Every transition that cancels
+// in-flight work bumps the generation counter. Async actions capture the
+// generation at entry and check it at completion; a mismatch means their
+// result is stale and should be dropped. The reducer below decides which
+// transitions bump, so callers can't forget.
 // ---------------------------------------------------------------------------
 
 import type { VoiceModelStateEvent } from "@/shared/ipc";

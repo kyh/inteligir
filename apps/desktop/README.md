@@ -73,7 +73,7 @@ renderer:  voice-machine (state) → voice-store → chat agent / UI
 
 The model is ~140 MB and downloads automatically during onboarding — no manual setup. STT requires no API keys; TTS requires `ELEVENLABS_API_KEY` (+ optional `ELEVENLABS_VOICE_ID`) in `.env`.
 
-Tests in `src/__tests__/voice-machine.test.ts` + `voice-store.test.ts` codify every race condition surfaced during PR review.
+Tests in `src/__tests__/voice-machine.test.ts` + `voice-store.test.ts` cover the state-machine reducer and the async race patterns (teardown mid-flight, pipeline-identity swap, reset during download, etc.).
 
 ## Dev
 
