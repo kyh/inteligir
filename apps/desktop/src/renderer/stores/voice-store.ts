@@ -154,7 +154,14 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
           machine.dispatch({ type: "transcript_partial", text });
         },
         onTranscriptFinal: (text) => {
+          // Tail finals from the recognizer can arrive AFTER teardown — the
+          // worklet flush + stopStt promise chain resolves asynchronously
+          // and may deliver text post-disconnect. Snapshot the state BEFORE
+          // dispatch so a stale final on an already-idle machine can't reach
+          // the agent.
+          const wasListening = machine.state.kind === "listening";
           machine.dispatch({ type: "transcript_final", text });
+          if (!wasListening) return;
           void bridge.sendAgentCommand({ type: "user_message", text });
           void import("@/renderer/stores/agent-store").then(({ useAgentStore }) => {
             useAgentStore.getState().addUserMessage(text);

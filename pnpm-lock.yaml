@@ -158,9 +158,15 @@ importers:
       tailwindcss:
         specifier: 'catalog:'
         version: 4.3.0
+      tar:
+        specifier: ^7.5.15
+        version: 7.5.15
       three:
         specifier: ^0.184.0
         version: 0.184.0
+      unbzip2-stream:
+        specifier: ^1.4.3
+        version: 1.4.3
       zod:
         specifier: ^4.4.2
         version: 4.4.3
@@ -183,6 +189,12 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.14)
+      '@types/tar':
+        specifier: ^7.0.87
+        version: 7.0.87
+      '@types/unbzip2-stream':
+        specifier: ^1.4.3
+        version: 1.4.3
       '@vitejs/plugin-react':
         specifier: 'catalog:'
         version: 6.0.2(babel-plugin-react-compiler@1.0.0)(vite@8.0.13(@types/node@25.8.0)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.44.1)(tsx@4.22.0)(yaml@2.9.0))
@@ -248,7 +260,7 @@ importers:
         version: 6.0.183(zod@4.4.3)
       better-auth:
         specifier: 'catalog:'
-        version: 1.6.11(4f0845f78cf8d80e37dbde0b2c5f47a2)
+        version: 1.6.11(6fa5a2d2e29b00babc7ad754f484203b)
       lucide-react:
         specifier: ^1.16.0
         version: 1.16.0(react@19.2.6)
@@ -324,7 +336,7 @@ importers:
         version: 11.17.0(typescript@6.0.3)
       better-auth:
         specifier: 'catalog:'
-        version: 1.6.11(4f0845f78cf8d80e37dbde0b2c5f47a2)
+        version: 1.6.11(6fa5a2d2e29b00babc7ad754f484203b)
       next:
         specifier: 'catalog:'
         version: 16.2.6(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -3826,11 +3838,21 @@ packages:
   '@types/statuses@2.0.6':
     resolution: {integrity: sha512-xMAgYwceFhRA2zY+XbEA7mxYbA093wdiW8Vu6gZPGWy9cmOyU9XesH1tNcEWsKFd5Vzrqx5T3D38PWx1FIIXkA==}
 
+  '@types/tar@7.0.87':
+    resolution: {integrity: sha512-3IxNBV8LeY5oi2ZFpvAhOtW1+mHswkzM7BuisVrwJgPv67GBO2rkLPQlEKtzfHuLdhDDczhkCZeT+RuizMay4A==}
+    deprecated: This is a stub types definition. tar provides its own type definitions, so you do not need this installed.
+
   '@types/three@0.184.1':
     resolution: {integrity: sha512-6q4VdiqVsrTRqmk62/BnlcAvIrnDM0zf2ZDVKI5kZiniWrSaOHaQzmbp+BNzoggc/8tgW412pL//wZIxu2PPTA==}
 
+  '@types/through@0.0.33':
+    resolution: {integrity: sha512-HsJ+z3QuETzP3cswwtzt2vEIiHBk/dCcHGhbmG5X3ecnwFD/lPrMpliGXxSCg03L9AhrdwA4Oz/qfspkDW+xGQ==}
+
   '@types/trusted-types@2.0.7':
     resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
+
+  '@types/unbzip2-stream@1.4.3':
+    resolution: {integrity: sha512-D8X5uuJRISqc8YtwL8jNW2FpPdUOCYXbfD6zNROCTbVXK9nawucxh10tVXE3MPjnHdRA1LvB0zDxVya/lBsnYw==}
 
   '@types/unist@2.0.11':
     resolution: {integrity: sha512-CmBKiL6NNo/OqgmMn95Fk9Whlp2mtvIv+KNpQKN2F4SjvrEesubTRWGYSg+BnWZOnlCaSTU1sMpsBOzgbYhnsA==}
@@ -8389,6 +8411,9 @@ packages:
     resolution: {integrity: sha512-nt6AMGKW1p/70DF/hGBdJB57B8Tspmbp5gfJ8ilhLnt7kkr2ye7hzD6NVG8GGErk2HWF34igrL2CXmNIkzKqKw==}
     engines: {node: '>=18'}
 
+  through@2.3.8:
+    resolution: {integrity: sha512-w89qg7PI8wAdvX60bMDP+bFoD5Dvhm9oLheFp5O4a2QF0cSBGsBX4qZmadPMvVqlLJBBci+WqGGOAPvcDeNSVg==}
+
   tiny-async-pool@1.3.0:
     resolution: {integrity: sha512-01EAw5EDrcVrdgyCLgoSPvqznC0sVxDSVeiOz09FUpjh71G79VCqneOr+xvt7T1r76CF6ZZfPjHorN2+d+3mqA==}
 
@@ -8550,6 +8575,9 @@ packages:
   uint8array-extras@1.5.0:
     resolution: {integrity: sha512-rvKSBiC5zqCCiDZ9kAOszZcDvdAHwwIKJG33Ykj43OKcWsnmcBRL09YTU4nOeHZ8Y2a7l1MgTd08SBe9A8Qj6A==}
     engines: {node: '>=18'}
+
+  unbzip2-stream@1.4.3:
+    resolution: {integrity: sha512-mlExGW4w71ebDJviH16lQLtZS32VKqsSfk80GCfUlwT/4/hNRFsoscrF/c++9xinkMzECL1uL9DDwXqFWkruPg==}
 
   uncrypto@0.1.3:
     resolution: {integrity: sha512-Ql87qFHB3s/De2ClA9e0gsnS6zXG27SkTiSJwjCc9MebbfapQfuPzumMIUMi38ezPZVNFcHI9sUIepeQfw8J8Q==}
@@ -10034,7 +10062,7 @@ snapshots:
     dependencies:
       '@better-auth/core': 1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0)
       '@better-fetch/fetch': 1.1.21
-      better-auth: 1.6.11(4f0845f78cf8d80e37dbde0b2c5f47a2)
+      better-auth: 1.6.11(6fa5a2d2e29b00babc7ad754f484203b)
       better-call: 1.3.5(zod@4.4.3)
       zod: 4.4.3
     optionalDependencies:
@@ -12662,6 +12690,10 @@ snapshots:
 
   '@types/statuses@2.0.6': {}
 
+  '@types/tar@7.0.87':
+    dependencies:
+      tar: 7.5.15
+
   '@types/three@0.184.1':
     dependencies:
       '@dimforge/rapier3d-compat': 0.12.0
@@ -12671,8 +12703,16 @@ snapshots:
       fflate: 0.8.3
       meshoptimizer: 1.1.1
 
+  '@types/through@0.0.33':
+    dependencies:
+      '@types/node': 25.8.0
+
   '@types/trusted-types@2.0.7':
     optional: true
+
+  '@types/unbzip2-stream@1.4.3':
+    dependencies:
+      '@types/through': 0.0.33
 
   '@types/unist@2.0.11': {}
 
@@ -13134,7 +13174,7 @@ snapshots:
 
   basic-ftp@5.3.1: {}
 
-  better-auth@1.6.11(4f0845f78cf8d80e37dbde0b2c5f47a2):
+  better-auth@1.6.11(6fa5a2d2e29b00babc7ad754f484203b):
     dependencies:
       '@better-auth/core': 1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0)
       '@better-auth/drizzle-adapter': 1.6.11(@better-auth/core@1.6.11(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(@opentelemetry/api@1.9.1)(better-call@1.3.5(zod@4.4.3))(jose@6.2.3)(kysely@0.28.17)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.45.2(@electric-sql/pglite@0.3.2)(@opentelemetry/api@1.9.1)(@prisma/client@7.1.0(prisma@7.1.0(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3))(typescript@6.0.3))(@types/pg@8.15.6)(@upstash/redis@1.35.7)(kysely@0.28.17)(mysql2@3.15.3)(pg@8.16.3)(postgres@3.4.9)(prisma@7.1.0(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)))
@@ -13278,7 +13318,6 @@ snapshots:
     dependencies:
       base64-js: 1.5.1
       ieee754: 1.2.1
-    optional: true
 
   buffer@6.0.3:
     dependencies:
@@ -18387,6 +18426,8 @@ snapshots:
 
   throttleit@2.1.0: {}
 
+  through@2.3.8: {}
+
   tiny-async-pool@1.3.0:
     dependencies:
       semver: 5.7.2
@@ -18541,6 +18582,11 @@ snapshots:
   typescript@6.0.3: {}
 
   uint8array-extras@1.5.0: {}
+
+  unbzip2-stream@1.4.3:
+    dependencies:
+      buffer: 5.7.1
+      through: 2.3.8
 
   uncrypto@0.1.3:
     optional: true

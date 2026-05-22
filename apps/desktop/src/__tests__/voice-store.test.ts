@@ -102,6 +102,24 @@ describe("voice-store", () => {
       if (state.kind === "error") expect(state.message).toBe("boom");
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();
     });
+
+    it("does not forward a tail final to the agent if the session ended", async () => {
+      helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("ready");
+      useVoiceStore.getState().init();
+      await flushMicrotasks();
+      useVoiceStore.getState().toggleVoice();
+      await flushMicrotasks();
+      // Simulate teardown between disconnect and the tail final's arrival.
+      useVoiceStore.getState().reset();
+
+      const inst = helpers.pipelineInstances[0];
+      const callbacks = inst?.config as
+        | { onTranscriptFinal: (text: string) => void }
+        | undefined;
+      callbacks?.onTranscriptFinal("late tail words");
+
+      expect(helpers.bridgeMock.sendAgentCommand).not.toHaveBeenCalled();
+    });
   });
 
   describe("toggleVoice — race conditions", () => {

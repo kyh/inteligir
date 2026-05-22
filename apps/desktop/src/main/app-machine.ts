@@ -18,8 +18,6 @@ import { getNotifications } from "@/main/notifications";
 import { clearResolvedSessionFile } from "@/main/session-history";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { downloadModel } from "@/main/voice/model-download";
-
-declare const __PROJECT_ROOT__: string;
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { IPC_CHANNELS } from "@/shared/ipc";

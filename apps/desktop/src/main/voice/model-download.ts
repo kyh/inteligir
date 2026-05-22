@@ -4,15 +4,20 @@
 // if the model is already installed. Concurrent calls share one download.
 // ---------------------------------------------------------------------------
 
-import { createWriteStream, existsSync, mkdirSync, statSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, statSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import { spawn } from "node:child_process";
+import { pipeline as pipelineCb } from "node:stream";
+import { promisify } from "node:util";
 
 import { app } from "electron";
+import { x as tarExtract } from "tar";
+import unbzip2 from "unbzip2-stream";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
+
+const streamPipeline = promisify(pipelineCb);
 
 export const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-24500";
 const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_NAME}.tar.bz2`;
@@ -161,13 +166,10 @@ async function fetchToFile(
   }
 }
 
+/**
+ * Pure-Node tar.bz2 extraction. Avoids shelling out to the system tar — the
+ * `-j` bzip2 flag isn't supported by Windows' built-in tar.exe.
+ */
 function extract(archive: string, outDir: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn("tar", ["-xjf", archive, "-C", outDir], { stdio: "inherit" });
-    proc.on("error", reject);
-    proc.on("exit", (code) => {
-      if (code === 0) resolve();
-      else reject(new Error(`tar exited with code ${String(code)}`));
-    });
-  });
+  return streamPipeline(createReadStream(archive), unbzip2(), tarExtract({ cwd: outDir }));
 }
