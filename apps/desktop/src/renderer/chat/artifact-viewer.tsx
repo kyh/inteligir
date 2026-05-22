@@ -247,21 +247,28 @@ function hasRelatedPath(target: string, paths: Set<string>): boolean {
   return false;
 }
 
-// Leaves are primitives, arrays (kept whole), or `{}` (toPointerMap emits an
-// empty-object leaf so `{a:{}}` stays distinguishable from `{}`). Non-empty
-// objects are walked into nested paths and never reach this comparison.
+// toPointerMap walks plain-object leaves into nested paths, but arrays are
+// kept whole — so a leaf may be an array containing objects, which need
+// structural compare. Falls back to recursive own-key compare for object
+// leaves to avoid false-unequal in that case (and for the empty-object leaf
+// toPointerMap emits to distinguish `{a:{}}` from `{}`).
 function leafEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
-  if (Array.isArray(a) && Array.isArray(b)) {
+  if (a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    if (!Array.isArray(a) || !Array.isArray(b)) return false;
     if (a.length !== b.length) return false;
     return a.every((v, i) => leafEqual(v, b[i]));
   }
-  if (isEmptyObject(a) && isEmptyObject(b)) return true;
+  if (typeof a === "object" && typeof b === "object") {
+    const ak = Object.keys(a as object);
+    if (ak.length !== Object.keys(b as object).length) return false;
+    for (const k of ak) {
+      if (!leafEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])) {
+        return false;
+      }
+    }
+    return true;
+  }
   return false;
-}
-
-function isEmptyObject(v: unknown): boolean {
-  return (
-    v !== null && typeof v === "object" && !Array.isArray(v) && Object.keys(v).length === 0
-  );
 }

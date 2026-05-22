@@ -265,7 +265,7 @@ function registerIpcHandlers(): void {
     return getArtifacts().list();
   });
 
-  createIpcHandler(IPC_CHANNELS.ARTIFACTS_GET, z.string(), (id) => {
+  createIpcHandler(IPC_CHANNELS.ARTIFACTS_GET, z.string().min(1), (id) => {
     return getArtifacts().get(id);
   });
 
@@ -275,13 +275,13 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.ARTIFACTS_PATCH_STATE,
-    z.object({ id: z.string(), patch: z.record(z.string(), z.unknown()) }),
+    z.object({ id: z.string().min(1), patch: z.record(z.string(), z.unknown()) }),
     ({ id, patch }) => {
       return getArtifacts().patchState(id, patch);
     },
   );
 
-  createIpcHandler(IPC_CHANNELS.ARTIFACTS_DELETE, z.string(), (id) => {
+  createIpcHandler(IPC_CHANNELS.ARTIFACTS_DELETE, z.string().min(1), (id) => {
     return { deleted: getArtifacts().delete(id) };
   });
 }
