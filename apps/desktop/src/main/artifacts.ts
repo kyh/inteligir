@@ -148,6 +148,13 @@ export class ArtifactsManager {
    * A full-replacement patchState would race agent updates: if the agent
    * writes new state keys while a renderer debounce is in flight, the
    * later-arriving full snapshot would clobber the agent's keys.
+   *
+   * NOT bumping updatedAt is deliberate. `state` is transient session data
+   * (user-driven bound inputs) — bumping updatedAt on every keystroke
+   * defeats the artifacts-store dedup at the library level and ticks the
+   * "Updated Nm ago" label on every paste. The renderer-side viewer
+   * subscribes to ARTIFACTS_UPDATED separately, so it still gets the
+   * broadcast and updates its baseline; only the library short-circuits.
    */
   patchState(id: string, patch: Record<string, unknown>): Artifact | null {
     let result: Artifact | null = null;
@@ -161,7 +168,6 @@ export class ArtifactsManager {
       const updated: Artifact = {
         ...current.artifacts[idx]!,
         state: draft,
-        updatedAt: Date.now(),
       };
       result = updated;
       const artifacts = [...current.artifacts];
