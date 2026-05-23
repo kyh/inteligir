@@ -24,7 +24,6 @@
   "dependencies": {
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",
-    "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@repo/agent-runtime": "workspace:^",
     "@repo/pi-driver": "workspace:^",
@@ -39,7 +38,6 @@
     "react-dom": "catalog:",
     "react-router": "^7.15.1",
     "sherpa-onnx-node": "^1.10.41",
-    "streamdown": "^2.5.0",
     "tailwindcss": "catalog:",
     "tar": "^7.5.15",
     "three": "^0.184.0",

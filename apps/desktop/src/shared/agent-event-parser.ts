@@ -8,7 +8,7 @@ import type { AppAgentEvent } from "./agent-events";
 import { extractText, isRecord } from "./ipc";
 
 // ---------------------------------------------------------------------------
-// Per-event-type Zod schemas (only the 7 types the app cares about)
+// Per-event-type Zod schemas (only the 8 types the app cares about)
 // ---------------------------------------------------------------------------
 
 const AgentStartSchema = z.object({ type: z.literal("agent_start") });
