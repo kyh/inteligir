@@ -43,6 +43,15 @@ contextBridge.exposeInMainWorld("desktopBridge", {
 
   // Voice
   getVoiceConfig: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_CONFIG),
+  startStt: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STT_START),
+  sendSttAudio: (samples: ArrayBuffer) => ipcRenderer.send(IPC_CHANNELS.VOICE_STT_AUDIO, samples),
+  stopStt: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_STT_STOP),
+  onSttTranscript: (listener: (event: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, listener),
+  getVoiceModelStatus: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_MODEL_STATUS),
+  downloadVoiceModel: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD),
+  onVoiceModelState: (listener: (event: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.VOICE_MODEL_STATE, listener),
 
   // Notifications
   getNotificationSettings: () => ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATIONS_GET),

@@ -10,6 +10,11 @@ files:
   - "!node_modules"
 asarUnpack:
   - resources/**
+  # sherpa-onnx-node ships native .node binaries (split into per-platform
+  # optional deps like sherpa-onnx-node-darwin-arm64). .node files cannot be
+  # require()'d from inside an asar archive, so unpack the whole tree.
+  - node_modules/sherpa-onnx-node/**/*
+  - node_modules/sherpa-onnx-node-*/**/*
 mac:
   artifactName: Inteligir-${version}-${arch}-mac.${ext}
   category: public.app-category.productivity

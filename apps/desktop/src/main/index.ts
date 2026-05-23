@@ -10,12 +10,20 @@ import electronUpdater from "electron-updater";
 
 declare const __PROJECT_ROOT__: string;
 
-// Load .env at runtime for voice API keys (DEEPGRAM_API_KEY, ELEVENLABS_API_KEY)
+// Load .env at runtime for voice API keys (ELEVENLABS_API_KEY)
 try {
   process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
 } catch {
   // .env file is optional
 }
+
+import {
+  initParakeet,
+  pushAudio,
+  startSession,
+  stopSession,
+} from "@/main/voice/parakeet";
+import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
@@ -214,16 +222,48 @@ function registerIpcHandlers(): void {
 
   // ---- Voice ----------------------------------------------------------------
 
-  ipcMain.handle(IPC_CHANNELS.VOICE_CONFIG, () => {
-    const deepgramApiKey = process.env["DEEPGRAM_API_KEY"];
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_CONFIG, () => {
     const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
-    if (!deepgramApiKey || !elevenlabsApiKey) return null;
+    if (!elevenlabsApiKey) return null;
     return {
-      deepgramApiKey,
       elevenlabsApiKey,
       elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
     };
   });
+
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_START, async () => {
+    const result = await initParakeet();
+    if (!result.ok) return { ok: false, reason: result.reason };
+    startSession();
+    return { ok: true };
+  });
+
+  ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | Uint8Array) => {
+    // Fire-and-forget hot path — uncaught throws on the event loop would crash
+    // the app, so swallow + log and keep the session alive.
+    try {
+      // Honor byteOffset/byteLength: a Buffer view may sit inside a larger
+      // pooled ArrayBuffer.
+      const samples =
+        payload instanceof ArrayBuffer
+          ? new Float32Array(payload)
+          : new Float32Array(payload.buffer, payload.byteOffset, payload.byteLength / 4);
+      const events = pushAudio(samples);
+      for (const ev of events) {
+        broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
+      }
+    } catch (err) {
+      console.error("[voice] audio chunk handler failed:", err);
+    }
+  });
+
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_STOP, () => stopSession());
+
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_STATUS, () =>
+    isModelInstalled() ? "ready" : "missing",
+  );
+
+  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () => downloadModel());
 
   // ---- Notifications --------------------------------------------------------
 

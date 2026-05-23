@@ -50,7 +50,30 @@ logged_out → logging_in → logged_in → setting_up → ready
                 error                    error      logging_out
 ```
 
-`setting_up` runs `seedResources()` (skills, bin dir, PATH, all extension bundle setups) then `startAgent()`. See [`src/main/README.md`](./src/main/README.md).
+`setting_up` runs `seedResources()` (skills, bin dir, PATH, all extension bundle setups), then `downloadVoiceModel()` (best-effort — see [Voice](#voice)), then `startAgent()`. See [`src/main/README.md`](./src/main/README.md).
+
+## Voice
+
+Streaming voice is local: **STT via NVIDIA NeMo Parakeet** (running through `sherpa-onnx-node` in the main process) + ElevenLabs Flash TTS. No audio leaves the device. Architecture:
+
+```
+renderer:  mic → AudioWorklet (16kHz Float32 PCM, ~128ms frames)
+              ↓ IPC
+main:      Parakeet OnlineRecognizer (streaming partials + endpoint detection)
+              ↓ IPC
+renderer:  voice-machine (state) → voice-store → chat agent / UI
+              ↓
+           ElevenLabs TTS ← agent text deltas
+```
+
+- `src/renderer/voice/` — `stt.ts` (mic + worklet), `stt-worklet.js` (audio thread), `tts.ts` (ElevenLabs WS), `voice-pipeline.ts` (pure I/O wrapper), `voice-machine.ts` (state machine — single source of truth)
+- `src/renderer/stores/voice-store.ts` — zustand projection of `VoiceMachine`. All async ops generation-guarded against teardown/swap races.
+- `src/main/voice/parakeet.ts` — singleton recognizer + audio chunk handler
+- `src/main/voice/model-download.ts` — fetches the model to `app.getPath("userData")/stt/` on first run via the `setting_up` step. Download failure is non-fatal; the user can retry from the mic toggle later.
+
+The model is ~140 MB and downloads automatically during onboarding — no manual setup. STT requires no API keys; TTS requires `ELEVENLABS_API_KEY` (+ optional `ELEVENLABS_VOICE_ID`) in `.env`.
+
+Tests in `src/__tests__/voice-machine.test.ts` + `voice-store.test.ts` cover the state-machine reducer and the async race patterns (teardown mid-flight, pipeline-identity swap, reset during download, etc.).
 
 ## Dev
 
