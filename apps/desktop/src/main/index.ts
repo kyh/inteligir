@@ -123,17 +123,6 @@ function configureApplicationMenu(): void {
 function registerIpcHandlers(): void {
   // ---- Desktop --------------------------------------------------------------
 
-  ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, rawUrl: unknown) => {
-    if (typeof rawUrl !== "string" || rawUrl.length === 0) return false;
-    if (!isHttpUrl(rawUrl)) return false;
-    try {
-      await shell.openExternal(rawUrl);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-
   createVoidIpcHandler(IPC_CHANNELS.UPDATE_CHECK, async () => {
     await checkForUpdates();
     return updateState;

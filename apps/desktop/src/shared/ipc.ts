@@ -15,7 +15,6 @@ import type { TextChatMessage } from "./voice";
 
 export const IPC_CHANNELS = {
   // Desktop
-  OPEN_EXTERNAL: "desktop:open-external",
   UPDATE_STATE: "desktop:update-state",
   UPDATE_CHECK: "desktop:update-check",
   UPDATE_DOWNLOAD: "desktop:update-download",
@@ -121,7 +120,6 @@ export type ChatHistoryEntry = {
 
 export type DesktopBridge = {
   // Desktop
-  openExternal: (url: string) => Promise<boolean>;
   checkForUpdates: () => Promise<UpdateState>;
   downloadUpdate: () => Promise<UpdateResponse>;
   installUpdate: () => Promise<UpdateResponse>;

@@ -18,6 +18,7 @@ import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 import { runCli } from "@repo/agent-runtime/run-cli";
 
 import type { PiExtensionBundle } from "@/agent/extension";
+import { formatCliOutput, textResult } from "@/agent/extension-helpers";
 
 const PEEKABOO_VERSION = "3.0.0";
 const PEEKABOO_TIMEOUT_MS = 60_000;
@@ -67,25 +68,18 @@ const peekabooExtension: PiExtensionBundle = {
           "Accessibility permissions on first use.",
         parameters: PeekabooRunSchema,
         execute: async (_toolCallId, params: Static<typeof PeekabooRunSchema>) => {
-          const text = (s: string) => ({
-            content: [{ type: "text" as const, text: s }],
-            details: {},
-          });
-
           try {
-            const { stdout, stderr, code } = await runCli(peekabooPath, params.args, {
+            const result = await runCli(peekabooPath, params.args, {
               timeoutMs: PEEKABOO_TIMEOUT_MS,
               maxBuffer: PEEKABOO_MAX_BUFFER,
               stdin: params.stdin,
               notFoundMessage: "peekaboo binary not installed",
             });
-            const parts: string[] = [];
-            if (stdout) parts.push(stdout);
-            if (stderr) parts.push(`[stderr]\n${stderr}`);
-            if (code !== 0) parts.push(`[exit ${code}]`);
-            return text(parts.join("\n\n") || "(no output)");
+            return textResult(formatCliOutput(result));
           } catch (err) {
-            return text(`peekaboo error: ${err instanceof Error ? err.message : String(err)}`);
+            return textResult(
+              `peekaboo error: ${err instanceof Error ? err.message : String(err)}`,
+            );
           }
         },
       });

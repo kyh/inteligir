@@ -14,7 +14,6 @@ function forwardEvent(channel: string, listener: (data: unknown) => void): () =>
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   // Desktop
-  openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_CHECK),
   downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DOWNLOAD),
   installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_INSTALL),
