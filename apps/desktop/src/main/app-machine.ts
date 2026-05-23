@@ -17,6 +17,7 @@ import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
 import { clearResolvedSessionFile } from "@/main/session-history";
 import { taskManager } from "@/main/tasks/task-singleton";
+import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { IPC_CHANNELS } from "@/shared/ipc";
@@ -171,9 +172,17 @@ function broadcast(state: AppState): void {
   broadcastToRenderer(IPC_CHANNELS.APP_STATE, state);
 }
 
+async function downloadVoiceModel(): Promise<void> {
+  const result = await downloadModel();
+  if (!result.ok) {
+    throw new Error(result.error);
+  }
+}
+
 const realDeps: EffectDeps = {
   login,
   seedResources,
+  downloadVoiceModel,
   startAgent,
   stopAgent,
   teardownResources,

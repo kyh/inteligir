@@ -5,8 +5,8 @@ import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
-function phaseToOrbStatus(phase: string, voiceState: string): DisplayStatus {
-  if (voiceState === "connected") return "listening";
+function phaseToOrbStatus(phase: string, listening: boolean): DisplayStatus {
+  if (listening) return "listening";
   switch (phase) {
     case "ready":
       return "idle";
@@ -38,9 +38,9 @@ export function AppLayout() {
   useEffect(() => init(), [init]);
 
   // Voice store is initialized by ChatPage's useEffect(init). Before that,
-  // sessionState defaults to "inactive" which maps to the agent-only status — safe.
-  const voiceState = useVoiceStore((s) => s.sessionState);
-  const orbStatus = phaseToOrbStatus(appState.phase, voiceState);
+  // state.kind defaults to "idle" — orb falls back to the agent-only status.
+  const listening = useVoiceStore((s) => s.state.kind === "listening");
+  const orbStatus = phaseToOrbStatus(appState.phase, listening);
 
   // Redirect during render (not in useEffect) so we never flash the wrong
   // route while the navigation effect runs after first paint.

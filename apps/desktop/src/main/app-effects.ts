@@ -11,6 +11,7 @@ import type { EffectTag } from "./app-reducer";
 export type EffectDeps = {
   login: () => Promise<void>;
   seedResources: (onProgress: (p: SetupProgress) => void) => Promise<void>;
+  downloadVoiceModel: () => Promise<void>;
   startAgent: () => Promise<void>;
   stopAgent: () => Promise<void>;
   teardownResources: () => void;
@@ -32,6 +33,12 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     case "SETUP": {
       try {
         await deps.seedResources(deps.reportSetupProgress);
+        // Voice model is best-effort — a failed download must not block ready.
+        // The user can retry from the mic toggle in the chat voice pane.
+        deps.reportSetupProgress({ step: "Downloading speech model", percent: null });
+        await deps.downloadVoiceModel().catch((err: unknown) => {
+          console.warn("[setup] voice model download failed (non-fatal):", err);
+        });
         deps.reportSetupProgress({ step: "Starting agent", percent: null });
         await deps.startAgent();
         deps.reportSetupProgress({ step: "done", percent: 100 });

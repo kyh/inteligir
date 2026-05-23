@@ -16,7 +16,6 @@ import {
   ConversationScrollButton,
 } from "@repo/ui/components/ai-elements/conversation";
 
-import type { VoiceSessionState } from "@/shared/voice";
 import { ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
 import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
@@ -25,6 +24,7 @@ import { TaskPanel } from "@/renderer/chat/task-panel";
 import { DraggablePanel } from "@/renderer/components/draggable-panel";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
+import type { VoiceState } from "@/renderer/voice/voice-machine";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,12 +36,24 @@ type ActionTab = "message" | "voice" | "other";
 // Voice labels
 // ---------------------------------------------------------------------------
 
-const voiceLabels: Record<VoiceSessionState, string> = {
-  inactive: "Voice",
-  connecting: "Connecting...",
-  connected: "Listening",
-  error: "Error",
-};
+function voicePaneLabel(state: VoiceState): string {
+  switch (state.kind) {
+    case "idle":
+      return "Voice";
+    case "downloading_model":
+      if (state.progress?.status === "downloading") {
+        return `Downloading speech model… ${String(state.progress.percent)}%`;
+      }
+      if (state.progress?.status === "extracting") return "Extracting speech model…";
+      return "Downloading speech model...";
+    case "connecting":
+      return "Connecting...";
+    case "listening":
+      return "Listening";
+    case "error":
+      return "Error";
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Tab icon button
@@ -131,11 +143,12 @@ export function ChatPage() {
   const initVoice = useVoiceStore((s) => s.init);
   useEffect(() => initVoice(), [initVoice]);
 
-  const sessionState = useVoiceStore((s) => s.sessionState);
+  const voiceState = useVoiceStore((s) => s.state);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
-  const voiceActive = sessionState === "connected" || sessionState === "connecting";
-
-  const currentTranscript = useVoiceStore((s) => s.currentTranscript);
+  const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
+  const voiceBusy =
+    voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
+  const currentTranscript = voiceState.kind === "listening" ? voiceState.currentTranscript : "";
 
   return (
     <>
@@ -182,17 +195,21 @@ export function ChatPage() {
                       voiceActive ? "bg-green-400 animate-pulse" : "bg-muted-foreground/40",
                     )}
                   />
-                  <span className="text-xs text-muted-foreground">{voiceLabels[sessionState]}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {voicePaneLabel(voiceState)}
+                  </span>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
                     type="button"
                     onClick={toggleVoice}
+                    disabled={voiceBusy}
                     className={cn(
                       "rounded-full p-2 transition-colors",
                       voiceActive
                         ? "bg-red-500/80 text-foreground hover:bg-red-500"
                         : "bg-foreground/15 text-foreground hover:bg-foreground/25",
+                      voiceBusy && "opacity-50",
                     )}
                     title={voiceActive ? "End call" : "Start call"}
                   >

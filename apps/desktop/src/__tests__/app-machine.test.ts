@@ -20,6 +20,7 @@ function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn().mockResolvedValue(undefined),
     seedResources: vi.fn().mockResolvedValue(undefined),
+    downloadVoiceModel: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(undefined),
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),

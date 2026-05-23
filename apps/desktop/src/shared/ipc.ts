@@ -40,6 +40,13 @@ export const IPC_CHANNELS = {
 
   // Voice
   VOICE_CONFIG: "voice:config",
+  VOICE_STT_START: "voice:stt:start",
+  VOICE_STT_AUDIO: "voice:stt:audio",
+  VOICE_STT_STOP: "voice:stt:stop",
+  VOICE_STT_TRANSCRIPT: "voice:stt:transcript",
+  VOICE_MODEL_STATUS: "voice:model:status",
+  VOICE_MODEL_DOWNLOAD: "voice:model:download",
+  VOICE_MODEL_STATE: "voice:model:state",
 
   // Notifications
   NOTIFICATIONS_GET: "notifications:get",
@@ -74,6 +81,17 @@ export type UpdateResponse = {
   accepted: boolean;
   state: UpdateState;
 };
+
+// ---------------------------------------------------------------------------
+// Voice model (Parakeet STT) download lifecycle
+// ---------------------------------------------------------------------------
+
+export type VoiceModelStateEvent =
+  | { status: "idle" }
+  | { status: "downloading"; percent: number; receivedBytes: number; totalBytes: number }
+  | { status: "extracting" }
+  | { status: "ready" }
+  | { status: "error"; message: string };
 
 // ---------------------------------------------------------------------------
 // Setup progress (onboarding download/install)
@@ -128,10 +146,18 @@ export type DesktopBridge = {
 
   // Voice
   getVoiceConfig: () => Promise<{
-    deepgramApiKey: string;
     elevenlabsApiKey: string;
     elevenlabsVoiceId?: string;
   } | null>;
+  startStt: () => Promise<{ ok: boolean; reason?: string }>;
+  sendSttAudio: (samples: ArrayBuffer) => void;
+  stopStt: () => Promise<Array<{ text: string; isFinal: boolean }>>;
+  onSttTranscript: (
+    listener: (event: { text: string; isFinal: boolean }) => void,
+  ) => () => void;
+  getVoiceModelStatus: () => Promise<"ready" | "missing">;
+  downloadVoiceModel: () => Promise<{ ok: boolean; error?: string }>;
+  onVoiceModelState: (listener: (event: VoiceModelStateEvent) => void) => () => void;
 
   // Notifications
   getNotificationSettings: () => Promise<NotificationSettings>;
