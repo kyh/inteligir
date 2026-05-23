@@ -16,7 +16,7 @@ import {
   ConversationScrollButton,
 } from "@repo/ui/components/ai-elements/conversation";
 
-import { ChatMessageView } from "@/renderer/chat/chat-message";
+import { ChatActivityRow, ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
 import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
 import { SettingsPanel } from "@/renderer/chat/settings-panel";
@@ -139,6 +139,8 @@ export function ChatPage() {
   const [showExtensions, setShowExtensions] = useState(false);
 
   const messages = useAgentStore((s) => s.messages);
+  const appState = useAgentStore((s) => s.appState);
+  const busy = appState.phase === "ready" && appState.agent === "busy";
 
   const initVoice = useVoiceStore((s) => s.init);
   useEffect(() => initVoice(), [initVoice]);
@@ -155,14 +157,17 @@ export function ChatPage() {
       <div className="flex h-full w-72 flex-col">
         <Conversation className="flex-1 px-3 pt-10">
           <ConversationContent className="gap-1 p-0 pb-2">
-            {messages.length === 0 ? (
+            {messages.length === 0 && !busy ? (
               <ConversationEmptyState
                 title="No messages yet"
                 description="Start a conversation or speak to begin."
                 icon={<MessageSquareIcon className="size-6" />}
               />
             ) : (
-              messages.map((msg) => <ChatMessageView key={msg.id} message={msg} />)
+              <>
+                {messages.map((msg) => <ChatMessageView key={msg.id} message={msg} />)}
+                <ChatActivityRow messages={messages} busy={busy} />
+              </>
             )}
           </ConversationContent>
           <ConversationScrollButton />

@@ -40,6 +40,7 @@ const ToolExecutionStartSchema = z.object({
   type: z.literal("tool_execution_start"),
   toolCallId: z.string(),
   toolName: z.string(),
+  args: z.unknown().optional(),
 });
 
 const ToolExecutionEndSchema = z.object({
@@ -113,6 +114,7 @@ export function parseAgentEvent(raw: unknown): AppAgentEvent | null {
         type: "tool_execution_start",
         toolCallId: r.data.toolCallId,
         toolName: r.data.toolName,
+        args: r.data.args,
       };
     }
 

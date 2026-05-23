@@ -83,19 +83,24 @@ function textPart(text: string, state?: TextUIPart["state"]): TextUIPart {
   return state ? { type: "text", text, state } : { type: "text", text };
 }
 
-function toolPartRunning(toolCallId: string, toolName: string): DynamicToolUIPart {
+function toolPartRunning(
+  toolCallId: string,
+  toolName: string,
+  args: unknown,
+): DynamicToolUIPart {
   return {
     type: "dynamic-tool",
     toolCallId,
     toolName,
     state: "input-available",
-    input: undefined as unknown,
+    input: args,
   };
 }
 
 function toolPartDone(
   toolCallId: string,
   toolName: string,
+  args: unknown,
   resultText: string,
 ): DynamicToolUIPart {
   return {
@@ -103,7 +108,7 @@ function toolPartDone(
     toolCallId,
     toolName,
     state: "output-available",
-    input: undefined as unknown,
+    input: args,
     output: resultText,
   };
 }
@@ -111,6 +116,7 @@ function toolPartDone(
 function toolPartError(
   toolCallId: string,
   toolName: string,
+  args: unknown,
   errorText: string,
 ): DynamicToolUIPart {
   return {
@@ -118,7 +124,7 @@ function toolPartError(
     toolCallId,
     toolName,
     state: "output-error",
-    input: undefined as unknown,
+    input: args,
     errorText,
   };
 }
@@ -164,15 +170,12 @@ function historyToChatMessages(
       case "assistant":
         messages.push(assistantTextMessage(entry.text));
         break;
-      case "tool": {
-        const toolName = entry.toolName ?? "";
-        const toolCallId = entry.toolCallId ?? "";
-        const part = entry.isError
-          ? toolPartError(toolCallId, toolName, entry.text)
-          : toolPartDone(toolCallId, toolName, entry.text);
-        messages.push(assistantToolMessage(part));
+      case "tool":
+        // Tool activity is ephemeral chat-surface decoration during the live
+        // turn. Once the turn ends the live store sweeps these messages
+        // (agent_end); on rehydrate we skip them entirely so reloaded
+        // history matches the post-sweep state.
         break;
-      }
     }
   }
   return messages;
@@ -210,11 +213,22 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
 
   return bridge.onAgentEvent((event: AppAgentEvent) => {
     switch (event.type) {
-      case "agent_end":
+      case "agent_end": {
         streamingMsgId = null;
+        // Sweep the tool messages we created during this turn — only the
+        // final assistant answer (and the user's prompt) should remain on
+        // the chat surface. The activity rows are an ephemeral progress
+        // indicator, not part of the persisted conversation.
+        const sweepIds = new Set(toolMsgIds.values());
         toolMsgIds.clear();
-        set({ queuedFollowUp: [], queuedSteering: [] });
+        set((s) => ({
+          messages:
+            sweepIds.size > 0 ? s.messages.filter((m) => !sweepIds.has(m.id)) : s.messages,
+          queuedFollowUp: [],
+          queuedSteering: [],
+        }));
         break;
+      }
 
       case "queue_update":
         // Skip the set() if the queue is identical to what we already hold.
@@ -282,7 +296,9 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
       }
 
       case "tool_execution_start": {
-        const msg = assistantToolMessage(toolPartRunning(event.toolCallId, event.toolName));
+        const msg = assistantToolMessage(
+          toolPartRunning(event.toolCallId, event.toolName, event.args),
+        );
         toolMsgIds.set(event.toolCallId, msg.id);
         set((s) => ({ messages: [...s.messages, msg] }));
         break;
@@ -297,9 +313,11 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
             if (m.id !== msgId) return m;
             const first = m.parts[0];
             if (!first || first.type !== "dynamic-tool") return m;
+            // Preserve args (input) captured at start — tool_execution_end
+            // doesn't re-send them.
             const next = event.isError
-              ? toolPartError(first.toolCallId, first.toolName, event.resultText)
-              : toolPartDone(first.toolCallId, first.toolName, event.resultText);
+              ? toolPartError(first.toolCallId, first.toolName, first.input, event.resultText)
+              : toolPartDone(first.toolCallId, first.toolName, first.input, event.resultText);
             return replaceToolPart(m, next);
           }),
         }));
