@@ -26,7 +26,15 @@ import {
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
-import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import {
+  getAgent,
+  getAppState,
+  initMachine,
+  restartAgent,
+  shutdown,
+  transition,
+} from "@/main/app-machine";
+import { getMcpServers } from "@/main/mcp/mcp-servers";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -37,6 +45,11 @@ import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { ExtensionsList, UpdateState } from "@/shared/ipc";
+import {
+  AddMcpServerParamsSchema,
+  SetMcpServerEnabledParamsSchema,
+  type McpServerList,
+} from "@/shared/mcp";
 
 const { autoUpdater } = electronUpdater;
 
@@ -284,6 +297,38 @@ function registerIpcHandlers(): void {
       agent.setActiveTools(toolNames);
       persistActiveTools(toolNames);
       return { tools: agent.listTools() };
+    },
+  );
+
+  // ---- MCP servers ----------------------------------------------------------
+  //
+  // Config changes restart the agent in the background so the MCP extension
+  // re-runs and tool registration reflects the new server set. The handler
+  // returns the updated list immediately; the restart resolves asynchronously.
+
+  createVoidIpcHandler(IPC_CHANNELS.MCP_LIST, (): McpServerList => {
+    return { servers: getMcpServers().list() };
+  });
+
+  createIpcHandler(IPC_CHANNELS.MCP_ADD, AddMcpServerParamsSchema, (params): McpServerList => {
+    const servers = getMcpServers().add(params);
+    void restartAgent({ activateMcpTools: true });
+    return { servers };
+  });
+
+  createIpcHandler(IPC_CHANNELS.MCP_REMOVE, z.string().min(1), (name): McpServerList => {
+    const servers = getMcpServers().remove(name);
+    void restartAgent();
+    return { servers };
+  });
+
+  createIpcHandler(
+    IPC_CHANNELS.MCP_SET_ENABLED,
+    SetMcpServerEnabledParamsSchema,
+    ({ name, enabled }): McpServerList => {
+      const servers = getMcpServers().setEnabled(name, enabled);
+      void restartAgent({ activateMcpTools: enabled });
+      return { servers };
     },
   );
 }

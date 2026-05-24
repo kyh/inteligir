@@ -61,4 +61,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
   setActiveExtensions: (toolNames: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
+
+  // MCP servers
+  listMcpServers: () => ipcRenderer.invoke(IPC_CHANNELS.MCP_LIST),
+  addMcpServer: (params: unknown) => ipcRenderer.invoke(IPC_CHANNELS.MCP_ADD, params),
+  removeMcpServer: (name: string) => ipcRenderer.invoke(IPC_CHANNELS.MCP_REMOVE, name),
+  setMcpServerEnabled: (params: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.MCP_SET_ENABLED, params),
 });

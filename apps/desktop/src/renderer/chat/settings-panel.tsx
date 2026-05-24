@@ -4,6 +4,7 @@ import { Checkbox } from "@repo/ui/components/checkbox";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { McpServersSection } from "@/renderer/chat/mcp-servers-section";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { NotificationSettings } from "@/shared/ipc";
 
@@ -99,6 +100,8 @@ export function SettingsPanel() {
           />
         </label>
       </div>
+
+      <McpServersSection />
     </div>
   );
 }

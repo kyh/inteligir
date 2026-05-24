@@ -17,6 +17,7 @@ import open from "open";
 
 import type { ExtensionToolInfo, SetupProgress } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
+import { resetMcpServers } from "@/main/mcp/mcp-servers";
 import { resetNotifications } from "@/main/notifications";
 import {
   runBundleSetups,
@@ -127,6 +128,7 @@ export function teardownResources(): void {
   // process restarts.
   _authStorage = null;
   resetNotifications();
+  resetMcpServers();
 }
 
 export function isLoggedIn(): boolean {

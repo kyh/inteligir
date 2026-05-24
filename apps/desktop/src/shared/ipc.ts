@@ -54,6 +54,12 @@ export const IPC_CHANNELS = {
   // Extensions / tools (#7 dock)
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
+
+  // MCP servers
+  MCP_LIST: "mcp:list",
+  MCP_ADD: "mcp:add",
+  MCP_REMOVE: "mcp:remove",
+  MCP_SET_ENABLED: "mcp:set-enabled",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -166,6 +172,12 @@ export type DesktopBridge = {
   // Extensions / tools
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
+
+  // MCP servers
+  listMcpServers: () => Promise<McpServerList>;
+  addMcpServer: (params: AddMcpServerParams) => Promise<McpServerList>;
+  removeMcpServer: (name: string) => Promise<McpServerList>;
+  setMcpServerEnabled: (params: SetMcpServerEnabledParams) => Promise<McpServerList>;
 };
 
 // ---------------------------------------------------------------------------
@@ -181,6 +193,12 @@ export type NotificationSettings = {
 // ---------------------------------------------------------------------------
 
 import type { PiAgentTool } from "@repo/pi-driver";
+
+import type {
+  AddMcpServerParams,
+  McpServerList,
+  SetMcpServerEnabledParams,
+} from "./mcp";
 
 export type ExtensionToolInfo = PiAgentTool;
 
