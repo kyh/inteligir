@@ -32,11 +32,12 @@ import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
+import { listSkills } from "@/main/skills";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, UpdateState } from "@/shared/ipc";
+import type { ExtensionsList, SkillsList, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -286,6 +287,12 @@ function registerIpcHandlers(): void {
       return { tools: agent.listTools() };
     },
   );
+
+  // ---- Skills ---------------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
+    return { skills: listSkills() };
+  });
 }
 
 // ---------------------------------------------------------------------------

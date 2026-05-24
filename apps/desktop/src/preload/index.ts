@@ -61,4 +61,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
   setActiveExtensions: (toolNames: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
+
+  // Skills
+  listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
 });

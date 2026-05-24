@@ -7,6 +7,7 @@ import {
   PhoneIcon,
   PlugIcon,
   SettingsIcon,
+  SparklesIcon,
 } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 import {
@@ -20,6 +21,7 @@ import { ChatActivityRow, ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
 import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
 import { SettingsPanel } from "@/renderer/chat/settings-panel";
+import { SkillsPanel } from "@/renderer/chat/skills-panel";
 import { TaskPanel } from "@/renderer/chat/task-panel";
 import { DraggablePanel } from "@/renderer/components/draggable-panel";
 import { useAgentStore } from "@/renderer/stores/agent-store";
@@ -137,6 +139,7 @@ export function ChatPage() {
   const [showTasks, setShowTasks] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showExtensions, setShowExtensions] = useState(false);
+  const [showSkills, setShowSkills] = useState(false);
 
   const messages = useAgentStore((s) => s.messages);
   const appState = useAgentStore((s) => s.appState);
@@ -238,6 +241,11 @@ export function ChatPage() {
                   onClick={() => setShowTasks(!showTasks)}
                 />
                 <GridOption
+                  icon={SparklesIcon}
+                  label="Skills"
+                  onClick={() => setShowSkills(!showSkills)}
+                />
+                <GridOption
                   icon={PlugIcon}
                   label="Extensions"
                   onClick={() => setShowExtensions(!showExtensions)}
@@ -285,6 +293,17 @@ export function ChatPage() {
         initialSize={{ width: 320, height: 400 }}
       >
         <TaskPanel />
+      </DraggablePanel>
+
+      <DraggablePanel
+        title="Skills"
+        icon={<SparklesIcon className="size-3.5" />}
+        isOpen={showSkills}
+        onClose={() => setShowSkills(false)}
+        initialPosition={{ x: 300, y: 40 }}
+        initialSize={{ width: 360, height: 480 }}
+      >
+        <SkillsPanel />
       </DraggablePanel>
 
       <DraggablePanel
