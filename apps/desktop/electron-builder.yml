@@ -7,14 +7,20 @@ files:
   - .output/app/**/*
   - package.json
   - resources/agent/**/*
-  - "!node_modules"
+  # The main process bundles all JS deps (tree-shaken), so node_modules would
+  # otherwise be dead weight duplicated into the asar. Exclude it wholesale,
+  # then re-include only the native modules that CAN'T be bundled and must sit
+  # on disk: sherpa-onnx-node + its per-platform binary package (sherpa-onnx-*).
+  # (koffi is bundled but only invoked on Windows — dead on mac, so not shipped.)
+  - "!node_modules/**"
+  - node_modules/sherpa-onnx-*/**/*
 asarUnpack:
   - resources/**
   # sherpa-onnx-node ships native .node binaries (split into per-platform
-  # optional deps like sherpa-onnx-node-darwin-arm64). .node files cannot be
-  # require()'d from inside an asar archive, so unpack the whole tree.
-  - node_modules/sherpa-onnx-node/**/*
-  - node_modules/sherpa-onnx-node-*/**/*
+  # optional deps like sherpa-onnx-darwin-arm64 — note: no "-node" infix).
+  # .node files can't be require()'d from inside an asar, so unpack the whole
+  # sherpa-onnx-* tree (main package + the platform binary package).
+  - node_modules/sherpa-onnx-*/**/*
 mac:
   artifactName: Inteligir-${version}-${arch}-mac.${ext}
   category: public.app-category.productivity

@@ -45,6 +45,14 @@
     "zod": "catalog:",
     "zustand": "^5.0.13"
   },
+  "optionalDependencies": {
+    "sherpa-onnx-darwin-arm64": "^1.13.2",
+    "sherpa-onnx-darwin-x64": "^1.13.2",
+    "sherpa-onnx-linux-arm64": "^1.13.2",
+    "sherpa-onnx-linux-x64": "^1.13.2",
+    "sherpa-onnx-win-ia32": "^1.13.2",
+    "sherpa-onnx-win-x64": "^1.13.2"
+  },
   "devDependencies": {
     "@electron-toolkit/tsconfig": "^2.0.0",
     "@tailwindcss/vite": "catalog:",
