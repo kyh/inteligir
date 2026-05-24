@@ -41,3 +41,6 @@ publish:
   provider: github
   owner: kyh
   repo: inteligir
+  # Publish straight to a live release instead of electron-builder's default
+  # draft, so `release:publish` doesn't require a manual un-draft step.
+  releaseType: release
