@@ -27,6 +27,7 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { listSkills } from "@/agent/setup";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -290,9 +291,7 @@ function registerIpcHandlers(): void {
   // ---- Skills ---------------------------------------------------------------
 
   createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
-    const agent = getAgent();
-    if (!agent) return { skills: [] };
-    return { skills: agent.listSkills() };
+    return { skills: listSkills() };
   });
 }
 

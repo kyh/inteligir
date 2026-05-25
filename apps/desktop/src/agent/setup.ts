@@ -7,6 +7,7 @@ import { app } from "electron";
 import {
   createAuthStorage,
   hasAuth,
+  listSkills as listSkillsFromDisk,
   loginWithProvider,
   PiAgent,
   resolveModel,
@@ -105,6 +106,14 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
   seedFile(path.join(ctx.bundledResourcesDir, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
 
   await runBundleSetups(EXTENSION_BUNDLES, ctx);
+}
+
+/**
+ * Skills available to the agent, read from disk via pi's own discovery so the
+ * list is correct whether or not an agent session is currently running.
+ */
+export function listSkills(): SkillInfo[] {
+  return listSkillsFromDisk({ cwd: WORKSPACE_DIR, agentDir: AGENT_DIR });
 }
 
 // Lazy + reset on teardown so a logout flow doesn't carry the prior
@@ -243,10 +252,6 @@ export class Agent {
 
   setActiveTools(toolNames: string[]): void {
     this.pi?.setActiveTools(toolNames);
-  }
-
-  listSkills(): SkillInfo[] {
-    return this.pi?.listSkills() ?? [];
   }
 
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {

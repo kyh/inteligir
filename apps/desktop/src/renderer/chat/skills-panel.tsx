@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { SkillInfo } from "@/shared/ipc";
 
 const SCOPE_LABELS: Record<string, string> = {
@@ -23,37 +22,23 @@ function groupByScope(skills: SkillInfo[]): Map<string, SkillInfo[]> {
 }
 
 export function SkillsPanel() {
-  const appState = useAgentStore((s) => s.appState);
   const [skills, setSkills] = useState<SkillInfo[] | null>(null);
 
-  const refresh = useCallback(() => {
+  // Skills are discovered straight from disk, so they're available regardless
+  // of agent lifecycle state — just fetch once on mount.
+  useEffect(() => {
     const bridge = getBridge();
-    if (!bridge) return;
+    if (!bridge) {
+      setSkills([]);
+      return;
+    }
     void bridge
       .listSkills()
       .then((list) => setSkills(list.skills))
       .catch(() => setSkills([]));
   }, []);
 
-  // Skills are loaded by the agent's resource loader, so they only become
-  // available once the agent is ready — mirror the extensions panel.
-  useEffect(() => {
-    if (appState.phase !== "ready") {
-      setSkills(null);
-      return;
-    }
-    refresh();
-  }, [appState.phase, refresh]);
-
   const groups = useMemo(() => (skills ? groupByScope(skills) : null), [skills]);
-
-  if (appState.phase !== "ready") {
-    return (
-      <div className="p-3 text-xs text-muted-foreground">
-        Skills will appear once the agent is ready.
-      </div>
-    );
-  }
 
   if (skills === null || groups === null) {
     return <div className="p-3 text-xs text-muted-foreground">Loading…</div>;
