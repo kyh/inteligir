@@ -10,8 +10,8 @@ import {
   seedResources,
   teardownResources,
 } from "@/agent/setup";
-import { getPersistedActiveTools, persistActiveTools } from "@/main/active-tools";
-import { MCP_TOOL_PREFIX } from "@/shared/mcp";
+import { getPersistedActiveTools } from "@/main/active-tools";
+import { getExecutorProcess } from "@/main/executor/executor-process";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
@@ -91,6 +91,9 @@ async function stopAgent(): Promise<void> {
     await agent.stop();
     agent = null;
   }
+  // The executor child process is started lazily by the executor extension at
+  // agent start; tear it down here so it doesn't outlive the agent.
+  await getExecutorProcess().stop();
   currentTurnAssistantText = null;
 }
 
@@ -102,42 +105,6 @@ async function newSession(): Promise<void> {
 
 export function getAgent(): Agent | null {
   return agent;
-}
-
-// Serialize restarts so back-to-back MCP config changes can't interleave a
-// stop/start with another's, leaving two live agents or a torn-down singleton.
-let restartQueue: Promise<void> = Promise.resolve();
-
-/**
- * Restart the running agent in place (preserving the current session) so
- * extension factories re-run and tool registration reflects updated config —
- * e.g. after MCP servers are added/removed/toggled. No-op if no agent is live.
- *
- * When `activateMcpTools` is set, newly connected MCP tools are merged into the
- * persisted active set so a freshly added server's tools are usable without the
- * user having to enable each one in the Extensions panel. (If no active-tools
- * file exists yet, all tools are already active, so there's nothing to do.)
- */
-export function restartAgent(opts: { activateMcpTools?: boolean } = {}): Promise<void> {
-  const next = restartQueue.then(async () => {
-    if (!agent) return;
-    await stopAgent();
-    await startAgent();
-    if (opts.activateMcpTools && agent) {
-      const persisted = getPersistedActiveTools();
-      if (persisted) {
-        const mcpTools = agent
-          .listTools()
-          .filter((t) => t.name.startsWith(MCP_TOOL_PREFIX))
-          .map((t) => t.name);
-        const merged = [...new Set([...persisted, ...mcpTools])];
-        agent.setActiveTools(merged);
-        persistActiveTools(merged);
-      }
-    }
-  });
-  restartQueue = next.catch(() => {});
-  return next;
 }
 
 // ---------------------------------------------------------------------------

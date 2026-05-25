@@ -70,6 +70,7 @@ agent/
   extension.ts          # PiExtensionBundle + context types + runBundleSetups
   setup.ts              # orchestrator: glob discovery, Agent class, auth, paths
   browser/extension.ts  # Wraps agent-browser CLI (setup installs binary + browser runtime)
+  executor/extension.ts # Code mode — surfaces executor's `execute`/`resume` tools (MCP connectors)
   gws/extension.ts      # Google Workspace CLI (setup downloads tarball + seeds OAuth)
   tasks/extension.ts    # Scheduled task management (no setup)
 ```

@@ -26,14 +26,8 @@ import {
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
-import {
-  getAgent,
-  getAppState,
-  initMachine,
-  restartAgent,
-  shutdown,
-  transition,
-} from "@/main/app-machine";
+import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { getExecutorProcess } from "@/main/executor/executor-process";
 import { getMcpServers } from "@/main/mcp/mcp-servers";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
@@ -300,11 +294,12 @@ function registerIpcHandlers(): void {
     },
   );
 
-  // ---- MCP servers ----------------------------------------------------------
+  // ---- MCP connectors -------------------------------------------------------
   //
-  // Config changes restart the agent in the background so the MCP extension
-  // re-runs and tool registration reflects the new server set. The handler
-  // returns the updated list immediately; the restart resolves asynchronously.
+  // Connectors are registered with the bundled executor (the MCP client) as
+  // sources, reachable from the agent's code-mode `execute` tool. Config
+  // changes reconcile executor's live catalog in the background; the handler
+  // returns the updated list immediately.
 
   createVoidIpcHandler(IPC_CHANNELS.MCP_LIST, (): McpServerList => {
     return { servers: getMcpServers().list() };
@@ -312,13 +307,13 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(IPC_CHANNELS.MCP_ADD, AddMcpServerParamsSchema, (params): McpServerList => {
     const servers = getMcpServers().add(params);
-    void restartAgent({ activateMcpTools: true });
+    void getExecutorProcess().reconcile();
     return { servers };
   });
 
   createIpcHandler(IPC_CHANNELS.MCP_REMOVE, z.string().min(1), (name): McpServerList => {
     const servers = getMcpServers().remove(name);
-    void restartAgent();
+    void getExecutorProcess().reconcile();
     return { servers };
   });
 
@@ -327,7 +322,7 @@ function registerIpcHandlers(): void {
     SetMcpServerEnabledParamsSchema,
     ({ name, enabled }): McpServerList => {
       const servers = getMcpServers().setEnabled(name, enabled);
-      void restartAgent({ activateMcpTools: enabled });
+      void getExecutorProcess().reconcile();
       return { servers };
     },
   );

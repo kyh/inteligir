@@ -96,10 +96,10 @@ export function McpServersSection() {
 
   return (
     <div className="flex flex-col gap-2">
-      <Label className="text-xs font-medium text-muted-foreground">MCP Servers</Label>
+      <Label className="text-xs font-medium text-muted-foreground">MCP Connectors</Label>
       <p className="text-[10px] text-muted-foreground">
-        Connect to remote (HTTP/SSE) Model Context Protocol servers. Their tools become available
-        to the agent. Changes restart the agent.
+        Connect remote (HTTP/SSE) Model Context Protocol servers. They&apos;re registered with the
+        bundled executor runtime, so the agent can reach their tools from code mode.
       </p>
 
       {servers === null ? (

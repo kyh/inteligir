@@ -14,6 +14,11 @@ files:
   # (koffi is bundled but only invoked on Windows — dead on mac, so not shipped.)
   - "!node_modules/**"
   - node_modules/sherpa-onnx-*/**/*
+  # executor ships as a JS launcher (node_modules/executor) that spawns a
+  # per-platform standalone binary (executor-<platform>-<arch>, declared as
+  # optionalDependencies so pnpm hoists the matching one to top-level).
+  - node_modules/executor/**/*
+  - node_modules/executor-*/**/*
 asarUnpack:
   - resources/**
   # sherpa-onnx-node ships native .node binaries (split into per-platform
@@ -21,6 +26,10 @@ asarUnpack:
   # .node files can't be require()'d from inside an asar, so unpack the whole
   # sherpa-onnx-* tree (main package + the platform binary package).
   - node_modules/sherpa-onnx-*/**/*
+  # executor's standalone binary must be on disk (not inside the asar) so we
+  # can spawn it as a child process.
+  - node_modules/executor/**/*
+  - node_modules/executor-*/**/*
 mac:
   artifactName: Inteligir-${version}-${arch}-mac.${ext}
   category: public.app-category.productivity

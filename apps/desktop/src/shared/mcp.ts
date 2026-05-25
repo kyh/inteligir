@@ -1,15 +1,13 @@
 import { z } from "zod";
 
 // ---------------------------------------------------------------------------
-// MCP server configuration — remote (HTTP / SSE) servers the agent connects to
-// and exposes as tools. Persisted to ~/.inteligir/mcp.json in the familiar
+// MCP connector configuration — remote (HTTP / SSE) MCP servers that get
+// registered with executor (the bundled MCP client / integration layer) as
+// sources, so the agent's code-mode `execute` tool can reach them. Persisted
+// to ~/.inteligir/mcp.json in the familiar
 // `{ mcpServers: { "<name>": { url, headers } } }` shape so the file is
 // hand-editable, and surfaced through the Settings UI for CRUD.
 // ---------------------------------------------------------------------------
-
-/** Tool name prefix for every MCP-sourced tool. Lets other layers (active-tools
- *  restore) recognize MCP tools without knowing which server they came from. */
-export const MCP_TOOL_PREFIX = "mcp_";
 
 export const McpServerConfigSchema = z.object({
   /** Remote MCP endpoint. Streamable HTTP is tried first, then SSE. */
@@ -56,9 +54,9 @@ export const SetMcpServerEnabledParamsSchema = z.object({
 export type SetMcpServerEnabledParams = z.infer<typeof SetMcpServerEnabledParamsSchema>;
 
 /**
- * Turn a server name into a tool-name-safe slug. Tool names the LLM sees must
- * be `[a-zA-Z0-9_-]`; server names are free-form, so collapse everything else
- * to underscores.
+ * Turn a connector name into a namespace-safe slug used as executor's source
+ * id / namespace. Must be `[a-z0-9_]`; connector names are free-form, so
+ * collapse everything else to underscores.
  */
 export function mcpServerSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "server";
