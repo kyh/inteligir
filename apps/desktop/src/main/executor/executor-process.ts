@@ -7,6 +7,11 @@
 // sandboxed code-mode `execute` tool. Inteligir connects to it over stdio and
 // surfaces `execute` (+ `resume`) to the agent as pi tools.
 //
+// The binary is installed from executor's GitHub release into
+// ~/.inteligir/executor/bin during the extension's setup() — same mechanism
+// (@repo/agent-runtime) the browser/gws/peekaboo CLIs use, rather than being
+// bundled into the app.
+//
 // Configured MCP connectors (see mcp-servers.ts / ~/.inteligir/mcp.json) are
 // reconciled into executor's catalog as MCP sources via the live client, so
 // the code-mode sandbox can reach them. Adding a source triggers a one-shot
@@ -17,41 +22,91 @@
 // fixed scope/data dir is shared across restarts.
 // ---------------------------------------------------------------------------
 
-import { createRequire } from "node:module";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 
-import { inteligirPath } from "@/main/lib/json-store";
+import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import { getMcpServers } from "@/main/mcp/mcp-servers";
 import { mcpServerSlug, type McpServer } from "@/shared/mcp";
+import { z } from "zod";
 
+const EXECUTOR_VERSION = "1.4.33";
 const EXECUTOR_DIR = inteligirPath("executor");
+const BIN_DIR = path.join(EXECUTOR_DIR, "bin");
 const DATA_DIR = path.join(EXECUTOR_DIR, "data");
 const SCOPE_DIR = path.join(EXECUTOR_DIR, "scope");
+const BIN_NAME = process.platform === "win32" ? "executor.exe" : "executor";
+const BINARY_PATH = path.join(BIN_DIR, BIN_NAME);
 
 const CONNECT_TIMEOUT_MS = 30_000;
 const CALL_TIMEOUT_MS = 120_000;
 const MAX_RESUME_HOPS = 5;
 
+// Tracks the (url + headers) signature last applied for each executor source,
+// so reconcile re-registers a connector whose endpoint/headers changed — not
+// just ones that are entirely missing.
+const AppliedSourcesSchema = z.record(z.string(), z.string());
+type AppliedSources = z.infer<typeof AppliedSourcesSchema>;
+
 type ToolContent =
   | { type: "text"; text: string }
   | { type: "image"; data: string; mimeType: string };
 
-export type ExecutorToolResult = { content: ToolContent[]; details: Record<string, never> };
+/**
+ * Install the executor binary from its GitHub release into ~/.inteligir/executor/bin.
+ * Best-effort (non-throwing) like the other CLI installers; if it fails the
+ * extension simply won't register code-mode tools. Idempotent — skips when the
+ * requested version is already installed.
+ */
+export async function installExecutor(): Promise<void> {
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+  await installCliFromGithubRelease({
+    owner: "RhysSullivan",
+    repo: "executor",
+    version: EXECUTOR_VERSION,
+    binName: BIN_NAME,
+    binDir: BIN_DIR,
+    // The release archive is flat: the binary plus sidecars
+    // (emscripten-module.wasm, keyring.node) that it loads by relative path.
+    artifactKind: "archive",
+    verify: "version-check",
+    artifactName: executorArtifactName,
+  });
+}
+
+function executorArtifactName(): string | null {
+  const os = { darwin: "darwin", linux: "linux", win32: "windows" }[process.platform];
+  const arch = process.arch === "x64" ? "x64" : process.arch === "arm64" ? "arm64" : null;
+  if (!os || !arch) return null;
+  const ext = process.platform === "linux" ? "tar.gz" : "zip";
+  return `executor-${os}-${arch}.${ext}`;
+}
 
 class ExecutorProcess {
   private client: Client | null = null;
   private starting: Promise<Client | null> | null = null;
+  // Bumped on every stop() so an in-flight start() that resolves afterwards
+  // can detect it was superseded and tear down the now-orphaned client.
+  private generation = 0;
 
   /** Idempotent. Returns the connected client, or null if executor is unavailable. */
   async start(): Promise<Client | null> {
     if (this.client) return this.client;
     if (this.starting) return this.starting;
+
+    const gen = this.generation;
     this.starting = this.spawnAndConnect()
       .then((client) => {
+        if (gen !== this.generation) {
+          // stop() ran while we were connecting — don't leak the child.
+          void client.close().catch(() => {});
+          return null;
+        }
         this.client = client;
         return client;
       })
@@ -60,7 +115,7 @@ class ExecutorProcess {
         return null;
       })
       .finally(() => {
-        this.starting = null;
+        if (gen === this.generation) this.starting = null;
       });
     return this.starting;
   }
@@ -70,24 +125,27 @@ class ExecutorProcess {
   }
 
   async stop(): Promise<void> {
+    this.generation++; // invalidate any in-flight start()
     const client = this.client;
     this.client = null;
+    this.starting = null;
     await client?.close().catch(() => {});
   }
 
   private async spawnAndConnect(): Promise<Client> {
+    if (!fs.existsSync(BINARY_PATH)) {
+      throw new Error(`executor binary not installed at ${BINARY_PATH}`);
+    }
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.mkdirSync(SCOPE_DIR, { recursive: true });
 
-    const { command, prefixArgs, runAsNode } = resolveExecutorCommand();
     const transport = new StdioClientTransport({
-      command,
-      args: [...prefixArgs, "mcp", "--scope", SCOPE_DIR, "--elicitation-mode", "model"],
+      command: BINARY_PATH,
+      args: ["mcp", "--scope", SCOPE_DIR, "--elicitation-mode", "model"],
       env: {
         ...(process.env as Record<string, string>),
         EXECUTOR_DATA_DIR: DATA_DIR,
         EXECUTOR_SCOPE_DIR: SCOPE_DIR,
-        ...(runAsNode ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       },
       stderr: "ignore",
     });
@@ -103,41 +161,59 @@ class ExecutorProcess {
 
   /**
    * Bring executor's MCP sources in line with the enabled connectors in
-   * mcp.json: add any that are missing, remove any executor MCP source that's
-   * no longer configured. Safe to call on a live client; no-op if executor
-   * isn't running.
+   * mcp.json: (re-)register any that are new or whose endpoint/headers changed,
+   * and remove any executor MCP source that's no longer configured. Safe to
+   * call on a live client; no-op if executor isn't running.
    */
   async reconcile(client: Client | null = this.client): Promise<void> {
     if (!client) return;
-    const desired = getMcpServers().listEnabled();
-    const desiredNamespaces = new Map(desired.map((s) => [mcpServerSlug(s.name), s]));
 
-    let existing: ExecutorSource[];
+    // De-dupe by namespace slug — add() rejects colliding names, but a
+    // hand-edited mcp.json could still contain them; keep the first.
+    const desired = new Map<string, McpServer>();
+    for (const server of getMcpServers().listEnabled()) {
+      const ns = mcpServerSlug(server.name);
+      if (!desired.has(ns)) desired.set(ns, server);
+    }
+
+    let existingMcpIds: Set<string>;
     try {
-      existing = await this.listSources(client);
+      existingMcpIds = new Set(
+        (await this.listSources(client)).filter((s) => s.kind === "mcp").map((s) => s.id),
+      );
     } catch (err) {
       console.error("[executor] reconcile: failed to list sources:", err);
       return;
     }
-    const existingMcp = existing.filter((s) => s.kind === "mcp");
-    const existingIds = new Set(existingMcp.map((s) => s.id));
 
-    for (const [namespace, server] of desiredNamespaces) {
-      if (!existingIds.has(namespace)) {
-        await this.addSource(client, server, namespace).catch((err) =>
-          console.error(`[executor] failed to add source "${server.name}":`, err),
-        );
-      }
+    const applied = this.appliedStore.read();
+    const nextApplied: AppliedSources = {};
+
+    for (const [ns, server] of desired) {
+      const sig = connectorSignature(server);
+      nextApplied[ns] = sig;
+      // Re-register when missing OR when the endpoint/headers changed.
+      if (existingMcpIds.has(ns) && applied[ns] === sig) continue;
+      await this.addSource(client, server, ns).catch((err) =>
+        console.error(`[executor] failed to add source "${server.name}":`, err),
+      );
     }
 
-    for (const source of existingMcp) {
-      if (!desiredNamespaces.has(source.id)) {
-        await this.removeSource(client, source.id).catch((err) =>
-          console.error(`[executor] failed to remove source "${source.id}":`, err),
-        );
-      }
+    for (const id of existingMcpIds) {
+      if (desired.has(id)) continue;
+      await this.removeSource(client, id).catch((err) =>
+        console.error(`[executor] failed to remove source "${id}":`, err),
+      );
     }
+
+    this.appliedStore.write(nextApplied);
   }
+
+  private readonly appliedStore = new JsonStore<AppliedSources>(
+    path.join(EXECUTOR_DIR, "applied-sources.json"),
+    AppliedSourcesSchema,
+    {},
+  );
 
   private async listSources(client: Client): Promise<ExecutorSource[]> {
     const text = await runCode(
@@ -167,10 +243,7 @@ class ExecutorProcess {
         ? { headers: server.headers }
         : {}),
     };
-    await runCode(
-      client,
-      `return await tools.executor.mcp.addSource(${JSON.stringify(args)});`,
-    );
+    await runCode(client, `return await tools.executor.mcp.addSource(${JSON.stringify(args)});`);
   }
 
   private async removeSource(client: Client, id: string): Promise<void> {
@@ -199,9 +272,24 @@ export function getExecutorProcess(): ExecutorProcess {
   return _instance;
 }
 
+/**
+ * Drop the singleton (and its cached applied-sources state) on logout/teardown,
+ * after the process has been stopped, so a re-login doesn't reconcile against
+ * stale state pointing at a wiped ~/.inteligir/executor.
+ */
+export function resetExecutorProcess(): void {
+  _instance = null;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function connectorSignature(server: McpServer): string {
+  return createHash("sha256")
+    .update(JSON.stringify({ url: server.url, headers: server.headers ?? {} }))
+    .digest("hex");
+}
 
 /**
  * Run a snippet through executor's `execute` tool, auto-accepting any approval
@@ -258,46 +346,4 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
-/**
- * Resolve how to launch executor. Executor ships per-platform standalone
- * binaries via optional dependencies (`executor-<platform>-<arch>`); prefer
- * running that binary directly. Fall back to the JS launcher run under
- * Electron-as-node when the platform binary can't be located.
- */
-function resolveExecutorCommand(): { command: string; prefixArgs: string[]; runAsNode: boolean } {
-  const require = createRequire(import.meta.url);
-  const launcherPkg = require.resolve("executor/package.json");
-  const launcherDir = path.dirname(launcherPkg);
-
-  const platform = { darwin: "darwin", linux: "linux", win32: "windows" }[process.platform] ?? process.platform;
-  const arch = process.arch === "x64" ? "x64" : process.arch === "arm64" ? "arm64" : process.arch;
-  const binName = process.platform === "win32" ? "executor.exe" : "executor";
-  const pkgNames = [`executor-${platform}-${arch}`, `executor-${platform}-${arch}-musl`];
-
-  // node_modules roots to search for the per-platform binary package:
-  //  - the launcher's own dir (pnpm nests platform deps as siblings here)
-  //  - the packaged app's unpacked node_modules (top-level, hoisted via the
-  //    app's optionalDependencies)
-  const roots = [path.dirname(launcherDir)];
-  if (process.resourcesPath) {
-    roots.push(path.join(process.resourcesPath, "app.asar.unpacked", "node_modules"));
-  }
-
-  for (const root of roots) {
-    for (const pkg of pkgNames) {
-      const candidate = path.join(root, pkg, "bin", binName);
-      if (fs.existsSync(candidate)) {
-        return { command: candidate, prefixArgs: [], runAsNode: false };
-      }
-    }
-  }
-
-  // Fall back to the JS launcher executed by Electron's bundled Node.
-  return {
-    command: process.execPath,
-    prefixArgs: [path.join(launcherDir, "bin", "executor")],
-    runAsNode: true,
-  };
-}
-
-export { DATA_DIR as EXECUTOR_DATA_DIR, SCOPE_DIR as EXECUTOR_SCOPE_DIR };
+export type { ToolContent };

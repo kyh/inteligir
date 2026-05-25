@@ -7,6 +7,7 @@
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 import {
   McpConfigSchema,
+  mcpServerSlug,
   type AddMcpServerParams,
   type McpConfig,
   type McpServer,
@@ -44,9 +45,26 @@ export class McpServersManager {
     return this.list().filter((s) => s.enabled);
   }
 
-  /** Add or overwrite a server by name. New servers are enabled by default. */
+  /**
+   * Add or update a connector by name. Re-adding an existing name preserves its
+   * enabled state (so editing a disabled connector's URL doesn't silently turn
+   * it back on). Rejects a name whose executor namespace slug collides with a
+   * different existing connector, since they'd otherwise map to one source.
+   */
   add(params: AddMcpServerParams): McpServer[] {
-    this.store.update((current) => ({
+    const current = this.store.read();
+    const slug = mcpServerSlug(params.name);
+    const collision = Object.keys(current.mcpServers).find(
+      (name) => name !== params.name && mcpServerSlug(name) === slug,
+    );
+    if (collision) {
+      throw new Error(
+        `"${params.name}" conflicts with existing connector "${collision}" (same normalized name). Pick a more distinct name.`,
+      );
+    }
+
+    const existing = current.mcpServers[params.name];
+    this.store.write({
       mcpServers: {
         ...current.mcpServers,
         [params.name]: {
@@ -54,10 +72,10 @@ export class McpServersManager {
           ...(params.headers && Object.keys(params.headers).length > 0
             ? { headers: params.headers }
             : {}),
-          enabled: true,
+          enabled: existing?.enabled ?? true,
         },
       },
-    }));
+    });
     return this.list();
   }
 

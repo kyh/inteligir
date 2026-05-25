@@ -26,10 +26,15 @@ export type InstallCliFromGithubReleaseOptions = {
   binDir: string;
   /**
    * Artifact shape:
-   * - "tarball" (default): release asset is a .tar.gz; we extract the binary from it.
+   * - "tarball" (default): release asset is a .tar.gz; we extract a single
+   *   binary from it.
    * - "binary": release asset IS the binary; we download + chmod it directly.
+   * - "archive": release asset is a .tar.gz or .zip containing the binary plus
+   *   sidecar files (e.g. a .wasm / .node next to it). We extract the whole
+   *   archive into binDir, keeping every file, and chmod `binName`. Use this
+   *   for binaries that do relative-path lookups for their sidecars.
    */
-  artifactKind?: "tarball" | "binary";
+  artifactKind?: "tarball" | "binary" | "archive";
   /**
    * Path to the binary inside the tarball, when "tarball" kind. Defaults to
    * `binName` for flat archives. Set to e.g. `"peekaboo-macos-universal/peekaboo"`
@@ -109,10 +114,14 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
   const artifactUrl = `${releaseBaseUrl}/${artifact}`;
   const stagingDir = path.join(opts.binDir, `.${opts.binName}-staging-${process.pid}`);
   const stagedArtifactPath = path.join(stagingDir, artifact);
-  // For "binary" artifacts, the downloaded file IS the binary; for "tarball",
-  // the binary lands at stagingDir/<archiveBinPath> after extraction.
+  // Where the binary lands after the download/extract step:
+  // - "binary": the downloaded file IS the binary.
+  // - "tarball": the single extracted entry at stagingDir/<archiveBinPath>.
+  // - "archive": the binary sits among the extracted files at stagingDir/<binName>.
   const stagedBinPath =
-    artifactKind === "tarball" ? path.join(stagingDir, archiveBinPath) : stagedArtifactPath;
+    artifactKind === "binary"
+      ? stagedArtifactPath
+      : path.join(stagingDir, artifactKind === "archive" ? opts.binName : archiveBinPath);
 
   fs.mkdirSync(opts.binDir, { recursive: true });
   fs.mkdirSync(stagingDir, { recursive: true });
@@ -127,7 +136,10 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
     }
 
     if (artifactKind === "tarball") {
-      await extractFromTarball(stagedArtifactPath, stagingDir, archiveBinPath);
+      await extractArchive(stagedArtifactPath, stagingDir, archiveBinPath);
+    } else if (artifactKind === "archive") {
+      await extractArchive(stagedArtifactPath, stagingDir);
+      fs.rmSync(stagedArtifactPath, { force: true });
     }
 
     fs.chmodSync(stagedBinPath, 0o755);
@@ -141,9 +153,20 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
       }
     }
 
-    // renameSync is atomic on the same filesystem — the old binary is never
-    // partially overwritten.
-    fs.renameSync(stagedBinPath, binPath);
+    if (artifactKind === "archive") {
+      // Multi-file artifact: move every extracted file into binDir (binary +
+      // its sidecars), overwriting any prior install. Not atomic per-file, but
+      // matches how these binaries expect their sidecars laid out beside them.
+      for (const entry of fs.readdirSync(stagingDir)) {
+        const dest = path.join(opts.binDir, entry);
+        fs.rmSync(dest, { recursive: true, force: true });
+        fs.renameSync(path.join(stagingDir, entry), dest);
+      }
+    } else {
+      // renameSync is atomic on the same filesystem — the old binary is never
+      // partially overwritten.
+      fs.renameSync(stagedBinPath, binPath);
+    }
     console.log(`[install] installed ${opts.binName} to ${binPath}`);
   } finally {
     try {
@@ -229,9 +252,19 @@ async function downloadFile(url: string, dest: string): Promise<void> {
   await pipeline(resp.body, fs.createWriteStream(dest));
 }
 
-function extractFromTarball(tarballPath: string, outDir: string, entryName: string): Promise<void> {
+/**
+ * Extract an archive into `outDir`. Picks `tar` vs `unzip` by file extension so
+ * both `.tar.gz`/`.tgz` (Linux releases) and `.zip` (macOS/Windows releases)
+ * work. When `entryName` is given, extract only that entry; otherwise extract
+ * everything.
+ */
+function extractArchive(archivePath: string, outDir: string, entryName?: string): Promise<void> {
+  const isZip = /\.zip$/i.test(archivePath);
+  const [cmd, args] = isZip
+    ? (["unzip", ["-oq", archivePath, ...(entryName ? [entryName] : []), "-d", outDir]] as const)
+    : (["tar", ["xzf", archivePath, "-C", outDir, ...(entryName ? [entryName] : [])]] as const);
   return new Promise((resolve, reject) => {
-    execFile("tar", ["xzf", tarballPath, "-C", outDir, entryName], { timeout: 30_000 }, (err) => {
+    execFile(cmd, [...args], { timeout: 60_000 }, (err) => {
       if (err) reject(err);
       else resolve();
     });

@@ -17,6 +17,7 @@ import open from "open";
 
 import type { ExtensionToolInfo, SetupProgress } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
+import { resetExecutorProcess } from "@/main/executor/executor-process";
 import { resetMcpServers } from "@/main/mcp/mcp-servers";
 import { resetNotifications } from "@/main/notifications";
 import {
@@ -129,6 +130,7 @@ export function teardownResources(): void {
   _authStorage = null;
   resetNotifications();
   resetMcpServers();
+  resetExecutorProcess();
 }
 
 export function isLoggedIn(): boolean {

@@ -33,7 +33,6 @@
     "ai": "^6.0.191",
     "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
-    "executor": "^1.4.33",
     "motion": "^12.40.0",
     "open": "^11.0.0",
     "react": "catalog:",
@@ -48,11 +47,6 @@
     "zustand": "^5.0.13"
   },
   "optionalDependencies": {
-    "executor-darwin-arm64": "npm:executor@1.4.33-darwin-arm64",
-    "executor-darwin-x64": "npm:executor@1.4.33-darwin-x64",
-    "executor-linux-arm64": "npm:executor@1.4.33-linux-arm64",
-    "executor-linux-x64": "npm:executor@1.4.33-linux-x64",
-    "executor-windows-x64": "npm:executor@1.4.33-windows-x64",
     "sherpa-onnx-darwin-arm64": "^1.13.2",
     "sherpa-onnx-darwin-x64": "^1.13.2",
     "sherpa-onnx-linux-arm64": "^1.13.2",

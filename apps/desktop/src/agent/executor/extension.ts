@@ -18,7 +18,7 @@
 import type { ExtensionAPI } from "@repo/pi-driver";
 import type { TSchema } from "@sinclair/typebox";
 
-import { getExecutorProcess } from "@/main/executor/executor-process";
+import { getExecutorProcess, installExecutor } from "@/main/executor/executor-process";
 import type { PiExtensionBundle } from "@/agent/extension";
 
 const CALL_TIMEOUT_MS = 300_000;
@@ -36,6 +36,10 @@ type CodeModeToolResult = { content: ToolContent[]; details: Record<string, neve
 
 const executorExtension: PiExtensionBundle = {
   name: "executor",
+  setup: async ({ onProgress }) => {
+    onProgress({ step: "Downloading executor runtime", percent: null });
+    await installExecutor();
+  },
   register: () => async (pi) => {
     const client = await getExecutorProcess().start();
     if (!client) {

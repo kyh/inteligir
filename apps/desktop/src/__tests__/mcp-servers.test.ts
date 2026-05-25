@@ -63,6 +63,25 @@ describe("McpServersManager", () => {
     expect(mgr.setEnabled("nope", false)).toEqual([]);
   });
 
+  it("preserves enabled state when re-adding an existing connector", () => {
+    const { mgr } = manager();
+    mgr.add({ name: "docs", url: "https://a.test" });
+    mgr.setEnabled("docs", false);
+    // Re-add (e.g. editing the URL) must not silently re-enable it.
+    mgr.add({ name: "docs", url: "https://b.test" });
+    const docs = mgr.list().find((s) => s.name === "docs");
+    expect(docs?.enabled).toBe(false);
+    expect(docs?.url).toBe("https://b.test");
+  });
+
+  it("rejects a name whose slug collides with a different connector", () => {
+    const { mgr } = manager();
+    mgr.add({ name: "My Server", url: "https://a.test" });
+    expect(() => mgr.add({ name: "my-server", url: "https://b.test" })).toThrow(/conflicts/);
+    // The colliding entry must not have been written.
+    expect(mgr.list().map((s) => s.name)).toEqual(["My Server"]);
+  });
+
   it("removes a server", () => {
     const { mgr } = manager();
     mgr.add({ name: "a", url: "https://a.test" });
