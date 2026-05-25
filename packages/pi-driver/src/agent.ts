@@ -11,6 +11,7 @@ import type {
   AuthStorage,
   ExtensionFactory,
 } from "@mariozechner/pi-coding-agent";
+import type { ResourceLoader } from "@mariozechner/pi-coding-agent";
 import type { Api, ImageContent, Model } from "@mariozechner/pi-ai";
 
 export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
@@ -23,6 +24,19 @@ export type PiAgentTool = {
   description: string;
   source: string;
   active: boolean;
+};
+
+/** Plain projection of pi's `Skill` so callers can serialize over IPC. */
+export type PiAgentSkill = {
+  name: string;
+  description: string;
+  /** Where the skill came from, e.g. "user", "project", or a package name. */
+  source: string;
+  /** "user" (~/.inteligir/skills) or "project" (<cwd>/.pi/skills). */
+  scope: string;
+  filePath: string;
+  /** True when the skill is invoke-only (excluded from the model's prompt). */
+  disableModelInvocation: boolean;
 };
 
 export type PiAgentConfig = {
@@ -49,6 +63,7 @@ export type PiAgentConfig = {
 /** Lifecycle wrapper around pi-coding-agent's AgentSession. */
 export class PiAgent {
   private session: AgentSession | null = null;
+  private resourceLoader: ResourceLoader | null = null;
   private unsubscribe: (() => void) | null = null;
   private listeners = new Set<PiAgentEventListener>();
   private status: PiAgentStatus = "starting";
@@ -92,6 +107,7 @@ export class PiAgent {
     });
 
     this.session = session;
+    this.resourceLoader = resourceLoader;
     this.status = "idle";
   }
 
@@ -105,6 +121,7 @@ export class PiAgent {
       this.session = null;
     }
 
+    this.resourceLoader = null;
     this.status = "starting";
     this.error = null;
   }
@@ -202,6 +219,23 @@ export class PiAgent {
 
   setActiveTools(toolNames: string[]): void {
     this.session?.setActiveToolsByName(toolNames);
+  }
+
+  /**
+   * Skills loaded by the session's resource loader. Covers every location pi
+   * discovers: user skills under `<agentDir>/skills` and project skills under
+   * `<cwd>/.pi/skills`, with name collisions already resolved.
+   */
+  listSkills(): PiAgentSkill[] {
+    if (!this.resourceLoader) return [];
+    return this.resourceLoader.getSkills().skills.map((s) => ({
+      name: s.name,
+      description: s.description,
+      source: s.sourceInfo.source,
+      scope: s.sourceInfo.scope,
+      filePath: s.filePath,
+      disableModelInvocation: s.disableModelInvocation,
+    }));
   }
 
   // ---- subscriptions -------------------------------------------------------

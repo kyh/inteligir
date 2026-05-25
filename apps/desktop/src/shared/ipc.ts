@@ -186,7 +186,7 @@ export type NotificationSettings = {
 // Extensions (#7) — projection of pi-coding-agent's tool registry for the dock
 // ---------------------------------------------------------------------------
 
-import type { PiAgentTool } from "@repo/pi-driver";
+import type { PiAgentSkill, PiAgentTool } from "@repo/pi-driver";
 
 export type ExtensionToolInfo = PiAgentTool;
 
@@ -195,13 +195,11 @@ export type ExtensionsList = {
 };
 
 // ---------------------------------------------------------------------------
-// Skills — SKILL.md capability docs seeded into ~/.inteligir/skills
+// Skills — SKILL.md capability docs pi discovers under the user (~/.inteligir/
+// skills) and project (<workspace>/.pi/skills) scopes
 // ---------------------------------------------------------------------------
 
-export type SkillInfo = {
-  name: string;
-  description: string;
-};
+export type SkillInfo = PiAgentSkill;
 
 export type SkillsList = {
   skills: SkillInfo[];

@@ -15,7 +15,7 @@ import {
 import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import open from "open";
 
-import type { ExtensionToolInfo, SetupProgress } from "@/shared/ipc";
+import type { ExtensionToolInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetNotifications } from "@/main/notifications";
 import {
@@ -243,6 +243,10 @@ export class Agent {
 
   setActiveTools(toolNames: string[]): void {
     this.pi?.setActiveTools(toolNames);
+  }
+
+  listSkills(): SkillInfo[] {
+    return this.pi?.listSkills() ?? [];
   }
 
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {

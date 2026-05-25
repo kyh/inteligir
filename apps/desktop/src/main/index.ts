@@ -32,7 +32,6 @@ import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { listSkills } from "@/main/skills";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -291,7 +290,9 @@ function registerIpcHandlers(): void {
   // ---- Skills ---------------------------------------------------------------
 
   createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
-    return { skills: listSkills() };
+    const agent = getAgent();
+    if (!agent) return { skills: [] };
+    return { skills: agent.listSkills() };
   });
 }
 
