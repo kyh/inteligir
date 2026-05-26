@@ -33,6 +33,7 @@ import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
 import { ArtifactUpsertInputSchema, getArtifacts } from "@/main/artifacts";
+import { completeOnce } from "@/agent/setup";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -323,6 +324,26 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(IPC_CHANNELS.ARTIFACTS_DELETE, z.string().min(1), (id) => {
     return { deleted: getArtifacts().delete(id) };
+  });
+
+  // ---- Live artifact actions ------------------------------------------------
+
+  createIpcHandler(
+    IPC_CHANNELS.ARTIFACT_COMPLETE,
+    z.object({ prompt: z.string().min(1), system: z.string().optional() }),
+    ({ prompt, system }) => completeOnce(prompt, system),
+  );
+
+  createIpcHandler(IPC_CHANNELS.ARTIFACT_FETCH, z.string().url(), async (url) => {
+    // Main-process fetch avoids renderer CSP/CORS and centralizes egress.
+    // Response is capped so a misbehaving URL can't blow up artifact state.
+    const resp = await fetch(url, {
+      redirect: "follow",
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    const text = await resp.text();
+    return text.length > 100_000 ? text.slice(0, 100_000) : text;
   });
 }
 

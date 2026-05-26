@@ -72,4 +72,9 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   deleteArtifact: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_DELETE, id),
   onArtifactsUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.ARTIFACTS_UPDATED, listener),
+
+  // Live artifact actions
+  artifactComplete: (prompt: string, system?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_COMPLETE, { prompt, system }),
+  artifactFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_FETCH, url),
 });

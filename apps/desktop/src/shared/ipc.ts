@@ -64,6 +64,10 @@ export const IPC_CHANNELS = {
   ARTIFACTS_PATCH_STATE: "artifacts:patch-state",
   ARTIFACTS_DELETE: "artifacts:delete",
   ARTIFACTS_UPDATED: "artifacts:updated",
+
+  // Live artifact actions
+  ARTIFACT_COMPLETE: "artifact:complete",
+  ARTIFACT_FETCH: "artifact:fetch",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -188,6 +192,10 @@ export type DesktopBridge = {
   ) => Promise<Artifact | null>;
   deleteArtifact: (id: string) => Promise<{ deleted: boolean }>;
   onArtifactsUpdated: (listener: (next: ArtifactsList) => void) => () => void;
+
+  // Live artifact actions
+  artifactComplete: (prompt: string, system?: string) => Promise<string>;
+  artifactFetch: (url: string) => Promise<string>;
 };
 
 // ---------------------------------------------------------------------------

@@ -211,9 +211,12 @@ export const { registry: artifactRegistry } = defineRegistry(artifactCatalog, {
     Separator: CatalogSeparator,
   },
   // Action stubs — real handlers are mounted per-viewer in artifact-viewer.tsx
-  // so they can close over the bridge + toast singleton.
+  // so they can close over the bridge, store, and toast singleton.
   actions: {
     notify: async () => {},
     openUrl: async () => {},
+    sendPrompt: async () => {},
+    generateText: async () => {},
+    fetchUrl: async () => {},
   },
 });

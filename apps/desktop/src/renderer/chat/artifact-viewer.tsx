@@ -151,6 +151,38 @@ export function ArtifactViewer({ id }: Props) {
         if (!url) return;
         await getBridge()?.openExternal(url);
       },
+      // Live actions. generateText/fetchUrl write their result into the
+      // state store at `into`; the store subscriber persists it and any
+      // bound component re-renders. Errors surface as a toast rather than
+      // silently failing a button press.
+      sendPrompt: (params: Record<string, unknown>) => {
+        const prompt = typeof params["prompt"] === "string" ? params["prompt"] : "";
+        if (!prompt) return;
+        void getBridge()?.sendAgentCommand({ type: "user_message", text: prompt });
+      },
+      generateText: async (params: Record<string, unknown>) => {
+        const prompt = typeof params["prompt"] === "string" ? params["prompt"] : "";
+        const into = typeof params["into"] === "string" ? params["into"] : "";
+        const system = typeof params["system"] === "string" ? params["system"] : undefined;
+        if (!prompt || !into) return;
+        try {
+          const text = await getBridge()?.artifactComplete(prompt, system);
+          if (typeof text === "string") getStore().set(into, text);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Generation failed");
+        }
+      },
+      fetchUrl: async (params: Record<string, unknown>) => {
+        const url = typeof params["url"] === "string" ? params["url"] : "";
+        const into = typeof params["into"] === "string" ? params["into"] : "";
+        if (!url || !into) return;
+        try {
+          const text = await getBridge()?.artifactFetch(url);
+          if (typeof text === "string") getStore().set(into, text);
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Fetch failed");
+        }
+      },
     }),
     [],
   );

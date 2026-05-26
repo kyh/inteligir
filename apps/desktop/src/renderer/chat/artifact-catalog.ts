@@ -103,5 +103,28 @@ export const artifactCatalog = defineCatalog(schema, {
       params: z.object({ url: z.string().url() }),
       description: "Open an external URL in the user's default browser.",
     },
+    sendPrompt: {
+      params: z.object({ prompt: z.string() }),
+      description:
+        "Send a message to the agent as a chat turn. The agent runs with all its tools " +
+        "and can revise this artifact via manage_artifacts. Use for 'do something' buttons.",
+    },
+    generateText: {
+      params: z.object({
+        prompt: z.string(),
+        into: z.string(),
+        system: z.string().optional(),
+      }),
+      description:
+        "Call the model once and write the resulting text into state at the JSON pointer " +
+        "`into` (e.g. '/summary'). Bind a Text's `text` to that path with { $bindState } to " +
+        "show it. Does NOT create a chat turn — use for inline 'generate/summarize' buttons.",
+    },
+    fetchUrl: {
+      params: z.object({ url: z.string().url(), into: z.string() }),
+      description:
+        "HTTP GET `url` and write the response body (text, capped) into state at the JSON " +
+        "pointer `into`. Use for showing live external data.",
+    },
   },
 });

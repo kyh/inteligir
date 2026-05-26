@@ -94,7 +94,10 @@ const ManageArtifactsSchema = Type.Object({
         "Components catalog: Stack/Section/Row/Heading/Text/TextBlock/Button/Checkbox/Input/Card/Separator. " +
         "Wire buttons via on: { press: { action: 'notify', params: { message: 'Hi' } } }. " +
         "Bind inputs/checkboxes via { $bindState: '/path' }; use the built-in setState action to mutate state from buttons. " +
-        "Available actions: notify({message,variant}), openUrl({url}).",
+        "Actions: notify({message,variant}), openUrl({url}); and 'live' actions — " +
+        "sendPrompt({prompt}) (sends a chat turn to the agent), " +
+        "generateText({prompt,into,system?}) (one model call, writes text to state at `into`; bind a Text to it), " +
+        "fetchUrl({url,into}) (HTTP GET into state at `into`).",
     }),
   ),
   state: Type.Optional(

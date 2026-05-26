@@ -1,6 +1,7 @@
 export { PiAgent } from "./agent";
 export type { PiAgentConfig, PiAgentEventListener, PiAgentTool, PiAgentStatus } from "./agent";
 export { createAuthStorage, hasAuth, loginWithProvider, type LoginCallbacks } from "./auth";
+export { completeText } from "./complete";
 export { resolveModel } from "./model";
 
 export { SessionManager } from "@mariozechner/pi-coding-agent";
