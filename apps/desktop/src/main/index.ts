@@ -30,11 +30,13 @@ import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
+import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
+import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { ExtensionsList, UpdateState } from "@/shared/ipc";
 
@@ -267,6 +269,14 @@ function registerIpcHandlers(): void {
     },
   );
 
+  // ---- UI state -------------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.UI_STATE_GET, () => getUiState().getAll());
+
+  createIpcHandler(IPC_CHANNELS.UI_STATE_SET, UiStateSetSchema, ({ key, value }) => {
+    getUiState().set(key, value);
+  });
+
   // ---- Extensions (#7) ------------------------------------------------------
 
   createVoidIpcHandler(IPC_CHANNELS.EXTENSIONS_LIST, (): ExtensionsList => {
@@ -344,7 +354,7 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor: "#d1684e",
+    backgroundColor: "#09090b",
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",

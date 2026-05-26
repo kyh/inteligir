@@ -20,7 +20,6 @@ const NUM_LINES = 20;
 const RADIUS = 1.5;
 const POINTS_PER_LINE = 96;
 const LINE_WIDTH = 2;
-const BACKGROUND = "#d1684e";
 const INITIAL_COLOR_INT = new THREE.Color("#eeeeee").getHex();
 const PI2 = Math.PI * 2;
 
@@ -600,9 +599,8 @@ export function GeometricOrb({
     <Canvas
       className={className}
       camera={{ position: [0, 0, CAMERA_Z], fov: 65 }}
-      gl={{ antialias: true, alpha: false }}
+      gl={{ antialias: true, alpha: true }}
     >
-      <color attach="background" args={[BACKGROUND]} />
       <LatitudeLines status={status} />
     </Canvas>
   );
