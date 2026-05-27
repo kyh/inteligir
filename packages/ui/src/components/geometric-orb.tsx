@@ -426,6 +426,10 @@ function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor
     const morph = mood.morphProgress;
     const expand = sphereExpandRef.current;
 
+    // Keep the helix tube — the only visible element while "starting" — in sync
+    // with the mood color so baseColor / theme changes are actually reflected.
+    helixMaterial.color.setRGB(mood.r, mood.g, mood.b);
+
     const camDir = camDirRef.current.copy(state.camera.position).normalize();
 
     // During spin-up: kill spin quickly before group unwind (at morph≈0.2)
