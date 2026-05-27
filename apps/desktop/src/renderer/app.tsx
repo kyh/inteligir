@@ -71,7 +71,7 @@ export function AppLayout() {
           docked ? "top-2.5 left-[76px] h-8 w-8" : "inset-0 m-auto h-44 w-44",
         )}
       >
-        <GeometricOrb status={orbStatus} baseColor={resolved === "dark" ? "#eeeeee" : "#18181b"} />
+        <GeometricOrb status={orbStatus} baseColor={resolved === "dark" ? "#eeeeee" : "#0a0a0a"} />
       </motion.div>
 
       <div className="flex h-full flex-col">
