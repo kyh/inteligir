@@ -20,9 +20,8 @@ export function SurfaceProvider({
   value: number;
   children: ReactNode;
 }) {
+  const level = Math.max(1, Math.min(8, value));
   return (
-    <SurfaceContext.Provider value={Math.max(1, Math.min(8, value))}>
-      {children}
-    </SurfaceContext.Provider>
+    <SurfaceContext.Provider value={level}>{children}</SurfaceContext.Provider>
   );
 }
