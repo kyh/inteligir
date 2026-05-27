@@ -57,6 +57,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   updateNotificationSettings: (patch: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATIONS_UPDATE, patch),
 
+  // UI state
+  getUiState: () => ipcRenderer.invoke(IPC_CHANNELS.UI_STATE_GET),
+  setUiState: (key: string, value: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UI_STATE_SET, { key, value }),
+
   // Extensions
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
   setActiveExtensions: (toolNames: string[]) =>

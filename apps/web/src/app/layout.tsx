@@ -4,6 +4,8 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 
 import { siteConfig } from "@/lib/site-config";
+import { SiteHeader } from "@/components/site-header";
+import { ThemeProvider } from "@/components/theme-provider";
 import { TRPCReactProvider } from "@/trpc/react";
 
 import "./styles/globals.css";
@@ -75,7 +77,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#d1684e",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
 };
 
 type LayoutProps = {
@@ -84,13 +89,16 @@ type LayoutProps = {
 
 const RootLayout = (props: LayoutProps) => {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="bg-background text-foreground font-sans antialiased">
-        <TooltipProvider>
-          <TRPCReactProvider>{props.children}</TRPCReactProvider>
-          <Toaster />
-          <GlobalAlertDialog />
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            <SiteHeader />
+            <TRPCReactProvider>{props.children}</TRPCReactProvider>
+            <Toaster />
+            <GlobalAlertDialog />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
