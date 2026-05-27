@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -347,6 +347,18 @@ function configureAutoUpdater(): void {
 // Window creation
 // ---------------------------------------------------------------------------
 
+/**
+ * Pick the window chrome color from the persisted theme so the pre-paint
+ * background matches what the renderer will render (no dark flash in light
+ * mode). Mirrors the renderer's default-to-dark behaviour for unset/invalid.
+ */
+function startupBackgroundColor(): string {
+  const stored = getUiState().getAll()["theme"];
+  const theme = stored === "light" || stored === "system" ? stored : "dark";
+  const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
+  return dark ? "#09090b" : "#ffffff";
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1200,
@@ -354,7 +366,7 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor: "#09090b",
+    backgroundColor: startupBackgroundColor(),
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",

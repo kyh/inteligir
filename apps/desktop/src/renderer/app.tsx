@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 
 import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
 import { cn } from "@repo/ui/lib/utils";
+import { useTheme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useUiStateStore } from "@/renderer/stores/ui-state-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
@@ -39,6 +40,8 @@ export function AppLayout() {
   const initUiState = useUiStateStore((s) => s.init);
   const { pathname } = useLocation();
 
+  const { resolved } = useTheme();
+
   useEffect(() => init(), [init]);
   useEffect(() => void initUiState(), [initUiState]);
 
@@ -68,7 +71,7 @@ export function AppLayout() {
           docked ? "top-2.5 left-[76px] h-8 w-8" : "inset-0 m-auto h-44 w-44",
         )}
       >
-        <GeometricOrb status={orbStatus} />
+        <GeometricOrb status={orbStatus} baseColor={resolved === "dark" ? "#eeeeee" : "#18181b"} />
       </motion.div>
 
       <div className="flex h-full flex-col">

@@ -52,62 +52,67 @@ type Mood = {
 
 const tmpColor = new THREE.Color();
 
-const moods: Record<DisplayStatus, Mood> = {
-  idle: {
-    speed: 20,
-    squiggleAmount: 0.04,
-    squiggleFrequency: 4,
-    squiggleSpeed: 2,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#eeeeee"),
-  },
-  busy: {
-    speed: 10,
-    squiggleAmount: 0.08,
-    squiggleFrequency: 6,
-    squiggleSpeed: 5,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#66bbff"),
-  },
-  error: {
-    speed: 14,
-    squiggleAmount: 0.12,
-    squiggleFrequency: 8,
-    squiggleSpeed: 7,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#ff6666"),
-  },
-  starting: {
-    speed: 25,
-    squiggleAmount: 0.01,
-    squiggleFrequency: 2,
-    squiggleSpeed: 1,
-    morphProgress: 0,
-    helixSpin: ROTATE_VALUE,
-    ...rgb("#ffffff"),
-  },
-  listening: {
-    speed: 15,
-    squiggleAmount: 0.06,
-    squiggleFrequency: 5,
-    squiggleSpeed: 3,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#44dd88"),
-  },
-  speaking: {
-    speed: 8,
-    squiggleAmount: 0.1,
-    squiggleFrequency: 7,
-    squiggleSpeed: 6,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#aa88ff"),
-  },
-};
+// The idle/starting states use a neutral base color that tracks the active
+// theme so the orb stays legible on both light and dark backgrounds; the
+// other states keep their semantic hues (visible against either background).
+function makeMoods(baseColor: string): Record<DisplayStatus, Mood> {
+  return {
+    idle: {
+      speed: 20,
+      squiggleAmount: 0.04,
+      squiggleFrequency: 4,
+      squiggleSpeed: 2,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb(baseColor),
+    },
+    busy: {
+      speed: 10,
+      squiggleAmount: 0.08,
+      squiggleFrequency: 6,
+      squiggleSpeed: 5,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#66bbff"),
+    },
+    error: {
+      speed: 14,
+      squiggleAmount: 0.12,
+      squiggleFrequency: 8,
+      squiggleSpeed: 7,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#ff6666"),
+    },
+    starting: {
+      speed: 25,
+      squiggleAmount: 0.01,
+      squiggleFrequency: 2,
+      squiggleSpeed: 1,
+      morphProgress: 0,
+      helixSpin: ROTATE_VALUE,
+      ...rgb(baseColor),
+    },
+    listening: {
+      speed: 15,
+      squiggleAmount: 0.06,
+      squiggleFrequency: 5,
+      squiggleSpeed: 3,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#44dd88"),
+    },
+    speaking: {
+      speed: 8,
+      squiggleAmount: 0.1,
+      squiggleFrequency: 7,
+      squiggleSpeed: 6,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#aa88ff"),
+    },
+  };
+}
 
 function rgb(hex: string): { r: number; g: number; b: number } {
   tmpColor.set(hex);
@@ -191,12 +196,16 @@ function helixPoint(percent: number, tubeAngle: number): [number, number, number
 // LatitudeLines — all rendering in a single useFrame
 // ---------------------------------------------------------------------------
 
-function LatitudeLines({ status }: { status: DisplayStatus }) {
+function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor: string }) {
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
   const parentGroupRef = useRef<THREE.Group>(null);
   const spinGroupRef = useRef<THREE.Group>(null);
   const camDirRef = useRef(new THREE.Vector3());
   const helixRotationRef = useRef(0);
+  // Theme-reactive moods. useFrame lerps the live mood toward `moods[status]`,
+  // so a theme change smoothly recolors the orb without remounting. The refs
+  // below read it only for their one-time initial value.
+  const moods = useMemo(() => makeMoods(baseColor), [baseColor]);
   const sphereExpandRef = useRef(moods[status].morphProgress > 0.5 ? 1 : 0);
   const { size } = useThree();
 
@@ -591,9 +600,12 @@ function OrbLine({
 export function GeometricOrb({
   status = "idle",
   className = "",
+  baseColor = "#eeeeee",
 }: {
   status?: DisplayStatus;
   className?: string;
+  /** Neutral color for idle/starting states; pass a dark value in light mode. */
+  baseColor?: string;
 }) {
   return (
     <Canvas
@@ -601,7 +613,7 @@ export function GeometricOrb({
       camera={{ position: [0, 0, CAMERA_Z], fov: 65 }}
       gl={{ antialias: true, alpha: true }}
     >
-      <LatitudeLines status={status} />
+      <LatitudeLines status={status} baseColor={baseColor} />
     </Canvas>
   );
 }

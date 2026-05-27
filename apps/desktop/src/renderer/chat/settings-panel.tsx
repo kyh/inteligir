@@ -1,11 +1,20 @@
 import { useCallback, useEffect, useState } from "react";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { Label } from "@repo/ui/components/label";
+import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { useTheme, type Theme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { NotificationSettings } from "@/shared/ipc";
+
+const THEME_OPTIONS: { value: Theme; label: string; icon: typeof SunIcon }[] = [
+  { value: "system", label: "System", icon: MonitorIcon },
+  { value: "light", label: "Light", icon: SunIcon },
+  { value: "dark", label: "Dark", icon: MoonIcon },
+];
 
 export function SettingsPanel() {
   const appState = useAgentStore((s) => s.appState);
@@ -13,6 +22,7 @@ export function SettingsPanel() {
   const isReady = appState.phase === "ready";
   const canStartNewSession = isReady && appState.agent === "idle";
 
+  const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
 
   useEffect(() => {
@@ -57,6 +67,29 @@ export function SettingsPanel() {
             <span className="text-xs text-muted-foreground">Not connected</span>
           </div>
         )}
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label className="text-xs font-medium text-muted-foreground">Appearance</Label>
+        <div className="grid grid-cols-3 gap-1 rounded-md border border-border p-1">
+          {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setTheme(value)}
+              aria-pressed={theme === value}
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-sm px-2 py-1.5 text-[10px] transition-colors",
+                theme === value
+                  ? "bg-foreground/15 text-foreground"
+                  : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+              )}
+            >
+              <Icon className="size-3.5" />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">
