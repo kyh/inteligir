@@ -10,7 +10,7 @@ const GITHUB_URL = "https://github.com/kyh/inteligir";
 const TWITTER_URL = `https://x.com/${siteConfig.twitter.replace("@", "")}`;
 
 const controlClass =
-  "flex size-9 items-center justify-center rounded-full bg-muted text-foreground/70 shadow-sm transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30";
+  "flex size-9 items-center justify-center rounded-full bg-muted text-foreground/70 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30";
 
 function GithubIcon({ className }: { className?: string }) {
   return (
