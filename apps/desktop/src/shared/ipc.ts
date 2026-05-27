@@ -51,6 +51,10 @@ export const IPC_CHANNELS = {
   NOTIFICATIONS_GET: "notifications:get",
   NOTIFICATIONS_UPDATE: "notifications:update",
 
+  // UI state (persisted panel layout / view preferences)
+  UI_STATE_GET: "ui-state:get",
+  UI_STATE_SET: "ui-state:set",
+
   // Extensions / tools (#7 dock)
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
@@ -162,6 +166,10 @@ export type DesktopBridge = {
   updateNotificationSettings: (
     patch: Partial<NotificationSettings>,
   ) => Promise<NotificationSettings>;
+
+  // UI state
+  getUiState: () => Promise<Record<string, unknown>>;
+  setUiState: (key: string, value: unknown) => Promise<void>;
 
   // Extensions / tools
   listExtensions: () => Promise<ExtensionsList>;

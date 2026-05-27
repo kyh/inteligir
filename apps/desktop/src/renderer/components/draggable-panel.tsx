@@ -5,7 +5,7 @@ import { XIcon } from "lucide-react";
 import { motion } from "motion/react";
 import { createPortal } from "react-dom";
 
-import { useLocalStorage } from "@/renderer/lib/use-local-storage";
+import { useDiskState } from "@/renderer/lib/use-disk-state";
 
 type DraggablePanelProps = {
   title: React.ReactNode;
@@ -45,7 +45,7 @@ export function DraggablePanel({
     storageKey ??
     `draggable-panel-${typeof title === "string" ? title.toLowerCase().replace(/\s+/g, "-") : "default"}`;
 
-  const [panelState, setPanelState] = useLocalStorage<PanelState>(`${panelKey}-state`, {
+  const [panelState, setPanelState] = useDiskState<PanelState>(`${panelKey}-state`, {
     position: initialPosition,
     size: initialSize,
   });
@@ -182,7 +182,7 @@ export function DraggablePanel({
 
         setPanelState((prev) => ({
           position: { x: newLeft, y: newTop },
-          size: prev?.size ?? size,
+          size: prev.size,
         }));
       };
 

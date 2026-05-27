@@ -1,6 +1,6 @@
 import { cacheLife, cacheTag } from "next/cache";
 
-import { GeometricOrb } from "@repo/ui/components/geometric-orb";
+import { HeroOrb } from "@/components/hero-orb";
 
 const GITHUB_REPO = "kyh/inteligir";
 const FALLBACK_URL = `https://github.com/${GITHUB_REPO}/releases`;
@@ -42,7 +42,7 @@ export default async function Page() {
     <main className="flex min-h-dvh w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center">
         <div className="h-48 w-48">
-          <GeometricOrb status="starting" />
+          <HeroOrb />
         </div>
       </div>
       <div className="flex flex-col items-center gap-3 px-6 pb-16">
