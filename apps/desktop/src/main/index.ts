@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -32,11 +32,13 @@ import { getMcpServers } from "@/main/mcp/mcp-servers";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
+import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
+import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { ExtensionsList, UpdateState } from "@/shared/ipc";
 import {
@@ -274,6 +276,14 @@ function registerIpcHandlers(): void {
     },
   );
 
+  // ---- UI state -------------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.UI_STATE_GET, () => getUiState().getAll());
+
+  createIpcHandler(IPC_CHANNELS.UI_STATE_SET, UiStateSetSchema, ({ key, value }) => {
+    getUiState().set(key, value);
+  });
+
   // ---- Extensions (#7) ------------------------------------------------------
 
   createVoidIpcHandler(IPC_CHANNELS.EXTENSIONS_LIST, (): ExtensionsList => {
@@ -377,6 +387,18 @@ function configureAutoUpdater(): void {
 // Window creation
 // ---------------------------------------------------------------------------
 
+/**
+ * Pick the window chrome color from the persisted theme so the pre-paint
+ * background matches what the renderer will render (no dark flash in light
+ * mode). Mirrors the renderer's default-to-dark behaviour for unset/invalid.
+ */
+function startupBackgroundColor(): string {
+  const stored = getUiState().getAll()["theme"];
+  const theme = stored === "light" || stored === "system" ? stored : "dark";
+  const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
+  return dark ? "#09090b" : "#ffffff";
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1200,
@@ -384,7 +406,7 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor: "#d1684e",
+    backgroundColor: startupBackgroundColor(),
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",

@@ -12,3 +12,14 @@ body,
 .app-drag {
   -webkit-app-region: drag;
 }
+
+/* react-grid-layout — theme the placeholder + resize affordances for dark UI */
+.react-grid-item.react-grid-placeholder {
+  background: var(--foreground);
+  opacity: 0.1;
+  border-radius: var(--radius-xl);
+}
+.react-grid-item > .react-resizable-handle::after {
+  border-right-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+  border-bottom-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+}
