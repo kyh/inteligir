@@ -25,7 +25,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       icons={toasterIcons}
       style={
         {
-          "--normal-bg": "var(--popover)",
+          "--normal-bg": "var(--surface-3)",
           "--normal-text": "var(--popover-foreground)",
           "--normal-border": "var(--border)",
           "--border-radius": "var(--radius)",
