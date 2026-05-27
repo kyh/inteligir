@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { GlobalAlertDialog } from "@repo/ui/components/alert-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
-import { TooltipProvider } from "@repo/ui/components/tooltip";
 
 import { siteConfig } from "@/lib/site-config";
 import { SiteHeader } from "@/components/site-header";
@@ -92,12 +91,10 @@ const RootLayout = (props: LayoutProps) => {
     <html lang="en" suppressHydrationWarning>
       <body className="bg-background text-foreground font-sans antialiased">
         <ThemeProvider>
-          <TooltipProvider>
-            <SiteHeader />
-            <TRPCReactProvider>{props.children}</TRPCReactProvider>
-            <Toaster />
-            <GlobalAlertDialog />
-          </TooltipProvider>
+          <SiteHeader />
+          <TRPCReactProvider>{props.children}</TRPCReactProvider>
+          <Toaster />
+          <GlobalAlertDialog />
         </ThemeProvider>
       </body>
     </html>

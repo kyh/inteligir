@@ -1,139 +1,219 @@
 "use client";
 
-import * as React from "react";
-import { flexRender, type Table as UseReactTable } from "@tanstack/react-table";
-
+import {
+  useRef,
+  useEffect,
+  createContext,
+  useContext,
+  forwardRef,
+  type ReactNode,
+  type HTMLAttributes,
+  type TdHTMLAttributes,
+  type ThHTMLAttributes,
+} from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
+import { springs } from "@repo/ui/lib/springs";
+import { fontWeights } from "@repo/ui/lib/font-weight";
+import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 
-function Table({ className, ...props }: React.ComponentProps<"table">) {
-  return (
-    <div data-slot="table-container" className="relative w-full overflow-x-auto">
-      <table
-        data-slot="table"
-        className={cn("w-full caption-bottom text-sm", className)}
+// ── Context ──────────────────────────────────────────────
+
+interface TableContextValue {
+  registerItem: (index: number, element: HTMLElement | null) => void;
+  activeIndex: number | null;
+}
+
+const TableContext = createContext<TableContextValue | null>(null);
+
+// ── Table ────────────────────────────────────────────────
+
+interface TableProps extends HTMLAttributes<HTMLTableElement> {
+  children: ReactNode;
+}
+
+const Table = forwardRef<HTMLTableElement, TableProps>(
+  ({ children, className, ...props }, ref) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const {
+      activeIndex,
+      itemRects,
+      sessionRef,
+      handlers,
+      registerItem,
+      measureItems,
+    } = useProximityHover(containerRef);
+
+    useEffect(() => {
+      measureItems();
+    }, [measureItems, children]);
+
+    const activeRect = activeIndex !== null ? itemRects[activeIndex] : null;
+
+    return (
+      <TableContext.Provider value={{ registerItem, activeIndex }}>
+        <div
+          ref={containerRef}
+          className="relative"
+          onMouseEnter={handlers.onMouseEnter}
+          onMouseMove={handlers.onMouseMove}
+          onMouseLeave={handlers.onMouseLeave}
+        >
+          {/* Hover background */}
+          <AnimatePresence>
+            {activeRect && (
+              <motion.div
+                key={sessionRef.current}
+                className="absolute bg-hover pointer-events-none"
+                initial={{
+                  opacity: 0,
+                  top: activeRect.top,
+                  left: activeRect.left,
+                  width: activeRect.width,
+                  height: activeRect.height,
+                }}
+                animate={{
+                  opacity: 1,
+                  top: activeRect.top,
+                  left: activeRect.left,
+                  width: activeRect.width,
+                  height: activeRect.height,
+                }}
+                exit={{ opacity: 0, transition: { duration: 0.06 } }}
+                transition={{
+                  ...springs.fast,
+                  opacity: { duration: 0.08 },
+                }}
+              />
+            )}
+          </AnimatePresence>
+
+          <table
+            ref={ref}
+            className={cn("w-full text-[13px] border-collapse", className)}
+            {...props}
+          >
+            {children}
+          </table>
+        </div>
+      </TableContext.Provider>
+    );
+  }
+);
+
+Table.displayName = "Table";
+
+// ── TableHeader ──────────────────────────────────────────
+
+const TableHeader = forwardRef<
+  HTMLTableSectionElement,
+  HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <thead ref={ref} className={cn("", className)} {...props} />
+));
+
+TableHeader.displayName = "TableHeader";
+
+// ── TableBody ────────────────────────────────────────────
+
+const TableBody = forwardRef<
+  HTMLTableSectionElement,
+  HTMLAttributes<HTMLTableSectionElement>
+>(({ className, ...props }, ref) => (
+  <tbody ref={ref} className={cn("", className)} {...props} />
+));
+
+TableBody.displayName = "TableBody";
+
+// ── TableRow ─────────────────────────────────────────────
+
+interface TableRowProps extends HTMLAttributes<HTMLTableRowElement> {
+  index?: number;
+}
+
+const TableRow = forwardRef<HTMLTableRowElement, TableRowProps>(
+  ({ index, className, style, ...props }, ref) => {
+    const internalRef = useRef<HTMLTableRowElement>(null);
+    const ctx = useContext(TableContext);
+
+    useEffect(() => {
+      if (index === undefined || !ctx) return;
+      ctx.registerItem(index, internalRef.current);
+      return () => ctx.registerItem(index, null);
+    }, [index, ctx]);
+
+    const isBodyRow = index !== undefined;
+    const activeIdx = ctx?.activeIndex ?? null;
+    const hideBorder = activeIdx !== null && (
+      (isBodyRow && (index === activeIdx || index === activeIdx - 1)) ||
+      (!isBodyRow && activeIdx === 0)
+    );
+
+    return (
+      <tr
+        ref={(node) => {
+          (internalRef as React.MutableRefObject<HTMLTableRowElement | null>).current = node;
+          if (typeof ref === "function") ref(node);
+          else if (ref) (ref as React.MutableRefObject<HTMLTableRowElement | null>).current = node;
+        }}
+        data-proximity-index={index}
+        className={cn(
+          "group/row relative z-10 border-b transition-[border-color] duration-80",
+          hideBorder ? "border-transparent" : "border-accent/40",
+          isBodyRow && activeIdx === index && "is-active",
+          className
+        )}
+        style={{
+          ...style,
+          fontVariationSettings: isBodyRow
+            ? fontWeights.normal
+            : fontWeights.semibold,
+        }}
         {...props}
       />
-    </div>
-  );
-}
+    );
+  }
+);
 
-function TableHeader({ className, ...props }: React.ComponentProps<"thead">) {
-  return <thead data-slot="table-header" className={cn("[&_tr]:border-b", className)} {...props} />;
-}
+TableRow.displayName = "TableRow";
 
-function TableBody({ className, ...props }: React.ComponentProps<"tbody">) {
-  return (
-    <tbody
-      data-slot="table-body"
-      className={cn("[&_tr:last-child]:border-0", className)}
-      {...props}
-    />
-  );
-}
+// ── TableHead ────────────────────────────────────────────
 
-function TableFooter({ className, ...props }: React.ComponentProps<"tfoot">) {
-  return (
-    <tfoot
-      data-slot="table-footer"
-      className={cn("border-t bg-muted/50 font-medium [&>tr]:last:border-b-0", className)}
-      {...props}
-    />
-  );
-}
+const TableHead = forwardRef<
+  HTMLTableCellElement,
+  ThHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <th
+    ref={ref}
+    className={cn(
+      "px-3 py-2 text-left text-foreground",
+      className
+    )}
+    {...props}
+  />
+));
 
-function TableRow({ className, ...props }: React.ComponentProps<"tr">) {
-  return (
-    <tr
-      data-slot="table-row"
-      className={cn(
-        "border-b transition-colors hover:bg-hover has-aria-expanded:bg-hover data-[state=selected]:bg-active",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
+TableHead.displayName = "TableHead";
 
-function TableHead({ className, ...props }: React.ComponentProps<"th">) {
-  return (
-    <th
-      data-slot="table-head"
-      className={cn(
-        "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
+// ── TableCell ────────────────────────────────────────────
 
-function TableCell({ className, ...props }: React.ComponentProps<"td">) {
-  return (
-    <td
-      data-slot="table-cell"
-      className={cn("p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0", className)}
-      {...props}
-    />
-  );
-}
+const TableCell = forwardRef<
+  HTMLTableCellElement,
+  TdHTMLAttributes<HTMLTableCellElement>
+>(({ className, ...props }, ref) => (
+  <td
+    ref={ref}
+    className={cn(
+      "px-3 py-2 text-muted-foreground transition-colors duration-80 group-[.is-active]/row:text-foreground",
+      className
+    )}
+    {...props}
+  />
+));
 
-function TableCaption({ className, ...props }: React.ComponentProps<"caption">) {
-  return (
-    <caption
-      data-slot="table-caption"
-      className={cn("mt-4 text-sm text-muted-foreground", className)}
-      {...props}
-    />
-  );
-}
+TableCell.displayName = "TableCell";
 
-export { Table, TableHeader, TableBody, TableFooter, TableHead, TableRow, TableCell, TableCaption };
+// ── Exports ──────────────────────────────────────────────
 
-type AutoTableProps<TData> = {
-  table: UseReactTable<TData>;
-} & React.HTMLAttributes<HTMLTableElement>;
-
-export const AutoTable = <TData,>({ table, ...props }: AutoTableProps<TData>) => {
-  const columns = table.getAllColumns();
-
-  return (
-    <Table {...props}>
-      <TableHeader>
-        {table.getHeaderGroups().map((headerGroup) => (
-          <TableRow key={headerGroup.id}>
-            {headerGroup.headers.map((header) => (
-              <TableHead key={header.id}>
-                {header.isPlaceholder
-                  ? null
-                  : flexRender(header.column.columnDef.header, header.getContext())}
-              </TableHead>
-            ))}
-          </TableRow>
-        ))}
-      </TableHeader>
-      <TableBody>
-        {table.getRowModel().rows.length ? (
-          table.getRowModel().rows.map((row) => (
-            <TableRow
-              key={row.id}
-              data-row-id={row.id}
-              data-state={row.getIsSelected() && "selected"}
-            >
-              {row.getVisibleCells().map((cell) => (
-                <TableCell key={cell.id}>
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </TableCell>
-              ))}
-            </TableRow>
-          ))
-        ) : (
-          <TableRow>
-            <TableCell colSpan={columns.length} className="h-24 text-center">
-              No data available
-            </TableCell>
-          </TableRow>
-        )}
-      </TableBody>
-    </Table>
-  );
-};
+export { Table, TableHeader, TableBody, TableRow, TableHead, TableCell };

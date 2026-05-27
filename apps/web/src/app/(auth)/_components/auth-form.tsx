@@ -88,7 +88,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
   return (
     <div className={cn("grid gap-6", className)} {...props}>
       <Button
-        variant="outline"
+        variant="tertiary"
         type="button"
         loading={submittingGithub}
         onClick={handleAuthWithGithub}

@@ -82,7 +82,7 @@ export const ConversationScrollButton = ({
         onClick={handleScrollToBottom}
         size="icon"
         type="button"
-        variant="outline"
+        variant="tertiary"
         {...props}
       >
         <ArrowDownIcon className="size-4" />
@@ -143,7 +143,7 @@ export const ConversationDownload = ({
       onClick={handleDownload}
       size="icon"
       type="button"
-      variant="outline"
+      variant="tertiary"
       {...props}
     >
       {children ?? <DownloadIcon className="size-4" />}

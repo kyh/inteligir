@@ -64,7 +64,7 @@ const statusIcons: Record<ToolPart["state"], ReactNode> = {
 };
 
 export const getStatusBadge = (status: ToolPart["state"]) => (
-  <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
+  <Badge className="gap-1.5 rounded-full text-xs">
     {statusIcons[status]}
     {statusLabels[status]}
   </Badge>
