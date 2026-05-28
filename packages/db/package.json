@@ -28,18 +28,18 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
-    "@supabase/supabase-js": "^2.105.4",
+    "@supabase/supabase-js": "^2.106.1",
     "drizzle-orm": "^0.45.2",
     "next": "catalog:",
     "postgres": "^3.4.9",
     "react": "catalog:",
-    "zod": "catalog:"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
     "@types/react": "catalog:",
     "drizzle-kit": "^0.31.10",
-    "supabase": "^2.98.2",
+    "supabase": "^2.101.0",
     "typescript": "catalog:"
   }
 }

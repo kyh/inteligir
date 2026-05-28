@@ -21,6 +21,7 @@ import { runCli } from "@repo/agent-runtime/run-cli";
 import { seedFile } from "@repo/agent-runtime/seed";
 
 import type { PiExtensionBundle } from "@/agent/extension";
+import { formatCliOutput, textResult } from "@/agent/extension-helpers";
 
 const GWS_VERSION = "0.22.5";
 const GWS_TIMEOUT_MS = 60_000;
@@ -65,25 +66,18 @@ const gwsExtension: PiExtensionBundle = {
           "Run [<service>, '--help'] to discover commands.",
         parameters: GwsRunSchema,
         execute: async (_toolCallId, params: Static<typeof GwsRunSchema>) => {
-          const text = (s: string) => ({
-            content: [{ type: "text" as const, text: s }],
-            details: {},
-          });
-
           try {
-            const { stdout, stderr, code } = await runCli(gwsPath, params.args, {
+            const result = await runCli(gwsPath, params.args, {
               timeoutMs: GWS_TIMEOUT_MS,
               maxBuffer: GWS_MAX_BUFFER,
               stdin: params.stdin,
               notFoundMessage: "gws binary not installed",
             });
-            const parts: string[] = [];
-            if (stdout) parts.push(stdout);
-            if (stderr) parts.push(`[stderr]\n${stderr}`);
-            if (code !== 0) parts.push(`[exit ${code}]`);
-            return text(parts.join("\n\n") || "(no output)");
+            return textResult(formatCliOutput(result));
           } catch (err) {
-            return text(`gws error: ${err instanceof Error ? err.message : String(err)}`);
+            return textResult(
+              `gws error: ${err instanceof Error ? err.message : String(err)}`,
+            );
           }
         },
       });

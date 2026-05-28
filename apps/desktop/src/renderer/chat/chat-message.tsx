@@ -1,15 +1,7 @@
-import type { DynamicToolUIPart } from "ai";
 import { ImageIcon } from "lucide-react";
 import { Message, MessageContent } from "@repo/ui/components/ai-elements/message";
 import { Response } from "@repo/ui/components/ai-elements/response";
 import { Shimmer } from "@repo/ui/components/ai-elements/shimmer";
-import {
-  Tool,
-  ToolContent,
-  ToolHeader,
-  ToolOutput,
-  type ToolPart,
-} from "@repo/ui/components/ai-elements/tool";
 
 import type { ChatMessage } from "@/renderer/stores/agent-store";
 
@@ -29,9 +21,12 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
   const first = message.parts[0];
   if (!first) return null;
 
-  if (first.type === "dynamic-tool") {
-    return <ToolMessage part={first} />;
-  }
+  // Tool calls are never rendered as bubbles. While the turn is live, a single
+  // <ChatActivityRow> below the message list shows the current activity as a
+  // rolling shimmer line; on agent_end the store sweeps these messages so
+  // only the user prompt and final assistant answer remain.
+  if (first.type === "dynamic-tool") return null;
+
   if (first.type !== "text") return null;
 
   const text = first.text;
@@ -44,6 +39,51 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
     return <UserMessage text={text} imageCount={imageCount} />;
   }
   return <AssistantMessage text={text} />;
+}
+
+/**
+ * Single shimmer line that reflects what the agent is currently doing. Renders
+ * nothing when not busy. While busy:
+ *   - Latest running tool      → "<toolName> · <args>"
+ *   - Latest tool done, more work likely → "Thinking…" (next step pending)
+ *   - No tools yet              → "Thinking…"
+ *   - Assistant text streaming  → "Finalizing answer"
+ *
+ * Visible only on the live turn; the answer that lands replaces it.
+ */
+export function ChatActivityRow({
+  messages,
+  busy,
+}: {
+  messages: ChatMessage[];
+  busy: boolean;
+}) {
+  if (!busy) return null;
+
+  // Walk from the end: the latest text/tool message reflects the current step.
+  let label = "Thinking";
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const m = messages[i];
+    const part = m?.parts[0];
+    if (!part) continue;
+    if (part.type === "dynamic-tool") {
+      if (part.state === "input-available" || part.state === "input-streaming") {
+        const args = formatToolArgs(part.input);
+        label = args ? `${part.toolName} · ${args}` : part.toolName;
+      }
+      break;
+    }
+    if (part.type === "text" && m.role === "assistant" && part.text) {
+      label = "Finalizing answer";
+      break;
+    }
+  }
+
+  return (
+    <div className="px-3 py-1 text-xs italic">
+      <Shimmer duration={1.5}>{label}</Shimmer>
+    </div>
+  );
 }
 
 function UserMessage({ text, imageCount }: { text: string; imageCount: number }) {
@@ -73,46 +113,55 @@ function SteerMessage({ text, imageCount }: { text: string; imageCount: number }
 }
 
 function AssistantMessage({ text }: { text: string }) {
+  // Empty text is the brief gap between message_start and either the first
+  // tool call or the first text delta — render nothing. The compact tool
+  // rows downstream are the active "agent is working" signal; doubling up
+  // with a bubble shimmer makes the UI feel noisy.
+  if (!text) return null;
   return (
     <Message from="assistant">
       <MessageContent className={MESSAGE_TEXT}>
-        {text ? (
-          <Response
-            className="prose prose-sm prose-invert max-w-none break-words text-xs [&_*]:text-xs"
-            shikiTheme={ASSISTANT_SHIKI_THEME}
-          >
-            {text}
-          </Response>
-        ) : (
-          <Shimmer duration={1.5}>Thinking...</Shimmer>
-        )}
+        <Response
+          className="prose prose-sm prose-invert max-w-none break-words text-xs [&_*]:text-xs"
+          shikiTheme={ASSISTANT_SHIKI_THEME}
+        >
+          {text}
+        </Response>
       </MessageContent>
     </Message>
   );
 }
 
-function ToolMessage({ part }: { part: DynamicToolUIPart }) {
-  const { state } = part;
-  const hasOutput = state === "output-available" || state === "output-error";
-  return (
-    <div className="mr-8">
-      <Tool className="mb-0 rounded-lg border-foreground/10 bg-foreground/5 backdrop-blur-sm [&>button]:p-2 [&>button>div>span]:text-xs">
-        <ToolHeader
-          type="dynamic-tool"
-          toolName={part.toolName}
-          state={state as ToolPart["state"]}
-        />
-        {hasOutput && (
-          <ToolContent>
-            <ToolOutput
-              output={state === "output-available" ? (part.output as unknown) : undefined}
-              errorText={state === "output-error" ? part.errorText : undefined}
-            />
-          </ToolContent>
-        )}
-      </Tool>
-    </div>
-  );
+// Best-effort one-line preview of the tool's input. Shape varies by tool —
+// some pass `{ command, args }` (agent-browser), some pass `{ path }` (read),
+// some pass arbitrary JSON. Keep it short; the renderer truncates wider lines.
+const MAX_ARGS_LEN = 120;
+function formatToolArgs(input: unknown): string | null {
+  if (input === null || input === undefined) return null;
+  if (typeof input === "string") return truncate(input, MAX_ARGS_LEN);
+  if (typeof input !== "object") return truncate(String(input), MAX_ARGS_LEN);
+
+  const record = input as Record<string, unknown>;
+  // Prioritised keys that read well as a one-line subtitle.
+  for (const key of ["command", "query", "path", "url", "file", "name", "text"]) {
+    const value = record[key];
+    if (typeof value === "string" && value) return truncate(value, MAX_ARGS_LEN);
+  }
+  // agent-browser's `args: string[]` — render as a space-joined preview.
+  if (Array.isArray(record["args"])) {
+    const joined = record["args"].filter((v) => typeof v === "string").join(" ");
+    if (joined) return truncate(joined, MAX_ARGS_LEN);
+  }
+  // Fallback: compact JSON of the whole input.
+  try {
+    return truncate(JSON.stringify(input), MAX_ARGS_LEN);
+  } catch {
+    return null;
+  }
+}
+
+function truncate(s: string, max: number): string {
+  return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
 }
 
 function ImageCount({ count, withLabel }: { count: number; withLabel?: boolean }) {

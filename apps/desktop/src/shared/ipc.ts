@@ -16,7 +16,6 @@ import type { TextChatMessage } from "./voice";
 
 export const IPC_CHANNELS = {
   // Desktop
-  OPEN_EXTERNAL: "desktop:open-external",
   UPDATE_STATE: "desktop:update-state",
   UPDATE_CHECK: "desktop:update-check",
   UPDATE_DOWNLOAD: "desktop:update-download",
@@ -53,6 +52,10 @@ export const IPC_CHANNELS = {
   NOTIFICATIONS_GET: "notifications:get",
   NOTIFICATIONS_UPDATE: "notifications:update",
 
+  // UI state (persisted panel layout / view preferences)
+  UI_STATE_GET: "ui-state:get",
+  UI_STATE_SET: "ui-state:set",
+
   // Extensions / tools (#7 dock)
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
@@ -68,6 +71,7 @@ export const IPC_CHANNELS = {
   // Live artifact actions
   ARTIFACT_COMPLETE: "artifact:complete",
   ARTIFACT_FETCH: "artifact:fetch",
+  ARTIFACT_OPEN_URL: "artifact:open-url",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -134,7 +138,6 @@ export type ChatHistoryEntry = {
 
 export type DesktopBridge = {
   // Desktop
-  openExternal: (url: string) => Promise<boolean>;
   checkForUpdates: () => Promise<UpdateState>;
   downloadUpdate: () => Promise<UpdateResponse>;
   installUpdate: () => Promise<UpdateResponse>;
@@ -178,6 +181,10 @@ export type DesktopBridge = {
     patch: Partial<NotificationSettings>,
   ) => Promise<NotificationSettings>;
 
+  // UI state
+  getUiState: () => Promise<Record<string, unknown>>;
+  setUiState: (key: string, value: unknown) => Promise<void>;
+
   // Extensions / tools
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
@@ -196,6 +203,7 @@ export type DesktopBridge = {
   // Live artifact actions
   artifactComplete: (prompt: string, system?: string) => Promise<string>;
   artifactFetch: (url: string) => Promise<string>;
+  artifactOpenUrl: (url: string) => Promise<boolean>;
 };
 
 // ---------------------------------------------------------------------------

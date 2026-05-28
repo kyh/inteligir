@@ -14,7 +14,6 @@ function forwardEvent(channel: string, listener: (data: unknown) => void): () =>
 
 contextBridge.exposeInMainWorld("desktopBridge", {
   // Desktop
-  openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),
   checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_CHECK),
   downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DOWNLOAD),
   installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_INSTALL),
@@ -58,6 +57,11 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   updateNotificationSettings: (patch: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATIONS_UPDATE, patch),
 
+  // UI state
+  getUiState: () => ipcRenderer.invoke(IPC_CHANNELS.UI_STATE_GET),
+  setUiState: (key: string, value: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.UI_STATE_SET, { key, value }),
+
   // Extensions
   listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
   setActiveExtensions: (toolNames: string[]) =>
@@ -77,4 +81,5 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   artifactComplete: (prompt: string, system?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_COMPLETE, { prompt, system }),
   artifactFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_FETCH, url),
+  artifactOpenUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_OPEN_URL, url),
 });

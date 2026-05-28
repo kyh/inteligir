@@ -149,7 +149,7 @@ export function ArtifactViewer({ id }: Props) {
       openUrl: async (params: Record<string, unknown>) => {
         const url = typeof params["url"] === "string" ? params["url"] : "";
         if (!url) return;
-        await getBridge()?.openExternal(url);
+        await getBridge()?.artifactOpenUrl(url);
       },
       // Live actions. generateText/fetchUrl write their result into the
       // state store at `into`; the store subscriber persists it and any

@@ -8,7 +8,7 @@ import type { AppAgentEvent } from "./agent-events";
 import { extractText, isRecord } from "./ipc";
 
 // ---------------------------------------------------------------------------
-// Per-event-type Zod schemas (only the 7 types the app cares about)
+// Per-event-type Zod schemas (only the 8 types the app cares about)
 // ---------------------------------------------------------------------------
 
 const AgentStartSchema = z.object({ type: z.literal("agent_start") });
@@ -40,6 +40,7 @@ const ToolExecutionStartSchema = z.object({
   type: z.literal("tool_execution_start"),
   toolCallId: z.string(),
   toolName: z.string(),
+  args: z.unknown().optional(),
 });
 
 const ToolExecutionEndSchema = z.object({
@@ -113,6 +114,7 @@ export function parseAgentEvent(raw: unknown): AppAgentEvent | null {
         type: "tool_execution_start",
         toolCallId: r.data.toolCallId,
         toolName: r.data.toolName,
+        args: r.data.args,
       };
     }
 

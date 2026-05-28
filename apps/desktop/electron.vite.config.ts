@@ -20,7 +20,11 @@ export default defineConfig(() => ({
       externalizeDeps: false,
       outDir: ".output/app/main",
       rollupOptions: {
-        external: ["electron"],
+        // sherpa-onnx-node loads a native .node addon via __dirname-relative
+        // paths. Bundling it breaks that lookup (the bundle's __dirname is the
+        // chunks dir, not the package). Externalize so it's require()'d from
+        // node_modules at runtime, where the addon + dylibs sit beside it.
+        external: ["electron", "sherpa-onnx-node"],
         input: {
           index: resolve(__dirname, "src/main/index.ts"),
         },

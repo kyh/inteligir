@@ -22,6 +22,7 @@ import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 
 import { inteligirPath } from "@/main/lib/json-store";
 import type { PiExtensionBundle } from "@/agent/extension";
+import { textResult } from "@/agent/extension-helpers";
 import type { SetupProgress } from "@/shared/ipc";
 
 const AGENT_BROWSER_VERSION = "0.26.0";
@@ -159,10 +160,6 @@ function installBrowserRuntime(
     child.stdout?.on("data", handle);
     child.stderr?.on("data", handle);
   });
-}
-
-function textResult(value: string): BrowserToolResult {
-  return { content: [{ type: "text", text: value }], details: {} };
 }
 
 function isEnoent(err: ExecFileException | null): boolean {
