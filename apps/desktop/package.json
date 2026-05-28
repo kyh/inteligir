@@ -24,7 +24,6 @@
   "dependencies": {
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@react-three/fiber": "^9.6.1",
     "@repo/agent-runtime": "workspace:^",
     "@repo/pi-driver": "workspace:^",

@@ -59,11 +59,27 @@ export const IPC_CHANNELS = {
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 
-  // MCP servers
-  MCP_LIST: "mcp:list",
-  MCP_ADD: "mcp:add",
-  MCP_REMOVE: "mcp:remove",
-  MCP_SET_ENABLED: "mcp:set-enabled",
+  // Executor (integration backend) — wraps the executor daemon's HTTP API
+  EXECUTOR_STATUS: "executor:status",
+  EXECUTOR_SOURCES_LIST: "executor:sources:list",
+  EXECUTOR_SOURCES_DETECT: "executor:sources:detect",
+  EXECUTOR_SOURCE_ADD_MCP: "executor:source:add-mcp",
+  EXECUTOR_SOURCE_ADD_OPENAPI: "executor:source:add-openapi",
+  EXECUTOR_SOURCE_ADD_GRAPHQL: "executor:source:add-graphql",
+  EXECUTOR_SOURCE_ADD_GOOGLE: "executor:source:add-google",
+  EXECUTOR_SOURCE_REMOVE: "executor:source:remove",
+  EXECUTOR_SOURCE_REFRESH: "executor:source:refresh",
+  EXECUTOR_SOURCE_TOOLS: "executor:source:tools",
+  EXECUTOR_SECRETS_LIST: "executor:secrets:list",
+  EXECUTOR_SECRET_SET: "executor:secret:set",
+  EXECUTOR_SECRET_REMOVE: "executor:secret:remove",
+  EXECUTOR_CONNECTIONS_LIST: "executor:connections:list",
+  EXECUTOR_CONNECTION_REMOVE: "executor:connection:remove",
+  EXECUTOR_TOOLS_LIST: "executor:tools:list",
+  EXECUTOR_EXECUTE: "executor:execute",
+  EXECUTOR_OAUTH_START: "executor:oauth:start",
+  EXECUTOR_OAUTH_AWAIT: "executor:oauth:await",
+  EXECUTOR_OPEN_EXTERNAL: "executor:open-external",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -181,12 +197,33 @@ export type DesktopBridge = {
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
 
-  // MCP servers
-  listMcpServers: () => Promise<McpServerList>;
-  addMcpServer: (params: AddMcpServerParams) => Promise<McpServerList>;
-  removeMcpServer: (name: string) => Promise<McpServerList>;
-  setMcpServerEnabled: (params: SetMcpServerEnabledParams) => Promise<McpServerList>;
+  // Executor (integration backend)
+  executorStatus: () => Promise<ExecutorStatus>;
+  listExecutorSources: () => Promise<ExecutorSource[]>;
+  detectExecutorSource: (url: string) => Promise<ExecutorDetectResult[]>;
+  addMcpSource: (input: AddMcpSourceInput) => Promise<ExecutorAddSourceResult>;
+  addOpenApiSource: (input: AddOpenApiSourceInput) => Promise<ExecutorAddSourceResult>;
+  addGraphqlSource: (input: AddGraphqlSourceInput) => Promise<ExecutorAddSourceResult>;
+  addGoogleSource: (input: AddGoogleSourceInput) => Promise<ExecutorAddSourceResult>;
+  removeExecutorSource: (sourceId: string) => Promise<{ removed: boolean }>;
+  refreshExecutorSource: (sourceId: string) => Promise<{ refreshed: boolean }>;
+  listExecutorSourceTools: (sourceId: string) => Promise<ExecutorToolMeta[]>;
+  listExecutorSecrets: () => Promise<ExecutorSecretRef[]>;
+  setExecutorSecret: (input: SetSecretInput) => Promise<ExecutorSecretRef>;
+  removeExecutorSecret: (secretId: string) => Promise<{ removed: boolean }>;
+  listExecutorConnections: () => Promise<ExecutorConnectionRef[]>;
+  removeExecutorConnection: (connectionId: string) => Promise<{ removed: boolean }>;
+  listExecutorTools: () => Promise<ExecutorToolMeta[]>;
+  executorExecute: (code: string) => Promise<ExecutorExecuteResult>;
+  executorOAuthStart: (input: OAuthStartInput) => Promise<OAuthStartResult>;
+  executorOAuthAwait: (sessionId: string) => Promise<OAuthAwaitResult | null>;
+  executorOpenExternal: (url: string) => Promise<void>;
 };
+
+/** Whether the executor daemon is running, and the active scope when it is. */
+export type ExecutorStatus =
+  | { running: false }
+  | { running: true; scope: { id: string; name: string; dir: string } };
 
 // ---------------------------------------------------------------------------
 // Notifications
@@ -203,10 +240,22 @@ export type NotificationSettings = {
 import type { PiAgentTool } from "@repo/pi-driver";
 
 import type {
-  AddMcpServerParams,
-  McpServerList,
-  SetMcpServerEnabledParams,
-} from "./mcp";
+  AddGoogleSourceInput,
+  AddGraphqlSourceInput,
+  AddMcpSourceInput,
+  AddOpenApiSourceInput,
+  ExecutorAddSourceResult,
+  ExecutorConnectionRef,
+  ExecutorDetectResult,
+  ExecutorExecuteResult,
+  ExecutorSecretRef,
+  ExecutorSource,
+  ExecutorToolMeta,
+  OAuthAwaitResult,
+  OAuthStartInput,
+  OAuthStartResult,
+  SetSecretInput,
+} from "./executor";
 
 export type ExtensionToolInfo = PiAgentTool;
 

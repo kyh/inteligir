@@ -27,8 +27,8 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
-import { getExecutorProcess } from "@/main/executor/executor-process";
-import { getMcpServers } from "@/main/mcp/mcp-servers";
+import { getExecutorDaemon } from "@/main/executor/executor-daemon";
+import * as executor from "@/main/executor/executor-client";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -40,12 +40,7 @@ import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, UpdateState } from "@/shared/ipc";
-import {
-  AddMcpServerParamsSchema,
-  SetMcpServerEnabledParamsSchema,
-  type McpServerList,
-} from "@/shared/mcp";
+import type { ExtensionsList, ExecutorStatus, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -304,38 +299,70 @@ function registerIpcHandlers(): void {
     },
   );
 
-  // ---- MCP connectors -------------------------------------------------------
+  // ---- Executor (integration backend) ---------------------------------------
   //
-  // Connectors are registered with the bundled executor (the MCP client) as
-  // sources, reachable from the agent's code-mode `execute` tool. Config
-  // changes reconcile executor's live catalog in the background; the handler
-  // returns the updated list immediately.
+  // Thin pass-throughs to the executor daemon's HTTP API. Input payloads are
+  // validated server-side by executor; the loose schemas here just gate types.
 
-  createVoidIpcHandler(IPC_CHANNELS.MCP_LIST, (): McpServerList => {
-    return { servers: getMcpServers().list() };
+  const anyObj = z.record(z.string(), z.unknown());
+
+  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, async (): Promise<ExecutorStatus> => {
+    if (!getExecutorDaemon().getConnection()) return { running: false };
+    try {
+      const scope = await executor.getScope();
+      return { running: true, scope: { id: scope.id, name: scope.name, dir: scope.dir } };
+    } catch {
+      return { running: false };
+    }
   });
 
-  createIpcHandler(IPC_CHANNELS.MCP_ADD, AddMcpServerParamsSchema, (params): McpServerList => {
-    const servers = getMcpServers().add(params);
-    void getExecutorProcess().reconcile();
-    return { servers };
-  });
-
-  createIpcHandler(IPC_CHANNELS.MCP_REMOVE, z.string().min(1), (name): McpServerList => {
-    const servers = getMcpServers().remove(name);
-    void getExecutorProcess().reconcile();
-    return { servers };
-  });
-
-  createIpcHandler(
-    IPC_CHANNELS.MCP_SET_ENABLED,
-    SetMcpServerEnabledParamsSchema,
-    ({ name, enabled }): McpServerList => {
-      const servers = getMcpServers().setEnabled(name, enabled);
-      void getExecutorProcess().reconcile();
-      return { servers };
-    },
+  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCES_LIST, () => executor.listSources());
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCES_DETECT, z.string(), (url) =>
+    executor.detectSource(url),
   );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP, anyObj, (input) =>
+    executor.addMcpSource(input as Parameters<typeof executor.addMcpSource>[0]),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI, anyObj, (input) =>
+    executor.addOpenApiSource(input as Parameters<typeof executor.addOpenApiSource>[0]),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL, anyObj, (input) =>
+    executor.addGraphqlSource(input as Parameters<typeof executor.addGraphqlSource>[0]),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE, anyObj, (input) =>
+    executor.addGoogleSource(input as Parameters<typeof executor.addGoogleSource>[0]),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_REMOVE, z.string(), (id) =>
+    executor.removeSource(id),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, z.string(), (id) =>
+    executor.refreshSource(id),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_TOOLS, z.string(), (id) =>
+    executor.listSourceTools(id),
+  );
+  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_SECRETS_LIST, () => executor.listSecrets());
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SECRET_SET, anyObj, (input) =>
+    executor.setSecret(input as Parameters<typeof executor.setSecret>[0]),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SECRET_REMOVE, z.string(), (id) =>
+    executor.removeSecret(id),
+  );
+  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST, () => executor.listConnections());
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_CONNECTION_REMOVE, z.string(), (id) =>
+    executor.removeConnection(id),
+  );
+  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_TOOLS_LIST, () => executor.listTools());
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_EXECUTE, z.string(), (code) => executor.execute(code));
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_OAUTH_START, anyObj, (input) =>
+    executor.oauthStart(input as Parameters<typeof executor.oauthStart>[0]),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, z.string(), (sessionId) =>
+    executor.awaitOAuth(sessionId),
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, z.string(), (url) => {
+    if (isHttpUrl(url)) void shell.openExternal(url);
+  });
 }
 
 // ---------------------------------------------------------------------------

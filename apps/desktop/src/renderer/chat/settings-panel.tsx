@@ -6,7 +6,7 @@ import { Label } from "@repo/ui/components/label";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { McpServersSection } from "@/renderer/chat/mcp-servers-section";
+import { ExecutorPanel } from "@/renderer/chat/executor-panel";
 import { useTheme, type Theme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { NotificationSettings } from "@/shared/ipc";
@@ -134,7 +134,7 @@ export function SettingsPanel() {
         </label>
       </div>
 
-      <McpServersSection />
+      <ExecutorPanel />
     </div>
   );
 }

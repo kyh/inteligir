@@ -1,28 +1,56 @@
 /**
- * Executor (code mode) extension — surfaces executor's sandboxed `execute`
- * tool (and `resume`) to the agent.
+ * Executor (code mode) extension — gives the agent a single `execute` tool
+ * (plus `resume`) backed by executor's daemon.
  *
- * Executor runs as a child `executor mcp` process (managed by
- * main/executor/executor-process.ts) and acts as the MCP client / integration
- * layer. Instead of registering each remote tool individually, the agent gets
- * a single `execute` tool: it writes TypeScript that calls a typed `tools.*`
- * catalog (discover, describe, invoke) and only the returned data flows back —
- * far less context than wiring hundreds of tools, and the model can compose
- * and filter in code.
+ * Executor runs as a child daemon (managed by main/executor/executor-daemon.ts)
+ * and acts as the integration layer / backend. Rather than registering each
+ * remote tool individually, the agent writes TypeScript against executor's
+ * typed `tools.*` catalog (discover, describe, invoke); only the returned data
+ * flows back. The code runs server-side in executor's sandbox via the daemon's
+ * `POST /executions` endpoint.
  *
- * setup() installs the executor binary from its GitHub release; register()
- * ensures the process is running, then mirrors its MCP tools (execute, resume)
- * as pi tools. Per-call failures are surfaced as tool text.
+ * setup() installs the executor binary; register() ensures the daemon is up,
+ * then registers the execute/resume tools.
  */
 
+import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@repo/pi-driver";
-import type { TSchema } from "@sinclair/typebox";
 
-import { getExecutorProcess, installExecutor } from "@/main/executor/executor-process";
+import { execute, resumeExecution } from "@/main/executor/executor-client";
+import { installExecutor, getExecutorDaemon } from "@/main/executor/executor-daemon";
 import type { PiExtensionBundle } from "@/agent/extension";
-import { mcpContentToToolResult, textResult } from "@/agent/extension-helpers";
+import { textResult } from "@/agent/extension-helpers";
 
-const CALL_TIMEOUT_MS = 300_000;
+const EXECUTE_DESCRIPTION = `Execute TypeScript in a sandboxed runtime with access to configured API tools.
+
+Workflow:
+1. const { items } = await tools.search({ query: "<intent + key nouns>", limit: 12 });
+2. const path = items[0]?.path; if (!path) return "No matching tools found.";
+3. const details = await tools.describe.tool({ path }); // inputTypeScript / outputTypeScript
+4. const result = await tools.<namespace>.<tool>(input);
+
+Rules:
+- Always namespace tool calls: tools.<namespace>.<tool>(args). The tools object is a lazy proxy — Object.keys won't work; use tools.search() or tools.executor.sources.list().
+- Tool calls return { ok: true, data } or { ok: false, error }. Branch on result.ok.
+- For large collections, filter in code rather than calling per-item tools. Do not use fetch — all API calls go through tools.*.
+- TypeScript type syntax is stripped before execution; decorators and enum are unsupported.
+- If execution pauses for interaction, resume it with the resume tool using the returned executionId.`;
+
+const ExecuteSchema = Type.Object({
+  code: Type.String({ description: "TypeScript to run in the sandbox. Must return a value." }),
+});
+
+const ResumeSchema = Type.Object({
+  executionId: Type.String({ description: "The executionId from a paused execute result." }),
+  action: Type.Union([Type.Literal("accept"), Type.Literal("decline"), Type.Literal("cancel")], {
+    description: "How to resume the paused interaction.",
+  }),
+  content: Type.Optional(
+    Type.Record(Type.String(), Type.Unknown(), {
+      description: "Response payload matching the requested schema (for form elicitations).",
+    }),
+  ),
+});
 
 const executorExtension: PiExtensionBundle = {
   name: "executor",
@@ -31,53 +59,49 @@ const executorExtension: PiExtensionBundle = {
     await installExecutor();
   },
   register: () => async (pi) => {
-    const client = await getExecutorProcess().start();
-    if (!client) {
-      console.warn("[executor] not available — code-mode tools will not be registered");
+    const conn = await getExecutorDaemon().start();
+    if (!conn) {
+      console.warn("[executor] daemon unavailable — code-mode tools will not be registered");
       return;
     }
-
-    let tools;
-    try {
-      ({ tools } = await client.listTools());
-    } catch (err) {
-      console.error("[executor] failed to list tools:", err);
-      return;
-    }
-
-    for (const tool of tools) {
-      registerProxyTool(pi, tool.name, tool.description, tool.inputSchema);
-    }
+    registerExecute(pi);
+    registerResume(pi);
   },
 };
 
 export default executorExtension;
 
-function registerProxyTool(
-  pi: ExtensionAPI,
-  name: string,
-  description: string | undefined,
-  inputSchema: unknown,
-): void {
+function registerExecute(pi: ExtensionAPI): void {
   pi.registerTool({
-    name,
-    label: name,
-    description: description ?? name,
-    // Executor exposes plain JSON Schema; pi-ai's tool validation accepts it
-    // directly (no TypeBox translation needed).
-    parameters: (inputSchema ?? { type: "object", properties: {} }) as unknown as TSchema,
-    execute: async (_toolCallId, params) => {
-      const client = getExecutorProcess().getClient();
-      if (!client) return textResult(`executor is not running — cannot run "${name}".`);
+    name: "execute",
+    label: "execute",
+    description: EXECUTE_DESCRIPTION,
+    parameters: ExecuteSchema,
+    execute: async (_id, params) => {
       try {
-        const result = await client.callTool(
-          { name, arguments: (params as Record<string, unknown>) ?? {} },
-          undefined,
-          { timeout: CALL_TIMEOUT_MS },
-        );
-        return mcpContentToToolResult(result.content, result.isError === true);
+        const result = await execute(params.code);
+        return textResult(result.text);
       } catch (err) {
-        return textResult(`"${name}" failed: ${err instanceof Error ? err.message : String(err)}`);
+        return textResult(`execute failed: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    },
+  });
+}
+
+function registerResume(pi: ExtensionAPI): void {
+  pi.registerTool({
+    name: "resume",
+    label: "resume",
+    description:
+      "Resume a paused execution by its executionId. Use after `execute` returns a paused result " +
+      "that requests interaction (e.g. an approval or OAuth handoff).",
+    parameters: ResumeSchema,
+    execute: async (_id, params) => {
+      try {
+        const result = await resumeExecution(params.executionId, params.action, params.content);
+        return textResult(result.text);
+      } catch (err) {
+        return textResult(`resume failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   });

@@ -17,8 +17,7 @@ import open from "open";
 
 import type { ExtensionToolInfo, SetupProgress } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
-import { resetExecutorProcess } from "@/main/executor/executor-process";
-import { resetMcpServers } from "@/main/mcp/mcp-servers";
+import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
 import { resetNotifications } from "@/main/notifications";
 import {
   runBundleSetups,
@@ -129,8 +128,7 @@ export function teardownResources(): void {
   // process restarts.
   _authStorage = null;
   resetNotifications();
-  resetMcpServers();
-  resetExecutorProcess();
+  resetExecutorDaemon();
 }
 
 export function isLoggedIn(): boolean {
