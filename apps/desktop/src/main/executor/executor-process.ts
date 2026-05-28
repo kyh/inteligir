@@ -53,10 +53,6 @@ const MAX_RESUME_HOPS = 5;
 const AppliedSourcesSchema = z.record(z.string(), z.string());
 type AppliedSources = z.infer<typeof AppliedSourcesSchema>;
 
-type ToolContent =
-  | { type: "text"; text: string }
-  | { type: "image"; data: string; mimeType: string };
-
 /**
  * Install the executor binary from its GitHub release into ~/.inteligir/executor/bin.
  * Best-effort (non-throwing) like the other CLI installers; if it fails the
@@ -151,7 +147,14 @@ class ExecutorProcess {
     });
 
     const client = new Client({ name: "inteligir", version: "1.0.0" });
-    await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, "connect to executor");
+    try {
+      await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, "connect to executor");
+    } catch (err) {
+      // connect() spawns the child before the initialize handshake completes;
+      // close it so a timeout/handshake failure doesn't orphan the process.
+      await client.close().catch(() => {});
+      throw err;
+    }
     // Reconcile connectors in the background — addSource does network-bound
     // discovery, so don't block agent startup on it. Sources persist in
     // executor's catalog, so this is a no-op fast path after the first run.
@@ -159,13 +162,25 @@ class ExecutorProcess {
     return client;
   }
 
+  private reconcileQueue: Promise<void> = Promise.resolve();
+
   /**
    * Bring executor's MCP sources in line with the enabled connectors in
    * mcp.json: (re-)register any that are new or whose endpoint/headers changed,
    * and remove any executor MCP source that's no longer configured. Safe to
    * call on a live client; no-op if executor isn't running.
+   *
+   * Serialized: fired un-awaited from both startup and the connector IPC
+   * handlers, so runs are chained to avoid interleaving add/remove calls on the
+   * shared client and clobbering applied-sources.json.
    */
-  async reconcile(client: Client | null = this.client): Promise<void> {
+  reconcile(client: Client | null = this.client): Promise<void> {
+    const next = this.reconcileQueue.then(() => this.runReconcile(client));
+    this.reconcileQueue = next.catch(() => {});
+    return next;
+  }
+
+  private async runReconcile(client: Client | null): Promise<void> {
     if (!client) return;
 
     // De-dupe by namespace slug — add() rejects colliding names, but a
@@ -191,12 +206,17 @@ class ExecutorProcess {
 
     for (const [ns, server] of desired) {
       const sig = connectorSignature(server);
-      nextApplied[ns] = sig;
       // Re-register when missing OR when the endpoint/headers changed.
-      if (existingMcpIds.has(ns) && applied[ns] === sig) continue;
-      await this.addSource(client, server, ns).catch((err) =>
-        console.error(`[executor] failed to add source "${server.name}":`, err),
-      );
+      if (existingMcpIds.has(ns) && applied[ns] === sig) {
+        nextApplied[ns] = sig; // unchanged — preserve the recorded signature.
+        continue;
+      }
+      try {
+        await this.addSource(client, server, ns);
+        nextApplied[ns] = sig; // record only after a successful (re-)register.
+      } catch (err) {
+        console.error(`[executor] failed to add source "${server.name}":`, err);
+      }
     }
 
     for (const id of existingMcpIds) {
@@ -243,23 +263,27 @@ class ExecutorProcess {
         ? { headers: server.headers }
         : {}),
     };
-    await runCode(client, `return await tools.executor.mcp.addSource(${JSON.stringify(args)});`);
+    await runCode(client, `return await tools.executor.mcp.addSource(${jsArg(args)});`);
   }
 
   private async removeSource(client: Client, id: string): Promise<void> {
     // Executor exposes source removal under coreTools; the exact path can vary
-    // across versions, so try the known shapes and ignore failures.
-    await runCode(
+    // across versions, so try the known shapes. Surface a warning if none
+    // applied rather than failing silently — a lingering source stays reachable.
+    const result = await runCode(
       client,
-      `const id = ${JSON.stringify(id)};
+      `const id = ${jsArg(id)};
        const fns = [
          () => tools.executor.coreTools.removeSource({ sourceId: id }),
          () => tools.executor.coreTools.removeSource({ id }),
          () => tools.executor.sources.remove({ sourceId: id }),
        ];
-       for (const fn of fns) { try { return await fn(); } catch (e) {} }
-       return "no-op";`,
+       for (const fn of fns) { try { await fn(); return "__removed__"; } catch (e) {} }
+       return "__remove_failed__";`,
     );
+    if (result.includes("__remove_failed__")) {
+      console.warn(`[executor] could not remove source "${id}" — removal API not recognized`);
+    }
   }
 }
 
@@ -316,7 +340,10 @@ async function runCode(client: Client, code: string): Promise<string> {
 }
 
 function isPaused(text: string): boolean {
-  return text.includes("Execution paused") || text.includes("executionId");
+  // Executor prints "Execution paused" for elicitation/approval pauses. Match
+  // that marker specifically — keying off a bare "executionId" substring would
+  // false-trigger a resume on any normal result that happens to contain it.
+  return text.includes("Execution paused");
 }
 
 function contentText(content: unknown): string {
@@ -338,6 +365,18 @@ function safeJson(text: string): unknown {
   }
 }
 
+/**
+ * JSON value for embedding into the executor sandbox's TypeScript source.
+ * JSON.stringify escapes quotes/backslashes but leaves U+2028/U+2029 literal —
+ * those are valid in JSON but are line terminators in some JS parsers, so
+ * escape them to keep generated code well-formed for any connector name/header.
+ */
+function jsArg(value: unknown): string {
+  // U+2028 / U+2029 are valid in JSON strings but are line terminators in some
+  // JS parsers; escape them so the generated sandbox code stays well-formed.
+  return JSON.stringify(value).replace(/[\u2028\u2029]/g, (c) => "\\u" + c.charCodeAt(0).toString(16));
+}
+
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
   const timeout = new Promise<never>((_resolve, reject) => {
@@ -345,5 +384,3 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
-
-export type { ToolContent };

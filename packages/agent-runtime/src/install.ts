@@ -253,18 +253,26 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 }
 
 /**
- * Extract an archive into `outDir`. Picks `tar` vs `unzip` by file extension so
- * both `.tar.gz`/`.tgz` (Linux releases) and `.zip` (macOS/Windows releases)
- * work. When `entryName` is given, extract only that entry; otherwise extract
- * everything.
+ * Extract an archive into `outDir`. Uses `tar`, which (via libarchive/bsdtar on
+ * macOS and Windows) handles both `.tar.gz`/`.tgz` (Linux releases) and `.zip`
+ * (macOS/Windows releases) — avoiding a dependency on `unzip`, which isn't on
+ * the default Windows PATH. When `entryName` is given, extract only that entry.
+ *
+ * `.tar.gz` is read with `-xzf` (gzip); `.zip` with `-xf` (auto-detected) since
+ * forcing gzip on a zip fails. Linux releases are always `.tar.gz`, and GNU tar
+ * there can't read zip — but no Linux artifact is a zip, so that's never hit.
  */
 function extractArchive(archivePath: string, outDir: string, entryName?: string): Promise<void> {
   const isZip = /\.zip$/i.test(archivePath);
-  const [cmd, args] = isZip
-    ? (["unzip", ["-oq", archivePath, ...(entryName ? [entryName] : []), "-d", outDir]] as const)
-    : (["tar", ["xzf", archivePath, "-C", outDir, ...(entryName ? [entryName] : [])]] as const);
+  const args = [
+    isZip ? "-xf" : "-xzf",
+    archivePath,
+    "-C",
+    outDir,
+    ...(entryName ? [entryName] : []),
+  ];
   return new Promise((resolve, reject) => {
-    execFile(cmd, [...args], { timeout: 60_000 }, (err) => {
+    execFile("tar", args, { timeout: 60_000 }, (err) => {
       if (err) reject(err);
       else resolve();
     });

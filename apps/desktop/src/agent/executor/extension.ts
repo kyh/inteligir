@@ -10,7 +10,7 @@
  * far less context than wiring hundreds of tools, and the model can compose
  * and filter in code.
  *
- * No setup() — the executor binary ships as a bundled dependency. register()
+ * setup() installs the executor binary from its GitHub release; register()
  * ensures the process is running, then mirrors its MCP tools (execute, resume)
  * as pi tools. Per-call failures are surfaced as tool text.
  */
@@ -20,19 +20,9 @@ import type { TSchema } from "@sinclair/typebox";
 
 import { getExecutorProcess, installExecutor } from "@/main/executor/executor-process";
 import type { PiExtensionBundle } from "@/agent/extension";
+import { mcpContentToToolResult, textResult } from "@/agent/extension-helpers";
 
 const CALL_TIMEOUT_MS = 300_000;
-
-type McpContentBlock =
-  | { type: "text"; text: string }
-  | { type: "image"; data: string; mimeType: string }
-  | { type: string; [key: string]: unknown };
-
-type ToolContent =
-  | { type: "text"; text: string }
-  | { type: "image"; data: string; mimeType: string };
-
-type CodeModeToolResult = { content: ToolContent[]; details: Record<string, never> };
 
 const executorExtension: PiExtensionBundle = {
   name: "executor",
@@ -85,37 +75,10 @@ function registerProxyTool(
           undefined,
           { timeout: CALL_TIMEOUT_MS },
         );
-        return toToolResult(result.content as McpContentBlock[], result.isError === true);
+        return mcpContentToToolResult(result.content, result.isError === true);
       } catch (err) {
         return textResult(`"${name}" failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     },
   });
-}
-
-function toToolResult(blocks: McpContentBlock[], isError: boolean): CodeModeToolResult {
-  const content: ToolContent[] = [];
-  for (const block of blocks ?? []) {
-    if (block.type === "text" && typeof block.text === "string") {
-      content.push({ type: "text", text: block.text });
-    } else if (
-      block.type === "image" &&
-      typeof block.data === "string" &&
-      typeof block.mimeType === "string"
-    ) {
-      content.push({ type: "image", data: block.data, mimeType: block.mimeType });
-    } else {
-      content.push({ type: "text", text: JSON.stringify(block) });
-    }
-  }
-  if (content.length === 0) {
-    content.push({ type: "text", text: isError ? "(error)" : "(no output)" });
-  } else if (isError) {
-    content.unshift({ type: "text", text: "[tool reported an error]" });
-  }
-  return { content, details: {} };
-}
-
-function textResult(value: string): CodeModeToolResult {
-  return { content: [{ type: "text", text: value }], details: {} };
 }

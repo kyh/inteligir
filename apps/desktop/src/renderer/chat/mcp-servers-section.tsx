@@ -6,7 +6,7 @@ import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import type { McpServer } from "@/shared/mcp";
+import { AddMcpServerParamsSchema, type McpServer } from "@/shared/mcp";
 
 /**
  * Parse a textarea of `Key: Value` lines into a headers record. Blank lines and
@@ -25,14 +25,6 @@ function parseHeaders(raw: string): Record<string, string> | undefined {
     if (key) headers[key] = value;
   }
   return Object.keys(headers).length > 0 ? headers : undefined;
-}
-
-function isValidUrl(value: string): boolean {
-  try {
-    return Boolean(new URL(value));
-  } catch {
-    return false;
-  }
 }
 
 export function McpServersSection() {
@@ -54,25 +46,22 @@ export function McpServersSection() {
   }, [refresh]);
 
   const handleAdd = useCallback(async () => {
-    const trimmedName = name.trim();
-    const trimmedUrl = url.trim();
-    if (!trimmedName || !trimmedUrl) {
-      setError("Name and URL are required.");
-      return;
-    }
-    if (!isValidUrl(trimmedUrl)) {
-      setError("Enter a valid URL.");
+    // Validate with the same schema the IPC handler enforces, so field rules
+    // and messages stay in one place.
+    const parsed = AddMcpServerParamsSchema.safeParse({
+      name: name.trim(),
+      url: url.trim(),
+      headers: parseHeaders(headersText),
+    });
+    if (!parsed.success) {
+      setError(parsed.error.issues[0]?.message ?? "Invalid input.");
       return;
     }
 
     setBusy(true);
     setError(null);
     try {
-      const list = await getBridge()?.addMcpServer({
-        name: trimmedName,
-        url: trimmedUrl,
-        headers: parseHeaders(headersText),
-      });
+      const list = await getBridge()?.addMcpServer(parsed.data);
       if (list) setServers(list.servers);
       setName("");
       setUrl("");
@@ -85,13 +74,29 @@ export function McpServersSection() {
   }, [name, url, headersText]);
 
   const handleRemove = useCallback(async (serverName: string) => {
-    const list = await getBridge()?.removeMcpServer(serverName);
-    if (list) setServers(list.servers);
+    setBusy(true);
+    setError(null);
+    try {
+      const list = await getBridge()?.removeMcpServer(serverName);
+      if (list) setServers(list.servers);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to remove server.");
+    } finally {
+      setBusy(false);
+    }
   }, []);
 
   const handleToggle = useCallback(async (serverName: string, enabled: boolean) => {
-    const list = await getBridge()?.setMcpServerEnabled({ name: serverName, enabled });
-    if (list) setServers(list.servers);
+    setBusy(true);
+    setError(null);
+    try {
+      const list = await getBridge()?.setMcpServerEnabled({ name: serverName, enabled });
+      if (list) setServers(list.servers);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update server.");
+    } finally {
+      setBusy(false);
+    }
   }, []);
 
   return (
@@ -117,6 +122,7 @@ export function McpServersSection() {
             >
               <Checkbox
                 checked={server.enabled}
+                disabled={busy}
                 onCheckedChange={(checked) => {
                   void handleToggle(server.name, checked === true);
                 }}
@@ -129,6 +135,7 @@ export function McpServersSection() {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={busy}
                 onClick={() => void handleRemove(server.name)}
                 className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
               >
