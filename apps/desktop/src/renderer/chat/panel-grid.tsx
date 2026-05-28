@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { MessageSquareIcon } from "lucide-react";
 import {
   GridLayout,
@@ -16,27 +16,37 @@ import {
   ConversationScrollButton,
 } from "@repo/ui/components/ai-elements/conversation";
 
+import { ArtifactViewer } from "@/renderer/chat/artifact-viewer";
 import { ChatActivityRow, ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
 import { useDiskState } from "@/renderer/lib/use-disk-state";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import { initArtifacts, useArtifactsStore } from "@/renderer/stores/artifacts-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
 // Layout
 //
-// 12-column grid. The conversation lives on the left; the right column holds
-// placeholder panels that will eventually render live, user-generated
-// artifacts. Layout changes persist to disk (~/.inteligir/ui-state.json).
+// 12-column grid. The conversation lives on the left; every artifact the agent
+// has created is slotted in as its own draggable / resizable panel. Geometry
+// persists to disk (~/.inteligir/ui-state.json) keyed by item id, so an
+// artifact keeps its size/position across reloads. New artifacts append to the
+// right column; deleted ones drop out.
 // ---------------------------------------------------------------------------
 
 const LAYOUT_KEY = "workspace-layout";
+const ARTIFACT_PREFIX = "art:";
 
-const DEFAULT_LAYOUT: LayoutItem[] = [
-  { i: "conversation", x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 },
-  { i: "artifact-a", x: 5, y: 0, w: 7, h: 5, minW: 2, minH: 3 },
-  { i: "artifact-b", x: 5, y: 5, w: 7, h: 7, minW: 2, minH: 3 },
-];
+const CONVERSATION_ITEM: LayoutItem = {
+  i: "conversation",
+  x: 0,
+  y: 0,
+  w: 5,
+  h: 12,
+  minW: 3,
+  minH: 5,
+};
+const DEFAULT_LAYOUT: LayoutItem[] = [CONVERSATION_ITEM];
 
 function sameLayout(a: readonly LayoutItem[], b: readonly LayoutItem[]): boolean {
   if (a.length !== b.length) return false;
@@ -49,6 +59,32 @@ function sameLayout(a: readonly LayoutItem[], b: readonly LayoutItem[]): boolean
     }
   }
   return true;
+}
+
+/**
+ * Reconcile a saved layout against the live artifact set: keep the
+ * conversation item, preserve geometry for artifacts that already have a slot,
+ * append a default slot for new artifacts, and drop slots for artifacts that
+ * no longer exist. Idempotent — reconcile(reconcile(x)) === reconcile(x).
+ */
+function reconcileLayout(
+  base: readonly LayoutItem[],
+  artifactIds: readonly string[],
+): LayoutItem[] {
+  const byId = new Map(base.map((it) => [it.i, it]));
+  const out: LayoutItem[] = [byId.get("conversation") ?? CONVERSATION_ITEM];
+  let nextY = base.reduce((max, it) => Math.max(max, it.y + it.h), 0);
+  for (const id of artifactIds) {
+    const key = ARTIFACT_PREFIX + id;
+    const existing = byId.get(key);
+    if (existing) {
+      out.push(existing);
+    } else {
+      out.push({ i: key, x: 5, y: nextY, w: 7, h: 6, minW: 2, minH: 3 });
+      nextY += 6;
+    }
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -67,7 +103,7 @@ function Panel({
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-card/40 shadow-lg backdrop-blur-md">
       <div className="panel-drag-handle flex shrink-0 cursor-move items-center justify-between border-b border-border/60 px-3 py-2">
-        <span className="text-xs font-medium text-muted-foreground">{title}</span>
+        <span className="truncate text-xs font-medium text-muted-foreground">{title}</span>
       </div>
       <div className={cn("min-h-0 flex-1 overflow-auto", bodyClassName)}>{children}</div>
     </div>
@@ -123,24 +159,6 @@ function ConversationPanel() {
 }
 
 // ---------------------------------------------------------------------------
-// Placeholder artifact panel
-// ---------------------------------------------------------------------------
-
-function ArtifactPanel({ title }: { title: string }) {
-  return (
-    <Panel title={title}>
-      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-        <div className="size-10 rounded-xl border border-dashed border-border/70" />
-        <p className="text-xs text-muted-foreground">Empty panel</p>
-        <p className="max-w-[14rem] text-[10px] text-muted-foreground/60">
-          Live artifacts you generate will take shape here.
-        </p>
-      </div>
-    </Panel>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Grid
 // ---------------------------------------------------------------------------
 
@@ -148,14 +166,30 @@ export function PanelGrid() {
   const { width, containerRef } = useContainerWidth();
   const [stored, persist, loaded] = useDiskState<LayoutItem[]>(LAYOUT_KEY, DEFAULT_LAYOUT);
 
-  // The grid is driven by local state; disk is a write-only sink so persistence
-  // never feeds layout back into the grid mid-drag. We hydrate from disk once
-  // it has loaded, and only render the grid afterwards so the saved layout
-  // isn't briefly overwritten by the default.
+  useEffect(() => {
+    initArtifacts();
+  }, []);
+  const artifacts = useArtifactsStore((s) => s.artifacts);
+  const artifactIds = useMemo(() => artifacts.map((a) => a.id), [artifacts]);
+
+  // Local working layout drives the grid; disk is a write sink so persistence
+  // doesn't feed back mid-drag. Hydrate once from disk, then derive the
+  // rendered layout by reconciling against the live artifact set so the grid
+  // and its children always agree on the item set.
   const [layout, setLayout] = useState<LayoutItem[] | null>(null);
   useEffect(() => {
     if (loaded && layout === null) setLayout(stored);
   }, [loaded, layout, stored]);
+
+  const renderLayout = useMemo(
+    () => (layout ? reconcileLayout(layout, artifactIds) : null),
+    [layout, artifactIds],
+  );
+
+  // Persist when reconciliation diverges from disk (a new or removed artifact).
+  useEffect(() => {
+    if (renderLayout && !sameLayout(renderLayout, stored)) persist(renderLayout);
+  }, [renderLayout, stored, persist]);
 
   const handleLayoutChange = useCallback(
     (next: Layout) => {
@@ -166,14 +200,14 @@ export function PanelGrid() {
     [persist, stored],
   );
 
-  const ready = width > 0 && layout !== null;
+  const ready = width > 0 && renderLayout !== null;
 
   return (
     <div ref={containerRef} className="h-full w-full">
       {ready && (
         <GridLayout
           width={width}
-          layout={layout ?? DEFAULT_LAYOUT}
+          layout={renderLayout ?? DEFAULT_LAYOUT}
           onLayoutChange={handleLayoutChange}
           gridConfig={{ cols: 12, rowHeight: 46, margin: [10, 10], containerPadding: [0, 0] }}
           dragConfig={{ enabled: true, bounded: false, handle: ".panel-drag-handle" }}
@@ -182,12 +216,13 @@ export function PanelGrid() {
           <div key="conversation">
             <ConversationPanel />
           </div>
-          <div key="artifact-a">
-            <ArtifactPanel title="Panel" />
-          </div>
-          <div key="artifact-b">
-            <ArtifactPanel title="Panel" />
-          </div>
+          {artifacts.map((artifact) => (
+            <div key={ARTIFACT_PREFIX + artifact.id}>
+              <Panel title={artifact.title}>
+                <ArtifactViewer id={artifact.id} />
+              </Panel>
+            </div>
+          ))}
         </GridLayout>
       )}
     </div>
