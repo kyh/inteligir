@@ -27,6 +27,7 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { listSkills } from "@/agent/setup";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -38,7 +39,7 @@ import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, UpdateState } from "@/shared/ipc";
+import type { ExtensionsList, SkillsList, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -296,6 +297,12 @@ function registerIpcHandlers(): void {
       return { tools: agent.listTools() };
     },
   );
+
+  // ---- Skills ---------------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
+    return { skills: listSkills() };
+  });
 }
 
 // ---------------------------------------------------------------------------
