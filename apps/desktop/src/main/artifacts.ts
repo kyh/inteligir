@@ -147,30 +147,19 @@ export class ArtifactsManager {
   }
 
   /**
-   * Merge a sparse pointer-keyed patch into an artifact's state. Patch keys
-   * are JSON Pointers rooted at the state object, values are the new leaf
-   * values. Used by the renderer to persist user interactions.
-   *
-   * Sparse (not full-replace) so a concurrent agent state write on a
-   * different key isn't clobbered. NOT bumping updatedAt is deliberate:
-   * `state` is live session data, and the artifacts-store dedup keys on
-   * updatedAt — leaving it lets state-only persists skip a grid re-render
-   * (the viewer owns its own live state, so it doesn't need the echo). A
-   * later spec change carries the fresh state and re-syncs the store cache.
+   * Replace an artifact's bound state wholesale. The renderer is the single
+   * writer of live state while a viewer is mounted, so it persists its full
+   * snapshot; replacing (not merging) lets keys the user cleared actually
+   * disappear. Bumps updatedAt so the store cache the next mount seeds from
+   * stays fresh.
    */
-  patchState(id: string, patch: Record<string, unknown>): Artifact | null {
+  setState(id: string, state: Record<string, unknown>): Artifact | null {
+    const now = Date.now();
     let result: Artifact | null = null;
     const next = this.store.update((current) => {
       const idx = current.artifacts.findIndex((a) => a.id === id);
       if (idx === -1) return current;
-      const draft = deepClone(current.artifacts[idx]!.state);
-      for (const [pointer, value] of Object.entries(patch)) {
-        setByPointer(draft, pointer, value);
-      }
-      const updated: Artifact = {
-        ...current.artifacts[idx]!,
-        state: draft,
-      };
+      const updated: Artifact = { ...current.artifacts[idx]!, state, updatedAt: now };
       result = updated;
       const artifacts = [...current.artifacts];
       artifacts[idx] = updated;
@@ -251,30 +240,6 @@ function assertSafeKey(key: string, pointer: string, verb: string): void {
   if (PROTO_RESERVED.has(key)) {
     throw new Error(`Refusing to ${verb} prototype-reserved key '${key}' in ${pointer}`);
   }
-}
-
-// Merge a sparse value into nested state, creating intermediate objects as
-// needed. patchState uses this so user-driven state changes don't touch
-// paths the agent set concurrently.
-function setByPointer(target: Record<string, unknown>, pointer: string, value: unknown): void {
-  const segments = parsePointer(pointer);
-  if (segments.length === 0) throw new Error("Cannot set state root via patchState");
-  let current: Record<string, unknown> = target;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i]!;
-    assertSafeKey(seg, pointer, "traverse");
-    const child = current[seg];
-    // Only create a fresh object for a missing/non-container segment —
-    // preserve existing objects AND arrays so a deep set doesn't blow away
-    // sibling data.
-    if (child === null || typeof child !== "object") {
-      current[seg] = {};
-    }
-    current = current[seg] as Record<string, unknown>;
-  }
-  const last = segments[segments.length - 1]!;
-  assertSafeKey(last, pointer, "set");
-  current[last] = value;
 }
 
 // RFC 6901 array indices must be canonical: "0" or a non-zero-leading run of

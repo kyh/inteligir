@@ -1,13 +1,8 @@
-// RFC 6901 JSON Pointer helpers. Shared between main (patch application) and
-// renderer (state diff flattening) so the escape/unescape pair can't drift.
+// RFC 6901 JSON Pointer helpers for spec-patch application in the main process.
 
 // Object keys we refuse to traverse or write — letting an LLM-supplied path
 // land here would let it mutate Object.prototype.
 export const PROTO_RESERVED = new Set(["__proto__", "constructor", "prototype"]);
-
-export function escapeSegment(key: string): string {
-  return key.replace(/~/g, "~0").replace(/\//g, "~1");
-}
 
 export function parsePointer(path: string): string[] {
   if (path === "") return [];

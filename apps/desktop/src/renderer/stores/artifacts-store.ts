@@ -46,10 +46,9 @@ export function initArtifacts(): void {
 
 /**
  * Apply a new artifact list to the store, but skip the setState (and the
- * cascade of selector-driven re-renders + sort/memo work it triggers) when
- * the list is identical to the current one. The echo broadcast that follows
- * every patchArtifactState call would otherwise force a library re-render
- * on every keystroke in any open viewer.
+ * cascade of selector-driven re-renders it triggers) when the list is
+ * identical to the current one — e.g. a re-broadcast of the same list or the
+ * post-logout invalidate echo.
  */
 function applyArtifacts(next: Artifact[]): void {
   const current = useArtifactsStore.getState();
