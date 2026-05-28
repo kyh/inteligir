@@ -27,6 +27,7 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { completeOnce, listSkills } from "@/agent/setup";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -34,13 +35,12 @@ import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
 import { ArtifactUpsertInputSchema, getArtifacts } from "@/main/artifacts";
-import { completeOnce } from "@/agent/setup";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, UpdateState } from "@/shared/ipc";
+import type { ExtensionsList, SkillsList, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -305,6 +305,7 @@ function registerIpcHandlers(): void {
     return getArtifacts().list();
   });
 
+
   createIpcHandler(IPC_CHANNELS.ARTIFACTS_GET, z.string().min(1), (id) => {
     return getArtifacts().get(id);
   });
@@ -363,6 +364,12 @@ function registerIpcHandlers(): void {
     if (!isHttpUrl(url)) return false;
     await shell.openExternal(url);
     return true;
+  });
+
+  // ---- Skills ---------------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
+    return { skills: listSkills() };
   });
 }
 

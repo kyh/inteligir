@@ -82,4 +82,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_COMPLETE, { prompt, system }),
   artifactFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_FETCH, url),
   artifactOpenUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_OPEN_URL, url),
+
+  // Skills
+  listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
 });

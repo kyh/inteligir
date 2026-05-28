@@ -5,12 +5,13 @@ import {
   PlugIcon,
   PlusIcon,
   SettingsIcon,
+  SparklesIcon,
 } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
-export type DockPanel = "tasks" | "extensions" | "settings";
+export type DockPanel = "tasks" | "skills" | "extensions" | "settings";
 
 type DockButtonProps = {
   icon: React.ComponentType<{ className?: string }>;
@@ -85,6 +86,12 @@ export function BottomDock({
           label="Tasks"
           onClick={() => onTogglePanel("tasks")}
           active={panels.tasks}
+        />
+        <DockButton
+          icon={SparklesIcon}
+          label="Skills"
+          onClick={() => onTogglePanel("skills")}
+          active={panels.skills}
         />
         <DockButton
           icon={PlugIcon}

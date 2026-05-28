@@ -1,5 +1,12 @@
 export { PiAgent } from "./agent";
-export type { PiAgentConfig, PiAgentEventListener, PiAgentTool, PiAgentStatus } from "./agent";
+export type {
+  PiAgentConfig,
+  PiAgentEventListener,
+  PiAgentTool,
+  PiAgentStatus,
+} from "./agent";
+export { listSkills } from "./skills";
+export type { PiAgentSkill, ListSkillsOptions } from "./skills";
 export { createAuthStorage, hasAuth, loginWithProvider, type LoginCallbacks } from "./auth";
 export { completeText } from "./complete";
 export { resolveModel } from "./model";
