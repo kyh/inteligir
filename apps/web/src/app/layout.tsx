@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { GlobalAlertDialog } from "@repo/ui/components/alert-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 
@@ -8,6 +9,10 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { TRPCReactProvider } from "@/trpc/react";
 
 import "./styles/globals.css";
+
+// Inter Variable powers Fluid Functionalism's weight-axis transitions
+// (labels easing normal -> semibold). Exposed as --font-sans.
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -88,7 +93,7 @@ type LayoutProps = {
 
 const RootLayout = (props: LayoutProps) => {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body className="bg-background text-foreground font-sans antialiased">
         <ThemeProvider>
           <SiteHeader />

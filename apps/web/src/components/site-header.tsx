@@ -61,9 +61,11 @@ export function SiteHeader() {
         size="icon"
         className="rounded-full"
         // Base UI's `render` makes the anchor the host element while Button's
-        // children (the icon) render inside it. Not in FF's ButtonProps type,
-        // so spread it through to the underlying primitive.
+        // children (the icon) render inside it. nativeButton=false tells Base UI
+        // the host isn't a <button>. Neither is in FF's ButtonProps type, so
+        // spread them through to the underlying primitive.
         {...{
+          nativeButton: false,
           render: (
             <a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="GitHub" />
           ),
@@ -76,6 +78,7 @@ export function SiteHeader() {
         size="icon"
         className="rounded-full"
         {...{
+          nativeButton: false,
           render: (
             <a
               href={TWITTER_URL}

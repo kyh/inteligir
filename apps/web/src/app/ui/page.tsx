@@ -52,10 +52,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@repo/ui/components/dialog";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@repo/ui/components/drawer";
 import { Dropdown } from "@repo/ui/components/dropdown";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -74,7 +85,6 @@ import { InputMessage } from "@repo/ui/components/input-message";
 import { Label } from "@repo/ui/components/label";
 import { Logo } from "@repo/ui/components/logo";
 import { MenuItem } from "@repo/ui/components/menu-item";
-import { MobileDrawer } from "@repo/ui/components/mobile-drawer";
 import { NavItem } from "@repo/ui/components/nav-item";
 import { NavMenu } from "@repo/ui/components/nav-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
@@ -135,7 +145,6 @@ export default function UiPage() {
   const [message, setMessage] = useState("");
   const [search, setSearch] = useState("");
   const [navSlug, setNavSlug] = useState<string | null>("/home");
-  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const toggleChecked = (i: number) =>
     setChecked((prev) => {
@@ -238,7 +247,7 @@ export default function UiPage() {
       <Section title="Sliders">
         <div className="flex w-full flex-col gap-8">
           <Slider value={volume} onChange={(v) => setVolume(v as number)} min={0} max={100} label="Volume" showValue />
-          <SliderComfortable value={brightness} onChange={setBrightness} label="Brightness" variant="pips" />
+          <SliderComfortable value={brightness} onChange={setBrightness} min={0} max={100} step={10} label="Brightness" variant="pips" />
         </div>
       </Section>
 
@@ -323,9 +332,11 @@ export default function UiPage() {
         <DropdownMenu>
           <DropdownMenuTrigger render={<Button variant="secondary">Menu (Base UI)</Button>} />
           <DropdownMenuContent>
-            <DropdownMenuLabel>Account</DropdownMenuLabel>
-            <DropdownMenuItem>Profile</DropdownMenuItem>
-            <DropdownMenuItem>Billing</DropdownMenuItem>
+            <DropdownMenuGroup>
+              <DropdownMenuLabel>Account</DropdownMenuLabel>
+              <DropdownMenuItem>Profile</DropdownMenuItem>
+              <DropdownMenuItem>Billing</DropdownMenuItem>
+            </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem variant="destructive">Sign out</DropdownMenuItem>
           </DropdownMenuContent>
@@ -381,16 +392,22 @@ export default function UiPage() {
         <Button variant="tertiary" onClick={() => toast.success("Saved changes")}>
           Toast
         </Button>
-        <Button variant="secondary" onClick={() => setDrawerOpen(true)}>
-          Mobile drawer
-        </Button>
-        <MobileDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)}>
-          <div className="flex flex-col gap-2 p-4">
-            <h3 className="font-medium">Drawer</h3>
-            <p className="text-sm text-muted-foreground">Slides in from the edge.</p>
-            <Button onClick={() => setDrawerOpen(false)}>Close</Button>
-          </div>
-        </MobileDrawer>
+        <Drawer>
+          <DrawerTrigger asChild>
+            <Button variant="secondary">Drawer</Button>
+          </DrawerTrigger>
+          <DrawerContent>
+            <DrawerHeader>
+              <DrawerTitle>Drawer</DrawerTitle>
+              <DrawerDescription>Slides up from the bottom (vaul).</DrawerDescription>
+            </DrawerHeader>
+            <DrawerFooter>
+              <DrawerClose asChild>
+                <Button>Close</Button>
+              </DrawerClose>
+            </DrawerFooter>
+          </DrawerContent>
+        </Drawer>
       </Section>
 
       <Section title="Inputs">
