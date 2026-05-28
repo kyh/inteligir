@@ -46,6 +46,8 @@ export type ExecutorConnection = {
   token: string;
   /** Active scope id (e.g. "scope:/Users/x/.inteligir/executor/scope"). */
   scopeId: string;
+  /** Active scope info, captured at start (immutable for the daemon's life). */
+  scope: { id: string; name: string; dir: string };
 };
 
 /**
@@ -98,6 +100,15 @@ class ExecutorDaemon {
         }
         this.proc = result.proc;
         this.connection = result.connection;
+        // If the daemon dies unexpectedly, drop the connection so callers see
+        // it as down and the next start() re-spawns instead of short-circuiting
+        // on a stale connection pointing at a dead port.
+        result.proc.once("exit", () => {
+          if (this.proc === result.proc) {
+            this.proc = null;
+            this.connection = null;
+          }
+        });
         return result.connection;
       })
       .catch((err) => {
@@ -124,11 +135,16 @@ class ExecutorDaemon {
   }
 
   private killProc(proc: ChildProcess | null): void {
-    if (!proc || proc.killed) return;
+    if (!proc || proc.exitCode !== null || proc.signalCode !== null) return;
+    let exited = false;
+    proc.once("exit", () => {
+      exited = true;
+    });
     proc.kill("SIGTERM");
-    const pid = proc.pid;
     setTimeout(() => {
-      if (pid && !proc.killed) {
+      // proc.killed only reflects that a signal was delivered, not that the
+      // process exited — so gate the SIGKILL escalation on actual exit.
+      if (!exited) {
         try {
           proc.kill("SIGKILL");
         } catch {
@@ -178,12 +194,12 @@ class ExecutorDaemon {
     }
 
     const baseUrl = `${origin.replace(/\/$/, "")}/api`;
-    const scopeId = await this.fetchScopeId(baseUrl, token).catch((err) => {
+    const scope = await this.fetchScope(baseUrl, token).catch((err) => {
       this.killProc(proc);
       throw err;
     });
 
-    return { proc, connection: { baseUrl, token, scopeId } };
+    return { proc, connection: { baseUrl, token, scopeId: scope.id, scope } };
   }
 
   /** Resolve the daemon's origin by parsing its readiness banner from stdout. */
@@ -191,47 +207,63 @@ class ExecutorDaemon {
     return new Promise<string>((resolve, reject) => {
       let settled = false;
       let buffer = "";
-      const timer = setTimeout(() => {
+      const onData = (chunk: Buffer): void => {
+        if (settled) return;
+        buffer += chunk.toString("utf8");
+        // Only match on complete lines — a streamed chunk can split the URL
+        // mid-token, and a greedy match would capture a truncated origin.
+        const newlineIdx = buffer.lastIndexOf("\n");
+        if (newlineIdx < 0) return;
+        const complete = buffer.slice(0, newlineIdx);
+        const match = complete.match(READY_RE);
+        if (match) settle(() => resolve(match[1]!));
+      };
+      const finish = (): void => {
+        proc.stdout?.off("data", onData);
+        proc.stderr?.off("data", onData);
+      };
+      const settle = (action: () => void): void => {
         if (settled) return;
         settled = true;
-        reject(new Error(`executor daemon did not become ready within ${READY_TIMEOUT_MS}ms`));
-      }, READY_TIMEOUT_MS);
-
-      const onData = (chunk: Buffer): void => {
-        buffer += chunk.toString("utf8");
-        const match = buffer.match(READY_RE);
-        if (match && !settled) {
-          settled = true;
-          clearTimeout(timer);
-          resolve(match[1]!);
-        }
+        clearTimeout(timer);
+        finish();
+        action();
       };
+      const timer = setTimeout(
+        () =>
+          settle(() =>
+            reject(new Error(`executor daemon did not become ready within ${READY_TIMEOUT_MS}ms`)),
+          ),
+        READY_TIMEOUT_MS,
+      );
+
       proc.stdout?.on("data", onData);
       proc.stderr?.on("data", onData);
-      proc.on("exit", (code) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        reject(new Error(`executor daemon exited (code ${code ?? "?"}) before becoming ready`));
-      });
-      proc.on("error", (err) => {
-        if (settled) return;
-        settled = true;
-        clearTimeout(timer);
-        reject(err);
-      });
+      proc.on("exit", (code) =>
+        settle(() =>
+          reject(new Error(`executor daemon exited (code ${code ?? "?"}) before becoming ready`)),
+        ),
+      );
+      proc.on("error", (err) => settle(() => reject(err)));
     });
   }
 
-  private async fetchScopeId(baseUrl: string, token: string): Promise<string> {
+  private async fetchScope(
+    baseUrl: string,
+    token: string,
+  ): Promise<{ id: string; name: string; dir: string }> {
     const resp = await fetch(`${baseUrl}/scope`, {
       headers: { authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(5_000),
     });
     if (!resp.ok) throw new Error(`GET /scope failed: ${resp.status}`);
-    const body = (await resp.json()) as { id?: unknown };
+    const body = (await resp.json()) as { id?: unknown; name?: unknown; dir?: unknown };
     if (typeof body.id !== "string") throw new Error("GET /scope returned no scope id");
-    return body.id;
+    return {
+      id: body.id,
+      name: typeof body.name === "string" ? body.name : body.id,
+      dir: typeof body.dir === "string" ? body.dir : "",
+    };
   }
 }
 

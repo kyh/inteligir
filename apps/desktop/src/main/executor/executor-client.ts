@@ -16,12 +16,10 @@ import type {
   ExecutorConnectionRef,
   ExecutorDetectResult,
   ExecutorExecuteResult,
-  ExecutorPolicy,
   ExecutorScopeInfo,
   ExecutorSecretRef,
   ExecutorSource,
   ExecutorToolMeta,
-  ExecutorToolSchema,
   OAuthAwaitResult,
   OAuthStartInput,
   OAuthStartResult,
@@ -39,6 +37,7 @@ export class ExecutorClientError extends Error {
 }
 
 const REQUEST_TIMEOUT_MS = 60_000;
+const EXECUTION_TIMEOUT_MS = 600_000;
 
 function connection() {
   const conn = getExecutorDaemon().getConnection();
@@ -51,27 +50,42 @@ function enc(value: string): string {
   return encodeURIComponent(value);
 }
 
-async function request<T>(method: string, path: string, body?: unknown): Promise<T> {
+type RequestOptions = {
+  /** Prepend /scopes/<active scopeId> to the path. */
+  scoped?: boolean;
+  /** Override the default request timeout (code-mode executions run long). */
+  timeoutMs?: number;
+  body?: unknown;
+};
+
+async function request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
+  // Resolve the connection once so a concurrent stop()/start() can't mix a
+  // stale scopeId into the path with a fresh baseUrl/token.
   const conn = connection();
-  const resp = await fetch(`${conn.baseUrl}${path}`, {
+  const fullPath = opts.scoped ? `/scopes/${enc(conn.scopeId)}${path}` : path;
+  const resp = await fetch(`${conn.baseUrl}${fullPath}`, {
     method,
     headers: {
       authorization: `Bearer ${conn.token}`,
-      ...(body !== undefined ? { "content-type": "application/json" } : {}),
+      ...(opts.body !== undefined ? { "content-type": "application/json" } : {}),
     },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    signal: AbortSignal.timeout(opts.timeoutMs ?? REQUEST_TIMEOUT_MS),
   });
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
-    throw new ExecutorClientError(text || `${method} ${path} failed (${resp.status})`, resp.status);
+    throw new ExecutorClientError(
+      text || `${method} ${fullPath} failed (${resp.status})`,
+      resp.status,
+    );
   }
-  if (resp.status === 204) return undefined as T;
-  return (await resp.json()) as T;
-}
-
-function scopePath(suffix: string): string {
-  return `/scopes/${enc(connection().scopeId)}${suffix}`;
+  const text = await resp.text();
+  if (!text) return undefined as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new ExecutorClientError(`${method} ${fullPath}: invalid JSON response`, resp.status);
+  }
 }
 
 // ---- scope ----------------------------------------------------------------
@@ -83,87 +97,74 @@ export function getScope(): Promise<ExecutorScopeInfo> {
 // ---- sources --------------------------------------------------------------
 
 export function listSources(): Promise<ExecutorSource[]> {
-  return request("GET", scopePath("/sources"));
+  return request("GET", "/sources", { scoped: true });
 }
 
 export function removeSource(sourceId: string): Promise<{ removed: boolean }> {
-  return request("DELETE", scopePath(`/sources/${enc(sourceId)}`));
+  return request("DELETE", `/sources/${enc(sourceId)}`, { scoped: true });
 }
 
 export function refreshSource(sourceId: string): Promise<{ refreshed: boolean }> {
-  return request("POST", scopePath(`/sources/${enc(sourceId)}/refresh`));
+  return request("POST", `/sources/${enc(sourceId)}/refresh`, { scoped: true });
 }
 
 export function detectSource(url: string): Promise<ExecutorDetectResult[]> {
-  return request("POST", scopePath("/sources/detect"), { url });
-}
-
-export function listSourceTools(sourceId: string): Promise<ExecutorToolMeta[]> {
-  return request("GET", scopePath(`/sources/${enc(sourceId)}/tools`));
+  return request("POST", "/sources/detect", { scoped: true, body: { url } });
 }
 
 // ---- add source (per plugin kind) -----------------------------------------
 
 export function addMcpSource(input: AddMcpSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", scopePath("/mcp/sources"), input);
+  return request("POST", "/mcp/sources", { scoped: true, body: input });
 }
 
 export function addOpenApiSource(input: AddOpenApiSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", scopePath("/openapi/specs"), input);
+  return request("POST", "/openapi/specs", { scoped: true, body: input });
 }
 
 export function addGraphqlSource(input: AddGraphqlSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", scopePath("/graphql/sources"), input);
+  return request("POST", "/graphql/sources", { scoped: true, body: input });
 }
 
 export function addGoogleSource(input: AddGoogleSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", scopePath("/google-discovery/sources"), input);
+  return request("POST", "/google-discovery/sources", { scoped: true, body: input });
 }
 
 // ---- secrets --------------------------------------------------------------
 
 export function listSecrets(): Promise<ExecutorSecretRef[]> {
-  return request("GET", scopePath("/secrets/all"));
+  return request("GET", "/secrets/all", { scoped: true });
 }
 
 export function setSecret(input: SetSecretInput): Promise<ExecutorSecretRef> {
-  return request("POST", scopePath("/secrets"), input);
+  return request("POST", "/secrets", { scoped: true, body: input });
 }
 
 export function removeSecret(secretId: string): Promise<{ removed: boolean }> {
-  return request("DELETE", scopePath(`/secrets/${enc(secretId)}`));
+  return request("DELETE", `/secrets/${enc(secretId)}`, { scoped: true });
 }
 
 // ---- connections ----------------------------------------------------------
 
 export function listConnections(): Promise<ExecutorConnectionRef[]> {
-  return request("GET", scopePath("/connections"));
+  return request("GET", "/connections", { scoped: true });
 }
 
 export function removeConnection(connectionId: string): Promise<{ removed: boolean }> {
-  return request("DELETE", scopePath(`/connections/${enc(connectionId)}`));
+  return request("DELETE", `/connections/${enc(connectionId)}`, { scoped: true });
 }
 
 // ---- tools ----------------------------------------------------------------
 
 export function listTools(): Promise<ExecutorToolMeta[]> {
-  return request("GET", scopePath("/tools"));
-}
-
-export function getToolSchema(toolId: string): Promise<ExecutorToolSchema> {
-  return request("GET", scopePath(`/tools/${enc(toolId)}/schema`));
-}
-
-// ---- policies -------------------------------------------------------------
-
-export function listPolicies(): Promise<ExecutorPolicy[]> {
-  return request("GET", scopePath("/policies"));
+  return request("GET", "/tools", { scoped: true });
 }
 
 // ---- executions (code mode) ----------------------------------------------
 
 export function execute(code: string): Promise<ExecutorExecuteResult> {
-  return request("POST", "/executions", { code });
+  // Code mode runs arbitrary agent code against remote APIs — allow long runs.
+  return request("POST", "/executions", { body: { code }, timeoutMs: EXECUTION_TIMEOUT_MS });
 }
 
 export function resumeExecution(
@@ -171,7 +172,10 @@ export function resumeExecution(
   action: "accept" | "decline" | "cancel",
   content?: unknown,
 ): Promise<ExecutorExecuteResult> {
-  return request("POST", `/executions/${enc(executionId)}/resume`, { action, content });
+  return request("POST", `/executions/${enc(executionId)}/resume`, {
+    body: { action, content },
+    timeoutMs: EXECUTION_TIMEOUT_MS,
+  });
 }
 
 // ---- oauth ----------------------------------------------------------------
@@ -179,14 +183,17 @@ export function resumeExecution(
 export function oauthStart(input: OAuthStartInput): Promise<OAuthStartResult> {
   const conn = connection();
   // dynamic-dcr: zero pre-configured credentials; the daemon hosts the callback.
-  return request("POST", scopePath("/oauth/start"), {
-    endpoint: input.endpoint,
-    redirectUrl: `${conn.baseUrl}/oauth/callback`,
-    connectionId: input.connectionId,
-    tokenScope: conn.scopeId,
-    strategy: { kind: "dynamic-dcr" },
-    pluginId: input.pluginId,
-    ...(input.identityLabel ? { identityLabel: input.identityLabel } : {}),
+  return request("POST", "/oauth/start", {
+    scoped: true,
+    body: {
+      endpoint: input.endpoint,
+      redirectUrl: `${conn.baseUrl}/oauth/callback`,
+      connectionId: input.connectionId,
+      tokenScope: conn.scopeId,
+      strategy: { kind: "dynamic-dcr" },
+      pluginId: input.pluginId,
+      ...(input.identityLabel ? { identityLabel: input.identityLabel } : {}),
+    },
   });
 }
 
@@ -201,8 +208,16 @@ export async function awaitOAuth(sessionId: string): Promise<OAuthAwaitResult | 
     cache: "no-store",
     signal: AbortSignal.timeout(5_000),
   });
-  if (!resp.ok) return null;
+  // A non-2xx is a real backend failure (daemon down, route error) — surface it
+  // so the poller fails fast instead of mistaking it for "callback not fired".
+  if (!resp.ok) {
+    throw new ExecutorClientError(`oauth await failed (${resp.status})`, resp.status);
+  }
   const body: unknown = await resp.json().catch(() => null);
-  if (!body || typeof body !== "object") return null;
+  // Validate the discriminated union before returning — a malformed/partial
+  // body must not be treated as a terminal ok/error result by the poller.
+  if (!body || typeof body !== "object" || typeof (body as { ok?: unknown }).ok !== "boolean") {
+    return null;
+  }
   return body as OAuthAwaitResult;
 }

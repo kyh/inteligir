@@ -83,8 +83,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_REMOVE, sourceId),
   refreshExecutorSource: (sourceId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, sourceId),
-  listExecutorSourceTools: (sourceId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_TOOLS, sourceId),
   listExecutorSecrets: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRETS_LIST),
   setExecutorSecret: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRET_SET, input),
   removeExecutorSecret: (secretId: string) =>

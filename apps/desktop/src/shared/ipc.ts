@@ -69,7 +69,6 @@ export const IPC_CHANNELS = {
   EXECUTOR_SOURCE_ADD_GOOGLE: "executor:source:add-google",
   EXECUTOR_SOURCE_REMOVE: "executor:source:remove",
   EXECUTOR_SOURCE_REFRESH: "executor:source:refresh",
-  EXECUTOR_SOURCE_TOOLS: "executor:source:tools",
   EXECUTOR_SECRETS_LIST: "executor:secrets:list",
   EXECUTOR_SECRET_SET: "executor:secret:set",
   EXECUTOR_SECRET_REMOVE: "executor:secret:remove",
@@ -207,7 +206,6 @@ export type DesktopBridge = {
   addGoogleSource: (input: AddGoogleSourceInput) => Promise<ExecutorAddSourceResult>;
   removeExecutorSource: (sourceId: string) => Promise<{ removed: boolean }>;
   refreshExecutorSource: (sourceId: string) => Promise<{ refreshed: boolean }>;
-  listExecutorSourceTools: (sourceId: string) => Promise<ExecutorToolMeta[]>;
   listExecutorSecrets: () => Promise<ExecutorSecretRef[]>;
   setExecutorSecret: (input: SetSecretInput) => Promise<ExecutorSecretRef>;
   removeExecutorSecret: (secretId: string) => Promise<{ removed: boolean }>;

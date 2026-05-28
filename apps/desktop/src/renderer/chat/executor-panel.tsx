@@ -11,6 +11,7 @@ import type {
   ExecutorExecuteResult,
   ExecutorSecretRef,
   ExecutorSource,
+  ExecutorToolMeta,
 } from "@/shared/executor";
 
 type SourceKind = "mcp" | "openapi" | "graphql" | "google";
@@ -33,6 +34,15 @@ function parseHeaders(raw: string): Record<string, string> | undefined {
 
 function slug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "source";
+}
+
+function isValidUrl(value: string): boolean {
+  try {
+    const u = new URL(value);
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
 }
 
 export function ExecutorPanel() {
@@ -73,6 +83,7 @@ export function ExecutorPanel() {
       <SourcesSection onError={setError} />
       <ConnectionsSection onError={setError} />
       <SecretsSection onError={setError} />
+      <ToolsSection onError={setError} />
       <CodeConsole onError={setError} />
     </div>
   );
@@ -102,25 +113,63 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
     refresh();
   }, [refresh]);
 
+  const handleDetect = useCallback(async () => {
+    const trimmed = endpoint.trim();
+    if (!isValidUrl(trimmed)) {
+      onError("Enter a valid URL to detect.");
+      return;
+    }
+    onError(null);
+    try {
+      const results = await getBridge()?.detectExecutorSource(trimmed);
+      const best = results?.[0];
+      if (!best) {
+        onError("Couldn't detect a source type for that URL.");
+        return;
+      }
+      const map: Record<string, SourceKind> = {
+        mcp: "mcp",
+        openapi: "openapi",
+        graphql: "graphql",
+        googleDiscovery: "google",
+      };
+      setKind(map[best.kind] ?? "mcp");
+      if (!name.trim()) setName(best.name);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : "Detection failed.");
+    }
+  }, [endpoint, name, onError]);
+
   const handleAdd = useCallback(async () => {
     const bridge = getBridge();
-    if (!bridge || !name.trim()) {
+    const trimmedName = name.trim();
+    const trimmedEndpoint = endpoint.trim();
+    const trimmedBase = baseUrl.trim();
+    if (!bridge || !trimmedName) {
       onError("Name is required.");
+      return;
+    }
+    if (!isValidUrl(trimmedEndpoint)) {
+      onError("Enter a valid endpoint URL.");
+      return;
+    }
+    if (kind === "openapi" && !isValidUrl(trimmedBase)) {
+      onError("OpenAPI sources need a valid Base URL (the API server, not the spec).");
       return;
     }
     setBusy(true);
     onError(null);
     try {
-      const ns = slug(name);
+      const ns = slug(trimmedName);
       const headers = parseHeaders(headersText);
       if (kind === "mcp") {
-        await bridge.addMcpSource({ transport: "remote", name, endpoint, remoteTransport: "auto", namespace: ns, headers });
+        await bridge.addMcpSource({ transport: "remote", name: trimmedName, endpoint: trimmedEndpoint, remoteTransport: "auto", namespace: ns, headers });
       } else if (kind === "openapi") {
-        await bridge.addOpenApiSource({ spec: { kind: "url", url: endpoint }, name, baseUrl: baseUrl || endpoint, namespace: ns, headers });
+        await bridge.addOpenApiSource({ spec: { kind: "url", url: trimmedEndpoint }, name: trimmedName, baseUrl: trimmedBase, namespace: ns, headers });
       } else if (kind === "graphql") {
-        await bridge.addGraphqlSource({ endpoint, name, namespace: ns, headers });
+        await bridge.addGraphqlSource({ endpoint: trimmedEndpoint, name: trimmedName, namespace: ns, headers });
       } else {
-        await bridge.addGoogleSource({ name, discoveryUrl: endpoint, namespace: ns, auth: { kind: "none" } });
+        await bridge.addGoogleSource({ name: trimmedName, discoveryUrl: trimmedEndpoint, namespace: ns, auth: { kind: "none" } });
       }
       setName("");
       setEndpoint("");
@@ -208,14 +257,25 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
           ))}
         </div>
         <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="h-7 text-xs" />
-        <Input
-          value={endpoint}
-          onChange={(e) => setEndpoint(e.target.value)}
-          placeholder={kind === "openapi" ? "OpenAPI spec URL" : kind === "google" ? "Discovery doc URL" : "Endpoint URL"}
-          className="h-7 text-xs"
-        />
+        <div className="flex gap-1">
+          <Input
+            value={endpoint}
+            onChange={(e) => setEndpoint(e.target.value)}
+            placeholder={kind === "openapi" ? "OpenAPI spec URL" : kind === "google" ? "Discovery doc URL" : "Endpoint URL"}
+            className="h-7 flex-1 text-xs"
+          />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => void handleDetect()}
+            className="h-7 px-2 text-[10px] text-muted-foreground"
+            title="Detect the source type from the URL"
+          >
+            Detect
+          </Button>
+        </div>
         {kind === "openapi" && (
-          <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="Base URL (optional)" className="h-7 text-xs" />
+          <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="API base URL (required)" className="h-7 text-xs" />
         )}
         {(kind === "mcp" || kind === "openapi" || kind === "graphql") && (
           <Textarea
@@ -282,6 +342,7 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
       for (;;) {
         if (Date.now() > deadline) {
           onError("OAuth timed out.");
+          refresh(); // in case the connection completed but the result poll was missed
           return;
         }
         await new Promise((r) => setTimeout(r, OAUTH_POLL_MS));
@@ -418,6 +479,58 @@ function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
           {busy ? "Saving…" : "Save secret"}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tools browser (read-only view of the catalog the agent can reach)
+// ---------------------------------------------------------------------------
+
+function ToolsSection({ onError }: { onError: (e: string | null) => void }) {
+  const [tools, setTools] = useState<ExecutorToolMeta[] | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const refresh = useCallback(() => {
+    void getBridge()
+      ?.listExecutorTools()
+      .then(setTools)
+      .catch((err: unknown) => onError(err instanceof Error ? err.message : "Failed to list tools."));
+  }, [onError]);
+
+  useEffect(() => {
+    if (open && tools === null) refresh();
+  }, [open, tools, refresh]);
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-between text-left"
+      >
+        <Label className="cursor-pointer text-xs font-medium text-muted-foreground">
+          Tools {tools ? `(${tools.length})` : ""}
+        </Label>
+        <span className="text-[10px] text-muted-foreground">{open ? "Hide" : "Show"}</span>
+      </button>
+      {open &&
+        (tools === null ? (
+          <div className="text-[10px] text-muted-foreground">Loading…</div>
+        ) : tools.length === 0 ? (
+          <div className="text-[10px] text-muted-foreground">No tools available.</div>
+        ) : (
+          <div className="flex max-h-48 flex-col gap-1 overflow-auto">
+            {tools.map((t) => (
+              <div key={t.id} className="rounded-md border border-border px-3 py-1.5" title={t.description}>
+                <span className="text-xs text-foreground">{t.name}</span>
+                {t.description && (
+                  <p className="line-clamp-2 text-[10px] text-muted-foreground">{t.description}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
     </div>
   );
 }

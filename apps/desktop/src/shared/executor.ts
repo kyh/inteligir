@@ -43,17 +43,6 @@ export type ExecutorToolMeta = {
   approvalDescription?: string;
 };
 
-export type ExecutorToolSchema = {
-  id: string;
-  name?: string;
-  description?: string;
-  inputTypeScript?: string;
-  outputTypeScript?: string;
-  typeScriptDefinitions?: Record<string, string>;
-  inputSchema?: unknown;
-  outputSchema?: unknown;
-};
-
 export type ExecutorSecretRef = {
   id: string;
   scopeId: string;
@@ -69,16 +58,6 @@ export type ExecutorConnectionRef = {
   identityLabel: string | null;
   expiresAt: number | null;
   oauthScope: string | null;
-  createdAt: number;
-  updatedAt: number;
-};
-
-export type ExecutorPolicy = {
-  id: string;
-  scopeId: string;
-  pattern: string;
-  action: "approve" | "require_approval" | "block";
-  position: string;
   createdAt: number;
   updatedAt: number;
 };

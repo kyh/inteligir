@@ -306,14 +306,11 @@ function registerIpcHandlers(): void {
 
   const anyObj = z.record(z.string(), z.unknown());
 
-  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, async (): Promise<ExecutorStatus> => {
-    if (!getExecutorDaemon().getConnection()) return { running: false };
-    try {
-      const scope = await executor.getScope();
-      return { running: true, scope: { id: scope.id, name: scope.name, dir: scope.dir } };
-    } catch {
-      return { running: false };
-    }
+  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, (): ExecutorStatus => {
+    // Scope is immutable for the daemon's life and cached on the connection,
+    // so there's no need for a live /scope round-trip here.
+    const conn = getExecutorDaemon().getConnection();
+    return conn ? { running: true, scope: conn.scope } : { running: false };
   });
 
   createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCES_LIST, () => executor.listSources());
@@ -338,9 +335,6 @@ function registerIpcHandlers(): void {
   createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, z.string(), (id) =>
     executor.refreshSource(id),
   );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_TOOLS, z.string(), (id) =>
-    executor.listSourceTools(id),
-  );
   createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_SECRETS_LIST, () => executor.listSecrets());
   createIpcHandler(IPC_CHANNELS.EXECUTOR_SECRET_SET, anyObj, (input) =>
     executor.setSecret(input as Parameters<typeof executor.setSecret>[0]),
@@ -361,7 +355,10 @@ function registerIpcHandlers(): void {
     executor.awaitOAuth(sessionId),
   );
   createIpcHandler(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, z.string(), (url) => {
-    if (isHttpUrl(url)) void shell.openExternal(url);
+    // Throw on a non-http(s) URL so the renderer surfaces it immediately,
+    // rather than silently no-op'ing and leaving an OAuth flow to time out.
+    if (!isHttpUrl(url)) throw new Error(`refusing to open non-http URL: ${url}`);
+    void shell.openExternal(url);
   });
 }
 
