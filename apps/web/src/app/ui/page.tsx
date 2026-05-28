@@ -62,7 +62,6 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@repo/ui/components/drawer";
-import { Dropdown } from "@repo/ui/components/dropdown";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,7 +83,6 @@ import { InputField, InputGroup } from "@repo/ui/components/input-group-fields";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { Label } from "@repo/ui/components/label";
 import { Logo } from "@repo/ui/components/logo";
-import { MenuItem } from "@repo/ui/components/menu-item";
 import { NavItem } from "@repo/ui/components/nav-item";
 import { NavMenu } from "@repo/ui/components/nav-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
@@ -137,7 +135,6 @@ export default function UiPage() {
   const [fruit, setFruit] = useState("");
   const [subtleTab, setSubtleTab] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [menuIndex, setMenuIndex] = useState(0);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -341,14 +338,6 @@ export default function UiPage() {
             <DropdownMenuItem variant="destructive">Sign out</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
-
-        <div className="w-56 rounded-2xl bg-surface-3 p-1 shadow-surface-3">
-          <Dropdown checkedIndex={menuIndex}>
-            <MenuItem index={0} label="Profile" icon={HomeIcon} checked={menuIndex === 0} onSelect={() => setMenuIndex(0)} />
-            <MenuItem index={1} label="Settings" icon={SettingsIcon} checked={menuIndex === 1} onSelect={() => setMenuIndex(1)} />
-            <MenuItem index={2} label="Notifications" icon={BellIcon} checked={menuIndex === 2} onSelect={() => setMenuIndex(2)} />
-          </Dropdown>
-        </div>
       </Section>
 
       <Section title="Overlays">

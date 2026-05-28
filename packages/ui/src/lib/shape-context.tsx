@@ -57,7 +57,7 @@ const ShapeContext = createContext<ShapeContextValue | null>(null);
 
 function useShape(): ShapeClasses {
   const ctx = useContext(ShapeContext);
-  if (!ctx) return shapeMap.pill;
+  if (!ctx) return shapeMap.rounded;
   return ctx.classes;
 }
 
@@ -77,7 +77,7 @@ function transitionShape(callback: () => void) {
 
 function ShapeProvider({
   children,
-  defaultShape = "pill",
+  defaultShape = "rounded",
 }: {
   children: ReactNode;
   defaultShape?: ShapeVariant;

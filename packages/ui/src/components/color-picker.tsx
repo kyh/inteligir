@@ -23,7 +23,13 @@ import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { useIcon } from "@repo/ui/lib/icon-context";
 import { Slider } from "@repo/ui/components/slider";
-import { Dropdown, useDropdown } from "@repo/ui/components/dropdown";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/dropdown-menu";
 import { Tooltip } from "@repo/ui/components/tooltip";
 
 // ---------------------------------------------------------------------------
@@ -618,61 +624,10 @@ const FORMAT_LABELS: Record<ColorFormat, string> = {
   oklch: "OKLCH",
 };
 
-function FormatItem({
-  index,
-  label,
-  checked,
-  onSelect,
-}: {
-  index: number;
-  label: string;
-  checked: boolean;
-  onSelect: () => void;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const { registerItem, activeIndex, checkedIndex } = useDropdown();
-  const shape = useShape();
-
-  useEffect(() => {
-    registerItem(index, ref.current);
-    return () => registerItem(index, null);
-  }, [index, registerItem]);
-
-  const isActive = activeIndex === index;
-
-  return (
-    <div
-      ref={ref}
-      data-proximity-index={index}
-      role="menuitemradio"
-      aria-checked={checked}
-      aria-label={label}
-      tabIndex={index === (checkedIndex ?? 0) ? 0 : -1}
-      onClick={onSelect}
-      onKeyDown={(e) => {
-        if (e.key === " " || e.key === "Enter") {
-          e.preventDefault();
-          onSelect();
-        }
-      }}
-      className={cn(
-        `relative z-10 flex items-center px-3 py-2 text-[13px] cursor-pointer outline-none transition-colors duration-80`,
-        shape.item,
-        isActive || checked ? "text-foreground" : "text-muted-foreground"
-      )}
-      style={{
-        fontVariationSettings: checked ? fontWeights.semibold : fontWeights.normal,
-      }}
-    >
-      {label}
-    </div>
-  );
-}
-
 function FormatDropdown({
   value,
   onChange,
-  open: openProp,
+  open,
   defaultOpen = false,
 }: {
   value: ColorFormat;
@@ -680,136 +635,45 @@ function FormatDropdown({
   open?: boolean;
   defaultOpen?: boolean;
 }) {
-  const [internalOpen, setInternalOpen] = useState(defaultOpen);
-  const isControlled = openProp !== undefined;
-  const open = isControlled ? openProp : internalOpen;
-  const setOpen: (next: boolean | ((prev: boolean) => boolean)) => void = (next) => {
-    if (isControlled) return;
-    setInternalOpen(next);
-  };
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const shape = useShape();
-  const portalContainer = useContext(ColorPickerPortalContainerContext);
-  const [pos, setPos] = useState<
-    | { mode: "fixed"; top: number; left: number; width: number }
-    | { mode: "absolute"; top: number; left: number; width: number }
-    | null
-  >(null);
-
-  useEffect(() => {
-    if (!open || !triggerRef.current) {
-      setPos(null);
-      return;
-    }
-    const triggerRect = triggerRef.current.getBoundingClientRect();
-    if (portalContainer) {
-      const cRect = portalContainer.getBoundingClientRect();
-      const cWidth = portalContainer.offsetWidth;
-      const scale = cWidth > 0 ? cRect.width / cWidth : 1;
-      // Convert viewport coords into the portal container's pre-scale frame so
-      // an ancestor CSS scale visually scales the menu alongside the trigger.
-      setPos({
-        mode: "absolute",
-        top: (triggerRect.bottom - cRect.top) / scale + 6,
-        left: (triggerRect.left - cRect.left) / scale,
-        width: triggerRect.width / scale,
-      });
-    } else {
-      setPos({
-        mode: "fixed",
-        top: triggerRect.bottom + 6,
-        left: triggerRect.left,
-        width: triggerRect.width,
-      });
-    }
-  }, [open, portalContainer]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (
-        !panelRef.current?.contains(e.target as Node) &&
-        !triggerRef.current?.contains(e.target as Node)
-      ) {
-        setOpen(false);
-      }
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open]);
-
-  const formats = ["hex", "rgb", "hsl", "oklch"] as const;
-  const checkedIdx = formats.indexOf(value);
   const ChevronDownIcon = useIcon("chevron-down");
+  const shape = useShape();
+  const formats = ["hex", "rgb", "hsl", "oklch"] as const;
 
   return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={() => setOpen((o) => !o)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        className={cn(
-          "flex items-center justify-between gap-2 h-9 px-3 text-[13px] bg-transparent hover:bg-hover hover:text-foreground transition-colors duration-80 outline-none focus-visible:ring-1 focus-visible:ring-[#6B97FF] cursor-pointer",
-          open ? "bg-active text-foreground" : "text-muted-foreground active:bg-active",
-          shape.input
-        )}
-        style={{ fontVariationSettings: fontWeights.medium }}
+    <DropdownMenu open={open} defaultOpen={defaultOpen}>
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            aria-label="Color format"
+            className={cn(
+              "group flex h-9 items-center justify-between gap-2 bg-transparent px-3 text-[13px] text-muted-foreground transition-colors outline-none hover:bg-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-focus-ring data-[popup-open]:bg-active data-[popup-open]:text-foreground cursor-pointer",
+              shape.input,
+            )}
+            style={{ fontVariationSettings: fontWeights.medium }}
+          />
+        }
       >
         <span>{FORMAT_LABELS[value]}</span>
         <ChevronDownIcon
           size={14}
           strokeWidth={1.5}
-          className={cn(
-            "text-muted-foreground transition-transform duration-150",
-            open && "rotate-180"
-          )}
+          className="text-muted-foreground transition-transform duration-150 group-data-[popup-open]:rotate-180"
         />
-      </button>
-      {open && pos && typeof document !== "undefined" && createPortal(
-        <div
-          style={{
-            position: pos.mode,
-            top: pos.top,
-            left: pos.left,
-            zIndex: 60,
-          }}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent className="min-w-(--anchor-width)">
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(v) => onChange(v as ColorFormat)}
         >
-          <motion.div
-            ref={panelRef}
-            initial={{ opacity: 0, y: -4, scaleY: 0.96 }}
-            animate={{ opacity: 1, y: 0, scaleY: 1 }}
-            transition={springs.fast}
-            style={{ transformOrigin: "top center", minWidth: pos.width }}
-          >
-            <Dropdown checkedIndex={checkedIdx} className="!w-auto min-w-full">
-              {formats.map((fmt, i) => (
-                <FormatItem
-                  key={fmt}
-                  index={i}
-                  label={FORMAT_LABELS[fmt]}
-                  checked={value === fmt}
-                  onSelect={() => {
-                    onChange(fmt);
-                    setOpen(false);
-                  }}
-                />
-              ))}
-            </Dropdown>
-          </motion.div>
-        </div>,
-        portalContainer ?? document.body
-      )}
-    </>
+          {formats.map((fmt) => (
+            <DropdownMenuRadioItem key={fmt} value={fmt}>
+              {FORMAT_LABELS[fmt]}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
