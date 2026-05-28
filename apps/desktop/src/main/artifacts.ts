@@ -142,19 +142,14 @@ export class ArtifactsManager {
   /**
    * Merge a sparse pointer-keyed patch into an artifact's state. Patch keys
    * are JSON Pointers rooted at the state object, values are the new leaf
-   * values. Used by the renderer to persist user interactions without
-   * touching paths the agent set concurrently.
+   * values. Used by the renderer to persist user interactions.
    *
-   * A full-replacement patchState would race agent updates: if the agent
-   * writes new state keys while a renderer debounce is in flight, the
-   * later-arriving full snapshot would clobber the agent's keys.
-   *
-   * NOT bumping updatedAt is deliberate. `state` is transient session data
-   * (user-driven bound inputs) — bumping updatedAt on every keystroke
-   * defeats the artifacts-store dedup at the library level and ticks the
-   * "Updated Nm ago" label on every paste. The renderer-side viewer
-   * subscribes to ARTIFACTS_UPDATED separately, so it still gets the
-   * broadcast and updates its baseline; only the library short-circuits.
+   * Sparse (not full-replace) so a concurrent agent state write on a
+   * different key isn't clobbered. NOT bumping updatedAt is deliberate:
+   * `state` is live session data, and the artifacts-store dedup keys on
+   * updatedAt — leaving it lets state-only persists skip a grid re-render
+   * (the viewer owns its own live state, so it doesn't need the echo). A
+   * later spec change carries the fresh state and re-syncs the store cache.
    */
   patchState(id: string, patch: Record<string, unknown>): Artifact | null {
     let result: Artifact | null = null;

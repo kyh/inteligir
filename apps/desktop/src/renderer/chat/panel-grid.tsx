@@ -219,7 +219,7 @@ export function PanelGrid() {
           {artifacts.map((artifact) => (
             <div key={ARTIFACT_PREFIX + artifact.id}>
               <Panel title={artifact.title}>
-                <ArtifactViewer id={artifact.id} />
+                <ArtifactViewer artifact={artifact} />
               </Panel>
             </div>
           ))}
