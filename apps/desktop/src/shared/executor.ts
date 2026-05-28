@@ -5,13 +5,6 @@
 // scopeId, so renderer-facing calls omit it.
 // ---------------------------------------------------------------------------
 
-export type ExecutorScopeInfo = {
-  id: string;
-  name: string;
-  dir: string;
-  stack: { id: string; name: string; dir: string }[];
-};
-
 export type ExecutorSource = {
   id: string;
   scopeId?: string;

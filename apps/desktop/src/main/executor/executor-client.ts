@@ -16,7 +16,6 @@ import type {
   ExecutorConnectionRef,
   ExecutorDetectResult,
   ExecutorExecuteResult,
-  ExecutorScopeInfo,
   ExecutorSecretRef,
   ExecutorSource,
   ExecutorToolMeta,
@@ -86,12 +85,6 @@ async function request<T>(method: string, path: string, opts: RequestOptions = {
   } catch {
     throw new ExecutorClientError(`${method} ${fullPath}: invalid JSON response`, resp.status);
   }
-}
-
-// ---- scope ----------------------------------------------------------------
-
-export function getScope(): Promise<ExecutorScopeInfo> {
-  return request("GET", "/scope");
 }
 
 // ---- sources --------------------------------------------------------------
