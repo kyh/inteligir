@@ -5,7 +5,7 @@ import { createContext, useContext, type ReactNode } from "react";
 /**
  * Tracks the current elevation level (1–8) so nested surfaces can walk up the
  * ladder automatically. Floating layers (dropdowns, dialogs) read this to pick
- * a background one or more steps above their substrate. See {@link Elevated}.
+ * a background one or more steps above their substrate.
  */
 const SurfaceContext = createContext<number>(1);
 

@@ -56,20 +56,14 @@ export function SiteHeader() {
   return (
     <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
       <ThemeToggle />
+      {/* `render` makes the anchor the host element while Button's children
+          (the icon) render inside it; nativeButton={false} since it's an <a>. */}
       <Button
         variant="secondary"
         size="icon"
         className="rounded-full"
-        // Base UI's `render` makes the anchor the host element while Button's
-        // children (the icon) render inside it. nativeButton=false tells Base UI
-        // the host isn't a <button>. Neither is in FF's ButtonProps type, so
-        // spread them through to the underlying primitive.
-        {...{
-          nativeButton: false,
-          render: (
-            <a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="GitHub" />
-          ),
-        }}
+        nativeButton={false}
+        render={<a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="GitHub" />}
       >
         <GithubIcon />
       </Button>
@@ -77,17 +71,10 @@ export function SiteHeader() {
         variant="secondary"
         size="icon"
         className="rounded-full"
-        {...{
-          nativeButton: false,
-          render: (
-            <a
-              href={TWITTER_URL}
-              target="_blank"
-              rel="noreferrer"
-              aria-label="X (Twitter)"
-            />
-          ),
-        }}
+        nativeButton={false}
+        render={
+          <a href={TWITTER_URL} target="_blank" rel="noreferrer" aria-label="X (Twitter)" />
+        }
       >
         <XIcon />
       </Button>

@@ -38,8 +38,8 @@ interface UseProximityHoverReturn {
 /**
  * Tracks which item in a list the pointer is closest to, so a single shared
  * highlight can glide between items rather than each item toggling its own
- * hover state. Items register their position via {@link useRegisterProximityItem}
- * (or `registerItem`); the closest/containing index is exposed as `activeIndex`.
+ * hover state. Items register their position via the returned `registerItem`;
+ * the closest/containing index is exposed as `activeIndex`.
  */
 export function useProximityHover<T extends HTMLElement>(
   containerRef: RefObject<T | null>,
@@ -199,19 +199,4 @@ export function useProximityHover<T extends HTMLElement>(
     registerItem,
     measureItems,
   };
-}
-
-/**
- * Helper for child items to register themselves with the proximity system.
- * Call with the item's ref and index.
- */
-export function useRegisterProximityItem(
-  registerItem: (index: number, element: HTMLElement | null) => void,
-  index: number,
-  ref: RefObject<HTMLElement | null>,
-) {
-  useEffect(() => {
-    registerItem(index, ref.current);
-    return () => registerItem(index, null);
-  }, [index, registerItem, ref]);
 }

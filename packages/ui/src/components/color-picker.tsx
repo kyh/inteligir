@@ -645,7 +645,7 @@ function FormatDropdown({
   const formats = ["hex", "rgb", "hsl", "oklch"] as const;
 
   return (
-    <DropdownMenu open={open} defaultOpen={defaultOpen}>
+    <DropdownMenu {...(open !== undefined ? { open } : { defaultOpen })}>
       <DropdownMenuTrigger
         render={
           <button
