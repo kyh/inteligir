@@ -26,16 +26,18 @@ type Props = { artifact: Artifact };
  * tradeoff that keeps this component free of cross-writer merge logic.)
  */
 export function ArtifactViewer({ artifact }: Props) {
-  const storeRef = useRef<StateStore | null>(null);
-  const getStore = (): StateStore => {
-    if (!storeRef.current) storeRef.current = createStateStore({});
-    return storeRef.current;
-  };
-
   // Baseline = last state known to be on disk, used to diff out a sparse
   // patch (so a persist touches only the keys the user changed, not the whole
-  // blob). Updated on seed and after each persist.
-  const baselineRef = useRef<Record<string, unknown>>({});
+  // blob). Updated after each persist.
+  const baselineRef = useRef<Record<string, unknown>>(artifact.state);
+
+  // Lazily create + seed the store on first render so bound components render
+  // with the persisted state on the very first paint (no empty-then-fill
+  // flash). Seeded once per mount; agent state resets reflect on remount.
+  const storeRef = useRef<StateStore | null>(null);
+  if (storeRef.current === null) storeRef.current = createStateStore(artifact.state);
+  const getStore = (): StateStore => storeRef.current!;
+
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const idRef = useRef(artifact.id);
   idRef.current = artifact.id;
@@ -55,11 +57,10 @@ export function ArtifactViewer({ artifact }: Props) {
     [],
   );
 
-  // Seed once, then persist on store changes. Flush on unmount so a change
-  // made within the debounce window before close isn't lost.
+  // Persist on store changes (debounced). Flush on unmount so a change made
+  // within the debounce window before close isn't lost. The store is already
+  // seeded at first render, so this effect only wires persistence.
   useEffect(() => {
-    getStore().update(toPointerMap(artifact.state));
-    baselineRef.current = artifact.state;
     const unsubscribe = getStore().subscribe(() => {
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
       persistTimerRef.current = setTimeout(flushPersist, STATE_PERSIST_DEBOUNCE_MS);
@@ -68,9 +69,6 @@ export function ArtifactViewer({ artifact }: Props) {
       unsubscribe();
       flushPersist();
     };
-    // Mount-once: artifact.state is only consulted to seed. eslint-disable to
-    // avoid re-seeding on every prop update.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [flushPersist]);
 
   const handlers = useMemo(
@@ -181,6 +179,11 @@ function computeStatePatch(
 // toPointerMap emits — all need structural (not reference) comparison.
 function leafEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
+  // NaN !== NaN; treat two NaNs as equal so a NaN leaf doesn't produce a
+  // phantom diff on every flush (which would loop re-persisting forever).
+  if (typeof a === "number" && typeof b === "number" && Number.isNaN(a) && Number.isNaN(b)) {
+    return true;
+  }
   if (a === null || b === null) return false;
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b)) return false;

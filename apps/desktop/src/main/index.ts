@@ -335,14 +335,28 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(IPC_CHANNELS.ARTIFACT_FETCH, z.string().url(), async (url) => {
     // Main-process fetch avoids renderer CSP/CORS and centralizes egress.
-    // Response is capped so a misbehaving URL can't blow up artifact state.
     const resp = await fetch(url, {
       redirect: "follow",
       signal: AbortSignal.timeout(30_000),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-    const text = await resp.text();
-    return text.length > 100_000 ? text.slice(0, 100_000) : text;
+    // Stream-read with a hard cap so a huge/streaming body can't buffer
+    // gigabytes into the main process before truncation.
+    const CAP = 100_000;
+    if (!resp.body) return "";
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let out = "";
+    try {
+      while (out.length < CAP) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        out += decoder.decode(value, { stream: true });
+      }
+    } finally {
+      await reader.cancel().catch(() => {});
+    }
+    return out.length > CAP ? out.slice(0, CAP) : out;
   });
 
   createIpcHandler(IPC_CHANNELS.ARTIFACT_OPEN_URL, z.string(), async (url) => {

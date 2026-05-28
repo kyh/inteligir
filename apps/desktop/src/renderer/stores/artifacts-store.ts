@@ -4,8 +4,7 @@ import { getBridge } from "@/renderer/lib/bridge";
 import type { Artifact } from "@/shared/artifacts";
 
 // Singleton artifacts store backed by one bridge subscription. Initialized
-// lazily by chat-page at the top of the tree; the subscription lives for the
-// session.
+// lazily by PanelGrid on mount; the subscription lives for the session.
 
 type ArtifactsState = {
   artifacts: Artifact[];

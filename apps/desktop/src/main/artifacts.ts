@@ -107,8 +107,15 @@ export class ArtifactsManager {
             updatedAt: now,
           };
       result = artifact;
-      const others = current.artifacts.filter((a) => a.id !== id);
-      return { ...current, artifacts: [...others, artifact] };
+      const idx = current.artifacts.findIndex((a) => a.id === id);
+      // Replace in place on update (preserve order so grid panels don't
+      // reshuffle and the index-keyed store dedup stays meaningful); append
+      // on create.
+      const artifacts =
+        idx === -1
+          ? [...current.artifacts, artifact]
+          : current.artifacts.map((a, i) => (i === idx ? artifact : a));
+      return { ...current, artifacts };
     });
     this.broadcast(next);
     if (!result) throw new Error("upsert failed to produce an artifact");
@@ -257,7 +264,10 @@ function setByPointer(target: Record<string, unknown>, pointer: string, value: u
     const seg = segments[i]!;
     assertSafeKey(seg, pointer, "traverse");
     const child = current[seg];
-    if (child === null || typeof child !== "object" || Array.isArray(child)) {
+    // Only create a fresh object for a missing/non-container segment —
+    // preserve existing objects AND arrays so a deep set doesn't blow away
+    // sibling data.
+    if (child === null || typeof child !== "object") {
       current[seg] = {};
     }
     current = current[seg] as Record<string, unknown>;
@@ -265,6 +275,16 @@ function setByPointer(target: Record<string, unknown>, pointer: string, value: u
   const last = segments[segments.length - 1]!;
   assertSafeKey(last, pointer, "set");
   current[last] = value;
+}
+
+// RFC 6901 array indices must be canonical: "0" or a non-zero-leading run of
+// digits. Number.parseInt would accept "01", "1x", " 2", aliasing a bad patch
+// onto the wrong slot instead of rejecting it.
+function parseArrayIndex(seg: string, pointer: string): number {
+  if (!/^(?:0|[1-9][0-9]*)$/.test(seg)) {
+    throw new Error(`Bad array index '${seg}' in ${pointer}`);
+  }
+  return Number.parseInt(seg, 10);
 }
 
 function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
@@ -276,9 +296,7 @@ function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
   for (let i = 0; i < segments.length - 1; i++) {
     const seg = segments[i]!;
     if (Array.isArray(parent)) {
-      const idx = Number.parseInt(seg, 10);
-      if (Number.isNaN(idx)) throw new Error(`Bad array index '${seg}' in ${op.path}`);
-      parent = parent[idx];
+      parent = parent[parseArrayIndex(seg, op.path)];
     } else if (parent !== null && typeof parent === "object") {
       assertSafeKey(seg, op.path, "traverse");
       parent = (parent as Record<string, unknown>)[seg];
@@ -294,8 +312,7 @@ function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
     if (last === "-" && op.op !== "add") {
       throw new Error(`'-' index is only valid for add in ${op.path}`);
     }
-    const idx = last === "-" ? parent.length : Number.parseInt(last, 10);
-    if (Number.isNaN(idx)) throw new Error(`Bad array index '${last}' in ${op.path}`);
+    const idx = last === "-" ? parent.length : parseArrayIndex(last, op.path);
     if (op.op === "add") {
       if (idx < 0 || idx > parent.length) {
         throw new Error(`Array index ${idx} out of bounds for add in ${op.path}`);
