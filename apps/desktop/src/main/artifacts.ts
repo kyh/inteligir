@@ -85,7 +85,8 @@ export class ArtifactsManager {
     let result: Artifact | null = null;
     const next = this.store.update((current) => {
       const id = input.id ?? this.allocateId(current.artifacts, input.title);
-      const existing = current.artifacts.find((a) => a.id === id);
+      const idx = current.artifacts.findIndex((a) => a.id === id);
+      const existing = idx === -1 ? undefined : current.artifacts[idx];
       const artifact: Artifact = existing
         ? {
             ...existing,
@@ -107,7 +108,6 @@ export class ArtifactsManager {
             updatedAt: now,
           };
       result = artifact;
-      const idx = current.artifacts.findIndex((a) => a.id === id);
       // Replace in place on update (preserve order so grid panels don't
       // reshuffle and the index-keyed store dedup stays meaningful); append
       // on create.

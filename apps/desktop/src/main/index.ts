@@ -334,8 +334,11 @@ function registerIpcHandlers(): void {
     ({ prompt, system }) => completeOnce(prompt, system),
   );
 
-  createIpcHandler(IPC_CHANNELS.ARTIFACT_FETCH, z.string().url(), async (url) => {
-    // Main-process fetch avoids renderer CSP/CORS and centralizes egress.
+  createIpcHandler(IPC_CHANNELS.ARTIFACT_FETCH, z.string(), async (url) => {
+    // Restrict to http(s) — z.string().url() also accepts file://, ftp://,
+    // etc., and this main-process fetch bypasses renderer CSP/CORS, so an
+    // agent-authored fetchUrl action must not reach non-web schemes.
+    if (!isHttpUrl(url)) throw new Error("Only http(s) URLs can be fetched");
     const resp = await fetch(url, {
       redirect: "follow",
       signal: AbortSignal.timeout(30_000),
@@ -354,6 +357,9 @@ function registerIpcHandlers(): void {
         if (done) break;
         out += decoder.decode(value, { stream: true });
       }
+      // Flush any trailing partial multibyte sequence the streaming decode
+      // left buffered, so the last character isn't dropped or mangled.
+      out += decoder.decode();
     } finally {
       await reader.cancel().catch(() => {});
     }

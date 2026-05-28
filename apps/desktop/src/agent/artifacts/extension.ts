@@ -183,15 +183,15 @@ const artifactsExtension: PiExtensionBundle = {
               if (!params.id) return text("Error: id is required for action='update'");
               const existing = mgr.get(params.id);
               if (!existing) return text(`Error: no artifact with id '${params.id}'`);
+              // title and spec are overwritten unconditionally by upsert, so
+              // resolve them here; description and state fall through to
+              // upsert's own omitted-preserves-existing fallback.
               const updated = mgr.upsert({
                 id: params.id,
                 title: params.title ?? existing.title,
-                description: params.description ?? existing.description,
+                description: params.description,
                 spec: params.spec ?? existing.spec,
-                // Mirror the other fields: omitted = preserve, explicit {} = wipe.
-                // upsert has its own ?? fallback but pre-resolving here keeps the
-                // four-field treatment consistent and easier to reason about.
-                state: params.state ?? existing.state,
+                state: params.state,
               });
               return text(`Updated artifact '${updated.id}'.`);
             }
