@@ -301,11 +301,48 @@ function registerIpcHandlers(): void {
 
   // ---- Executor (integration backend) ---------------------------------------
   //
-  // Thin pass-throughs to the executor daemon's HTTP API. Input payloads are
-  // validated server-side by executor; the loose schemas here just gate types.
+  // Almost every handler is a thin pass-through to the executor daemon's HTTP
+  // API, grouped by argument shape. Payloads are validated server-side by
+  // executor, so the loose `anyObj` schema just gates the IPC boundary.
 
   const anyObj = z.record(z.string(), z.unknown());
 
+  // No-arg → client getter.
+  const voidForwards: [string, () => unknown][] = [
+    [IPC_CHANNELS.EXECUTOR_SOURCES_LIST, executor.listSources],
+    [IPC_CHANNELS.EXECUTOR_SECRETS_LIST, executor.listSecrets],
+    [IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST, executor.listConnections],
+    [IPC_CHANNELS.EXECUTOR_TOOLS_LIST, executor.listTools],
+  ];
+  for (const [channel, fn] of voidForwards) createVoidIpcHandler(channel, fn);
+
+  // Single string arg (id / url / code / sessionId).
+  const stringForwards: [string, (arg: string) => unknown][] = [
+    [IPC_CHANNELS.EXECUTOR_SOURCES_DETECT, executor.detectSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_REMOVE, executor.removeSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, executor.refreshSource],
+    [IPC_CHANNELS.EXECUTOR_SECRET_REMOVE, executor.removeSecret],
+    [IPC_CHANNELS.EXECUTOR_CONNECTION_REMOVE, executor.removeConnection],
+    [IPC_CHANNELS.EXECUTOR_EXECUTE, executor.execute],
+    [IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, executor.awaitOAuth],
+  ];
+  for (const [channel, fn] of stringForwards) createIpcHandler(channel, z.string(), fn);
+
+  // Object payload (executor validates the shape server-side). `as never`
+  // satisfies each client fn's specific param type without per-handler casts.
+  const objectForwards: [string, (arg: never) => unknown][] = [
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP, executor.addMcpSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI, executor.addOpenApiSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL, executor.addGraphqlSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE, executor.addGoogleSource],
+    [IPC_CHANNELS.EXECUTOR_SECRET_SET, executor.setSecret],
+    [IPC_CHANNELS.EXECUTOR_OAUTH_START, executor.oauthStart],
+  ];
+  for (const [channel, fn] of objectForwards) {
+    createIpcHandler(channel, anyObj, (input) => fn(input as never));
+  }
+
+  // The two non-passthrough handlers stay explicit.
   createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, (): ExecutorStatus => {
     // Scope is immutable for the daemon's life and cached on the connection,
     // so there's no need for a live /scope round-trip here.
@@ -313,47 +350,6 @@ function registerIpcHandlers(): void {
     return conn ? { running: true, scope: conn.scope } : { running: false };
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCES_LIST, () => executor.listSources());
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCES_DETECT, z.string(), (url) =>
-    executor.detectSource(url),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP, anyObj, (input) =>
-    executor.addMcpSource(input as Parameters<typeof executor.addMcpSource>[0]),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI, anyObj, (input) =>
-    executor.addOpenApiSource(input as Parameters<typeof executor.addOpenApiSource>[0]),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL, anyObj, (input) =>
-    executor.addGraphqlSource(input as Parameters<typeof executor.addGraphqlSource>[0]),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE, anyObj, (input) =>
-    executor.addGoogleSource(input as Parameters<typeof executor.addGoogleSource>[0]),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_REMOVE, z.string(), (id) =>
-    executor.removeSource(id),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, z.string(), (id) =>
-    executor.refreshSource(id),
-  );
-  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_SECRETS_LIST, () => executor.listSecrets());
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SECRET_SET, anyObj, (input) =>
-    executor.setSecret(input as Parameters<typeof executor.setSecret>[0]),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_SECRET_REMOVE, z.string(), (id) =>
-    executor.removeSecret(id),
-  );
-  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST, () => executor.listConnections());
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_CONNECTION_REMOVE, z.string(), (id) =>
-    executor.removeConnection(id),
-  );
-  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_TOOLS_LIST, () => executor.listTools());
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_EXECUTE, z.string(), (code) => executor.execute(code));
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_OAUTH_START, anyObj, (input) =>
-    executor.oauthStart(input as Parameters<typeof executor.oauthStart>[0]),
-  );
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, z.string(), (sessionId) =>
-    executor.awaitOAuth(sessionId),
-  );
   createIpcHandler(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, z.string(), (url) => {
     // Throw on a non-http(s) URL so the renderer surfaces it immediately,
     // rather than silently no-op'ing and leaving an OAuth flow to time out.

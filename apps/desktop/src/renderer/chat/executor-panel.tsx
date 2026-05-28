@@ -1,20 +1,48 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import type { ExecutorStatus } from "@/shared/ipc";
-import type {
-  ExecutorConnectionRef,
-  ExecutorExecuteResult,
-  ExecutorSecretRef,
-  ExecutorSource,
-  ExecutorToolMeta,
-} from "@/shared/executor";
+import type { DesktopBridge, ExecutorStatus } from "@/shared/ipc";
+import type { ExecutorExecuteResult, ExecutorToolMeta } from "@/shared/executor";
 
 type SourceKind = "mcp" | "openapi" | "graphql" | "google";
+
+/**
+ * Load a resource from the executor bridge on mount, exposing the data and a
+ * `refresh()`. Surfaces load failures via onError (so a daemon-down 503 doesn't
+ * masquerade as an empty list). `load`/`onError` are read through refs so
+ * `refresh` is stable and callers can pass inline closures without re-fetching
+ * every render.
+ */
+function useExecutorResource<T>(
+  load: (bridge: DesktopBridge) => Promise<T>,
+  onError: (e: string | null) => void,
+): { data: T | null; refresh: () => void } {
+  const [data, setData] = useState<T | null>(null);
+  const loadRef = useRef(load);
+  loadRef.current = load;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
+
+  const refresh = useCallback(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    void loadRef.current(bridge)
+      .then(setData)
+      .catch((err: unknown) =>
+        onErrorRef.current(err instanceof Error ? err.message : "Failed to load."),
+      );
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  return { data, refresh };
+}
 
 const OAUTH_POLL_MS = 1500;
 const OAUTH_TIMEOUT_MS = 5 * 60_000;
@@ -94,24 +122,13 @@ export function ExecutorPanel() {
 // ---------------------------------------------------------------------------
 
 function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
-  const [sources, setSources] = useState<ExecutorSource[] | null>(null);
+  const { data: sources, refresh } = useExecutorResource((b) => b.listExecutorSources(), onError);
   const [busy, setBusy] = useState(false);
   const [kind, setKind] = useState<SourceKind>("mcp");
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
   const [baseUrl, setBaseUrl] = useState("");
   const [headersText, setHeadersText] = useState("");
-
-  const refresh = useCallback(() => {
-    void getBridge()
-      ?.listExecutorSources()
-      .then(setSources)
-      .catch(() => setSources([]));
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
 
   const handleDetect = useCallback(async () => {
     const trimmed = endpoint.trim();
@@ -299,20 +316,12 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
 // ---------------------------------------------------------------------------
 
 function ConnectionsSection({ onError }: { onError: (e: string | null) => void }) {
-  const [connections, setConnections] = useState<ExecutorConnectionRef[] | null>(null);
+  const { data: connections, refresh } = useExecutorResource(
+    (b) => b.listExecutorConnections(),
+    onError,
+  );
   const [endpoint, setEndpoint] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const refresh = useCallback(() => {
-    void getBridge()
-      ?.listExecutorConnections()
-      .then(setConnections)
-      .catch(() => setConnections([]));
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
 
   const handleConnect = useCallback(async () => {
     const bridge = getBridge();
@@ -409,21 +418,10 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
 // ---------------------------------------------------------------------------
 
 function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
-  const [secrets, setSecrets] = useState<ExecutorSecretRef[] | null>(null);
+  const { data: secrets, refresh } = useExecutorResource((b) => b.listExecutorSecrets(), onError);
   const [id, setId] = useState("");
   const [value, setValue] = useState("");
   const [busy, setBusy] = useState(false);
-
-  const refresh = useCallback(() => {
-    void getBridge()
-      ?.listExecutorSecrets()
-      .then(setSecrets)
-      .catch(() => setSecrets([]));
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
 
   const handleAdd = useCallback(async () => {
     if (!id.trim() || !value.trim()) {
