@@ -7,7 +7,12 @@ import { useIcon } from "@repo/ui/lib/icon-context";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useShape } from "@repo/ui/lib/shape-context";
 import { springs } from "@repo/ui/lib/springs";
-import { Tooltip } from "@repo/ui/components/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@repo/ui/components/tooltip";
 
 type InputCopyVariant = "icon" | "button";
 type InputCopyAlign = "right" | "left";
@@ -258,9 +263,23 @@ const InputCopy = forwardRef<HTMLDivElement, InputCopyProps>(
           </span>
         )}
         {variant === "icon" ? (
-          <Tooltip content={tooltipState === "idle" ? "Copy to clipboard" : "Copied"} delayDuration={500} sideOffset={2} forceOpen={tooltipState === "copied" ? true : tooltipState === "suppressed" ? false : undefined} onOpenChange={handleTooltipOpenChange}>
-            {button}
-          </Tooltip>
+          <TooltipProvider delay={500}>
+            <Tooltip
+              open={
+                tooltipState === "copied"
+                  ? true
+                  : tooltipState === "suppressed"
+                    ? false
+                    : undefined
+              }
+              onOpenChange={handleTooltipOpenChange}
+            >
+              <TooltipTrigger render={button} />
+              <TooltipContent sideOffset={2}>
+                {tooltipState === "idle" ? "Copy to clipboard" : "Copied"}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         ) : (
           button
         )}

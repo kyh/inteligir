@@ -1002,12 +1002,12 @@ const AskUserQuestions = forwardRef<HTMLDivElement, AskUserQuestionsProps>(
                       <Button
                         variant="ghost"
                         size="sm"
-                        leadingIcon={ArrowLeftKey}
                         onClick={handleBack}
                         // Arrow is desktop-only; restore symmetric padding on
                         // mobile where it's hidden, tighten for the icon on ≥sm.
                         className="pl-3 sm:pl-[6px]"
                       >
+                        <ArrowLeftKey />
                         Back
                       </Button>
                     </motion.div>
@@ -1032,13 +1032,13 @@ const AskUserQuestions = forwardRef<HTMLDivElement, AskUserQuestionsProps>(
                       <Button
                         variant="ghost"
                         size="sm"
-                        trailingIcon={ArrowRightKey}
                         onClick={handleSkip}
                         // Arrow is desktop-only; restore symmetric padding on
                         // mobile where it's hidden, tighten for the icon on ≥sm.
                         className="pr-3 sm:pr-[6px]"
                       >
                         {skipLabel}
+                        <ArrowRightKey />
                       </Button>
                     </motion.div>
                   )}
@@ -1055,7 +1055,7 @@ const AskUserQuestions = forwardRef<HTMLDivElement, AskUserQuestionsProps>(
                       }}
                     >
                       <Button
-                        variant="primary"
+                        variant="default"
                         size="sm"
                         onClick={handleMultiNext}
                         disabled={

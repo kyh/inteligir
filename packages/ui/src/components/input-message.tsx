@@ -24,7 +24,7 @@ import { useIcon } from "@repo/ui/lib/icon-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { Button } from "@repo/ui/components/button";
-import { Tooltip } from "@repo/ui/components/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
 
 const useIsoLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -215,22 +215,27 @@ function FilePreviewTile({ file, onRemove, size }: FilePreviewTileProps) {
           />
         </div>
       )}
-      <Tooltip content="Remove" side="top">
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          aria-label={`Remove ${file.name}`}
-          // Force the light-mode palette (dark circle + white X) regardless
-          // of theme — the close badge needs to read as a "delete affordance"
-          // over arbitrary image/PDF content, so it sits at a fixed contrast
-          // instead of flipping with the surrounding surface.
-          className="absolute top-1 right-1 w-5 h-5 rounded-full bg-neutral-900 text-white opacity-0 group-hover/tile:opacity-100 transition-opacity duration-80 flex items-center justify-center cursor-pointer outline-none focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-[#6B97FF]"
-        >
-          <XIcon size={12} strokeWidth={2.5} />
-        </button>
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onRemove();
+              }}
+              aria-label={`Remove ${file.name}`}
+              // Force the light-mode palette (dark circle + white X) regardless
+              // of theme — the close badge needs to read as a "delete affordance"
+              // over arbitrary image/PDF content, so it sits at a fixed contrast
+              // instead of flipping with the surrounding surface.
+              className="absolute top-1 right-1 w-5 h-5 rounded-full bg-neutral-900 text-white opacity-0 group-hover/tile:opacity-100 transition-opacity duration-80 flex items-center justify-center cursor-pointer outline-none focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-[#6B97FF]"
+            >
+              <XIcon size={12} strokeWidth={2.5} />
+            </button>
+          }
+        />
+        <TooltipContent side="top">Remove</TooltipContent>
       </Tooltip>
     </motion.div>
   );
@@ -556,7 +561,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
               {rightContent}
               <Button
                 type="button"
-                variant="primary"
+                variant="default"
                 size="icon-sm"
                 onClick={handleSend}
                 disabled={!canSend}

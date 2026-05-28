@@ -30,7 +30,7 @@ export class ErrorBoundary extends Component<Props, State> {
           {this.state.error.message}
         </pre>
         <Button
-          variant="tertiary"
+          variant="outline"
           onClick={() => this.setState({ error: null })}
           className="text-xs"
         >

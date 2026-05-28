@@ -30,7 +30,12 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import { Tooltip } from "@repo/ui/components/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@repo/ui/components/tooltip";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1401,9 +1406,12 @@ function ColorInputsRow({
 
 function ChannelTooltip({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <Tooltip content={label} delayDuration={300}>
-      <div>{children}</div>
-    </Tooltip>
+    <TooltipProvider delay={300}>
+      <Tooltip>
+        <TooltipTrigger render={<div>{children}</div>} />
+        <TooltipContent>{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 }
 

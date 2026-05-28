@@ -20,7 +20,6 @@ import {
   AccordionContent,
 } from "@repo/ui/components/accordion";
 import { Badge } from "@repo/ui/components/badge";
-import type { BadgeColor } from "@repo/ui/components/badge";
 
 // ─── ThinkingSteps (root) ───────────────────────────────────────────────────
 
@@ -285,13 +284,12 @@ ThinkingStepSources.displayName = "ThinkingStepSources";
 // ─── ThinkingStepSource ─────────────────────────────────────────────────────
 
 interface ThinkingStepSourceProps {
-  color?: BadgeColor;
   delay?: number;
   children: ReactNode;
   className?: string;
 }
 
-function ThinkingStepSource({ color = "gray", delay = 0, children, className }: ThinkingStepSourceProps) {
+function ThinkingStepSource({ delay = 0, children, className }: ThinkingStepSourceProps) {
   return (
     <motion.span
       initial={{ opacity: 0, scale: 0.85, filter: "blur(4px)" }}
@@ -302,7 +300,7 @@ function ThinkingStepSource({ color = "gray", delay = 0, children, className }: 
         filter: { duration: 0.12, delay },
       }}
     >
-      <Badge variant="solid" size="sm" color={color} className={className}>
+      <Badge variant="secondary" className={className}>
         {children}
       </Badge>
     </motion.span>

@@ -86,8 +86,14 @@ import { Logo } from "@repo/ui/components/logo";
 import { NavItem } from "@repo/ui/components/nav-item";
 import { NavMenu } from "@repo/ui/components/nav-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
-import { RadioGroup, RadioItem } from "@repo/ui/components/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@repo/ui/components/select";
+import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@repo/ui/components/select";
 import { Separator } from "@repo/ui/components/separator";
 import { Slider, SliderComfortable } from "@repo/ui/components/slider";
 import { toast } from "@repo/ui/components/sonner";
@@ -111,7 +117,12 @@ import {
   ThinkingStepsContent,
   ThinkingStepsHeader,
 } from "@repo/ui/components/thinking-steps";
-import { Tooltip } from "@repo/ui/components/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@repo/ui/components/tooltip";
 
 import { HeroOrb } from "@/components/hero-orb";
 
@@ -164,13 +175,19 @@ export default function UiPage() {
       </header>
 
       <Section title="Buttons">
-        <Button variant="primary">Primary</Button>
+        <Button>Default</Button>
         <Button variant="secondary">Secondary</Button>
-        <Button variant="tertiary">Tertiary</Button>
+        <Button variant="outline">Outline</Button>
         <Button variant="ghost">Ghost</Button>
-        <Button leadingIcon={PlusIcon}>New</Button>
-        <Button variant="secondary" trailingIcon={SettingsIcon}>
+        <Button variant="destructive">Destructive</Button>
+        <Button variant="link">Link</Button>
+        <Button>
+          <PlusIcon />
+          New
+        </Button>
+        <Button variant="secondary">
           Settings
+          <SettingsIcon />
         </Button>
         <Button size="icon" variant="secondary" aria-label="Search">
           <SearchIcon />
@@ -190,15 +207,10 @@ export default function UiPage() {
 
       <Section title="Badges">
         <Badge>Default</Badge>
-        <Badge color="green">Success</Badge>
-        <Badge color="amber">Warning</Badge>
-        <Badge color="red">Error</Badge>
-        <Badge variant="dot" color="blue">
-          In progress
-        </Badge>
-        <Badge variant="dot" color="violet" size="lg">
-          Large dot
-        </Badge>
+        <Badge variant="secondary">Secondary</Badge>
+        <Badge variant="destructive">Destructive</Badge>
+        <Badge variant="outline">Outline</Badge>
+        <Badge variant="ghost">Ghost</Badge>
       </Section>
 
       <Section title="Avatars">
@@ -234,10 +246,13 @@ export default function UiPage() {
       </Section>
 
       <Section title="Radio group">
-        <RadioGroup value={radio} onValueChange={setRadio}>
-          <RadioItem index={0} value="comfortable" label="Comfortable" />
-          <RadioItem index={1} value="compact" label="Compact" />
-          <RadioItem index={2} value="spacious" label="Spacious" />
+        <RadioGroup value={radio} onValueChange={(v) => setRadio(v as string)}>
+          {["comfortable", "compact", "spacious"].map((v) => (
+            <Label key={v} className="flex items-center gap-2 capitalize">
+              <RadioGroupItem value={v} />
+              {v}
+            </Label>
+          ))}
         </RadioGroup>
       </Section>
 
@@ -311,18 +326,14 @@ export default function UiPage() {
       </Section>
 
       <Section title="Select & menus">
-        <Select value={fruit} onValueChange={setFruit}>
-          <SelectTrigger placeholder="Pick a fruit" />
+        <Select value={fruit} onValueChange={(v) => setFruit(v as string)}>
+          <SelectTrigger className="w-40">
+            <SelectValue placeholder="Pick a fruit" />
+          </SelectTrigger>
           <SelectContent>
-            <SelectItem index={0} value="apple">
-              Apple
-            </SelectItem>
-            <SelectItem index={1} value="banana">
-              Banana
-            </SelectItem>
-            <SelectItem index={2} value="cherry">
-              Cherry
-            </SelectItem>
+            <SelectItem value="apple">Apple</SelectItem>
+            <SelectItem value="banana">Banana</SelectItem>
+            <SelectItem value="cherry">Cherry</SelectItem>
           </SelectContent>
         </Select>
 
@@ -341,11 +352,18 @@ export default function UiPage() {
       </Section>
 
       <Section title="Overlays">
-        <Tooltip content="Add to favorites">
-          <Button size="icon" variant="secondary" aria-label="Favorite">
-            <HeartIcon />
-          </Button>
-        </Tooltip>
+        <TooltipProvider delay={200}>
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <Button size="icon" variant="secondary" aria-label="Favorite">
+                  <HeartIcon />
+                </Button>
+              }
+            />
+            <TooltipContent>Add to favorites</TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
         <Popover>
           <PopoverTrigger render={<Button variant="secondary">Popover</Button>} />
           <PopoverContent>
@@ -360,7 +378,7 @@ export default function UiPage() {
               <DialogDescription>This action cannot be undone.</DialogDescription>
             </DialogHeader>
             <DialogFooter>
-              <Button variant="tertiary" onClick={() => setDialogOpen(false)}>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
               <Button onClick={() => setDialogOpen(false)}>Confirm</Button>
@@ -368,7 +386,7 @@ export default function UiPage() {
           </DialogContent>
         </Dialog>
         <Button
-          variant="tertiary"
+          variant="outline"
           onClick={() =>
             alertDialog.open("Delete this item?", {
               description: "This permanently removes the item.",
@@ -378,7 +396,7 @@ export default function UiPage() {
         >
           Alert dialog
         </Button>
-        <Button variant="tertiary" onClick={() => toast.success("Saved changes")}>
+        <Button variant="outline" onClick={() => toast.success("Saved changes")}>
           Toast
         </Button>
         <Drawer>
@@ -526,22 +544,18 @@ export default function UiPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow index={0}>
+            <TableRow>
               <TableCell>Ada Lovelace</TableCell>
               <TableCell>Engineer</TableCell>
               <TableCell>
-                <Badge variant="dot" color="green">
-                  Active
-                </Badge>
+                <Badge variant="secondary">Active</Badge>
               </TableCell>
             </TableRow>
-            <TableRow index={1}>
+            <TableRow>
               <TableCell>Alan Turing</TableCell>
               <TableCell>Researcher</TableCell>
               <TableCell>
-                <Badge variant="dot" color="amber">
-                  Away
-                </Badge>
+                <Badge variant="outline">Away</Badge>
               </TableCell>
             </TableRow>
           </TableBody>

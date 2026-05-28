@@ -4,7 +4,12 @@ import type { ComponentProps, HTMLAttributes } from "react";
 import type { UIMessage } from "ai";
 
 import { Button } from "@repo/ui/components/button";
-import { Tooltip } from "@repo/ui/components/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
@@ -67,7 +72,16 @@ export const MessageAction = ({
   );
 
   if (tooltip) {
-    return <Tooltip content={tooltip}>{button}</Tooltip>;
+    return (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger render={button} />
+          <TooltipContent>
+            <p>{tooltip}</p>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    );
   }
 
   return button;

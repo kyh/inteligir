@@ -22,7 +22,12 @@ import {
   InputGroupTextarea,
 } from "@repo/ui/components/input-group";
 import { Spinner } from "@repo/ui/components/spinner";
-import { Tooltip, type TooltipSide } from "@repo/ui/components/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 import { createContext, useContext } from "react";
@@ -467,7 +472,7 @@ export type PromptInputButtonTooltip =
   | {
       content: ReactNode;
       shortcut?: string;
-      side?: TooltipSide;
+      side?: ComponentProps<typeof TooltipContent>["side"];
     };
 
 export type PromptInputButtonProps = ComponentProps<typeof InputGroupButton> & {
@@ -503,17 +508,15 @@ export const PromptInputButton = ({
   const side = typeof tooltip === "string" ? "top" : (tooltip.side ?? "top");
 
   return (
-    <Tooltip
-      side={side}
-      content={
-        <>
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger render={button} />
+        <TooltipContent side={side}>
           {tooltipContent}
           {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
-        </>
-      }
-    >
-      {button}
-    </Tooltip>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
   );
 };
 
@@ -524,7 +527,7 @@ export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
 
 export const PromptInputSubmit = ({
   className,
-  variant = "primary",
+  variant = "default",
   size = "icon-sm",
   status,
   onStop,
