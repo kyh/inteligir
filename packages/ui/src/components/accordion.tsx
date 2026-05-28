@@ -194,16 +194,24 @@ const AccordionGroup = forwardRef<HTMLDivElement, AccordionGroupProps>(
           const current =
             (props as AccordionGroupMultipleProps).value ??
             internalMultipleValue;
-          handleMultipleValueChange(current.filter((v) => v !== val));
+          handleMultipleValueChange(
+            current.includes(val)
+              ? current.filter((v) => v !== val)
+              : [...current, val]
+          );
         } else {
-          handleSingleValueChange("");
+          const current =
+            (props as AccordionGroupSingleProps).value ?? internalSingleValue;
+          handleSingleValueChange(current === val ? "" : val);
         }
       },
       [
         type,
+        props,
         handleSingleValueChange,
         handleMultipleValueChange,
         internalMultipleValue,
+        internalSingleValue,
         controlledMultipleValue,
       ]
     );
@@ -513,12 +521,24 @@ const Accordion = forwardRef<HTMLDivElement, AccordionProps>(
         if (type === "multiple") {
           const current =
             (value as string[] | undefined) ?? internalMultipleValue;
-          handleMultipleChange(current.filter((v) => v !== val));
+          handleMultipleChange(
+            current.includes(val)
+              ? current.filter((v) => v !== val)
+              : [...current, val]
+          );
         } else {
-          handleSingleChange("");
+          const current = (value as string | undefined) ?? internalSingleValue;
+          handleSingleChange(current === val ? "" : val);
         }
       },
-      [type, value, internalMultipleValue, handleSingleChange, handleMultipleChange]
+      [
+        type,
+        value,
+        internalMultipleValue,
+        internalSingleValue,
+        handleSingleChange,
+        handleMultipleChange,
+      ]
     );
 
     const baseValue: string[] =

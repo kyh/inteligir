@@ -4,13 +4,12 @@ import { useEffect, useState } from "react";
 import { MoonIcon, SunIcon } from "lucide-react";
 import { useTheme } from "next-themes";
 
+import { Button } from "@repo/ui/components/button";
+
 import { siteConfig } from "@/lib/site-config";
 
 const GITHUB_URL = "https://github.com/kyh/inteligir";
 const TWITTER_URL = `https://x.com/${siteConfig.twitter.replace("@", "")}`;
-
-const controlClass =
-  "flex size-9 items-center justify-center rounded-full bg-muted text-foreground/70 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-foreground/30";
 
 function GithubIcon({ className }: { className?: string }) {
   return (
@@ -35,20 +34,21 @@ function ThemeToggle() {
 
   const isDark = resolvedTheme === "dark";
   return (
-    <button
-      type="button"
+    <Button
+      variant="secondary"
+      size="icon"
+      className="rounded-full"
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      className={controlClass}
       aria-label="Toggle theme"
     >
       {/* Render an invisible icon before mount to avoid a hydration mismatch
           while next-themes resolves the active theme. */}
       {mounted && !isDark ? (
-        <MoonIcon className="size-4" />
+        <MoonIcon />
       ) : (
-        <SunIcon className={mounted ? "size-4" : "size-4 opacity-0"} />
+        <SunIcon className={mounted ? undefined : "opacity-0"} />
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -56,24 +56,38 @@ export function SiteHeader() {
   return (
     <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
       <ThemeToggle />
-      <a
-        href={GITHUB_URL}
-        target="_blank"
-        rel="noreferrer"
-        className={controlClass}
-        aria-label="GitHub"
+      <Button
+        variant="secondary"
+        size="icon"
+        className="rounded-full"
+        // Base UI's `render` makes the anchor the host element while Button's
+        // children (the icon) render inside it. Not in FF's ButtonProps type,
+        // so spread it through to the underlying primitive.
+        {...{
+          render: (
+            <a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="GitHub" />
+          ),
+        }}
       >
-        <GithubIcon className="size-4" />
-      </a>
-      <a
-        href={TWITTER_URL}
-        target="_blank"
-        rel="noreferrer"
-        className={controlClass}
-        aria-label="X (Twitter)"
+        <GithubIcon />
+      </Button>
+      <Button
+        variant="secondary"
+        size="icon"
+        className="rounded-full"
+        {...{
+          render: (
+            <a
+              href={TWITTER_URL}
+              target="_blank"
+              rel="noreferrer"
+              aria-label="X (Twitter)"
+            />
+          ),
+        }}
       >
-        <XIcon className="size-4" />
-      </a>
+        <XIcon />
+      </Button>
     </header>
   );
 }
