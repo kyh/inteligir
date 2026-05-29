@@ -67,16 +67,18 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setActiveExtensions: (toolNames: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
 
-  // Shell — reshapeable workspace
+  // Shell — OS-like workspace
   listShell: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST),
   onShellUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.SHELL_UPDATED, listener),
-  addWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_ADD, input),
-  setWidgetGeometry: (geometries: unknown) =>
+  generateWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_GENERATE, input),
+  placeWidget: (widgetId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_PLACE, widgetId),
+  unplaceWidget: (instanceId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_UNPLACE, instanceId),
+  deleteWidget: (widgetId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_DELETE, widgetId),
+  setInstanceGeometry: (geometries: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_GEOMETRY, geometries),
-  setWidgetState: (id: string, state: unknown) =>
-    ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_STATE, { id, state }),
-  removeWidget: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_REMOVE_WIDGET, id),
+  setInstanceState: (instanceId: string, state: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_STATE, { instanceId, state }),
 
   // Live widget actions
   widgetComplete: (prompt: string, system?: string) =>

@@ -5,42 +5,44 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { widgetRegistry } from "@/renderer/chat/widget-registry";
-import type { CustomWidget } from "@/shared/shell";
+import type { WidgetInstance, WidgetSpec } from "@/shared/shell";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
 const STATE_PERSIST_DEBOUNCE_MS = 400;
 
-type Props = { widget: CustomWidget };
+type Props = { instance: WidgetInstance; spec: WidgetSpec };
 
 /**
- * Renders one custom widget's json-render spec.
+ * Renders one placed instance of a custom widget — the definition's `spec`
+ * against the instance's own bound `state`.
  *
  * State ownership is single-writer: this viewer owns the live bound state for
- * its lifetime. It seeds the json-render store once from the widget's
+ * its lifetime. It seeds the json-render store once from the instance's
  * persisted state, then persists the full snapshot back to disk (debounced) —
  * a whole-object replace, so keys the user clears actually disappear. Agent
- * spec edits arrive through the `widget` prop and re-render the spec without
- * disturbing live input state; an agent state reset reflects on the panel's
- * next mount (a deliberate, rare tradeoff).
+ * spec edits arrive through the `spec` prop and re-render without disturbing
+ * live input state; an agent state reset reflects on the instance's next mount
+ * (a deliberate, rare tradeoff).
  *
- * memo'd on the widget reference so a sibling panel's state write — which
- * replaces only that widget in the store array — doesn't re-render this one.
+ * memo'd on the instance + spec references so a sibling's write — which the
+ * store applies without touching this instance's identity — doesn't re-render
+ * this one.
  */
-export const WidgetViewer = memo(function WidgetViewer({ widget }: Props) {
+export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props) {
   // Lazily create + seed the store on first render so bound components render
   // with the persisted state on the very first paint (no empty-then-fill
   // flash). Seeded once per mount; agent state resets reflect on remount.
   const storeRef = useRef<StateStore | null>(null);
-  if (storeRef.current === null) storeRef.current = createStateStore(widget.state);
+  if (storeRef.current === null) storeRef.current = createStateStore(instance.state);
   const getStore = (): StateStore => storeRef.current!;
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Only flush when the store actually changed since the last persist, so the
   // unconditional unmount flush doesn't re-send an unchanged snapshot.
   const dirtyRef = useRef(false);
-  const idRef = useRef(widget.id);
-  idRef.current = widget.id;
+  const idRef = useRef(instance.instanceId);
+  idRef.current = instance.instanceId;
 
   const flushPersist = useMemo(
     () => () => {
@@ -50,7 +52,7 @@ export const WidgetViewer = memo(function WidgetViewer({ widget }: Props) {
       }
       if (!dirtyRef.current) return;
       dirtyRef.current = false;
-      void getBridge()?.setWidgetState(idRef.current, getStore().getSnapshot()).catch(() => null);
+      void getBridge()?.setInstanceState(idRef.current, getStore().getSnapshot()).catch(() => null);
     },
     [],
   );
@@ -123,7 +125,7 @@ export const WidgetViewer = memo(function WidgetViewer({ widget }: Props) {
   return (
     <div className="flex flex-col gap-4 p-3">
       <JSONUIProvider registry={widgetRegistry} store={getStore()} handlers={handlers}>
-        <Renderer spec={widget.spec as unknown as Spec} registry={widgetRegistry} />
+        <Renderer spec={spec as unknown as Spec} registry={widgetRegistry} />
       </JSONUIProvider>
     </div>
   );

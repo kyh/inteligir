@@ -6,7 +6,7 @@ import { Type, type Static } from "@sinclair/typebox";
 
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
-import { isCustomWidget, type WidgetSpec } from "@/shared/shell";
+import { BUILTIN_WIDGETS, builtinMeta, type WidgetSpec } from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
 
 const SpecParam = Type.Object(
@@ -66,7 +66,9 @@ const ManageUiSchema = Type.Object({
       Type.Literal("create"),
       Type.Literal("update"),
       Type.Literal("patch"),
-      Type.Literal("remove"),
+      Type.Literal("delete"),
+      Type.Literal("place"),
+      Type.Literal("unplace"),
     ],
     { description: "Action to perform" },
   ),
@@ -74,13 +76,17 @@ const ManageUiSchema = Type.Object({
     Type.String({
       minLength: 1,
       description:
-        "Widget id (required for read/update/patch/remove; optional for create — generated from title if omitted)",
+        "Widget definition id. Required for read/update/patch/delete and for place " +
+        "(a built-in id like 'tasks' or a custom widget id). Optional for create — " +
+        "generated from title if omitted.",
     }),
+  ),
+  instanceId: Type.Optional(
+    Type.String({ minLength: 1, description: "Placed instance id (required for unplace)" }),
   ),
   title: Type.Optional(
     Type.String({
-      description:
-        "Human-readable title shown as the panel header in the workspace (required for create)",
+      description: "Human-readable title shown as the panel header (required for create)",
     }),
   ),
   description: Type.Optional(
@@ -102,8 +108,7 @@ const ManageUiSchema = Type.Object({
   ),
   state: Type.Optional(
     Type.Record(Type.String(), Type.Unknown(), {
-      description:
-        "Optional initial bound-state values. Omit to preserve existing state on update, or seed {} on create.",
+      description: "Optional initial bound-state values for a created widget.",
     }),
   ),
   ops: Type.Optional(
@@ -111,9 +116,7 @@ const ManageUiSchema = Type.Object({
       minItems: 1,
       description:
         "RFC 6902 patch operations (required for action='patch'). Applied in order, " +
-        "result validated against the catalog before writing. Use 'patch' instead of " +
-        "'update' for targeted edits on large specs — saves tokens vs. resending the " +
-        "whole tree.",
+        "result validated before writing. Cheaper than 'update' for targeted edits.",
     }),
   ),
 });
@@ -125,12 +128,13 @@ const uiExtension: PiExtensionBundle = {
       name: "manage_ui",
       label: "manage_ui",
       description:
-        "Create, update, patch, list, read, or remove panels in the user's workspace " +
-        "(the reshapeable 'shell'). Panels are JSON specs persisted across sessions; " +
-        "the user can drag, resize, and remove them. 'create' adds a new panel, " +
-        "'update' replaces an existing one (same id) in full, 'patch' applies RFC 6902 " +
-        "operations for targeted edits (cheap for large specs), 'list' shows what exists. " +
-        "The chat panel is permanent and can't be removed.",
+        "Manage the user's workspace ('shell'), an OS-like grid of widgets. Widgets are " +
+        "either built-in (chat, tasks, skills, extensions, settings) or custom panels you " +
+        "generate from a JSON spec. A widget definition can be placed as zero, one, or many " +
+        "instances on the grid; the user can drag, resize, and close instances. " +
+        "Actions: 'list' (what exists + what's placed), 'read', 'create'/'update'/'patch'/" +
+        "'delete' (custom definitions), 'place' (add an instance of a built-in or custom " +
+        "widget), 'unplace' (remove a placed instance by instanceId).",
       parameters: ManageUiSchema,
       execute: async (_toolCallId, params: Static<typeof ManageUiSchema>) => {
         const text = (s: string) => ({
@@ -141,59 +145,59 @@ const uiExtension: PiExtensionBundle = {
         try {
           switch (params.action) {
             case "list": {
-              const { widgets } = mgr.list();
-              return text(
-                widgets
-                  .map((w) =>
-                    isCustomWidget(w)
-                      ? `- ${w.id}: "${w.title}"${w.description ? ` — ${w.description}` : ""} (${Object.keys(w.spec.elements).length} elements)`
-                      : `- ${w.id}: [${w.type}] (permanent)`,
-                  )
-                  .join("\n"),
-              );
+              const { customWidgets, instances } = mgr.snapshot();
+              const available = [
+                "Built-in widgets:",
+                ...BUILTIN_WIDGETS.map((b) => `  - ${b.id}: "${b.title}"`),
+                "Custom widgets:",
+                ...(customWidgets.length === 0
+                  ? ["  (none)"]
+                  : customWidgets.map(
+                      (d) =>
+                        `  - ${d.id}: "${d.title}" (${Object.keys(d.spec.elements).length} elements)`,
+                    )),
+                "Placed instances:",
+                ...(instances.length === 0
+                  ? ["  (none)"]
+                  : instances.map((i) => `  - ${i.instanceId} → ${i.widgetId}`)),
+              ];
+              return text(available.join("\n"));
             }
             case "read": {
               if (!params.id) return text("Error: id is required for action='read'");
-              const found = mgr.getWidget(params.id);
-              if (!found) return text(`Error: no widget with id '${params.id}'`);
-              return text(JSON.stringify(found, null, 2));
+              const def = mgr.getCustomDef(params.id);
+              if (def) return text(JSON.stringify(def, null, 2));
+              const meta = builtinMeta(params.id);
+              if (meta) return text(JSON.stringify(meta, null, 2));
+              return text(`Error: no widget with id '${params.id}'`);
             }
             case "create": {
               if (!params.title) return text("Error: title is required for action='create'");
               if (!params.spec) return text("Error: spec is required for action='create'");
-              // create is distinct from update — fail if the caller-supplied
-              // id already exists, instead of silently overwriting.
-              if (params.id !== undefined && mgr.getWidget(params.id)) {
+              if (params.id !== undefined && (mgr.getCustomDef(params.id) || builtinMeta(params.id))) {
                 return text(
-                  `Error: widget '${params.id}' already exists. Use action='update' to modify it, or omit id to auto-generate one.`,
+                  `Error: widget '${params.id}' already exists. Use action='update', or omit id.`,
                 );
               }
-              const created = mgr.upsertWidget({
+              const { def, instance } = mgr.generateWidget({
                 id: params.id,
                 title: params.title,
                 description: params.description,
                 spec: params.spec,
                 state: params.state,
               });
-              return text(`Created panel '${created.id}' ("${created.title}").`);
+              return text(`Created custom widget '${def.id}' and placed it (instance ${instance.instanceId}).`);
             }
             case "update": {
               if (!params.id) return text("Error: id is required for action='update'");
-              const existing = mgr.getWidget(params.id);
-              if (!existing || !isCustomWidget(existing)) {
-                return text(`Error: no editable panel with id '${params.id}'`);
-              }
-              // title and spec are overwritten unconditionally by upsert, so
-              // resolve them here; description and state fall through to
-              // upsert's own omitted-preserves-existing fallback.
-              const updated = mgr.upsertWidget({
+              if (!params.spec) return text("Error: spec is required for action='update'");
+              const updated = mgr.updateWidget({
                 id: params.id,
-                title: params.title ?? existing.title,
+                title: params.title ?? mgr.getCustomDef(params.id)?.title ?? params.id,
                 description: params.description,
-                spec: params.spec ?? existing.spec,
-                state: params.state,
+                spec: params.spec,
               });
-              return text(`Updated panel '${updated.id}'.`);
+              return text(`Updated custom widget '${updated.id}'.`);
             }
             case "patch": {
               if (!params.id) return text("Error: id is required for action='patch'");
@@ -202,18 +206,33 @@ const uiExtension: PiExtensionBundle = {
               }
               const patched = mgr.patchWidgetSpec({ id: params.id, ops: params.ops });
               return text(
-                `Patched panel '${patched.id}' (${params.ops.length} op${params.ops.length === 1 ? "" : "s"}).`,
+                `Patched custom widget '${patched.id}' (${params.ops.length} op${params.ops.length === 1 ? "" : "s"}).`,
               );
             }
-            case "remove": {
-              if (!params.id) return text("Error: id is required for action='remove'");
-              const target = mgr.getWidget(params.id);
-              if (!target) return text(`No widget with id '${params.id}' to remove.`);
-              const removed = mgr.removeWidget(params.id);
+            case "delete": {
+              if (!params.id) return text("Error: id is required for action='delete'");
+              const deleted = mgr.deleteWidget(params.id);
+              return text(
+                deleted
+                  ? `Deleted custom widget '${params.id}' and all its instances.`
+                  : `No custom widget '${params.id}' to delete (built-ins can't be deleted).`,
+              );
+            }
+            case "place": {
+              if (!params.id) return text("Error: id is required for action='place'");
+              const instance = mgr.placeWidget(params.id);
+              if (!instance) return text(`Error: no widget with id '${params.id}' to place`);
+              return text(`Placed '${params.id}' (instance ${instance.instanceId}).`);
+            }
+            case "unplace": {
+              if (!params.instanceId) {
+                return text("Error: instanceId is required for action='unplace'");
+              }
+              const removed = mgr.unplaceWidget(params.instanceId);
               return text(
                 removed
-                  ? `Removed panel '${params.id}'.`
-                  : `Cannot remove '${params.id}' — it's a permanent panel.`,
+                  ? `Unplaced instance '${params.instanceId}'.`
+                  : `Cannot unplace '${params.instanceId}' — not found or permanent.`,
               );
             }
           }

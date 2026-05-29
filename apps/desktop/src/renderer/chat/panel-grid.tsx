@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { MessageSquareIcon, PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, XIcon } from "lucide-react";
 import {
   GridLayout,
   useContainerWidth,
@@ -9,37 +9,46 @@ import {
 import "react-grid-layout/css/styles.css";
 
 import { cn } from "@repo/ui/lib/utils";
-import {
-  Conversation,
-  ConversationContent,
-  ConversationEmptyState,
-  ConversationScrollButton,
-} from "@repo/ui/components/ai-elements/conversation";
 
+import { BUILTIN_WIDGET_UI } from "@/renderer/chat/builtin-widgets";
 import { WidgetViewer } from "@/renderer/chat/widget-viewer";
-import { ChatActivityRow, ChatMessageView } from "@/renderer/chat/chat-message";
-import { Composer } from "@/renderer/chat/composer";
 import { getBridge } from "@/renderer/lib/bridge";
-import { useAgentStore } from "@/renderer/stores/agent-store";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
-import { useVoiceStore } from "@/renderer/stores/voice-store";
 import {
-  isCustomWidget,
-  type Widget,
+  builtinMeta,
+  type CustomWidgetDef,
+  type GenerateWidgetInput,
   type WidgetGeometry,
-  type WidgetUpsertInput,
+  type WidgetInstance,
 } from "@/shared/shell";
 
-// Stable identities — react-grid-layout memoizes its drag/resize handlers on
-// these, so recreating them per render would bust that memoization.
+// ---------------------------------------------------------------------------
+// Reshapeable workspace ("shell")
+//
+// A 12-column grid of placed widget instances. Each instance owns its grid
+// geometry (persisted in shell.json), so the layout survives reloads. The chat
+// instance is permanent. Built-in instances close back to the dock (unplace);
+// custom instances delete their definition.
+// ---------------------------------------------------------------------------
+
 const GRID_CONFIG = { cols: 12, rowHeight: 46, margin: [10, 10], containerPadding: [0, 0] } as const;
 const DRAG_CONFIG = { enabled: true, bounded: false, handle: ".panel-drag-handle" } as const;
 const RESIZE_CONFIG = { enabled: true, handles: ["se", "e", "s"] } as const;
 
-// A blank, user-editable note panel. The simplest thing a user can add to the
-// workspace without authoring a spec — a multi-line field bound to state and
-// persisted like any other widget.
-function noteStarter(): WidgetUpsertInput {
+function instanceToLayoutItem(i: WidgetInstance): LayoutItem {
+  return { i: i.instanceId, ...i.geometry };
+}
+
+function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
+  const geo: WidgetGeometry = { x: item.x, y: item.y, w: item.w, h: item.h };
+  if (item.minW !== undefined) geo.minW = item.minW;
+  if (item.minH !== undefined) geo.minH = item.minH;
+  return geo;
+}
+
+// A blank, user-editable note — the simplest custom widget a user can add
+// without authoring a spec: a multi-line field bound to state.
+function noteStarter(): GenerateWidgetInput {
   return {
     title: "Note",
     spec: {
@@ -58,27 +67,7 @@ function noteStarter(): WidgetUpsertInput {
 }
 
 // ---------------------------------------------------------------------------
-// Reshapeable workspace ("shell")
-//
-// A 12-column grid of widgets. Each widget owns its grid geometry (persisted
-// in shell.json), so the layout survives reloads. The chat widget is pinned:
-// movable/resizable but never removable. Spec widgets can be dragged,
-// resized, and closed; the agent creates/edits them via the manage_ui tool.
-// ---------------------------------------------------------------------------
-
-function widgetToLayoutItem(w: Widget): LayoutItem {
-  return { i: w.id, ...w.geometry };
-}
-
-function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
-  const geo: WidgetGeometry = { x: item.x, y: item.y, w: item.w, h: item.h };
-  if (item.minW !== undefined) geo.minW = item.minW;
-  if (item.minH !== undefined) geo.minH = item.minH;
-  return geo;
-}
-
-// ---------------------------------------------------------------------------
-// Panel shell
+// Panel chrome
 // ---------------------------------------------------------------------------
 
 function Panel({
@@ -99,7 +88,7 @@ function Panel({
         {onRemove ? (
           <button
             type="button"
-            aria-label="Remove panel"
+            aria-label="Close panel"
             className="shrink-0 rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
             // Stop the grid drag handler from swallowing the click.
             onMouseDown={(e) => e.stopPropagation()}
@@ -115,49 +104,49 @@ function Panel({
 }
 
 // ---------------------------------------------------------------------------
-// Conversation panel
+// Instance rendering
 // ---------------------------------------------------------------------------
 
-function ConversationPanel() {
-  const messages = useAgentStore((s) => s.messages);
-  const appState = useAgentStore((s) => s.appState);
-  const busy = appState.phase === "ready" && appState.agent === "busy";
+function InstancePanel({
+  instance,
+  customDef,
+}: {
+  instance: WidgetInstance;
+  customDef: CustomWidgetDef | undefined;
+}) {
+  const meta = builtinMeta(instance.widgetId);
 
-  const voiceState = useVoiceStore((s) => s.state);
-  const currentTranscript =
-    voiceState.kind === "listening" ? voiceState.currentTranscript : "";
+  if (meta) {
+    const ui = BUILTIN_WIDGET_UI[meta.id];
+    const Body = ui.component;
+    return (
+      <Panel
+        title={meta.title}
+        bodyClassName={ui.bodyClassName}
+        // Built-in instances hide back to the dock; the permanent chat can't.
+        onRemove={meta.permanent ? undefined : () => void getBridge()?.unplaceWidget(instance.instanceId)}
+      >
+        <Body />
+      </Panel>
+    );
+  }
+
+  if (!customDef) {
+    return (
+      <Panel title={instance.widgetId}>
+        <div className="p-3 text-xs text-muted-foreground">This widget is unavailable.</div>
+      </Panel>
+    );
+  }
 
   return (
-    <Panel title="Conversation" bodyClassName="flex flex-col">
-      <Conversation className="min-h-0 flex-1 px-3 pt-2">
-        <ConversationContent className="gap-1 p-0 pb-2">
-          {messages.length === 0 && !busy ? (
-            <ConversationEmptyState
-              title="No messages yet"
-              description="Start a conversation or speak to begin."
-              icon={<MessageSquareIcon className="size-6" />}
-            />
-          ) : (
-            <>
-              {messages.map((msg) => (
-                <ChatMessageView key={msg.id} message={msg} />
-              ))}
-              <ChatActivityRow messages={messages} busy={busy} />
-            </>
-          )}
-        </ConversationContent>
-        <ConversationScrollButton />
-      </Conversation>
-
-      {currentTranscript && (
-        <div className="px-3 pb-1">
-          <p className="truncate text-xs italic text-muted-foreground">
-            &ldquo;{currentTranscript}&hellip;&rdquo;
-          </p>
-        </div>
-      )}
-
-      <Composer />
+    <Panel
+      title={customDef.title}
+      // Closing a custom instance deletes its definition (no dock gallery to
+      // re-place it from); the agent manages extra instances via place/unplace.
+      onRemove={() => void getBridge()?.deleteWidget(customDef.id)}
+    >
+      <WidgetViewer instance={instance} spec={customDef.spec} />
     </Panel>
   );
 }
@@ -172,25 +161,26 @@ export function PanelGrid() {
   useEffect(() => {
     initShell();
   }, []);
-  const widgets = useShellStore((s) => s.widgets);
+  const instances = useShellStore((s) => s.instances);
+  const customWidgets = useShellStore((s) => s.customWidgets);
   const loading = useShellStore((s) => s.loading);
 
-  const layout = useMemo(() => widgets.map(widgetToLayoutItem), [widgets]);
+  const layout = useMemo(() => instances.map(instanceToLayoutItem), [instances]);
+  const customById = useMemo(
+    () => new Map(customWidgets.map((d) => [d.id, d])),
+    [customWidgets],
+  );
 
   // Persist geometry on drag/resize. Main compares against stored geometry and
   // only broadcasts on a real change, so the mount-time callback is a no-op.
   const handleLayoutChange = useCallback((next: Layout) => {
     const geometries: Record<string, WidgetGeometry> = {};
     for (const item of next) geometries[item.i] = geometryFromLayoutItem(item);
-    void getBridge()?.setWidgetGeometry(geometries);
-  }, []);
-
-  const removeWidget = useCallback((id: string) => {
-    void getBridge()?.removeWidget(id);
+    void getBridge()?.setInstanceGeometry(geometries);
   }, []);
 
   const addNote = useCallback(() => {
-    void getBridge()?.addWidget(noteStarter());
+    void getBridge()?.generateWidget(noteStarter());
   }, []);
 
   const ready = width > 0 && !loading;
@@ -204,7 +194,7 @@ export function PanelGrid() {
           className="absolute right-1 top-0 z-10 flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md hover:text-foreground"
         >
           <PlusIcon className="size-3.5" />
-          Add panel
+          Add note
         </button>
       )}
       {ready && (
@@ -216,15 +206,9 @@ export function PanelGrid() {
           dragConfig={DRAG_CONFIG}
           resizeConfig={RESIZE_CONFIG}
         >
-          {widgets.map((widget) => (
-            <div key={widget.id}>
-              {isCustomWidget(widget) ? (
-                <Panel title={widget.title} onRemove={() => removeWidget(widget.id)}>
-                  <WidgetViewer widget={widget} />
-                </Panel>
-              ) : (
-                <ConversationPanel />
-              )}
+          {instances.map((instance) => (
+            <div key={instance.instanceId}>
+              <InstancePanel instance={instance} customDef={customById.get(instance.widgetId)} />
             </div>
           ))}
         </GridLayout>

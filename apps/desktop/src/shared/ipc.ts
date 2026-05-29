@@ -1,6 +1,11 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
-import type { ShellList, CustomWidget, WidgetGeometry, WidgetUpsertInput } from "./shell";
+import type {
+  GenerateWidgetInput,
+  ShellSnapshot,
+  WidgetGeometry,
+  WidgetInstance,
+} from "./shell";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -60,13 +65,15 @@ export const IPC_CHANNELS = {
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 
-  // Shell — the reshapeable workspace of widgets (chat + agent-authored panels)
+  // Shell — the OS-like workspace (widget definitions + placed instances)
   SHELL_LIST: "shell:list",
   SHELL_UPDATED: "shell:updated",
-  SHELL_ADD: "shell:add",
+  SHELL_GENERATE: "shell:generate",
+  SHELL_PLACE: "shell:place",
+  SHELL_UNPLACE: "shell:unplace",
+  SHELL_DELETE: "shell:delete",
   SHELL_SET_GEOMETRY: "shell:set-geometry",
   SHELL_SET_STATE: "shell:set-state",
-  SHELL_REMOVE_WIDGET: "shell:remove-widget",
 
   // Live widget actions
   WIDGET_COMPLETE: "widget:complete",
@@ -192,16 +199,18 @@ export type DesktopBridge = {
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
 
-  // Shell — the reshapeable workspace of widgets
-  listShell: () => Promise<ShellList>;
-  onShellUpdated: (listener: (next: ShellList) => void) => () => void;
-  addWidget: (input: WidgetUpsertInput) => Promise<CustomWidget>;
-  setWidgetGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
-  setWidgetState: (
-    id: string,
+  // Shell — the OS-like workspace
+  listShell: () => Promise<ShellSnapshot>;
+  onShellUpdated: (listener: (next: ShellSnapshot) => void) => () => void;
+  generateWidget: (input: GenerateWidgetInput) => Promise<WidgetInstance>;
+  placeWidget: (widgetId: string) => Promise<WidgetInstance | null>;
+  unplaceWidget: (instanceId: string) => Promise<{ removed: boolean }>;
+  deleteWidget: (widgetId: string) => Promise<{ deleted: boolean }>;
+  setInstanceGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
+  setInstanceState: (
+    instanceId: string,
     state: Record<string, unknown>,
-  ) => Promise<CustomWidget | null>;
-  removeWidget: (id: string) => Promise<{ removed: boolean }>;
+  ) => Promise<WidgetInstance | null>;
 
   // Live widget actions
   widgetComplete: (prompt: string, system?: string) => Promise<string>;

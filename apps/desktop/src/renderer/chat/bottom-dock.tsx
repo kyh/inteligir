@@ -1,17 +1,12 @@
-import {
-  ListTodoIcon,
-  MicIcon,
-  PhoneIcon,
-  PlugIcon,
-  PlusIcon,
-  SettingsIcon,
-  SparklesIcon,
-} from "lucide-react";
+import { useMemo } from "react";
+import { MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { BUILTIN_WIDGET_UI } from "@/renderer/chat/builtin-widgets";
+import { getBridge } from "@/renderer/lib/bridge";
+import { useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-
-export type DockPanel = "tasks" | "skills" | "extensions" | "settings";
+import { BUILTIN_WIDGETS } from "@/shared/shell";
 
 type DockButtonProps = {
   icon: React.ComponentType<{ className?: string }>;
@@ -19,17 +14,9 @@ type DockButtonProps = {
   onClick: () => void;
   active?: boolean;
   disabled?: boolean;
-  className?: string;
 };
 
-function DockButton({
-  icon: Icon,
-  label,
-  onClick,
-  active,
-  disabled,
-  className,
-}: DockButtonProps) {
+function DockButton({ icon: Icon, label, onClick, active, disabled }: DockButtonProps) {
   return (
     <button
       type="button"
@@ -44,7 +31,6 @@ function DockButton({
           : active
             ? "bg-foreground/15 text-foreground"
             : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
-        className,
       )}
     >
       <Icon className="size-4" />
@@ -52,19 +38,26 @@ function DockButton({
   );
 }
 
-export function BottomDock({
-  panels,
-  onTogglePanel,
-  onNewSession,
-}: {
-  panels: Record<DockPanel, boolean>;
-  onTogglePanel: (panel: DockPanel) => void;
-  onNewSession: () => void;
-}) {
+export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
   const voiceState = useVoiceStore((s) => s.state);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
   const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
   const voiceBusy = voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
+
+  // The dock is the gallery for the built-in widgets. Toggle each one's
+  // placement on the shell (singletons, so one instance per widget).
+  const instances = useShellStore((s) => s.instances);
+  const placedInstanceId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const i of instances) map.set(i.widgetId, i.instanceId);
+    return map;
+  }, [instances]);
+
+  const toggle = (widgetId: string) => {
+    const instanceId = placedInstanceId.get(widgetId);
+    if (instanceId) void getBridge()?.unplaceWidget(instanceId);
+    else void getBridge()?.placeWidget(widgetId);
+  };
 
   return (
     <div className="pointer-events-auto fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
@@ -76,35 +69,19 @@ export function BottomDock({
           onClick={toggleVoice}
           disabled={voiceBusy}
           active={voiceActive}
-          className={voiceActive ? "rotate-0" : ""}
         />
 
         <span className="mx-1 h-5 w-px bg-border" />
 
-        <DockButton
-          icon={ListTodoIcon}
-          label="Tasks"
-          onClick={() => onTogglePanel("tasks")}
-          active={panels.tasks}
-        />
-        <DockButton
-          icon={SparklesIcon}
-          label="Skills"
-          onClick={() => onTogglePanel("skills")}
-          active={panels.skills}
-        />
-        <DockButton
-          icon={PlugIcon}
-          label="Extensions"
-          onClick={() => onTogglePanel("extensions")}
-          active={panels.extensions}
-        />
-        <DockButton
-          icon={SettingsIcon}
-          label="Settings"
-          onClick={() => onTogglePanel("settings")}
-          active={panels.settings}
-        />
+        {BUILTIN_WIDGETS.filter((b) => !b.permanent).map((b) => (
+          <DockButton
+            key={b.id}
+            icon={BUILTIN_WIDGET_UI[b.id].icon}
+            label={b.title}
+            active={placedInstanceId.has(b.id)}
+            onClick={() => toggle(b.id)}
+          />
+        ))}
       </div>
     </div>
   );

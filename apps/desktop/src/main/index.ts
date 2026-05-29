@@ -34,7 +34,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { GeometrySchema, getShell, WidgetUpsertInputSchema } from "@/main/shell";
+import { GenerateWidgetInputSchema, GeometrySchema, getShell } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -299,14 +299,26 @@ function registerIpcHandlers(): void {
     },
   );
 
-  // ---- Shell (reshapeable workspace of widgets) -----------------------------
+  // ---- Shell (OS-like workspace: definitions + placed instances) ------------
 
   createVoidIpcHandler(IPC_CHANNELS.SHELL_LIST, () => {
-    return getShell().list();
+    return getShell().snapshot();
   });
 
-  createIpcHandler(IPC_CHANNELS.SHELL_ADD, WidgetUpsertInputSchema, (input) => {
-    return getShell().upsertWidget(input);
+  createIpcHandler(IPC_CHANNELS.SHELL_GENERATE, GenerateWidgetInputSchema, (input) => {
+    return getShell().generateWidget(input).instance;
+  });
+
+  createIpcHandler(IPC_CHANNELS.SHELL_PLACE, z.string().min(1), (widgetId) => {
+    return getShell().placeWidget(widgetId);
+  });
+
+  createIpcHandler(IPC_CHANNELS.SHELL_UNPLACE, z.string().min(1), (instanceId) => {
+    return { removed: getShell().unplaceWidget(instanceId) };
+  });
+
+  createIpcHandler(IPC_CHANNELS.SHELL_DELETE, z.string().min(1), (widgetId) => {
+    return { deleted: getShell().deleteWidget(widgetId) };
   });
 
   createIpcHandler(
@@ -319,15 +331,11 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_SET_STATE,
-    z.object({ id: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
-    ({ id, state }) => {
-      return getShell().setWidgetState(id, state);
+    z.object({ instanceId: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
+    ({ instanceId, state }) => {
+      return getShell().setInstanceState(instanceId, state);
     },
   );
-
-  createIpcHandler(IPC_CHANNELS.SHELL_REMOVE_WIDGET, z.string().min(1), (id) => {
-    return { removed: getShell().removeWidget(id) };
-  });
 
   // ---- Live widget actions --------------------------------------------------
 

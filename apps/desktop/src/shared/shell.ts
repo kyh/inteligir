@@ -1,13 +1,22 @@
-// The shell is the reshapeable workspace: a flat list of widgets, each with a
-// grid geometry. Two widget types — the permanent `chat` widget, and `custom`
-// widgets (agent-/user-authored json-render UI the agent creates/patches and
-// the user reshapes/removes). Types stay loose here so main/preload don't pull
-// @json-render/core in.
+// The shell is an OS-like workspace. Three concepts:
+//
+//  - Widget definitions ("what exists"): built-in widgets are code-defined
+//    (a React component, listed in BUILTIN_WIDGETS); custom widgets are
+//    agent-/user-generated json-render specs (CustomWidgetDef, persisted).
+//  - Instances ("what's placed"): a WidgetInstance is one placement of a
+//    definition on the grid, with its own id, geometry, and bound state. A
+//    definition can be placed zero, one, or many times.
+//  - The dock is the gallery/launcher for placing definitions; the grid shows
+//    the placed instances.
+//
+// Types stay loose here so main/preload don't pull @json-render/core in.
 
 import type { JsonPatchOp } from "./json-pointer";
 
-// Shape mirrors json-render's `Spec` so the renderer hands it to <Renderer />
-// without conversion.
+// ---------------------------------------------------------------------------
+// json-render spec (a custom widget definition's rendering)
+// ---------------------------------------------------------------------------
+
 export type WidgetSpecElement = {
   type: string;
   props: Record<string, unknown>;
@@ -23,6 +32,10 @@ export type WidgetSpec = {
   state?: Record<string, unknown>;
 };
 
+// ---------------------------------------------------------------------------
+// Geometry
+// ---------------------------------------------------------------------------
+
 export type WidgetGeometry = {
   x: number;
   y: number;
@@ -32,40 +45,85 @@ export type WidgetGeometry = {
   minH?: number;
 };
 
-type WidgetBase = {
+export const WIDGET_DEFAULT_SIZE = { w: 7, h: 6, minW: 2, minH: 3 } as const;
+
+export function geometryEquals(a: WidgetGeometry, b: WidgetGeometry): boolean {
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
+// ---------------------------------------------------------------------------
+// Definitions — "what exists"
+// ---------------------------------------------------------------------------
+
+export type BuiltinWidgetId = "chat" | "tasks" | "skills" | "extensions" | "settings";
+
+/** Metadata for a code-defined widget. The React component + icon live in the
+ * renderer's built-in registry, keyed by `id`; this metadata is shared so main
+ * (the agent tool) and the renderer agree on what's available. */
+export type BuiltinWidgetMeta = {
+  id: BuiltinWidgetId;
+  title: string;
+  /** At most one instance can be placed. */
+  singleton: boolean;
+  /** The seeded instance can't be removed (chat). Implies singleton. */
+  permanent: boolean;
+  defaultGeometry: WidgetGeometry;
+};
+
+export const BUILTIN_WIDGETS: BuiltinWidgetMeta[] = [
+  { id: "chat", title: "Conversation", singleton: true, permanent: true, defaultGeometry: { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 } },
+  { id: "tasks", title: "Tasks", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 } },
+  { id: "skills", title: "Skills", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 } },
+  { id: "extensions", title: "Extensions", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 6, w: 4, h: 6, minW: 2, minH: 3 } },
+  { id: "settings", title: "Settings", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 6, w: 3, h: 6, minW: 2, minH: 3 } },
+];
+
+export const CHAT_WIDGET_ID = "chat";
+
+export function builtinMeta(id: string): BuiltinWidgetMeta | undefined {
+  return BUILTIN_WIDGETS.find((b) => b.id === id);
+}
+
+/** A generated widget definition — rendered from a json-render spec. */
+export type CustomWidgetDef = {
   id: string;
-  geometry: WidgetGeometry;
-};
-
-/** The conversation surface. Pinned: movable/resizable but never removable. */
-export type ChatWidget = WidgetBase & {
-  id: typeof CHAT_WIDGET_ID;
-  type: "chat";
-};
-
-/** A widget whose content is an agent-/user-authored json-render spec. */
-export type CustomWidget = WidgetBase & {
-  type: "custom";
   title: string;
   description?: string;
   spec: WidgetSpec;
-  state: Record<string, unknown>;
   createdAt: number;
   updatedAt: number;
 };
 
-export type Widget = ChatWidget | CustomWidget;
+// ---------------------------------------------------------------------------
+// Instances — "what's placed"
+// ---------------------------------------------------------------------------
+
+export type WidgetInstance = {
+  instanceId: string;
+  /** BuiltinWidgetId or a CustomWidgetDef.id. */
+  widgetId: string;
+  geometry: WidgetGeometry;
+  /** Per-instance bound state (custom widgets; built-ins manage their own). */
+  state: Record<string, unknown>;
+};
 
 export type Shell = {
   version: 1;
-  widgets: Widget[];
+  customWidgets: CustomWidgetDef[];
+  instances: WidgetInstance[];
 };
 
-export type ShellList = {
-  widgets: Widget[];
+/** What the renderer + agent see (built-ins come from BUILTIN_WIDGETS). */
+export type ShellSnapshot = {
+  customWidgets: CustomWidgetDef[];
+  instances: WidgetInstance[];
 };
 
-export type WidgetUpsertInput = {
+// ---------------------------------------------------------------------------
+// Agent / IPC inputs
+// ---------------------------------------------------------------------------
+
+export type GenerateWidgetInput = {
   id?: string;
   title: string;
   description?: string;
@@ -78,24 +136,9 @@ export type WidgetPatchInput = {
   ops: JsonPatchOp[];
 };
 
-export const CHAT_WIDGET_ID = "chat";
-
-const CHAT_GEOMETRY: WidgetGeometry = { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 };
-export const WIDGET_DEFAULT_SIZE = { w: 7, h: 6, minW: 2, minH: 3 } as const;
-
-export function defaultChatWidget(): ChatWidget {
-  return { id: CHAT_WIDGET_ID, type: "chat", geometry: { ...CHAT_GEOMETRY } };
-}
-
-export function isCustomWidget(w: Widget): w is CustomWidget {
-  return w.type === "custom";
-}
-
-/** Layout-only equality (x/y/w/h) — geometry changes don't bump updatedAt, so
- * both the main store and the renderer dedup on this. */
-export function geometryEquals(a: WidgetGeometry, b: WidgetGeometry): boolean {
-  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 // Order matters: strip → slice → strip again. The slice can land mid-run and
 // reintroduce a trailing hyphen.

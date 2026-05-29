@@ -1,26 +1,28 @@
-// Persistence layer for the reshapeable workspace ("shell") at
-// ~/.inteligir/shell.json. The shell is a flat list of widgets, each with a
-// grid geometry; the chat widget is seeded permanently. Spec validation is
-// loose here — the renderer catalog does the strict prop-shape check at mount.
+// Persistence for the OS-like workspace ("shell") at ~/.inteligir/shell.json.
+// Owns the generated (custom) widget definitions and every placed instance.
+// Built-in widget definitions live in code (BUILTIN_WIDGETS); the manager only
+// validates instance.widgetId against them. Spec validation is loose — the
+// renderer catalog does the strict prop-shape check at mount.
 
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import {
+  builtinMeta,
   CHAT_WIDGET_ID,
-  defaultChatWidget,
   geometryEquals,
   slugifyWidgetId,
   WIDGET_DEFAULT_SIZE,
+  type CustomWidgetDef,
+  type GenerateWidgetInput,
   type Shell,
-  type ShellList,
-  type CustomWidget,
-  type Widget,
+  type ShellSnapshot,
   type WidgetGeometry,
+  type WidgetInstance,
   type WidgetPatchInput,
   type WidgetSpec,
-  type WidgetUpsertInput,
 } from "@/shared/shell";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
@@ -46,30 +48,29 @@ export const GeometrySchema = z.object({
   minH: z.number().optional(),
 });
 
-const ChatWidgetSchema = z.object({
-  id: z.literal(CHAT_WIDGET_ID),
-  type: z.literal("chat"),
-  geometry: GeometrySchema,
-});
-
-const CustomWidgetSchema = z.object({
+const CustomWidgetDefSchema = z.object({
   id: z.string(),
-  type: z.literal("custom"),
   title: z.string(),
   description: z.string().optional(),
   spec: WidgetSpecSchema,
-  state: z.record(z.string(), z.unknown()),
   createdAt: z.number(),
   updatedAt: z.number(),
+});
+
+const WidgetInstanceSchema = z.object({
+  instanceId: z.string(),
+  widgetId: z.string(),
   geometry: GeometrySchema,
+  state: z.record(z.string(), z.unknown()),
 });
 
 const ShellSchema = z.object({
   version: z.literal(1),
-  widgets: z.array(z.discriminatedUnion("type", [ChatWidgetSchema, CustomWidgetSchema])),
+  customWidgets: z.array(CustomWidgetDefSchema),
+  instances: z.array(WidgetInstanceSchema),
 });
 
-export const WidgetUpsertInputSchema = z.object({
+export const GenerateWidgetInputSchema = z.object({
   id: z.string().min(1).optional(),
   title: z.string().min(1),
   description: z.string().optional(),
@@ -77,13 +78,21 @@ export const WidgetUpsertInputSchema = z.object({
   state: z.record(z.string(), z.unknown()).optional(),
 });
 
-const DEFAULTS: Shell = { version: 1, widgets: [defaultChatWidget()] };
+function chatInstance(): WidgetInstance {
+  return {
+    instanceId: CHAT_WIDGET_ID,
+    widgetId: CHAT_WIDGET_ID,
+    geometry: { ...builtinMeta(CHAT_WIDGET_ID)!.defaultGeometry },
+    state: {},
+  };
+}
 
-/** Ensure exactly one chat widget exists, prepended. Guards a hand-edited or
- * partial file from dropping the permanent surface. */
-function withChat(widgets: Widget[]): Widget[] {
-  if (widgets.some((w) => w.type === "chat")) return widgets;
-  return [defaultChatWidget(), ...widgets];
+const DEFAULTS: Shell = { version: 1, customWidgets: [], instances: [chatInstance()] };
+
+/** Ensure the permanent chat instance exists. Guards a hand-edited file. */
+function withChat(shell: Shell): Shell {
+  if (shell.instances.some((i) => i.widgetId === CHAT_WIDGET_ID)) return shell;
+  return { ...shell, instances: [chatInstance(), ...shell.instances] };
 }
 
 export class ShellManager {
@@ -97,128 +106,186 @@ export class ShellManager {
     );
   }
 
-  list(): ShellList {
-    return { widgets: withChat([...this.store.read().widgets]) };
+  snapshot(): ShellSnapshot {
+    const shell = withChat(this.store.read());
+    return { customWidgets: [...shell.customWidgets], instances: [...shell.instances] };
   }
 
-  getWidget(id: string): Widget | null {
-    return this.store.read().widgets.find((w) => w.id === id) ?? null;
+  getCustomDef(id: string): CustomWidgetDef | null {
+    return this.store.read().customWidgets.find((d) => d.id === id) ?? null;
   }
 
-  /** Create or replace a custom widget. New widgets are auto-placed; an existing
-   * widget keeps its geometry + createdAt and just gets new content. */
-  upsertWidget(input: WidgetUpsertInput): CustomWidget {
+  getInstance(instanceId: string): WidgetInstance | null {
+    return this.store.read().instances.find((i) => i.instanceId === instanceId) ?? null;
+  }
+
+  /** Create a custom widget definition and place one instance of it. */
+  generateWidget(input: GenerateWidgetInput): { def: CustomWidgetDef; instance: WidgetInstance } {
     const now = Date.now();
-    let result: CustomWidget | null = null;
+    let result: { def: CustomWidgetDef; instance: WidgetInstance } | null = null;
     const next = this.store.update((current) => {
-      const widgets = withChat([...current.widgets]);
-      const id = input.id ?? this.allocateId(widgets, input.title);
-      const idx = widgets.findIndex((w) => w.id === id && w.type === "custom");
-      const existing = idx === -1 ? undefined : (widgets[idx] as CustomWidget);
-      const widget: CustomWidget = existing
-        ? {
-            ...existing,
-            title: input.title,
-            description: input.description ?? existing.description,
-            spec: input.spec,
-            state: input.state ?? existing.state,
-            updatedAt: now,
-          }
-        : {
-            id,
-            type: "custom",
-            title: input.title,
-            description: input.description,
-            spec: input.spec,
-            state: input.state ?? input.spec.state ?? {},
-            createdAt: now,
-            updatedAt: now,
-            geometry: this.placeNew(widgets),
-          };
-      result = widget;
-      const nextWidgets =
-        idx === -1 ? [...widgets, widget] : widgets.map((w, i) => (i === idx ? widget : w));
-      return { ...current, widgets: nextWidgets };
-    });
-    this.broadcast(next);
-    if (!result) throw new Error("upsertWidget failed to produce a widget");
-    return result;
-  }
-
-  /** Apply RFC 6902 ops to a custom widget's spec (JSON Pointers rooted at the
-   * spec). Validated before write; an invalid patch throws inside the
-   * transform, so the store is left untouched and no broadcast fires. */
-  patchWidgetSpec(input: WidgetPatchInput): CustomWidget {
-    const now = Date.now();
-    let result: CustomWidget | null = null;
-    const next = this.store.update((current) => {
-      const idx = current.widgets.findIndex((w) => w.id === input.id && w.type === "custom");
-      if (idx === -1) throw new Error(`No custom widget with id '${input.id}'`);
-      const existing = current.widgets[idx] as CustomWidget;
-      const draft = structuredClone(existing.spec);
-      for (const op of input.ops) applyJsonPatchOp(draft, op);
-      const validated = WidgetSpecSchema.parse(draft) as WidgetSpec;
-      const updated: CustomWidget = { ...existing, spec: validated, updatedAt: now };
-      result = updated;
-      const widgets = [...current.widgets];
-      widgets[idx] = updated;
-      return { ...current, widgets };
+      const id = input.id ?? this.allocateDefId(current, input.title);
+      const def: CustomWidgetDef = {
+        id,
+        title: input.title,
+        description: input.description,
+        spec: input.spec,
+        createdAt: now,
+        updatedAt: now,
+      };
+      const instance: WidgetInstance = {
+        instanceId: randomUUID(),
+        widgetId: id,
+        geometry: this.placeNew(current),
+        state: input.state ?? input.spec.state ?? {},
+      };
+      result = { def, instance };
+      const customWidgets = current.customWidgets.some((d) => d.id === id)
+        ? current.customWidgets.map((d) => (d.id === id ? def : d))
+        : [...current.customWidgets, def];
+      return { ...current, customWidgets, instances: [...current.instances, instance] };
     });
     this.broadcast(next);
     return result!;
   }
 
-  /** Replace a custom widget's bound state wholesale (single-writer: the viewer
-   * owns live state, so a replace lets cleared keys disappear). Bumps
-   * updatedAt so a remounted viewer reseeds from fresh state. */
-  setWidgetState(id: string, state: Record<string, unknown>): CustomWidget | null {
+  /** Update a custom widget definition (title/description/spec). Instances of
+   * it re-render with the new spec; their per-instance state is untouched. */
+  updateWidget(input: GenerateWidgetInput & { id: string }): CustomWidgetDef {
     const now = Date.now();
-    let result: CustomWidget | null = null;
+    let result: CustomWidgetDef | null = null;
     const next = this.store.update((current) => {
-      const idx = current.widgets.findIndex((w) => w.id === id && w.type === "custom");
-      if (idx === -1) return current;
-      const updated: CustomWidget = {
-        ...(current.widgets[idx] as CustomWidget),
-        state,
+      const idx = current.customWidgets.findIndex((d) => d.id === input.id);
+      if (idx === -1) throw new Error(`No custom widget with id '${input.id}'`);
+      const def: CustomWidgetDef = {
+        ...current.customWidgets[idx]!,
+        title: input.title,
+        description: input.description ?? current.customWidgets[idx]!.description,
+        spec: input.spec,
         updatedAt: now,
       };
-      result = updated;
-      const widgets = [...current.widgets];
-      widgets[idx] = updated;
-      return { ...current, widgets };
+      result = def;
+      const customWidgets = [...current.customWidgets];
+      customWidgets[idx] = def;
+      return { ...current, customWidgets };
     });
-    if (result) this.broadcast(next);
+    this.broadcast(next);
+    return result!;
+  }
+
+  /** Apply RFC 6902 ops to a custom widget's spec. Validated before write; an
+   * invalid patch throws inside the transform, leaving the store untouched. */
+  patchWidgetSpec(input: WidgetPatchInput): CustomWidgetDef {
+    const now = Date.now();
+    let result: CustomWidgetDef | null = null;
+    const next = this.store.update((current) => {
+      const idx = current.customWidgets.findIndex((d) => d.id === input.id);
+      if (idx === -1) throw new Error(`No custom widget with id '${input.id}'`);
+      const draft = structuredClone(current.customWidgets[idx]!.spec);
+      for (const op of input.ops) applyJsonPatchOp(draft, op);
+      const spec = WidgetSpecSchema.parse(draft) as WidgetSpec;
+      const def: CustomWidgetDef = { ...current.customWidgets[idx]!, spec, updatedAt: now };
+      result = def;
+      const customWidgets = [...current.customWidgets];
+      customWidgets[idx] = def;
+      return { ...current, customWidgets };
+    });
+    this.broadcast(next);
+    return result!;
+  }
+
+  /** Delete a custom widget definition and every instance of it. */
+  deleteWidget(widgetId: string): boolean {
+    let deleted = false;
+    const next = this.store.update((current) => {
+      const customWidgets = current.customWidgets.filter((d) => d.id !== widgetId);
+      if (customWidgets.length === current.customWidgets.length) return current;
+      deleted = true;
+      return {
+        ...current,
+        customWidgets,
+        instances: current.instances.filter((i) => i.widgetId !== widgetId),
+      };
+    });
+    if (deleted) this.broadcast(next);
+    return deleted;
+  }
+
+  /** Place an instance of a widget (built-in or custom) on the shell. Built-in
+   * singletons that are already placed return the existing instance. */
+  placeWidget(widgetId: string): WidgetInstance | null {
+    const meta = builtinMeta(widgetId);
+    let result: WidgetInstance | null = null;
+    let added = false;
+    const next = this.store.update((current) => {
+      // Reject unknown widget ids (not a built-in, not a known custom def).
+      if (!meta && !current.customWidgets.some((d) => d.id === widgetId)) {
+        return current;
+      }
+      if (meta?.singleton) {
+        const existing = current.instances.find((i) => i.widgetId === widgetId);
+        if (existing) {
+          result = existing;
+          return current;
+        }
+      }
+      const def = current.customWidgets.find((d) => d.id === widgetId);
+      const instance: WidgetInstance = {
+        instanceId: randomUUID(),
+        widgetId,
+        geometry: meta ? { ...meta.defaultGeometry } : this.placeNew(current),
+        state: def?.spec.state ? { ...def.spec.state } : {},
+      };
+      result = instance;
+      added = true;
+      return { ...current, instances: [...current.instances, instance] };
+    });
+    if (added) this.broadcast(next);
     return result;
   }
 
-  /** Move/resize widgets. Geometry is layout, not content — does not bump
-   * updatedAt. Accepts a batch so a single drag persists once. */
-  setGeometries(geometries: Record<string, WidgetGeometry>): void {
-    const current = this.store.read();
-    let changed = false;
-    const widgets = current.widgets.map((w) => {
-      const geo = geometries[w.id];
-      if (!geo || geometryEquals(w.geometry, geo)) return w;
-      changed = true;
-      return { ...w, geometry: geo };
-    });
-    // Skip the whole-file write entirely when a drag lands where it started
-    // (or the mount-time callback fires with unchanged geometry).
-    if (!changed) return;
-    this.broadcast(this.store.update((s) => ({ ...s, widgets })));
-  }
-
-  /** Remove a widget. The permanent chat widget can't be removed. */
-  removeWidget(id: string): boolean {
+  /** Remove a placed instance. The permanent chat instance can't be removed. */
+  unplaceWidget(instanceId: string): boolean {
     let removed = false;
     const next = this.store.update((current) => {
-      const target = current.widgets.find((w) => w.id === id);
-      if (!target || target.type === "chat") return current;
+      const target = current.instances.find((i) => i.instanceId === instanceId);
+      if (!target || builtinMeta(target.widgetId)?.permanent) return current;
       removed = true;
-      return { ...current, widgets: current.widgets.filter((w) => w.id !== id) };
+      return { ...current, instances: current.instances.filter((i) => i.instanceId !== instanceId) };
     });
     if (removed) this.broadcast(next);
     return removed;
+  }
+
+  /** Move/resize instances. Geometry is layout — does not bump any updatedAt. */
+  setGeometries(geometries: Record<string, WidgetGeometry>): void {
+    const current = this.store.read();
+    let changed = false;
+    const instances = current.instances.map((i) => {
+      const geo = geometries[i.instanceId];
+      if (!geo || geometryEquals(i.geometry, geo)) return i;
+      changed = true;
+      return { ...i, geometry: geo };
+    });
+    if (!changed) return;
+    this.broadcast(this.store.update((s) => ({ ...s, instances })));
+  }
+
+  /** Replace an instance's bound state wholesale (single-writer: the viewer
+   * owns live state, so a replace lets cleared keys disappear). */
+  setInstanceState(instanceId: string, state: Record<string, unknown>): WidgetInstance | null {
+    let result: WidgetInstance | null = null;
+    const next = this.store.update((current) => {
+      const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
+      if (idx === -1) return current;
+      const updated: WidgetInstance = { ...current.instances[idx]!, state };
+      result = updated;
+      const instances = [...current.instances];
+      instances[idx] = updated;
+      return { ...current, instances };
+    });
+    if (result) this.broadcast(next);
+    return result;
   }
 
   /** Drop the cache + broadcast the post-invalidate read (logout teardown). */
@@ -231,26 +298,28 @@ export class ShellManager {
   // Internals
   // -------------------------------------------------------------------------
 
-  private placeNew(widgets: Widget[]): WidgetGeometry {
-    const nextY = widgets.reduce((max, w) => Math.max(max, w.geometry.y + w.geometry.h), 0);
+  private placeNew(shell: Shell): WidgetGeometry {
+    const nextY = shell.instances.reduce((max, i) => Math.max(max, i.geometry.y + i.geometry.h), 0);
     return { x: 5, y: nextY, ...WIDGET_DEFAULT_SIZE };
   }
 
-  private allocateId(widgets: Widget[], title: string): string {
+  private allocateDefId(shell: Shell, title: string): string {
     const base = slugifyWidgetId(title);
-    const taken = new Set(widgets.map((w) => w.id));
-    if (!taken.has(base) && base !== CHAT_WIDGET_ID) return base;
+    const taken = new Set(shell.customWidgets.map((d) => d.id));
+    if (!taken.has(base) && !builtinMeta(base)) return base;
     for (let i = 2; i < 1_000_000; i++) {
       const candidate = `${base}-${i}`;
-      if (!taken.has(candidate)) return candidate;
+      if (!taken.has(candidate) && !builtinMeta(candidate)) return candidate;
     }
     return `${base}-${Date.now()}`;
   }
 
   private broadcast(shell: Shell): void {
+    const safe = withChat(shell);
     broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, {
-      widgets: withChat(shell.widgets),
-    } satisfies ShellList);
+      customWidgets: safe.customWidgets,
+      instances: safe.instances,
+    } satisfies ShellSnapshot);
   }
 }
 
