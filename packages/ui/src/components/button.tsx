@@ -1,50 +1,43 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 
-import { Spinner } from "@repo/ui/components/spinner";
 import { cn } from "@repo/ui/lib/utils";
 
+// Visual parity with Fluid Functionalism's button: the background lives on a
+// layered span that scales on press, text/border colors live on the root, and
+// icons morph stroke-width on hover. The shadcn variant names are kept so app
+// call sites don't change.
 const buttonVariants = cva(
-  "group/button relative inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  [
+    "group/button relative isolate inline-flex shrink-0 items-center justify-center rounded-full whitespace-nowrap font-medium outline-none cursor-pointer select-none",
+    "text-box-trim-both text-box-edge-cap-alphabetic",
+    "transition-[color,scale] duration-80 active:scale-[0.97] aria-expanded:scale-[0.97]",
+    "disabled:pointer-events-none disabled:opacity-50",
+    "focus-visible:ring-1 focus-visible:ring-focus-ring",
+    "aria-invalid:ring-1 aria-invalid:ring-destructive/40",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg]:[stroke-width:1.5] [&_svg]:transition-[stroke-width] [&_svg]:duration-80 group-hover/button:[&_svg]:[stroke-width:2]",
+  ],
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/80",
-        outline:
-          "border-border bg-background shadow-xs hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
-        secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
-        ghost:
-          "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
-        destructive:
-          "bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
+        default: "text-background",
+        secondary: "text-foreground",
+        outline: "border border-border text-foreground",
+        ghost: "text-muted-foreground hover:text-foreground aria-expanded:text-foreground",
+        destructive: "text-destructive",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
-        default:
-          "h-9 gap-1.5 px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        xs: "h-6 gap-1 rounded-[min(var(--radius-md),8px)] px-2 text-xs in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1 rounded-[min(var(--radius-md),10px)] px-2.5 in-data-[slot=button-group]:rounded-md has-data-[icon=inline-end]:pr-1.5 has-data-[icon=inline-start]:pl-1.5",
-        lg: "h-10 gap-1.5 px-2.5 has-data-[icon=inline-end]:pr-2 has-data-[icon=inline-start]:pl-2",
-        icon: "size-9",
-        "icon-xs":
-          "size-6 rounded-[min(var(--radius-md),8px)] in-data-[slot=button-group]:rounded-md [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm":
-          "size-8 rounded-[min(var(--radius-md),10px)] in-data-[slot=button-group]:rounded-md",
-        "icon-lg": "size-10",
-      },
-      loading: {
-        true: "disabled:opacity-100",
+        default: "h-8 gap-1.5 px-4 text-[13px]",
+        xs: "h-6 gap-1 px-2 text-xs [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-7 gap-1 px-3 text-xs",
+        lg: "h-9 gap-1.5 px-5 text-sm",
+        icon: "size-9 p-0",
+        "icon-xs": "size-6 p-0 [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm": "size-8 p-0 [&_svg:not([class*='size-'])]:size-3.5",
+        "icon-lg": "size-10 p-0 [&_svg:not([class*='size-'])]:size-5",
       },
     },
-    compoundVariants: [
-      { variant: "default", loading: true, className: "[&>:first-child]:bg-primary" },
-      { variant: "destructive", loading: true, className: "[&>:first-child]:bg-destructive/10" },
-      { variant: "outline", loading: true, className: "[&>:first-child]:bg-background" },
-      { variant: "secondary", loading: true, className: "[&>:first-child]:bg-secondary" },
-      { variant: "ghost", loading: true, className: "[&>:first-child]:bg-background" },
-      { variant: "link", loading: true, className: "[&>:first-child]:bg-background" },
-    ],
     defaultVariants: {
       variant: "default",
       size: "default",
@@ -52,35 +45,86 @@ const buttonVariants = cva(
   },
 );
 
+// Background layer per variant — hover/active/expanded states live here so the
+// fill can scale independently of the (sharp) text.
+const bgVariants: Record<string, string> = {
+  default:
+    "bg-foreground group-hover/button:bg-foreground/90 group-active/button:bg-foreground/80 group-aria-expanded/button:bg-foreground/80",
+  secondary:
+    "bg-accent group-hover/button:bg-accent/80 group-active/button:bg-accent group-aria-expanded/button:bg-accent",
+  outline:
+    "bg-background shadow-xs group-hover/button:bg-hover group-active/button:bg-active group-aria-expanded/button:bg-active",
+  ghost:
+    "bg-transparent group-hover/button:bg-hover group-active/button:bg-active group-aria-expanded/button:bg-active",
+  destructive:
+    "bg-destructive/10 group-hover/button:bg-destructive/20 group-active/button:bg-destructive/20",
+};
+
 type ButtonProps = ButtonPrimitive.Props &
   VariantProps<typeof buttonVariants> & {
     loading?: boolean;
+    /** Force the pressed/held look (e.g. while a menu this triggers is open). */
+    active?: boolean;
   };
 
 function Button({
   className,
   variant = "default",
   size = "default",
-  loading,
+  loading = false,
+  active = false,
   disabled,
   children,
   ...props
 }: ButtonProps) {
+  const v = variant ?? "default";
+  const bg = bgVariants[v];
+
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size, loading, className }))}
+      className={cn(buttonVariants({ variant, size }), active && "scale-[0.97]", className)}
       disabled={loading || disabled}
       {...props}
     >
+      {bg && (
+        <span
+          aria-hidden
+          className={cn(
+            "absolute inset-0 rounded-[inherit] bg-clip-padding transition-[background-color] duration-80",
+            bg,
+          )}
+        />
+      )}
+      <span
+        className={cn(
+          "relative inline-flex items-center justify-center gap-[inherit]",
+          loading && "opacity-0",
+        )}
+      >
+        {children}
+      </span>
       {loading && (
-        <span className="pointer-events-none absolute inset-0 grid place-items-center rounded-md">
-          <Spinner className="size-4" />
+        <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <svg className="size-5" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M 12 12 C 14 8.5 19 8.5 19 12 C 19 15.5 14 15.5 12 12 C 10 8.5 5 8.5 5 12 C 5 15.5 10 15.5 12 12 Z"
+              stroke="currentColor"
+              strokeWidth="1.125"
+              strokeLinecap="round"
+              pathLength="100"
+              style={{
+                strokeDasharray: "15 85",
+                animation:
+                  "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
+              }}
+            />
+          </svg>
         </span>
       )}
-      {children}
     </ButtonPrimitive>
   );
 }
 
 export { Button, buttonVariants };
+export type { ButtonProps };
