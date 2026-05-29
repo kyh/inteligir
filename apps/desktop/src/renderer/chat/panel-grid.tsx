@@ -24,7 +24,7 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 import {
-  isSpecWidget,
+  isCustomWidget,
   type Widget,
   type WidgetGeometry,
   type WidgetUpsertInput,
@@ -218,7 +218,7 @@ export function PanelGrid() {
         >
           {widgets.map((widget) => (
             <div key={widget.id}>
-              {isSpecWidget(widget) ? (
+              {isCustomWidget(widget) ? (
                 <Panel title={widget.title} onRemove={() => removeWidget(widget.id)}>
                   <WidgetViewer widget={widget} />
                 </Panel>

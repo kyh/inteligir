@@ -6,7 +6,7 @@ import { Type, type Static } from "@sinclair/typebox";
 
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
-import { isSpecWidget, type WidgetSpec } from "@/shared/shell";
+import { isCustomWidget, type WidgetSpec } from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
 
 const SpecParam = Type.Object(
@@ -145,7 +145,7 @@ const uiExtension: PiExtensionBundle = {
               return text(
                 widgets
                   .map((w) =>
-                    isSpecWidget(w)
+                    isCustomWidget(w)
                       ? `- ${w.id}: "${w.title}"${w.description ? ` — ${w.description}` : ""} (${Object.keys(w.spec.elements).length} elements)`
                       : `- ${w.id}: [${w.type}] (permanent)`,
                   )
@@ -180,7 +180,7 @@ const uiExtension: PiExtensionBundle = {
             case "update": {
               if (!params.id) return text("Error: id is required for action='update'");
               const existing = mgr.getWidget(params.id);
-              if (!existing || !isSpecWidget(existing)) {
+              if (!existing || !isCustomWidget(existing)) {
                 return text(`Error: no editable panel with id '${params.id}'`);
               }
               // title and spec are overwritten unconditionally by upsert, so

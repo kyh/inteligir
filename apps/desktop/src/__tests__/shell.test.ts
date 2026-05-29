@@ -8,7 +8,7 @@ vi.mock("electron", () => ({
 }));
 
 import { ShellManager } from "@/main/shell";
-import { CHAT_WIDGET_ID, isSpecWidget, type WidgetSpec } from "@/shared/shell";
+import { CHAT_WIDGET_ID, isCustomWidget, type WidgetSpec } from "@/shared/shell";
 
 const SPEC: WidgetSpec = {
   root: "r",
@@ -42,11 +42,11 @@ describe("ShellManager", () => {
 });
 
 describe("ShellManager.upsertWidget", () => {
-  it("creates a spec widget with a slugged id and auto-placed geometry", () => {
+  it("creates a custom widget with a slugged id and auto-placed geometry", () => {
     const chat = mgr.list().widgets.find((w) => w.type === "chat")!;
     const created = mgr.upsertWidget({ title: "My Panel", spec: SPEC });
     expect(created.id).toBe("my-panel");
-    expect(created.type).toBe("spec");
+    expect(created.type).toBe("custom");
     expect(created.createdAt).toBe(created.updatedAt);
     // Auto-placed below everything already in the workspace (the chat widget).
     expect(created.geometry.y).toBeGreaterThanOrEqual(chat.geometry.y + chat.geometry.h);
@@ -88,7 +88,7 @@ describe("ShellManager.patchWidgetSpec", () => {
       id: "p",
       ops: [{ op: "replace", path: "/elements/r/props/text", value: "bye" }],
     });
-    expect(isSpecWidget(patched)).toBe(true);
+    expect(isCustomWidget(patched)).toBe(true);
     expect(patched.spec.elements["r"]!.props["text"]).toBe("bye");
   });
 
@@ -105,7 +105,7 @@ describe("ShellManager.patchWidgetSpec", () => {
 });
 
 describe("ShellManager.removeWidget", () => {
-  it("removes a spec widget", () => {
+  it("removes a custom widget", () => {
     mgr.upsertWidget({ id: "gone", title: "Gone", spec: SPEC });
     expect(mgr.removeWidget("gone")).toBe(true);
     expect(mgr.getWidget("gone")).toBeNull();

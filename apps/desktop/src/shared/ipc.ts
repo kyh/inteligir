@@ -1,6 +1,6 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
-import type { ShellList, SpecWidget, WidgetGeometry, WidgetUpsertInput } from "./shell";
+import type { ShellList, CustomWidget, WidgetGeometry, WidgetUpsertInput } from "./shell";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -195,12 +195,12 @@ export type DesktopBridge = {
   // Shell — the reshapeable workspace of widgets
   listShell: () => Promise<ShellList>;
   onShellUpdated: (listener: (next: ShellList) => void) => () => void;
-  addWidget: (input: WidgetUpsertInput) => Promise<SpecWidget>;
+  addWidget: (input: WidgetUpsertInput) => Promise<CustomWidget>;
   setWidgetGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
   setWidgetState: (
     id: string,
     state: Record<string, unknown>,
-  ) => Promise<SpecWidget | null>;
+  ) => Promise<CustomWidget | null>;
   removeWidget: (id: string) => Promise<{ removed: boolean }>;
 
   // Live widget actions

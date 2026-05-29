@@ -1,5 +1,5 @@
 // The shell is the reshapeable workspace: a flat list of widgets, each with a
-// grid geometry. Two widget types — the permanent `chat` widget, and `spec`
+// grid geometry. Two widget types — the permanent `chat` widget, and `custom`
 // widgets (agent-/user-authored json-render UI the agent creates/patches and
 // the user reshapes/removes). Types stay loose here so main/preload don't pull
 // @json-render/core in.
@@ -44,8 +44,8 @@ export type ChatWidget = WidgetBase & {
 };
 
 /** A widget whose content is an agent-/user-authored json-render spec. */
-export type SpecWidget = WidgetBase & {
-  type: "spec";
+export type CustomWidget = WidgetBase & {
+  type: "custom";
   title: string;
   description?: string;
   spec: WidgetSpec;
@@ -54,7 +54,7 @@ export type SpecWidget = WidgetBase & {
   updatedAt: number;
 };
 
-export type Widget = ChatWidget | SpecWidget;
+export type Widget = ChatWidget | CustomWidget;
 
 export type Shell = {
   version: 1;
@@ -87,8 +87,8 @@ export function defaultChatWidget(): ChatWidget {
   return { id: CHAT_WIDGET_ID, type: "chat", geometry: { ...CHAT_GEOMETRY } };
 }
 
-export function isSpecWidget(w: Widget): w is SpecWidget {
-  return w.type === "spec";
+export function isCustomWidget(w: Widget): w is CustomWidget {
+  return w.type === "custom";
 }
 
 /** Layout-only equality (x/y/w/h) — geometry changes don't bump updatedAt, so

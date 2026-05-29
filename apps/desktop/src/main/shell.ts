@@ -15,7 +15,7 @@ import {
   WIDGET_DEFAULT_SIZE,
   type Shell,
   type ShellList,
-  type SpecWidget,
+  type CustomWidget,
   type Widget,
   type WidgetGeometry,
   type WidgetPatchInput,
@@ -52,9 +52,9 @@ const ChatWidgetSchema = z.object({
   geometry: GeometrySchema,
 });
 
-const SpecWidgetSchema = z.object({
+const CustomWidgetSchema = z.object({
   id: z.string(),
-  type: z.literal("spec"),
+  type: z.literal("custom"),
   title: z.string(),
   description: z.string().optional(),
   spec: WidgetSpecSchema,
@@ -66,7 +66,7 @@ const SpecWidgetSchema = z.object({
 
 const ShellSchema = z.object({
   version: z.literal(1),
-  widgets: z.array(z.discriminatedUnion("type", [ChatWidgetSchema, SpecWidgetSchema])),
+  widgets: z.array(z.discriminatedUnion("type", [ChatWidgetSchema, CustomWidgetSchema])),
 });
 
 export const WidgetUpsertInputSchema = z.object({
@@ -105,17 +105,17 @@ export class ShellManager {
     return this.store.read().widgets.find((w) => w.id === id) ?? null;
   }
 
-  /** Create or replace a spec widget. New widgets are auto-placed; an existing
+  /** Create or replace a custom widget. New widgets are auto-placed; an existing
    * widget keeps its geometry + createdAt and just gets new content. */
-  upsertWidget(input: WidgetUpsertInput): SpecWidget {
+  upsertWidget(input: WidgetUpsertInput): CustomWidget {
     const now = Date.now();
-    let result: SpecWidget | null = null;
+    let result: CustomWidget | null = null;
     const next = this.store.update((current) => {
       const widgets = withChat([...current.widgets]);
       const id = input.id ?? this.allocateId(widgets, input.title);
-      const idx = widgets.findIndex((w) => w.id === id && w.type === "spec");
-      const existing = idx === -1 ? undefined : (widgets[idx] as SpecWidget);
-      const widget: SpecWidget = existing
+      const idx = widgets.findIndex((w) => w.id === id && w.type === "custom");
+      const existing = idx === -1 ? undefined : (widgets[idx] as CustomWidget);
+      const widget: CustomWidget = existing
         ? {
             ...existing,
             title: input.title,
@@ -126,7 +126,7 @@ export class ShellManager {
           }
         : {
             id,
-            type: "spec",
+            type: "custom",
             title: input.title,
             description: input.description,
             spec: input.spec,
@@ -145,20 +145,20 @@ export class ShellManager {
     return result;
   }
 
-  /** Apply RFC 6902 ops to a spec widget's spec (JSON Pointers rooted at the
+  /** Apply RFC 6902 ops to a custom widget's spec (JSON Pointers rooted at the
    * spec). Validated before write; an invalid patch throws inside the
    * transform, so the store is left untouched and no broadcast fires. */
-  patchWidgetSpec(input: WidgetPatchInput): SpecWidget {
+  patchWidgetSpec(input: WidgetPatchInput): CustomWidget {
     const now = Date.now();
-    let result: SpecWidget | null = null;
+    let result: CustomWidget | null = null;
     const next = this.store.update((current) => {
-      const idx = current.widgets.findIndex((w) => w.id === input.id && w.type === "spec");
-      if (idx === -1) throw new Error(`No spec widget with id '${input.id}'`);
-      const existing = current.widgets[idx] as SpecWidget;
+      const idx = current.widgets.findIndex((w) => w.id === input.id && w.type === "custom");
+      if (idx === -1) throw new Error(`No custom widget with id '${input.id}'`);
+      const existing = current.widgets[idx] as CustomWidget;
       const draft = structuredClone(existing.spec);
       for (const op of input.ops) applyJsonPatchOp(draft, op);
       const validated = WidgetSpecSchema.parse(draft) as WidgetSpec;
-      const updated: SpecWidget = { ...existing, spec: validated, updatedAt: now };
+      const updated: CustomWidget = { ...existing, spec: validated, updatedAt: now };
       result = updated;
       const widgets = [...current.widgets];
       widgets[idx] = updated;
@@ -168,17 +168,17 @@ export class ShellManager {
     return result!;
   }
 
-  /** Replace a spec widget's bound state wholesale (single-writer: the viewer
+  /** Replace a custom widget's bound state wholesale (single-writer: the viewer
    * owns live state, so a replace lets cleared keys disappear). Bumps
    * updatedAt so a remounted viewer reseeds from fresh state. */
-  setWidgetState(id: string, state: Record<string, unknown>): SpecWidget | null {
+  setWidgetState(id: string, state: Record<string, unknown>): CustomWidget | null {
     const now = Date.now();
-    let result: SpecWidget | null = null;
+    let result: CustomWidget | null = null;
     const next = this.store.update((current) => {
-      const idx = current.widgets.findIndex((w) => w.id === id && w.type === "spec");
+      const idx = current.widgets.findIndex((w) => w.id === id && w.type === "custom");
       if (idx === -1) return current;
-      const updated: SpecWidget = {
-        ...(current.widgets[idx] as SpecWidget),
+      const updated: CustomWidget = {
+        ...(current.widgets[idx] as CustomWidget),
         state,
         updatedAt: now,
       };

@@ -5,16 +5,16 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { widgetRegistry } from "@/renderer/chat/widget-registry";
-import type { SpecWidget } from "@/shared/shell";
+import type { CustomWidget } from "@/shared/shell";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
 const STATE_PERSIST_DEBOUNCE_MS = 400;
 
-type Props = { widget: SpecWidget };
+type Props = { widget: CustomWidget };
 
 /**
- * Renders one spec widget's json-render spec.
+ * Renders one custom widget's json-render spec.
  *
  * State ownership is single-writer: this viewer owns the live bound state for
  * its lifetime. It seeds the json-render store once from the widget's
