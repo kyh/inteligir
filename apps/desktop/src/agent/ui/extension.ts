@@ -85,10 +85,10 @@ const ManageUiSchema = Type.Object({
     Type.String({ minLength: 1, description: "Placed instance id (required for unplace)" }),
   ),
   surface: Type.Optional(
-    Type.Union([Type.Literal("grid"), Type.Literal("floating")], {
+    Type.Union([Type.Literal("pinned"), Type.Literal("floating")], {
       description:
-        "Where to place a widget (for action='place'): 'grid' (a docked desktop widget) " +
-        "or 'floating' (an app window). Defaults to floating.",
+        "Where to place a widget (for action='place'): 'pinned' (a desktop widget docked " +
+        "on the grid) or 'floating' (an app window). Defaults to floating.",
     }),
   ),
   title: Type.Optional(

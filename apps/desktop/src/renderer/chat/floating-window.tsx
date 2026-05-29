@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MinimizeIcon, XIcon } from "lucide-react";
+import { PinIcon, XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
 import type { FloatRect } from "@/shared/shell";
@@ -100,12 +100,12 @@ export function FloatingWindow({
         <div className="flex shrink-0 items-center gap-0.5">
           <button
             type="button"
-            aria-label="Dock to grid"
+            aria-label="Pin to desktop"
             className="rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
             onPointerDown={(e) => e.stopPropagation()}
             onClick={onDock}
           >
-            <MinimizeIcon className="size-3.5" />
+            <PinIcon className="size-3.5" />
           </button>
           {onClose ? (
             <button

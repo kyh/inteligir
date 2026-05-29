@@ -107,16 +107,16 @@ export type CustomWidgetDef = {
 // Instances — "what's placed"
 // ---------------------------------------------------------------------------
 
-/** Where an instance is shown: docked on the grid (a "desktop widget") or as
- * a free-floating window (an "app window"). */
-export type WidgetSurface = "grid" | "floating";
+/** Where an instance is shown: "pinned" to the desktop grid (a "desktop
+ * widget") or "floating" above everything (an "app window"). */
+export type WidgetSurface = "pinned" | "floating";
 
 export type WidgetInstance = {
   instanceId: string;
   /** BuiltinWidgetId or a CustomWidgetDef.id. */
   widgetId: string;
   surface: WidgetSurface;
-  /** Grid placement (cols/rows); used when surface === "grid". */
+  /** Grid placement (cols/rows); used when surface === "pinned". */
   geometry: WidgetGeometry;
   /** Floating placement (px); used when surface === "floating". */
   rect: FloatRect;

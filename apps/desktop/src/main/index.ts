@@ -311,7 +311,7 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_PLACE,
-    z.object({ widgetId: z.string().min(1), surface: z.enum(["grid", "floating"]).optional() }),
+    z.object({ widgetId: z.string().min(1), surface: z.enum(["pinned", "floating"]).optional() }),
     ({ widgetId, surface }) => {
       return getShell().placeWidget(widgetId, surface);
     },
@@ -343,7 +343,7 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_SET_SURFACE,
-    z.object({ instanceId: z.string().min(1), surface: z.enum(["grid", "floating"]) }),
+    z.object({ instanceId: z.string().min(1), surface: z.enum(["pinned", "floating"]) }),
     ({ instanceId, surface }) => {
       return getShell().setSurface(instanceId, surface);
     },

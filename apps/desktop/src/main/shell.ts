@@ -71,7 +71,7 @@ const CustomWidgetDefSchema = z.object({
 const WidgetInstanceSchema = z.object({
   instanceId: z.string(),
   widgetId: z.string(),
-  surface: z.enum(["grid", "floating"]),
+  surface: z.enum(["pinned", "floating"]),
   geometry: GeometrySchema,
   rect: RectSchema,
   z: z.number(),
@@ -96,7 +96,7 @@ function chatInstance(): WidgetInstance {
   return {
     instanceId: CHAT_WIDGET_ID,
     widgetId: CHAT_WIDGET_ID,
-    surface: "grid",
+    surface: "pinned",
     geometry: { ...builtinMeta(CHAT_WIDGET_ID)!.defaultGeometry },
     rect: { ...WIDGET_DEFAULT_RECT },
     z: 0,
@@ -150,7 +150,7 @@ export class ShellManager {
         createdAt: now,
         updatedAt: now,
       };
-      const instance = this.makeInstance(current, id, "grid", input.state ?? input.spec.state ?? {});
+      const instance = this.makeInstance(current, id, "pinned", input.state ?? input.spec.state ?? {});
       result = { def, instance };
       const customWidgets = current.customWidgets.some((d) => d.id === id)
         ? current.customWidgets.map((d) => (d.id === id ? def : d))
@@ -374,7 +374,7 @@ export class ShellManager {
 
   private placeNew(shell: Shell): WidgetGeometry {
     const nextY = shell.instances
-      .filter((i) => i.surface === "grid")
+      .filter((i) => i.surface === "pinned")
       .reduce((max, i) => Math.max(max, i.geometry.y + i.geometry.h), 0);
     return { x: 5, y: nextY, ...WIDGET_DEFAULT_SIZE };
   }

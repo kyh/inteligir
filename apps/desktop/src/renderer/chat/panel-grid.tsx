@@ -30,7 +30,7 @@ import {
 // ---------------------------------------------------------------------------
 // Reshapeable workspace ("shell")
 //
-// A 12-column grid of placed "desktop widget" instances (surface === "grid").
+// A 12-column grid of placed "desktop widget" instances (surface === "pinned").
 // Floating "app window" instances render above it via FloatingLayer. Each
 // instance owns its grid geometry; the chat instance is permanent. Panels can
 // be popped out to a window or closed.
@@ -167,8 +167,8 @@ export function PanelGrid() {
   const customWidgets = useShellStore((s) => s.customWidgets);
   const loading = useShellStore((s) => s.loading);
 
-  const gridInstances = useMemo(() => instances.filter((i) => i.surface === "grid"), [instances]);
-  const layout = useMemo(() => gridInstances.map(instanceToLayoutItem), [gridInstances]);
+  const pinnedInstances = useMemo(() => instances.filter((i) => i.surface === "pinned"), [instances]);
+  const layout = useMemo(() => pinnedInstances.map(instanceToLayoutItem), [pinnedInstances]);
   const customById = useMemo(
     () => new Map(customWidgets.map((d) => [d.id, d])),
     [customWidgets],
@@ -208,7 +208,7 @@ export function PanelGrid() {
             dragConfig={DRAG_CONFIG}
             resizeConfig={RESIZE_CONFIG}
           >
-            {gridInstances.map((instance) => (
+            {pinnedInstances.map((instance) => (
               <div key={instance.instanceId}>
                 <InstancePanel instance={instance} customDef={customById.get(instance.widgetId)} />
               </div>

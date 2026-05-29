@@ -39,7 +39,7 @@ export function FloatingLayer() {
             bodyClassName={widgetBodyClassName(instance)}
             onFocus={() => void getBridge()?.focusInstance(instance.instanceId)}
             onRect={(rect: FloatRect) => void getBridge()?.setInstanceRect(instance.instanceId, rect)}
-            onDock={() => void getBridge()?.setInstanceSurface(instance.instanceId, "grid")}
+            onDock={() => void getBridge()?.setInstanceSurface(instance.instanceId, "pinned")}
             onClose={permanent ? undefined : () => closeInstance(instance)}
           >
             <WidgetBody instance={instance} customDef={customDef} />
