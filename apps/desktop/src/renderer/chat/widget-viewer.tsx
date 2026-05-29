@@ -4,17 +4,17 @@ import { JSONUIProvider, Renderer } from "@json-render/react";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { artifactRegistry } from "@/renderer/chat/artifact-registry";
-import type { ArtifactWidget } from "@/shared/shell";
+import { widgetRegistry } from "@/renderer/chat/widget-registry";
+import type { SpecWidget } from "@/shared/shell";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
 const STATE_PERSIST_DEBOUNCE_MS = 400;
 
-type Props = { widget: ArtifactWidget };
+type Props = { widget: SpecWidget };
 
 /**
- * Renders one artifact widget's spec via json-render.
+ * Renders one spec widget's json-render spec.
  *
  * State ownership is single-writer: this viewer owns the live bound state for
  * its lifetime. It seeds the json-render store once from the widget's
@@ -27,7 +27,7 @@ type Props = { widget: ArtifactWidget };
  * memo'd on the widget reference so a sibling panel's state write — which
  * replaces only that widget in the store array — doesn't re-render this one.
  */
-export const ArtifactViewer = memo(function ArtifactViewer({ widget }: Props) {
+export const WidgetViewer = memo(function WidgetViewer({ widget }: Props) {
   // Lazily create + seed the store on first render so bound components render
   // with the persisted state on the very first paint (no empty-then-fill
   // flash). Seeded once per mount; agent state resets reflect on remount.
@@ -50,7 +50,7 @@ export const ArtifactViewer = memo(function ArtifactViewer({ widget }: Props) {
       }
       if (!dirtyRef.current) return;
       dirtyRef.current = false;
-      void getBridge()?.setArtifactState(idRef.current, getStore().getSnapshot()).catch(() => null);
+      void getBridge()?.setWidgetState(idRef.current, getStore().getSnapshot()).catch(() => null);
     },
     [],
   );
@@ -83,7 +83,7 @@ export const ArtifactViewer = memo(function ArtifactViewer({ widget }: Props) {
       openUrl: async (params: Record<string, unknown>) => {
         const url = typeof params["url"] === "string" ? params["url"] : "";
         if (!url) return;
-        await getBridge()?.artifactOpenUrl(url);
+        await getBridge()?.widgetOpenUrl(url);
       },
       // Live actions. generateText/fetchUrl write their result into the store
       // at `into`; the store subscriber persists it and bound components
@@ -99,7 +99,7 @@ export const ArtifactViewer = memo(function ArtifactViewer({ widget }: Props) {
         const system = typeof params["system"] === "string" ? params["system"] : undefined;
         if (!prompt || !into) return;
         try {
-          const text = await getBridge()?.artifactComplete(prompt, system);
+          const text = await getBridge()?.widgetComplete(prompt, system);
           if (typeof text === "string") getStore().set(into, text);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Generation failed");
@@ -110,7 +110,7 @@ export const ArtifactViewer = memo(function ArtifactViewer({ widget }: Props) {
         const into = typeof params["into"] === "string" ? params["into"] : "";
         if (!url || !into) return;
         try {
-          const text = await getBridge()?.artifactFetch(url);
+          const text = await getBridge()?.widgetFetch(url);
           if (typeof text === "string") getStore().set(into, text);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Fetch failed");
@@ -122,8 +122,8 @@ export const ArtifactViewer = memo(function ArtifactViewer({ widget }: Props) {
 
   return (
     <div className="flex flex-col gap-4 p-3">
-      <JSONUIProvider registry={artifactRegistry} store={getStore()} handlers={handlers}>
-        <Renderer spec={widget.spec as unknown as Spec} registry={artifactRegistry} />
+      <JSONUIProvider registry={widgetRegistry} store={getStore()} handlers={handlers}>
+        <Renderer spec={widget.spec as unknown as Spec} registry={widgetRegistry} />
       </JSONUIProvider>
     </div>
   );

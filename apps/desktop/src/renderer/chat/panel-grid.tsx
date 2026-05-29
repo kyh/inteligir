@@ -16,15 +16,19 @@ import {
   ConversationScrollButton,
 } from "@repo/ui/components/ai-elements/conversation";
 
-import { ArtifactViewer } from "@/renderer/chat/artifact-viewer";
+import { WidgetViewer } from "@/renderer/chat/widget-viewer";
 import { ChatActivityRow, ChatMessageView } from "@/renderer/chat/chat-message";
 import { Composer } from "@/renderer/chat/composer";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-import { isArtifactWidget, type Widget, type WidgetGeometry } from "@/shared/shell";
-import type { ArtifactUpsertInput } from "@/shared/artifacts";
+import {
+  isSpecWidget,
+  type Widget,
+  type WidgetGeometry,
+  type WidgetUpsertInput,
+} from "@/shared/shell";
 
 // Stable identities — react-grid-layout memoizes its drag/resize handlers on
 // these, so recreating them per render would bust that memoization.
@@ -35,7 +39,7 @@ const RESIZE_CONFIG = { enabled: true, handles: ["se", "e", "s"] } as const;
 // A blank, user-editable note panel. The simplest thing a user can add to the
 // workspace without authoring a spec — a multi-line field bound to state and
 // persisted like any other widget.
-function noteStarter(): ArtifactUpsertInput {
+function noteStarter(): WidgetUpsertInput {
   return {
     title: "Note",
     spec: {
@@ -58,7 +62,7 @@ function noteStarter(): ArtifactUpsertInput {
 //
 // A 12-column grid of widgets. Each widget owns its grid geometry (persisted
 // in shell.json), so the layout survives reloads. The chat widget is pinned:
-// movable/resizable but never removable. Artifact widgets can be dragged,
+// movable/resizable but never removable. Spec widgets can be dragged,
 // resized, and closed; the agent creates/edits them via the manage_ui tool.
 // ---------------------------------------------------------------------------
 
@@ -186,7 +190,7 @@ export function PanelGrid() {
   }, []);
 
   const addNote = useCallback(() => {
-    void getBridge()?.addArtifact(noteStarter());
+    void getBridge()?.addWidget(noteStarter());
   }, []);
 
   const ready = width > 0 && !loading;
@@ -214,9 +218,9 @@ export function PanelGrid() {
         >
           {widgets.map((widget) => (
             <div key={widget.id}>
-              {isArtifactWidget(widget) ? (
+              {isSpecWidget(widget) ? (
                 <Panel title={widget.title} onRemove={() => removeWidget(widget.id)}>
-                  <ArtifactViewer widget={widget} />
+                  <WidgetViewer widget={widget} />
                 </Panel>
               ) : (
                 <ConversationPanel />

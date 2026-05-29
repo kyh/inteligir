@@ -71,18 +71,18 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listShell: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST),
   onShellUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.SHELL_UPDATED, listener),
-  addArtifact: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_ADD, input),
+  addWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_ADD, input),
   setWidgetGeometry: (geometries: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_GEOMETRY, geometries),
-  setArtifactState: (id: string, state: unknown) =>
+  setWidgetState: (id: string, state: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_STATE, { id, state }),
   removeWidget: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_REMOVE_WIDGET, id),
 
   // Live widget actions
-  artifactComplete: (prompt: string, system?: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_COMPLETE, { prompt, system }),
-  artifactFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_FETCH, url),
-  artifactOpenUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_OPEN_URL, url),
+  widgetComplete: (prompt: string, system?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.WIDGET_COMPLETE, { prompt, system }),
+  widgetFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_FETCH, url),
+  widgetOpenUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_OPEN_URL, url),
 
   // Skills
   listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),

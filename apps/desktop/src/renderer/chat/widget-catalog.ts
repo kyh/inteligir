@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
-// json-render catalog for agent-authored artifact panels.
+// json-render catalog for agent-authored widget panels.
 //
-// Components map onto @repo/ui (shadcn) primitives so artifacts visually
+// Components map onto @repo/ui (shadcn) primitives so widgets visually
 // match the rest of Inteligir. Actions stay deliberately generic — the
 // agent composes UIs out of these and json-render's built-in setState; if
 // it needs richer side effects it should call its own tools instead of
@@ -27,7 +27,7 @@ const textFieldProps = {
   disabled: z.boolean().optional(),
 };
 
-export const artifactCatalog = defineCatalog(schema, {
+export const widgetCatalog = defineCatalog(schema, {
   components: {
     Stack: {
       props: z.object({ gap }),

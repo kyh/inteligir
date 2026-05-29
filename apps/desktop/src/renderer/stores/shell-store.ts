@@ -67,6 +67,6 @@ function applyWidgets(next: Widget[]): void {
 function widgetEqual(a: Widget, b: Widget): boolean {
   if (a.id !== b.id) return false;
   if (!geometryEquals(a.geometry, b.geometry)) return false;
-  if (a.type === "artifact" && b.type === "artifact") return a.updatedAt === b.updatedAt;
+  if (a.type === "spec" && b.type === "spec") return a.updatedAt === b.updatedAt;
   return true;
 }

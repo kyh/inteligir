@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
-// json-render component registry for artifact panels. Each implementation
-// maps a catalog component onto a shadcn (@repo/ui) primitive so artifact
-// UIs match the rest of the app. Components emit events ("press", "change")
-// which the renderer resolves against each element's `on` field.
+// json-render component registry for widget panels. Each implementation maps a
+// catalog component onto a shadcn (@repo/ui) primitive so widgets match the
+// rest of the app. Components emit events ("press", "change") which the
+// renderer resolves against each element's `on` field.
 // ---------------------------------------------------------------------------
 
 import { defineRegistry, useStateStore } from "@json-render/react";
@@ -13,7 +13,7 @@ import { Label } from "@repo/ui/components/label";
 import { Separator } from "@repo/ui/components/separator";
 import { cn } from "@repo/ui/lib/utils";
 
-import { artifactCatalog } from "@/renderer/chat/artifact-catalog";
+import { widgetCatalog } from "@/renderer/chat/widget-catalog";
 
 type BaseProps<P> = {
   props: P;
@@ -231,7 +231,7 @@ function CatalogSeparator() {
   return <Separator />;
 }
 
-export const { registry: artifactRegistry } = defineRegistry(artifactCatalog, {
+export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
   components: {
     Stack,
     Section,
@@ -246,7 +246,7 @@ export const { registry: artifactRegistry } = defineRegistry(artifactCatalog, {
     Card: CatalogCard,
     Separator: CatalogSeparator,
   },
-  // Action stubs — real handlers are mounted per-viewer in artifact-viewer.tsx
+  // Action stubs — real handlers are mounted per-viewer in widget-viewer.tsx
   // so they can close over the bridge, store, and toast singleton.
   actions: {
     notify: async () => {},

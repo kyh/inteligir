@@ -6,8 +6,7 @@ import { Type, type Static } from "@sinclair/typebox";
 
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
-import { isArtifactWidget } from "@/shared/shell";
-import type { ArtifactSpec } from "@/shared/artifacts";
+import { isSpecWidget, type WidgetSpec } from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
 
 const SpecParam = Type.Object(
@@ -88,7 +87,7 @@ const ManageUiSchema = Type.Object({
     Type.String({ description: "Optional short subtitle shown under the title" }),
   ),
   spec: Type.Optional(
-    Type.Unsafe<ArtifactSpec>({
+    Type.Unsafe<WidgetSpec>({
       ...SpecParam,
       description:
         "json-render flat spec ({ root, elements }) — required for create, optional for update. " +
@@ -146,7 +145,7 @@ const uiExtension: PiExtensionBundle = {
               return text(
                 widgets
                   .map((w) =>
-                    isArtifactWidget(w)
+                    isSpecWidget(w)
                       ? `- ${w.id}: "${w.title}"${w.description ? ` — ${w.description}` : ""} (${Object.keys(w.spec.elements).length} elements)`
                       : `- ${w.id}: [${w.type}] (permanent)`,
                   )
@@ -169,7 +168,7 @@ const uiExtension: PiExtensionBundle = {
                   `Error: widget '${params.id}' already exists. Use action='update' to modify it, or omit id to auto-generate one.`,
                 );
               }
-              const created = mgr.upsertArtifact({
+              const created = mgr.upsertWidget({
                 id: params.id,
                 title: params.title,
                 description: params.description,
@@ -181,13 +180,13 @@ const uiExtension: PiExtensionBundle = {
             case "update": {
               if (!params.id) return text("Error: id is required for action='update'");
               const existing = mgr.getWidget(params.id);
-              if (!existing || !isArtifactWidget(existing)) {
+              if (!existing || !isSpecWidget(existing)) {
                 return text(`Error: no editable panel with id '${params.id}'`);
               }
               // title and spec are overwritten unconditionally by upsert, so
               // resolve them here; description and state fall through to
               // upsert's own omitted-preserves-existing fallback.
-              const updated = mgr.upsertArtifact({
+              const updated = mgr.upsertWidget({
                 id: params.id,
                 title: params.title ?? existing.title,
                 description: params.description,
@@ -201,7 +200,7 @@ const uiExtension: PiExtensionBundle = {
               if (!params.ops || params.ops.length === 0) {
                 return text("Error: ops is required for action='patch' (at least one operation)");
               }
-              const patched = mgr.patchArtifactSpec({ id: params.id, ops: params.ops });
+              const patched = mgr.patchWidgetSpec({ id: params.id, ops: params.ops });
               return text(
                 `Patched panel '${patched.id}' (${params.ops.length} op${params.ops.length === 1 ? "" : "s"}).`,
               );

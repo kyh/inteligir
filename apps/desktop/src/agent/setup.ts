@@ -156,7 +156,7 @@ export async function login(): Promise<void> {
 
 /**
  * One-shot model completion outside the agent session — used by "live"
- * artifact actions that fill UI state from the model without spawning a
+ * widget actions that fill UI state from the model without spawning a
  * chat turn. Uses the same model + credentials as the running agent.
  */
 export function completeOnce(prompt: string, system?: string): Promise<string> {

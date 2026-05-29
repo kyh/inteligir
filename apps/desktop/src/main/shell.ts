@@ -8,21 +8,19 @@ import { z } from "zod";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import {
-  slugifyArtifactId,
-  type ArtifactPatchInput,
-  type ArtifactSpec,
-  type ArtifactUpsertInput,
-} from "@/shared/artifacts";
-import {
-  ARTIFACT_DEFAULT_SIZE,
   CHAT_WIDGET_ID,
   defaultChatWidget,
   geometryEquals,
-  type ArtifactWidget,
+  slugifyWidgetId,
+  WIDGET_DEFAULT_SIZE,
   type Shell,
   type ShellList,
+  type SpecWidget,
   type Widget,
   type WidgetGeometry,
+  type WidgetPatchInput,
+  type WidgetSpec,
+  type WidgetUpsertInput,
 } from "@/shared/shell";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
@@ -33,7 +31,7 @@ const ElementSchema = z.looseObject({
   children: z.array(z.string()).optional(),
 });
 
-export const ArtifactSpecSchema = z.object({
+export const WidgetSpecSchema = z.object({
   root: z.string(),
   elements: z.record(z.string(), ElementSchema),
   state: z.record(z.string(), z.unknown()).optional(),
@@ -54,12 +52,12 @@ const ChatWidgetSchema = z.object({
   geometry: GeometrySchema,
 });
 
-const ArtifactWidgetSchema = z.object({
+const SpecWidgetSchema = z.object({
   id: z.string(),
-  type: z.literal("artifact"),
+  type: z.literal("spec"),
   title: z.string(),
   description: z.string().optional(),
-  spec: ArtifactSpecSchema,
+  spec: WidgetSpecSchema,
   state: z.record(z.string(), z.unknown()),
   createdAt: z.number(),
   updatedAt: z.number(),
@@ -68,14 +66,14 @@ const ArtifactWidgetSchema = z.object({
 
 const ShellSchema = z.object({
   version: z.literal(1),
-  widgets: z.array(z.discriminatedUnion("type", [ChatWidgetSchema, ArtifactWidgetSchema])),
+  widgets: z.array(z.discriminatedUnion("type", [ChatWidgetSchema, SpecWidgetSchema])),
 });
 
-export const ArtifactUpsertInputSchema = z.object({
+export const WidgetUpsertInputSchema = z.object({
   id: z.string().min(1).optional(),
   title: z.string().min(1),
   description: z.string().optional(),
-  spec: ArtifactSpecSchema,
+  spec: WidgetSpecSchema,
   state: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -107,17 +105,17 @@ export class ShellManager {
     return this.store.read().widgets.find((w) => w.id === id) ?? null;
   }
 
-  /** Create or replace an artifact widget. New widgets are auto-placed; an
-   * existing widget keeps its geometry + createdAt and just gets new content. */
-  upsertArtifact(input: ArtifactUpsertInput): ArtifactWidget {
+  /** Create or replace a spec widget. New widgets are auto-placed; an existing
+   * widget keeps its geometry + createdAt and just gets new content. */
+  upsertWidget(input: WidgetUpsertInput): SpecWidget {
     const now = Date.now();
-    let result: ArtifactWidget | null = null;
+    let result: SpecWidget | null = null;
     const next = this.store.update((current) => {
       const widgets = withChat([...current.widgets]);
       const id = input.id ?? this.allocateId(widgets, input.title);
-      const idx = widgets.findIndex((w) => w.id === id && w.type === "artifact");
-      const existing = idx === -1 ? undefined : (widgets[idx] as ArtifactWidget);
-      const widget: ArtifactWidget = existing
+      const idx = widgets.findIndex((w) => w.id === id && w.type === "spec");
+      const existing = idx === -1 ? undefined : (widgets[idx] as SpecWidget);
+      const widget: SpecWidget = existing
         ? {
             ...existing,
             title: input.title,
@@ -128,7 +126,7 @@ export class ShellManager {
           }
         : {
             id,
-            type: "artifact",
+            type: "spec",
             title: input.title,
             description: input.description,
             spec: input.spec,
@@ -143,24 +141,24 @@ export class ShellManager {
       return { ...current, widgets: nextWidgets };
     });
     this.broadcast(next);
-    if (!result) throw new Error("upsertArtifact failed to produce a widget");
+    if (!result) throw new Error("upsertWidget failed to produce a widget");
     return result;
   }
 
-  /** Apply RFC 6902 ops to an artifact widget's spec (JSON Pointers rooted at
-   * the spec). Validated before write; an invalid patch throws inside the
+  /** Apply RFC 6902 ops to a spec widget's spec (JSON Pointers rooted at the
+   * spec). Validated before write; an invalid patch throws inside the
    * transform, so the store is left untouched and no broadcast fires. */
-  patchArtifactSpec(input: ArtifactPatchInput): ArtifactWidget {
+  patchWidgetSpec(input: WidgetPatchInput): SpecWidget {
     const now = Date.now();
-    let result: ArtifactWidget | null = null;
+    let result: SpecWidget | null = null;
     const next = this.store.update((current) => {
-      const idx = current.widgets.findIndex((w) => w.id === input.id && w.type === "artifact");
-      if (idx === -1) throw new Error(`No artifact widget with id '${input.id}'`);
-      const existing = current.widgets[idx] as ArtifactWidget;
+      const idx = current.widgets.findIndex((w) => w.id === input.id && w.type === "spec");
+      if (idx === -1) throw new Error(`No spec widget with id '${input.id}'`);
+      const existing = current.widgets[idx] as SpecWidget;
       const draft = structuredClone(existing.spec);
       for (const op of input.ops) applyJsonPatchOp(draft, op);
-      const validated = ArtifactSpecSchema.parse(draft) as ArtifactSpec;
-      const updated: ArtifactWidget = { ...existing, spec: validated, updatedAt: now };
+      const validated = WidgetSpecSchema.parse(draft) as WidgetSpec;
+      const updated: SpecWidget = { ...existing, spec: validated, updatedAt: now };
       result = updated;
       const widgets = [...current.widgets];
       widgets[idx] = updated;
@@ -170,17 +168,17 @@ export class ShellManager {
     return result!;
   }
 
-  /** Replace an artifact widget's bound state wholesale (single-writer: the
-   * viewer owns live state, so a replace lets cleared keys disappear). Bumps
+  /** Replace a spec widget's bound state wholesale (single-writer: the viewer
+   * owns live state, so a replace lets cleared keys disappear). Bumps
    * updatedAt so a remounted viewer reseeds from fresh state. */
-  setArtifactState(id: string, state: Record<string, unknown>): ArtifactWidget | null {
+  setWidgetState(id: string, state: Record<string, unknown>): SpecWidget | null {
     const now = Date.now();
-    let result: ArtifactWidget | null = null;
+    let result: SpecWidget | null = null;
     const next = this.store.update((current) => {
-      const idx = current.widgets.findIndex((w) => w.id === id && w.type === "artifact");
+      const idx = current.widgets.findIndex((w) => w.id === id && w.type === "spec");
       if (idx === -1) return current;
-      const updated: ArtifactWidget = {
-        ...(current.widgets[idx] as ArtifactWidget),
+      const updated: SpecWidget = {
+        ...(current.widgets[idx] as SpecWidget),
         state,
         updatedAt: now,
       };
@@ -193,7 +191,7 @@ export class ShellManager {
     return result;
   }
 
-  /** Move/resize a widget. Geometry is layout, not content — does not bump
+  /** Move/resize widgets. Geometry is layout, not content — does not bump
    * updatedAt. Accepts a batch so a single drag persists once. */
   setGeometries(geometries: Record<string, WidgetGeometry>): void {
     const current = this.store.read();
@@ -235,11 +233,11 @@ export class ShellManager {
 
   private placeNew(widgets: Widget[]): WidgetGeometry {
     const nextY = widgets.reduce((max, w) => Math.max(max, w.geometry.y + w.geometry.h), 0);
-    return { x: 5, y: nextY, ...ARTIFACT_DEFAULT_SIZE };
+    return { x: 5, y: nextY, ...WIDGET_DEFAULT_SIZE };
   }
 
   private allocateId(widgets: Widget[], title: string): string {
-    const base = slugifyArtifactId(title);
+    const base = slugifyWidgetId(title);
     const taken = new Set(widgets.map((w) => w.id));
     if (!taken.has(base) && base !== CHAT_WIDGET_ID) return base;
     for (let i = 2; i < 1_000_000; i++) {

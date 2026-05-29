@@ -34,7 +34,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { ArtifactUpsertInputSchema, GeometrySchema, getShell } from "@/main/shell";
+import { GeometrySchema, getShell, WidgetUpsertInputSchema } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -305,8 +305,8 @@ function registerIpcHandlers(): void {
     return getShell().list();
   });
 
-  createIpcHandler(IPC_CHANNELS.SHELL_ADD, ArtifactUpsertInputSchema, (input) => {
-    return getShell().upsertArtifact(input);
+  createIpcHandler(IPC_CHANNELS.SHELL_ADD, WidgetUpsertInputSchema, (input) => {
+    return getShell().upsertWidget(input);
   });
 
   createIpcHandler(
@@ -321,7 +321,7 @@ function registerIpcHandlers(): void {
     IPC_CHANNELS.SHELL_SET_STATE,
     z.object({ id: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
     ({ id, state }) => {
-      return getShell().setArtifactState(id, state);
+      return getShell().setWidgetState(id, state);
     },
   );
 
@@ -332,12 +332,12 @@ function registerIpcHandlers(): void {
   // ---- Live widget actions --------------------------------------------------
 
   createIpcHandler(
-    IPC_CHANNELS.ARTIFACT_COMPLETE,
+    IPC_CHANNELS.WIDGET_COMPLETE,
     z.object({ prompt: z.string().min(1), system: z.string().optional() }),
     ({ prompt, system }) => completeOnce(prompt, system),
   );
 
-  createIpcHandler(IPC_CHANNELS.ARTIFACT_FETCH, z.string(), async (url) => {
+  createIpcHandler(IPC_CHANNELS.WIDGET_FETCH, z.string(), async (url) => {
     // Restrict to http(s) — z.string().url() also accepts file://, ftp://,
     // etc., and this main-process fetch bypasses renderer CSP/CORS, so an
     // agent-authored fetchUrl action must not reach non-web schemes.
@@ -369,7 +369,7 @@ function registerIpcHandlers(): void {
     return out.length > CAP ? out.slice(0, CAP) : out;
   });
 
-  createIpcHandler(IPC_CHANNELS.ARTIFACT_OPEN_URL, z.string(), async (url) => {
+  createIpcHandler(IPC_CHANNELS.WIDGET_OPEN_URL, z.string(), async (url) => {
     if (!isHttpUrl(url)) return false;
     await shell.openExternal(url);
     return true;

@@ -1,7 +1,6 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
-import type { ArtifactUpsertInput } from "./artifacts";
-import type { ArtifactWidget, ShellList, WidgetGeometry } from "./shell";
+import type { ShellList, SpecWidget, WidgetGeometry, WidgetUpsertInput } from "./shell";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -70,9 +69,9 @@ export const IPC_CHANNELS = {
   SHELL_REMOVE_WIDGET: "shell:remove-widget",
 
   // Live widget actions
-  ARTIFACT_COMPLETE: "artifact:complete",
-  ARTIFACT_FETCH: "artifact:fetch",
-  ARTIFACT_OPEN_URL: "artifact:open-url",
+  WIDGET_COMPLETE: "widget:complete",
+  WIDGET_FETCH: "widget:fetch",
+  WIDGET_OPEN_URL: "widget:open-url",
 
   // Skills
   SKILLS_LIST: "skills:list",
@@ -196,18 +195,18 @@ export type DesktopBridge = {
   // Shell — the reshapeable workspace of widgets
   listShell: () => Promise<ShellList>;
   onShellUpdated: (listener: (next: ShellList) => void) => () => void;
-  addArtifact: (input: ArtifactUpsertInput) => Promise<ArtifactWidget>;
+  addWidget: (input: WidgetUpsertInput) => Promise<SpecWidget>;
   setWidgetGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
-  setArtifactState: (
+  setWidgetState: (
     id: string,
     state: Record<string, unknown>,
-  ) => Promise<ArtifactWidget | null>;
+  ) => Promise<SpecWidget | null>;
   removeWidget: (id: string) => Promise<{ removed: boolean }>;
 
   // Live widget actions
-  artifactComplete: (prompt: string, system?: string) => Promise<string>;
-  artifactFetch: (url: string) => Promise<string>;
-  artifactOpenUrl: (url: string) => Promise<boolean>;
+  widgetComplete: (prompt: string, system?: string) => Promise<string>;
+  widgetFetch: (url: string) => Promise<string>;
+  widgetOpenUrl: (url: string) => Promise<boolean>;
 
   // Skills
   listSkills: () => Promise<SkillsList>;
