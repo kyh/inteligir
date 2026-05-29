@@ -14,10 +14,12 @@ import {
   SessionManager,
 } from "@repo/pi-driver";
 import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
+import { readCliVersion } from "@repo/agent-runtime/install";
 import open from "open";
 
-import type { ExtensionToolInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
+import type { ExtensionToolInfo, IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
+import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
 import { resetNotifications } from "@/main/notifications";
 import {
   runBundleSetups,
@@ -72,8 +74,11 @@ function getBundledResourcesDir(): string {
   return path.join(__PROJECT_ROOT__, "resources", "agent");
 }
 
-function buildSetupContext(onProgress: (p: SetupProgress) => void): ExtensionSetupContext {
-  return { binDir: BIN_DIR, bundledResourcesDir: getBundledResourcesDir(), onProgress };
+function buildSetupContext(
+  onProgress: (p: SetupProgress) => void,
+  force = false,
+): ExtensionSetupContext {
+  return { binDir: BIN_DIR, bundledResourcesDir: getBundledResourcesDir(), onProgress, force };
 }
 
 function buildRegisterContext(): ExtensionRegisterContext {
@@ -108,6 +113,33 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
   await runBundleSetups(EXTENSION_BUNDLES, ctx);
 }
 
+// ---------------------------------------------------------------------------
+// Integrations (installed CLI binaries) — list + repair
+// ---------------------------------------------------------------------------
+
+/** Report installed-vs-pinned versions for every bundle that installs a CLI. */
+export async function listIntegrations(): Promise<IntegrationInfo[]> {
+  const bundles = EXTENSION_BUNDLES.filter((b) => b.cli);
+  return Promise.all(
+    bundles.map(async (b) => ({
+      name: b.cli!.name,
+      expected: b.cli!.version,
+      installed: await readCliVersion(b.cli!.binPath),
+    })),
+  );
+}
+
+/**
+ * Force-reinstall every CLI binary (repair). Re-runs each bundle's setup() with
+ * force=true so up-to-date-but-corrupt binaries are re-downloaded. Reports
+ * progress over the same channel as onboarding.
+ */
+export async function repairIntegrations(onProgress: (p: SetupProgress) => void): Promise<void> {
+  fs.mkdirSync(BIN_DIR, { recursive: true });
+  await runBundleSetups(EXTENSION_BUNDLES, buildSetupContext(onProgress, true));
+  onProgress({ step: "done", percent: null });
+}
+
 /**
  * Skills available to the agent, read from disk via pi's own discovery so the
  * list is correct whether or not an agent session is currently running.
@@ -136,6 +168,7 @@ export function teardownResources(): void {
   // process restarts.
   _authStorage = null;
   resetNotifications();
+  resetExecutorDaemon();
 }
 
 export function isLoggedIn(): boolean {
