@@ -10,7 +10,6 @@ import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import {
   slugifyArtifactId,
   type ArtifactPatchInput,
-  type ArtifactPatchOp,
   type ArtifactSpec,
   type ArtifactUpsertInput,
 } from "@/shared/artifacts";
@@ -18,7 +17,7 @@ import {
   ARTIFACT_DEFAULT_SIZE,
   CHAT_WIDGET_ID,
   defaultChatWidget,
-  isPermanentWidget,
+  geometryEquals,
   type ArtifactWidget,
   type Shell,
   type ShellList,
@@ -26,7 +25,7 @@ import {
   type WidgetGeometry,
 } from "@/shared/shell";
 import { IPC_CHANNELS } from "@/shared/ipc";
-import { parsePointer, PROTO_RESERVED } from "@/shared/json-pointer";
+import { applyJsonPatchOp } from "@/shared/json-pointer";
 
 const ElementSchema = z.looseObject({
   type: z.string(),
@@ -40,7 +39,7 @@ export const ArtifactSpecSchema = z.object({
   state: z.record(z.string(), z.unknown()).optional(),
 });
 
-const GeometrySchema = z.object({
+export const GeometrySchema = z.object({
   x: z.number(),
   y: z.number(),
   w: z.number(),
@@ -87,10 +86,6 @@ const DEFAULTS: Shell = { version: 1, widgets: [defaultChatWidget()] };
 function withChat(widgets: Widget[]): Widget[] {
   if (widgets.some((w) => w.type === "chat")) return widgets;
   return [defaultChatWidget(), ...widgets];
-}
-
-function sameGeometry(a: WidgetGeometry, b: WidgetGeometry): boolean {
-  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
 export class ShellManager {
@@ -153,22 +148,26 @@ export class ShellManager {
   }
 
   /** Apply RFC 6902 ops to an artifact widget's spec (JSON Pointers rooted at
-   * the spec). The result is validated before being written. */
+   * the spec). Validated before write; an invalid patch throws inside the
+   * transform, so the store is left untouched and no broadcast fires. */
   patchArtifactSpec(input: ArtifactPatchInput): ArtifactWidget {
-    const existing = this.getWidget(input.id);
-    if (!existing || existing.type !== "artifact") {
-      throw new Error(`No artifact widget with id '${input.id}'`);
-    }
-    const draft = deepClone(existing.spec);
-    for (const op of input.ops) applyPatchOp(draft, op);
-    const validated = ArtifactSpecSchema.parse(draft) as ArtifactSpec;
-    return this.upsertArtifact({
-      id: existing.id,
-      title: existing.title,
-      description: existing.description,
-      spec: validated,
-      state: existing.state,
+    const now = Date.now();
+    let result: ArtifactWidget | null = null;
+    const next = this.store.update((current) => {
+      const idx = current.widgets.findIndex((w) => w.id === input.id && w.type === "artifact");
+      if (idx === -1) throw new Error(`No artifact widget with id '${input.id}'`);
+      const existing = current.widgets[idx] as ArtifactWidget;
+      const draft = structuredClone(existing.spec);
+      for (const op of input.ops) applyJsonPatchOp(draft, op);
+      const validated = ArtifactSpecSchema.parse(draft) as ArtifactSpec;
+      const updated: ArtifactWidget = { ...existing, spec: validated, updatedAt: now };
+      result = updated;
+      const widgets = [...current.widgets];
+      widgets[idx] = updated;
+      return { ...current, widgets };
     });
+    this.broadcast(next);
+    return result!;
   }
 
   /** Replace an artifact widget's bound state wholesale (single-writer: the
@@ -197,28 +196,28 @@ export class ShellManager {
   /** Move/resize a widget. Geometry is layout, not content — does not bump
    * updatedAt. Accepts a batch so a single drag persists once. */
   setGeometries(geometries: Record<string, WidgetGeometry>): void {
+    const current = this.store.read();
     let changed = false;
-    const next = this.store.update((current) => {
-      const widgets = current.widgets.map((w) => {
-        const geo = geometries[w.id];
-        if (!geo || sameGeometry(w.geometry, geo)) return w;
-        changed = true;
-        return { ...w, geometry: geo };
-      });
-      return changed ? { ...current, widgets } : current;
+    const widgets = current.widgets.map((w) => {
+      const geo = geometries[w.id];
+      if (!geo || geometryEquals(w.geometry, geo)) return w;
+      changed = true;
+      return { ...w, geometry: geo };
     });
-    if (changed) this.broadcast(next);
+    // Skip the whole-file write entirely when a drag lands where it started
+    // (or the mount-time callback fires with unchanged geometry).
+    if (!changed) return;
+    this.broadcast(this.store.update((s) => ({ ...s, widgets })));
   }
 
-  /** Remove a widget. Permanent widgets (chat) can't be removed. */
+  /** Remove a widget. The permanent chat widget can't be removed. */
   removeWidget(id: string): boolean {
-    const target = this.getWidget(id);
-    if (!target || isPermanentWidget(target)) return false;
     let removed = false;
     const next = this.store.update((current) => {
-      const widgets = current.widgets.filter((w) => w.id !== id);
-      removed = widgets.length !== current.widgets.length;
-      return { ...current, widgets };
+      const target = current.widgets.find((w) => w.id === id);
+      if (!target || target.type === "chat") return current;
+      removed = true;
+      return { ...current, widgets: current.widgets.filter((w) => w.id !== id) };
     });
     if (removed) this.broadcast(next);
     return removed;
@@ -266,80 +265,4 @@ export function getShell(): ShellManager {
 
 export function resetShellCache(): void {
   _instance?.invalidate();
-}
-
-// ---------------------------------------------------------------------------
-// RFC 6902 JSON Patch — minimal in-place applier for artifact specs. Kept
-// hand-rolled (rather than @json-render/core's applySpecPatch) for the
-// prototype-key guard below: an agent-supplied path must not reach
-// Object.prototype.
-// ---------------------------------------------------------------------------
-
-function deepClone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function assertSafeKey(key: string, pointer: string, verb: string): void {
-  if (PROTO_RESERVED.has(key)) {
-    throw new Error(`Refusing to ${verb} prototype-reserved key '${key}' in ${pointer}`);
-  }
-}
-
-function parseArrayIndex(seg: string, pointer: string): number {
-  if (!/^(?:0|[1-9][0-9]*)$/.test(seg)) {
-    throw new Error(`Bad array index '${seg}' in ${pointer}`);
-  }
-  return Number.parseInt(seg, 10);
-}
-
-function applyPatchOp(root: ArtifactSpec, op: ArtifactPatchOp): void {
-  const segments = parsePointer(op.path);
-  if (segments.length === 0) {
-    throw new Error("Cannot patch the artifact spec root — use update instead");
-  }
-  let parent: unknown = root;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i]!;
-    if (Array.isArray(parent)) {
-      parent = parent[parseArrayIndex(seg, op.path)];
-    } else if (parent !== null && typeof parent === "object") {
-      assertSafeKey(seg, op.path, "traverse");
-      parent = (parent as Record<string, unknown>)[seg];
-    } else {
-      throw new Error(`${op.path} traverses non-container at segment ${i}`);
-    }
-    if (parent === undefined) {
-      throw new Error(`${op.path} does not exist (missing segment '${segments[i]}')`);
-    }
-  }
-  const last = segments[segments.length - 1]!;
-  if (Array.isArray(parent)) {
-    if (last === "-" && op.op !== "add") {
-      throw new Error(`'-' index is only valid for add in ${op.path}`);
-    }
-    const idx = last === "-" ? parent.length : parseArrayIndex(last, op.path);
-    if (op.op === "add") {
-      if (idx < 0 || idx > parent.length) {
-        throw new Error(`Array index ${idx} out of bounds for add in ${op.path}`);
-      }
-      parent.splice(idx, 0, op.value);
-    } else if (op.op === "replace") {
-      if (idx < 0 || idx >= parent.length) {
-        throw new Error(`Array index ${idx} out of bounds for replace in ${op.path}`);
-      }
-      parent[idx] = op.value;
-    } else {
-      if (idx < 0 || idx >= parent.length) {
-        throw new Error(`Array index ${idx} out of bounds for remove in ${op.path}`);
-      }
-      parent.splice(idx, 1);
-    }
-  } else if (parent !== null && typeof parent === "object") {
-    assertSafeKey(last, op.path, op.op);
-    const obj = parent as Record<string, unknown>;
-    if (op.op === "add" || op.op === "replace") obj[last] = op.value;
-    else delete obj[last];
-  } else {
-    throw new Error(`Cannot ${op.op} at ${op.path}: parent is not a container`);
-  }
 }

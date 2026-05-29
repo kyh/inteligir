@@ -19,6 +19,14 @@ const buttonVariant = z
   .optional();
 const buttonSize = z.enum(["xs", "sm", "default", "lg"]).optional();
 
+// Shared by Input + Textarea (Textarea adds `rows`).
+const textFieldProps = {
+  label: z.string().optional(),
+  placeholder: z.string().optional(),
+  value: z.string().optional(),
+  disabled: z.boolean().optional(),
+};
+
 export const artifactCatalog = defineCatalog(schema, {
   components: {
     Stack: {
@@ -73,22 +81,11 @@ export const artifactCatalog = defineCatalog(schema, {
         "Checkbox with optional label + description. Two-way bind `checked` via { $bindState: '/path' }.",
     },
     Input: {
-      props: z.object({
-        label: z.string().optional(),
-        placeholder: z.string().optional(),
-        value: z.string().optional(),
-        disabled: z.boolean().optional(),
-      }),
+      props: z.object(textFieldProps),
       description: "Text input. Two-way bind `value` via { $bindState: '/path' }.",
     },
     Textarea: {
-      props: z.object({
-        label: z.string().optional(),
-        placeholder: z.string().optional(),
-        value: z.string().optional(),
-        rows: z.number().optional(),
-        disabled: z.boolean().optional(),
-      }),
+      props: z.object({ ...textFieldProps, rows: z.number().optional() }),
       description: "Multi-line text input. Two-way bind `value` via { $bindState: '/path' }.",
     },
     Card: {

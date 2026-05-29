@@ -36,7 +36,7 @@ export type Shell = {
 
 export const CHAT_WIDGET_ID = "chat";
 
-export const CHAT_GEOMETRY: WidgetGeometry = { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 };
+const CHAT_GEOMETRY: WidgetGeometry = { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 };
 export const ARTIFACT_DEFAULT_SIZE = { w: 7, h: 6, minW: 2, minH: 3 } as const;
 
 export function defaultChatWidget(): ChatWidget {
@@ -47,21 +47,12 @@ export function isArtifactWidget(w: Widget): w is ArtifactWidget {
   return w.type === "artifact";
 }
 
-/** Permanent widgets can't be removed by the user or the agent. */
-export function isPermanentWidget(w: Widget): boolean {
-  return w.type === "chat";
+/** Layout-only equality (x/y/w/h) — geometry changes don't bump updatedAt, so
+ * both the main store and the renderer dedup on this. */
+export function geometryEquals(a: WidgetGeometry, b: WidgetGeometry): boolean {
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
 }
 
 export type ShellList = {
   widgets: Widget[];
 };
-
-// Re-export the artifact authoring types — an artifact widget's payload is an
-// Artifact, so the agent tool + IPC reuse these.
-export type {
-  Artifact,
-  ArtifactSpec,
-  ArtifactUpsertInput,
-  ArtifactPatchInput,
-  ArtifactPatchOp,
-} from "./artifacts";

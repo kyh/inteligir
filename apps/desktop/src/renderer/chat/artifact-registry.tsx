@@ -157,6 +157,17 @@ function CatalogCheckbox({
   );
 }
 
+// Shared two-way-bind handler for the text field components: write the new
+// value to the bound state path (if any) and emit the change event.
+function useBoundTextChange(bindings: Record<string, string> | undefined, emit: (event: string) => void) {
+  const store = useStateStore();
+  const bindPath = bindings?.["value"];
+  return (next: string) => {
+    if (bindPath) store.set(bindPath, next);
+    emit("change");
+  };
+}
+
 function CatalogInput({
   props,
   emit,
@@ -167,8 +178,7 @@ function CatalogInput({
   value?: string;
   disabled?: boolean;
 }>) {
-  const store = useStateStore();
-  const bindPath = bindings?.["value"];
+  const onValueChange = useBoundTextChange(bindings, emit);
   return (
     <label className="flex flex-col gap-1">
       {props.label ? (
@@ -178,11 +188,7 @@ function CatalogInput({
         value={props.value ?? ""}
         placeholder={props.placeholder}
         disabled={props.disabled === true}
-        onChange={(e) => {
-          const next = e.currentTarget.value;
-          if (bindPath) store.set(bindPath, next);
-          emit("change");
-        }}
+        onChange={(e) => onValueChange(e.currentTarget.value)}
       />
     </label>
   );
@@ -199,8 +205,7 @@ function CatalogTextarea({
   rows?: number;
   disabled?: boolean;
 }>) {
-  const store = useStateStore();
-  const bindPath = bindings?.["value"];
+  const onValueChange = useBoundTextChange(bindings, emit);
   return (
     <label className="flex flex-col gap-1">
       {props.label ? (
@@ -212,11 +217,7 @@ function CatalogTextarea({
         placeholder={props.placeholder}
         rows={props.rows ?? 4}
         disabled={props.disabled === true}
-        onChange={(e) => {
-          const next = e.currentTarget.value;
-          if (bindPath) store.set(bindPath, next);
-          emit("change");
-        }}
+        onChange={(e) => onValueChange(e.currentTarget.value)}
       />
     </label>
   );

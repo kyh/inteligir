@@ -44,12 +44,13 @@ describe("ShellManager", () => {
 
 describe("ShellManager.upsertArtifact", () => {
   it("creates an artifact widget with a slugged id and auto-placed geometry", () => {
+    const chat = mgr.list().widgets.find((w) => w.type === "chat")!;
     const created = mgr.upsertArtifact({ title: "My Panel", spec: SPEC });
     expect(created.id).toBe("my-panel");
     expect(created.type).toBe("artifact");
     expect(created.createdAt).toBe(created.updatedAt);
-    // Placed below the chat widget (chat is y0..y12).
-    expect(created.geometry.y).toBeGreaterThanOrEqual(12);
+    // Auto-placed below everything already in the workspace (the chat widget).
+    expect(created.geometry.y).toBeGreaterThanOrEqual(chat.geometry.y + chat.geometry.h);
   });
 
   it("never allocates the reserved chat id", () => {

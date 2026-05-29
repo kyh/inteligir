@@ -23,8 +23,14 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-import { isArtifactWidget, type Widget } from "@/shared/shell";
+import { isArtifactWidget, type Widget, type WidgetGeometry } from "@/shared/shell";
 import type { ArtifactUpsertInput } from "@/shared/artifacts";
+
+// Stable identities — react-grid-layout memoizes its drag/resize handlers on
+// these, so recreating them per render would bust that memoization.
+const GRID_CONFIG = { cols: 12, rowHeight: 46, margin: [10, 10], containerPadding: [0, 0] } as const;
+const DRAG_CONFIG = { enabled: true, bounded: false, handle: ".panel-drag-handle" } as const;
+const RESIZE_CONFIG = { enabled: true, handles: ["se", "e", "s"] } as const;
 
 // A blank, user-editable note panel. The simplest thing a user can add to the
 // workspace without authoring a spec — a multi-line field bound to state and
@@ -58,6 +64,13 @@ function noteStarter(): ArtifactUpsertInput {
 
 function widgetToLayoutItem(w: Widget): LayoutItem {
   return { i: w.id, ...w.geometry };
+}
+
+function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
+  const geo: WidgetGeometry = { x: item.x, y: item.y, w: item.w, h: item.h };
+  if (item.minW !== undefined) geo.minW = item.minW;
+  if (item.minH !== undefined) geo.minH = item.minH;
+  return geo;
 }
 
 // ---------------------------------------------------------------------------
@@ -163,17 +176,8 @@ export function PanelGrid() {
   // Persist geometry on drag/resize. Main compares against stored geometry and
   // only broadcasts on a real change, so the mount-time callback is a no-op.
   const handleLayoutChange = useCallback((next: Layout) => {
-    const geometries: Record<string, LayoutItem> = {};
-    for (const item of next as LayoutItem[]) {
-      geometries[item.i] = {
-        x: item.x,
-        y: item.y,
-        w: item.w,
-        h: item.h,
-        ...(item.minW !== undefined ? { minW: item.minW } : {}),
-        ...(item.minH !== undefined ? { minH: item.minH } : {}),
-      } as LayoutItem;
-    }
+    const geometries: Record<string, WidgetGeometry> = {};
+    for (const item of next) geometries[item.i] = geometryFromLayoutItem(item);
     void getBridge()?.setWidgetGeometry(geometries);
   }, []);
 
@@ -204,9 +208,9 @@ export function PanelGrid() {
           width={width}
           layout={layout}
           onLayoutChange={handleLayoutChange}
-          gridConfig={{ cols: 12, rowHeight: 46, margin: [10, 10], containerPadding: [0, 0] }}
-          dragConfig={{ enabled: true, bounded: false, handle: ".panel-drag-handle" }}
-          resizeConfig={{ enabled: true, handles: ["se", "e", "s"] }}
+          gridConfig={GRID_CONFIG}
+          dragConfig={DRAG_CONFIG}
+          resizeConfig={RESIZE_CONFIG}
         >
           {widgets.map((widget) => (
             <div key={widget.id}>

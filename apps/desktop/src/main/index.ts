@@ -34,7 +34,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { ArtifactUpsertInputSchema, getShell } from "@/main/shell";
+import { ArtifactUpsertInputSchema, GeometrySchema, getShell } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -311,17 +311,7 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_SET_GEOMETRY,
-    z.record(
-      z.string(),
-      z.object({
-        x: z.number(),
-        y: z.number(),
-        w: z.number(),
-        h: z.number(),
-        minW: z.number().optional(),
-        minH: z.number().optional(),
-      }),
-    ),
+    z.record(z.string(), GeometrySchema),
     (geometries) => {
       getShell().setGeometries(geometries);
     },

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import type { Widget } from "@/shared/shell";
+import { geometryEquals, type Widget } from "@/shared/shell";
 
 // Singleton shell store backed by one bridge subscription. Initialized lazily
 // by PanelGrid on mount; the subscription lives for the session.
@@ -43,35 +43,30 @@ export function initShell(): void {
 }
 
 /**
- * Apply a new widget list, skipping the setState (and its cascade of
- * re-renders) when the list is identical — e.g. a re-broadcast or the
- * post-logout invalidate echo. Geometry/content changes bump updatedAt or
- * differ structurally, so real changes always get through.
+ * Apply a new widget list. Skips entirely when nothing changed — e.g. a
+ * re-broadcast or the post-logout invalidate echo. Otherwise reuses the prior
+ * object identity for each unchanged widget so a single panel's update doesn't
+ * re-render (and re-run json-render for) every sibling — only the changed ones.
  */
 function applyWidgets(next: Widget[]): void {
   const current = useShellStore.getState();
-  if (!current.loading && sameWidgetList(current.widgets, next)) return;
-  useShellStore.setState({ widgets: next, loading: false });
-}
-
-function sameWidgetList(a: Widget[], b: Widget[]): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const x = a[i]!;
-    const y = b[i]!;
-    if (x.id !== y.id) return false;
-    if (geometryChanged(x, y)) return false;
-    // Artifact content bumps updatedAt; chat has no content to compare.
-    if (x.type === "artifact" && y.type === "artifact" && x.updatedAt !== y.updatedAt) {
-      return false;
+  if (!current.loading) {
+    if (next.length === current.widgets.length && next.every((w, i) => widgetEqual(current.widgets[i]!, w))) {
+      return;
     }
   }
-  return true;
+  const prevById = new Map(current.widgets.map((w) => [w.id, w]));
+  const merged = next.map((w) => {
+    const prev = prevById.get(w.id);
+    return prev && widgetEqual(prev, w) ? prev : w;
+  });
+  useShellStore.setState({ widgets: merged, loading: false });
 }
 
-function geometryChanged(a: Widget, b: Widget): boolean {
-  const g = a.geometry;
-  const h = b.geometry;
-  return g.x !== h.x || g.y !== h.y || g.w !== h.w || g.h !== h.h;
+// Geometry changes don't bump updatedAt, so compare both. Chat has no content.
+function widgetEqual(a: Widget, b: Widget): boolean {
+  if (a.id !== b.id) return false;
+  if (!geometryEquals(a.geometry, b.geometry)) return false;
+  if (a.type === "artifact" && b.type === "artifact") return a.updatedAt === b.updatedAt;
+  return true;
 }

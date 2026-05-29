@@ -1,6 +1,7 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
-import type { ArtifactUpsertInput, ArtifactWidget, ShellList, WidgetGeometry } from "./shell";
+import type { ArtifactUpsertInput } from "./artifacts";
+import type { ArtifactWidget, ShellList, WidgetGeometry } from "./shell";
 import type {
   CreateTaskParams,
   CreateTaskResult,
