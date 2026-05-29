@@ -19,7 +19,7 @@ function Command({ className, ...props }: React.ComponentProps<typeof CommandPri
     <CommandPrimitive
       data-slot="command"
       className={cn(
-        "flex size-full flex-col overflow-hidden rounded-xl! bg-surface-3 p-1 text-popover-foreground",
+        "flex size-full flex-col overflow-hidden rounded-2xl! bg-surface-3 p-1 text-popover-foreground",
         className,
       )}
       {...props}
@@ -44,7 +44,7 @@ function CommandDialog({
   return (
     <Dialog {...props}>
       <DialogContent
-        className={cn("top-1/3 translate-y-0 overflow-hidden rounded-xl! p-0", className)}
+        className={cn("top-1/3 translate-y-0 overflow-hidden rounded-2xl! p-0", className)}
         showCloseButton={showCloseButton}
       >
         <DialogHeader className="sr-only">
