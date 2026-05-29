@@ -50,7 +50,12 @@ const BrowserRunSchema = Type.Object({
 
 const browserExtension: PiExtensionBundle = {
   name: "browser",
-  setup: async ({ binDir, onProgress }) => {
+  cli: {
+    name: "agent-browser",
+    version: AGENT_BROWSER_VERSION,
+    binPath: inteligirPath("bin", binaryName),
+  },
+  setup: async ({ binDir, onProgress, force }) => {
     onProgress({ step: "Downloading browser CLI", percent: null });
     await installCliFromGithubRelease({
       owner: "vercel-labs",
@@ -62,6 +67,7 @@ const browserExtension: PiExtensionBundle = {
       verify: "version-check",
       artifactName: agentBrowserAssetName,
       postInstall: (binPath) => installBrowserRuntime(binPath, onProgress),
+      force,
     });
   },
   register: ({ binDir }) => {

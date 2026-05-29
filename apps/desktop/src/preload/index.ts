@@ -101,4 +101,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
 
   // Skills
   listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
+
+  // Integrations
+  listIntegrations: () => ipcRenderer.invoke(IPC_CHANNELS.INTEGRATIONS_LIST),
+  repairIntegrations: () => ipcRenderer.invoke(IPC_CHANNELS.INTEGRATIONS_REPAIR),
 });

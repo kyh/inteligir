@@ -82,6 +82,10 @@ export const IPC_CHANNELS = {
 
   // Skills
   SKILLS_LIST: "skills:list",
+
+  // Integrations (installed CLI binaries) — list versions + repair/reinstall
+  INTEGRATIONS_LIST: "integrations:list",
+  INTEGRATIONS_REPAIR: "integrations:repair",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -222,6 +226,19 @@ export type DesktopBridge = {
 
   // Skills
   listSkills: () => Promise<SkillsList>;
+
+  // Integrations
+  listIntegrations: () => Promise<IntegrationInfo[]>;
+  repairIntegrations: () => Promise<void>;
+};
+
+/** Installed-vs-pinned version of a CLI binary an extension installs. */
+export type IntegrationInfo = {
+  name: string;
+  /** Version the app pins / ships. */
+  expected: string;
+  /** Version currently installed on disk, or null if missing/unreadable. */
+  installed: string | null;
 };
 
 /** Whether the executor daemon is running, and the active scope when it is. */

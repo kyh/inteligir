@@ -35,11 +35,30 @@ export type ExtensionSetupContext = ExtensionRegisterContext & {
    * is null when the step has no measurable progress.
    */
   onProgress: (progress: SetupProgress) => void;
+  /**
+   * Re-install even if the pinned version is already present. Set by the
+   * "Repair integrations" action; normal onboarding leaves it false so an
+   * up-to-date binary is skipped.
+   */
+  force?: boolean;
+};
+
+/** Metadata for a CLI binary a bundle installs, so the UI can show installed-
+ *  vs-pinned versions and offer a repair/reinstall. */
+export type ExtensionCliInfo = {
+  /** Display name. */
+  name: string;
+  /** Pinned version the app ships. */
+  version: string;
+  /** Absolute path to the installed binary. */
+  binPath: string;
 };
 
 export type PiExtensionBundle = {
   /** Used for log prefixes and stable sort order. Should match the registered tool name. */
   name: string;
+  /** If the bundle installs a CLI binary, declare it here for the integrations UI. */
+  cli?: ExtensionCliInfo;
   /**
    * If true, a thrown setup() aborts onboarding (SETUP_FAIL). Default false:
    * setup is best-effort and the tool surfaces its own failure later (e.g.

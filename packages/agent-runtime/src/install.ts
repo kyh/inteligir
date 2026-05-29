@@ -55,6 +55,12 @@ export type InstallCliFromGithubReleaseOptions = {
    * are logged but do not throw; the binary is already in place.
    */
   postInstall?: (binPath: string) => Promise<void>;
+  /**
+   * Force a fresh download even when the requested version is already installed.
+   * Used by an explicit "repair / reinstall" action to recover a corrupt or
+   * partially-installed binary.
+   */
+  force?: boolean;
 };
 
 /**
@@ -79,6 +85,12 @@ export async function installCliFromGithubRelease(
   }
 }
 
+/** Read a CLI's reported version (the first x.y.z in `--version`), or null if
+ *  it's missing/unreadable. Exposed so callers can show installed-vs-pinned. */
+export async function readCliVersion(binPath: string): Promise<string | null> {
+  return getInstalledVersion(binPath);
+}
+
 async function getInstalledVersion(binPath: string): Promise<string | null> {
   if (!fs.existsSync(binPath)) return null;
   try {
@@ -96,7 +108,7 @@ async function getInstalledVersion(binPath: string): Promise<string | null> {
 
 async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<void> {
   const binPath = path.join(opts.binDir, opts.binName);
-  if ((await getInstalledVersion(binPath)) === opts.version) return;
+  if (!opts.force && (await getInstalledVersion(binPath)) === opts.version) return;
 
   const artifact = opts.artifactName();
   if (!artifact) {

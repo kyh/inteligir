@@ -55,7 +55,7 @@ export type ExecutorConnection = {
  * ~/.inteligir/executor/bin. Best-effort (non-throwing) like the other CLI
  * installers; idempotent — skips when the requested version is already there.
  */
-export async function installExecutor(): Promise<void> {
+export async function installExecutor(force = false): Promise<void> {
   fs.mkdirSync(BIN_DIR, { recursive: true });
   await installCliFromGithubRelease({
     owner: "RhysSullivan",
@@ -67,8 +67,12 @@ export async function installExecutor(): Promise<void> {
     artifactKind: "archive",
     verify: "version-check",
     artifactName: executorArtifactName,
+    force,
   });
 }
+
+/** CLI metadata for the integrations UI (installed-vs-pinned + repair). */
+export const EXECUTOR_CLI = { name: "executor", version: EXECUTOR_VERSION, binPath: BINARY_PATH };
 
 function executorArtifactName(): string | null {
   const os = { darwin: "darwin", linux: "linux", win32: "windows" }[process.platform];

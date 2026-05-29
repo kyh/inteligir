@@ -29,7 +29,7 @@ import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import * as executor from "@/main/executor/executor-client";
-import { listSkills } from "@/agent/setup";
+import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -363,6 +363,14 @@ function registerIpcHandlers(): void {
   createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
     return { skills: listSkills() };
   });
+
+  // ---- Integrations (CLI binaries) ------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.INTEGRATIONS_LIST, () => listIntegrations());
+  createVoidIpcHandler(IPC_CHANNELS.INTEGRATIONS_REPAIR, () =>
+    // Stream progress over the same channel onboarding uses.
+    repairIntegrations((p) => broadcastToRenderer(IPC_CHANNELS.SETUP_PROGRESS, p)),
+  );
 }
 
 // ---------------------------------------------------------------------------

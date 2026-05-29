@@ -20,6 +20,7 @@ import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 import { runCli } from "@repo/agent-runtime/run-cli";
 import { seedFile } from "@repo/agent-runtime/seed";
 
+import { inteligirPath } from "@/main/lib/json-store";
 import type { PiExtensionBundle } from "@/agent/extension";
 import { formatCliOutput, textResult } from "@/agent/extension-helpers";
 
@@ -41,7 +42,8 @@ const GwsRunSchema = Type.Object({
 
 const gwsExtension: PiExtensionBundle = {
   name: "gws",
-  setup: async ({ binDir, bundledResourcesDir }) => {
+  cli: { name: "gws", version: GWS_VERSION, binPath: inteligirPath("bin", "gws") },
+  setup: async ({ binDir, bundledResourcesDir, force }) => {
     await installCliFromGithubRelease({
       owner: "googleworkspace",
       repo: "cli",
@@ -49,6 +51,7 @@ const gwsExtension: PiExtensionBundle = {
       binName: "gws",
       binDir,
       artifactName: gwsArtifactName,
+      force,
     });
     seedClientSecret(bundledResourcesDir);
   },

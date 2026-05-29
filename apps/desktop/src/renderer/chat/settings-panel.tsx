@@ -7,6 +7,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { ExecutorPanel } from "@/renderer/chat/executor-panel";
+import { IntegrationsSection } from "@/renderer/chat/integrations-section";
 import { useTheme, type Theme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import type { NotificationSettings } from "@/shared/ipc";
@@ -134,6 +135,7 @@ export function SettingsPanel() {
         </label>
       </div>
 
+      <IntegrationsSection />
       <ExecutorPanel />
     </div>
   );

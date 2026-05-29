@@ -17,7 +17,7 @@ import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@repo/pi-driver";
 
 import { execute, resumeExecution } from "@/main/executor/executor-client";
-import { installExecutor, getExecutorDaemon } from "@/main/executor/executor-daemon";
+import { EXECUTOR_CLI, installExecutor, getExecutorDaemon } from "@/main/executor/executor-daemon";
 import type { PiExtensionBundle } from "@/agent/extension";
 import { textResult } from "@/agent/extension-helpers";
 
@@ -54,9 +54,10 @@ const ResumeSchema = Type.Object({
 
 const executorExtension: PiExtensionBundle = {
   name: "executor",
-  setup: async ({ onProgress }) => {
+  cli: EXECUTOR_CLI,
+  setup: async ({ onProgress, force }) => {
     onProgress({ step: "Downloading executor runtime", percent: null });
-    await installExecutor();
+    await installExecutor(force);
   },
   register: () => async (pi) => {
     const conn = await getExecutorDaemon().start();
