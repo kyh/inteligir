@@ -34,7 +34,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { getShell } from "@/main/shell";
+import { ArtifactUpsertInputSchema, getShell } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -303,6 +303,10 @@ function registerIpcHandlers(): void {
 
   createVoidIpcHandler(IPC_CHANNELS.SHELL_LIST, () => {
     return getShell().list();
+  });
+
+  createIpcHandler(IPC_CHANNELS.SHELL_ADD, ArtifactUpsertInputSchema, (input) => {
+    return getShell().upsertArtifact(input);
   });
 
   createIpcHandler(

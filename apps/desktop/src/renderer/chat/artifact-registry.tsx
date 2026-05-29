@@ -188,6 +188,40 @@ function CatalogInput({
   );
 }
 
+function CatalogTextarea({
+  props,
+  emit,
+  bindings,
+}: BaseProps<{
+  label?: string;
+  placeholder?: string;
+  value?: string;
+  rows?: number;
+  disabled?: boolean;
+}>) {
+  const store = useStateStore();
+  const bindPath = bindings?.["value"];
+  return (
+    <label className="flex flex-col gap-1">
+      {props.label ? (
+        <span className="text-[10px] font-medium text-muted-foreground">{props.label}</span>
+      ) : null}
+      <textarea
+        className="min-h-20 w-full resize-y rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        value={props.value ?? ""}
+        placeholder={props.placeholder}
+        rows={props.rows ?? 4}
+        disabled={props.disabled === true}
+        onChange={(e) => {
+          const next = e.currentTarget.value;
+          if (bindPath) store.set(bindPath, next);
+          emit("change");
+        }}
+      />
+    </label>
+  );
+}
+
 function CatalogCard({ children }: BaseProps<Record<string, never>>) {
   return <div className="rounded-md border border-border p-3">{children}</div>;
 }
@@ -207,6 +241,7 @@ export const { registry: artifactRegistry } = defineRegistry(artifactCatalog, {
     Button: CatalogButton,
     Checkbox: CatalogCheckbox,
     Input: CatalogInput,
+    Textarea: CatalogTextarea,
     Card: CatalogCard,
     Separator: CatalogSeparator,
   },

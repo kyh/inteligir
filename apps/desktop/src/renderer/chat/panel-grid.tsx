@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { MessageSquareIcon, XIcon } from "lucide-react";
+import { MessageSquareIcon, PlusIcon, XIcon } from "lucide-react";
 import {
   GridLayout,
   useContainerWidth,
@@ -24,6 +24,28 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 import { isArtifactWidget, type Widget } from "@/shared/shell";
+import type { ArtifactUpsertInput } from "@/shared/artifacts";
+
+// A blank, user-editable note panel. The simplest thing a user can add to the
+// workspace without authoring a spec — a multi-line field bound to state and
+// persisted like any other widget.
+function noteStarter(): ArtifactUpsertInput {
+  return {
+    title: "Note",
+    spec: {
+      root: "root",
+      elements: {
+        root: { type: "Stack", props: { gap: "sm" }, children: ["body"] },
+        body: {
+          type: "Textarea",
+          props: { placeholder: "Type a note…", value: { $bindState: "/text" }, rows: 6 },
+        },
+      },
+      state: { text: "" },
+    },
+    state: { text: "" },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Reshapeable workspace ("shell")
@@ -159,10 +181,24 @@ export function PanelGrid() {
     void getBridge()?.removeWidget(id);
   }, []);
 
+  const addNote = useCallback(() => {
+    void getBridge()?.addArtifact(noteStarter());
+  }, []);
+
   const ready = width > 0 && !loading;
 
   return (
-    <div ref={containerRef} className="h-full w-full">
+    <div ref={containerRef} className="relative h-full w-full">
+      {ready && (
+        <button
+          type="button"
+          onClick={addNote}
+          className="absolute right-1 top-0 z-10 flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md hover:text-foreground"
+        >
+          <PlusIcon className="size-3.5" />
+          Add panel
+        </button>
+      )}
       {ready && (
         <GridLayout
           width={width}

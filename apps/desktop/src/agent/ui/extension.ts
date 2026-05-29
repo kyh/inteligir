@@ -19,7 +19,7 @@ const SpecParam = Type.Object(
         {
           type: Type.String({
             description:
-              "Component type: Stack | Section | Row | Heading | Text | TextBlock | Button | Checkbox | Input | Card | Separator",
+              "Component type: Stack | Section | Row | Heading | Text | TextBlock | Button | Checkbox | Input | Textarea | Card | Separator",
           }),
           props: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
           children: Type.Optional(Type.Array(Type.String())),
@@ -92,7 +92,7 @@ const ManageUiSchema = Type.Object({
       ...SpecParam,
       description:
         "json-render flat spec ({ root, elements }) — required for create, optional for update. " +
-        "Components catalog: Stack/Section/Row/Heading/Text/TextBlock/Button/Checkbox/Input/Card/Separator. " +
+        "Components catalog: Stack/Section/Row/Heading/Text/TextBlock/Button/Checkbox/Input/Textarea/Card/Separator. " +
         "Wire buttons via on: { press: { action: 'notify', params: { message: 'Hi' } } }. " +
         "Bind inputs/checkboxes via { $bindState: '/path' }; use the built-in setState action to mutate state from buttons. " +
         "Actions: notify({message,variant}), openUrl({url}); and 'live' actions — " +

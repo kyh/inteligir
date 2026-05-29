@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listShell: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST),
   onShellUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.SHELL_UPDATED, listener),
+  addArtifact: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_ADD, input),
   setWidgetGeometry: (geometries: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_GEOMETRY, geometries),
   setArtifactState: (id: string, state: unknown) =>

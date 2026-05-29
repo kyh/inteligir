@@ -1,6 +1,6 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
-import type { ArtifactWidget, ShellList, WidgetGeometry } from "./shell";
+import type { ArtifactUpsertInput, ArtifactWidget, ShellList, WidgetGeometry } from "./shell";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -63,6 +63,7 @@ export const IPC_CHANNELS = {
   // Shell — the reshapeable workspace of widgets (chat + agent-authored panels)
   SHELL_LIST: "shell:list",
   SHELL_UPDATED: "shell:updated",
+  SHELL_ADD: "shell:add",
   SHELL_SET_GEOMETRY: "shell:set-geometry",
   SHELL_SET_STATE: "shell:set-state",
   SHELL_REMOVE_WIDGET: "shell:remove-widget",
@@ -194,6 +195,7 @@ export type DesktopBridge = {
   // Shell — the reshapeable workspace of widgets
   listShell: () => Promise<ShellList>;
   onShellUpdated: (listener: (next: ShellList) => void) => () => void;
+  addArtifact: (input: ArtifactUpsertInput) => Promise<ArtifactWidget>;
   setWidgetGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
   setArtifactState: (
     id: string,

@@ -81,6 +81,16 @@ export const artifactCatalog = defineCatalog(schema, {
       }),
       description: "Text input. Two-way bind `value` via { $bindState: '/path' }.",
     },
+    Textarea: {
+      props: z.object({
+        label: z.string().optional(),
+        placeholder: z.string().optional(),
+        value: z.string().optional(),
+        rows: z.number().optional(),
+        disabled: z.boolean().optional(),
+      }),
+      description: "Multi-line text input. Two-way bind `value` via { $bindState: '/path' }.",
+    },
     Card: {
       props: z.object({}),
       description: "Bordered container for grouping arbitrary children.",
