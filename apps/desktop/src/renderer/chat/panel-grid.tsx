@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { PlusIcon, XIcon } from "lucide-react";
+import { Maximize2Icon, PlusIcon, XIcon } from "lucide-react";
 import {
   GridLayout,
   useContainerWidth,
@@ -10,12 +10,17 @@ import "react-grid-layout/css/styles.css";
 
 import { cn } from "@repo/ui/lib/utils";
 
-import { BUILTIN_WIDGET_UI } from "@/renderer/chat/builtin-widgets";
-import { WidgetViewer } from "@/renderer/chat/widget-viewer";
+import { FloatingLayer } from "@/renderer/chat/floating-layer";
+import {
+  closeInstance,
+  isPermanentInstance,
+  WidgetBody,
+  widgetBodyClassName,
+  widgetTitle,
+} from "@/renderer/chat/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import {
-  builtinMeta,
   type CustomWidgetDef,
   type GenerateWidgetInput,
   type WidgetGeometry,
@@ -25,10 +30,10 @@ import {
 // ---------------------------------------------------------------------------
 // Reshapeable workspace ("shell")
 //
-// A 12-column grid of placed widget instances. Each instance owns its grid
-// geometry (persisted in shell.json), so the layout survives reloads. The chat
-// instance is permanent. Built-in instances close back to the dock (unplace);
-// custom instances delete their definition.
+// A 12-column grid of placed "desktop widget" instances (surface === "grid").
+// Floating "app window" instances render above it via FloatingLayer. Each
+// instance owns its grid geometry; the chat instance is permanent. Panels can
+// be popped out to a window or closed.
 // ---------------------------------------------------------------------------
 
 const GRID_CONFIG = { cols: 12, rowHeight: 46, margin: [10, 10], containerPadding: [0, 0] } as const;
@@ -74,38 +79,59 @@ function Panel({
   title,
   children,
   bodyClassName,
+  onPopOut,
   onRemove,
 }: {
   title: React.ReactNode;
   children: React.ReactNode;
   bodyClassName?: string;
+  onPopOut?: () => void;
   onRemove?: () => void;
 }) {
   return (
     <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-card/40 shadow-lg backdrop-blur-md">
       <div className="panel-drag-handle flex shrink-0 cursor-move items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
         <span className="truncate text-xs font-medium text-muted-foreground">{title}</span>
-        {onRemove ? (
-          <button
-            type="button"
-            aria-label="Close panel"
-            className="shrink-0 rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
-            // Stop the grid drag handler from swallowing the click.
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={onRemove}
-          >
-            <XIcon className="size-3.5" />
-          </button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-0.5">
+          {onPopOut ? (
+            <PanelButton label="Pop out to window" onClick={onPopOut}>
+              <Maximize2Icon className="size-3.5" />
+            </PanelButton>
+          ) : null}
+          {onRemove ? (
+            <PanelButton label="Close panel" onClick={onRemove}>
+              <XIcon className="size-3.5" />
+            </PanelButton>
+          ) : null}
+        </div>
       </div>
       <div className={cn("min-h-0 flex-1 overflow-auto", bodyClassName)}>{children}</div>
     </div>
   );
 }
 
-// ---------------------------------------------------------------------------
-// Instance rendering
-// ---------------------------------------------------------------------------
+function PanelButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      className="rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+      // Stop the grid drag handler from swallowing the click.
+      onMouseDown={(e) => e.stopPropagation()}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
 
 function InstancePanel({
   instance,
@@ -114,39 +140,15 @@ function InstancePanel({
   instance: WidgetInstance;
   customDef: CustomWidgetDef | undefined;
 }) {
-  const meta = builtinMeta(instance.widgetId);
-
-  if (meta) {
-    const ui = BUILTIN_WIDGET_UI[meta.id];
-    const Body = ui.component;
-    return (
-      <Panel
-        title={meta.title}
-        bodyClassName={ui.bodyClassName}
-        // Built-in instances hide back to the dock; the permanent chat can't.
-        onRemove={meta.permanent ? undefined : () => void getBridge()?.unplaceWidget(instance.instanceId)}
-      >
-        <Body />
-      </Panel>
-    );
-  }
-
-  if (!customDef) {
-    return (
-      <Panel title={instance.widgetId}>
-        <div className="p-3 text-xs text-muted-foreground">This widget is unavailable.</div>
-      </Panel>
-    );
-  }
-
+  const permanent = isPermanentInstance(instance);
   return (
     <Panel
-      title={customDef.title}
-      // Closing a custom instance deletes its definition (no dock gallery to
-      // re-place it from); the agent manages extra instances via place/unplace.
-      onRemove={() => void getBridge()?.deleteWidget(customDef.id)}
+      title={widgetTitle(instance, customDef)}
+      bodyClassName={widgetBodyClassName(instance)}
+      onPopOut={() => void getBridge()?.setInstanceSurface(instance.instanceId, "floating")}
+      onRemove={permanent ? undefined : () => closeInstance(instance)}
     >
-      <WidgetViewer instance={instance} spec={customDef.spec} />
+      <WidgetBody instance={instance} customDef={customDef} />
     </Panel>
   );
 }
@@ -165,7 +167,8 @@ export function PanelGrid() {
   const customWidgets = useShellStore((s) => s.customWidgets);
   const loading = useShellStore((s) => s.loading);
 
-  const layout = useMemo(() => instances.map(instanceToLayoutItem), [instances]);
+  const gridInstances = useMemo(() => instances.filter((i) => i.surface === "grid"), [instances]);
+  const layout = useMemo(() => gridInstances.map(instanceToLayoutItem), [gridInstances]);
   const customById = useMemo(
     () => new Map(customWidgets.map((d) => [d.id, d])),
     [customWidgets],
@@ -188,30 +191,31 @@ export function PanelGrid() {
   return (
     <div ref={containerRef} className="relative h-full w-full">
       {ready && (
-        <button
-          type="button"
-          onClick={addNote}
-          className="absolute right-1 top-0 z-10 flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md hover:text-foreground"
-        >
-          <PlusIcon className="size-3.5" />
-          Add note
-        </button>
-      )}
-      {ready && (
-        <GridLayout
-          width={width}
-          layout={layout}
-          onLayoutChange={handleLayoutChange}
-          gridConfig={GRID_CONFIG}
-          dragConfig={DRAG_CONFIG}
-          resizeConfig={RESIZE_CONFIG}
-        >
-          {instances.map((instance) => (
-            <div key={instance.instanceId}>
-              <InstancePanel instance={instance} customDef={customById.get(instance.widgetId)} />
-            </div>
-          ))}
-        </GridLayout>
+        <>
+          <button
+            type="button"
+            onClick={addNote}
+            className="absolute right-1 top-0 z-20 flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md hover:text-foreground"
+          >
+            <PlusIcon className="size-3.5" />
+            Add note
+          </button>
+          <GridLayout
+            width={width}
+            layout={layout}
+            onLayoutChange={handleLayoutChange}
+            gridConfig={GRID_CONFIG}
+            dragConfig={DRAG_CONFIG}
+            resizeConfig={RESIZE_CONFIG}
+          >
+            {gridInstances.map((instance) => (
+              <div key={instance.instanceId}>
+                <InstancePanel instance={instance} customDef={customById.get(instance.widgetId)} />
+              </div>
+            ))}
+          </GridLayout>
+          <FloatingLayer />
+        </>
       )}
     </div>
   );

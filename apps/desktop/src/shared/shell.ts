@@ -47,8 +47,17 @@ export type WidgetGeometry = {
 
 export const WIDGET_DEFAULT_SIZE = { w: 7, h: 6, minW: 2, minH: 3 } as const;
 
+/** Free-form pixel rect for a floating (window) placement. */
+export type FloatRect = { x: number; y: number; width: number; height: number };
+
+export const WIDGET_DEFAULT_RECT: FloatRect = { x: 340, y: 96, width: 380, height: 440 };
+
 export function geometryEquals(a: WidgetGeometry, b: WidgetGeometry): boolean {
   return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+}
+
+export function rectEquals(a: FloatRect, b: FloatRect): boolean {
+  return a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height;
 }
 
 // ---------------------------------------------------------------------------
@@ -98,11 +107,21 @@ export type CustomWidgetDef = {
 // Instances — "what's placed"
 // ---------------------------------------------------------------------------
 
+/** Where an instance is shown: docked on the grid (a "desktop widget") or as
+ * a free-floating window (an "app window"). */
+export type WidgetSurface = "grid" | "floating";
+
 export type WidgetInstance = {
   instanceId: string;
   /** BuiltinWidgetId or a CustomWidgetDef.id. */
   widgetId: string;
+  surface: WidgetSurface;
+  /** Grid placement (cols/rows); used when surface === "grid". */
   geometry: WidgetGeometry;
+  /** Floating placement (px); used when surface === "floating". */
+  rect: FloatRect;
+  /** Stacking order among floating windows. */
+  z: number;
   /** Per-instance bound state (custom widgets; built-ins manage their own). */
   state: Record<string, unknown>;
 };

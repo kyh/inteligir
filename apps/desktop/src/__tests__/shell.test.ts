@@ -43,10 +43,11 @@ describe("ShellManager seeding", () => {
 });
 
 describe("ShellManager.generateWidget", () => {
-  it("creates a custom definition and places one instance", () => {
+  it("creates a custom definition and places one grid instance", () => {
     const { def, instance } = mgr.generateWidget({ title: "My Panel", spec: SPEC });
     expect(def.id).toBe("my-panel");
     expect(instance.widgetId).toBe("my-panel");
+    expect(instance.surface).toBe("grid");
     const snap = mgr.snapshot();
     expect(snap.customWidgets.map((d) => d.id)).toContain("my-panel");
     expect(snap.instances.filter((i) => i.widgetId === "my-panel")).toHaveLength(1);
@@ -135,9 +136,33 @@ describe("ShellManager.patchWidgetSpec", () => {
 
 describe("ShellManager.setGeometries", () => {
   it("updates an instance's geometry by instanceId", () => {
-    const placed = mgr.placeWidget("tasks")!;
+    const placed = mgr.placeWidget("tasks", "grid")!;
     mgr.setGeometries({ [placed.instanceId]: { x: 1, y: 2, w: 3, h: 4 } });
     const updated = mgr.getInstance(placed.instanceId);
     expect(updated!.geometry).toMatchObject({ x: 1, y: 2, w: 3, h: 4 });
+  });
+});
+
+describe("ShellManager surfaces", () => {
+  it("places as a floating window by default", () => {
+    const placed = mgr.placeWidget("tasks")!;
+    expect(placed.surface).toBe("floating");
+  });
+
+  it("places on the grid when asked", () => {
+    const placed = mgr.placeWidget("settings", "grid")!;
+    expect(placed.surface).toBe("grid");
+  });
+
+  it("moves an instance between grid and floating, remembering each layout", () => {
+    const placed = mgr.placeWidget("tasks", "grid")!;
+    mgr.setGeometries({ [placed.instanceId]: { x: 1, y: 2, w: 3, h: 4 } });
+    mgr.setRect(placed.instanceId, { x: 50, y: 60, width: 300, height: 200 });
+    const floated = mgr.setSurface(placed.instanceId, "floating");
+    expect(floated!.surface).toBe("floating");
+    expect(floated!.rect).toMatchObject({ x: 50, y: 60, width: 300, height: 200 });
+    const docked = mgr.setSurface(placed.instanceId, "grid");
+    expect(docked!.surface).toBe("grid");
+    expect(docked!.geometry).toMatchObject({ x: 1, y: 2, w: 3, h: 4 });
   });
 });

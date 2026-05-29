@@ -13,9 +13,12 @@ import {
   builtinMeta,
   CHAT_WIDGET_ID,
   geometryEquals,
+  rectEquals,
   slugifyWidgetId,
+  WIDGET_DEFAULT_RECT,
   WIDGET_DEFAULT_SIZE,
   type CustomWidgetDef,
+  type FloatRect,
   type GenerateWidgetInput,
   type Shell,
   type ShellSnapshot,
@@ -23,6 +26,7 @@ import {
   type WidgetInstance,
   type WidgetPatchInput,
   type WidgetSpec,
+  type WidgetSurface,
 } from "@/shared/shell";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
@@ -48,6 +52,13 @@ export const GeometrySchema = z.object({
   minH: z.number().optional(),
 });
 
+export const RectSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  width: z.number(),
+  height: z.number(),
+});
+
 const CustomWidgetDefSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -60,7 +71,10 @@ const CustomWidgetDefSchema = z.object({
 const WidgetInstanceSchema = z.object({
   instanceId: z.string(),
   widgetId: z.string(),
+  surface: z.enum(["grid", "floating"]),
   geometry: GeometrySchema,
+  rect: RectSchema,
+  z: z.number(),
   state: z.record(z.string(), z.unknown()),
 });
 
@@ -82,7 +96,10 @@ function chatInstance(): WidgetInstance {
   return {
     instanceId: CHAT_WIDGET_ID,
     widgetId: CHAT_WIDGET_ID,
+    surface: "grid",
     geometry: { ...builtinMeta(CHAT_WIDGET_ID)!.defaultGeometry },
+    rect: { ...WIDGET_DEFAULT_RECT },
+    z: 0,
     state: {},
   };
 }
@@ -119,7 +136,7 @@ export class ShellManager {
     return this.store.read().instances.find((i) => i.instanceId === instanceId) ?? null;
   }
 
-  /** Create a custom widget definition and place one instance of it. */
+  /** Create a custom widget definition and place one grid instance of it. */
   generateWidget(input: GenerateWidgetInput): { def: CustomWidgetDef; instance: WidgetInstance } {
     const now = Date.now();
     let result: { def: CustomWidgetDef; instance: WidgetInstance } | null = null;
@@ -133,12 +150,7 @@ export class ShellManager {
         createdAt: now,
         updatedAt: now,
       };
-      const instance: WidgetInstance = {
-        instanceId: randomUUID(),
-        widgetId: id,
-        geometry: this.placeNew(current),
-        state: input.state ?? input.spec.state ?? {},
-      };
+      const instance = this.makeInstance(current, id, "grid", input.state ?? input.spec.state ?? {});
       result = { def, instance };
       const customWidgets = current.customWidgets.some((d) => d.id === id)
         ? current.customWidgets.map((d) => (d.id === id ? def : d))
@@ -149,8 +161,7 @@ export class ShellManager {
     return result!;
   }
 
-  /** Update a custom widget definition (title/description/spec). Instances of
-   * it re-render with the new spec; their per-instance state is untouched. */
+  /** Update a custom widget definition (title/description/spec). */
   updateWidget(input: GenerateWidgetInput & { id: string }): CustomWidgetDef {
     const now = Date.now();
     let result: CustomWidgetDef | null = null;
@@ -211,17 +222,15 @@ export class ShellManager {
     return deleted;
   }
 
-  /** Place an instance of a widget (built-in or custom) on the shell. Built-in
-   * singletons that are already placed return the existing instance. */
-  placeWidget(widgetId: string): WidgetInstance | null {
+  /** Place an instance of a widget on the given surface (default: a floating
+   * window). Built-in singletons that are already placed return the existing
+   * instance. */
+  placeWidget(widgetId: string, surface: WidgetSurface = "floating"): WidgetInstance | null {
     const meta = builtinMeta(widgetId);
     let result: WidgetInstance | null = null;
     let added = false;
     const next = this.store.update((current) => {
-      // Reject unknown widget ids (not a built-in, not a known custom def).
-      if (!meta && !current.customWidgets.some((d) => d.id === widgetId)) {
-        return current;
-      }
+      if (!meta && !current.customWidgets.some((d) => d.id === widgetId)) return current;
       if (meta?.singleton) {
         const existing = current.instances.find((i) => i.widgetId === widgetId);
         if (existing) {
@@ -229,13 +238,7 @@ export class ShellManager {
           return current;
         }
       }
-      const def = current.customWidgets.find((d) => d.id === widgetId);
-      const instance: WidgetInstance = {
-        instanceId: randomUUID(),
-        widgetId,
-        geometry: meta ? { ...meta.defaultGeometry } : this.placeNew(current),
-        state: def?.spec.state ? { ...def.spec.state } : {},
-      };
+      const instance = this.makeInstance(current, widgetId, surface, this.initialState(current, widgetId));
       result = instance;
       added = true;
       return { ...current, instances: [...current.instances, instance] };
@@ -257,7 +260,7 @@ export class ShellManager {
     return removed;
   }
 
-  /** Move/resize instances. Geometry is layout — does not bump any updatedAt. */
+  /** Move/resize grid instances. Geometry is layout — bumps no updatedAt. */
   setGeometries(geometries: Record<string, WidgetGeometry>): void {
     const current = this.store.read();
     let changed = false;
@@ -268,6 +271,45 @@ export class ShellManager {
       return { ...i, geometry: geo };
     });
     if (!changed) return;
+    this.broadcast(this.store.update((s) => ({ ...s, instances })));
+  }
+
+  /** Move/resize a floating instance. */
+  setRect(instanceId: string, rect: FloatRect): void {
+    const current = this.store.read();
+    const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
+    if (idx === -1 || rectEquals(current.instances[idx]!.rect, rect)) return;
+    const instances = [...current.instances];
+    instances[idx] = { ...instances[idx]!, rect };
+    this.broadcast(this.store.update((s) => ({ ...s, instances })));
+  }
+
+  /** Move an instance between the grid and a floating window. */
+  setSurface(instanceId: string, surface: WidgetSurface): WidgetInstance | null {
+    let result: WidgetInstance | null = null;
+    const next = this.store.update((current) => {
+      const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
+      if (idx === -1 || current.instances[idx]!.surface === surface) return current;
+      const z = surface === "floating" ? this.nextZ(current) : current.instances[idx]!.z;
+      const updated = { ...current.instances[idx]!, surface, z };
+      result = updated;
+      const instances = [...current.instances];
+      instances[idx] = updated;
+      return { ...current, instances };
+    });
+    if (result) this.broadcast(next);
+    return result;
+  }
+
+  /** Raise a floating instance above the others. */
+  bringToFront(instanceId: string): void {
+    const current = this.store.read();
+    const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
+    if (idx === -1) return;
+    const z = this.nextZ(current);
+    if (current.instances[idx]!.z >= z - 1 && current.instances[idx]!.z !== 0) return;
+    const instances = [...current.instances];
+    instances[idx] = { ...instances[idx]!, z };
     this.broadcast(this.store.update((s) => ({ ...s, instances })));
   }
 
@@ -298,8 +340,42 @@ export class ShellManager {
   // Internals
   // -------------------------------------------------------------------------
 
+  private makeInstance(
+    shell: Shell,
+    widgetId: string,
+    surface: WidgetSurface,
+    state: Record<string, unknown>,
+  ): WidgetInstance {
+    const meta = builtinMeta(widgetId);
+    const floatingCount = shell.instances.filter((i) => i.surface === "floating").length;
+    return {
+      instanceId: randomUUID(),
+      widgetId,
+      surface,
+      geometry: meta ? { ...meta.defaultGeometry } : this.placeNew(shell),
+      rect: {
+        ...WIDGET_DEFAULT_RECT,
+        x: WIDGET_DEFAULT_RECT.x + (floatingCount % 6) * 28,
+        y: WIDGET_DEFAULT_RECT.y + (floatingCount % 6) * 28,
+      },
+      z: surface === "floating" ? this.nextZ(shell) : 0,
+      state,
+    };
+  }
+
+  private initialState(shell: Shell, widgetId: string): Record<string, unknown> {
+    const def = shell.customWidgets.find((d) => d.id === widgetId);
+    return def?.spec.state ? { ...def.spec.state } : {};
+  }
+
+  private nextZ(shell: Shell): number {
+    return shell.instances.reduce((max, i) => Math.max(max, i.z), 0) + 1;
+  }
+
   private placeNew(shell: Shell): WidgetGeometry {
-    const nextY = shell.instances.reduce((max, i) => Math.max(max, i.geometry.y + i.geometry.h), 0);
+    const nextY = shell.instances
+      .filter((i) => i.surface === "grid")
+      .reduce((max, i) => Math.max(max, i.geometry.y + i.geometry.h), 0);
     return { x: 5, y: nextY, ...WIDGET_DEFAULT_SIZE };
   }
 

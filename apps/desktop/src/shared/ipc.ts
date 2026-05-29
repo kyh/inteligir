@@ -1,10 +1,12 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
 import type {
+  FloatRect,
   GenerateWidgetInput,
   ShellSnapshot,
   WidgetGeometry,
   WidgetInstance,
+  WidgetSurface,
 } from "./shell";
 import type {
   CreateTaskParams,
@@ -73,6 +75,9 @@ export const IPC_CHANNELS = {
   SHELL_UNPLACE: "shell:unplace",
   SHELL_DELETE: "shell:delete",
   SHELL_SET_GEOMETRY: "shell:set-geometry",
+  SHELL_SET_RECT: "shell:set-rect",
+  SHELL_SET_SURFACE: "shell:set-surface",
+  SHELL_FOCUS: "shell:focus",
   SHELL_SET_STATE: "shell:set-state",
 
   // Live widget actions
@@ -203,10 +208,13 @@ export type DesktopBridge = {
   listShell: () => Promise<ShellSnapshot>;
   onShellUpdated: (listener: (next: ShellSnapshot) => void) => () => void;
   generateWidget: (input: GenerateWidgetInput) => Promise<WidgetInstance>;
-  placeWidget: (widgetId: string) => Promise<WidgetInstance | null>;
+  placeWidget: (widgetId: string, surface?: WidgetSurface) => Promise<WidgetInstance | null>;
   unplaceWidget: (instanceId: string) => Promise<{ removed: boolean }>;
   deleteWidget: (widgetId: string) => Promise<{ deleted: boolean }>;
   setInstanceGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
+  setInstanceRect: (instanceId: string, rect: FloatRect) => Promise<void>;
+  setInstanceSurface: (instanceId: string, surface: WidgetSurface) => Promise<WidgetInstance | null>;
+  focusInstance: (instanceId: string) => Promise<void>;
   setInstanceState: (
     instanceId: string,
     state: Record<string, unknown>,

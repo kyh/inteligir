@@ -84,6 +84,13 @@ const ManageUiSchema = Type.Object({
   instanceId: Type.Optional(
     Type.String({ minLength: 1, description: "Placed instance id (required for unplace)" }),
   ),
+  surface: Type.Optional(
+    Type.Union([Type.Literal("grid"), Type.Literal("floating")], {
+      description:
+        "Where to place a widget (for action='place'): 'grid' (a docked desktop widget) " +
+        "or 'floating' (an app window). Defaults to floating.",
+    }),
+  ),
   title: Type.Optional(
     Type.String({
       description: "Human-readable title shown as the panel header (required for create)",
@@ -220,9 +227,11 @@ const uiExtension: PiExtensionBundle = {
             }
             case "place": {
               if (!params.id) return text("Error: id is required for action='place'");
-              const instance = mgr.placeWidget(params.id);
+              const instance = mgr.placeWidget(params.id, params.surface);
               if (!instance) return text(`Error: no widget with id '${params.id}' to place`);
-              return text(`Placed '${params.id}' (instance ${instance.instanceId}).`);
+              return text(
+                `Placed '${params.id}' as a ${instance.surface} widget (instance ${instance.instanceId}).`,
+              );
             }
             case "unplace": {
               if (!params.instanceId) {

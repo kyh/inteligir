@@ -72,11 +72,17 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   onShellUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.SHELL_UPDATED, listener),
   generateWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_GENERATE, input),
-  placeWidget: (widgetId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_PLACE, widgetId),
+  placeWidget: (widgetId: string, surface?: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_PLACE, { widgetId, surface }),
   unplaceWidget: (instanceId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_UNPLACE, instanceId),
   deleteWidget: (widgetId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_DELETE, widgetId),
   setInstanceGeometry: (geometries: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_GEOMETRY, geometries),
+  setInstanceRect: (instanceId: string, rect: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_RECT, { instanceId, rect }),
+  setInstanceSurface: (instanceId: string, surface: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_SURFACE, { instanceId, surface }),
+  focusInstance: (instanceId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_FOCUS, instanceId),
   setInstanceState: (instanceId: string, state: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_STATE, { instanceId, state }),
 

@@ -1,7 +1,12 @@
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { geometryEquals, type CustomWidgetDef, type WidgetInstance } from "@/shared/shell";
+import {
+  geometryEquals,
+  rectEquals,
+  type CustomWidgetDef,
+  type WidgetInstance,
+} from "@/shared/shell";
 
 // Singleton shell store backed by one bridge subscription. Initialized lazily
 // by PanelGrid on mount; the subscription lives for the session.
@@ -80,7 +85,10 @@ function instanceEqual(a: WidgetInstance, b: WidgetInstance): boolean {
   // state crosses IPC as a fresh object each broadcast, so compare by value.
   return (
     a.widgetId === b.widgetId &&
+    a.surface === b.surface &&
+    a.z === b.z &&
     geometryEquals(a.geometry, b.geometry) &&
+    rectEquals(a.rect, b.rect) &&
     jsonEqual(a.state, b.state)
   );
 }

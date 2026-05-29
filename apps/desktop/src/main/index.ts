@@ -34,7 +34,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { GenerateWidgetInputSchema, GeometrySchema, getShell } from "@/main/shell";
+import { GenerateWidgetInputSchema, GeometrySchema, getShell, RectSchema } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -309,9 +309,13 @@ function registerIpcHandlers(): void {
     return getShell().generateWidget(input).instance;
   });
 
-  createIpcHandler(IPC_CHANNELS.SHELL_PLACE, z.string().min(1), (widgetId) => {
-    return getShell().placeWidget(widgetId);
-  });
+  createIpcHandler(
+    IPC_CHANNELS.SHELL_PLACE,
+    z.object({ widgetId: z.string().min(1), surface: z.enum(["grid", "floating"]).optional() }),
+    ({ widgetId, surface }) => {
+      return getShell().placeWidget(widgetId, surface);
+    },
+  );
 
   createIpcHandler(IPC_CHANNELS.SHELL_UNPLACE, z.string().min(1), (instanceId) => {
     return { removed: getShell().unplaceWidget(instanceId) };
@@ -328,6 +332,26 @@ function registerIpcHandlers(): void {
       getShell().setGeometries(geometries);
     },
   );
+
+  createIpcHandler(
+    IPC_CHANNELS.SHELL_SET_RECT,
+    z.object({ instanceId: z.string().min(1), rect: RectSchema }),
+    ({ instanceId, rect }) => {
+      getShell().setRect(instanceId, rect);
+    },
+  );
+
+  createIpcHandler(
+    IPC_CHANNELS.SHELL_SET_SURFACE,
+    z.object({ instanceId: z.string().min(1), surface: z.enum(["grid", "floating"]) }),
+    ({ instanceId, surface }) => {
+      return getShell().setSurface(instanceId, surface);
+    },
+  );
+
+  createIpcHandler(IPC_CHANNELS.SHELL_FOCUS, z.string().min(1), (instanceId) => {
+    getShell().bringToFront(instanceId);
+  });
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_SET_STATE,
