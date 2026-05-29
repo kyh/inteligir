@@ -79,18 +79,23 @@ export type BuiltinWidgetMeta = {
   defaultGeometry: WidgetGeometry;
 };
 
-export const BUILTIN_WIDGETS: BuiltinWidgetMeta[] = [
-  { id: "chat", title: "Conversation", singleton: true, permanent: true, defaultGeometry: { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 } },
-  { id: "tasks", title: "Tasks", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 } },
-  { id: "skills", title: "Skills", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 } },
-  { id: "extensions", title: "Extensions", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 6, w: 4, h: 6, minW: 2, minH: 3 } },
-  { id: "settings", title: "Settings", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 6, w: 3, h: 6, minW: 2, minH: 3 } },
-];
+// Keyed by id so the metadata is exhaustive over BuiltinWidgetId — adding an
+// id is a compile error until both this map and the renderer's
+// BUILTIN_WIDGET_UI (also keyed by the union) are filled in.
+const BUILTIN_WIDGETS_BY_ID: Record<BuiltinWidgetId, BuiltinWidgetMeta> = {
+  chat: { id: "chat", title: "Conversation", singleton: true, permanent: true, defaultGeometry: { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 } },
+  tasks: { id: "tasks", title: "Tasks", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 } },
+  skills: { id: "skills", title: "Skills", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 } },
+  extensions: { id: "extensions", title: "Extensions", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 6, w: 4, h: 6, minW: 2, minH: 3 } },
+  settings: { id: "settings", title: "Settings", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 6, w: 3, h: 6, minW: 2, minH: 3 } },
+};
+
+export const BUILTIN_WIDGETS: BuiltinWidgetMeta[] = Object.values(BUILTIN_WIDGETS_BY_ID);
 
 export const CHAT_WIDGET_ID = "chat";
 
 export function builtinMeta(id: string): BuiltinWidgetMeta | undefined {
-  return BUILTIN_WIDGETS.find((b) => b.id === id);
+  return (BUILTIN_WIDGETS_BY_ID as Record<string, BuiltinWidgetMeta | undefined>)[id];
 }
 
 /** A generated widget definition — rendered from a json-render spec. */

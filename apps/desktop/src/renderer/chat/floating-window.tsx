@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PinIcon, XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { ChromeButton } from "@/renderer/chat/widget-render";
 import type { FloatRect } from "@/shared/shell";
 
 const MIN_W = 240;
@@ -39,6 +40,10 @@ export function FloatingWindow({
 }) {
   const [local, setLocal] = useState(rect);
   const dragRef = useRef<Drag | null>(null);
+  // Keep the latest onRect without re-subscribing the window listeners every
+  // render (the parent passes a fresh closure each time).
+  const onRectRef = useRef(onRect);
+  onRectRef.current = onRect;
 
   useEffect(() => {
     if (!dragRef.current) setLocal(rect);
@@ -64,7 +69,7 @@ export function FloatingWindow({
       if (!dragRef.current) return;
       dragRef.current = null;
       setLocal((r) => {
-        onRect(r);
+        onRectRef.current(r);
         return r;
       });
     };
@@ -74,10 +79,11 @@ export function FloatingWindow({
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
-  }, [onRect]);
+  }, []);
 
+  // The root onPointerDown handles focus (it bubbles), so startMove doesn't
+  // also call it. startResize stops propagation, so it focuses itself.
   const startMove = (e: React.PointerEvent) => {
-    onFocus();
     dragRef.current = { mode: "move", px: e.clientX, py: e.clientY, rect: local };
   };
   const startResize = (e: React.PointerEvent) => {
@@ -98,25 +104,13 @@ export function FloatingWindow({
       >
         <span className="truncate text-xs font-medium text-muted-foreground">{title}</span>
         <div className="flex shrink-0 items-center gap-0.5">
-          <button
-            type="button"
-            aria-label="Pin to desktop"
-            className="rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={onDock}
-          >
+          <ChromeButton label="Pin to desktop" onClick={onDock}>
             <PinIcon className="size-3.5" />
-          </button>
+          </ChromeButton>
           {onClose ? (
-            <button
-              type="button"
-              aria-label="Close window"
-              className="rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={onClose}
-            >
+            <ChromeButton label="Close window" onClick={onClose}>
               <XIcon className="size-3.5" />
-            </button>
+            </ChromeButton>
           ) : null}
         </div>
       </div>

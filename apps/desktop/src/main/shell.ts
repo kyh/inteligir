@@ -276,58 +276,31 @@ export class ShellManager {
 
   /** Move/resize a floating instance. */
   setRect(instanceId: string, rect: FloatRect): void {
-    const current = this.store.read();
-    const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
-    if (idx === -1 || rectEquals(current.instances[idx]!.rect, rect)) return;
-    const instances = [...current.instances];
-    instances[idx] = { ...instances[idx]!, rect };
-    this.broadcast(this.store.update((s) => ({ ...s, instances })));
+    this.updateInstance(instanceId, (i) => (rectEquals(i.rect, rect) ? null : { ...i, rect }));
   }
 
-  /** Move an instance between the grid and a floating window. */
+  /** Move an instance between the grid and a floating window. Floating raises
+   * to the front; pinning resets z so docked windows don't inflate the stack. */
   setSurface(instanceId: string, surface: WidgetSurface): WidgetInstance | null {
-    let result: WidgetInstance | null = null;
-    const next = this.store.update((current) => {
-      const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
-      if (idx === -1 || current.instances[idx]!.surface === surface) return current;
-      const z = surface === "floating" ? this.nextZ(current) : current.instances[idx]!.z;
-      const updated = { ...current.instances[idx]!, surface, z };
-      result = updated;
-      const instances = [...current.instances];
-      instances[idx] = updated;
-      return { ...current, instances };
-    });
-    if (result) this.broadcast(next);
-    return result;
+    return this.updateInstance(instanceId, (i, shell) =>
+      i.surface === surface
+        ? null
+        : { ...i, surface, z: surface === "floating" ? this.maxZ(shell) + 1 : 0 },
+    );
   }
 
   /** Raise a floating instance above the others. */
   bringToFront(instanceId: string): void {
-    const current = this.store.read();
-    const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
-    if (idx === -1) return;
-    const z = this.nextZ(current);
-    if (current.instances[idx]!.z >= z - 1 && current.instances[idx]!.z !== 0) return;
-    const instances = [...current.instances];
-    instances[idx] = { ...instances[idx]!, z };
-    this.broadcast(this.store.update((s) => ({ ...s, instances })));
+    this.updateInstance(instanceId, (i, shell) => {
+      const top = this.maxZ(shell);
+      return i.z === top && top > 0 ? null : { ...i, z: top + 1 };
+    });
   }
 
   /** Replace an instance's bound state wholesale (single-writer: the viewer
    * owns live state, so a replace lets cleared keys disappear). */
   setInstanceState(instanceId: string, state: Record<string, unknown>): WidgetInstance | null {
-    let result: WidgetInstance | null = null;
-    const next = this.store.update((current) => {
-      const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
-      if (idx === -1) return current;
-      const updated: WidgetInstance = { ...current.instances[idx]!, state };
-      result = updated;
-      const instances = [...current.instances];
-      instances[idx] = updated;
-      return { ...current, instances };
-    });
-    if (result) this.broadcast(next);
-    return result;
+    return this.updateInstance(instanceId, (i) => ({ ...i, state }));
   }
 
   /** Drop the cache + broadcast the post-invalidate read (logout teardown). */
@@ -368,8 +341,31 @@ export class ShellManager {
     return def?.spec.state ? { ...def.spec.state } : {};
   }
 
+  /** Find one instance by id, apply `mutate`, and broadcast — but only when
+   * `mutate` returns a changed instance (null = no-op). Reads first so a no-op
+   * (a drag that lands in place, focusing the already-top window) never
+   * rewrites the whole shell file. */
+  private updateInstance(
+    instanceId: string,
+    mutate: (instance: WidgetInstance, shell: Shell) => WidgetInstance | null,
+  ): WidgetInstance | null {
+    const current = this.store.read();
+    const idx = current.instances.findIndex((i) => i.instanceId === instanceId);
+    if (idx === -1) return null;
+    const updated = mutate(current.instances[idx]!, current);
+    if (!updated) return null;
+    const instances = [...current.instances];
+    instances[idx] = updated;
+    this.broadcast(this.store.update(() => ({ ...current, instances })));
+    return updated;
+  }
+
+  private maxZ(shell: Shell): number {
+    return shell.instances.reduce((max, i) => Math.max(max, i.z), 0);
+  }
+
   private nextZ(shell: Shell): number {
-    return shell.instances.reduce((max, i) => Math.max(max, i.z), 0) + 1;
+    return this.maxZ(shell) + 1;
   }
 
   private placeNew(shell: Shell): WidgetGeometry {

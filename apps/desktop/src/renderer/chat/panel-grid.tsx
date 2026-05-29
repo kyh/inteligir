@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { Maximize2Icon, PlusIcon, XIcon } from "lucide-react";
 import {
   GridLayout,
@@ -12,6 +12,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { FloatingLayer } from "@/renderer/chat/floating-layer";
 import {
+  ChromeButton,
   closeInstance,
   isPermanentInstance,
   WidgetBody,
@@ -94,14 +95,14 @@ function Panel({
         <span className="truncate text-xs font-medium text-muted-foreground">{title}</span>
         <div className="flex shrink-0 items-center gap-0.5">
           {onPopOut ? (
-            <PanelButton label="Pop out to window" onClick={onPopOut}>
+            <ChromeButton label="Pop out to window" onClick={onPopOut}>
               <Maximize2Icon className="size-3.5" />
-            </PanelButton>
+            </ChromeButton>
           ) : null}
           {onRemove ? (
-            <PanelButton label="Close panel" onClick={onRemove}>
+            <ChromeButton label="Close panel" onClick={onRemove}>
               <XIcon className="size-3.5" />
-            </PanelButton>
+            </ChromeButton>
           ) : null}
         </div>
       </div>
@@ -110,30 +111,9 @@ function Panel({
   );
 }
 
-function PanelButton({
-  label,
-  onClick,
-  children,
-}: {
-  label: string;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={label}
-      className="rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
-      // Stop the grid drag handler from swallowing the click.
-      onMouseDown={(e) => e.stopPropagation()}
-      onClick={onClick}
-    >
-      {children}
-    </button>
-  );
-}
-
-function InstancePanel({
+// memo'd on instance + customDef identity (reused by the store reconcile for
+// unchanged widgets), so a floating-only change doesn't re-render every panel.
+const InstancePanel = memo(function InstancePanel({
   instance,
   customDef,
 }: {
@@ -151,7 +131,7 @@ function InstancePanel({
       <WidgetBody instance={instance} customDef={customDef} />
     </Panel>
   );
-}
+});
 
 // ---------------------------------------------------------------------------
 // Grid

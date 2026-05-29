@@ -6,6 +6,31 @@ import { WidgetViewer } from "@/renderer/chat/widget-viewer";
 import { getBridge } from "@/renderer/lib/bridge";
 import { builtinMeta, type CustomWidgetDef, type WidgetInstance } from "@/shared/shell";
 
+/** A panel/window header action button. Stops mouse + pointer propagation so
+ * it doesn't trigger the grid drag handle or a floating-window drag. */
+export function ChromeButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      className="rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
 export function widgetTitle(instance: WidgetInstance, customDef?: CustomWidgetDef): string {
   return builtinMeta(instance.widgetId)?.title ?? customDef?.title ?? instance.widgetId;
 }
