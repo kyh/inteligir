@@ -107,7 +107,7 @@ export const artifactCatalog = defineCatalog(schema, {
       params: z.object({ prompt: z.string() }),
       description:
         "Send a message to the agent as a chat turn. The agent runs with all its tools " +
-        "and can revise this artifact via manage_artifacts. Use for 'do something' buttons.",
+        "and can revise this panel via manage_ui. Use for 'do something' buttons.",
     },
     generateText: {
       params: z.object({

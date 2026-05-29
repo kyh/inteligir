@@ -67,17 +67,17 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setActiveExtensions: (toolNames: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
 
-  // Artifacts
-  listArtifacts: () => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_LIST),
-  getArtifact: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_GET, id),
-  upsertArtifact: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_UPSERT, input),
+  // Shell — reshapeable workspace
+  listShell: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST),
+  onShellUpdated: (listener: (next: unknown) => void) =>
+    forwardEvent(IPC_CHANNELS.SHELL_UPDATED, listener),
+  setWidgetGeometry: (geometries: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_GEOMETRY, geometries),
   setArtifactState: (id: string, state: unknown) =>
-    ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_SET_STATE, { id, state }),
-  deleteArtifact: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACTS_DELETE, id),
-  onArtifactsUpdated: (listener: (next: unknown) => void) =>
-    forwardEvent(IPC_CHANNELS.ARTIFACTS_UPDATED, listener),
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_STATE, { id, state }),
+  removeWidget: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_REMOVE_WIDGET, id),
 
-  // Live artifact actions
+  // Live widget actions
   artifactComplete: (prompt: string, system?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_COMPLETE, { prompt, system }),
   artifactFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.ARTIFACT_FETCH, url),

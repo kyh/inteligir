@@ -27,10 +27,6 @@ export type Artifact = {
   updatedAt: number;
 };
 
-export type ArtifactsList = {
-  artifacts: Artifact[];
-};
-
 export type ArtifactUpsertInput = {
   id?: string;
   title: string;

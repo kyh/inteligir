@@ -4,8 +4,9 @@
 
 import { Type, type Static } from "@sinclair/typebox";
 
-import { getArtifacts } from "@/main/artifacts";
+import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
+import { isArtifactWidget } from "@/shared/shell";
 import type { ArtifactSpec } from "@/shared/artifacts";
 import type { PiExtensionBundle } from "@/agent/extension";
 
@@ -58,7 +59,7 @@ const PatchOpParam = Type.Union(
   },
 );
 
-const ManageArtifactsSchema = Type.Object({
+const ManageUiSchema = Type.Object({
   action: Type.Union(
     [
       Type.Literal("list"),
@@ -66,7 +67,7 @@ const ManageArtifactsSchema = Type.Object({
       Type.Literal("create"),
       Type.Literal("update"),
       Type.Literal("patch"),
-      Type.Literal("delete"),
+      Type.Literal("remove"),
     ],
     { description: "Action to perform" },
   ),
@@ -74,17 +75,17 @@ const ManageArtifactsSchema = Type.Object({
     Type.String({
       minLength: 1,
       description:
-        "Artifact id (required for read/update/delete; optional for create — generated from title if omitted)",
+        "Widget id (required for read/update/patch/remove; optional for create — generated from title if omitted)",
     }),
   ),
   title: Type.Optional(
     Type.String({
       description:
-        "Human-readable title shown in the library and as the floating panel header (required for create)",
+        "Human-readable title shown as the panel header in the workspace (required for create)",
     }),
   ),
   description: Type.Optional(
-    Type.String({ description: "Optional short subtitle shown under the title in the library" }),
+    Type.String({ description: "Optional short subtitle shown under the title" }),
   ),
   spec: Type.Optional(
     Type.Unsafe<ArtifactSpec>({
@@ -118,109 +119,104 @@ const ManageArtifactsSchema = Type.Object({
   ),
 });
 
-const artifactsExtension: PiExtensionBundle = {
-  name: "manage_artifacts",
+const uiExtension: PiExtensionBundle = {
+  name: "manage_ui",
   register: () => (pi) => {
     pi.registerTool({
-      name: "manage_artifacts",
-      label: "manage_artifacts",
+      name: "manage_ui",
+      label: "manage_ui",
       description:
-        "Create, update, patch, list, read, or delete agent-rendered UI panels (artifacts). " +
-        "Artifacts are JSON specs persisted across sessions; the user can open them as " +
-        "floating panels from the Artifacts library. 'create' introduces a new panel, " +
+        "Create, update, patch, list, read, or remove panels in the user's workspace " +
+        "(the reshapeable 'shell'). Panels are JSON specs persisted across sessions; " +
+        "the user can drag, resize, and remove them. 'create' adds a new panel, " +
         "'update' replaces an existing one (same id) in full, 'patch' applies RFC 6902 " +
-        "operations for targeted edits (cheap for large specs), 'list' shows what exists.",
-      parameters: ManageArtifactsSchema,
-      execute: async (_toolCallId, params: Static<typeof ManageArtifactsSchema>) => {
+        "operations for targeted edits (cheap for large specs), 'list' shows what exists. " +
+        "The chat panel is permanent and can't be removed.",
+      parameters: ManageUiSchema,
+      execute: async (_toolCallId, params: Static<typeof ManageUiSchema>) => {
         const text = (s: string) => ({
           content: [{ type: "text" as const, text: s }],
           details: {},
         });
-        const mgr = getArtifacts();
+        const mgr = getShell();
         try {
           switch (params.action) {
             case "list": {
-              const { artifacts } = mgr.list();
-              if (artifacts.length === 0) return text("No artifacts.");
+              const { widgets } = mgr.list();
               return text(
-                artifacts
-                  .map(
-                    (a) =>
-                      `- ${a.id}: "${a.title}"${a.description ? ` — ${a.description}` : ""} (${Object.keys(a.spec.elements).length} elements)`,
+                widgets
+                  .map((w) =>
+                    isArtifactWidget(w)
+                      ? `- ${w.id}: "${w.title}"${w.description ? ` — ${w.description}` : ""} (${Object.keys(w.spec.elements).length} elements)`
+                      : `- ${w.id}: [${w.type}] (permanent)`,
                   )
                   .join("\n"),
               );
             }
             case "read": {
               if (!params.id) return text("Error: id is required for action='read'");
-              const found = mgr.get(params.id);
-              if (!found) return text(`Error: no artifact with id '${params.id}'`);
+              const found = mgr.getWidget(params.id);
+              if (!found) return text(`Error: no widget with id '${params.id}'`);
               return text(JSON.stringify(found, null, 2));
             }
             case "create": {
               if (!params.title) return text("Error: title is required for action='create'");
               if (!params.spec) return text("Error: spec is required for action='create'");
               // create is distinct from update — fail if the caller-supplied
-              // id already exists, instead of silently overwriting. Use an
-              // explicit undefined check rather than truthy so an empty
-              // string id (already rejected by the schema, but defensive)
-              // doesn't bypass the duplicate guard.
-              if (params.id !== undefined && mgr.get(params.id)) {
+              // id already exists, instead of silently overwriting.
+              if (params.id !== undefined && mgr.getWidget(params.id)) {
                 return text(
-                  `Error: artifact '${params.id}' already exists. Use action='update' to modify it, or omit id to auto-generate one.`,
+                  `Error: widget '${params.id}' already exists. Use action='update' to modify it, or omit id to auto-generate one.`,
                 );
               }
-              const created = mgr.upsert({
+              const created = mgr.upsertArtifact({
                 id: params.id,
                 title: params.title,
                 description: params.description,
                 spec: params.spec,
                 state: params.state,
               });
-              return text(`Created artifact '${created.id}' ("${created.title}").`);
+              return text(`Created panel '${created.id}' ("${created.title}").`);
             }
             case "update": {
               if (!params.id) return text("Error: id is required for action='update'");
-              const existing = mgr.get(params.id);
-              if (!existing) return text(`Error: no artifact with id '${params.id}'`);
+              const existing = mgr.getWidget(params.id);
+              if (!existing || !isArtifactWidget(existing)) {
+                return text(`Error: no editable panel with id '${params.id}'`);
+              }
               // title and spec are overwritten unconditionally by upsert, so
               // resolve them here; description and state fall through to
               // upsert's own omitted-preserves-existing fallback.
-              const updated = mgr.upsert({
+              const updated = mgr.upsertArtifact({
                 id: params.id,
                 title: params.title ?? existing.title,
                 description: params.description,
                 spec: params.spec ?? existing.spec,
                 state: params.state,
               });
-              return text(`Updated artifact '${updated.id}'.`);
+              return text(`Updated panel '${updated.id}'.`);
             }
             case "patch": {
               if (!params.id) return text("Error: id is required for action='patch'");
               if (!params.ops || params.ops.length === 0) {
                 return text("Error: ops is required for action='patch' (at least one operation)");
               }
-              const patched = mgr.patch({ id: params.id, ops: params.ops });
+              const patched = mgr.patchArtifactSpec({ id: params.id, ops: params.ops });
               return text(
-                `Patched artifact '${patched.id}' (${params.ops.length} op${params.ops.length === 1 ? "" : "s"}).`,
+                `Patched panel '${patched.id}' (${params.ops.length} op${params.ops.length === 1 ? "" : "s"}).`,
               );
             }
-            case "delete": {
-              if (!params.id) return text("Error: id is required for action='delete'");
-              const deleted = mgr.delete(params.id);
+            case "remove": {
+              if (!params.id) return text("Error: id is required for action='remove'");
+              const target = mgr.getWidget(params.id);
+              if (!target) return text(`No widget with id '${params.id}' to remove.`);
+              const removed = mgr.removeWidget(params.id);
               return text(
-                deleted
-                  ? `Deleted artifact '${params.id}'.`
-                  : `No artifact with id '${params.id}' to delete.`,
+                removed
+                  ? `Removed panel '${params.id}'.`
+                  : `Cannot remove '${params.id}' — it's a permanent panel.`,
               );
             }
-            default:
-              // Unreachable under the TypeBox schema, but guards against the
-              // tool framework passing through an unexpected action — without
-              // this, the function would implicitly return undefined.
-              return text(
-                `Error: unknown action '${(params as { action: string }).action}'`,
-              );
           }
         } catch (err) {
           return text(`Error: ${toErrorMessage(err)}`);
@@ -230,4 +226,4 @@ const artifactsExtension: PiExtensionBundle = {
   },
 };
 
-export default artifactsExtension;
+export default uiExtension;

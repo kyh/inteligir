@@ -34,7 +34,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { ArtifactUpsertInputSchema, getArtifacts } from "@/main/artifacts";
+import { getShell } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -299,34 +299,43 @@ function registerIpcHandlers(): void {
     },
   );
 
-  // ---- Artifacts (agent-rendered JSON UI panels) ----------------------------
+  // ---- Shell (reshapeable workspace of widgets) -----------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.ARTIFACTS_LIST, () => {
-    return getArtifacts().list();
-  });
-
-
-  createIpcHandler(IPC_CHANNELS.ARTIFACTS_GET, z.string().min(1), (id) => {
-    return getArtifacts().get(id);
-  });
-
-  createIpcHandler(IPC_CHANNELS.ARTIFACTS_UPSERT, ArtifactUpsertInputSchema, (input) => {
-    return getArtifacts().upsert(input);
+  createVoidIpcHandler(IPC_CHANNELS.SHELL_LIST, () => {
+    return getShell().list();
   });
 
   createIpcHandler(
-    IPC_CHANNELS.ARTIFACTS_SET_STATE,
-    z.object({ id: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
-    ({ id, state }) => {
-      return getArtifacts().setState(id, state);
+    IPC_CHANNELS.SHELL_SET_GEOMETRY,
+    z.record(
+      z.string(),
+      z.object({
+        x: z.number(),
+        y: z.number(),
+        w: z.number(),
+        h: z.number(),
+        minW: z.number().optional(),
+        minH: z.number().optional(),
+      }),
+    ),
+    (geometries) => {
+      getShell().setGeometries(geometries);
     },
   );
 
-  createIpcHandler(IPC_CHANNELS.ARTIFACTS_DELETE, z.string().min(1), (id) => {
-    return { deleted: getArtifacts().delete(id) };
+  createIpcHandler(
+    IPC_CHANNELS.SHELL_SET_STATE,
+    z.object({ id: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
+    ({ id, state }) => {
+      return getShell().setArtifactState(id, state);
+    },
+  );
+
+  createIpcHandler(IPC_CHANNELS.SHELL_REMOVE_WIDGET, z.string().min(1), (id) => {
+    return { removed: getShell().removeWidget(id) };
   });
 
-  // ---- Live artifact actions ------------------------------------------------
+  // ---- Live widget actions --------------------------------------------------
 
   createIpcHandler(
     IPC_CHANNELS.ARTIFACT_COMPLETE,

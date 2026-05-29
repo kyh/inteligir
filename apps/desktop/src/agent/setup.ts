@@ -19,7 +19,7 @@ import open from "open";
 
 import type { ExtensionToolInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
-import { resetArtifactsCache } from "@/main/artifacts";
+import { resetShellCache } from "@/main/shell";
 import { resetNotifications } from "@/main/notifications";
 import {
   runBundleSetups,
@@ -138,7 +138,7 @@ export function teardownResources(): void {
   // process restarts.
   _authStorage = null;
   resetNotifications();
-  resetArtifactsCache();
+  resetShellCache();
 }
 
 export function isLoggedIn(): boolean {

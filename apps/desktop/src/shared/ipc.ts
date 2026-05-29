@@ -1,6 +1,6 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
-import type { Artifact, ArtifactsList, ArtifactUpsertInput } from "./artifacts";
+import type { ArtifactWidget, ShellList, WidgetGeometry } from "./shell";
 import type {
   CreateTaskParams,
   CreateTaskResult,
@@ -60,15 +60,14 @@ export const IPC_CHANNELS = {
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 
-  // Artifacts — agent-rendered JSON UI panels
-  ARTIFACTS_LIST: "artifacts:list",
-  ARTIFACTS_GET: "artifacts:get",
-  ARTIFACTS_UPSERT: "artifacts:upsert",
-  ARTIFACTS_SET_STATE: "artifacts:set-state",
-  ARTIFACTS_DELETE: "artifacts:delete",
-  ARTIFACTS_UPDATED: "artifacts:updated",
+  // Shell — the reshapeable workspace of widgets (chat + agent-authored panels)
+  SHELL_LIST: "shell:list",
+  SHELL_UPDATED: "shell:updated",
+  SHELL_SET_GEOMETRY: "shell:set-geometry",
+  SHELL_SET_STATE: "shell:set-state",
+  SHELL_REMOVE_WIDGET: "shell:remove-widget",
 
-  // Live artifact actions
+  // Live widget actions
   ARTIFACT_COMPLETE: "artifact:complete",
   ARTIFACT_FETCH: "artifact:fetch",
   ARTIFACT_OPEN_URL: "artifact:open-url",
@@ -192,18 +191,17 @@ export type DesktopBridge = {
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
 
-  // Artifacts — agent-rendered JSON UI panels
-  listArtifacts: () => Promise<ArtifactsList>;
-  getArtifact: (id: string) => Promise<Artifact | null>;
-  upsertArtifact: (input: ArtifactUpsertInput) => Promise<Artifact>;
+  // Shell — the reshapeable workspace of widgets
+  listShell: () => Promise<ShellList>;
+  onShellUpdated: (listener: (next: ShellList) => void) => () => void;
+  setWidgetGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
   setArtifactState: (
     id: string,
     state: Record<string, unknown>,
-  ) => Promise<Artifact | null>;
-  deleteArtifact: (id: string) => Promise<{ deleted: boolean }>;
-  onArtifactsUpdated: (listener: (next: ArtifactsList) => void) => () => void;
+  ) => Promise<ArtifactWidget | null>;
+  removeWidget: (id: string) => Promise<{ removed: boolean }>;
 
-  // Live artifact actions
+  // Live widget actions
   artifactComplete: (prompt: string, system?: string) => Promise<string>;
   artifactFetch: (url: string) => Promise<string>;
   artifactOpenUrl: (url: string) => Promise<boolean>;

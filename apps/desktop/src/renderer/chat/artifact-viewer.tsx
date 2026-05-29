@@ -5,42 +5,42 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { artifactRegistry } from "@/renderer/chat/artifact-registry";
-import type { Artifact } from "@/shared/artifacts";
+import type { ArtifactWidget } from "@/shared/shell";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
 const STATE_PERSIST_DEBOUNCE_MS = 400;
 
-type Props = { artifact: Artifact };
+type Props = { widget: ArtifactWidget };
 
 /**
- * Renders one artifact spec via json-render.
+ * Renders one artifact widget's spec via json-render.
  *
  * State ownership is single-writer: this viewer owns the live bound state for
- * its lifetime. It seeds the json-render store once from the artifact's
+ * its lifetime. It seeds the json-render store once from the widget's
  * persisted state, then persists the full snapshot back to disk (debounced) —
  * a whole-object replace, so keys the user clears actually disappear. Agent
- * spec edits arrive through the `artifact` prop and re-render the spec without
+ * spec edits arrive through the `widget` prop and re-render the spec without
  * disturbing live input state; an agent state reset reflects on the panel's
  * next mount (a deliberate, rare tradeoff).
  *
- * memo'd on the artifact reference so a sibling panel's state write — which
- * replaces only that artifact in the store array — doesn't re-render this one.
+ * memo'd on the widget reference so a sibling panel's state write — which
+ * replaces only that widget in the store array — doesn't re-render this one.
  */
-export const ArtifactViewer = memo(function ArtifactViewer({ artifact }: Props) {
+export const ArtifactViewer = memo(function ArtifactViewer({ widget }: Props) {
   // Lazily create + seed the store on first render so bound components render
   // with the persisted state on the very first paint (no empty-then-fill
   // flash). Seeded once per mount; agent state resets reflect on remount.
   const storeRef = useRef<StateStore | null>(null);
-  if (storeRef.current === null) storeRef.current = createStateStore(artifact.state);
+  if (storeRef.current === null) storeRef.current = createStateStore(widget.state);
   const getStore = (): StateStore => storeRef.current!;
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Only flush when the store actually changed since the last persist, so the
   // unconditional unmount flush doesn't re-send an unchanged snapshot.
   const dirtyRef = useRef(false);
-  const idRef = useRef(artifact.id);
-  idRef.current = artifact.id;
+  const idRef = useRef(widget.id);
+  idRef.current = widget.id;
 
   const flushPersist = useMemo(
     () => () => {
@@ -123,7 +123,7 @@ export const ArtifactViewer = memo(function ArtifactViewer({ artifact }: Props) 
   return (
     <div className="flex flex-col gap-4 p-3">
       <JSONUIProvider registry={artifactRegistry} store={getStore()} handlers={handlers}>
-        <Renderer spec={artifact.spec as unknown as Spec} registry={artifactRegistry} />
+        <Renderer spec={widget.spec as unknown as Spec} registry={artifactRegistry} />
       </JSONUIProvider>
     </div>
   );
