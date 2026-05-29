@@ -29,6 +29,7 @@ import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import * as executor from "@/main/executor/executor-client";
+import { listSkills } from "@/agent/setup";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -40,7 +41,7 @@ import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, ExecutorStatus, UpdateState } from "@/shared/ipc";
+import type { ExtensionsList, ExecutorStatus, SkillsList, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -355,6 +356,12 @@ function registerIpcHandlers(): void {
     // rather than silently no-op'ing and leaving an OAuth flow to time out.
     if (!isHttpUrl(url)) throw new Error(`refusing to open non-http URL: ${url}`);
     void shell.openExternal(url);
+  });
+
+  // ---- Skills ---------------------------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
+    return { skills: listSkills() };
   });
 }
 

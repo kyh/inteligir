@@ -1,8 +1,9 @@
 import { useEffect } from "react";
-import { ListTodoIcon, PlugIcon, SettingsIcon } from "lucide-react";
+import { ListTodoIcon, PlugIcon, SettingsIcon, SparklesIcon } from "lucide-react";
 
 import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
 import { SettingsPanel } from "@/renderer/chat/settings-panel";
+import { SkillsPanel } from "@/renderer/chat/skills-panel";
 import { TaskPanel } from "@/renderer/chat/task-panel";
 import { BottomDock, type DockPanel } from "@/renderer/chat/bottom-dock";
 import { PanelGrid } from "@/renderer/chat/panel-grid";
@@ -37,6 +38,7 @@ function todayLabel(): string {
 const OPEN_PANELS_KEY = "open-panels";
 const DEFAULT_OPEN: Record<DockPanel, boolean> = {
   tasks: false,
+  skills: false,
   extensions: false,
   settings: false,
 };
@@ -89,6 +91,17 @@ export function ChatPage() {
         initialSize={{ width: 320, height: 400 }}
       >
         <TaskPanel />
+      </DraggablePanel>
+
+      <DraggablePanel
+        title="Skills"
+        icon={<SparklesIcon className="size-3.5" />}
+        isOpen={open.skills}
+        onClose={() => closePanel("skills")}
+        initialPosition={{ x: 320, y: 80 }}
+        initialSize={{ width: 360, height: 480 }}
+      >
+        <SkillsPanel />
       </DraggablePanel>
 
       <DraggablePanel

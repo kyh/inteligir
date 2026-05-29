@@ -79,6 +79,9 @@ export const IPC_CHANNELS = {
   EXECUTOR_OAUTH_START: "executor:oauth:start",
   EXECUTOR_OAUTH_AWAIT: "executor:oauth:await",
   EXECUTOR_OPEN_EXTERNAL: "executor:open-external",
+
+  // Skills
+  SKILLS_LIST: "skills:list",
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -216,6 +219,9 @@ export type DesktopBridge = {
   executorOAuthStart: (input: OAuthStartInput) => Promise<OAuthStartResult>;
   executorOAuthAwait: (sessionId: string) => Promise<OAuthAwaitResult | null>;
   executorOpenExternal: (url: string) => Promise<void>;
+
+  // Skills
+  listSkills: () => Promise<SkillsList>;
 };
 
 /** Whether the executor daemon is running, and the active scope when it is. */
@@ -235,7 +241,7 @@ export type NotificationSettings = {
 // Extensions (#7) — projection of pi-coding-agent's tool registry for the dock
 // ---------------------------------------------------------------------------
 
-import type { PiAgentTool } from "@repo/pi-driver";
+import type { PiAgentSkill, PiAgentTool } from "@repo/pi-driver";
 
 import type {
   AddGoogleSourceInput,
@@ -259,6 +265,17 @@ export type ExtensionToolInfo = PiAgentTool;
 
 export type ExtensionsList = {
   tools: ExtensionToolInfo[];
+};
+
+// ---------------------------------------------------------------------------
+// Skills — SKILL.md capability docs pi discovers under the user (~/.inteligir/
+// skills) and project (<workspace>/.pi/skills) scopes
+// ---------------------------------------------------------------------------
+
+export type SkillInfo = PiAgentSkill;
+
+export type SkillsList = {
+  skills: SkillInfo[];
 };
 
 // ---------------------------------------------------------------------------

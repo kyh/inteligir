@@ -98,4 +98,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, sessionId),
   executorOpenExternal: (url: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, url),
+
+  // Skills
+  listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
 });
