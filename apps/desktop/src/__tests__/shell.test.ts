@@ -8,12 +8,8 @@ vi.mock("electron", () => ({
 }));
 
 import { ShellManager } from "@/main/shell";
-import {
-  CHAT_WIDGET_ID,
-  type WidgetDef,
-  type WidgetInstance,
-  type WidgetSpec,
-} from "@/shared/shell";
+import { CHAT_WIDGET_ID, type WidgetDef, type WidgetInstance } from "@/shared/shell";
+import type { WidgetSpec } from "@/shared/widget-spec";
 
 const SPEC: WidgetSpec = {
   root: "r",
@@ -210,10 +206,9 @@ describe("ShellManager.placeWidget", () => {
     // The dock launches widgets without specifying a surface — for floating
     // singletons this raises z, for pinned it must do *something* (pop to
     // floating) instead of silently no-op'ing while the dock shows active.
-    const focused = mgr.placeWidget("tasks");
-    expect(focused).not.toBeNull();
-    expect(focused!.instanceId).toBe(pinned.instanceId);
-    expect(focused!.placement.surface).toBe("floating");
+    const focused = must(mgr.placeWidget("tasks"), "expected focused instance");
+    expect(focused.instanceId).toBe(pinned.instanceId);
+    expect(focused.placement.surface).toBe("floating");
   });
 
   it("places a generated widget multiple times", () => {

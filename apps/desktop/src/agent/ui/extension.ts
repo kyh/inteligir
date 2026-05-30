@@ -3,12 +3,8 @@ import { Type, type Static } from "@sinclair/typebox";
 import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
-import {
-  JSON_WIDGET_COMPONENT_TYPES,
-  WIDGET_ACTION_NAMES,
-  isBuiltin,
-  isJsonUi,
-} from "@/shared/shell";
+import { JSON_WIDGET_COMPONENT_TYPES, WIDGET_ACTION_NAMES } from "@/shared/widget-spec";
+import { isBuiltin, isJsonUi } from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
 
 function literalUnion<T extends string>(values: readonly T[]) {

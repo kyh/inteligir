@@ -9,7 +9,7 @@ import { defineCatalog } from "@json-render/core";
 import { schema } from "@json-render/react/schema";
 import { z } from "zod";
 
-import { WIDGET_ACTION_DESCRIPTIONS } from "@/shared/shell";
+import { WIDGET_ACTION_DESCRIPTIONS } from "@/shared/widget-spec";
 
 const gap = z.enum(["sm", "md", "lg"]).optional();
 const textSize = z.enum(["xs", "sm", "base"]).optional();

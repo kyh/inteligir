@@ -2,19 +2,21 @@ import { VisibilityConditionSchema } from "@json-render/core";
 import { z } from "zod";
 
 import {
-  JSON_WIDGET_COMPONENT_TYPES,
-  WIDGET_ACTION_NAMES,
   type InstallWidgetInput,
-  type JsonWidgetComponentType,
   type Shell,
   type UpdateWidgetInput,
+  type WidgetPatchInput,
+} from "@/shared/shell";
+import {
+  JSON_WIDGET_COMPONENT_TYPES,
+  WIDGET_ACTION_NAMES,
+  type JsonWidgetComponentType,
   type WidgetActionName,
   type WidgetActionRequest,
-  type WidgetPatchInput,
   type WidgetSpec,
   type WidgetSpecElement,
   type WidgetSpecInput,
-} from "@/shared/shell";
+} from "@/shared/widget-spec";
 
 function stringEnumSchema<T extends string>(values: readonly T[], label: string): z.ZodType<T> {
   return z.custom<T>(
