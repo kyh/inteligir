@@ -1,12 +1,74 @@
 import { describe, expect, it, vi } from "vitest";
 
+const electronMock = vi.hoisted(() => {
+  type IpcEvent = { sender: { id: number } };
+  type IpcListener = (event: IpcEvent, payload: unknown) => void;
+  type FakeWindow = {
+    isDestroyed: () => boolean;
+    webContents: { id: number; send: (channel: string, payload: unknown) => void };
+  };
+  type SentMessage = { webContentsId: number; channel: string; payload: unknown };
+
+  const windows: FakeWindow[] = [];
+  const sent: SentMessage[] = [];
+  const listeners = new Map<string, Set<IpcListener>>();
+
+  return {
+    windows,
+    sent,
+    reset: () => {
+      windows.splice(0);
+      sent.splice(0);
+      listeners.clear();
+    },
+    listenerCount: (channel: string) => listeners.get(channel)?.size ?? 0,
+    emit: (channel: string, senderId: number, payload: unknown) => {
+      for (const listener of listeners.get(channel) ?? []) {
+        listener({ sender: { id: senderId } }, payload);
+      }
+    },
+    BrowserWindow: {
+      getAllWindows: vi.fn(() => windows),
+    },
+    ipcMain: {
+      on: vi.fn((channel: string, listener: IpcListener) => {
+        const current = listeners.get(channel) ?? new Set<IpcListener>();
+        current.add(listener);
+        listeners.set(channel, current);
+      }),
+      removeListener: vi.fn((channel: string, listener: IpcListener) => {
+        listeners.get(channel)?.delete(listener);
+      }),
+    },
+  };
+});
+
 vi.mock("electron", () => ({
-  BrowserWindow: { getAllWindows: vi.fn().mockReturnValue([]) },
-  ipcMain: { on: vi.fn(), removeListener: vi.fn() },
+  BrowserWindow: electronMock.BrowserWindow,
+  ipcMain: electronMock.ipcMain,
 }));
 
 import { flushInstanceState, registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
 import { flushRendererInstance } from "@/main/lib/widget-flush";
+import { IPC_CHANNELS } from "@/shared/ipc";
+
+function addWindow(id: number): void {
+  electronMock.windows.push({
+    isDestroyed: () => false,
+    webContents: {
+      id,
+      send: (channel, payload) => {
+        electronMock.sent.push({ webContentsId: id, channel, payload });
+      },
+    },
+  });
+}
+
+function sentPayload(index: number): unknown {
+  const message = electronMock.sent[index];
+  if (!message) throw new Error("missing sent message");
+  return message.payload;
+}
 
 function missingFlushResolver(): void {
   throw new Error("flush resolver missing");
@@ -67,7 +129,43 @@ describe("instance-state-flush", () => {
 });
 
 describe("flushRendererInstance (main → renderer round-trip)", () => {
+  it("waits for every targeted renderer window to ack", async () => {
+    electronMock.reset();
+    addWindow(1);
+    addWindow(2);
+
+    let resolved: boolean | null = null;
+    const pending = flushRendererInstance("instance", 1000).then((result) => {
+      resolved = result;
+      return result;
+    });
+    await Promise.resolve();
+
+    expect(electronMock.sent.map((message) => message.webContentsId)).toEqual([1, 2]);
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, sentPayload(0));
+    await Promise.resolve();
+    expect(resolved).toBeNull();
+
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 2, sentPayload(0));
+    await expect(pending).resolves.toBe(true);
+    expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
+  });
+
+  it("returns false and removes the listener when a targeted window does not ack", async () => {
+    electronMock.reset();
+    addWindow(1);
+    addWindow(2);
+
+    const pending = flushRendererInstance("instance", 10);
+    await Promise.resolve();
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, sentPayload(0));
+
+    await expect(pending).resolves.toBe(false);
+    expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
+  });
+
   it("resolves true immediately when no renderer window is alive", async () => {
+    electronMock.reset();
     // The electron mock above returns an empty window list, so this exercises
     // the no-renderer fallback path used in headless environments and tests.
     // A missing renderer means "nothing pending" — a positive ack equivalent.
