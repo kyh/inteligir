@@ -39,6 +39,10 @@ function parseArrayIndex(seg: string, pointer: string): number {
   return Number.parseInt(seg, 10);
 }
 
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 /** Apply one RFC 6902 op to `root` in place. Refuses prototype-reserved keys
  * and non-canonical / out-of-bounds array indices. */
 export function applyJsonPatchOp(root: unknown, op: JsonPatchOp): void {
@@ -47,21 +51,22 @@ export function applyJsonPatchOp(root: unknown, op: JsonPatchOp): void {
     throw new Error("Cannot patch the document root — replace the whole value instead");
   }
   let parent: unknown = root;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const seg = segments[i]!;
+  const pathToParent = segments.slice(0, -1);
+  for (const [i, seg] of pathToParent.entries()) {
     if (Array.isArray(parent)) {
       parent = parent[parseArrayIndex(seg, op.path)];
-    } else if (parent !== null && typeof parent === "object") {
+    } else if (isObjectRecord(parent)) {
       assertSafeKey(seg, op.path, "traverse");
-      parent = (parent as Record<string, unknown>)[seg];
+      parent = parent[seg];
     } else {
       throw new Error(`${op.path} traverses non-container at segment ${i}`);
     }
     if (parent === undefined) {
-      throw new Error(`${op.path} does not exist (missing segment '${segments[i]}')`);
+      throw new Error(`${op.path} does not exist (missing segment '${seg}')`);
     }
   }
-  const last = segments[segments.length - 1]!;
+  const last = segments.at(-1);
+  if (last === undefined) throw new Error(`Invalid JSON Pointer: ${op.path}`);
   if (Array.isArray(parent)) {
     if (last === "-" && op.op !== "add") {
       throw new Error(`'-' index is only valid for add in ${op.path}`);
@@ -83,11 +88,10 @@ export function applyJsonPatchOp(root: unknown, op: JsonPatchOp): void {
       }
       parent.splice(idx, 1);
     }
-  } else if (parent !== null && typeof parent === "object") {
+  } else if (isObjectRecord(parent)) {
     assertSafeKey(last, op.path, op.op);
-    const obj = parent as Record<string, unknown>;
-    if (op.op === "add" || op.op === "replace") obj[last] = op.value;
-    else delete obj[last];
+    if (op.op === "add" || op.op === "replace") parent[last] = op.value;
+    else delete parent[last];
   } else {
     throw new Error(`Cannot ${op.op} at ${op.path}: parent is not a container`);
   }

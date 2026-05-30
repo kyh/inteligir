@@ -22,11 +22,7 @@ export async function flushRendererInstance(
   const requestId = randomUUID();
   return new Promise<boolean>((resolve) => {
     const handler = (_e: Electron.IpcMainEvent, payload: unknown): void => {
-      if (
-        typeof payload === "object" &&
-        payload !== null &&
-        (payload as { requestId?: unknown }).requestId === requestId
-      ) {
+      if (isFlushAck(payload, requestId)) {
         cleanup();
         resolve(true);
       }
@@ -44,4 +40,13 @@ export async function flushRendererInstance(
       w.webContents.send(IPC_CHANNELS.SHELL_FLUSH_REQUEST, { instanceId, requestId });
     }
   });
+}
+
+function isFlushAck(payload: unknown, requestId: string): payload is { requestId: string } {
+  return (
+    typeof payload === "object" &&
+    payload !== null &&
+    "requestId" in payload &&
+    payload.requestId === requestId
+  );
 }
