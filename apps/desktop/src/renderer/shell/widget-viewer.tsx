@@ -1,6 +1,6 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import { createStateStore, type StateStore } from "@json-render/core";
-import { JSONUIProvider, Renderer } from "@json-render/react";
+import { JSONUIProvider, Renderer, ValidationProvider } from "@json-render/react";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
@@ -153,7 +153,13 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   return (
     <div className="flex flex-col gap-4 p-3">
       <JSONUIProvider registry={widgetRegistry} store={getStore()} handlers={handlers}>
-        <Renderer spec={def.source.spec} registry={widgetRegistry} />
+        {/* ValidationProvider connects the framework's built-in `validateForm`
+         * action — without it, the action dispatches but no-ops with a console
+         * warning. setState/pushState/removeState are framework built-ins too
+         * and work automatically with the store passed to JSONUIProvider. */}
+        <ValidationProvider>
+          <Renderer spec={def.source.spec} registry={widgetRegistry} />
+        </ValidationProvider>
       </JSONUIProvider>
     </div>
   );

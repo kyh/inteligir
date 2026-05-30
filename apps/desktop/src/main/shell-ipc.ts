@@ -2,12 +2,20 @@ import { z } from "zod";
 
 import { deleteWithFlush, placeWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
+import { defaultShellSnapshot } from "@/main/shell-defaults";
 import { GeometrySchema, InstallWidgetInputSchema, RectSchema } from "@/main/shell-schema";
 import { getShell, isShellWritable } from "@/main/shell";
 import { IPC_CHANNELS } from "@/shared/ipc";
 
 export function registerShellIpcHandlers(): void {
-  createVoidIpcHandler(IPC_CHANNELS.SHELL_LIST, () => getShell().snapshot());
+  createVoidIpcHandler(IPC_CHANNELS.SHELL_LIST, () => {
+    // While writes are suspended (post-logout), don't construct a fresh
+    // ShellManager — its constructor's withPermanentInstances repair writes
+    // runtime-ui.json, which would re-create the directory teardownResources
+    // just removed. The renderer's listShell retry loop hits this path.
+    if (!isShellWritable()) return defaultShellSnapshot();
+    return getShell().snapshot();
+  });
 
   createIpcHandler(IPC_CHANNELS.SHELL_INSTALL, InstallWidgetInputSchema, (input) => {
     if (!isShellWritable()) throw new Error("Shell not ready");
