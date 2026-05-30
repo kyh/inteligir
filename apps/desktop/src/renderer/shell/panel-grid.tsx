@@ -7,7 +7,6 @@ import "react-grid-layout/css/styles.css";
 import { cn } from "@repo/ui/lib/utils";
 
 import { FloatingLayer } from "@/renderer/shell/floating-layer";
-import { initFlushBridge } from "@/renderer/shell/instance-state-flush";
 import {
   ChromeButton,
   closeInstance,
@@ -143,7 +142,6 @@ export function PanelGrid() {
 
   useEffect(() => {
     initShell();
-    initFlushBridge();
   }, []);
   const instances = useShellStore((s) => s.instances);
   const defs = useShellStore((s) => s.defs);
