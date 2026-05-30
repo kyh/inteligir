@@ -91,7 +91,7 @@ const ManageUiSchema = Type.Union([
     {
       action: Type.Literal("update"),
       id: Type.String({ minLength: 1 }),
-      expectedRevision: Type.Number({ minimum: 1 }),
+      expectedRevision: Type.Integer({ minimum: 1 }),
       title: Type.Optional(Type.String({ minLength: 1 })),
       description: Type.Optional(Type.String()),
       spec: SpecParam,
@@ -102,7 +102,7 @@ const ManageUiSchema = Type.Union([
     {
       action: Type.Literal("patch"),
       id: Type.String({ minLength: 1 }),
-      expectedRevision: Type.Number({ minimum: 1 }),
+      expectedRevision: Type.Integer({ minimum: 1 }),
       ops: Type.Array(PatchOpParam, { minItems: 1 }),
     },
     { additionalProperties: false },
@@ -111,7 +111,7 @@ const ManageUiSchema = Type.Union([
     {
       action: Type.Literal("delete"),
       id: Type.String({ minLength: 1 }),
-      expectedRevision: Type.Number({ minimum: 1 }),
+      expectedRevision: Type.Integer({ minimum: 1 }),
     },
     { additionalProperties: false },
   ),

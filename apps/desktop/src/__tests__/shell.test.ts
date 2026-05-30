@@ -371,6 +371,17 @@ describe("ShellManager state and patching", () => {
     expect(patched.revision).toBe(2);
   });
 
+  it("rejects empty patches", () => {
+    const def = mgr.installWidget({ id: "p", title: "P", spec: SPEC });
+    expect(() =>
+      mgr.patchWidgetSpec({
+        id: def.id,
+        expectedRevision: def.revision,
+        ops: [],
+      }),
+    ).toThrow(/at least one op/);
+  });
+
   it("refuses a prototype-polluting path", () => {
     const def = mgr.installWidget({ id: "p", title: "P", spec: SPEC });
     expect(() =>

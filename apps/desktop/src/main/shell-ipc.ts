@@ -24,7 +24,10 @@ export function registerShellIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_DELETE,
-    z.object({ widgetId: z.string().min(1), expectedRevision: z.number().optional() }),
+    z.object({
+      widgetId: z.string().min(1),
+      expectedRevision: z.number().int().positive().optional(),
+    }),
     async ({ widgetId, expectedRevision }) => {
       return { deleted: await deleteWithFlush(widgetId, expectedRevision) };
     },

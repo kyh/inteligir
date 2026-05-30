@@ -171,13 +171,15 @@ export const UpdateWidgetInputSchema = z.object({
 export const WidgetPatchInputSchema = z.object({
   id: z.string().min(1),
   expectedRevision: z.number().int().positive(),
-  ops: z.array(
-    z.discriminatedUnion("op", [
-      z.object({ op: z.literal("add"), path: z.string(), value: z.unknown() }),
-      z.object({ op: z.literal("replace"), path: z.string(), value: z.unknown() }),
-      z.object({ op: z.literal("remove"), path: z.string() }),
-    ]),
-  ),
+  ops: z
+    .array(
+      z.discriminatedUnion("op", [
+        z.object({ op: z.literal("add"), path: z.string(), value: z.unknown() }),
+        z.object({ op: z.literal("replace"), path: z.string(), value: z.unknown() }),
+        z.object({ op: z.literal("remove"), path: z.string() }),
+      ]),
+    )
+    .min(1),
 });
 
 // ---------------------------------------------------------------------------
@@ -322,6 +324,7 @@ export class ShellManager {
   }
 
   patchWidgetSpec(input: WidgetPatchInput): JsonUiWidgetDef {
+    if (input.ops.length === 0) throw new Error("Widget patch must contain at least one op");
     return this.mutateJsonUiDef(input.id, input.expectedRevision, (def) => {
       const draft = structuredClone(def.source.spec);
       for (const op of input.ops) applyJsonPatchOp(draft, op);
