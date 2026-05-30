@@ -31,8 +31,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
-import { GeometrySchema, getShell, InstallWidgetInputSchema, RectSchema } from "@/main/shell";
+import { registerShellIpcHandlers } from "@/main/shell-ipc";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
@@ -312,72 +311,7 @@ function registerIpcHandlers(): void {
     },
   );
 
-  // ---- Shell (OS-like workspace: definitions + placed instances) ------------
-
-  createVoidIpcHandler(IPC_CHANNELS.SHELL_LIST, () => {
-    return getShell().snapshot();
-  });
-
-  createIpcHandler(IPC_CHANNELS.SHELL_INSTALL, InstallWidgetInputSchema, (input) => {
-    return getShell().installWidget(input);
-  });
-
-  createIpcHandler(
-    IPC_CHANNELS.SHELL_PLACE,
-    z.object({ widgetId: z.string().min(1), surface: z.enum(["pinned", "floating"]).optional() }),
-    ({ widgetId, surface }) => {
-      return getShell().placeWidget(widgetId, surface);
-    },
-  );
-
-  createIpcHandler(IPC_CHANNELS.SHELL_UNPLACE, z.string().min(1), async (instanceId) => {
-    return { removed: await unplaceWithFlush(instanceId) };
-  });
-
-  createIpcHandler(
-    IPC_CHANNELS.SHELL_DELETE,
-    z.object({ widgetId: z.string().min(1), expectedRevision: z.number().optional() }),
-    async ({ widgetId, expectedRevision }) => {
-      return { deleted: await deleteWithFlush(widgetId, expectedRevision) };
-    },
-  );
-
-  createIpcHandler(
-    IPC_CHANNELS.SHELL_SET_GEOMETRY,
-    z.record(z.string(), GeometrySchema),
-    (geometries) => {
-      getShell().setGeometries(geometries);
-    },
-  );
-
-  createIpcHandler(
-    IPC_CHANNELS.SHELL_SET_RECT,
-    z.object({ instanceId: z.string().min(1), rect: RectSchema }),
-    ({ instanceId, rect }) => {
-      getShell().setRect(instanceId, rect);
-    },
-  );
-
-  createIpcHandler(
-    IPC_CHANNELS.SHELL_SET_SURFACE,
-    z.object({ instanceId: z.string().min(1), surface: z.enum(["pinned", "floating"]) }),
-    ({ instanceId, surface }) => {
-      return getShell().setSurface(instanceId, surface);
-    },
-  );
-
-  createIpcHandler(IPC_CHANNELS.SHELL_FOCUS, z.string().min(1), (instanceId) => {
-    getShell().bringToFront(instanceId);
-  });
-
-  createIpcHandler(
-    IPC_CHANNELS.SHELL_SET_STATE,
-    z.object({ instanceId: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
-    ({ instanceId, state }) => {
-      return getShell().setInstanceState(instanceId, state);
-    },
-  );
-
+  registerShellIpcHandlers();
   registerWidgetActionIpcHandlers();
 
   // ---- Executor (integration backend) ---------------------------------------
