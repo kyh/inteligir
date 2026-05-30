@@ -48,16 +48,26 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
   // them off. Clicking toggles placement on the workspace.
   const defs = useShellStore((s) => s.defs);
   const instances = useShellStore((s) => s.instances);
-  const placedInstanceId = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const i of instances) map.set(i.widgetId, i.instanceId);
+  // Multi-instance defs (customs) can have several placements at once; group
+  // them so toggle-off clears every instance, not just one.
+  const placedInstanceIds = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const i of instances) {
+      const arr = map.get(i.widgetId);
+      if (arr) arr.push(i.instanceId);
+      else map.set(i.widgetId, [i.instanceId]);
+    }
     return map;
   }, [instances]);
 
   const toggle = (widgetId: string) => {
-    const instanceId = placedInstanceId.get(widgetId);
-    if (instanceId) void getBridge()?.unplaceWidget(instanceId);
-    else void getBridge()?.placeWidget(widgetId);
+    const ids = placedInstanceIds.get(widgetId);
+    const bridge = getBridge();
+    if (ids?.length) {
+      for (const id of ids) void bridge?.unplaceWidget(id);
+    } else {
+      void bridge?.placeWidget(widgetId);
+    }
   };
 
   const visibleDefs = defs.filter((d) => !d.permanent);
@@ -81,7 +91,7 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
             key={def.id}
             icon={widgetIcon(def)}
             label={def.title}
-            active={placedInstanceId.has(def.id)}
+            active={placedInstanceIds.has(def.id)}
             onClick={() => toggle(def.id)}
           />
         ))}

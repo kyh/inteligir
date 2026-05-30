@@ -266,28 +266,43 @@ export class ShellManager {
 
   /** Place an instance of a widget on the given surface (default: a floating
    * window). Singleton defs that are already placed return the existing
-   * instance. Unknown widget ids return null. */
-  placeWidget(widgetId: string, surface: WidgetSurface = "floating"): WidgetInstance | null {
+   * instance — switched to the requested surface when one is given explicitly.
+   * Unknown widget ids return null. */
+  placeWidget(widgetId: string, surface?: WidgetSurface): WidgetInstance | null {
     let result: WidgetInstance | null = null;
-    let added = false;
+    let changed = false;
     const next = this.store.update((current) => {
       const def = this.findDef(current, widgetId);
       if (!def) return current;
       if (def.singleton) {
         const existing = current.instances.find((i) => i.widgetId === widgetId);
         if (existing) {
+          if (surface && existing.placement.surface !== surface) {
+            const updated: WidgetInstance = {
+              ...existing,
+              placement: this.makePlacement(current, def, surface),
+            };
+            result = updated;
+            changed = true;
+            return {
+              ...current,
+              instances: current.instances.map((i) =>
+                i.instanceId === existing.instanceId ? updated : i,
+              ),
+            };
+          }
           result = existing;
           return current;
         }
       }
       const initial =
         def.source.kind === "custom" && def.source.spec.state ? { ...def.source.spec.state } : {};
-      const instance = this.makeInstance(current, def, surface, initial);
+      const instance = this.makeInstance(current, def, surface ?? "floating", initial);
       result = instance;
-      added = true;
+      changed = true;
       return { ...current, instances: [...current.instances, instance] };
     });
-    if (added) this.broadcast(next);
+    if (changed) this.broadcast(next);
     return result;
   }
 

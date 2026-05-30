@@ -90,6 +90,15 @@ describe("ShellManager.placeWidget", () => {
     expect(mgr.snapshot().instances.filter((i) => i.widgetId === "tasks")).toHaveLength(1);
   });
 
+  it("switches an already-placed singleton to the requested surface", () => {
+    const first = mgr.placeWidget("tasks", "floating")!;
+    expect(first.placement.surface).toBe("floating");
+    const second = mgr.placeWidget("tasks", "pinned")!;
+    expect(second.instanceId).toBe(first.instanceId);
+    expect(second.placement.surface).toBe("pinned");
+    expect(mgr.snapshot().instances.filter((i) => i.widgetId === "tasks")).toHaveLength(1);
+  });
+
   it("places a custom widget multiple times (multi-instance)", () => {
     const { def } = mgr.createWidget({ title: "Note", spec: SPEC });
     mgr.placeWidget(def.id);

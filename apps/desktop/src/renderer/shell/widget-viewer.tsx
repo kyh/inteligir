@@ -97,10 +97,19 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
       // Live actions. generateText/fetchUrl write their result into the store
       // at `into`; the store subscriber persists it and bound components
       // re-render. Errors surface as a toast.
-      sendPrompt: (params: Record<string, unknown>) => {
+      sendPrompt: async (params: Record<string, unknown>) => {
         const prompt = typeof params["prompt"] === "string" ? params["prompt"] : "";
         if (!prompt) return;
-        void getBridge()?.sendAgentCommand({ type: "user_message", text: prompt });
+        const bridge = getBridge();
+        if (!bridge) {
+          toast.error("Agent unavailable");
+          return;
+        }
+        try {
+          await bridge.sendAgentCommand({ type: "user_message", text: prompt });
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : "Failed to send prompt");
+        }
       },
       generateText: async (params: Record<string, unknown>) => {
         const prompt = typeof params["prompt"] === "string" ? params["prompt"] : "";
