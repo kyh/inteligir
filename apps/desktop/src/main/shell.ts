@@ -646,4 +646,12 @@ export function resetShellCache(): void {
   // cache, undoing logout.
   instance?.invalidate();
   instance = null;
+  // Push the default snapshot to any renderer subscribers so they drop the
+  // prior session's defs/instances. Without this, the renderer's Zustand
+  // store keeps stale data (initShell's `initialized` guard prevents a
+  // re-fetch) and re-login renders against it.
+  broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, {
+    defs: [...BUILTIN_DEFS],
+    instances: PERMANENT_DEFS.map(seedInstance),
+  });
 }
