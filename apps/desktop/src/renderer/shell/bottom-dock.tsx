@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { toast } from "@repo/ui/components/sonner";
 import { widgetIcon } from "@/renderer/shell/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useShellStore } from "@/renderer/stores/shell-store";
@@ -38,7 +39,14 @@ function DockButton({ icon: Icon, label, onClick, active, disabled }: DockButton
 }
 
 function launchWidget(widgetId: string): void {
-  void getBridge()?.placeWidget(widgetId);
+  // placeWidget rejects when the renderer flush of an existing singleton's
+  // pending state didn't persist — surface that to the user instead of
+  // letting it land as an unhandled promise rejection.
+  getBridge()
+    ?.placeWidget(widgetId)
+    .catch((err) => {
+      toast.error(err instanceof Error ? err.message : "Couldn't open the widget");
+    });
 }
 
 export function BottomDock({ onNewSession }: { onNewSession: () => void }) {

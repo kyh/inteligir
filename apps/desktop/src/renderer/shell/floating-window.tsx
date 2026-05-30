@@ -7,6 +7,17 @@ import type { FloatRect } from "@/shared/shell";
 
 const MIN_W = 240;
 const MIN_H = 160;
+// Keep at least this many pixels of the window on screen on every edge, so a
+// drag can't strand a panel off-screen with no way to grab it back. The y
+// floor of 0 also keeps the title bar (the drag handle) reachable.
+const KEEP_VISIBLE = 80;
+
+function clampMovePosition(x: number, y: number, width: number): { x: number; y: number } {
+  return {
+    x: Math.min(Math.max(x, KEEP_VISIBLE - width), window.innerWidth - KEEP_VISIBLE),
+    y: Math.min(Math.max(y, 0), Math.max(0, window.innerHeight - KEEP_VISIBLE)),
+  };
+}
 
 type Drag =
   | { mode: "move"; px: number; py: number; rect: FloatRect }
@@ -56,7 +67,8 @@ export function FloatingWindow({
       const dx = e.clientX - drag.px;
       const dy = e.clientY - drag.py;
       if (drag.mode === "move") {
-        setLocal({ ...drag.rect, x: drag.rect.x + dx, y: drag.rect.y + dy });
+        const { x, y } = clampMovePosition(drag.rect.x + dx, drag.rect.y + dy, drag.rect.width);
+        setLocal({ ...drag.rect, x, y });
       } else {
         setLocal({
           ...drag.rect,

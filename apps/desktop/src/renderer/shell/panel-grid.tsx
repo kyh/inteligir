@@ -5,6 +5,7 @@ import type { GridConfig, ResizeConfig } from "react-grid-layout/core";
 import "react-grid-layout/css/styles.css";
 
 import { cn } from "@repo/ui/lib/utils";
+import { toast } from "@repo/ui/components/sonner";
 
 import { FloatingLayer } from "@/renderer/shell/floating-layer";
 import {
@@ -162,7 +163,15 @@ export function PanelGrid() {
   const addNote = useCallback(() => {
     const bridge = getBridge();
     if (!bridge) return;
-    void bridge.installWidget(noteStarter()).then((def) => bridge.placeWidget(def.id, "pinned"));
+    // installWidget / placeWidget can reject (e.g. the place step's flush of
+    // a live singleton failed) — show the error rather than letting it land
+    // as an unhandled promise rejection.
+    bridge
+      .installWidget(noteStarter())
+      .then((def) => bridge.placeWidget(def.id, "pinned"))
+      .catch((err) => {
+        toast.error(err instanceof Error ? err.message : "Couldn't add a note");
+      });
   }, []);
 
   const ready = width > 0 && !loading;
