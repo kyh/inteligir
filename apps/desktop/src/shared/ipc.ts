@@ -1,9 +1,10 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
 import type {
-  CreateWidgetInput,
   FloatRect,
+  InstallWidgetInput,
   ShellSnapshot,
+  WidgetDef,
   WidgetGeometry,
   WidgetInstance,
   WidgetSurface,
@@ -70,7 +71,7 @@ export const IPC_CHANNELS = {
   // Shell — the OS-like workspace (widget definitions + placed instances)
   SHELL_LIST: "shell:list",
   SHELL_UPDATED: "shell:updated",
-  SHELL_CREATE: "shell:create",
+  SHELL_INSTALL: "shell:install",
   SHELL_PLACE: "shell:place",
   SHELL_UNPLACE: "shell:unplace",
   SHELL_DELETE: "shell:delete",
@@ -86,6 +87,7 @@ export const IPC_CHANNELS = {
   SHELL_FLUSH_ACK: "shell:flush-ack",
 
   // Live widget actions
+  WIDGET_SEND_PROMPT: "widget:send-prompt",
   WIDGET_COMPLETE: "widget:complete",
   WIDGET_FETCH: "widget:fetch",
   WIDGET_OPEN_URL: "widget:open-url",
@@ -213,9 +215,7 @@ export type DesktopBridge = {
   startStt: () => Promise<{ ok: boolean; reason?: string }>;
   sendSttAudio: (samples: ArrayBuffer) => void;
   stopStt: () => Promise<Array<{ text: string; isFinal: boolean }>>;
-  onSttTranscript: (
-    listener: (event: { text: string; isFinal: boolean }) => void,
-  ) => () => void;
+  onSttTranscript: (listener: (event: { text: string; isFinal: boolean }) => void) => () => void;
   getVoiceModelStatus: () => Promise<"ready" | "missing">;
   downloadVoiceModel: () => Promise<{ ok: boolean; error?: string }>;
   onVoiceModelState: (listener: (event: VoiceModelStateEvent) => void) => () => void;
@@ -237,13 +237,16 @@ export type DesktopBridge = {
   // Shell — the OS-like workspace
   listShell: () => Promise<ShellSnapshot>;
   onShellUpdated: (listener: (next: ShellSnapshot) => void) => () => void;
-  createWidget: (input: CreateWidgetInput) => Promise<WidgetInstance>;
+  installWidget: (input: InstallWidgetInput) => Promise<WidgetDef>;
   placeWidget: (widgetId: string, surface?: WidgetSurface) => Promise<WidgetInstance | null>;
   unplaceWidget: (instanceId: string) => Promise<{ removed: boolean }>;
-  deleteWidget: (widgetId: string) => Promise<{ deleted: boolean }>;
+  deleteWidget: (widgetId: string, expectedRevision?: number) => Promise<{ deleted: boolean }>;
   setInstanceGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
   setInstanceRect: (instanceId: string, rect: FloatRect) => Promise<void>;
-  setInstanceSurface: (instanceId: string, surface: WidgetSurface) => Promise<WidgetInstance | null>;
+  setInstanceSurface: (
+    instanceId: string,
+    surface: WidgetSurface,
+  ) => Promise<WidgetInstance | null>;
   focusInstance: (instanceId: string) => Promise<void>;
   setInstanceState: (
     instanceId: string,
@@ -255,6 +258,7 @@ export type DesktopBridge = {
   ackWidgetFlush: (requestId: string) => void;
 
   // Live widget actions
+  widgetSendPrompt: (prompt: string) => Promise<void>;
   widgetComplete: (prompt: string, system?: string) => Promise<string>;
   widgetFetch: (url: string) => Promise<string>;
   widgetOpenUrl: (url: string) => Promise<boolean>;

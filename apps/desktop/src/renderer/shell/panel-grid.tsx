@@ -1,11 +1,7 @@
 import { memo, useCallback, useEffect, useMemo } from "react";
 import { Maximize2Icon, PlusIcon, XIcon } from "lucide-react";
-import {
-  GridLayout,
-  useContainerWidth,
-  type Layout,
-  type LayoutItem,
-} from "react-grid-layout";
+import { GridLayout, useContainerWidth, type Layout, type LayoutItem } from "react-grid-layout";
+import type { GridConfig, ResizeConfig } from "react-grid-layout/core";
 import "react-grid-layout/css/styles.css";
 
 import { cn } from "@repo/ui/lib/utils";
@@ -24,7 +20,7 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import {
   isPinned,
-  type CreateWidgetInput,
+  type InstallWidgetInput,
   type PinnedInstance,
   type WidgetDef,
   type WidgetGeometry,
@@ -39,9 +35,14 @@ import {
 // popped between surfaces but never removed.
 // ---------------------------------------------------------------------------
 
-const GRID_CONFIG = { cols: 12, rowHeight: 46, margin: [10, 10], containerPadding: [0, 0] } as const;
-const DRAG_CONFIG = { enabled: true, bounded: false, handle: ".panel-drag-handle" } as const;
-const RESIZE_CONFIG = { enabled: true, handles: ["se", "e", "s"] } as const;
+const GRID_CONFIG: Partial<GridConfig> = {
+  cols: 12,
+  rowHeight: 46,
+  margin: [10, 10],
+  containerPadding: [0, 0],
+};
+const DRAG_CONFIG = { enabled: true, bounded: false, handle: ".panel-drag-handle" };
+const RESIZE_CONFIG: Partial<ResizeConfig> = { enabled: true, handles: ["se", "e", "s"] };
 
 function instanceToLayoutItem(i: PinnedInstance): LayoutItem {
   return { i: i.instanceId, ...i.placement.geometry };
@@ -56,7 +57,7 @@ function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
 
 // A blank, user-editable note — the simplest custom widget a user can add
 // without authoring a spec: a multi-line field bound to state.
-function noteStarter(): CreateWidgetInput {
+function noteStarter(): InstallWidgetInput {
   return {
     title: "Note",
     spec: {
@@ -162,7 +163,9 @@ export function PanelGrid() {
   }, []);
 
   const addNote = useCallback(() => {
-    void getBridge()?.createWidget(noteStarter());
+    const bridge = getBridge();
+    if (!bridge) return;
+    void bridge.installWidget(noteStarter()).then((def) => bridge.placeWidget(def.id, "pinned"));
   }, []);
 
   const ready = width > 0 && !loading;

@@ -1,18 +1,18 @@
 import { memo, useEffect, useMemo, useRef } from "react";
-import { createStateStore, type Spec, type StateStore } from "@json-render/core";
+import { createStateStore, type StateStore } from "@json-render/core";
 import { JSONUIProvider, Renderer } from "@json-render/react";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
 import { widgetRegistry } from "@/renderer/shell/widget-registry";
-import type { WidgetInstance, WidgetSpec } from "@/shared/shell";
+import { type JsonUiWidgetDef, type WidgetInstance } from "@/shared/shell";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
 const STATE_PERSIST_DEBOUNCE_MS = 400;
 
-type Props = { instance: WidgetInstance; spec: WidgetSpec };
+type Props = { instance: WidgetInstance; def: JsonUiWidgetDef };
 
 /**
  * Renders one placed instance of a custom widget — the definition's `spec`
@@ -30,13 +30,17 @@ type Props = { instance: WidgetInstance; spec: WidgetSpec };
  * store applies without touching this instance's identity — doesn't re-render
  * this one.
  */
-export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props) {
+export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props) {
   // Lazily create + seed the store on first render so bound components render
   // with the persisted state on the very first paint (no empty-then-fill
   // flash). Seeded once per mount; agent state resets reflect on remount.
   const storeRef = useRef<StateStore | null>(null);
   if (storeRef.current === null) storeRef.current = createStateStore(instance.state);
-  const getStore = (): StateStore => storeRef.current!;
+  const getStore = (): StateStore => {
+    const store = storeRef.current;
+    if (!store) throw new Error("Widget state store not initialized");
+    return store;
+  };
 
   const persistTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Only flush when the store actually changed since the last persist, so the
@@ -87,8 +91,8 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
     };
   }, [flushPersist]);
 
-  const handlers = useMemo(
-    () => ({
+  const handlers = useMemo(() => {
+    return {
       notify: (params: Record<string, unknown>) => {
         const message = typeof params["message"] === "string" ? params["message"] : "";
         if (!message) return;
@@ -116,7 +120,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
           toast.error("Agent unavailable");
           return;
         }
-        bridge.sendAgentCommand({ type: "user_message", text: prompt }).catch((err) => {
+        bridge.widgetSendPrompt(prompt).catch((err) => {
           toast.error(err instanceof Error ? err.message : "Failed to send prompt");
         });
       },
@@ -143,14 +147,13 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
           toast.error(err instanceof Error ? err.message : "Fetch failed");
         }
       },
-    }),
-    [],
-  );
+    };
+  }, []);
 
   return (
     <div className="flex flex-col gap-4 p-3">
       <JSONUIProvider registry={widgetRegistry} store={getStore()} handlers={handlers}>
-        <Renderer spec={spec as unknown as Spec} registry={widgetRegistry} />
+        <Renderer spec={def.source.spec} registry={widgetRegistry} />
       </JSONUIProvider>
     </div>
   );

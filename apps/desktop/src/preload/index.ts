@@ -71,11 +71,12 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listShell: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST),
   onShellUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.SHELL_UPDATED, listener),
-  createWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_CREATE, input),
+  installWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_INSTALL, input),
   placeWidget: (widgetId: string, surface?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_PLACE, { widgetId, surface }),
   unplaceWidget: (instanceId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_UNPLACE, instanceId),
-  deleteWidget: (widgetId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_DELETE, widgetId),
+  deleteWidget: (widgetId: string, expectedRevision?: number) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SHELL_DELETE, { widgetId, expectedRevision }),
   setInstanceGeometry: (geometries: unknown) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_GEOMETRY, geometries),
   setInstanceRect: (instanceId: string, rect: unknown) =>
@@ -91,10 +92,12 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.send(IPC_CHANNELS.SHELL_FLUSH_ACK, { requestId }),
 
   // Live widget actions
+  widgetSendPrompt: (prompt: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.WIDGET_SEND_PROMPT, { prompt }),
   widgetComplete: (prompt: string, system?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.WIDGET_COMPLETE, { prompt, system }),
-  widgetFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_FETCH, url),
-  widgetOpenUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_OPEN_URL, url),
+  widgetFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_FETCH, { url }),
+  widgetOpenUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_OPEN_URL, { url }),
 
   // Executor (integration backend)
   executorStatus: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_STATUS),
@@ -113,7 +116,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   refreshExecutorSource: (sourceId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, sourceId),
   listExecutorSecrets: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRETS_LIST),
-  setExecutorSecret: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRET_SET, input),
+  setExecutorSecret: (input: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRET_SET, input),
   removeExecutorSecret: (secretId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRET_REMOVE, secretId),
   listExecutorConnections: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST),

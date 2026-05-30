@@ -17,12 +17,7 @@ try {
   // .env file is optional
 }
 
-import {
-  initParakeet,
-  pushAudio,
-  startSession,
-  stopSession,
-} from "@/main/voice/parakeet";
+import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice/parakeet";
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
@@ -36,23 +31,36 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { CreateWidgetInputSchema, GeometrySchema, getShell, RectSchema } from "@/main/shell";
+import { GeometrySchema, getShell, InstallWidgetInputSchema, RectSchema } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { ExtensionsList, ExecutorStatus, SkillsList, UpdateState } from "@/shared/ipc";
+import type {
+  AddGoogleSourceInput,
+  AddGraphqlSourceInput,
+  AddMcpSourceInput,
+  AddOpenApiSourceInput,
+  OAuthStartInput,
+  SetSecretInput,
+} from "@/shared/executor";
+import type { ImageContent } from "@repo/pi-driver";
 
 const { autoUpdater } = electronUpdater;
 
 /** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
-function toImageContent(images: ImageAttachment[] | undefined) {
+function toImageContent(images: ImageAttachment[] | undefined): ImageContent[] | undefined {
   return images?.map((i) => ({
-    type: "image" as const,
+    type: "image",
     data: i.data,
     mimeType: i.mimeType,
   }));
+}
+
+function objectPayloadSchema<T>(): z.ZodType<T> {
+  return z.custom<T>((value) => typeof value === "object" && value !== null);
 }
 
 const isDevelopment = !app.isPackaged;
@@ -207,7 +215,8 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(IPC_CHANNELS.TASK_DELETE, z.string().min(1), (id) => {
     taskManager.deleteTask(id);
-    return { ok: true as const };
+    const result: { ok: true } = { ok: true };
+    return result;
   });
 
   createIpcHandler(IPC_CHANNELS.TASK_TOGGLE, z.string().min(1), (id) => {
@@ -307,8 +316,8 @@ function registerIpcHandlers(): void {
     return getShell().snapshot();
   });
 
-  createIpcHandler(IPC_CHANNELS.SHELL_CREATE, CreateWidgetInputSchema, (input) => {
-    return getShell().createWidget(input).instance;
+  createIpcHandler(IPC_CHANNELS.SHELL_INSTALL, InstallWidgetInputSchema, (input) => {
+    return getShell().installWidget(input);
   });
 
   createIpcHandler(
@@ -323,9 +332,13 @@ function registerIpcHandlers(): void {
     return { removed: getShell().unplaceWidget(instanceId) };
   });
 
-  createIpcHandler(IPC_CHANNELS.SHELL_DELETE, z.string().min(1), (widgetId) => {
-    return { deleted: getShell().deleteWidget(widgetId) };
-  });
+  createIpcHandler(
+    IPC_CHANNELS.SHELL_DELETE,
+    z.object({ widgetId: z.string().min(1), expectedRevision: z.number().optional() }),
+    ({ widgetId, expectedRevision }) => {
+      return { deleted: getShell().deleteWidget(widgetId, expectedRevision) };
+    },
+  );
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_SET_GEOMETRY,
@@ -366,38 +379,50 @@ function registerIpcHandlers(): void {
   // ---- Live widget actions --------------------------------------------------
 
   createIpcHandler(
-    IPC_CHANNELS.WIDGET_COMPLETE,
-    z.object({ prompt: z.string().min(1), system: z.string().optional() }),
-    ({ prompt, system }) => completeOnce(prompt, system),
+    IPC_CHANNELS.WIDGET_SEND_PROMPT,
+    z.object({ prompt: z.string().min(1) }),
+    ({ prompt }) => {
+      const agent = getAgent();
+      if (!agent) throw new Error("Agent unavailable");
+      void agent.sendMessage(prompt);
+    },
   );
 
-  createIpcHandler(IPC_CHANNELS.WIDGET_FETCH, z.string(), async (url) => {
+  createIpcHandler(
+    IPC_CHANNELS.WIDGET_COMPLETE,
+    z.object({
+      prompt: z.string().min(1),
+      system: z.string().optional(),
+    }),
+    ({ prompt, system }) => {
+      return completeOnce(prompt, system);
+    },
+  );
+
+  createIpcHandler(IPC_CHANNELS.WIDGET_FETCH, z.object({ url: z.string() }), async ({ url }) => {
     // Restrict to http(s) — z.string().url() also accepts file://, ftp://,
-    // etc., and this main-process fetch bypasses renderer CSP/CORS, so an
-    // agent-authored fetchUrl action must not reach non-web schemes.
+    // etc., and this main-process fetch bypasses renderer CSP/CORS.
     // Redirects are followed manually so the scheme check applies to every
-    // hop: `redirect: "follow"` would let an http(s) start hop to file:// or
-    // an internal target via a 3xx Location.
-    const MAX_REDIRECTS = 5;
+    // hop; `redirect: "follow"` would allow an http(s) start hop to another
+    // scheme via a 3xx Location.
+    const maxRedirects = 5;
     const signal = AbortSignal.timeout(30_000);
     let currentUrl = url;
     let resp: Response | null = null;
-    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    for (let hop = 0; hop <= maxRedirects; hop++) {
       if (!isHttpUrl(currentUrl)) throw new Error("Only http(s) URLs can be fetched");
-      const r = await fetch(currentUrl, { redirect: "manual", signal });
-      if (r.status >= 300 && r.status < 400) {
-        const location = r.headers.get("location");
-        if (!location) throw new Error(`Redirect with no Location header`);
+      const next = await fetch(currentUrl, { redirect: "manual", signal });
+      if (next.status >= 300 && next.status < 400) {
+        const location = next.headers.get("location");
+        if (!location) throw new Error("Redirect with no Location header");
         currentUrl = new URL(location, currentUrl).toString();
         continue;
       }
-      resp = r;
+      resp = next;
       break;
     }
-    if (!resp) throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
+    if (!resp) throw new Error(`Too many redirects (>${maxRedirects})`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-    // Stream-read with a hard cap so a huge/streaming body can't buffer
-    // gigabytes into the main process before truncation.
     const CAP = 100_000;
     if (!resp.body) return "";
     const reader = resp.body.getReader();
@@ -409,8 +434,6 @@ function registerIpcHandlers(): void {
         if (done) break;
         out += decoder.decode(value, { stream: true });
       }
-      // Flush any trailing partial multibyte sequence the streaming decode
-      // left buffered, so the last character isn't dropped or mangled.
       out += decoder.decode();
     } finally {
       await reader.cancel().catch(() => {});
@@ -418,7 +441,7 @@ function registerIpcHandlers(): void {
     return out.length > CAP ? out.slice(0, CAP) : out;
   });
 
-  createIpcHandler(IPC_CHANNELS.WIDGET_OPEN_URL, z.string(), async (url) => {
+  createIpcHandler(IPC_CHANNELS.WIDGET_OPEN_URL, z.object({ url: z.string() }), async ({ url }) => {
     if (!isHttpUrl(url)) return false;
     await shell.openExternal(url);
     return true;
@@ -426,11 +449,7 @@ function registerIpcHandlers(): void {
 
   // ---- Executor (integration backend) ---------------------------------------
   //
-  // Almost every handler is a thin pass-through to the executor daemon's HTTP
-  // API, grouped by argument shape. Payloads are validated server-side by
-  // executor, so the loose `anyObj` schema just gates the IPC boundary.
-
-  const anyObj = z.record(z.string(), z.unknown());
+  // Almost every handler is a thin pass-through to the executor daemon's HTTP API.
 
   // No-arg → client getter.
   const voidForwards: [string, () => unknown][] = [
@@ -453,19 +472,36 @@ function registerIpcHandlers(): void {
   ];
   for (const [channel, fn] of stringForwards) createIpcHandler(channel, z.string(), fn);
 
-  // Object payload (executor validates the shape server-side). `as never`
-  // satisfies each client fn's specific param type without per-handler casts.
-  const objectForwards: [string, (arg: never) => unknown][] = [
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP, executor.addMcpSource],
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI, executor.addOpenApiSource],
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL, executor.addGraphqlSource],
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE, executor.addGoogleSource],
-    [IPC_CHANNELS.EXECUTOR_SECRET_SET, executor.setSecret],
-    [IPC_CHANNELS.EXECUTOR_OAUTH_START, executor.oauthStart],
-  ];
-  for (const [channel, fn] of objectForwards) {
-    createIpcHandler(channel, anyObj, (input) => fn(input as never));
-  }
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP,
+    objectPayloadSchema<AddMcpSourceInput>(),
+    executor.addMcpSource,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI,
+    objectPayloadSchema<AddOpenApiSourceInput>(),
+    executor.addOpenApiSource,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL,
+    objectPayloadSchema<AddGraphqlSourceInput>(),
+    executor.addGraphqlSource,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE,
+    objectPayloadSchema<AddGoogleSourceInput>(),
+    executor.addGoogleSource,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SECRET_SET,
+    objectPayloadSchema<SetSecretInput>(),
+    executor.setSecret,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_OAUTH_START,
+    objectPayloadSchema<OAuthStartInput>(),
+    executor.oauthStart,
+  );
 
   // The two non-passthrough handlers stay explicit.
   createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, (): ExecutorStatus => {

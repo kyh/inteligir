@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import { MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
-import { flushInstanceState } from "@/renderer/shell/instance-state-flush";
 import { widgetIcon } from "@/renderer/shell/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useShellStore } from "@/renderer/stores/shell-store";
@@ -38,41 +37,27 @@ function DockButton({ icon: Icon, label, onClick, active, disabled }: DockButton
   );
 }
 
+function launchWidget(widgetId: string): void {
+  void getBridge()?.placeWidget(widgetId);
+}
+
 export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
   const voiceState = useVoiceStore((s) => s.state);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
   const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
   const voiceBusy = voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
 
-  // The dock is the gallery for every installed widget — built-ins and
-  // customs alike. Permanent ones (chat) don't appear here; you can't toggle
-  // them off. Clicking toggles placement on the workspace.
+  // The dock is the gallery for every installed widget. Clicking launches or
+  // focuses; closing happens in panel/window chrome, not by toggling the dock.
   const defs = useShellStore((s) => s.defs);
   const instances = useShellStore((s) => s.instances);
-  // Multi-instance defs (customs) can have several placements at once; group
-  // them so toggle-off clears every instance, not just one.
-  const placedInstanceIds = useMemo(() => {
-    const map = new Map<string, string[]>();
+  const placedWidgetIds = useMemo(() => {
+    const ids = new Set<string>();
     for (const i of instances) {
-      const arr = map.get(i.widgetId);
-      if (arr) arr.push(i.instanceId);
-      else map.set(i.widgetId, [i.instanceId]);
+      ids.add(i.widgetId);
     }
-    return map;
+    return ids;
   }, [instances]);
-
-  const toggle = async (widgetId: string) => {
-    const ids = placedInstanceIds.get(widgetId);
-    const bridge = getBridge();
-    if (ids?.length) {
-      // Flush each viewer's pending state before unplacing so the archive
-      // captures the latest edits instead of pre-debounce disk state.
-      await Promise.all(ids.map((id) => flushInstanceState(id)));
-      for (const id of ids) void bridge?.unplaceWidget(id);
-    } else {
-      void bridge?.placeWidget(widgetId);
-    }
-  };
 
   const visibleDefs = defs.filter((d) => !d.permanent);
 
@@ -95,8 +80,8 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
             key={def.id}
             icon={widgetIcon(def)}
             label={def.title}
-            active={placedInstanceIds.has(def.id)}
-            onClick={() => void toggle(def.id)}
+            active={placedWidgetIds.has(def.id)}
+            onClick={() => launchWidget(def.id)}
           />
         ))}
       </div>

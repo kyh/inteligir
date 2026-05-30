@@ -5,11 +5,12 @@ vi.mock("electron", () => ({
   ipcMain: { on: vi.fn(), removeListener: vi.fn() },
 }));
 
-import {
-  flushInstanceState,
-  registerInstanceFlush,
-} from "@/renderer/shell/instance-state-flush";
+import { flushInstanceState, registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
 import { flushRendererInstance } from "@/main/lib/widget-flush";
+
+function missingFlushResolver(): void {
+  throw new Error("flush resolver missing");
+}
 
 describe("instance-state-flush", () => {
   it("flushInstanceState resolves immediately when no viewer is registered", async () => {
@@ -17,7 +18,7 @@ describe("instance-state-flush", () => {
   });
 
   it("flushInstanceState awaits the registered flush before resolving", async () => {
-    let resolveFlush!: () => void;
+    let resolveFlush = missingFlushResolver;
     const flushed = vi.fn(
       () =>
         new Promise<void>((r) => {
@@ -29,6 +30,7 @@ describe("instance-state-flush", () => {
     let done = false;
     const pending = flushInstanceState("a").then(() => {
       done = true;
+      return undefined;
     });
     await Promise.resolve();
     expect(flushed).toHaveBeenCalledTimes(1);

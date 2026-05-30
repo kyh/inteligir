@@ -1,11 +1,8 @@
 // ---------------------------------------------------------------------------
 // json-render catalog for agent-authored widget panels.
 //
-// Components map onto @repo/ui (shadcn) primitives so widgets visually
-// match the rest of Inteligir. Actions stay deliberately generic — the
-// agent composes UIs out of these and json-render's built-in setState; if
-// it needs richer side effects it should call its own tools instead of
-// embedding them in spec UI.
+// Components map onto @repo/ui primitives so generated widgets match the app.
+// Generated widgets are trusted; live actions run through main-process guards.
 // ---------------------------------------------------------------------------
 
 import { defineCatalog } from "@json-render/core";
@@ -108,13 +105,13 @@ export const widgetCatalog = defineCatalog(schema, {
     },
     openUrl: {
       params: z.object({ url: z.string().url() }),
-      description: "Open an external URL in the user's default browser.",
+      description: "Open an external HTTP(S) URL.",
     },
     sendPrompt: {
       params: z.object({ prompt: z.string() }),
       description:
         "Send a message to the agent as a chat turn. The agent runs with all its tools " +
-        "and can revise this panel via manage_ui. Use for 'do something' buttons.",
+        "and can revise this panel via manage_ui.",
     },
     generateText: {
       params: z.object({
@@ -125,13 +122,13 @@ export const widgetCatalog = defineCatalog(schema, {
       description:
         "Call the model once and write the resulting text into state at the JSON pointer " +
         "`into` (e.g. '/summary'). Bind a Text's `text` to that path with { $bindState } to " +
-        "show it. Does NOT create a chat turn — use for inline 'generate/summarize' buttons.",
+        "show it.",
     },
     fetchUrl: {
       params: z.object({ url: z.string().url(), into: z.string() }),
       description:
         "HTTP GET `url` and write the response body (text, capped) into state at the JSON " +
-        "pointer `into`. Use for showing live external data.",
+        "pointer `into`.",
     },
   },
 });

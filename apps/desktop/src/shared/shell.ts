@@ -1,10 +1,8 @@
-// The shell is an OS-like workspace. Two concepts:
+// Runtime UI kernel model. The shell is only one surface over this model.
 //
-//  - Widget definitions ("what's installed"): every widget — preinstalled and
-//    agent-/user-generated — is a WidgetDef. They differ only in `source`:
-//    a built-in widget renders via a React component registered in code
-//    (`source.kind === "builtin"`); a custom widget renders a json-render spec
-//    persisted on disk (`source.kind === "custom"`).
+//  - Widget definitions ("what's installed"): every widget, system or
+//    generated, is a WidgetDef. Built-ins render through React components;
+//    generated widgets render through json-render specs.
 //
 //  - Instances ("what's open"): a WidgetInstance is one placement of a def,
 //    either pinned to the desktop grid or floating as a window. A def can be
@@ -16,18 +14,43 @@
 // Types stay loose here so main/preload don't pull @json-render/core in.
 
 import type { JsonPatchOp } from "./json-pointer";
+import type { ActionBinding, UIElement, VisibilityCondition } from "@json-render/core";
 
 // ---------------------------------------------------------------------------
-// json-render spec — the rendering of a "custom" widget def
+// json-render spec — generated widget rendering
 // ---------------------------------------------------------------------------
 
-export type WidgetSpecElement = {
-  type: string;
+export type JsonWidgetComponentType =
+  | "Stack"
+  | "Section"
+  | "Row"
+  | "Heading"
+  | "Text"
+  | "TextBlock"
+  | "Button"
+  | "Checkbox"
+  | "Input"
+  | "Textarea"
+  | "Card"
+  | "Separator";
+
+export type WidgetActionName =
+  | "notify"
+  | "openUrl"
+  | "sendPrompt"
+  | "generateText"
+  | "fetchUrl"
+  | "setState";
+
+export type WidgetActionRequest = ActionBinding & { action: WidgetActionName };
+
+export type WidgetSpecElement = UIElement<JsonWidgetComponentType, Record<string, unknown>> & {
+  type: JsonWidgetComponentType;
   props: Record<string, unknown>;
   children?: string[];
-  visible?: unknown;
-  on?: Record<string, unknown>;
-  watch?: Record<string, unknown>;
+  visible?: VisibilityCondition;
+  on?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
+  watch?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
 };
 
 export type WidgetSpec = {
@@ -49,7 +72,12 @@ export type WidgetGeometry = {
   minH?: number;
 };
 
-export const WIDGET_DEFAULT_SIZE = { w: 7, h: 6, minW: 2, minH: 3 } as const;
+export const WIDGET_DEFAULT_SIZE: Pick<WidgetGeometry, "w" | "h" | "minW" | "minH"> = {
+  w: 7,
+  h: 6,
+  minW: 2,
+  minH: 3,
+};
 
 /** Free-form pixel rect for a floating (window) placement. */
 export type FloatRect = { x: number; y: number; width: number; height: number };
@@ -68,17 +96,23 @@ export function rectEquals(a: FloatRect, b: FloatRect): boolean {
 // Widget definitions — "what's installed"
 // ---------------------------------------------------------------------------
 
-/** Where a def's rendering comes from. */
 export type WidgetSource =
-  | { kind: "builtin" }
-  | { kind: "custom"; spec: WidgetSpec; createdAt: number; updatedAt: number };
+  | { kind: "builtin-react" }
+  | {
+      kind: "json-ui";
+      spec: WidgetSpec;
+      createdAt: number;
+      updatedAt: number;
+    };
 
 /** A widget definition. Built-ins live in code (BUILTIN_DEFS); customs are
  * agent-/user-generated and persisted alongside instances. */
-export type WidgetDef = {
+export type BaseWidgetDef = {
   id: string;
   title: string;
   description?: string;
+  /** Monotonic def revision. Agent writes can target the version they read. */
+  revision: number;
   /** At most one instance can be placed at a time. */
   singleton: boolean;
   /** The seeded instance can't be removed. Implies singleton. */
@@ -90,51 +124,91 @@ export type WidgetDef = {
 
 export type BuiltinWidgetId = "chat" | "tasks" | "skills" | "extensions" | "settings";
 
+export type BuiltinWidgetDef = BaseWidgetDef & {
+  id: BuiltinWidgetId;
+  singleton: true;
+  source: { kind: "builtin-react" };
+};
+
+export type JsonUiWidgetDef = BaseWidgetDef & {
+  singleton: false;
+  permanent: false;
+  source: Extract<WidgetSource, { kind: "json-ui" }>;
+};
+
+export type WidgetDef = BuiltinWidgetDef | JsonUiWidgetDef;
+
 // Keyed by id so the metadata is exhaustive over BuiltinWidgetId — adding an
 // id is a compile error until both this map and the renderer's
 // BUILTIN_WIDGET_UI (also keyed by the union) are filled in.
-const BUILTIN_DEFS_BY_ID: Record<BuiltinWidgetId, WidgetDef> = {
+const BUILTIN_DEFS_BY_ID: Record<BuiltinWidgetId, BuiltinWidgetDef> = {
   chat: {
-    id: "chat", title: "Conversation", singleton: true, permanent: true,
+    id: "chat",
+    title: "Conversation",
+    revision: 1,
+    singleton: true,
+    permanent: true,
     defaultGeometry: { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 },
-    source: { kind: "builtin" },
+    source: { kind: "builtin-react" },
   },
   tasks: {
-    id: "tasks", title: "Tasks", singleton: true, permanent: false,
+    id: "tasks",
+    title: "Tasks",
+    revision: 1,
+    singleton: true,
+    permanent: false,
     defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 },
-    source: { kind: "builtin" },
+    source: { kind: "builtin-react" },
   },
   skills: {
-    id: "skills", title: "Skills", singleton: true, permanent: false,
+    id: "skills",
+    title: "Skills",
+    revision: 1,
+    singleton: true,
+    permanent: false,
     defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 },
-    source: { kind: "builtin" },
+    source: { kind: "builtin-react" },
   },
   extensions: {
-    id: "extensions", title: "Extensions", singleton: true, permanent: false,
+    id: "extensions",
+    title: "Extensions",
+    revision: 1,
+    singleton: true,
+    permanent: false,
     defaultGeometry: { x: 5, y: 6, w: 4, h: 6, minW: 2, minH: 3 },
-    source: { kind: "builtin" },
+    source: { kind: "builtin-react" },
   },
   settings: {
-    id: "settings", title: "Settings", singleton: true, permanent: false,
+    id: "settings",
+    title: "Settings",
+    revision: 1,
+    singleton: true,
+    permanent: false,
     defaultGeometry: { x: 9, y: 6, w: 3, h: 6, minW: 2, minH: 3 },
-    source: { kind: "builtin" },
+    source: { kind: "builtin-react" },
   },
 };
 
-export const BUILTIN_DEFS: WidgetDef[] = Object.values(BUILTIN_DEFS_BY_ID);
+export const BUILTIN_DEFS: BuiltinWidgetDef[] = Object.values(BUILTIN_DEFS_BY_ID);
 
 export const CHAT_WIDGET_ID = "chat";
 
-export function builtinDef(id: string): WidgetDef | undefined {
-  return (BUILTIN_DEFS_BY_ID as Record<string, WidgetDef | undefined>)[id];
+export function isBuiltinWidgetId(id: string): id is BuiltinWidgetId {
+  return (
+    id === "chat" || id === "tasks" || id === "skills" || id === "extensions" || id === "settings"
+  );
 }
 
-export function isBuiltin(def: WidgetDef): boolean {
-  return def.source.kind === "builtin";
+export function builtinDef(id: string): BuiltinWidgetDef | undefined {
+  return isBuiltinWidgetId(id) ? BUILTIN_DEFS_BY_ID[id] : undefined;
 }
 
-export function isCustom(def: WidgetDef): boolean {
-  return def.source.kind === "custom";
+export function isBuiltin(def: WidgetDef): def is BuiltinWidgetDef {
+  return def.source.kind === "builtin-react";
+}
+
+export function isJsonUi(def: WidgetDef): def is JsonUiWidgetDef {
+  return def.source.kind === "json-ui";
 }
 
 // ---------------------------------------------------------------------------
@@ -185,8 +259,8 @@ export function isFloating(i: WidgetInstance): i is FloatingInstance {
  * plus a per-widgetId archive of state we last saw before an instance was
  * unplaced — so toggling a widget off and on doesn't wipe what the user typed. */
 export type Shell = {
-  version: 1;
-  customDefs: WidgetDef[];
+  version: 2;
+  customDefs: JsonUiWidgetDef[];
   instances: WidgetInstance[];
   archivedStates: Record<string, Record<string, unknown>>;
 };
@@ -202,7 +276,7 @@ export type ShellSnapshot = {
 // Agent / IPC inputs
 // ---------------------------------------------------------------------------
 
-export type CreateWidgetInput = {
+export type InstallWidgetInput = {
   id?: string;
   title: string;
   description?: string;
@@ -210,8 +284,17 @@ export type CreateWidgetInput = {
   state?: Record<string, unknown>;
 };
 
+export type UpdateWidgetInput = {
+  id: string;
+  expectedRevision: number;
+  title?: string;
+  description?: string;
+  spec: WidgetSpec;
+};
+
 export type WidgetPatchInput = {
   id: string;
+  expectedRevision: number;
   ops: JsonPatchOp[];
 };
 

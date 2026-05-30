@@ -1,12 +1,7 @@
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import {
-  geometryEquals,
-  rectEquals,
-  type WidgetDef,
-  type WidgetInstance,
-} from "@/shared/shell";
+import { geometryEquals, rectEquals, type WidgetDef, type WidgetInstance } from "@/shared/shell";
 
 // Singleton shell store backed by one bridge subscription. Initialized lazily
 // by PanelGrid on mount; the subscription lives for the session.
@@ -46,12 +41,14 @@ export function initShell(): void {
       .listShell()
       .then((next) => {
         if (!broadcastSeen) apply(next.defs, next.instances);
+        return undefined;
       })
       .catch(() => {
-        if (broadcastSeen) return;
+        if (broadcastSeen) return undefined;
         const delay = RETRY_DELAYS_MS[attempt++];
         if (delay !== undefined) setTimeout(fetchOnce, delay);
         else useShellStore.setState({ loading: false });
+        return undefined;
       });
   };
   fetchOnce();
@@ -72,11 +69,23 @@ function apply(defs: WidgetDef[], instances: WidgetInstance[]): void {
 
 // Returns `prev` unchanged (same array ref) when nothing differs; otherwise a
 // new array reusing prior element identities where equal.
-function reconcile<T>(prev: T[], next: T[], equal: (a: T, b: T) => boolean, key: (v: T) => string): T[] {
+function reconcile<T>(
+  prev: T[],
+  next: T[],
+  equal: (a: T, b: T) => boolean,
+  key: (v: T) => string,
+): T[] {
   if (prev.length === next.length) {
     let same = true;
     for (let i = 0; i < next.length; i++) {
-      if (key(prev[i]!) !== key(next[i]!) || !equal(prev[i]!, next[i]!)) {
+      const prevItem = prev[i];
+      const nextItem = next[i];
+      if (
+        prevItem === undefined ||
+        nextItem === undefined ||
+        key(prevItem) !== key(nextItem) ||
+        !equal(prevItem, nextItem)
+      ) {
         same = false;
         break;
       }
@@ -91,11 +100,9 @@ function reconcile<T>(prev: T[], next: T[], equal: (a: T, b: T) => boolean, key:
 }
 
 function defEqual(a: WidgetDef, b: WidgetDef): boolean {
-  if (a.id !== b.id || a.title !== b.title) return false;
+  if (a.id !== b.id || a.title !== b.title || a.revision !== b.revision) return false;
   if (a.source.kind !== b.source.kind) return false;
-  // Built-ins are code-defined and reference-equal forever; customs bump
-  // updatedAt on any content change.
-  if (a.source.kind === "custom" && b.source.kind === "custom") {
+  if (a.source.kind === "json-ui" && b.source.kind === "json-ui") {
     return a.source.updatedAt === b.source.updatedAt;
   }
   return true;
@@ -120,10 +127,13 @@ function jsonEqual(a: unknown, b: unknown): boolean {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
     return a.every((v, i) => jsonEqual(v, b[i]));
   }
-  const ak = Object.keys(a as object);
-  const bk = Object.keys(b as object);
+  if (!isRecord(a) || !isRecord(b)) return false;
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
   if (ak.length !== bk.length) return false;
-  return ak.every(
-    (k) => jsonEqual((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]),
-  );
+  return ak.every((k) => jsonEqual(a[k], b[k]));
+}
+
+function isRecord(v: object): v is Record<string, unknown> {
+  return !Array.isArray(v);
 }
