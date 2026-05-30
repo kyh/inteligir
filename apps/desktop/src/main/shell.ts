@@ -316,11 +316,15 @@ export class ShellManager {
           return current;
         }
       }
-      // Rehydrate from the per-widgetId archive if a prior instance left state
-      // behind on unplace; otherwise seed from the def's initial spec.state.
-      // Copy on use so two back-to-back placements (multi-instance customs)
-      // don't end up sharing one mutable object via the archive.
-      const archived = current.archivedStates[def.id];
+      // Rehydrate from the per-widgetId archive only when no instance of this
+      // widget is currently placed — the archive is meant to bridge an
+      // unplace/re-place cycle, not to clone a still-live instance's state
+      // into a new sibling. With a live instance present, the archive is
+      // stale relative to it; a fresh placement starts from the def default.
+      // Copy on use so two placements that both read the archive don't end up
+      // sharing one mutable object.
+      const liveInstance = current.instances.some((i) => i.widgetId === def.id);
+      const archived = liveInstance ? undefined : current.archivedStates[def.id];
       const initial: Record<string, unknown> = archived
         ? { ...archived }
         : def.source.kind === "custom" && def.source.spec.state

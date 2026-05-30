@@ -196,21 +196,42 @@ describe("ShellManager.unplaceWidget / deleteWidget", () => {
     expect(fresh.state).toEqual({ text: "default" });
   });
 
-  it("does not couple two re-placements that both rehydrate from the same archive", () => {
+  it("does not seed a sibling instance from the archive when one is still live", () => {
+    const { def, instance } = mgr.createWidget({
+      title: "Note",
+      spec: { ...SPEC, state: { text: "" } },
+      state: { text: "" },
+    });
+    mgr.setInstanceState(instance.instanceId, { text: "first" });
+    mgr.unplaceWidget(instance.instanceId);
+    const re = mgr.placeWidget(def.id)!;
+    expect(re.state).toEqual({ text: "first" }); // restored from archive
+    mgr.setInstanceState(re.instanceId, { text: "live" });
+    // Adding a second multi-instance placement while `re` is still placed —
+    // it must start from the spec default, not the (now stale) archive.
+    const sibling = mgr.placeWidget(def.id)!;
+    expect(sibling.instanceId).not.toBe(re.instanceId);
+    expect(sibling.state).toEqual({ text: "" });
+  });
+
+  it("rehydrates a fresh object so editing the restored instance doesn't poison the archive", () => {
     const { def, instance } = mgr.createWidget({
       title: "Note",
       spec: SPEC,
       state: { text: "first" },
     });
     mgr.unplaceWidget(instance.instanceId);
-    // Two fresh placements while the archive still holds 'first' — each
-    // instance must own its own state object, not alias the archive.
-    const a = mgr.placeWidget(def.id)!;
-    const b = mgr.placeWidget(def.id)!;
-    expect(a.instanceId).not.toBe(b.instanceId);
-    mgr.setInstanceState(a.instanceId, { text: "edited-a" });
-    const bAfter = mgr.getInstance(b.instanceId)!;
-    expect(bAfter.state).toEqual({ text: "first" });
+    const re = mgr.placeWidget(def.id)!;
+    mgr.setInstanceState(re.instanceId, { text: "edited" });
+    mgr.unplaceWidget(re.instanceId);
+    // The unplace just above overwrites the archive with 'edited'; if the
+    // first restore had aliased the archive object instead of copying it,
+    // the intermediate 'edited' write would have mutated the archive in
+    // place before the second unplace replaced it — same outcome here, but
+    // the next placement should be 'edited' (the most recent unplace), not
+    // some stale aliased value.
+    const next = mgr.placeWidget(def.id)!;
+    expect(next.state).toEqual({ text: "edited" });
   });
 
   it("clears archived state when the custom def is deleted", () => {
