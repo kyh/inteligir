@@ -67,11 +67,13 @@ describe("instance-state-flush", () => {
 });
 
 describe("flushRendererInstance (main → renderer round-trip)", () => {
-  it("resolves immediately when no renderer window is alive", async () => {
+  it("resolves true immediately when no renderer window is alive", async () => {
     // The electron mock above returns an empty window list, so this exercises
     // the no-renderer fallback path used in headless environments and tests.
+    // A missing renderer means "nothing pending" — a positive ack equivalent.
     const start = Date.now();
-    await flushRendererInstance("any-id", 1000);
+    const acked = await flushRendererInstance("any-id", 1000);
+    expect(acked).toBe(true);
     expect(Date.now() - start).toBeLessThan(50);
   });
 });

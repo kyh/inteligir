@@ -500,7 +500,14 @@ export class ShellManager {
     if (surface && existing.placement.surface !== surface) {
       return { ...existing, placement: this.makePlacement(shell, def, surface) };
     }
-    return this.focusedFloatingInstance(shell, existing);
+    // No surface override: dock-click intent is "focus this widget." For
+    // floating, raise it to the top of z-order. For pinned, there's no z, so
+    // pop it out as a floating window — otherwise the click silently no-ops
+    // while the dock indicates the widget is active.
+    if (existing.placement.surface === "floating") {
+      return this.focusedFloatingInstance(shell, existing);
+    }
+    return { ...existing, placement: this.makePlacement(shell, def, "floating") };
   }
 
   private focusedFloatingInstance(shell: Shell, instance: WidgetInstance): WidgetInstance | null {

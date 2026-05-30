@@ -1,6 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-import { flushRendererInstance } from "@/main/lib/widget-flush";
+import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
 import {
@@ -204,12 +204,7 @@ const uiExtension: PiExtensionBundle = {
               return text(`Patched generated widget '${def.id}' to rev ${def.revision}.`);
             }
             case "delete": {
-              // Flush every live viewer of this def first so a post-delete
-              // unmount-time setInstanceState doesn't fire against an instance
-              // that's already gone.
-              const live = mgr.snapshot().instances.filter((i) => i.widgetId === params.id);
-              await Promise.all(live.map((i) => flushRendererInstance(i.instanceId)));
-              const deleted = mgr.deleteWidget(params.id, params.expectedRevision);
+              const deleted = await deleteWithFlush(params.id, params.expectedRevision);
               return text(
                 deleted
                   ? `Deleted generated widget '${params.id}'.`
@@ -225,11 +220,7 @@ const uiExtension: PiExtensionBundle = {
                 : text(`Error: no widget '${params.id}'`);
             }
             case "unplace": {
-              // Let the renderer flush any pending debounced widget state
-              // before we archive — otherwise the user's recent edits get
-              // lost on re-place.
-              await flushRendererInstance(params.instanceId);
-              const removed = mgr.unplaceWidget(params.instanceId);
+              const removed = await unplaceWithFlush(params.instanceId);
               return text(
                 removed
                   ? `Unplaced '${params.instanceId}'.`

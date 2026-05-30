@@ -164,6 +164,18 @@ describe("ShellManager.placeWidget", () => {
     expect(second.placement.surface).toBe("pinned");
   });
 
+  it("pops a pinned singleton to floating on a no-surface dock click", () => {
+    const pinned = place("tasks", "pinned");
+    expect(pinned.placement.surface).toBe("pinned");
+    // The dock launches widgets without specifying a surface — for floating
+    // singletons this raises z, for pinned it must do *something* (pop to
+    // floating) instead of silently no-op'ing while the dock shows active.
+    const focused = mgr.placeWidget("tasks");
+    expect(focused).not.toBeNull();
+    expect(focused!.instanceId).toBe(pinned.instanceId);
+    expect(focused!.placement.surface).toBe("floating");
+  });
+
   it("places a generated widget multiple times", () => {
     const def = mgr.installWidget({ title: "Note", spec: SPEC });
     place(def.id);

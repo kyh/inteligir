@@ -31,6 +31,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
+import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { GeometrySchema, getShell, InstallWidgetInputSchema, RectSchema } from "@/main/shell";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
@@ -329,15 +330,15 @@ function registerIpcHandlers(): void {
     },
   );
 
-  createIpcHandler(IPC_CHANNELS.SHELL_UNPLACE, z.string().min(1), (instanceId) => {
-    return { removed: getShell().unplaceWidget(instanceId) };
+  createIpcHandler(IPC_CHANNELS.SHELL_UNPLACE, z.string().min(1), async (instanceId) => {
+    return { removed: await unplaceWithFlush(instanceId) };
   });
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_DELETE,
     z.object({ widgetId: z.string().min(1), expectedRevision: z.number().optional() }),
-    ({ widgetId, expectedRevision }) => {
-      return { deleted: getShell().deleteWidget(widgetId, expectedRevision) };
+    async ({ widgetId, expectedRevision }) => {
+      return { deleted: await deleteWithFlush(widgetId, expectedRevision) };
     },
   );
 
