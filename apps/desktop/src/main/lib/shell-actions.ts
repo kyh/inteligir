@@ -13,18 +13,19 @@ export async function unplaceWithFlush(instanceId: string): Promise<boolean> {
 }
 
 /** Place an instance of a widget after flushing pending state for any live
- * instance of the same widget. An existing singleton can be surface-switched
- * by placeWidget (pinned ↔ floating on a dock click, or explicitly to either)
- * which unmounts the old WidgetViewer and seeds a new one from the broadcast
- * instance.state — without the flush, edits from the last debounce window
- * are dropped from the UI and the archive. Flushing instances whose surface
- * doesn't actually change is a clean no-op. */
+ * singleton instance of the same widget. Generated widgets can have many
+ * sibling instances, and placing a new sibling does not remount existing
+ * viewers. Singletons can surface-switch or focus in place, so their current
+ * viewer must flush before the broadcast seeds a replacement mount. */
 export async function placeWithFlush(
   widgetId: string,
   surface?: WidgetSurface,
 ): Promise<WidgetInstance | null> {
   const mgr = getShell();
-  const live = mgr.snapshot().instances.filter((i) => i.widgetId === widgetId);
+  const def = mgr.getDef(widgetId);
+  const live = def?.singleton
+    ? mgr.snapshot().instances.filter((i) => i.widgetId === widgetId)
+    : [];
   await Promise.all(live.map((i) => flushRendererInstance(i.instanceId)));
   return mgr.placeWidget(widgetId, surface);
 }
