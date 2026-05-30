@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { FloatingWindow } from "@/renderer/shell/floating-window";
 import {
   closeInstance,
+  moveInstance,
   WidgetBody,
   widgetBodyClassName,
   widgetTitle,
@@ -34,8 +35,8 @@ export function FloatingLayer() {
             bodyClassName={widgetBodyClassName(def)}
             onFocus={() => void getBridge()?.focusInstance(instance.instanceId)}
             onRect={(rect: FloatRect) => void getBridge()?.setInstanceRect(instance.instanceId, rect)}
-            onDock={() => void getBridge()?.setInstanceSurface(instance.instanceId, "pinned")}
-            onClose={def?.permanent ? undefined : () => closeInstance(instance)}
+            onDock={() => void moveInstance(instance.instanceId, "pinned")}
+            onClose={def?.permanent ? undefined : () => void closeInstance(instance)}
           >
             <WidgetBody def={def} instance={instance} />
           </FloatingWindow>

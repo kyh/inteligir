@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { flushInstanceState } from "@/renderer/shell/instance-state-flush";
 import { widgetIcon } from "@/renderer/shell/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useShellStore } from "@/renderer/stores/shell-store";
@@ -60,10 +61,13 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
     return map;
   }, [instances]);
 
-  const toggle = (widgetId: string) => {
+  const toggle = async (widgetId: string) => {
     const ids = placedInstanceIds.get(widgetId);
     const bridge = getBridge();
     if (ids?.length) {
+      // Flush each viewer's pending state before unplacing so the archive
+      // captures the latest edits instead of pre-debounce disk state.
+      await Promise.all(ids.map((id) => flushInstanceState(id)));
       for (const id of ids) void bridge?.unplaceWidget(id);
     } else {
       void bridge?.placeWidget(widgetId);
@@ -92,7 +96,7 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
             icon={widgetIcon(def)}
             label={def.title}
             active={placedInstanceIds.has(def.id)}
-            onClick={() => toggle(def.id)}
+            onClick={() => void toggle(def.id)}
           />
         ))}
       </div>

@@ -4,6 +4,7 @@
 import { LayoutPanelLeftIcon } from "lucide-react";
 
 import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
+import { flushInstanceState } from "@/renderer/shell/instance-state-flush";
 import { WidgetViewer } from "@/renderer/shell/widget-viewer";
 import { getBridge } from "@/renderer/lib/bridge";
 import type { BuiltinWidgetId, WidgetDef, WidgetInstance } from "@/shared/shell";
@@ -50,10 +51,22 @@ export function widgetIcon(def: WidgetDef): React.ComponentType<{ className?: st
 }
 
 /** Close (unplace) an instance — the definition survives in the dock and can
- * be re-placed. Deleting a custom definition is a separate gesture
- * (manage_ui delete from the agent). */
-export function closeInstance(instance: WidgetInstance): void {
-  void getBridge()?.unplaceWidget(instance.instanceId);
+ * be re-placed. Flushes any pending state first so the archive (and a later
+ * re-place) reflects the user's last edits, not what was on disk pre-debounce.
+ * Deleting a custom definition is a separate gesture (manage_ui delete). */
+export async function closeInstance(instance: WidgetInstance): Promise<void> {
+  await flushInstanceState(instance.instanceId);
+  await getBridge()?.unplaceWidget(instance.instanceId);
+}
+
+/** Move an instance between surfaces (pinned grid ⇄ floating window). Flushes
+ * first so the broadcast that triggers the remount carries the latest state. */
+export async function moveInstance(
+  instanceId: string,
+  surface: "pinned" | "floating",
+): Promise<void> {
+  await flushInstanceState(instanceId);
+  await getBridge()?.setInstanceSurface(instanceId, surface);
 }
 
 export function WidgetBody({

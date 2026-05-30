@@ -4,6 +4,7 @@ import { JSONUIProvider, Renderer } from "@json-render/react";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
 import { widgetRegistry } from "@/renderer/shell/widget-registry";
 import type { WidgetInstance, WidgetSpec } from "@/shared/shell";
 
@@ -44,8 +45,11 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
   const idRef = useRef(instance.instanceId);
   idRef.current = instance.instanceId;
 
+  // Returns a Promise that resolves when the latest pending state has reached
+  // main — so surface-change and unplace callers can await it and avoid
+  // remount-with-stale-state races.
   const flushPersist = useMemo(
-    () => () => {
+    () => async (): Promise<void> => {
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current);
         persistTimerRef.current = null;
@@ -57,9 +61,11 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
       // in-flight save isn't lost; only on save failure do we mark dirty again
       // (a successful save is final).
       dirtyRef.current = false;
-      bridge.setInstanceState(idRef.current, getStore().getSnapshot()).catch(() => {
+      try {
+        await bridge.setInstanceState(idRef.current, getStore().getSnapshot());
+      } catch {
         dirtyRef.current = true;
-      });
+      }
     },
     [],
   );
@@ -71,11 +77,13 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
     const unsubscribe = getStore().subscribe(() => {
       dirtyRef.current = true;
       if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
-      persistTimerRef.current = setTimeout(flushPersist, STATE_PERSIST_DEBOUNCE_MS);
+      persistTimerRef.current = setTimeout(() => void flushPersist(), STATE_PERSIST_DEBOUNCE_MS);
     });
+    const unregisterFlush = registerInstanceFlush(idRef.current, flushPersist);
     return () => {
       unsubscribe();
-      flushPersist();
+      unregisterFlush();
+      void flushPersist();
     };
   }, [flushPersist]);
 

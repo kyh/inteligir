@@ -14,6 +14,7 @@ import { FloatingLayer } from "@/renderer/shell/floating-layer";
 import {
   ChromeButton,
   closeInstance,
+  moveInstance,
   WidgetBody,
   widgetBodyClassName,
   widgetTitle,
@@ -124,8 +125,8 @@ const InstancePanel = memo(function InstancePanel({
     <Panel
       title={widgetTitle(def, instance)}
       bodyClassName={widgetBodyClassName(def)}
-      onPopOut={() => void getBridge()?.setInstanceSurface(instance.instanceId, "floating")}
-      onRemove={def?.permanent ? undefined : () => closeInstance(instance)}
+      onPopOut={() => void moveInstance(instance.instanceId, "floating")}
+      onRemove={def?.permanent ? undefined : () => void closeInstance(instance)}
     >
       <WidgetBody def={def} instance={instance} />
     </Panel>

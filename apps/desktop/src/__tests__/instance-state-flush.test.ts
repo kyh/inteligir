@@ -1,0 +1,59 @@
+import { describe, expect, it, vi } from "vitest";
+
+import {
+  flushInstanceState,
+  registerInstanceFlush,
+} from "@/renderer/shell/instance-state-flush";
+
+describe("instance-state-flush", () => {
+  it("flushInstanceState resolves immediately when no viewer is registered", async () => {
+    await expect(flushInstanceState("nope")).resolves.toBeUndefined();
+  });
+
+  it("flushInstanceState awaits the registered flush before resolving", async () => {
+    let resolveFlush!: () => void;
+    const flushed = vi.fn(
+      () =>
+        new Promise<void>((r) => {
+          resolveFlush = r;
+        }),
+    );
+    const unregister = registerInstanceFlush("a", flushed);
+
+    let done = false;
+    const pending = flushInstanceState("a").then(() => {
+      done = true;
+    });
+    await Promise.resolve();
+    expect(flushed).toHaveBeenCalledTimes(1);
+    expect(done).toBe(false);
+    resolveFlush();
+    await pending;
+    expect(done).toBe(true);
+    unregister();
+  });
+
+  it("the most-recently-registered flush wins (one viewer per instance)", async () => {
+    const first = vi.fn(async () => {});
+    const second = vi.fn(async () => {});
+    const unregister1 = registerInstanceFlush("b", first);
+    const unregister2 = registerInstanceFlush("b", second);
+    await flushInstanceState("b");
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
+    unregister1();
+    unregister2();
+  });
+
+  it("unregistering only clears the entry when it still owns the slot", async () => {
+    const first = vi.fn(async () => {});
+    const second = vi.fn(async () => {});
+    const unregister1 = registerInstanceFlush("c", first);
+    registerInstanceFlush("c", second);
+    // First viewer unmounts after second already replaced it — should be a no-op.
+    unregister1();
+    await flushInstanceState("c");
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+  });
+});
