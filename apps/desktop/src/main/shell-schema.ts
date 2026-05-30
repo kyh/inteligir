@@ -1,12 +1,7 @@
 import { VisibilityConditionSchema } from "@json-render/core";
 import { z } from "zod";
 
-import {
-  type InstallWidgetInput,
-  type Shell,
-  type UpdateWidgetInput,
-  type WidgetPatchInput,
-} from "@/shared/shell";
+import { type InstallWidgetInput, type Shell } from "@/shared/shell";
 import {
   JSON_WIDGET_COMPONENT_TYPES,
   WIDGET_ACTION_NAMES,
@@ -57,7 +52,7 @@ const ElementSchema: z.ZodType<WidgetSpecElement> = z.object({
   watch: z.record(z.string(), ActionBindingValueSchema).optional(),
 });
 
-export const WidgetSpecSchema: z.ZodType<WidgetSpec> = z.object({
+const WidgetSpecSchema: z.ZodType<WidgetSpec> = z.object({
   root: z.string(),
   elements: z.record(z.string(), ElementSchema),
   state: z.record(z.string(), z.unknown()).optional(),
@@ -132,28 +127,6 @@ export const InstallWidgetInputSchema: z.ZodType<InstallWidgetInput> = z.object(
   title: z.string().min(1),
   description: z.string().optional(),
   spec: WidgetSpecSchema,
-});
-
-export const UpdateWidgetInputSchema: z.ZodType<UpdateWidgetInput> = z.object({
-  id: z.string().min(1),
-  expectedRevision: z.number().int().positive(),
-  title: z.string().min(1).optional(),
-  description: z.string().optional(),
-  spec: WidgetSpecSchema,
-});
-
-export const WidgetPatchInputSchema: z.ZodType<WidgetPatchInput> = z.object({
-  id: z.string().min(1),
-  expectedRevision: z.number().int().positive(),
-  ops: z
-    .array(
-      z.discriminatedUnion("op", [
-        z.object({ op: z.literal("add"), path: z.string(), value: z.unknown() }),
-        z.object({ op: z.literal("replace"), path: z.string(), value: z.unknown() }),
-        z.object({ op: z.literal("remove"), path: z.string() }),
-      ]),
-    )
-    .min(1),
 });
 
 export function parseWidgetSpec(input: WidgetSpecInput): WidgetSpec {
