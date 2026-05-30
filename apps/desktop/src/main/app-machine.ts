@@ -11,6 +11,7 @@ import {
   teardownResources,
 } from "@/agent/setup";
 import { getPersistedActiveTools } from "@/main/active-tools";
+import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
@@ -90,6 +91,9 @@ async function stopAgent(): Promise<void> {
     await agent.stop();
     agent = null;
   }
+  // The executor daemon is started lazily by the executor extension at agent
+  // start; tear it down here so it doesn't outlive the agent.
+  await getExecutorDaemon().stop();
   currentTurnAssistantText = null;
 }
 

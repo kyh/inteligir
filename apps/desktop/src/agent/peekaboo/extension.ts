@@ -17,6 +17,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 import { runCli } from "@repo/agent-runtime/run-cli";
 
+import { inteligirPath } from "@/main/lib/json-store";
 import type { PiExtensionBundle } from "@/agent/extension";
 import { formatCliOutput, textResult } from "@/agent/extension-helpers";
 
@@ -39,7 +40,8 @@ const PeekabooRunSchema = Type.Object({
 
 const peekabooExtension: PiExtensionBundle = {
   name: "peekaboo",
-  setup: async ({ binDir }) => {
+  cli: { name: "peekaboo", version: PEEKABOO_VERSION, binPath: inteligirPath("bin", "peekaboo") },
+  setup: async ({ binDir, force }) => {
     await installCliFromGithubRelease({
       owner: "openclaw",
       repo: "Peekaboo",
@@ -49,6 +51,7 @@ const peekabooExtension: PiExtensionBundle = {
       artifactName: () => (process.platform === "darwin" ? PEEKABOO_ARTIFACT : null),
       archiveBinPath: `${PEEKABOO_ASSET_DIR}/peekaboo`,
       verify: "checksums-txt",
+      force,
     });
   },
   register: ({ binDir }) => {

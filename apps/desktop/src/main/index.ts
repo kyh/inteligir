@@ -27,7 +27,9 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
-import { completeOnce, listSkills } from "@/agent/setup";
+import { completeOnce, listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
+import { getExecutorDaemon } from "@/main/executor/executor-daemon";
+import * as executor from "@/main/executor/executor-client";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -40,7 +42,7 @@ import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, SkillsList, UpdateState } from "@/shared/ipc";
+import type { ExtensionsList, ExecutorStatus, SkillsList, UpdateState } from "@/shared/ipc";
 
 const { autoUpdater } = electronUpdater;
 
@@ -407,11 +409,77 @@ function registerIpcHandlers(): void {
     return true;
   });
 
+  // ---- Executor (integration backend) ---------------------------------------
+  //
+  // Almost every handler is a thin pass-through to the executor daemon's HTTP
+  // API, grouped by argument shape. Payloads are validated server-side by
+  // executor, so the loose `anyObj` schema just gates the IPC boundary.
+
+  const anyObj = z.record(z.string(), z.unknown());
+
+  // No-arg → client getter.
+  const voidForwards: [string, () => unknown][] = [
+    [IPC_CHANNELS.EXECUTOR_SOURCES_LIST, executor.listSources],
+    [IPC_CHANNELS.EXECUTOR_SECRETS_LIST, executor.listSecrets],
+    [IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST, executor.listConnections],
+    [IPC_CHANNELS.EXECUTOR_TOOLS_LIST, executor.listTools],
+  ];
+  for (const [channel, fn] of voidForwards) createVoidIpcHandler(channel, fn);
+
+  // Single string arg (id / url / code / sessionId).
+  const stringForwards: [string, (arg: string) => unknown][] = [
+    [IPC_CHANNELS.EXECUTOR_SOURCES_DETECT, executor.detectSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_REMOVE, executor.removeSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, executor.refreshSource],
+    [IPC_CHANNELS.EXECUTOR_SECRET_REMOVE, executor.removeSecret],
+    [IPC_CHANNELS.EXECUTOR_CONNECTION_REMOVE, executor.removeConnection],
+    [IPC_CHANNELS.EXECUTOR_EXECUTE, executor.execute],
+    [IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, executor.awaitOAuth],
+  ];
+  for (const [channel, fn] of stringForwards) createIpcHandler(channel, z.string(), fn);
+
+  // Object payload (executor validates the shape server-side). `as never`
+  // satisfies each client fn's specific param type without per-handler casts.
+  const objectForwards: [string, (arg: never) => unknown][] = [
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP, executor.addMcpSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI, executor.addOpenApiSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL, executor.addGraphqlSource],
+    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE, executor.addGoogleSource],
+    [IPC_CHANNELS.EXECUTOR_SECRET_SET, executor.setSecret],
+    [IPC_CHANNELS.EXECUTOR_OAUTH_START, executor.oauthStart],
+  ];
+  for (const [channel, fn] of objectForwards) {
+    createIpcHandler(channel, anyObj, (input) => fn(input as never));
+  }
+
+  // The two non-passthrough handlers stay explicit.
+  createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, (): ExecutorStatus => {
+    // Scope is immutable for the daemon's life and cached on the connection,
+    // so there's no need for a live /scope round-trip here.
+    const conn = getExecutorDaemon().getConnection();
+    return conn ? { running: true, scope: conn.scope } : { running: false };
+  });
+
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, z.string(), (url) => {
+    // Throw on a non-http(s) URL so the renderer surfaces it immediately,
+    // rather than silently no-op'ing and leaving an OAuth flow to time out.
+    if (!isHttpUrl(url)) throw new Error(`refusing to open non-http URL: ${url}`);
+    void shell.openExternal(url);
+  });
+
   // ---- Skills ---------------------------------------------------------------
 
   createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
     return { skills: listSkills() };
   });
+
+  // ---- Integrations (CLI binaries) ------------------------------------------
+
+  createVoidIpcHandler(IPC_CHANNELS.INTEGRATIONS_LIST, () => listIntegrations());
+  createVoidIpcHandler(IPC_CHANNELS.INTEGRATIONS_REPAIR, () =>
+    // Stream progress over the same channel onboarding uses.
+    repairIntegrations((p) => broadcastToRenderer(IPC_CHANNELS.SETUP_PROGRESS, p)),
+  );
 }
 
 // ---------------------------------------------------------------------------

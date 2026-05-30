@@ -92,6 +92,42 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   widgetFetch: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_FETCH, url),
   widgetOpenUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_OPEN_URL, url),
 
+  // Executor (integration backend)
+  executorStatus: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_STATUS),
+  listExecutorSources: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCES_LIST),
+  detectExecutorSource: (url: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCES_DETECT, url),
+  addMcpSource: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP, input),
+  addOpenApiSource: (input: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI, input),
+  addGraphqlSource: (input: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL, input),
+  addGoogleSource: (input: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE, input),
+  removeExecutorSource: (sourceId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_REMOVE, sourceId),
+  refreshExecutorSource: (sourceId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, sourceId),
+  listExecutorSecrets: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRETS_LIST),
+  setExecutorSecret: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRET_SET, input),
+  removeExecutorSecret: (secretId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_SECRET_REMOVE, secretId),
+  listExecutorConnections: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST),
+  removeExecutorConnection: (connectionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_CONNECTION_REMOVE, connectionId),
+  listExecutorTools: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_TOOLS_LIST),
+  executorExecute: (code: string) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_EXECUTE, code),
+  executorOAuthStart: (input: unknown) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OAUTH_START, input),
+  executorOAuthAwait: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, sessionId),
+  executorOpenExternal: (url: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, url),
+
   // Skills
   listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
+
+  // Integrations
+  listIntegrations: () => ipcRenderer.invoke(IPC_CHANNELS.INTEGRATIONS_LIST),
+  repairIntegrations: () => ipcRenderer.invoke(IPC_CHANNELS.INTEGRATIONS_REPAIR),
 });
