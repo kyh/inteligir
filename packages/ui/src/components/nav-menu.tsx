@@ -16,7 +16,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 interface NavMenuContextValue {
   registerItem: (index: number, element: HTMLElement | null) => void;
@@ -80,7 +80,7 @@ const NavMenu = forwardRef<HTMLElement, NavMenuProps>(
     const activeRouteRect = activeRouteIndex !== null ? itemRects[activeRouteIndex] : null;
     const focusRect = focusedIndex !== null ? itemRects[focusedIndex] : null;
     const isHoveringOther = activeIndex !== null && activeIndex !== activeRouteIndex;
-    const shape = useShape();
+    const shape = getShape();
     const contextValue = useMemo(
       () => ({ registerItem, registerSlug, activeIndex, activeSlug }),
       [activeIndex, activeSlug, registerItem, registerSlug],

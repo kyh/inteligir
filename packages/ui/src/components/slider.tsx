@@ -23,7 +23,7 @@ import { Slider as SliderPrimitive } from "@base-ui/react/slider";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,7 +126,7 @@ function ValueDisplay({
   isRange,
   isInteracting,
 }: ValueDisplayProps) {
-  const shape = useShape();
+  const shape = getShape();
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -247,7 +247,7 @@ interface TooltipValueProps {
 }
 
 function TooltipValue({ value, formatValue, motionX }: TooltipValueProps) {
-  const shape = useShape();
+  const shape = getShape();
   const tooltipX = useTransform(motionX, (x) => x + THUMB_SIZE / 2);
   return (
     <motion.div
@@ -306,7 +306,7 @@ const Slider = forwardRef<HTMLDivElement, SliderProps>(
   ) => {
     const isRange = Array.isArray(value);
     const values = toRadixValue(value);
-    const shape = useShape();
+    const shape = getShape();
 
     // --- Refs ---
     const trackRef = useRef<HTMLDivElement>(null);
@@ -1017,7 +1017,7 @@ const SliderComfortable = forwardRef<HTMLDivElement, SliderComfortableProps>(
     } | null>(null);
     const [showHoverTooltip, setShowHoverTooltip] = useState(false);
     const hoverDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const shape = useShape();
+    const shape = getShape();
 
     // Show hover tooltip after 100ms delay
     useEffect(() => {

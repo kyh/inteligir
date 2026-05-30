@@ -13,10 +13,10 @@ import {
   type HTMLAttributes,
   type InputHTMLAttributes,
 } from "react";
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 interface InputGroupContextValue {
   registerItem: (index: number, element: HTMLLabelElement | null) => void;
@@ -129,7 +129,7 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
     const internalRef = useRef<HTMLLabelElement>(null);
     const { registerItem, activeIndex } = useInputGroup();
     const [isFocused, setIsFocused] = useState(false);
-    const shape = useShape();
+    const shape = getShape();
 
     useEffect(() => {
       registerItem(index, internalRef.current);

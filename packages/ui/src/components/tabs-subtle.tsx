@@ -14,11 +14,11 @@ import {
   type HTMLAttributes,
 } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 
 interface TabsSubtleContextValue {
@@ -63,7 +63,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
     const containerRef = useRef<HTMLDivElement>(null);
     const isMouseInside = useRef(false);
     const generatedId = useId();
-    const shape = useShape();
+    const shape = getShape();
     const idPrefix = idPrefixProp || generatedId;
 
     const {
@@ -289,7 +289,7 @@ interface TabsSubtleItemProps extends HTMLAttributes<HTMLButtonElement> {
 const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
   ({ icon: Icon, label, index, className, ...props }, ref) => {
     const internalRef = useRef<HTMLButtonElement>(null);
-    const shape = useShape();
+    const shape = getShape();
     const { registerTab, hoveredIndex, selectedIndex, onSelect, idPrefix, activeLabel } =
       useTabsSubtle();
 

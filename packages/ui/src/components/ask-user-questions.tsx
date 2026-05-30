@@ -15,8 +15,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
-import { useIcon } from "@repo/ui/lib/icon-context";
+import { getShape } from "@repo/ui/lib/shape";
+import { getIcon } from "@repo/ui/lib/icon";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { Button } from "@repo/ui/components/button";
 
@@ -126,9 +126,9 @@ const AskUserQuestions = forwardRef<HTMLDivElement, AskUserQuestionsProps>(
       [isAnswersControlled, onAnswersChange],
     );
 
-    const shape = useShape();
-    const ArrowLeft = useIcon("arrow-left");
-    const ArrowRight = useIcon("arrow-right");
+    const shape = getShape();
+    const ArrowLeft = getIcon("arrow-left");
+    const ArrowRight = getIcon("arrow-right");
 
     // Detect the platform so the Continue shortcut hint shows the right
     // modifier: ⌘ on macOS, ⌃ (Control) elsewhere. Resolved after mount to
@@ -1007,7 +1007,7 @@ function ShortcutChip({
 }: {
   children: React.ReactNode;
   tone?: "muted" | "inverted";
-  shape: ReturnType<typeof useShape>;
+  shape: ReturnType<typeof getShape>;
 }) {
   return (
     <kbd
@@ -1037,7 +1037,7 @@ interface RowProps {
   onBlurAny: () => void;
   onClick: () => void;
   onKeyDown?: (e: ReactKeyboardEvent<HTMLDivElement>) => void;
-  shape: ReturnType<typeof useShape>;
+  shape: ReturnType<typeof getShape>;
   chipContent: React.ReactNode;
   chipFilled: boolean;
   isMulti: boolean;

@@ -1,6 +1,4 @@
 import type { User } from "better-auth";
-import { cache } from "react";
-import { headers } from "next/headers";
 import { expo } from "@better-auth/expo";
 import { eq } from "@repo/db";
 import { db } from "@repo/db/drizzle-client";
@@ -56,28 +54,6 @@ export const auth = betterAuth({
     },
   },
 });
-
-export type Auth = typeof auth;
-export type Session = Auth["$Infer"]["Session"];
-
-/**
- * Cached function to get the current user session
- * Uses React cache to avoid unnecessary re-fetching
- * @returns Promise<Session | null> - The current user session or null if not authenticated
- */
-export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }));
-
-export const getOrganization = cache(
-  async (query: {
-    organizationId?: string | undefined;
-    organizationSlug?: string | undefined;
-    membersLimit?: string | number | undefined;
-  }) =>
-    auth.api.getFullOrganization({
-      query,
-      headers: await headers(),
-    }),
-);
 
 /**
  * Generates an available organization slug by checking for conflicts.

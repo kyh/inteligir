@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { isRecord } from "@/shared/ipc";
 import { geometryEquals, rectEquals, type WidgetDef, type WidgetInstance } from "@/shared/shell";
 
 // Singleton shell store backed by one bridge subscription. Initialized lazily
@@ -132,8 +133,4 @@ function jsonEqual(a: unknown, b: unknown): boolean {
   const bk = Object.keys(b);
   if (ak.length !== bk.length) return false;
   return ak.every((k) => jsonEqual(a[k], b[k]));
-}
-
-function isRecord(v: object): v is Record<string, unknown> {
-  return !Array.isArray(v);
 }

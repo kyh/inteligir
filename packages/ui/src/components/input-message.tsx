@@ -19,8 +19,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { springs } from "@repo/ui/lib/springs";
-import { useShape } from "@repo/ui/lib/shape-context";
-import { useIcon } from "@repo/ui/lib/icon-context";
+import { getShape } from "@repo/ui/lib/shape";
+import { getIcon } from "@repo/ui/lib/icon";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { Button } from "@repo/ui/components/button";
@@ -129,8 +129,8 @@ interface FilePreviewTileProps {
 }
 
 function FilePreviewTile({ file, onRemove, size }: FilePreviewTileProps) {
-  const XIcon = useIcon("x");
-  const shape = useShape();
+  const XIcon = getIcon("x");
+  const shape = getShape();
   const isImage = file.type.startsWith("image/");
   const isPdf = file.type === "application/pdf";
 
@@ -265,8 +265,8 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
     },
     ref,
   ) => {
-    const shape = useShape();
-    const ArrowUpIcon = useIcon("arrow-up");
+    const shape = getShape();
+    const ArrowUpIcon = getIcon("arrow-up");
 
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);

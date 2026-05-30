@@ -240,3 +240,5 @@ export function shouldFire(task: Task, now: number): boolean {
       return task.lastRunAt === null && now >= schedule.runAt;
   }
 }
+
+export const taskManager = new TaskManager();

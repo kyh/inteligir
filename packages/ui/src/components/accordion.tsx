@@ -15,11 +15,11 @@ import {
 import { motion, AnimatePresence } from "motion/react";
 import { Accordion as AccordionPrimitive } from "@base-ui/react/accordion";
 import { cn } from "@repo/ui/lib/utils";
-import { useIcon } from "@repo/ui/lib/icon-context";
+import { getIcon } from "@repo/ui/lib/icon";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 // ─── Contexts ────────────────────────────────────────────────────────────────
 
@@ -197,7 +197,7 @@ const AccordionGroup = forwardRef<HTMLDivElement, AccordionGroupProps>((props, r
   const activeRect = activeIndex !== null ? itemRects[activeIndex] : null;
   const focusRect = focusedIndex !== null ? itemRects[focusedIndex] : null;
   const isHoveringNonOpen = activeIndex !== null && !openItemRects.has(activeIndex);
-  const shape = useShape();
+  const shape = getShape();
   const remeasure = useCallback(() => {
     measureItems();
     measureFullItems();
@@ -535,7 +535,7 @@ const AccordionItem = forwardRef<HTMLDivElement, AccordionItemProps>(
     const groupCtx = useAccordionGroup();
     const standaloneOpen = useContext(StandaloneOpenContext);
     const standaloneToggle = useContext(StandaloneToggleContext);
-    const shape = useShape();
+    const shape = getShape();
 
     const isOpen = groupCtx?.grouped ? groupCtx.openValues.has(value) : standaloneOpen.has(value);
 
@@ -625,10 +625,10 @@ interface AccordionTriggerProps extends HTMLAttributes<HTMLButtonElement> {
 
 const AccordionTrigger = forwardRef<HTMLButtonElement, AccordionTriggerProps>(
   ({ children, className, ...props }, ref) => {
-    const ChevronRight = useIcon("chevron-right");
+    const ChevronRight = getIcon("chevron-right");
     const groupCtx = useAccordionGroup();
     const { index, isOpen, triggerRef } = useAccordionItemContext();
-    const shape = useShape();
+    const shape = getShape();
     const [isHovered, setIsHovered] = useState(false);
 
     const isActive = groupCtx?.grouped ? groupCtx.activeIndex === index : isHovered;

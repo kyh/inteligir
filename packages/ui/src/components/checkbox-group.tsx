@@ -17,7 +17,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 interface CheckboxGroupContextValue {
   registerItem: (index: number, element: HTMLElement | null) => void;
@@ -95,7 +95,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
     const activeRect = activeIndex !== null ? itemRects[activeIndex] : null;
     const focusRect = focusedIndex !== null ? itemRects[focusedIndex] : null;
     const isHoveringOther = activeIndex !== null && !checkedIndices.has(activeIndex);
-    const shape = useShape();
+    const shape = getShape();
     const contextValue = useMemo(
       () => ({ registerItem, activeIndex }),
       [activeIndex, registerItem],
@@ -269,7 +269,7 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
 
     const isActive = activeIndex === index;
     const skipAnimation = !hasMounted.current;
-    const shape = useShape();
+    const shape = getShape();
 
     return (
       <div

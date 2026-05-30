@@ -23,5 +23,3 @@ export const springs = {
     bounce: 0.15,
   },
 } as const;
-
-export type SpringToken = keyof typeof springs;

@@ -29,7 +29,7 @@ import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
-import { taskManager } from "@/main/tasks/task-singleton";
+import { taskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
@@ -545,7 +545,7 @@ app
     mainWindow = createWindow();
     getNotifications().setTargetWindow(mainWindow);
 
-    // Resolve session file path before initMachine() starts the agent
+    // Warm history before initMachine() starts the agent.
     readSessionHistory();
 
     initMachine();

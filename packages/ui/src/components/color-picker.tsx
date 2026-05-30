@@ -17,10 +17,10 @@ import { motion, AnimatePresence } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 import { useSurface, SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
-import { useIcon } from "@repo/ui/lib/icon-context";
+import { getIcon } from "@repo/ui/lib/icon";
 import { Slider } from "@repo/ui/components/slider";
 import {
   DropdownMenu,
@@ -473,7 +473,7 @@ function SaturationSquare({ h, s, v, onChange }: SaturationSquareProps) {
   const [focused, setFocused] = useState(false);
   const [hovered, setHovered] = useState(false);
   const [cursorPos, setCursorPos] = useState<{ x: number; y: number } | null>(null);
-  const shape = useShape();
+  const shape = getShape();
 
   const updateFromPointer = useCallback(
     (clientX: number, clientY: number) => {
@@ -705,8 +705,8 @@ function FormatDropdown({
   open?: boolean;
   defaultOpen?: boolean;
 }) {
-  const ChevronDownIcon = useIcon("chevron-down");
-  const shape = useShape();
+  const ChevronDownIcon = getIcon("chevron-down");
+  const shape = getShape();
   const formats = ["hex", "rgb", "hsl", "oklch"] as const;
 
   return (
@@ -803,7 +803,7 @@ const ColorInput = forwardRef<HTMLInputElement, ColorInputProps>(
       scrubbing: boolean;
       pointerId: number;
     } | null>(null);
-    const shape = useShape();
+    const shape = getShape();
 
     useEffect(() => {
       if (!interactingRef.current) setDraft(value);
@@ -975,8 +975,8 @@ interface EyeDropperGlobal {
 
 function EyeDropperButton({ onPick }: { onPick: (hex: string) => void }) {
   const [supported, setSupported] = useState(false);
-  const shape = useShape();
-  const PipetteIcon = useIcon("pipette");
+  const shape = getShape();
+  const PipetteIcon = getIcon("pipette");
 
   useEffect(() => {
     setSupported(typeof window !== "undefined" && "EyeDropper" in window);
@@ -1022,7 +1022,7 @@ interface ColorTileProps {
 }
 
 function ColorTile({ color, size = 24, className, style }: ColorTileProps) {
-  const shape = useShape();
+  const shape = getShape();
   return (
     <span
       className={cn("inline-block relative shrink-0 overflow-hidden", shape.bg, className)}
@@ -1045,7 +1045,7 @@ function ColorTile({ color, size = 24, className, style }: ColorTileProps) {
 
 const ColorSwatch = forwardRef<HTMLButtonElement, ColorSwatchProps>(
   ({ color, size = 28, selected, className, onMouseEnter, onMouseLeave, ...props }, ref) => {
-    const shape = useShape();
+    const shape = getShape();
     const [hovered, setHovered] = useState(false);
     const ring = selected
       ? "inset 0 0 0 1px rgba(127,127,127,0.25), 0 0 0 2px var(--background), 0 0 0 4px #6B97FF"
@@ -1260,7 +1260,7 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
     const solidG = Math.round(solidHueRgb.g);
     const solidB = Math.round(solidHueRgb.b);
     const solidColorString = `rgb(${solidR}, ${solidG}, ${solidB})`;
-    const shape = useShape();
+    const shape = getShape();
     const substrate = useSurface();
     // The picker panel uses bg-card (surface-3) by default; when wrapped in
     // ColorPickerPopover the className override pushes it higher. Either way,
@@ -1672,7 +1672,7 @@ const ColorPickerPopover = forwardRef<HTMLDivElement, ColorPickerPopoverProps>(
     const panelRef = useRef<HTMLDivElement>(null);
     const [panelEl, setPanelEl] = useState<HTMLDivElement | null>(null);
     const [rect, setRect] = useState<DOMRect | null>(null);
-    const shape = useShape();
+    const shape = getShape();
     const substrate = useSurface();
     const level = Math.min(substrate + 2, 8);
 
@@ -1730,7 +1730,7 @@ const ColorPickerPopover = forwardRef<HTMLDivElement, ColorPickerPopoverProps>(
       };
     }, [open, setOpen]);
 
-    const XIcon = useIcon("x");
+    const XIcon = getIcon("x");
     const parsed = useMemo(() => parseColor(currentValue), [currentValue]);
     const swatchColor = parsed ? rgbToHexStr(parsed.r, parsed.g, parsed.b, parsed.a) : currentValue;
     const valueLabel = parsed

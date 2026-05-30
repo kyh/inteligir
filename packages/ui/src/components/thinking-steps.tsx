@@ -3,11 +3,11 @@
 import { forwardRef, type ReactNode, type HTMLAttributes } from "react";
 import { motion } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
-import { useIcon } from "@repo/ui/lib/icon-context";
-import type { IconName } from "@repo/ui/lib/icon-context";
+import { getIcon } from "@repo/ui/lib/icon";
+import type { IconName } from "@repo/ui/lib/icon";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 import {
   Accordion,
   AccordionItem,
@@ -124,8 +124,8 @@ function ThinkingStep({
   children,
   className,
 }: ThinkingStepProps) {
-  const Icon = useIcon(icon);
-  const shape = useShape();
+  const Icon = getIcon(icon);
+  const shape = getShape();
 
   if (status === "pending") return null;
 
@@ -203,7 +203,7 @@ function ThinkingStepDetails({
   children,
   className,
 }: ThinkingStepDetailsProps) {
-  const shape = useShape();
+  const shape = getShape();
 
   return (
     <Accordion
@@ -296,7 +296,7 @@ function ThinkingStepImage({
   delay = 0,
   className,
 }: ThinkingStepImageProps) {
-  const shape = useShape();
+  const shape = getShape();
   const image = (
     // oxlint-disable-next-line next/no-img-element
     <img src={src} alt={alt} className={cn("w-full max-w-[200px] object-cover", shape.container)} />

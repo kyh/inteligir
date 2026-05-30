@@ -3,10 +3,10 @@
 import { useRef, useEffect, forwardRef, type HTMLAttributes } from "react";
 import Link from "next/link";
 import { useNavMenu } from "@repo/ui/components/nav-menu";
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 interface NavItemProps
   extends Omit<HTMLAttributes<HTMLAnchorElement>, "href"> {
@@ -35,7 +35,7 @@ const NavItem = forwardRef<HTMLAnchorElement, NavItemProps>(
 
     const isActive = activeIndex === index;
     const isActiveRoute = activeSlug === href;
-    const shape = useShape();
+    const shape = getShape();
 
     // Roving tabindex: active route gets 0, others get -1
     const activeRouteExists = activeSlug !== null;

@@ -16,8 +16,8 @@ import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
-import { clearResolvedSessionFile } from "@/main/session-history";
-import { taskManager } from "@/main/tasks/task-singleton";
+import { clearSessionHistoryCache } from "@/main/session-history";
+import { taskManager } from "@/main/tasks/task-manager";
 import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
@@ -98,7 +98,7 @@ async function stopAgent(): Promise<void> {
 }
 
 async function newSession(): Promise<void> {
-  clearResolvedSessionFile();
+  clearSessionHistoryCache();
   await stopAgent();
   await startAgent({ newSession: true });
 }

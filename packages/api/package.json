@@ -19,14 +19,12 @@
     "@trpc/server": "catalog:",
     "better-auth": "catalog:",
     "next": "catalog:",
-    "react": "catalog:",
     "superjson": "catalog:",
     "zod": "^4.4.3"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
     "typescript": "catalog:"
   }
 }

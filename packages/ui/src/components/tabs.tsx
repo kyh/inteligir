@@ -17,11 +17,11 @@ import {
 } from "react";
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { motion, AnimatePresence } from "motion/react";
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 import { useSurface } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
@@ -130,7 +130,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
   ({ children, className, ...props }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const isMouseInside = useRef(false);
-    const shape = useShape();
+    const shape = getShape();
     const substrate = useSurface();
     const indicatorLevel = Math.min(substrate + 3, 8);
     const valueOrderCtx = useContext(TabsValueOrderContext);
