@@ -9,6 +9,8 @@ import { defineCatalog } from "@json-render/core";
 import { schema } from "@json-render/react/schema";
 import { z } from "zod";
 
+import { WIDGET_ACTION_DESCRIPTIONS } from "@/shared/shell";
+
 const gap = z.enum(["sm", "md", "lg"]).optional();
 const textSize = z.enum(["xs", "sm", "base"]).optional();
 const buttonVariant = z
@@ -100,18 +102,15 @@ export const widgetCatalog = defineCatalog(schema, {
         message: z.string(),
         variant: z.enum(["default", "success", "error"]).optional(),
       }),
-      description:
-        "Show a toast notification to the user. `variant` controls color (default neutral).",
+      description: `${WIDGET_ACTION_DESCRIPTIONS.notify} Variant controls color.`,
     },
     openUrl: {
       params: z.object({ url: z.string().url() }),
-      description: "Open an external HTTP(S) URL.",
+      description: WIDGET_ACTION_DESCRIPTIONS.openUrl,
     },
     sendPrompt: {
       params: z.object({ prompt: z.string() }),
-      description:
-        "Send a message to the agent as a chat turn. The agent runs with all its tools " +
-        "and can revise this panel via manage_ui.",
+      description: WIDGET_ACTION_DESCRIPTIONS.sendPrompt,
     },
     generateText: {
       params: z.object({
@@ -120,15 +119,12 @@ export const widgetCatalog = defineCatalog(schema, {
         system: z.string().optional(),
       }),
       description:
-        "Call the model once and write the resulting text into state at the JSON pointer " +
-        "`into` (e.g. '/summary'). Bind a Text's `text` to that path with { $bindState } to " +
-        "show it.",
+        `${WIDGET_ACTION_DESCRIPTIONS.generateText} Bind a Text's \`text\` to that path ` +
+        "with { $bindState } to show it.",
     },
     fetchUrl: {
       params: z.object({ url: z.string().url(), into: z.string() }),
-      description:
-        "HTTP GET `url` and write the response body (text, capped) into state at the JSON " +
-        "pointer `into`.",
+      description: WIDGET_ACTION_DESCRIPTIONS.fetchUrl,
     },
   },
 });

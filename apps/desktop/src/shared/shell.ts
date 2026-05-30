@@ -34,6 +34,21 @@ export type JsonWidgetComponentType =
   | "Card"
   | "Separator";
 
+export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
+  "Stack",
+  "Section",
+  "Row",
+  "Heading",
+  "Text",
+  "TextBlock",
+  "Button",
+  "Checkbox",
+  "Input",
+  "Textarea",
+  "Card",
+  "Separator",
+];
+
 export type WidgetActionName =
   | "notify"
   | "openUrl"
@@ -41,6 +56,27 @@ export type WidgetActionName =
   | "generateText"
   | "fetchUrl"
   | "setState";
+
+export const WIDGET_ACTION_NAMES: readonly WidgetActionName[] = [
+  "notify",
+  "openUrl",
+  "sendPrompt",
+  "generateText",
+  "fetchUrl",
+  "setState",
+];
+
+export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
+  notify: "Show a toast notification to the user.",
+  openUrl: "Open an external HTTP(S) URL.",
+  sendPrompt:
+    "Send a message to the agent as a chat turn. The agent runs with all its tools and can revise this panel via manage_ui.",
+  generateText:
+    "Call the model once and write the resulting text into state at the JSON pointer `into`.",
+  fetchUrl:
+    "HTTP GET `url` and write the capped response body into state at the JSON pointer `into`.",
+  setState: "Write a value into widget state.",
+};
 
 export type WidgetActionRequest = ActionBinding & { action: WidgetActionName };
 

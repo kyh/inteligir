@@ -3,8 +3,21 @@ import { Type, type Static } from "@sinclair/typebox";
 import { flushRendererInstance } from "@/main/lib/widget-flush";
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
-import { isBuiltin, isJsonUi, type WidgetSpec } from "@/shared/shell";
+import {
+  JSON_WIDGET_COMPONENT_TYPES,
+  WIDGET_ACTION_NAMES,
+  isBuiltin,
+  isJsonUi,
+  type WidgetSpec,
+} from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
+
+function literalUnion<T extends string>(values: readonly T[]) {
+  return Type.Union(values.map((value) => Type.Literal(value)));
+}
+
+const ComponentTypeParam = literalUnion(JSON_WIDGET_COMPONENT_TYPES);
+const ActionNameParam = literalUnion(WIDGET_ACTION_NAMES);
 
 const SpecParam = Type.Object(
   {
@@ -13,20 +26,7 @@ const SpecParam = Type.Object(
       Type.String(),
       Type.Object(
         {
-          type: Type.Union([
-            Type.Literal("Stack"),
-            Type.Literal("Section"),
-            Type.Literal("Row"),
-            Type.Literal("Heading"),
-            Type.Literal("Text"),
-            Type.Literal("TextBlock"),
-            Type.Literal("Button"),
-            Type.Literal("Checkbox"),
-            Type.Literal("Input"),
-            Type.Literal("Textarea"),
-            Type.Literal("Card"),
-            Type.Literal("Separator"),
-          ]),
+          type: ComponentTypeParam,
           props: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
           children: Type.Optional(Type.Array(Type.String())),
           visible: Type.Optional(Type.Unknown()),
@@ -34,14 +34,7 @@ const SpecParam = Type.Object(
             Type.Record(
               Type.String(),
               Type.Object({
-                action: Type.Union([
-                  Type.Literal("notify"),
-                  Type.Literal("openUrl"),
-                  Type.Literal("sendPrompt"),
-                  Type.Literal("generateText"),
-                  Type.Literal("fetchUrl"),
-                  Type.Literal("setState"),
-                ]),
+                action: ActionNameParam,
                 params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
               }),
             ),

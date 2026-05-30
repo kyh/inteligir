@@ -12,6 +12,8 @@ import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
 import {
   BUILTIN_DEFS,
+  JSON_WIDGET_COMPONENT_TYPES,
+  WIDGET_ACTION_NAMES,
   builtinDef,
   geometryEquals,
   isJsonUi,
@@ -42,29 +44,22 @@ import {
 // Schemas
 // ---------------------------------------------------------------------------
 
-const ComponentTypeSchema: z.ZodType<JsonWidgetComponentType> = z.union([
-  z.literal("Stack"),
-  z.literal("Section"),
-  z.literal("Row"),
-  z.literal("Heading"),
-  z.literal("Text"),
-  z.literal("TextBlock"),
-  z.literal("Button"),
-  z.literal("Checkbox"),
-  z.literal("Input"),
-  z.literal("Textarea"),
-  z.literal("Card"),
-  z.literal("Separator"),
-]);
+function stringEnumSchema<T extends string>(values: readonly T[], label: string): z.ZodType<T> {
+  return z.custom<T>(
+    (value) => typeof value === "string" && values.some((candidate) => candidate === value),
+    { message: `Unknown ${label}` },
+  );
+}
 
-const ActionNameSchema: z.ZodType<WidgetActionName> = z.union([
-  z.literal("notify"),
-  z.literal("openUrl"),
-  z.literal("sendPrompt"),
-  z.literal("generateText"),
-  z.literal("fetchUrl"),
-  z.literal("setState"),
-]);
+const ComponentTypeSchema: z.ZodType<JsonWidgetComponentType> = stringEnumSchema(
+  JSON_WIDGET_COMPONENT_TYPES,
+  "widget component type",
+);
+
+const ActionNameSchema: z.ZodType<WidgetActionName> = stringEnumSchema(
+  WIDGET_ACTION_NAMES,
+  "widget action",
+);
 
 const ActionRequestSchema: z.ZodType<WidgetActionRequest> = z.object({
   action: ActionNameSchema,

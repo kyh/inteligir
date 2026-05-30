@@ -22,7 +22,7 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
-import { completeOnce, listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
+import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import * as executor from "@/main/executor/executor-client";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
@@ -32,6 +32,7 @@ import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
 import { GeometrySchema, getShell, InstallWidgetInputSchema, RectSchema } from "@/main/shell";
+import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -376,76 +377,7 @@ function registerIpcHandlers(): void {
     },
   );
 
-  // ---- Live widget actions --------------------------------------------------
-
-  createIpcHandler(
-    IPC_CHANNELS.WIDGET_SEND_PROMPT,
-    z.object({ prompt: z.string().min(1) }),
-    ({ prompt }) => {
-      const agent = getAgent();
-      if (!agent) throw new Error("Agent unavailable");
-      void agent.sendMessage(prompt);
-    },
-  );
-
-  createIpcHandler(
-    IPC_CHANNELS.WIDGET_COMPLETE,
-    z.object({
-      prompt: z.string().min(1),
-      system: z.string().optional(),
-    }),
-    ({ prompt, system }) => {
-      return completeOnce(prompt, system);
-    },
-  );
-
-  createIpcHandler(IPC_CHANNELS.WIDGET_FETCH, z.object({ url: z.string() }), async ({ url }) => {
-    // Restrict to http(s) — z.string().url() also accepts file://, ftp://,
-    // etc., and this main-process fetch bypasses renderer CSP/CORS.
-    // Redirects are followed manually so the scheme check applies to every
-    // hop; `redirect: "follow"` would allow an http(s) start hop to another
-    // scheme via a 3xx Location.
-    const maxRedirects = 5;
-    const signal = AbortSignal.timeout(30_000);
-    let currentUrl = url;
-    let resp: Response | null = null;
-    for (let hop = 0; hop <= maxRedirects; hop++) {
-      if (!isHttpUrl(currentUrl)) throw new Error("Only http(s) URLs can be fetched");
-      const next = await fetch(currentUrl, { redirect: "manual", signal });
-      if (next.status >= 300 && next.status < 400) {
-        const location = next.headers.get("location");
-        if (!location) throw new Error("Redirect with no Location header");
-        currentUrl = new URL(location, currentUrl).toString();
-        continue;
-      }
-      resp = next;
-      break;
-    }
-    if (!resp) throw new Error(`Too many redirects (>${maxRedirects})`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-    const CAP = 100_000;
-    if (!resp.body) return "";
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let out = "";
-    try {
-      while (out.length < CAP) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        out += decoder.decode(value, { stream: true });
-      }
-      out += decoder.decode();
-    } finally {
-      await reader.cancel().catch(() => {});
-    }
-    return out.length > CAP ? out.slice(0, CAP) : out;
-  });
-
-  createIpcHandler(IPC_CHANNELS.WIDGET_OPEN_URL, z.object({ url: z.string() }), async ({ url }) => {
-    if (!isHttpUrl(url)) return false;
-    await shell.openExternal(url);
-    return true;
-  });
+  registerWidgetActionIpcHandlers();
 
   // ---- Executor (integration backend) ---------------------------------------
   //
@@ -669,7 +601,7 @@ app.on("before-quit", (event) => {
 
 app
   .whenReady()
-  .then(async () => {
+  .then(() => {
     configureAppIdentity();
     configureApplicationMenu();
     configureAutoUpdater();
@@ -682,6 +614,7 @@ app
     readSessionHistory();
 
     initMachine();
+    return undefined;
   })
   .catch((error) => {
     console.error("[desktop] fatal startup error", error);
