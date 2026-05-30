@@ -385,6 +385,24 @@ describe("ShellManager geometry", () => {
     expect(updated.placement.geometry.minW).toBe(minW);
     expect(updated.placement.geometry.minH).toBe(minH);
   });
+
+  it("treats a minW/minH change as a real geometry update", () => {
+    const placed = place("tasks", "pinned");
+    if (placed.placement.surface !== "pinned") throw new Error("expected pinned");
+    const before = placed.placement.geometry;
+    // Same x/y/w/h, but a smaller minW — without this, geometryEquals would
+    // call them equal, the renderer's reconcile would reuse the old instance
+    // reference, and react-grid-layout would never see the new constraint.
+    mgr.setGeometries({
+      [placed.instanceId]: { x: before.x, y: before.y, w: before.w, h: before.h, minW: 1, minH: 1 },
+    });
+    const updated = must(mgr.getInstance(placed.instanceId), "missing");
+    if (updated.placement.surface !== "pinned") throw new Error("expected pinned");
+    expect(updated.placement.geometry.minW).toBe(1);
+    expect(updated.placement.geometry.minH).toBe(1);
+    // Instance ref must change so the reconciler picks it up downstream.
+    expect(updated).not.toBe(placed);
+  });
 });
 
 describe("ShellManager surfaces", () => {

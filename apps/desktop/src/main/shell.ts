@@ -448,11 +448,7 @@ export class ShellManager {
         minW: geo.minW ?? i.placement.geometry.minW,
         minH: geo.minH ?? i.placement.geometry.minH,
       };
-      if (
-        geometryEquals(i.placement.geometry, merged) &&
-        merged.minW === i.placement.geometry.minW &&
-        merged.minH === i.placement.geometry.minH
-      ) {
+      if (geometryEquals(i.placement.geometry, merged)) {
         return i;
       }
       changed = true;

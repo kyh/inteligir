@@ -121,7 +121,14 @@ export type FloatRect = { x: number; y: number; width: number; height: number };
 export const WIDGET_DEFAULT_RECT: FloatRect = { x: 340, y: 96, width: 380, height: 440 };
 
 export function geometryEquals(a: WidgetGeometry, b: WidgetGeometry): boolean {
-  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h;
+  return (
+    a.x === b.x &&
+    a.y === b.y &&
+    a.w === b.w &&
+    a.h === b.h &&
+    a.minW === b.minW &&
+    a.minH === b.minH
+  );
 }
 
 export function rectEquals(a: FloatRect, b: FloatRect): boolean {
