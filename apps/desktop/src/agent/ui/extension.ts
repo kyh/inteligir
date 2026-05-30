@@ -218,6 +218,13 @@ const uiExtension: PiExtensionBundle = {
             }
             case "delete": {
               if (!params.id) return text("Error: id is required for action='delete'");
+              // Flush every live viewer of this def first so a post-delete
+              // unmount-time setInstanceState doesn't fire against an instance
+              // that's already gone.
+              const live = mgr
+                .snapshot()
+                .instances.filter((i) => i.widgetId === params.id);
+              await Promise.all(live.map((i) => flushRendererInstance(i.instanceId)));
               const deleted = mgr.deleteWidget(params.id);
               return text(
                 deleted

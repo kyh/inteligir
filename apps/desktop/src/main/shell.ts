@@ -215,7 +215,15 @@ export class ShellManager {
         defaultGeometry: { x: 5, y: 0, ...WIDGET_DEFAULT_SIZE },
         source: { kind: "custom", spec: input.spec, createdAt: now, updatedAt: now },
       };
-      const instance = this.makeInstance(current, def, "pinned", input.state ?? input.spec.state ?? {});
+      // Copy on seed: input.spec.state is also the def's persisted template,
+      // so handing the same reference to the instance would let live mutations
+      // bleed into the spec's default state.
+      const initial = input.state
+        ? { ...input.state }
+        : input.spec.state
+          ? { ...input.spec.state }
+          : {};
+      const instance = this.makeInstance(current, def, "pinned", initial);
       result = { def, instance };
       return {
         ...current,
@@ -336,10 +344,18 @@ export class ShellManager {
       const def = this.findDef(current, target.widgetId);
       if (def?.permanent) return current;
       removed = true;
-      const archivedStates =
-        Object.keys(target.state).length > 0
-          ? { ...current.archivedStates, [target.widgetId]: target.state }
-          : current.archivedStates;
+      // Always reflect what state was at unplace time: writing it for non-empty
+      // state, dropping any stale prior entry when the user cleared everything.
+      // Otherwise the next placement would still rehydrate from a stale
+      // archive that no longer matches what the user dismissed.
+      const archivedStates: Record<string, Record<string, unknown>> = {
+        ...current.archivedStates,
+      };
+      if (Object.keys(target.state).length > 0) {
+        archivedStates[target.widgetId] = target.state;
+      } else {
+        delete archivedStates[target.widgetId];
+      }
       return {
         ...current,
         instances: current.instances.filter((i) => i.instanceId !== instanceId),

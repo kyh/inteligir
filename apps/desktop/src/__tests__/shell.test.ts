@@ -82,6 +82,16 @@ describe("ShellManager.createWidget", () => {
     expect(instance.state).toEqual({ a: 1 });
   });
 
+  it("copies spec.state on seed so live mutations don't leak into the def template", () => {
+    const { def, instance } = mgr.createWidget({
+      title: "S",
+      spec: { ...SPEC, state: { a: 1 } },
+    });
+    mgr.setInstanceState(instance.instanceId, { a: 99 });
+    if (def.source.kind !== "custom") throw new Error("expected custom");
+    expect(def.source.spec.state).toEqual({ a: 1 });
+  });
+
   it("never collides with a built-in id when auto-slugging", () => {
     const { def } = mgr.createWidget({ title: "tasks", spec: SPEC });
     expect(def.id).not.toBe("tasks");
@@ -151,6 +161,25 @@ describe("ShellManager.unplaceWidget / deleteWidget", () => {
     expect(mgr.unplaceWidget(placed.instanceId)).toBe(true);
     const replaced = mgr.placeWidget("tasks")!;
     expect(replaced.state).toEqual({ count: 7, note: "hi" });
+  });
+
+  it("clears the archive when an instance is unplaced with empty state", () => {
+    const { def, instance } = mgr.createWidget({
+      title: "Note",
+      spec: { ...SPEC, state: { text: "default" } },
+      state: { text: "default" },
+    });
+    mgr.setInstanceState(instance.instanceId, { text: "edited" });
+    mgr.unplaceWidget(instance.instanceId);
+    // Confirm archive captured the edit, then place + clear-to-empty + unplace.
+    const re = mgr.placeWidget(def.id)!;
+    expect(re.state).toEqual({ text: "edited" });
+    mgr.setInstanceState(re.instanceId, {});
+    mgr.unplaceWidget(re.instanceId);
+    // Next placement must fall back to the spec's default, not the stale
+    // 'edited' archive that the empty unplace should have invalidated.
+    const fresh = mgr.placeWidget(def.id)!;
+    expect(fresh.state).toEqual({ text: "default" });
   });
 
   it("does not couple two re-placements that both rehydrate from the same archive", () => {
