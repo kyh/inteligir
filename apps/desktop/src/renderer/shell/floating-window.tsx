@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PinIcon, XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
-import { ChromeButton } from "@/renderer/chat/widget-render";
+import { ChromeButton } from "@/renderer/shell/widget-render";
 import type { FloatRect } from "@/shared/shell";
 
 const MIN_W = 240;

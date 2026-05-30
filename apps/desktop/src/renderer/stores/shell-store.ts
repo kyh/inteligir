@@ -83,14 +83,15 @@ function reconcile<T>(prev: T[], next: T[], equal: (a: T, b: T) => boolean, key:
 
 function instanceEqual(a: WidgetInstance, b: WidgetInstance): boolean {
   // state crosses IPC as a fresh object each broadcast, so compare by value.
-  return (
-    a.widgetId === b.widgetId &&
-    a.surface === b.surface &&
-    a.z === b.z &&
-    geometryEquals(a.geometry, b.geometry) &&
-    rectEquals(a.rect, b.rect) &&
-    jsonEqual(a.state, b.state)
-  );
+  if (a.widgetId !== b.widgetId) return false;
+  if (a.placement.surface !== b.placement.surface) return false;
+  if (a.placement.surface === "pinned" && b.placement.surface === "pinned") {
+    if (!geometryEquals(a.placement.geometry, b.placement.geometry)) return false;
+  } else if (a.placement.surface === "floating" && b.placement.surface === "floating") {
+    if (a.placement.z !== b.placement.z) return false;
+    if (!rectEquals(a.placement.rect, b.placement.rect)) return false;
+  }
+  return jsonEqual(a.state, b.state);
 }
 
 function jsonEqual(a: unknown, b: unknown): boolean {

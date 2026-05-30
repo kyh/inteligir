@@ -13,12 +13,12 @@ import {
   ConversationScrollButton,
 } from "@repo/ui/components/ai-elements/conversation";
 
-import { ChatActivityRow, ChatMessageView } from "@/renderer/chat/chat-message";
-import { Composer } from "@/renderer/chat/composer";
-import { ExtensionsPanel } from "@/renderer/chat/extensions-panel";
-import { SettingsPanel } from "@/renderer/chat/settings-panel";
-import { SkillsPanel } from "@/renderer/chat/skills-panel";
-import { TaskPanel } from "@/renderer/chat/task-panel";
+import { ChatActivityRow, ChatMessageView } from "@/renderer/shell/chat/chat-message";
+import { Composer } from "@/renderer/shell/chat/composer";
+import { ExtensionsPanel } from "@/renderer/shell/builtin/extensions-panel";
+import { SettingsPanel } from "@/renderer/shell/builtin/settings-panel";
+import { SkillsPanel } from "@/renderer/shell/builtin/skills-panel";
+import { TaskPanel } from "@/renderer/shell/builtin/task-panel";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 import type { BuiltinWidgetId } from "@/shared/shell";

@@ -1,8 +1,8 @@
 import { useMemo } from "react";
-import { MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
+import { LayoutPanelLeftIcon, MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
-import { BUILTIN_WIDGET_UI } from "@/renderer/chat/builtin-widgets";
+import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
@@ -44,9 +44,11 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
   const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
   const voiceBusy = voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
 
-  // The dock is the gallery for the built-in widgets. Toggle each one's
-  // placement on the shell (singletons, so one instance per widget).
+  // The dock is the gallery for every installed widget — built-ins + customs.
+  // Clicking toggles placement; closing a panel unplaces it, so the dock entry
+  // is how you bring it back.
   const instances = useShellStore((s) => s.instances);
+  const customWidgets = useShellStore((s) => s.customWidgets);
   const placedInstanceId = useMemo(() => {
     const map = new Map<string, string>();
     for (const i of instances) map.set(i.widgetId, i.instanceId);
@@ -58,6 +60,9 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
     if (instanceId) void getBridge()?.unplaceWidget(instanceId);
     else void getBridge()?.placeWidget(widgetId);
   };
+
+  const builtins = BUILTIN_WIDGETS.filter((b) => !b.permanent);
+  const hasCustoms = customWidgets.length > 0;
 
   return (
     <div className="pointer-events-auto fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
@@ -73,13 +78,25 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
 
         <span className="mx-1 h-5 w-px bg-border" />
 
-        {BUILTIN_WIDGETS.filter((b) => !b.permanent).map((b) => (
+        {builtins.map((b) => (
           <DockButton
             key={b.id}
             icon={BUILTIN_WIDGET_UI[b.id].icon}
             label={b.title}
             active={placedInstanceId.has(b.id)}
             onClick={() => toggle(b.id)}
+          />
+        ))}
+
+        {hasCustoms ? <span className="mx-1 h-5 w-px bg-border" /> : null}
+
+        {customWidgets.map((def) => (
+          <DockButton
+            key={def.id}
+            icon={LayoutPanelLeftIcon}
+            label={def.title}
+            active={placedInstanceId.has(def.id)}
+            onClick={() => toggle(def.id)}
           />
         ))}
       </div>

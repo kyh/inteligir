@@ -10,7 +10,7 @@ import "react-grid-layout/css/styles.css";
 
 import { cn } from "@repo/ui/lib/utils";
 
-import { FloatingLayer } from "@/renderer/chat/floating-layer";
+import { FloatingLayer } from "@/renderer/shell/floating-layer";
 import {
   ChromeButton,
   closeInstance,
@@ -18,12 +18,14 @@ import {
   WidgetBody,
   widgetBodyClassName,
   widgetTitle,
-} from "@/renderer/chat/widget-render";
+} from "@/renderer/shell/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import {
+  isPinned,
   type CustomWidgetDef,
   type GenerateWidgetInput,
+  type PinnedInstance,
   type WidgetGeometry,
   type WidgetInstance,
 } from "@/shared/shell";
@@ -41,8 +43,8 @@ const GRID_CONFIG = { cols: 12, rowHeight: 46, margin: [10, 10], containerPaddin
 const DRAG_CONFIG = { enabled: true, bounded: false, handle: ".panel-drag-handle" } as const;
 const RESIZE_CONFIG = { enabled: true, handles: ["se", "e", "s"] } as const;
 
-function instanceToLayoutItem(i: WidgetInstance): LayoutItem {
-  return { i: i.instanceId, ...i.geometry };
+function instanceToLayoutItem(i: PinnedInstance): LayoutItem {
+  return { i: i.instanceId, ...i.placement.geometry };
 }
 
 function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
@@ -147,7 +149,7 @@ export function PanelGrid() {
   const customWidgets = useShellStore((s) => s.customWidgets);
   const loading = useShellStore((s) => s.loading);
 
-  const pinnedInstances = useMemo(() => instances.filter((i) => i.surface === "pinned"), [instances]);
+  const pinnedInstances = useMemo(() => instances.filter(isPinned), [instances]);
   const layout = useMemo(() => pinnedInstances.map(instanceToLayoutItem), [pinnedInstances]);
   const customById = useMemo(
     () => new Map(customWidgets.map((d) => [d.id, d])),

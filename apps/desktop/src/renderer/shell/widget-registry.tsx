@@ -13,7 +13,7 @@ import { Label } from "@repo/ui/components/label";
 import { Separator } from "@repo/ui/components/separator";
 import { cn } from "@repo/ui/lib/utils";
 
-import { widgetCatalog } from "@/renderer/chat/widget-catalog";
+import { widgetCatalog } from "@/renderer/shell/widget-catalog";
 
 type BaseProps<P> = {
   props: P;

@@ -230,7 +230,7 @@ const uiExtension: PiExtensionBundle = {
               const instance = mgr.placeWidget(params.id, params.surface);
               if (!instance) return text(`Error: no widget with id '${params.id}' to place`);
               return text(
-                `Placed '${params.id}' as a ${instance.surface} widget (instance ${instance.instanceId}).`,
+                `Placed '${params.id}' as a ${instance.placement.surface} widget (instance ${instance.instanceId}).`,
               );
             }
             case "unplace": {

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 
-import { BottomDock } from "@/renderer/chat/bottom-dock";
-import { PanelGrid } from "@/renderer/chat/panel-grid";
+import { BottomDock } from "@/renderer/shell/bottom-dock";
+import { PanelGrid } from "@/renderer/shell/panel-grid";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -28,7 +28,7 @@ function todayLabel(): string {
 // Chat page (home)
 // ---------------------------------------------------------------------------
 
-export function ChatPage() {
+export function ShellPage() {
   const initVoice = useVoiceStore((s) => s.init);
   useEffect(() => initVoice(), [initVoice]);
 

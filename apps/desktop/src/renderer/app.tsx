@@ -46,7 +46,7 @@ export function AppLayout() {
   useEffect(() => init(), [init]);
   useEffect(() => void initUiState(), [initUiState]);
 
-  // Voice store is initialized by ChatPage's useEffect(init). Before that,
+  // Voice store is initialized by ShellPage's useEffect(init). Before that,
   // state.kind defaults to "idle" — orb falls back to the agent-only status.
   const listening = useVoiceStore((s) => s.state.kind === "listening");
   const orbStatus = phaseToOrbStatus(appState.phase, listening);

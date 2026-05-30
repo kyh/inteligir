@@ -4,7 +4,7 @@ import { JSONUIProvider, Renderer } from "@json-render/react";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { widgetRegistry } from "@/renderer/chat/widget-registry";
+import { widgetRegistry } from "@/renderer/shell/widget-registry";
 import type { WidgetInstance, WidgetSpec } from "@/shared/shell";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single

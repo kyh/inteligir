@@ -20,6 +20,7 @@ import {
   type CustomWidgetDef,
   type FloatRect,
   type GenerateWidgetInput,
+  type Placement,
   type Shell,
   type ShellSnapshot,
   type WidgetGeometry,
@@ -59,6 +60,22 @@ export const RectSchema = z.object({
   height: z.number(),
 });
 
+const PinnedPlacementSchema = z.object({
+  surface: z.literal("pinned"),
+  geometry: GeometrySchema,
+});
+
+const FloatingPlacementSchema = z.object({
+  surface: z.literal("floating"),
+  rect: RectSchema,
+  z: z.number(),
+});
+
+const PlacementSchema = z.discriminatedUnion("surface", [
+  PinnedPlacementSchema,
+  FloatingPlacementSchema,
+]);
+
 const CustomWidgetDefSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -71,10 +88,7 @@ const CustomWidgetDefSchema = z.object({
 const WidgetInstanceSchema = z.object({
   instanceId: z.string(),
   widgetId: z.string(),
-  surface: z.enum(["pinned", "floating"]),
-  geometry: GeometrySchema,
-  rect: RectSchema,
-  z: z.number(),
+  placement: PlacementSchema,
   state: z.record(z.string(), z.unknown()),
 });
 
@@ -96,10 +110,7 @@ function chatInstance(): WidgetInstance {
   return {
     instanceId: CHAT_WIDGET_ID,
     widgetId: CHAT_WIDGET_ID,
-    surface: "pinned",
-    geometry: { ...builtinMeta(CHAT_WIDGET_ID)!.defaultGeometry },
-    rect: { ...WIDGET_DEFAULT_RECT },
-    z: 0,
+    placement: { surface: "pinned", geometry: { ...builtinMeta(CHAT_WIDGET_ID)!.defaultGeometry } },
     state: {},
   };
 }
@@ -136,7 +147,7 @@ export class ShellManager {
     return this.store.read().instances.find((i) => i.instanceId === instanceId) ?? null;
   }
 
-  /** Create a custom widget definition and place one grid instance of it. */
+  /** Create a custom widget definition and place one pinned instance of it. */
   generateWidget(input: GenerateWidgetInput): { def: CustomWidgetDef; instance: WidgetInstance } {
     const now = Date.now();
     let result: { def: CustomWidgetDef; instance: WidgetInstance } | null = null;
@@ -260,40 +271,46 @@ export class ShellManager {
     return removed;
   }
 
-  /** Move/resize grid instances. Geometry is layout — bumps no updatedAt. */
+  /** Batch-update pinned instances' grid geometry. Ignored for floating ids. */
   setGeometries(geometries: Record<string, WidgetGeometry>): void {
     const current = this.store.read();
     let changed = false;
     const instances = current.instances.map((i) => {
       const geo = geometries[i.instanceId];
-      if (!geo || geometryEquals(i.geometry, geo)) return i;
+      if (!geo || i.placement.surface !== "pinned" || geometryEquals(i.placement.geometry, geo)) {
+        return i;
+      }
       changed = true;
-      return { ...i, geometry: geo };
+      return { ...i, placement: { surface: "pinned" as const, geometry: geo } };
     });
     if (!changed) return;
-    this.broadcast(this.store.update((s) => ({ ...s, instances })));
+    this.broadcast(this.store.update(() => ({ ...current, instances })));
   }
 
-  /** Move/resize a floating instance. */
+  /** Move/resize a floating instance. No-op for pinned. */
   setRect(instanceId: string, rect: FloatRect): void {
-    this.updateInstance(instanceId, (i) => (rectEquals(i.rect, rect) ? null : { ...i, rect }));
+    this.updateInstance(instanceId, (i) => {
+      if (i.placement.surface !== "floating" || rectEquals(i.placement.rect, rect)) return null;
+      return { ...i, placement: { ...i.placement, rect } };
+    });
   }
 
-  /** Move an instance between the grid and a floating window. Floating raises
-   * to the front; pinning resets z so docked windows don't inflate the stack. */
+  /** Move an instance between the grid and a floating window. Drops to the
+   * target surface's defaults — no remembered cross-surface coordinates. */
   setSurface(instanceId: string, surface: WidgetSurface): WidgetInstance | null {
-    return this.updateInstance(instanceId, (i, shell) =>
-      i.surface === surface
-        ? null
-        : { ...i, surface, z: surface === "floating" ? this.maxZ(shell) + 1 : 0 },
-    );
+    return this.updateInstance(instanceId, (i, shell) => {
+      if (i.placement.surface === surface) return null;
+      return { ...i, placement: this.makePlacement(shell, i.widgetId, surface) };
+    });
   }
 
-  /** Raise a floating instance above the others. */
+  /** Raise a floating instance above the others. No-op for pinned. */
   bringToFront(instanceId: string): void {
     this.updateInstance(instanceId, (i, shell) => {
+      if (i.placement.surface !== "floating") return null;
       const top = this.maxZ(shell);
-      return i.z === top && top > 0 ? null : { ...i, z: top + 1 };
+      if (i.placement.z === top && top > 0) return null;
+      return { ...i, placement: { ...i.placement, z: top + 1 } };
     });
   }
 
@@ -319,20 +336,34 @@ export class ShellManager {
     surface: WidgetSurface,
     state: Record<string, unknown>,
   ): WidgetInstance {
-    const meta = builtinMeta(widgetId);
-    const floatingCount = shell.instances.filter((i) => i.surface === "floating").length;
     return {
       instanceId: randomUUID(),
       widgetId,
-      surface,
-      geometry: meta ? { ...meta.defaultGeometry } : this.placeNew(shell),
+      placement: this.makePlacement(shell, widgetId, surface),
+      state,
+    };
+  }
+
+  private makePlacement(shell: Shell, widgetId: string, surface: WidgetSurface): Placement {
+    if (surface === "pinned") {
+      const meta = builtinMeta(widgetId);
+      return {
+        surface: "pinned",
+        geometry: meta ? { ...meta.defaultGeometry } : this.placeNew(shell),
+      };
+    }
+    // Stagger newly-floating windows so they don't all stack at the same spot.
+    const floatingCount = shell.instances.filter(
+      (i) => i.placement.surface === "floating",
+    ).length;
+    return {
+      surface: "floating",
       rect: {
         ...WIDGET_DEFAULT_RECT,
         x: WIDGET_DEFAULT_RECT.x + (floatingCount % 6) * 28,
         y: WIDGET_DEFAULT_RECT.y + (floatingCount % 6) * 28,
       },
-      z: surface === "floating" ? this.nextZ(shell) : 0,
-      state,
+      z: this.maxZ(shell) + 1,
     };
   }
 
@@ -361,17 +392,20 @@ export class ShellManager {
   }
 
   private maxZ(shell: Shell): number {
-    return shell.instances.reduce((max, i) => Math.max(max, i.z), 0);
-  }
-
-  private nextZ(shell: Shell): number {
-    return this.maxZ(shell) + 1;
+    return shell.instances.reduce(
+      (max, i) => (i.placement.surface === "floating" ? Math.max(max, i.placement.z) : max),
+      0,
+    );
   }
 
   private placeNew(shell: Shell): WidgetGeometry {
-    const nextY = shell.instances
-      .filter((i) => i.surface === "pinned")
-      .reduce((max, i) => Math.max(max, i.geometry.y + i.geometry.h), 0);
+    const nextY = shell.instances.reduce(
+      (max, i) =>
+        i.placement.surface === "pinned"
+          ? Math.max(max, i.placement.geometry.y + i.placement.geometry.h)
+          : max,
+      0,
+    );
     return { x: 5, y: nextY, ...WIDGET_DEFAULT_SIZE };
   }
 

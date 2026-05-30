@@ -116,20 +116,37 @@ export type CustomWidgetDef = {
  * widget") or "floating" above everything (an "app window"). */
 export type WidgetSurface = "pinned" | "floating";
 
+/** Placement is a discriminated union — pinned instances carry grid
+ * coordinates only; floating instances carry a free-form rect and z-order
+ * only. Toggling surfaces drops to the target surface's defaults. */
+export type Placement =
+  | { surface: "pinned"; geometry: WidgetGeometry }
+  | { surface: "floating"; rect: FloatRect; z: number };
+
 export type WidgetInstance = {
   instanceId: string;
   /** BuiltinWidgetId or a CustomWidgetDef.id. */
   widgetId: string;
-  surface: WidgetSurface;
-  /** Grid placement (cols/rows); used when surface === "pinned". */
-  geometry: WidgetGeometry;
-  /** Floating placement (px); used when surface === "floating". */
-  rect: FloatRect;
-  /** Stacking order among floating windows. */
-  z: number;
+  placement: Placement;
   /** Per-instance bound state (custom widgets; built-ins manage their own). */
   state: Record<string, unknown>;
 };
+
+export type PinnedInstance = WidgetInstance & {
+  placement: Extract<Placement, { surface: "pinned" }>;
+};
+
+export type FloatingInstance = WidgetInstance & {
+  placement: Extract<Placement, { surface: "floating" }>;
+};
+
+export function isPinned(i: WidgetInstance): i is PinnedInstance {
+  return i.placement.surface === "pinned";
+}
+
+export function isFloating(i: WidgetInstance): i is FloatingInstance {
+  return i.placement.surface === "floating";
+}
 
 export type Shell = {
   version: 1;
