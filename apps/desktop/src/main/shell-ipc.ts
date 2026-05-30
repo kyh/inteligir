@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
-import { GeometrySchema, getShell, InstallWidgetInputSchema, RectSchema } from "@/main/shell";
+import { GeometrySchema, InstallWidgetInputSchema, RectSchema } from "@/main/shell-schema";
+import { getShell } from "@/main/shell";
 import { IPC_CHANNELS } from "@/shared/ipc";
 
 export function registerShellIpcHandlers(): void {

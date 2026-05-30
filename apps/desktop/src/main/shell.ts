@@ -3,17 +3,14 @@
 // commands; this kernel validates specs, placement, and revisions.
 
 import { randomUUID } from "node:crypto";
-import { VisibilityConditionSchema } from "@json-render/core";
-import { z } from "zod";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
+import { parseWidgetSpec, ShellSchema } from "@/main/shell-schema";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
 import {
   BUILTIN_DEFS,
-  JSON_WIDGET_COMPONENT_TYPES,
-  WIDGET_ACTION_NAMES,
   builtinDef,
   geometryEquals,
   isJsonUi,
@@ -24,163 +21,16 @@ import {
   type FloatRect,
   type InstallWidgetInput,
   type JsonUiWidgetDef,
-  type JsonWidgetComponentType,
   type Placement,
   type Shell,
   type ShellSnapshot,
   type UpdateWidgetInput,
-  type WidgetActionName,
-  type WidgetActionRequest,
   type WidgetDef,
   type WidgetGeometry,
   type WidgetInstance,
-  type WidgetSpecElement,
   type WidgetPatchInput,
-  type WidgetSpec,
   type WidgetSurface,
 } from "@/shared/shell";
-
-// ---------------------------------------------------------------------------
-// Schemas
-// ---------------------------------------------------------------------------
-
-function stringEnumSchema<T extends string>(values: readonly T[], label: string): z.ZodType<T> {
-  return z.custom<T>(
-    (value) => typeof value === "string" && values.some((candidate) => candidate === value),
-    { message: `Unknown ${label}` },
-  );
-}
-
-const ComponentTypeSchema: z.ZodType<JsonWidgetComponentType> = stringEnumSchema(
-  JSON_WIDGET_COMPONENT_TYPES,
-  "widget component type",
-);
-
-const ActionNameSchema: z.ZodType<WidgetActionName> = stringEnumSchema(
-  WIDGET_ACTION_NAMES,
-  "widget action",
-);
-
-const ActionRequestSchema: z.ZodType<WidgetActionRequest> = z.object({
-  action: ActionNameSchema,
-  params: z.record(z.string(), z.unknown()).optional(),
-});
-
-const ActionBindingValueSchema = z.union([ActionRequestSchema, z.array(ActionRequestSchema)]);
-
-const ElementSchema: z.ZodType<WidgetSpecElement> = z.object({
-  type: ComponentTypeSchema,
-  props: z.record(z.string(), z.unknown()).default({}),
-  children: z.array(z.string()).optional(),
-  visible: VisibilityConditionSchema.optional(),
-  repeat: z
-    .object({
-      statePath: z.string(),
-      key: z.string().optional(),
-    })
-    .optional(),
-  on: z.record(z.string(), ActionBindingValueSchema).optional(),
-  watch: z.record(z.string(), ActionBindingValueSchema).optional(),
-});
-
-export const WidgetSpecSchema: z.ZodType<WidgetSpec> = z.object({
-  root: z.string(),
-  elements: z.record(z.string(), ElementSchema),
-  state: z.record(z.string(), z.unknown()).optional(),
-});
-
-export const GeometrySchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  w: z.number(),
-  h: z.number(),
-  minW: z.number().optional(),
-  minH: z.number().optional(),
-});
-
-export const RectSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
-});
-
-const JsonUiDefSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string().optional(),
-  revision: z.number(),
-  singleton: z.literal(false),
-  permanent: z.literal(false),
-  defaultGeometry: GeometrySchema,
-  source: z.object({
-    kind: z.literal("json-ui"),
-    spec: WidgetSpecSchema,
-    createdAt: z.number(),
-    updatedAt: z.number(),
-  }),
-});
-
-const PinnedPlacementSchema = z.object({
-  surface: z.literal("pinned"),
-  geometry: GeometrySchema,
-});
-
-const FloatingPlacementSchema = z.object({
-  surface: z.literal("floating"),
-  rect: RectSchema,
-  z: z.number(),
-});
-
-const PlacementSchema = z.discriminatedUnion("surface", [
-  PinnedPlacementSchema,
-  FloatingPlacementSchema,
-]);
-
-const WidgetInstanceSchema = z.object({
-  instanceId: z.string(),
-  widgetId: z.string(),
-  placement: PlacementSchema,
-  state: z.record(z.string(), z.unknown()),
-});
-
-const ShellSchema: z.ZodType<Shell> = z.object({
-  version: z.literal(2),
-  customDefs: z.array(JsonUiDefSchema),
-  instances: z.array(WidgetInstanceSchema),
-  // Default for forward-compat with on-disk shells written before this field
-  // existed; new installs start empty.
-  archivedStates: z.record(z.string(), z.record(z.string(), z.unknown())).default({}),
-});
-
-export const InstallWidgetInputSchema = z.object({
-  id: z.string().min(1).optional(),
-  title: z.string().min(1),
-  description: z.string().optional(),
-  spec: WidgetSpecSchema,
-});
-
-export const UpdateWidgetInputSchema = z.object({
-  id: z.string().min(1),
-  expectedRevision: z.number().int().positive(),
-  title: z.string().min(1).optional(),
-  description: z.string().optional(),
-  spec: WidgetSpecSchema,
-});
-
-export const WidgetPatchInputSchema = z.object({
-  id: z.string().min(1),
-  expectedRevision: z.number().int().positive(),
-  ops: z
-    .array(
-      z.discriminatedUnion("op", [
-        z.object({ op: z.literal("add"), path: z.string(), value: z.unknown() }),
-        z.object({ op: z.literal("replace"), path: z.string(), value: z.unknown() }),
-        z.object({ op: z.literal("remove"), path: z.string() }),
-      ]),
-    )
-    .min(1),
-});
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -209,30 +59,6 @@ function withPermanents(shell: Shell): Shell {
   return missing.length === 0
     ? shell
     : { ...shell, instances: [...missing.map(seedInstance), ...shell.instances] };
-}
-
-// ---------------------------------------------------------------------------
-// Spec validation
-// ---------------------------------------------------------------------------
-
-function validateWidgetSpec(spec: WidgetSpec): void {
-  if (!spec.elements[spec.root]) {
-    throw new Error(`Widget spec root '${spec.root}' does not exist`);
-  }
-
-  const visiting = new Set<string>();
-  const visited = new Set<string>();
-  const visit = (id: string) => {
-    if (visited.has(id)) return;
-    if (visiting.has(id)) throw new Error(`Widget spec has a child cycle at '${id}'`);
-    const element = spec.elements[id];
-    if (!element) throw new Error(`Widget spec references missing child '${id}'`);
-    visiting.add(id);
-    for (const child of element.children ?? []) visit(child);
-    visiting.delete(id);
-    visited.add(id);
-  };
-  visit(spec.root);
 }
 
 // ---------------------------------------------------------------------------
@@ -275,8 +101,7 @@ export class ShellManager {
 
   installWidget(input: InstallWidgetInput): JsonUiWidgetDef {
     const now = Date.now();
-    const spec = WidgetSpecSchema.parse(input.spec);
-    validateWidgetSpec(spec);
+    const spec = parseWidgetSpec(input.spec);
 
     let installed: JsonUiWidgetDef | null = null;
     const next = this.store.update((current) => {
@@ -306,8 +131,7 @@ export class ShellManager {
   }
 
   updateWidget(input: UpdateWidgetInput): JsonUiWidgetDef {
-    const spec = WidgetSpecSchema.parse(input.spec);
-    validateWidgetSpec(spec);
+    const spec = parseWidgetSpec(input.spec);
     return this.mutateJsonUiDef(input.id, input.expectedRevision, (def) => {
       return {
         ...def,
@@ -328,8 +152,7 @@ export class ShellManager {
     return this.mutateJsonUiDef(input.id, input.expectedRevision, (def) => {
       const draft = structuredClone(def.source.spec);
       for (const op of input.ops) applyJsonPatchOp(draft, op);
-      const spec = WidgetSpecSchema.parse(draft);
-      validateWidgetSpec(spec);
+      const spec = parseWidgetSpec(draft);
       return {
         ...def,
         revision: def.revision + 1,
