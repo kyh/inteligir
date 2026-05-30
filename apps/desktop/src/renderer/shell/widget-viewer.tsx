@@ -51,8 +51,15 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, spec }: Props
         persistTimerRef.current = null;
       }
       if (!dirtyRef.current) return;
+      const bridge = getBridge();
+      if (!bridge) return; // bridge not ready; stay dirty so a later flush retries
+      // Optimistically clear `dirty` so an interleaved change during the
+      // in-flight save isn't lost; only on save failure do we mark dirty again
+      // (a successful save is final).
       dirtyRef.current = false;
-      void getBridge()?.setInstanceState(idRef.current, getStore().getSnapshot()).catch(() => null);
+      bridge.setInstanceState(idRef.current, getStore().getSnapshot()).catch(() => {
+        dirtyRef.current = true;
+      });
     },
     [],
   );
