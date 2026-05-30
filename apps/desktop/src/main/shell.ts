@@ -6,11 +6,16 @@ import { randomUUID } from "node:crypto";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
+import {
+  DEFAULT_SHELL,
+  defaultShellSnapshot,
+  shellSnapshot,
+  withPermanentInstances,
+} from "@/main/shell-defaults";
 import { parseWidgetSpec, ShellSchema } from "@/main/shell-schema";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
 import {
-  BUILTIN_DEFS,
   builtinDef,
   geometryEquals,
   isJsonUi,
@@ -33,35 +38,6 @@ import {
 } from "@/shared/shell";
 
 // ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
-function seedInstance(def: WidgetDef): WidgetInstance {
-  return {
-    instanceId: def.id,
-    widgetId: def.id,
-    placement: { surface: "pinned", geometry: { ...def.defaultGeometry } },
-    state: {},
-  };
-}
-
-const PERMANENT_DEFS = BUILTIN_DEFS.filter((d) => d.permanent);
-
-const DEFAULTS: Shell = {
-  version: 2,
-  customDefs: [],
-  instances: PERMANENT_DEFS.map(seedInstance),
-  archivedStates: {},
-};
-
-function withPermanents(shell: Shell): Shell {
-  const missing = PERMANENT_DEFS.filter((d) => !shell.instances.some((i) => i.widgetId === d.id));
-  return missing.length === 0
-    ? shell
-    : { ...shell, instances: [...missing.map(seedInstance), ...shell.instances] };
-}
-
-// ---------------------------------------------------------------------------
 // Kernel
 // ---------------------------------------------------------------------------
 
@@ -72,7 +48,7 @@ export class ShellManager {
     this.store = new JsonStore(
       storePath ?? inteligirPath("runtime-ui.json"),
       ShellSchema,
-      DEFAULTS,
+      DEFAULT_SHELL,
     );
     // Repair a hand-edited shell.json that validates but is missing a
     // permanent instance (e.g. someone dropped the chat row). Without this,
@@ -80,15 +56,11 @@ export class ShellManager {
     // fly while the in-memory store still lacked it — so getInstance, the
     // grid-geometry writer, and setInstanceState would silently no-op for
     // those instanceIds.
-    this.store.update(withPermanents);
+    this.store.update(withPermanentInstances);
   }
 
   snapshot(): ShellSnapshot {
-    const shell = withPermanents(this.store.read());
-    return {
-      defs: [...BUILTIN_DEFS, ...shell.customDefs],
-      instances: [...shell.instances],
-    };
+    return shellSnapshot(this.store.read());
   }
 
   getDef(id: string): WidgetDef | null {
@@ -448,11 +420,7 @@ export class ShellManager {
   }
 
   private broadcast(shell: Shell): void {
-    const safe = withPermanents(shell);
-    broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, {
-      defs: [...BUILTIN_DEFS, ...safe.customDefs],
-      instances: safe.instances,
-    });
+    broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, shellSnapshot(shell));
   }
 }
 
@@ -475,8 +443,5 @@ export function resetShellCache(): void {
   // prior session's defs/instances. Without this, the renderer's Zustand
   // store keeps stale data (initShell's `initialized` guard prevents a
   // re-fetch) and re-login renders against it.
-  broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, {
-    defs: [...BUILTIN_DEFS],
-    instances: PERMANENT_DEFS.map(seedInstance),
-  });
+  broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, defaultShellSnapshot());
 }
