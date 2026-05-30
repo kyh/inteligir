@@ -40,11 +40,24 @@ function Section({ props, children }: BaseProps<{ title?: string }>) {
   );
 }
 
+// Only emit press when the click landed on the row itself, not on an
+// interactive child like a Button or Checkbox — otherwise activating a
+// settings-style control inside the row would fire both the child's bound
+// action and the row's.
+const INTERACTIVE_CHILD_SELECTOR =
+  "button, input, textarea, label, [role='button'], [role='checkbox']";
+
 function Row({ props, emit, children }: BaseProps<{ bordered?: boolean }>) {
   const bordered = props.bordered !== false;
+  const onClick = (e: React.MouseEvent<HTMLDivElement>): void => {
+    if (e.target instanceof Element && e.target.closest(INTERACTIVE_CHILD_SELECTOR)) {
+      return;
+    }
+    emit("press");
+  };
   return (
     <div
-      onClick={() => emit("press")}
+      onClick={onClick}
       className={cn(
         "flex items-center justify-between gap-2",
         bordered && "rounded-md border border-border px-3 py-2",

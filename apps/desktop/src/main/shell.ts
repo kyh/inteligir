@@ -643,8 +643,10 @@ export function getShell(): ShellManager {
 export function resetShellCache(): void {
   // Null the singleton so the next getShell() builds a fresh instance — a
   // surviving reference to the old one would keep writing through its warm
-  // cache, undoing logout.
-  instance?.invalidate();
+  // cache, undoing logout. We intentionally do NOT call invalidate() here:
+  // its broadcast would re-publish the still-on-disk snapshot (the rm hasn't
+  // run yet) and let the renderer briefly re-show the prior session's
+  // widgets before our defaults broadcast lands.
   instance = null;
   // Push the default snapshot to any renderer subscribers so they drop the
   // prior session's defs/instances. Without this, the renderer's Zustand
