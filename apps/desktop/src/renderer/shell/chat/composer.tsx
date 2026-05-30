@@ -46,10 +46,7 @@ const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MiB per image
 // through when PromptInput's blob → data URL conversion failed, and
 // non-base64 data URLs (e.g. `data:text/plain,hello`) — so the agent never
 // receives a non-base64 string in the `data` field.
-function dataUrlToImageAttachment(
-  url: string,
-  mimeType: string,
-): ImageAttachment | null {
+function dataUrlToImageAttachment(url: string, mimeType: string): ImageAttachment | null {
   if (!url.startsWith("data:")) return null;
   const marker = ";base64,";
   const markerIdx = url.indexOf(marker);
@@ -57,6 +54,18 @@ function dataUrlToImageAttachment(
   const data = url.slice(markerIdx + marker.length);
   if (!data) return null;
   return { data, mimeType: mimeType || "image/png" };
+}
+
+type PromptInputFile = PromptInputMessage["files"][number];
+type ImagePromptInputFile = PromptInputFile & { mediaType: string; url: string };
+
+function isImagePromptInputFile(file: PromptInputFile): file is ImagePromptInputFile {
+  return (
+    typeof file.url === "string" &&
+    file.url.length > 0 &&
+    typeof file.mediaType === "string" &&
+    file.mediaType.startsWith("image/")
+  );
 }
 
 export function Composer() {
@@ -106,14 +115,10 @@ export function Composer() {
 
       try {
         const text = message.text.trim();
-        const fileImages = message.files.filter(
-          (f) => f.mediaType?.startsWith("image/") && f.url,
-        );
+        const fileImages = message.files.filter(isImagePromptInputFile);
         if (!text && fileImages.length === 0) return;
 
-        const converted = fileImages.map((f) =>
-          dataUrlToImageAttachment(f.url!, f.mediaType ?? "image/png"),
-        );
+        const converted = fileImages.map((f) => dataUrlToImageAttachment(f.url, f.mediaType));
         const images = converted.filter((img): img is ImageAttachment => img !== null);
         const dropped = converted.length - images.length;
         if (dropped > 0) {
@@ -140,12 +145,9 @@ export function Composer() {
     [send],
   );
 
-  const onAttachError = useCallback(
-    (err: { code: string; message: string }) => {
-      console.warn(`[composer] attachment error: ${err.code} - ${err.message}`);
-    },
-    [],
-  );
+  const onAttachError = useCallback((err: { code: string; message: string }) => {
+    console.warn(`[composer] attachment error: ${err.code} - ${err.message}`);
+  }, []);
 
   const queueCount = queuedFollowUp.length + queuedSteering.length;
   const requestSteer = useCallback(() => {
@@ -200,11 +202,7 @@ export function Composer() {
         */}
         <ComposerAttachments />
         <PromptInputBody>
-          <ComposerTextarea
-            busy={busy}
-            onInterrupt={interrupt}
-            onHasInputChange={setHasInput}
-          />
+          <ComposerTextarea busy={busy} onInterrupt={interrupt} onHasInputChange={setHasInput} />
         </PromptInputBody>
         <PromptInputToolbar>
           <PromptInputTools>
