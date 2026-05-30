@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImageIcon, ListPlusIcon, SendIcon, SquareIcon, ZapIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 import {
@@ -66,6 +66,17 @@ function isImagePromptInputFile(file: PromptInputFile): file is ImagePromptInput
     typeof file.mediaType === "string" &&
     file.mediaType.startsWith("image/")
   );
+}
+
+type QueuedMessage = { key: string; text: string };
+
+function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
+  const seen = new Map<string, number>();
+  return messages.map((text) => {
+    const count = seen.get(text) ?? 0;
+    seen.set(text, count + 1);
+    return { key: `${prefix}-${count}-${text}`, text };
+  });
 }
 
 export function Composer() {
@@ -150,6 +161,8 @@ export function Composer() {
   }, []);
 
   const queueCount = queuedFollowUp.length + queuedSteering.length;
+  const steeringQueue = useMemo(() => keyedMessages("steer", queuedSteering), [queuedSteering]);
+  const followUpQueue = useMemo(() => keyedMessages("follow", queuedFollowUp), [queuedFollowUp]);
   const requestSteer = useCallback(() => {
     pendingSteerRef.current = true;
   }, []);
@@ -159,19 +172,19 @@ export function Composer() {
       {queueCount > 0 && (
         <Queue className="mb-2 rounded-md bg-foreground/5 px-1.5 pb-1 pt-1 shadow-none">
           <QueueList className="-mb-1 mt-0">
-            {queuedSteering.map((msg, i) => (
-              <QueueItem key={`s-${i}`} className="px-2 py-1" title={msg}>
+            {steeringQueue.map((msg) => (
+              <QueueItem key={msg.key} className="px-2 py-1" title={msg.text}>
                 <div className="flex items-center gap-1.5 text-[10px] text-foreground">
                   <ZapIcon className="size-2.5 shrink-0 text-yellow-500" />
-                  <QueueItemContent className="text-foreground">{msg}</QueueItemContent>
+                  <QueueItemContent className="text-foreground">{msg.text}</QueueItemContent>
                 </div>
               </QueueItem>
             ))}
-            {queuedFollowUp.map((msg, i) => (
-              <QueueItem key={`f-${i}`} className="px-2 py-1" title={msg}>
+            {followUpQueue.map((msg) => (
+              <QueueItem key={msg.key} className="px-2 py-1" title={msg.text}>
                 <div className="flex items-center gap-1.5 text-[10px]">
                   <QueueItemIndicator className="size-1.5" />
-                  <QueueItemContent>{msg}</QueueItemContent>
+                  <QueueItemContent>{msg.text}</QueueItemContent>
                 </div>
               </QueueItem>
             ))}

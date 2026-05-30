@@ -13,6 +13,7 @@ import { useTaskStore } from "@/renderer/stores/task-store";
 // ---------------------------------------------------------------------------
 
 type ScheduleType = "cron" | "interval" | "once";
+const SCHEDULE_TYPES: ScheduleType[] = ["cron", "interval", "once"];
 
 function CreateTaskForm({ onDone }: { onDone: () => void }) {
   const createTask = useTaskStore((s) => s.createTask);
@@ -71,7 +72,7 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
       <div className="flex flex-col gap-1.5">
         <Label className="text-[10px] text-muted-foreground">Schedule</Label>
         <div className="flex gap-1">
-          {(["cron", "interval", "once"] as const).map((t) => (
+          {SCHEDULE_TYPES.map((t) => (
             <button
               key={t}
               type="button"
