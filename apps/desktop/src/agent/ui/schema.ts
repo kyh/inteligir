@@ -1,5 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 
+import { WIDGET_SURFACES } from "@/shared/shell";
 import { WidgetSpecParam } from "@/shared/widget-spec-schema";
 
 const PatchOpParam = Type.Union([
@@ -13,6 +14,7 @@ const PatchOpParam = Type.Union([
   ),
   Type.Object({ op: Type.Literal("remove"), path: Type.String() }, { additionalProperties: false }),
 ]);
+const SurfaceParam = Type.Union(WIDGET_SURFACES.map((surface) => Type.Literal(surface)));
 
 export const ManageUiSchema = Type.Union([
   Type.Object({ action: Type.Literal("list") }, { additionalProperties: false }),
@@ -63,7 +65,7 @@ export const ManageUiSchema = Type.Union([
     {
       action: Type.Literal("place"),
       id: Type.String({ minLength: 1 }),
-      surface: Type.Optional(Type.Union([Type.Literal("pinned"), Type.Literal("floating")])),
+      surface: Type.Optional(SurfaceParam),
     },
     { additionalProperties: false },
   ),

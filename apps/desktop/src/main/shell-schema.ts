@@ -1,7 +1,9 @@
 import { z } from "zod";
 
-import { type InstallWidgetInput, type Shell } from "@/shared/shell";
+import { type InstallWidgetInput, type Shell, WIDGET_SURFACES } from "@/shared/shell";
 import { WidgetSpecSchema } from "@/shared/widget-spec-schema";
+
+export const SurfaceSchema = z.enum(WIDGET_SURFACES);
 
 export const GeometrySchema = z.object({
   x: z.number(),

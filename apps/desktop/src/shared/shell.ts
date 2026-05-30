@@ -185,7 +185,8 @@ export function isJsonUi(def: WidgetDef): def is JsonUiWidgetDef {
 
 /** Where an instance is shown: "pinned" to the desktop grid (a "desktop
  * widget") or "floating" above everything (an "app window"). */
-export type WidgetSurface = "pinned" | "floating";
+export const WIDGET_SURFACES = tuple("pinned", "floating");
+export type WidgetSurface = (typeof WIDGET_SURFACES)[number];
 
 /** Placement is a discriminated union — pinned instances carry grid
  * coordinates only; floating instances carry a free-form rect and z-order

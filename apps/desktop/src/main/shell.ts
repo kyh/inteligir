@@ -465,11 +465,12 @@ export function getShell(): ShellManager {
   return instance;
 }
 
-/** Whether ShellManager mutations should be honored. Reads (snapshot,
- * listShell) stay live regardless — they're cheap and the renderer needs
- * something to render on the login screen. */
-export function isShellWritable(): boolean {
-  return !writesSuspended;
+export function getShellSnapshot(): ShellSnapshot {
+  return writesSuspended ? defaultShellSnapshot() : getShell().snapshot();
+}
+
+export function getWritableShell(): ShellManager | null {
+  return writesSuspended ? null : getShell();
 }
 
 export function resetShellCache(): void {

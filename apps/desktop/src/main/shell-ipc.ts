@@ -2,37 +2,35 @@ import { z } from "zod";
 
 import { deleteWithFlush, placeWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
-import { defaultShellSnapshot } from "@/main/shell-defaults";
-import { GeometrySchema, InstallWidgetInputSchema, RectSchema } from "@/main/shell-schema";
-import { getShell, isShellWritable } from "@/main/shell";
+import {
+  GeometrySchema,
+  InstallWidgetInputSchema,
+  RectSchema,
+  SurfaceSchema,
+} from "@/main/shell-schema";
+import { getShellSnapshot, getWritableShell } from "@/main/shell";
 import { IPC_CHANNELS } from "@/shared/ipc";
 
 export function registerShellIpcHandlers(): void {
   createVoidIpcHandler(IPC_CHANNELS.SHELL_LIST, () => {
-    // While writes are suspended (post-logout), don't construct a fresh
-    // ShellManager — its constructor's withPermanentInstances repair writes
-    // runtime-ui.json, which would re-create the directory teardownResources
-    // just removed. The renderer's listShell retry loop hits this path.
-    if (!isShellWritable()) return defaultShellSnapshot();
-    return getShell().snapshot();
+    return getShellSnapshot();
   });
 
   createIpcHandler(IPC_CHANNELS.SHELL_INSTALL, InstallWidgetInputSchema, (input) => {
-    if (!isShellWritable()) throw new Error("Shell not ready");
-    return getShell().installWidget(input);
+    const shell = getWritableShell();
+    if (!shell) throw new Error("Shell not ready");
+    return shell.installWidget(input);
   });
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_PLACE,
-    z.object({ widgetId: z.string().min(1), surface: z.enum(["pinned", "floating"]).optional() }),
+    z.object({ widgetId: z.string().min(1), surface: SurfaceSchema.optional() }),
     ({ widgetId, surface }) => {
-      if (!isShellWritable()) return null;
       return placeWithFlush(widgetId, surface);
     },
   );
 
   createIpcHandler(IPC_CHANNELS.SHELL_UNPLACE, z.string().min(1), async (instanceId) => {
-    if (!isShellWritable()) return { removed: false };
     return { removed: await unplaceWithFlush(instanceId) };
   });
 
@@ -43,7 +41,6 @@ export function registerShellIpcHandlers(): void {
       expectedRevision: z.number().int().positive().optional(),
     }),
     async ({ widgetId, expectedRevision }) => {
-      if (!isShellWritable()) return { deleted: false };
       return { deleted: await deleteWithFlush(widgetId, expectedRevision) };
     },
   );
@@ -52,8 +49,7 @@ export function registerShellIpcHandlers(): void {
     IPC_CHANNELS.SHELL_SET_GEOMETRY,
     z.record(z.string(), GeometrySchema),
     (geometries) => {
-      if (!isShellWritable()) return;
-      getShell().setGeometries(geometries);
+      getWritableShell()?.setGeometries(geometries);
     },
   );
 
@@ -61,31 +57,27 @@ export function registerShellIpcHandlers(): void {
     IPC_CHANNELS.SHELL_SET_RECT,
     z.object({ instanceId: z.string().min(1), rect: RectSchema }),
     ({ instanceId, rect }) => {
-      if (!isShellWritable()) return;
-      getShell().setRect(instanceId, rect);
+      getWritableShell()?.setRect(instanceId, rect);
     },
   );
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_SET_SURFACE,
-    z.object({ instanceId: z.string().min(1), surface: z.enum(["pinned", "floating"]) }),
+    z.object({ instanceId: z.string().min(1), surface: SurfaceSchema }),
     ({ instanceId, surface }) => {
-      if (!isShellWritable()) return null;
-      return getShell().setSurface(instanceId, surface);
+      return getWritableShell()?.setSurface(instanceId, surface) ?? null;
     },
   );
 
   createIpcHandler(IPC_CHANNELS.SHELL_FOCUS, z.string().min(1), (instanceId) => {
-    if (!isShellWritable()) return;
-    getShell().bringToFront(instanceId);
+    getWritableShell()?.bringToFront(instanceId);
   });
 
   createIpcHandler(
     IPC_CHANNELS.SHELL_SET_STATE,
     z.object({ instanceId: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
     ({ instanceId, state }) => {
-      if (!isShellWritable()) return null;
-      return getShell().setInstanceState(instanceId, state);
+      return getWritableShell()?.setInstanceState(instanceId, state) ?? null;
     },
   );
 }

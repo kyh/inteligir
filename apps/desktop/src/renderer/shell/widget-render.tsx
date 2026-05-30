@@ -7,7 +7,13 @@ import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
 import { flushInstanceState } from "@/renderer/shell/instance-state-flush";
 import { WidgetViewer } from "@/renderer/shell/widget-viewer";
 import { getBridge } from "@/renderer/lib/bridge";
-import { isBuiltin, isJsonUi, type WidgetDef, type WidgetInstance } from "@/shared/shell";
+import {
+  isBuiltin,
+  isJsonUi,
+  type WidgetDef,
+  type WidgetInstance,
+  type WidgetSurface,
+} from "@/shared/shell";
 
 /** A panel/window header action button. Stops mouse + pointer propagation so
  * it doesn't trigger the grid drag handle or a floating-window drag. */
@@ -57,10 +63,7 @@ export async function closeInstance(instance: WidgetInstance): Promise<void> {
 
 /** Move an instance between surfaces (pinned grid ⇄ floating window). Flushes
  * first so the broadcast that triggers the remount carries the latest state. */
-export async function moveInstance(
-  instanceId: string,
-  surface: "pinned" | "floating",
-): Promise<void> {
+export async function moveInstance(instanceId: string, surface: WidgetSurface): Promise<void> {
   await flushInstanceState(instanceId);
   await getBridge()?.setInstanceSurface(instanceId, surface);
 }

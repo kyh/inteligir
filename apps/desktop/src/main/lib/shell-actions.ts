@@ -3,14 +3,15 @@
 // route through these; ShellManager stays synchronous and unit-testable.
 
 import { flushRendererInstance } from "@/main/lib/widget-flush";
-import { getShell, isShellWritable } from "@/main/shell";
+import { getWritableShell } from "@/main/shell";
 import type { WidgetInstance, WidgetSurface } from "@/shared/shell";
 
 /** Unplace one instance after flushing its pending state to main. */
 export async function unplaceWithFlush(instanceId: string): Promise<boolean> {
-  if (!isShellWritable()) return false;
-  await flushRendererInstance(instanceId);
-  return getShell().unplaceWidget(instanceId);
+  const mgr = getWritableShell();
+  if (!mgr) return false;
+  if (!(await flushRendererInstance(instanceId))) return false;
+  return mgr.unplaceWidget(instanceId);
 }
 
 /** Place an instance of a widget after flushing pending state for any live
@@ -22,13 +23,13 @@ export async function placeWithFlush(
   widgetId: string,
   surface?: WidgetSurface,
 ): Promise<WidgetInstance | null> {
-  if (!isShellWritable()) return null;
-  const mgr = getShell();
+  const mgr = getWritableShell();
+  if (!mgr) return null;
   const def = mgr.getDef(widgetId);
   const live = def?.singleton
     ? mgr.snapshot().instances.filter((i) => i.widgetId === widgetId)
     : [];
-  await Promise.all(live.map((i) => flushRendererInstance(i.instanceId)));
+  if (!(await flushInstances(live))) return null;
   return mgr.placeWidget(widgetId, surface);
 }
 
@@ -41,9 +42,14 @@ export async function deleteWithFlush(
   widgetId: string,
   expectedRevision?: number,
 ): Promise<boolean> {
-  if (!isShellWritable()) return false;
-  const mgr = getShell();
+  const mgr = getWritableShell();
+  if (!mgr) return false;
   const live = mgr.snapshot().instances.filter((i) => i.widgetId === widgetId);
-  await Promise.all(live.map((i) => flushRendererInstance(i.instanceId)));
+  if (!(await flushInstances(live))) return false;
   return mgr.deleteWidget(widgetId, expectedRevision);
+}
+
+async function flushInstances(instances: WidgetInstance[]): Promise<boolean> {
+  const results = await Promise.all(instances.map((i) => flushRendererInstance(i.instanceId)));
+  return results.every(Boolean);
 }

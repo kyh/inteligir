@@ -1,5 +1,5 @@
 import { deleteWithFlush, placeWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
-import { getShell, isShellWritable } from "@/main/shell";
+import { getWritableShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
 import { describeWidgetSpecLanguage } from "@/shared/widget-spec";
 import { isBuiltin, isJsonUi } from "@/shared/shell";
@@ -35,10 +35,10 @@ const uiExtension: PiExtensionBundle = {
         // calling getShell — the constructor's withPermanentInstances repair
         // and any mutation below would otherwise re-create ~/.inteligir from
         // an in-flight tool call.
-        if (!isShellWritable()) {
+        const mgr = getWritableShell();
+        if (!mgr) {
           return text("Error: shell is unavailable (signed out).");
         }
-        const mgr = getShell();
         try {
           switch (params.action) {
             case "list": {

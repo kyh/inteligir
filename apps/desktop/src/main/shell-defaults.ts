@@ -1,6 +1,5 @@
 import {
   BUILTIN_DEFS,
-  type Placement,
   type Shell,
   type ShellSnapshot,
   type WidgetDef,
@@ -43,20 +42,6 @@ export function shellSnapshot(shell: Shell): ShellSnapshot {
 export function defaultShellSnapshot(): ShellSnapshot {
   return {
     defs: [...BUILTIN_DEFS],
-    instances: DEFAULT_SHELL.instances.map(cloneInstance),
+    instances: structuredClone(DEFAULT_SHELL.instances),
   };
-}
-
-function cloneInstance(instance: WidgetInstance): WidgetInstance {
-  return {
-    ...instance,
-    placement: clonePlacement(instance.placement),
-    state: { ...instance.state },
-  };
-}
-
-function clonePlacement(placement: Placement): Placement {
-  return placement.surface === "pinned"
-    ? { surface: "pinned", geometry: { ...placement.geometry } }
-    : { surface: "floating", rect: { ...placement.rect }, z: placement.z };
 }

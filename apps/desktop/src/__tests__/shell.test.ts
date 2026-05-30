@@ -8,7 +8,12 @@ vi.mock("electron", () => ({
 }));
 
 import { ShellManager } from "@/main/shell";
-import { CHAT_WIDGET_ID, type WidgetDef, type WidgetInstance } from "@/shared/shell";
+import {
+  CHAT_WIDGET_ID,
+  type WidgetDef,
+  type WidgetInstance,
+  type WidgetSurface,
+} from "@/shared/shell";
 import type { WidgetSpec } from "@/shared/widget-spec";
 
 const SPEC: WidgetSpec = {
@@ -68,7 +73,7 @@ function source(def: WidgetDef) {
   return def.source;
 }
 
-function place(widgetId: string, surface?: "pinned" | "floating"): WidgetInstance {
+function place(widgetId: string, surface?: WidgetSurface): WidgetInstance {
   return must(mgr.placeWidget(widgetId, surface), `failed to place ${widgetId}`);
 }
 
