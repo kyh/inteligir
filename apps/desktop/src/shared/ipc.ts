@@ -1,8 +1,8 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
 import type {
+  CreateWidgetInput,
   FloatRect,
-  GenerateWidgetInput,
   ShellSnapshot,
   WidgetGeometry,
   WidgetInstance,
@@ -70,7 +70,7 @@ export const IPC_CHANNELS = {
   // Shell — the OS-like workspace (widget definitions + placed instances)
   SHELL_LIST: "shell:list",
   SHELL_UPDATED: "shell:updated",
-  SHELL_GENERATE: "shell:generate",
+  SHELL_CREATE: "shell:create",
   SHELL_PLACE: "shell:place",
   SHELL_UNPLACE: "shell:unplace",
   SHELL_DELETE: "shell:delete",
@@ -232,7 +232,7 @@ export type DesktopBridge = {
   // Shell — the OS-like workspace
   listShell: () => Promise<ShellSnapshot>;
   onShellUpdated: (listener: (next: ShellSnapshot) => void) => () => void;
-  generateWidget: (input: GenerateWidgetInput) => Promise<WidgetInstance>;
+  createWidget: (input: CreateWidgetInput) => Promise<WidgetInstance>;
   placeWidget: (widgetId: string, surface?: WidgetSurface) => Promise<WidgetInstance | null>;
   unplaceWidget: (instanceId: string) => Promise<{ removed: boolean }>;
   deleteWidget: (widgetId: string) => Promise<{ deleted: boolean }>;

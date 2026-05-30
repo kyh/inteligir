@@ -14,7 +14,6 @@ import { FloatingLayer } from "@/renderer/shell/floating-layer";
 import {
   ChromeButton,
   closeInstance,
-  isPermanentInstance,
   WidgetBody,
   widgetBodyClassName,
   widgetTitle,
@@ -23,20 +22,19 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import {
   isPinned,
-  type CustomWidgetDef,
-  type GenerateWidgetInput,
+  type CreateWidgetInput,
   type PinnedInstance,
+  type WidgetDef,
   type WidgetGeometry,
   type WidgetInstance,
 } from "@/shared/shell";
 
 // ---------------------------------------------------------------------------
-// Reshapeable workspace ("shell")
+// Workspace ("shell")
 //
-// A 12-column grid of placed "desktop widget" instances (surface === "pinned").
-// Floating "app window" instances render above it via FloatingLayer. Each
-// instance owns its grid geometry; the chat instance is permanent. Panels can
-// be popped out to a window or closed.
+// A 12-column grid of pinned widget instances. Floating ("app window")
+// instances render above it via FloatingLayer. Permanent defs (chat) can be
+// popped between surfaces but never removed.
 // ---------------------------------------------------------------------------
 
 const GRID_CONFIG = { cols: 12, rowHeight: 46, margin: [10, 10], containerPadding: [0, 0] } as const;
@@ -56,7 +54,7 @@ function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
 
 // A blank, user-editable note — the simplest custom widget a user can add
 // without authoring a spec: a multi-line field bound to state.
-function noteStarter(): GenerateWidgetInput {
+function noteStarter(): CreateWidgetInput {
   return {
     title: "Note",
     spec: {
@@ -113,24 +111,23 @@ function Panel({
   );
 }
 
-// memo'd on instance + customDef identity (reused by the store reconcile for
+// memo'd on instance + def identity (reused by the store reconcile for
 // unchanged widgets), so a floating-only change doesn't re-render every panel.
 const InstancePanel = memo(function InstancePanel({
   instance,
-  customDef,
+  def,
 }: {
   instance: WidgetInstance;
-  customDef: CustomWidgetDef | undefined;
+  def: WidgetDef | undefined;
 }) {
-  const permanent = isPermanentInstance(instance);
   return (
     <Panel
-      title={widgetTitle(instance, customDef)}
-      bodyClassName={widgetBodyClassName(instance)}
+      title={widgetTitle(def, instance)}
+      bodyClassName={widgetBodyClassName(def)}
       onPopOut={() => void getBridge()?.setInstanceSurface(instance.instanceId, "floating")}
-      onRemove={permanent ? undefined : () => closeInstance(instance)}
+      onRemove={def?.permanent ? undefined : () => closeInstance(instance)}
     >
-      <WidgetBody instance={instance} customDef={customDef} />
+      <WidgetBody def={def} instance={instance} />
     </Panel>
   );
 });
@@ -146,15 +143,12 @@ export function PanelGrid() {
     initShell();
   }, []);
   const instances = useShellStore((s) => s.instances);
-  const customWidgets = useShellStore((s) => s.customWidgets);
+  const defs = useShellStore((s) => s.defs);
   const loading = useShellStore((s) => s.loading);
 
   const pinnedInstances = useMemo(() => instances.filter(isPinned), [instances]);
   const layout = useMemo(() => pinnedInstances.map(instanceToLayoutItem), [pinnedInstances]);
-  const customById = useMemo(
-    () => new Map(customWidgets.map((d) => [d.id, d])),
-    [customWidgets],
-  );
+  const defById = useMemo(() => new Map(defs.map((d) => [d.id, d])), [defs]);
 
   // Persist geometry on drag/resize. Main compares against stored geometry and
   // only broadcasts on a real change, so the mount-time callback is a no-op.
@@ -165,7 +159,7 @@ export function PanelGrid() {
   }, []);
 
   const addNote = useCallback(() => {
-    void getBridge()?.generateWidget(noteStarter());
+    void getBridge()?.createWidget(noteStarter());
   }, []);
 
   const ready = width > 0 && !loading;
@@ -192,7 +186,7 @@ export function PanelGrid() {
           >
             {pinnedInstances.map((instance) => (
               <div key={instance.instanceId}>
-                <InstancePanel instance={instance} customDef={customById.get(instance.widgetId)} />
+                <InstancePanel instance={instance} def={defById.get(instance.widgetId)} />
               </div>
             ))}
           </GridLayout>

@@ -4,7 +4,7 @@ import { getBridge } from "@/renderer/lib/bridge";
 import {
   geometryEquals,
   rectEquals,
-  type CustomWidgetDef,
+  type WidgetDef,
   type WidgetInstance,
 } from "@/shared/shell";
 
@@ -12,13 +12,13 @@ import {
 // by PanelGrid on mount; the subscription lives for the session.
 
 type ShellState = {
-  customWidgets: CustomWidgetDef[];
+  defs: WidgetDef[];
   instances: WidgetInstance[];
   loading: boolean;
 };
 
 export const useShellStore = create<ShellState>(() => ({
-  customWidgets: [],
+  defs: [],
   instances: [],
   loading: true,
 }));
@@ -33,14 +33,13 @@ export function initShell(): void {
   let broadcastSeen = false;
   bridge.onShellUpdated((next) => {
     broadcastSeen = true;
-    apply(next.customWidgets, next.instances);
+    apply(next.defs, next.instances);
   });
   bridge
     .listShell()
     .then((next) => {
-      // Skip the stale read if a broadcast with newer data already landed.
       if (broadcastSeen) return null;
-      apply(next.customWidgets, next.instances);
+      apply(next.defs, next.instances);
       return null;
     })
     .catch(() => {
@@ -50,15 +49,15 @@ export function initShell(): void {
 
 /**
  * Apply a new snapshot, reusing the prior object identity for each unchanged
- * definition and instance so a single change re-renders only the affected
- * panel(s) — not every sibling viewer.
+ * def and instance so a single change re-renders only the affected panel(s)
+ * — not every sibling viewer.
  */
-function apply(customWidgets: CustomWidgetDef[], instances: WidgetInstance[]): void {
+function apply(defs: WidgetDef[], instances: WidgetInstance[]): void {
   const prev = useShellStore.getState();
-  const defs = reconcile(prev.customWidgets, customWidgets, (a, b) => a.updatedAt === b.updatedAt, (d) => d.id);
-  const insts = reconcile(prev.instances, instances, instanceEqual, (i) => i.instanceId);
-  if (!prev.loading && defs === prev.customWidgets && insts === prev.instances) return;
-  useShellStore.setState({ customWidgets: defs, instances: insts, loading: false });
+  const nextDefs = reconcile(prev.defs, defs, defEqual, (d) => d.id);
+  const nextInstances = reconcile(prev.instances, instances, instanceEqual, (i) => i.instanceId);
+  if (!prev.loading && nextDefs === prev.defs && nextInstances === prev.instances) return;
+  useShellStore.setState({ defs: nextDefs, instances: nextInstances, loading: false });
 }
 
 // Returns `prev` unchanged (same array ref) when nothing differs; otherwise a
@@ -81,8 +80,18 @@ function reconcile<T>(prev: T[], next: T[], equal: (a: T, b: T) => boolean, key:
   });
 }
 
+function defEqual(a: WidgetDef, b: WidgetDef): boolean {
+  if (a.id !== b.id || a.title !== b.title) return false;
+  if (a.source.kind !== b.source.kind) return false;
+  // Built-ins are code-defined and reference-equal forever; customs bump
+  // updatedAt on any content change.
+  if (a.source.kind === "custom" && b.source.kind === "custom") {
+    return a.source.updatedAt === b.source.updatedAt;
+  }
+  return true;
+}
+
 function instanceEqual(a: WidgetInstance, b: WidgetInstance): boolean {
-  // state crosses IPC as a fresh object each broadcast, so compare by value.
   if (a.widgetId !== b.widgetId) return false;
   if (a.placement.surface !== b.placement.surface) return false;
   if (a.placement.surface === "pinned" && b.placement.surface === "pinned") {

@@ -1,10 +1,12 @@
-// Shared resolution of a placed instance to its rendered body + chrome props,
-// used by both the grid (Panel) and floating windows (FloatingWindow).
+// Shared resolution of a placed instance + its def to rendered body + chrome
+// props, used by both the grid (Panel) and floating windows (FloatingWindow).
+
+import { LayoutPanelLeftIcon } from "lucide-react";
 
 import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
 import { WidgetViewer } from "@/renderer/shell/widget-viewer";
 import { getBridge } from "@/renderer/lib/bridge";
-import { builtinMeta, type CustomWidgetDef, type WidgetInstance } from "@/shared/shell";
+import type { BuiltinWidgetId, WidgetDef, WidgetInstance } from "@/shared/shell";
 
 /** A panel/window header action button. Stops mouse + pointer propagation so
  * it doesn't trigger the grid drag handle or a floating-window drag. */
@@ -31,17 +33,20 @@ export function ChromeButton({
   );
 }
 
-export function widgetTitle(instance: WidgetInstance, customDef?: CustomWidgetDef): string {
-  return builtinMeta(instance.widgetId)?.title ?? customDef?.title ?? instance.widgetId;
+export function widgetTitle(def: WidgetDef | undefined, instance: WidgetInstance): string {
+  return def?.title ?? instance.widgetId;
 }
 
-export function widgetBodyClassName(instance: WidgetInstance): string | undefined {
-  const meta = builtinMeta(instance.widgetId);
-  return meta ? BUILTIN_WIDGET_UI[meta.id].bodyClassName : undefined;
+export function widgetBodyClassName(def: WidgetDef | undefined): string | undefined {
+  return def?.source.kind === "builtin"
+    ? BUILTIN_WIDGET_UI[def.id as BuiltinWidgetId]?.bodyClassName
+    : undefined;
 }
 
-export function isPermanentInstance(instance: WidgetInstance): boolean {
-  return builtinMeta(instance.widgetId)?.permanent ?? false;
+export function widgetIcon(def: WidgetDef): React.ComponentType<{ className?: string }> {
+  return def.source.kind === "builtin"
+    ? BUILTIN_WIDGET_UI[def.id as BuiltinWidgetId].icon
+    : LayoutPanelLeftIcon;
 }
 
 /** Close (unplace) an instance — the definition survives in the dock and can
@@ -52,19 +57,18 @@ export function closeInstance(instance: WidgetInstance): void {
 }
 
 export function WidgetBody({
+  def,
   instance,
-  customDef,
 }: {
+  def: WidgetDef | undefined;
   instance: WidgetInstance;
-  customDef?: CustomWidgetDef;
 }) {
-  const meta = builtinMeta(instance.widgetId);
-  if (meta) {
-    const Body = BUILTIN_WIDGET_UI[meta.id].component;
-    return <Body />;
-  }
-  if (!customDef) {
+  if (!def) {
     return <div className="p-3 text-xs text-muted-foreground">This widget is unavailable.</div>;
   }
-  return <WidgetViewer instance={instance} spec={customDef.spec} />;
+  if (def.source.kind === "builtin") {
+    const Body = BUILTIN_WIDGET_UI[def.id as BuiltinWidgetId].component;
+    return <Body />;
+  }
+  return <WidgetViewer instance={instance} spec={def.source.spec} />;
 }

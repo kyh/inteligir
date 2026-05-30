@@ -71,7 +71,7 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   listShell: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST),
   onShellUpdated: (listener: (next: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.SHELL_UPDATED, listener),
-  generateWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_GENERATE, input),
+  createWidget: (input: unknown) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_CREATE, input),
   placeWidget: (widgetId: string, surface?: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_PLACE, { widgetId, surface }),
   unplaceWidget: (instanceId: string) => ipcRenderer.invoke(IPC_CHANNELS.SHELL_UNPLACE, instanceId),

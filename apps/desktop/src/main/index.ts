@@ -36,7 +36,7 @@ import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-singleton";
 import { readSessionHistory } from "@/main/session-history";
-import { GenerateWidgetInputSchema, GeometrySchema, getShell, RectSchema } from "@/main/shell";
+import { CreateWidgetInputSchema, GeometrySchema, getShell, RectSchema } from "@/main/shell";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
@@ -307,8 +307,8 @@ function registerIpcHandlers(): void {
     return getShell().snapshot();
   });
 
-  createIpcHandler(IPC_CHANNELS.SHELL_GENERATE, GenerateWidgetInputSchema, (input) => {
-    return getShell().generateWidget(input).instance;
+  createIpcHandler(IPC_CHANNELS.SHELL_CREATE, CreateWidgetInputSchema, (input) => {
+    return getShell().createWidget(input).instance;
   });
 
   createIpcHandler(

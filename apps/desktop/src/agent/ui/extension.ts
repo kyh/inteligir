@@ -6,7 +6,7 @@ import { Type, type Static } from "@sinclair/typebox";
 
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
-import { BUILTIN_WIDGETS, builtinMeta, type WidgetSpec } from "@/shared/shell";
+import { isBuiltin, isCustom, type WidgetSpec } from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
 
 const SpecParam = Type.Object(
@@ -152,17 +152,18 @@ const uiExtension: PiExtensionBundle = {
         try {
           switch (params.action) {
             case "list": {
-              const { customWidgets, instances } = mgr.snapshot();
+              const { defs, instances } = mgr.snapshot();
+              const builtins = defs.filter(isBuiltin);
+              const customs = defs.filter(isCustom);
+              const customLine = (d: typeof customs[number]) =>
+                d.source.kind === "custom"
+                  ? `  - ${d.id}: "${d.title}" (${Object.keys(d.source.spec.elements).length} elements)`
+                  : `  - ${d.id}: "${d.title}"`;
               const available = [
                 "Built-in widgets:",
-                ...BUILTIN_WIDGETS.map((b) => `  - ${b.id}: "${b.title}"`),
+                ...builtins.map((b) => `  - ${b.id}: "${b.title}"`),
                 "Custom widgets:",
-                ...(customWidgets.length === 0
-                  ? ["  (none)"]
-                  : customWidgets.map(
-                      (d) =>
-                        `  - ${d.id}: "${d.title}" (${Object.keys(d.spec.elements).length} elements)`,
-                    )),
+                ...(customs.length === 0 ? ["  (none)"] : customs.map(customLine)),
                 "Placed instances:",
                 ...(instances.length === 0
                   ? ["  (none)"]
@@ -172,21 +173,19 @@ const uiExtension: PiExtensionBundle = {
             }
             case "read": {
               if (!params.id) return text("Error: id is required for action='read'");
-              const def = mgr.getCustomDef(params.id);
-              if (def) return text(JSON.stringify(def, null, 2));
-              const meta = builtinMeta(params.id);
-              if (meta) return text(JSON.stringify(meta, null, 2));
-              return text(`Error: no widget with id '${params.id}'`);
+              const def = mgr.getDef(params.id);
+              if (!def) return text(`Error: no widget with id '${params.id}'`);
+              return text(JSON.stringify(def, null, 2));
             }
             case "create": {
               if (!params.title) return text("Error: title is required for action='create'");
               if (!params.spec) return text("Error: spec is required for action='create'");
-              if (params.id !== undefined && (mgr.getCustomDef(params.id) || builtinMeta(params.id))) {
+              if (params.id !== undefined && mgr.getDef(params.id)) {
                 return text(
                   `Error: widget '${params.id}' already exists. Use action='update', or omit id.`,
                 );
               }
-              const { def, instance } = mgr.generateWidget({
+              const { def, instance } = mgr.createWidget({
                 id: params.id,
                 title: params.title,
                 description: params.description,
@@ -200,7 +199,7 @@ const uiExtension: PiExtensionBundle = {
               if (!params.spec) return text("Error: spec is required for action='update'");
               const updated = mgr.updateWidget({
                 id: params.id,
-                title: params.title ?? mgr.getCustomDef(params.id)?.title ?? params.id,
+                title: params.title ?? mgr.getDef(params.id)?.title ?? params.id,
                 description: params.description,
                 spec: params.spec,
               });

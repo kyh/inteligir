@@ -3,7 +3,6 @@ import { useMemo } from "react";
 import { FloatingWindow } from "@/renderer/shell/floating-window";
 import {
   closeInstance,
-  isPermanentInstance,
   WidgetBody,
   widgetBodyClassName,
   widgetTitle,
@@ -16,33 +15,29 @@ import { isFloating, type FloatRect } from "@/shared/shell";
 // everywhere except the windows themselves.
 export function FloatingLayer() {
   const instances = useShellStore((s) => s.instances);
-  const customWidgets = useShellStore((s) => s.customWidgets);
+  const defs = useShellStore((s) => s.defs);
   const floating = useMemo(() => instances.filter(isFloating), [instances]);
-  const customById = useMemo(
-    () => new Map(customWidgets.map((d) => [d.id, d])),
-    [customWidgets],
-  );
+  const defById = useMemo(() => new Map(defs.map((d) => [d.id, d])), [defs]);
 
   if (floating.length === 0) return null;
 
   return (
     <div className="pointer-events-none absolute inset-0 z-10">
       {floating.map((instance) => {
-        const customDef = customById.get(instance.widgetId);
-        const permanent = isPermanentInstance(instance);
+        const def = defById.get(instance.widgetId);
         return (
           <FloatingWindow
             key={instance.instanceId}
-            title={widgetTitle(instance, customDef)}
+            title={widgetTitle(def, instance)}
             rect={instance.placement.rect}
             z={instance.placement.z}
-            bodyClassName={widgetBodyClassName(instance)}
+            bodyClassName={widgetBodyClassName(def)}
             onFocus={() => void getBridge()?.focusInstance(instance.instanceId)}
             onRect={(rect: FloatRect) => void getBridge()?.setInstanceRect(instance.instanceId, rect)}
             onDock={() => void getBridge()?.setInstanceSurface(instance.instanceId, "pinned")}
-            onClose={permanent ? undefined : () => closeInstance(instance)}
+            onClose={def?.permanent ? undefined : () => closeInstance(instance)}
           >
-            <WidgetBody instance={instance} customDef={customDef} />
+            <WidgetBody def={def} instance={instance} />
           </FloatingWindow>
         );
       })}

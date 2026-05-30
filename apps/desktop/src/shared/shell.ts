@@ -1,20 +1,24 @@
-// The shell is an OS-like workspace. Three concepts:
+// The shell is an OS-like workspace. Two concepts:
 //
-//  - Widget definitions ("what exists"): built-in widgets are code-defined
-//    (a React component, listed in BUILTIN_WIDGETS); custom widgets are
-//    agent-/user-generated json-render specs (CustomWidgetDef, persisted).
-//  - Instances ("what's placed"): a WidgetInstance is one placement of a
-//    definition on the grid, with its own id, geometry, and bound state. A
-//    definition can be placed zero, one, or many times.
-//  - The dock is the gallery/launcher for placing definitions; the grid shows
-//    the placed instances.
+//  - Widget definitions ("what's installed"): every widget — preinstalled and
+//    agent-/user-generated — is a WidgetDef. They differ only in `source`:
+//    a built-in widget renders via a React component registered in code
+//    (`source.kind === "builtin"`); a custom widget renders a json-render spec
+//    persisted on disk (`source.kind === "custom"`).
+//
+//  - Instances ("what's open"): a WidgetInstance is one placement of a def,
+//    either pinned to the desktop grid or floating as a window. A def can be
+//    placed zero, one, or many times.
+//
+//  - The dock is the gallery/launcher for placing defs; the workspace shows
+//    placed instances (pinned on the grid; floating in a layer above).
 //
 // Types stay loose here so main/preload don't pull @json-render/core in.
 
 import type { JsonPatchOp } from "./json-pointer";
 
 // ---------------------------------------------------------------------------
-// json-render spec (a custom widget definition's rendering)
+// json-render spec — the rendering of a "custom" widget def
 // ---------------------------------------------------------------------------
 
 export type WidgetSpecElement = {
@@ -33,7 +37,7 @@ export type WidgetSpec = {
 };
 
 // ---------------------------------------------------------------------------
-// Geometry
+// Geometry + rect
 // ---------------------------------------------------------------------------
 
 export type WidgetGeometry = {
@@ -61,55 +65,80 @@ export function rectEquals(a: FloatRect, b: FloatRect): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Definitions — "what exists"
+// Widget definitions — "what's installed"
 // ---------------------------------------------------------------------------
 
-export type BuiltinWidgetId = "chat" | "tasks" | "skills" | "extensions" | "settings";
+/** Where a def's rendering comes from. */
+export type WidgetSource =
+  | { kind: "builtin" }
+  | { kind: "custom"; spec: WidgetSpec; createdAt: number; updatedAt: number };
 
-/** Metadata for a code-defined widget. The React component + icon live in the
- * renderer's built-in registry, keyed by `id`; this metadata is shared so main
- * (the agent tool) and the renderer agree on what's available. */
-export type BuiltinWidgetMeta = {
-  id: BuiltinWidgetId;
+/** A widget definition. Built-ins live in code (BUILTIN_DEFS); customs are
+ * agent-/user-generated and persisted alongside instances. */
+export type WidgetDef = {
+  id: string;
   title: string;
-  /** At most one instance can be placed. */
+  description?: string;
+  /** At most one instance can be placed at a time. */
   singleton: boolean;
-  /** The seeded instance can't be removed (chat). Implies singleton. */
+  /** The seeded instance can't be removed. Implies singleton. */
   permanent: boolean;
+  /** Initial grid placement for new instances. */
   defaultGeometry: WidgetGeometry;
+  source: WidgetSource;
 };
+
+export type BuiltinWidgetId = "chat" | "tasks" | "skills" | "extensions" | "settings";
 
 // Keyed by id so the metadata is exhaustive over BuiltinWidgetId — adding an
 // id is a compile error until both this map and the renderer's
 // BUILTIN_WIDGET_UI (also keyed by the union) are filled in.
-const BUILTIN_WIDGETS_BY_ID: Record<BuiltinWidgetId, BuiltinWidgetMeta> = {
-  chat: { id: "chat", title: "Conversation", singleton: true, permanent: true, defaultGeometry: { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 } },
-  tasks: { id: "tasks", title: "Tasks", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 } },
-  skills: { id: "skills", title: "Skills", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 } },
-  extensions: { id: "extensions", title: "Extensions", singleton: true, permanent: false, defaultGeometry: { x: 5, y: 6, w: 4, h: 6, minW: 2, minH: 3 } },
-  settings: { id: "settings", title: "Settings", singleton: true, permanent: false, defaultGeometry: { x: 9, y: 6, w: 3, h: 6, minW: 2, minH: 3 } },
+const BUILTIN_DEFS_BY_ID: Record<BuiltinWidgetId, WidgetDef> = {
+  chat: {
+    id: "chat", title: "Conversation", singleton: true, permanent: true,
+    defaultGeometry: { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 },
+    source: { kind: "builtin" },
+  },
+  tasks: {
+    id: "tasks", title: "Tasks", singleton: true, permanent: false,
+    defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 },
+    source: { kind: "builtin" },
+  },
+  skills: {
+    id: "skills", title: "Skills", singleton: true, permanent: false,
+    defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 },
+    source: { kind: "builtin" },
+  },
+  extensions: {
+    id: "extensions", title: "Extensions", singleton: true, permanent: false,
+    defaultGeometry: { x: 5, y: 6, w: 4, h: 6, minW: 2, minH: 3 },
+    source: { kind: "builtin" },
+  },
+  settings: {
+    id: "settings", title: "Settings", singleton: true, permanent: false,
+    defaultGeometry: { x: 9, y: 6, w: 3, h: 6, minW: 2, minH: 3 },
+    source: { kind: "builtin" },
+  },
 };
 
-export const BUILTIN_WIDGETS: BuiltinWidgetMeta[] = Object.values(BUILTIN_WIDGETS_BY_ID);
+export const BUILTIN_DEFS: WidgetDef[] = Object.values(BUILTIN_DEFS_BY_ID);
 
 export const CHAT_WIDGET_ID = "chat";
 
-export function builtinMeta(id: string): BuiltinWidgetMeta | undefined {
-  return (BUILTIN_WIDGETS_BY_ID as Record<string, BuiltinWidgetMeta | undefined>)[id];
+export function builtinDef(id: string): WidgetDef | undefined {
+  return (BUILTIN_DEFS_BY_ID as Record<string, WidgetDef | undefined>)[id];
 }
 
-/** A generated widget definition — rendered from a json-render spec. */
-export type CustomWidgetDef = {
-  id: string;
-  title: string;
-  description?: string;
-  spec: WidgetSpec;
-  createdAt: number;
-  updatedAt: number;
-};
+export function isBuiltin(def: WidgetDef): boolean {
+  return def.source.kind === "builtin";
+}
+
+export function isCustom(def: WidgetDef): boolean {
+  return def.source.kind === "custom";
+}
 
 // ---------------------------------------------------------------------------
-// Instances — "what's placed"
+// Instances — "what's open"
 // ---------------------------------------------------------------------------
 
 /** Where an instance is shown: "pinned" to the desktop grid (a "desktop
@@ -125,7 +154,7 @@ export type Placement =
 
 export type WidgetInstance = {
   instanceId: string;
-  /** BuiltinWidgetId or a CustomWidgetDef.id. */
+  /** Matches a BUILTIN_DEFS id or a persisted custom WidgetDef id. */
   widgetId: string;
   placement: Placement;
   /** Per-instance bound state (custom widgets; built-ins manage their own). */
@@ -148,15 +177,21 @@ export function isFloating(i: WidgetInstance): i is FloatingInstance {
   return i.placement.surface === "floating";
 }
 
+// ---------------------------------------------------------------------------
+// Shell — what's persisted, what the renderer/agent see
+// ---------------------------------------------------------------------------
+
+/** Persisted: only the custom defs (built-ins live in code) + every instance. */
 export type Shell = {
   version: 1;
-  customWidgets: CustomWidgetDef[];
+  customDefs: WidgetDef[];
   instances: WidgetInstance[];
 };
 
-/** What the renderer + agent see (built-ins come from BUILTIN_WIDGETS). */
+/** Broadcast to the renderer + returned from listShell: every def the agent or
+ * UI can act on (built-in + custom) and every placed instance. */
 export type ShellSnapshot = {
-  customWidgets: CustomWidgetDef[];
+  defs: WidgetDef[];
   instances: WidgetInstance[];
 };
 
@@ -164,7 +199,7 @@ export type ShellSnapshot = {
 // Agent / IPC inputs
 // ---------------------------------------------------------------------------
 
-export type GenerateWidgetInput = {
+export type CreateWidgetInput = {
   id?: string;
   title: string;
   description?: string;

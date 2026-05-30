@@ -29,8 +29,10 @@ afterEach(() => {
 
 describe("ShellManager seeding", () => {
   it("seeds a single permanent, pinned chat instance", () => {
-    const { instances, customWidgets } = mgr.snapshot();
-    expect(customWidgets).toHaveLength(0);
+    const { defs, instances } = mgr.snapshot();
+    // Snapshot includes built-in defs (chat + tasks + skills + extensions + settings).
+    expect(defs.some((d) => d.id === CHAT_WIDGET_ID)).toBe(true);
+    expect(defs.every((d) => d.source.kind === "builtin")).toBe(true);
     expect(instances).toHaveLength(1);
     expect(instances[0]!.widgetId).toBe(CHAT_WIDGET_ID);
     expect(instances[0]!.placement.surface).toBe("pinned");
@@ -43,19 +45,20 @@ describe("ShellManager seeding", () => {
   });
 });
 
-describe("ShellManager.generateWidget", () => {
-  it("creates a custom definition and places one pinned instance", () => {
-    const { def, instance } = mgr.generateWidget({ title: "My Panel", spec: SPEC });
+describe("ShellManager.createWidget", () => {
+  it("creates a custom def + places one pinned instance", () => {
+    const { def, instance } = mgr.createWidget({ title: "My Panel", spec: SPEC });
     expect(def.id).toBe("my-panel");
+    expect(def.source.kind).toBe("custom");
     expect(instance.widgetId).toBe("my-panel");
     expect(instance.placement.surface).toBe("pinned");
     const snap = mgr.snapshot();
-    expect(snap.customWidgets.map((d) => d.id)).toContain("my-panel");
+    expect(snap.defs.some((d) => d.id === "my-panel")).toBe(true);
     expect(snap.instances.filter((i) => i.widgetId === "my-panel")).toHaveLength(1);
   });
 
   it("seeds instance state from the spec's initial state", () => {
-    const { instance } = mgr.generateWidget({
+    const { instance } = mgr.createWidget({
       title: "S",
       spec: { ...SPEC, state: { a: 1 } },
     });
@@ -63,7 +66,7 @@ describe("ShellManager.generateWidget", () => {
   });
 
   it("never collides with a built-in id", () => {
-    const { def } = mgr.generateWidget({ title: "tasks", spec: SPEC });
+    const { def } = mgr.createWidget({ title: "tasks", spec: SPEC });
     expect(def.id).not.toBe("tasks");
   });
 });
@@ -78,7 +81,7 @@ describe("ShellManager.placeWidget", () => {
   });
 
   it("places a custom widget multiple times (multi-instance)", () => {
-    const { def } = mgr.generateWidget({ title: "Note", spec: SPEC });
+    const { def } = mgr.createWidget({ title: "Note", spec: SPEC });
     mgr.placeWidget(def.id);
     const instances = mgr.snapshot().instances.filter((i) => i.widgetId === def.id);
     expect(instances).toHaveLength(2);
@@ -97,19 +100,19 @@ describe("ShellManager.unplaceWidget / deleteWidget", () => {
     expect(mgr.snapshot().instances.some((i) => i.widgetId === "tasks")).toBe(false);
   });
 
-  it("deletes a custom definition and all its instances", () => {
-    const { def } = mgr.generateWidget({ title: "Note", spec: SPEC });
+  it("deletes a custom def and all its instances", () => {
+    const { def } = mgr.createWidget({ title: "Note", spec: SPEC });
     mgr.placeWidget(def.id);
     expect(mgr.deleteWidget(def.id)).toBe(true);
     const snap = mgr.snapshot();
-    expect(snap.customWidgets.some((d) => d.id === def.id)).toBe(false);
+    expect(snap.defs.some((d) => d.id === def.id)).toBe(false);
     expect(snap.instances.some((i) => i.widgetId === def.id)).toBe(false);
   });
 });
 
 describe("ShellManager.setInstanceState", () => {
   it("replaces an instance's state wholesale", () => {
-    const { instance } = mgr.generateWidget({ title: "S", spec: SPEC, state: { a: 1, b: 2 } });
+    const { instance } = mgr.createWidget({ title: "S", spec: SPEC, state: { a: 1, b: 2 } });
     const next = mgr.setInstanceState(instance.instanceId, { a: 9 });
     expect(next?.state).toEqual({ a: 9 });
     expect(next?.state).not.toHaveProperty("b");
@@ -117,21 +120,28 @@ describe("ShellManager.setInstanceState", () => {
 });
 
 describe("ShellManager.patchWidgetSpec", () => {
-  it("applies an RFC 6902 replace to a custom widget's spec", () => {
-    const { def } = mgr.generateWidget({ id: "p", title: "P", spec: SPEC });
+  it("applies an RFC 6902 replace to a custom def's spec", () => {
+    const { def } = mgr.createWidget({ id: "p", title: "P", spec: SPEC });
     const patched = mgr.patchWidgetSpec({
       id: def.id,
       ops: [{ op: "replace", path: "/elements/r/props/text", value: "bye" }],
     });
-    expect(patched.spec.elements["r"]!.props["text"]).toBe("bye");
+    if (patched.source.kind !== "custom") throw new Error("expected custom");
+    expect(patched.source.spec.elements["r"]!.props["text"]).toBe("bye");
   });
 
   it("refuses a prototype-polluting path", () => {
-    mgr.generateWidget({ id: "p", title: "P", spec: SPEC });
+    mgr.createWidget({ id: "p", title: "P", spec: SPEC });
     expect(() =>
       mgr.patchWidgetSpec({ id: "p", ops: [{ op: "add", path: "/__proto__/polluted", value: "x" }] }),
     ).toThrow(/prototype-reserved/);
     expect(({} as Record<string, unknown>)["polluted"]).toBeUndefined();
+  });
+
+  it("refuses to patch a built-in def", () => {
+    expect(() =>
+      mgr.patchWidgetSpec({ id: "tasks", ops: [{ op: "replace", path: "/x", value: 1 }] }),
+    ).toThrow();
   });
 });
 
@@ -139,11 +149,9 @@ describe("ShellManager.setGeometries", () => {
   it("updates a pinned instance's geometry by instanceId", () => {
     const placed = mgr.placeWidget("tasks", "pinned")!;
     mgr.setGeometries({ [placed.instanceId]: { x: 1, y: 2, w: 3, h: 4 } });
-    const updated = mgr.getInstance(placed.instanceId);
-    expect(updated!.placement.surface).toBe("pinned");
-    if (updated!.placement.surface === "pinned") {
-      expect(updated!.placement.geometry).toMatchObject({ x: 1, y: 2, w: 3, h: 4 });
-    }
+    const updated = mgr.getInstance(placed.instanceId)!;
+    if (updated.placement.surface !== "pinned") throw new Error("expected pinned");
+    expect(updated.placement.geometry).toMatchObject({ x: 1, y: 2, w: 3, h: 4 });
   });
 
   it("ignores geometries targeted at a floating instance", () => {

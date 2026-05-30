@@ -1,12 +1,11 @@
 import { useMemo } from "react";
-import { LayoutPanelLeftIcon, MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
+import { MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
-import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
+import { widgetIcon } from "@/renderer/shell/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-import { BUILTIN_WIDGETS } from "@/shared/shell";
 
 type DockButtonProps = {
   icon: React.ComponentType<{ className?: string }>;
@@ -44,11 +43,11 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
   const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
   const voiceBusy = voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
 
-  // The dock is the gallery for every installed widget — built-ins + customs.
-  // Clicking toggles placement; closing a panel unplaces it, so the dock entry
-  // is how you bring it back.
+  // The dock is the gallery for every installed widget — built-ins and
+  // customs alike. Permanent ones (chat) don't appear here; you can't toggle
+  // them off. Clicking toggles placement on the workspace.
+  const defs = useShellStore((s) => s.defs);
   const instances = useShellStore((s) => s.instances);
-  const customWidgets = useShellStore((s) => s.customWidgets);
   const placedInstanceId = useMemo(() => {
     const map = new Map<string, string>();
     for (const i of instances) map.set(i.widgetId, i.instanceId);
@@ -61,8 +60,7 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
     else void getBridge()?.placeWidget(widgetId);
   };
 
-  const builtins = BUILTIN_WIDGETS.filter((b) => !b.permanent);
-  const hasCustoms = customWidgets.length > 0;
+  const visibleDefs = defs.filter((d) => !d.permanent);
 
   return (
     <div className="pointer-events-auto fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
@@ -76,24 +74,12 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
           active={voiceActive}
         />
 
-        <span className="mx-1 h-5 w-px bg-border" />
+        {visibleDefs.length > 0 ? <span className="mx-1 h-5 w-px bg-border" /> : null}
 
-        {builtins.map((b) => (
-          <DockButton
-            key={b.id}
-            icon={BUILTIN_WIDGET_UI[b.id].icon}
-            label={b.title}
-            active={placedInstanceId.has(b.id)}
-            onClick={() => toggle(b.id)}
-          />
-        ))}
-
-        {hasCustoms ? <span className="mx-1 h-5 w-px bg-border" /> : null}
-
-        {customWidgets.map((def) => (
+        {visibleDefs.map((def) => (
           <DockButton
             key={def.id}
-            icon={LayoutPanelLeftIcon}
+            icon={widgetIcon(def)}
             label={def.title}
             active={placedInstanceId.has(def.id)}
             onClick={() => toggle(def.id)}
