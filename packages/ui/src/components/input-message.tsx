@@ -570,4 +570,3 @@ InputMessage.displayName = "InputMessage";
 
 export { InputMessage };
 export type { InputMessageProps, InputMessageSlotContext };
-export default InputMessage;

@@ -218,4 +218,3 @@ const NavMenu = forwardRef<HTMLElement, NavMenuProps>(
 NavMenu.displayName = "NavMenu";
 
 export { NavMenu };
-export default NavMenu;

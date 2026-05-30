@@ -24,6 +24,7 @@ import path from "node:path";
 import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 
 import { inteligirPath } from "@/main/lib/json-store";
+import { isRecord } from "@/shared/ipc";
 
 const EXECUTOR_VERSION = "1.4.33";
 const EXECUTOR_DIR = inteligirPath("executor");
@@ -184,7 +185,7 @@ class ExecutorDaemon {
       ],
       {
         env: {
-          ...(process.env as Record<string, string>),
+          ...process.env,
           EXECUTOR_DATA_DIR: DATA_DIR,
           EXECUTOR_SCOPE_DIR: SCOPE_DIR,
         },
@@ -265,8 +266,10 @@ class ExecutorDaemon {
       signal: AbortSignal.timeout(5_000),
     });
     if (!resp.ok) throw new Error(`GET /scope failed: ${resp.status}`);
-    const body = (await resp.json()) as { id?: unknown; name?: unknown; dir?: unknown };
-    if (typeof body.id !== "string") throw new Error("GET /scope returned no scope id");
+    const body: unknown = await resp.json();
+    if (!isRecord(body) || typeof body.id !== "string") {
+      throw new Error("GET /scope returned no scope id");
+    }
     return {
       id: body.id,
       name: typeof body.name === "string" ? body.name : body.id,

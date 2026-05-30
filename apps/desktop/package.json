@@ -26,7 +26,6 @@
     "@json-render/react": "^0.19.0",
     "@mariozechner/pi-ai": "^0.73.1",
     "@mariozechner/pi-coding-agent": "^0.73.1",
-    "@react-three/fiber": "^9.6.1",
     "@repo/agent-runtime": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@repo/ui": "workspace:^",
@@ -42,7 +41,6 @@
     "react-router": "^7.15.1",
     "sherpa-onnx-node": "^1.10.41",
     "tar": "^7.5.15",
-    "three": "^0.184.0",
     "unbzip2-stream": "^1.4.3",
     "zod": "catalog:",
     "zustand": "^5.0.13"

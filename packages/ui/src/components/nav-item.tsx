@@ -110,4 +110,3 @@ const NavItem = forwardRef<HTMLAnchorElement, NavItemProps>(
 NavItem.displayName = "NavItem";
 
 export { NavItem };
-export default NavItem;

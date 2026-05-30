@@ -257,4 +257,3 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
 InputField.displayName = "InputField";
 
 export { InputGroup, InputField };
-export default InputGroup;

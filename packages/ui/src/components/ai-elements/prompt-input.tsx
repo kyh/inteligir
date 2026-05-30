@@ -10,7 +10,16 @@ import type {
   KeyboardEventHandler,
   ReactNode,
 } from "react";
-import { Children, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Children,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ChatStatus, FileUIPart } from "ai";
 import { CornerDownLeftIcon, SquareIcon, XIcon } from "lucide-react";
 import { nanoid } from "nanoid";
@@ -29,8 +38,6 @@ import {
   TooltipTrigger,
 } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
-
-import { createContext, useContext } from "react";
 
 const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
   try {
@@ -181,11 +188,11 @@ export const PromptInput = ({
         onError?.({ code: "max_files", message: "Too many files. Some were not added." });
       }
       if (capped.length === 0) return;
-      const newItems = capped.map((file) => ({
+      const newItems: (FileUIPart & { id: string })[] = capped.map((file) => ({
         filename: file.name,
         id: nanoid(),
         mediaType: file.type,
-        type: "file" as const,
+        type: "file",
         url: URL.createObjectURL(file),
       }));
       liveCountRef.current += newItems.length;
@@ -280,7 +287,8 @@ export const PromptInput = ({
       submittingRef.current = true;
       const form = event.currentTarget;
       const formData = new FormData(form);
-      const text = (formData.get("message") as string) || "";
+      const message = formData.get("message");
+      const text = typeof message === "string" ? message : "";
       form.reset();
 
       // Snapshot the IDs we're about to submit. Anything the user adds to
@@ -375,9 +383,7 @@ export const PromptInputTextarea = ({
         if (e.shiftKey) return;
         e.preventDefault();
         const { form } = e.currentTarget;
-        const submitButton = form?.querySelector(
-          'button[type="submit"]',
-        ) as HTMLButtonElement | null;
+        const submitButton = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
         // Skip if no submit button is in the DOM (e.g., parent renders a
         // type="button" stop control instead while the agent is busy) or
         // if it exists but is disabled.
@@ -430,16 +436,6 @@ export const PromptInputTextarea = ({
     />
   );
 };
-
-export type PromptInputHeaderProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">;
-
-export const PromptInputHeader = ({ className, ...props }: PromptInputHeaderProps) => (
-  <InputGroupAddon
-    align="block-end"
-    className={cn("order-first flex-wrap gap-1", className)}
-    {...props}
-  />
-);
 
 export type PromptInputToolbarProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">;
 

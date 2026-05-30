@@ -292,4 +292,3 @@ InputCopy.displayName = "InputCopy";
 
 export { InputCopy };
 export type { InputCopyProps };
-export default InputCopy;

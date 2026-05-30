@@ -6,6 +6,7 @@
 import { join } from "node:path";
 
 import { getModelDir, isModelInstalled } from "@/main/voice/model-download";
+import { isRecord } from "@/shared/ipc";
 
 // sherpa-onnx-node is loaded lazily so the app still boots when the model
 // isn't downloaded yet (the renderer just sees STT unavailable).
@@ -22,6 +23,20 @@ type Stream = {
   acceptWaveform: (input: { sampleRate: number; samples: Float32Array }) => void;
   inputFinished: () => void;
 };
+
+function isOnlineRecognizerModule(value: unknown): value is {
+  OnlineRecognizer: OnlineRecognizerCtor;
+} {
+  return isRecord(value) && typeof value.OnlineRecognizer === "function";
+}
+
+function isStream(value: unknown): value is Stream {
+  return (
+    isRecord(value) &&
+    typeof value.acceptWaveform === "function" &&
+    typeof value.inputFinished === "function"
+  );
+}
 
 let recognizer: InstanceType<OnlineRecognizerCtor> | null = null;
 let initPromise: Promise<InitResult> | null = null;
@@ -57,9 +72,10 @@ async function doInit(): Promise<InitResult> {
   const modelDir = getModelDir();
 
   try {
-    const mod = (await import("sherpa-onnx-node")) as unknown as {
-      OnlineRecognizer: OnlineRecognizerCtor;
-    };
+    const mod: unknown = await import("sherpa-onnx-node");
+    if (!isOnlineRecognizerModule(mod)) {
+      throw new Error("sherpa-onnx-node did not export OnlineRecognizer");
+    }
     recognizer = new mod.OnlineRecognizer({
       featConfig: { sampleRate: 16000, featureDim: 80 },
       modelConfig: {
@@ -93,7 +109,12 @@ async function doInit(): Promise<InitResult> {
 
 export function startSession(): void {
   if (!recognizer) return;
-  stream = recognizer.createStream() as Stream;
+  const nextStream = recognizer.createStream();
+  if (!isStream(nextStream)) {
+    console.error("[parakeet] recognizer returned an invalid stream");
+    return;
+  }
+  stream = nextStream;
   lastEmittedText = "";
 }
 

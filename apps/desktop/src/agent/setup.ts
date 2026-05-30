@@ -121,12 +121,14 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
 
 /** Report installed-vs-pinned versions for every bundle that installs a CLI. */
 export async function listIntegrations(): Promise<IntegrationInfo[]> {
-  const bundles = EXTENSION_BUNDLES.filter((b) => b.cli);
+  const clis = EXTENSION_BUNDLES.map((bundle) => bundle.cli).filter(
+    (cli): cli is NonNullable<PiExtensionBundle["cli"]> => cli !== undefined,
+  );
   return Promise.all(
-    bundles.map(async (b) => ({
-      name: b.cli!.name,
-      expected: b.cli!.version,
-      installed: await readCliVersion(b.cli!.binPath),
+    clis.map(async (cli) => ({
+      name: cli.name,
+      expected: cli.version,
+      installed: await readCliVersion(cli.binPath),
     })),
   );
 }

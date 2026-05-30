@@ -397,4 +397,3 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
 CheckboxItem.displayName = "CheckboxItem";
 
 export { CheckboxGroup, CheckboxItem };
-export default CheckboxGroup;

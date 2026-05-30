@@ -1,21 +1,47 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+type PipelineInstance = {
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+  config: unknown;
+};
+
+type TranscriptFinalConfig = {
+  onTranscriptFinal: (text: string) => void;
+};
+
 // vi.hoisted runs before vi.mock factories, so the mocks below can reach
 // `helpers` to share state with the test code.
-const helpers = vi.hoisted(() => ({
-  pipelineInstances: [] as Array<{
-    connect: ReturnType<typeof vi.fn>;
-    disconnect: ReturnType<typeof vi.fn>;
-    config: unknown;
-  }>,
-  bridgeMock: {
-    getVoiceConfig: vi.fn<() => Promise<unknown>>(),
-    getVoiceModelStatus: vi.fn<() => Promise<"ready" | "missing">>(),
-    downloadVoiceModel: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(),
-    onVoiceModelState: vi.fn(() => () => {}),
-    sendAgentCommand: vi.fn(),
-  },
-}));
+const helpers = vi.hoisted(
+  (): {
+    pipelineInstances: PipelineInstance[];
+    bridgeMock: {
+      getVoiceConfig: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
+      getVoiceModelStatus: ReturnType<typeof vi.fn<() => Promise<"ready" | "missing">>>;
+      downloadVoiceModel: ReturnType<typeof vi.fn<() => Promise<{ ok: boolean; error?: string }>>>;
+      onVoiceModelState: ReturnType<typeof vi.fn<() => () => void>>;
+      sendAgentCommand: ReturnType<typeof vi.fn>;
+    };
+  } => ({
+    pipelineInstances: [],
+    bridgeMock: {
+      getVoiceConfig: vi.fn<() => Promise<unknown>>(),
+      getVoiceModelStatus: vi.fn<() => Promise<"ready" | "missing">>(),
+      downloadVoiceModel: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(),
+      onVoiceModelState: vi.fn(() => () => {}),
+      sendAgentCommand: vi.fn(),
+    },
+  }),
+);
+
+function hasTranscriptFinalConfig(config: unknown): config is TranscriptFinalConfig {
+  return (
+    typeof config === "object" &&
+    config !== null &&
+    "onTranscriptFinal" in config &&
+    typeof config.onTranscriptFinal === "function"
+  );
+}
 
 vi.mock("@/renderer/lib/bridge", () => ({
   getBridge: () => helpers.bridgeMock,
@@ -125,8 +151,9 @@ describe("voice-store", () => {
         useVoiceStore.getState().reset();
 
         const inst = helpers.pipelineInstances[0];
-        const callbacks = inst?.config as { onTranscriptFinal: (text: string) => void } | undefined;
-        callbacks?.onTranscriptFinal("late tail words");
+        if (hasTranscriptFinalConfig(inst?.config)) {
+          inst.config.onTranscriptFinal("late tail words");
+        }
 
         expect(listener).not.toHaveBeenCalled();
       } finally {

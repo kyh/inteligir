@@ -777,4 +777,3 @@ const AccordionContent = forwardRef<HTMLDivElement, AccordionContentProps>(
 AccordionContent.displayName = "AccordionContent";
 
 export { Accordion, AccordionGroup, AccordionItem, AccordionTrigger, AccordionContent };
-export default Accordion;

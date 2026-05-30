@@ -13,7 +13,6 @@
   },
   "dependencies": {
     "@repo/api": "workspace:*",
-    "@repo/db": "workspace:*",
     "@repo/ui": "workspace:*",
     "@tanstack/react-form": "catalog:",
     "@tanstack/react-query": "catalog:",

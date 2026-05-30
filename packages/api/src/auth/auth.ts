@@ -17,12 +17,21 @@ const baseUrl =
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000";
 
+const firstNonEmpty = (...values: Array<string | undefined>): string | undefined =>
+  values.find((value) => value !== undefined && value.trim() !== "");
+
+const localAuthSecret = "kT8mYqX4rN2vP7sL9cH3aW6eJ1bD5uF0gZpR4xQnVtM=";
+const isVercel = process.env.VERCEL_ENV !== undefined;
+const authSecret =
+  firstNonEmpty(process.env.BETTER_AUTH_SECRET, process.env.AUTH_SECRET) ??
+  (isVercel ? firstNonEmpty(process.env.SUPABASE_SERVICE_ROLE_KEY) : localAuthSecret);
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
   baseURL: baseUrl,
-  secret: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  secret: authSecret,
   plugins: [
     oAuthProxy({
       currentURL: baseUrl,

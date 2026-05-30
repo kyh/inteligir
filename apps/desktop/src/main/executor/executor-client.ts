@@ -24,6 +24,7 @@ import type {
   OAuthStartResult,
   SetSecretInput,
 } from "@/shared/executor";
+import { isRecord } from "@/shared/ipc";
 
 class ExecutorClientError extends Error {
   constructor(
@@ -47,6 +48,23 @@ function connection() {
 /** Encode a scopeId for use in a path segment (it contains ":" and "/"). */
 function enc(value: string): string {
   return encodeURIComponent(value);
+}
+
+function isOAuthAwaitResult(value: unknown): value is OAuthAwaitResult {
+  if (!isRecord(value) || typeof value.ok !== "boolean") return false;
+  if (value.ok) {
+    return (
+      typeof value.sessionId === "string" &&
+      typeof value.connectionId === "string" &&
+      (value.expiresAt === null || typeof value.expiresAt === "number") &&
+      (value.scope === null || typeof value.scope === "string")
+    );
+  }
+  return (
+    (value.sessionId === null || typeof value.sessionId === "string") &&
+    typeof value.error === "string" &&
+    (value.errorDetails === undefined || typeof value.errorDetails === "string")
+  );
 }
 
 type RequestOptions = {
@@ -209,8 +227,5 @@ export async function awaitOAuth(sessionId: string): Promise<OAuthAwaitResult | 
   const body: unknown = await resp.json().catch(() => null);
   // Validate the discriminated union before returning — a malformed/partial
   // body must not be treated as a terminal ok/error result by the poller.
-  if (!body || typeof body !== "object" || typeof (body as { ok?: unknown }).ok !== "boolean") {
-    return null;
-  }
-  return body as OAuthAwaitResult;
+  return isOAuthAwaitResult(body) ? body : null;
 }

@@ -6,6 +6,15 @@ const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 const MODEL_ID = "eleven_flash_v2_5";
 const SAMPLE_RATE = 24000;
 
+function isAudioPayload(value: unknown): value is { audio: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "audio" in value &&
+    typeof value.audio === "string"
+  );
+}
+
 export type TTSHandle = {
   sendText: (text: string) => void;
   flush: () => void;
@@ -50,8 +59,8 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
     socket.addEventListener("message", (event) => {
       if (muted) return;
       try {
-        const data = JSON.parse(String(event.data)) as { audio?: string };
-        if (data.audio) {
+        const data: unknown = JSON.parse(String(event.data));
+        if (isAudioPayload(data)) {
           const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
           playChunk(bytes.buffer);
         }

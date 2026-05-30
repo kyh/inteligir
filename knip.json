@@ -29,8 +29,7 @@
         "src/app/**/*.{ts,tsx}",
         "src/components/**/*.{ts,tsx}"
       ],
-      "project": ["*.config.{js,mjs}", "src/**/*.{ts,tsx}"],
-      "ignoreDependencies": ["@repo/db"]
+      "project": ["*.config.{js,mjs}", "src/**/*.{ts,tsx}"]
     },
     "packages/db": {
       "entry": ["drizzle.config.ts"],

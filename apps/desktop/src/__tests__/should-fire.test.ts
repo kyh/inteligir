@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { shouldFire } from "@/main/tasks/task-manager";
 import type { Task } from "@/shared/task";
 
@@ -65,10 +65,16 @@ describe("shouldFire — cron", () => {
   });
 
   it("returns false for invalid cron expression (no throw)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const task = makeTask({
       schedule: { type: "cron", cron: "not-valid-cron" },
     });
-    expect(shouldFire(task, Date.now())).toBe(false);
+    try {
+      expect(shouldFire(task, Date.now())).toBe(false);
+      expect(warn).toHaveBeenCalledWith('[scheduler] invalid cron "not-valid-cron" for task t1');
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
@@ -90,8 +96,6 @@ describe("shouldFire — interval", () => {
       schedule: { type: "interval", intervalMs: 60_000 },
       lastRunAt: 1000,
     });
-    expect(shouldFire(task, 61_000)).toBe(true);
-    // exactly at boundary
     expect(shouldFire(task, 61_000)).toBe(true);
   });
 

@@ -67,9 +67,15 @@ function addWindow(id: number): void {
 function requestId(index: number): string {
   const message = electronMock.sent[index];
   if (!message) throw new Error("missing sent message");
-  const payload = message.payload as { requestId?: unknown };
-  if (typeof payload.requestId !== "string") throw new Error("missing requestId");
-  return payload.requestId;
+  if (
+    typeof message.payload !== "object" ||
+    message.payload === null ||
+    !("requestId" in message.payload) ||
+    typeof message.payload.requestId !== "string"
+  ) {
+    throw new Error("missing requestId");
+  }
+  return message.payload.requestId;
 }
 
 function missingFlushResolver(): void {
@@ -106,7 +112,10 @@ describe("instance-state-flush", () => {
   });
 
   it("propagates a failed flush as false", async () => {
-    const unregister = registerInstanceFlush("a-fail", vi.fn(async () => false));
+    const unregister = registerInstanceFlush(
+      "a-fail",
+      vi.fn(async () => false),
+    );
     await expect(flushInstanceState("a-fail")).resolves.toBe(false);
     unregister();
   });
