@@ -77,7 +77,13 @@ export function registerShellIpcHandlers(): void {
     IPC_CHANNELS.SHELL_SET_STATE,
     z.object({ instanceId: z.string().min(1), state: z.record(z.string(), z.unknown()) }),
     ({ instanceId, state }) => {
-      return getWritableShell()?.setInstanceState(instanceId, state) ?? null;
+      // Reject when writes are suspended (post-logout) instead of silently
+      // returning null: the renderer's flushPersist would otherwise see a
+      // resolved invoke, report persisted=true to the flush bridge, and let
+      // unplace/delete proceed even though the state never reached disk.
+      const shell = getWritableShell();
+      if (!shell) throw new Error("Shell not ready");
+      return shell.setInstanceState(instanceId, state);
     },
   );
 }
