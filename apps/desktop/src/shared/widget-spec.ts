@@ -32,6 +32,28 @@ export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
   "Separator",
 ];
 
+export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, string> = {
+  Stack:
+    "Vertical stack container. Props: { gap?: 'sm'|'md'|'lg' }. Use as the top-level wrapper or nested groups.",
+  Section:
+    "Labeled group of rows. Props: { title?: string }. Renders a small uppercase title when set.",
+  Row: "Horizontal row with space-between layout. Props: { bordered?: boolean }. Bordered by default.",
+  Heading: "Heading text. Props: { text: string, level?: '1'|'2'|'3' }. Defaults to level 3.",
+  Text: "Text node. Props: { text: string, muted?: boolean, size?: 'xs'|'sm'|'base' }.",
+  TextBlock:
+    "Two-line text. Props: { title: string, description?: string }. Use for label/value summaries.",
+  Button:
+    "Clickable button. Props: { label: string, variant?: 'default'|'outline'|'ghost'|'secondary'|'destructive', size?: 'xs'|'sm'|'default'|'lg', disabled?: boolean }. Wire `on.press` to actions.",
+  Checkbox:
+    "Checkbox. Props: { label: string, description?: string, checked?: boolean, disabled?: boolean }. Two-way bind `checked` via { $bindState: '/path' }.",
+  Input:
+    "Text input. Props: { label?: string, placeholder?: string, value?: string, disabled?: boolean }. Two-way bind `value` via { $bindState: '/path' }.",
+  Textarea:
+    "Multi-line input. Props: { label?: string, placeholder?: string, value?: string, rows?: number, disabled?: boolean }. Two-way bind `value`.",
+  Card: "Bordered container. Props: {}. Use to group arbitrary children.",
+  Separator: "Horizontal hairline divider. Props: {}.",
+};
+
 export type WidgetActionName =
   | "notify"
   | "openUrl"
@@ -111,3 +133,18 @@ export type WidgetSpec = {
   elements: Record<string, WidgetSpecElement>;
   state?: Record<string, unknown>;
 };
+
+export function describeWidgetSpecLanguage(): string {
+  return [
+    "Generated widget spec:",
+    "  { root: string, elements: Record<string, element>, state?: object }",
+    "Element:",
+    "  { type, props?, children?, visible?, repeat?, on?, watch? }",
+    "Components:",
+    ...JSON_WIDGET_COMPONENT_TYPES.map(
+      (name) => `  - ${name}: ${WIDGET_COMPONENT_DESCRIPTIONS[name]}`,
+    ),
+    "Actions:",
+    ...WIDGET_ACTION_NAMES.map((name) => `  - ${name}: ${WIDGET_ACTION_DESCRIPTIONS[name]}`),
+  ].join("\n");
+}

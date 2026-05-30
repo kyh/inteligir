@@ -3,7 +3,11 @@ import { Type, type Static } from "@sinclair/typebox";
 import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
-import { JSON_WIDGET_COMPONENT_TYPES, WIDGET_ACTION_NAMES } from "@/shared/widget-spec";
+import {
+  JSON_WIDGET_COMPONENT_TYPES,
+  WIDGET_ACTION_NAMES,
+  describeWidgetSpecLanguage,
+} from "@/shared/widget-spec";
 import { isBuiltin, isJsonUi } from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
 
@@ -69,6 +73,7 @@ const PatchOpParam = Type.Union([
 
 const ManageUiSchema = Type.Union([
   Type.Object({ action: Type.Literal("list") }, { additionalProperties: false }),
+  Type.Object({ action: Type.Literal("catalog") }, { additionalProperties: false }),
   Type.Object(
     { action: Type.Literal("read"), id: Type.String({ minLength: 1 }) },
     { additionalProperties: false },
@@ -146,7 +151,8 @@ const uiExtension: PiExtensionBundle = {
       description:
         "Manage the user's runtime UI. Built-in widgets are system React widgets; generated " +
         "widgets are json-ui specs. Install means the widget exists in the dock; place opens " +
-        "an instance on the shell. Generated widgets are trusted and can use live actions.",
+        "an instance on the shell. Use action='catalog' to inspect generated widget components " +
+        "and actions. Generated widgets are trusted and can use live actions.",
       parameters: ManageUiSchema,
       execute: async (_toolCallId, params: Static<typeof ManageUiSchema>) => {
         const mgr = getShell();
@@ -171,6 +177,9 @@ const uiExtension: PiExtensionBundle = {
                     : instances.map((i) => `  - ${i.instanceId} -> ${i.widgetId}`)),
                 ].join("\n"),
               );
+            }
+            case "catalog": {
+              return text(describeWidgetSpecLanguage());
             }
             case "read": {
               const def = mgr.getDef(params.id);

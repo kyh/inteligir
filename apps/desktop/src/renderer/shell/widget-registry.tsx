@@ -173,7 +173,10 @@ function CatalogCheckbox({
 
 // Shared two-way-bind handler for the text field components: write the new
 // value to the bound state path (if any) and emit the change event.
-function useBoundTextChange(bindings: Record<string, string> | undefined, emit: (event: string) => void) {
+function useBoundTextChange(
+  bindings: Record<string, string> | undefined,
+  emit: (event: string) => void,
+) {
   const store = useStateStore();
   const bindPath = bindings?.["value"];
   return (next: string) => {
