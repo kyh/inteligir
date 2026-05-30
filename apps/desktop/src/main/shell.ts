@@ -307,8 +307,21 @@ export class ShellManager {
   private focusedFloatingInstance(shell: Shell, instance: WidgetInstance): WidgetInstance | null {
     if (instance.placement.surface !== "floating") return null;
     const top = this.maxZ(shell);
-    if (instance.placement.z === top && top > 0) return null;
+    // Only a no-op when this instance is uniquely at the top. With a tie at
+    // z=top, none is actually drawn above the others, so a focus click must
+    // raise this one above its peers.
+    if (instance.placement.z === top && top > 0 && this.floatingsAtZ(shell, top) === 1) {
+      return null;
+    }
     return { ...instance, placement: { ...instance.placement, z: top + 1 } };
+  }
+
+  private floatingsAtZ(shell: Shell, z: number): number {
+    let count = 0;
+    for (const i of shell.instances) {
+      if (i.placement.surface === "floating" && i.placement.z === z) count++;
+    }
+    return count;
   }
 
   private findDef(shell: Shell, widgetId: string): WidgetDef | undefined {
