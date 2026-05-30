@@ -73,6 +73,12 @@ const ElementSchema: z.ZodType<WidgetSpecElement> = z.object({
   props: z.record(z.string(), z.unknown()).default({}),
   children: z.array(z.string()).optional(),
   visible: VisibilityConditionSchema.optional(),
+  repeat: z
+    .object({
+      statePath: z.string(),
+      key: z.string().optional(),
+    })
+    .optional(),
   on: z.record(z.string(), ActionBindingValueSchema).optional(),
   watch: z.record(z.string(), ActionBindingValueSchema).optional(),
 });
@@ -152,7 +158,6 @@ export const InstallWidgetInputSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   spec: WidgetSpecSchema,
-  state: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const UpdateWidgetInputSchema = z.object({
@@ -228,11 +233,6 @@ function validateWidgetSpec(spec: WidgetSpec): void {
   visit(spec.root);
 }
 
-function specWithDefaultState(input: InstallWidgetInput): WidgetSpec {
-  const spec = WidgetSpecSchema.parse(input.spec);
-  return input.state === undefined ? spec : { ...spec, state: input.state };
-}
-
 // ---------------------------------------------------------------------------
 // Kernel
 // ---------------------------------------------------------------------------
@@ -273,7 +273,7 @@ export class ShellManager {
 
   installWidget(input: InstallWidgetInput): JsonUiWidgetDef {
     const now = Date.now();
-    const spec = specWithDefaultState(input);
+    const spec = WidgetSpecSchema.parse(input.spec);
     validateWidgetSpec(spec);
 
     let installed: JsonUiWidgetDef | null = null;

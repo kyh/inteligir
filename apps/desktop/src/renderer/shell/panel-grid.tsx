@@ -71,7 +71,6 @@ function noteStarter(): InstallWidgetInput {
       },
       state: { text: "" },
     },
-    state: { text: "" },
   };
 }
 

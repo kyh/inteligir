@@ -8,7 +8,6 @@ import {
   WIDGET_ACTION_NAMES,
   isBuiltin,
   isJsonUi,
-  type WidgetSpec,
 } from "@/shared/shell";
 import type { PiExtensionBundle } from "@/agent/extension";
 
@@ -18,6 +17,16 @@ function literalUnion<T extends string>(values: readonly T[]) {
 
 const ComponentTypeParam = literalUnion(JSON_WIDGET_COMPONENT_TYPES);
 const ActionNameParam = literalUnion(WIDGET_ACTION_NAMES);
+
+const ActionRequestParam = Type.Object(
+  {
+    action: ActionNameParam,
+    params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  },
+  { additionalProperties: false },
+);
+
+const ActionBindingParam = Type.Union([ActionRequestParam, Type.Array(ActionRequestParam)]);
 
 const SpecParam = Type.Object(
   {
@@ -30,16 +39,17 @@ const SpecParam = Type.Object(
           props: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
           children: Type.Optional(Type.Array(Type.String())),
           visible: Type.Optional(Type.Unknown()),
-          on: Type.Optional(
-            Type.Record(
-              Type.String(),
-              Type.Object({
-                action: ActionNameParam,
-                params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-              }),
+          repeat: Type.Optional(
+            Type.Object(
+              {
+                statePath: Type.String(),
+                key: Type.Optional(Type.String()),
+              },
+              { additionalProperties: false },
             ),
           ),
-          watch: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+          on: Type.Optional(Type.Record(Type.String(), ActionBindingParam)),
+          watch: Type.Optional(Type.Record(Type.String(), ActionBindingParam)),
         },
         { additionalProperties: false },
       ),
@@ -73,8 +83,7 @@ const ManageUiSchema = Type.Union([
       id: Type.Optional(Type.String({ minLength: 1 })),
       title: Type.String({ minLength: 1 }),
       description: Type.Optional(Type.String()),
-      spec: Type.Unsafe<WidgetSpec>(SpecParam),
-      state: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+      spec: SpecParam,
     },
     { additionalProperties: false },
   ),
@@ -85,7 +94,7 @@ const ManageUiSchema = Type.Union([
       expectedRevision: Type.Number({ minimum: 1 }),
       title: Type.Optional(Type.String({ minLength: 1 })),
       description: Type.Optional(Type.String()),
-      spec: Type.Unsafe<WidgetSpec>(SpecParam),
+      spec: SpecParam,
     },
     { additionalProperties: false },
   ),
@@ -179,7 +188,6 @@ const uiExtension: PiExtensionBundle = {
                 title: params.title,
                 description: params.description,
                 spec: params.spec,
-                state: params.state,
               });
               return text(
                 `Installed generated widget '${def.id}' rev ${def.revision}. Use action='place' to open it.`,

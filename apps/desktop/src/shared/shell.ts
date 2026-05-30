@@ -14,7 +14,7 @@
 // Types stay loose here so main/preload don't pull @json-render/core in.
 
 import type { JsonPatchOp } from "./json-pointer";
-import type { ActionBinding, UIElement, VisibilityCondition } from "@json-render/core";
+import type { UIElement, VisibilityCondition } from "@json-render/core";
 
 // ---------------------------------------------------------------------------
 // json-render spec — generated widget rendering
@@ -55,7 +55,10 @@ export type WidgetActionName =
   | "sendPrompt"
   | "generateText"
   | "fetchUrl"
-  | "setState";
+  | "setState"
+  | "pushState"
+  | "removeState"
+  | "validateForm";
 
 export const WIDGET_ACTION_NAMES: readonly WidgetActionName[] = [
   "notify",
@@ -64,6 +67,9 @@ export const WIDGET_ACTION_NAMES: readonly WidgetActionName[] = [
   "generateText",
   "fetchUrl",
   "setState",
+  "pushState",
+  "removeState",
+  "validateForm",
 ];
 
 export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
@@ -76,15 +82,43 @@ export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
   fetchUrl:
     "HTTP GET `url` and write the capped response body into state at the JSON pointer `into`.",
   setState: "Write a value into widget state.",
+  pushState: "Append an item to an array in widget state.",
+  removeState: "Remove an item from an array in widget state.",
+  validateForm: "Validate registered form fields and write the result into widget state.",
 };
 
-export type WidgetActionRequest = ActionBinding & { action: WidgetActionName };
+export type WidgetActionRequest = {
+  action: WidgetActionName;
+  params?: Record<string, unknown>;
+};
+
+export type WidgetRepeat = {
+  statePath: string;
+  key?: string;
+};
+
+export type WidgetSpecInputElement = {
+  type: JsonWidgetComponentType;
+  props?: Record<string, unknown>;
+  children?: string[];
+  visible?: unknown;
+  repeat?: WidgetRepeat;
+  on?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
+  watch?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
+};
+
+export type WidgetSpecInput = {
+  root: string;
+  elements: Record<string, WidgetSpecInputElement>;
+  state?: Record<string, unknown>;
+};
 
 export type WidgetSpecElement = UIElement<JsonWidgetComponentType, Record<string, unknown>> & {
   type: JsonWidgetComponentType;
   props: Record<string, unknown>;
   children?: string[];
   visible?: VisibilityCondition;
+  repeat?: WidgetRepeat;
   on?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
   watch?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
 };
@@ -323,8 +357,7 @@ export type InstallWidgetInput = {
   id?: string;
   title: string;
   description?: string;
-  spec: WidgetSpec;
-  state?: Record<string, unknown>;
+  spec: WidgetSpecInput;
 };
 
 export type UpdateWidgetInput = {
@@ -332,7 +365,7 @@ export type UpdateWidgetInput = {
   expectedRevision: number;
   title?: string;
   description?: string;
-  spec: WidgetSpec;
+  spec: WidgetSpecInput;
 };
 
 export type WidgetPatchInput = {

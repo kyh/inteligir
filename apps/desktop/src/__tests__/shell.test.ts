@@ -31,6 +31,34 @@ const FETCH_SPEC: WidgetSpec = {
   },
 };
 
+const REPEAT_AND_STATE_ACTIONS_SPEC: WidgetSpec = {
+  root: "list",
+  elements: {
+    list: {
+      type: "Stack",
+      props: { gap: "sm" },
+      repeat: { statePath: "/items", key: "id" },
+      children: ["row"],
+    },
+    row: {
+      type: "Row",
+      props: {},
+      children: ["label"],
+      on: {
+        press: [
+          { action: "pushState", params: { statePath: "/items", value: { id: "next" } } },
+          { action: "notify", params: { message: "Added" } },
+        ],
+      },
+      watch: {
+        "/items": { action: "validateForm", params: { statePath: "/validation" } },
+      },
+    },
+    label: { type: "Text", props: { text: "Item" } },
+  },
+  state: { items: [] },
+};
+
 let storePath: string;
 let mgr: ShellManager;
 
@@ -146,6 +174,18 @@ describe("ShellManager.installWidget", () => {
       action: "fetchUrl",
     });
   });
+
+  it("accepts json-render repeat and built-in state actions", () => {
+    const def = mgr.installWidget({ title: "List", spec: REPEAT_AND_STATE_ACTIONS_SPEC });
+    const stored = source(def).spec;
+    expect(stored.elements["list"]?.repeat).toEqual({ statePath: "/items", key: "id" });
+    const press = stored.elements["row"]?.on?.["press"];
+    if (!Array.isArray(press)) throw new Error("expected action array");
+    expect(press.map((action) => action.action)).toEqual(["pushState", "notify"]);
+    expect(stored.elements["row"]?.watch?.["/items"]).toMatchObject({
+      action: "validateForm",
+    });
+  });
 });
 
 describe("ShellManager.placeWidget", () => {
@@ -219,7 +259,6 @@ describe("ShellManager.deleteWidget", () => {
     const def = mgr.installWidget({
       title: "Note",
       spec: { ...SPEC, state: { text: "default" } },
-      state: { text: "default" },
     });
     const instance = place(def.id);
     mgr.setInstanceState(instance.instanceId, { text: "edited" });
@@ -239,7 +278,6 @@ describe("ShellManager.deleteWidget", () => {
     const def = mgr.installWidget({
       title: "Note",
       spec: { ...SPEC, state: { text: "" } },
-      state: { text: "" },
     });
     const instance = place(def.id);
     mgr.setInstanceState(instance.instanceId, { text: "first" });
@@ -258,7 +296,6 @@ describe("ShellManager.deleteWidget", () => {
     const def = mgr.installWidget({
       title: "Note",
       spec: { ...SPEC, state: { text: "first" } },
-      state: { text: "first" },
     });
     const instance = place(def.id);
     mgr.unplaceWidget(instance.instanceId);
@@ -278,8 +315,7 @@ describe("ShellManager.deleteWidget", () => {
   it("clears archived state when the generated def is deleted", () => {
     const def = mgr.installWidget({
       title: "Note",
-      spec: SPEC,
-      state: { body: "draft" },
+      spec: { ...SPEC, state: { body: "draft" } },
     });
     const instance = place(def.id);
     mgr.setInstanceState(instance.instanceId, { body: "edited" });
@@ -299,8 +335,7 @@ describe("ShellManager.deleteWidget", () => {
   it("clears archived state when the generated def is deleted without revision check", () => {
     const def = mgr.installWidget({
       title: "Another Note",
-      spec: SPEC,
-      state: { body: "draft" },
+      spec: { ...SPEC, state: { body: "draft" } },
     });
     const instance = place(def.id);
     mgr.setInstanceState(instance.instanceId, { body: "edited" });
@@ -318,7 +353,7 @@ describe("ShellManager.deleteWidget", () => {
 
 describe("ShellManager state and patching", () => {
   it("replaces an instance's state wholesale", () => {
-    const def = mgr.installWidget({ title: "S", spec: SPEC, state: { a: 1, b: 2 } });
+    const def = mgr.installWidget({ title: "S", spec: { ...SPEC, state: { a: 1, b: 2 } } });
     const instance = place(def.id);
     const next = mgr.setInstanceState(instance.instanceId, { a: 9 });
     expect(next?.state).toEqual({ a: 9 });
