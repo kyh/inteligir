@@ -32,7 +32,7 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
     const socket = new WebSocket(baseUri);
     ws = socket;
 
-    socket.onopen = () => {
+    socket.addEventListener("open", () => {
       socket.send(
         JSON.stringify({
           text: " ",
@@ -45,9 +45,9 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
         socket.send(JSON.stringify({ text, try_trigger_generation: true }));
       }
       pendingText = [];
-    };
+    });
 
-    socket.onmessage = (event) => {
+    socket.addEventListener("message", (event) => {
       if (muted) return;
       try {
         const data = JSON.parse(String(event.data)) as { audio?: string };
@@ -58,15 +58,15 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
       } catch {
         // ignore
       }
-    };
+    });
 
-    socket.onerror = () => {
+    socket.addEventListener("error", () => {
       ws = null;
-    };
+    });
 
-    socket.onclose = () => {
+    socket.addEventListener("close", () => {
       ws = null;
-    };
+    });
 
     return socket;
   }
@@ -88,7 +88,7 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     source.connect(audioCtx.destination);
-    source.onended = () => activeSources.delete(source);
+    source.addEventListener("ended", () => activeSources.delete(source), { once: true });
     activeSources.add(source);
 
     const now = audioCtx.currentTime;

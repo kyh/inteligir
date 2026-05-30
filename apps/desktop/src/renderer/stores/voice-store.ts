@@ -163,7 +163,7 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
     });
 
     void bridge.getVoiceConfig().then((config) => {
-      if (cancelled || !config) return;
+      if (cancelled || !config) return undefined;
       pipeline = new VoicePipeline({
         elevenlabsApiKey: config.elevenlabsApiKey,
         elevenlabsVoiceId: config.elevenlabsVoiceId,
@@ -185,6 +185,7 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
           machine.dispatch({ type: "pipeline_error", message });
         },
       });
+      return undefined;
     });
 
     return () => {

@@ -32,5 +32,3 @@ declare module "@react-three/fiber" {
     className?: string;
   }
 }
-
-export {};

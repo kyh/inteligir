@@ -145,9 +145,10 @@ async function fetchToFile(
       }
     }
     if (sinkError) throw sinkError;
-    await new Promise<void>((resolve, reject) => {
-      sink.end((err?: Error | null) => (err ? reject(err) : resolve()));
+    const endError = await new Promise<Error | null>((resolve) => {
+      sink.end((err?: Error | null) => resolve(err ?? null));
     });
+    if (endError) throw endError;
   } catch (err) {
     sink.destroy();
     await reader.cancel().catch(() => {});

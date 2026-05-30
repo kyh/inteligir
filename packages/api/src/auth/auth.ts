@@ -80,6 +80,20 @@ export const getOrganization = cache(
 );
 
 /**
+ * Generates an available organization slug by checking for conflicts.
+ * Recursively adds numbers to the slug until a unique one is found.
+ */
+const generateAvailableSlug = async (slug: string, attempt = 0): Promise<string> => {
+  const org = await db.query.organization.findFirst({
+    where: (organization, { eq }) => eq(organization.slug, slug),
+  });
+  if (org) {
+    return generateAvailableSlug(slug + `-${attempt + 1}`, attempt + 1);
+  }
+  return slug;
+};
+
+/**
  * Creates a default personal organization for a new user
  * Generates a unique slug and creates the organization
  * If organization creation fails, the user is deleted to maintain data consistency
@@ -87,23 +101,6 @@ export const getOrganization = cache(
  * @throws Error if organization creation fails
  */
 const createDefaultOrganization = async (user: User) => {
-  /**
-   * Generates an available organization slug by checking for conflicts
-   * Recursively adds numbers to the slug until a unique one is found
-   * @param slug - The base slug to check
-   * @param attempt - The current attempt number for uniqueness
-   * @returns Promise<string> - A unique, available slug
-   */
-  const generateAvailableSlug = async (slug: string, attempt = 0) => {
-    const org = await db.query.organization.findFirst({
-      where: (organization, { eq }) => eq(organization.slug, slug),
-    });
-    if (org) {
-      return generateAvailableSlug(slug + `-${attempt + 1}`, attempt + 1);
-    }
-    return slug;
-  };
-
   const slug = await generateAvailableSlug(slugify(user.name));
 
   try {

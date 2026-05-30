@@ -114,26 +114,26 @@ export function getAgent(): Agent | null {
 export type Broadcast = (state: AppState) => void;
 
 export class AppMachine {
-  private _state: AppState;
-  private _queue: Promise<void> = Promise.resolve();
-  private _destroying = false;
+  private state: AppState;
+  private queue: Promise<void> = Promise.resolve();
+  private destroying = false;
 
   constructor(
-    private readonly _deps: EffectDeps,
-    private readonly _broadcast: Broadcast,
+    private readonly deps: EffectDeps,
+    private readonly broadcastState: Broadcast,
     initial: AppState = { phase: "logged_out" },
   ) {
-    this._state = initial;
+    this.state = initial;
   }
 
   getState(): AppState {
-    return this._state;
+    return this.state;
   }
 
   /** Awaitable — resolves after the triggered effect (if any) completes. */
   send(event: MachineEvent): Promise<void> {
-    const p = this._queue.then(() => this._step(event));
-    this._queue = p.catch(() => {});
+    const p = this.queue.then(() => this.step(event));
+    this.queue = p.catch(() => {});
     return p;
   }
 
@@ -143,25 +143,25 @@ export class AppMachine {
   }
 
   async shutdown(): Promise<void> {
-    this._destroying = true;
+    this.destroying = true;
     await stopAgent();
   }
 
-  private async _step(event: MachineEvent): Promise<void> {
-    if (this._destroying) return;
+  private async step(event: MachineEvent): Promise<void> {
+    if (this.destroying) return;
 
-    const result = reduce(this._state, event);
+    const result = reduce(this.state, event);
     if (result === null) return;
 
-    const prev = this._state;
-    this._state = result.next;
-    console.log(`[machine] ${prev.phase} -> ${this._state.phase}`);
-    this._broadcast(this._state);
+    const prev = this.state;
+    this.state = result.next;
+    console.log(`[machine] ${prev.phase} -> ${this.state.phase}`);
+    this.broadcastState(this.state);
 
     if (result.effect !== null) {
-      const completion = await runEffect(result.effect, this._deps);
-      if (this._destroying) return;
-      await this._step(completion);
+      const completion = await runEffect(result.effect, this.deps);
+      if (this.destroying) return;
+      await this.step(completion);
     }
   }
 }

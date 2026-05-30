@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 
@@ -94,7 +95,8 @@ function ShapeProvider({
       if (e.key !== "r" && e.key !== "R") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable)
+        return;
       e.preventDefault();
       transitionShape(() => {
         setShapeState((prev) => {
@@ -107,11 +109,12 @@ function ShapeProvider({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  return (
-    <ShapeContext.Provider value={{ shape, setShape, classes: shapeMap[shape] }}>
-      {children}
-    </ShapeContext.Provider>
+  const contextValue = useMemo(
+    () => ({ shape, setShape, classes: shapeMap[shape] }),
+    [setShape, shape],
   );
+
+  return <ShapeContext.Provider value={contextValue}>{children}</ShapeContext.Provider>;
 }
 
 export { ShapeProvider, useShape, useShapeContext, shapeMap };

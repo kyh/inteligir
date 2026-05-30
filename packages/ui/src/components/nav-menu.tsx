@@ -8,6 +8,7 @@ import {
   useContext,
   forwardRef,
   useCallback,
+  useMemo,
   type ReactNode,
   type HTMLAttributes,
 } from "react";
@@ -57,47 +58,41 @@ const NavMenu = forwardRef<HTMLElement, NavMenuProps>(
 
     const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
-    const registerSlug = useCallback(
-      (index: number, slug: string | null) => {
-        if (slug === null) {
-          // Find and remove this index
-          for (const [s, i] of slugToIndexRef.current) {
-            if (i === index) {
-              slugToIndexRef.current.delete(s);
-              break;
-            }
+    const registerSlug = useCallback((index: number, slug: string | null) => {
+      if (slug === null) {
+        // Find and remove this index
+        for (const [s, i] of slugToIndexRef.current) {
+          if (i === index) {
+            slugToIndexRef.current.delete(s);
+            break;
           }
-        } else {
-          slugToIndexRef.current.set(slug, index);
         }
-      },
-      []
-    );
+      } else {
+        slugToIndexRef.current.set(slug, index);
+      }
+    }, []);
 
     // Derive the active route index from activeSlug
     const activeRouteIndex =
-      activeSlug !== null ? slugToIndexRef.current.get(activeSlug) ?? null : null;
+      activeSlug !== null ? (slugToIndexRef.current.get(activeSlug) ?? null) : null;
 
     const activeRect = activeIndex !== null ? itemRects[activeIndex] : null;
-    const activeRouteRect =
-      activeRouteIndex !== null ? itemRects[activeRouteIndex] : null;
+    const activeRouteRect = activeRouteIndex !== null ? itemRects[activeRouteIndex] : null;
     const focusRect = focusedIndex !== null ? itemRects[focusedIndex] : null;
-    const isHoveringOther =
-      activeIndex !== null && activeIndex !== activeRouteIndex;
+    const isHoveringOther = activeIndex !== null && activeIndex !== activeRouteIndex;
     const shape = useShape();
+    const contextValue = useMemo(
+      () => ({ registerItem, registerSlug, activeIndex, activeSlug }),
+      [activeIndex, activeSlug, registerItem, registerSlug],
+    );
 
     return (
-      <NavMenuContext.Provider
-        value={{ registerItem, registerSlug, activeIndex, activeSlug }}
-      >
+      <NavMenuContext.Provider value={contextValue}>
         <nav
           ref={(node) => {
-            (
-              containerRef as React.MutableRefObject<HTMLElement | null>
-            ).current = node;
+            (containerRef as React.MutableRefObject<HTMLElement | null>).current = node;
             if (typeof ref === "function") ref(node);
-            else if (ref)
-              (ref as React.MutableRefObject<HTMLElement | null>).current = node;
+            else if (ref) (ref as React.MutableRefObject<HTMLElement | null>).current = node;
           }}
           onMouseEnter={handlers.onMouseEnter}
           onMouseMove={handlers.onMouseMove}
@@ -109,9 +104,7 @@ const NavMenu = forwardRef<HTMLElement, NavMenuProps>(
             if (indexAttr != null) {
               const idx = Number(indexAttr);
               setActiveIndex(idx);
-              setFocusedIndex(
-                (e.target as HTMLElement).matches(":focus-visible") ? idx : null
-              );
+              setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null);
             }
           }}
           onBlur={(e) => {
@@ -121,16 +114,12 @@ const NavMenu = forwardRef<HTMLElement, NavMenuProps>(
           }}
           onKeyDown={(e) => {
             const items = Array.from(
-              containerRef.current?.querySelectorAll("a[data-nav-index]") ?? []
+              containerRef.current?.querySelectorAll("a[data-nav-index]") ?? [],
             ) as HTMLElement[];
             const currentIdx = items.indexOf(e.target as HTMLElement);
             if (currentIdx === -1) return;
 
-            if (
-              ["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"].includes(
-                e.key
-              )
-            ) {
+            if (["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft"].includes(e.key)) {
               e.preventDefault();
               const next = ["ArrowDown", "ArrowRight"].includes(e.key)
                 ? (currentIdx + 1) % items.length
@@ -144,10 +133,7 @@ const NavMenu = forwardRef<HTMLElement, NavMenuProps>(
               items[items.length - 1]?.focus();
             }
           }}
-          className={cn(
-            "relative flex flex-col gap-0.5 w-full select-none",
-            className
-          )}
+          className={cn("relative flex flex-col gap-0.5 w-full select-none", className)}
           {...props}
         >
           {/* Active route background */}
@@ -226,7 +212,7 @@ const NavMenu = forwardRef<HTMLElement, NavMenuProps>(
         </nav>
       </NavMenuContext.Provider>
     );
-  }
+  },
 );
 
 NavMenu.displayName = "NavMenu";

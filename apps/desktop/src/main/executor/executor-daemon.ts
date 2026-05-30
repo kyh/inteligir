@@ -116,7 +116,10 @@ class ExecutorDaemon {
         return result.connection;
       })
       .catch((err) => {
-        console.error("[executor] daemon failed to start:", err instanceof Error ? err.message : err);
+        console.error(
+          "[executor] daemon failed to start:",
+          err instanceof Error ? err.message : err,
+        );
         return null;
       })
       .finally(() => {
@@ -220,7 +223,8 @@ class ExecutorDaemon {
         if (newlineIdx < 0) return;
         const complete = buffer.slice(0, newlineIdx);
         const match = complete.match(READY_RE);
-        if (match) settle(() => resolve(match[1]!));
+        const origin = match?.[1];
+        if (origin) settle(() => resolve(origin));
       };
       const finish = (): void => {
         proc.stdout?.off("data", onData);
@@ -271,14 +275,14 @@ class ExecutorDaemon {
   }
 }
 
-let _instance: ExecutorDaemon | null = null;
+let instance: ExecutorDaemon | null = null;
 
 export function getExecutorDaemon(): ExecutorDaemon {
-  if (!_instance) _instance = new ExecutorDaemon();
-  return _instance;
+  if (!instance) instance = new ExecutorDaemon();
+  return instance;
 }
 
 /** Drop the singleton on logout/teardown, after stop(), so a re-login starts clean. */
 export function resetExecutorDaemon(): void {
-  _instance = null;
+  instance = null;
 }

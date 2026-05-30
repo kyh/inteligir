@@ -59,6 +59,7 @@ export const getAttachmentLabel = (data: AttachmentData): string => {
 
 const renderAttachmentImage = (url: string, filename: string | undefined, isGrid: boolean) =>
   isGrid ? (
+    // oxlint-disable-next-line next/no-img-element
     <img
       alt={filename || "Image"}
       className="size-full object-cover"
@@ -67,6 +68,7 @@ const renderAttachmentImage = (url: string, filename: string | undefined, isGrid
       width={96}
     />
   ) : (
+    // oxlint-disable-next-line next/no-img-element
     <img
       alt={filename || "Image"}
       className="size-full rounded object-cover"

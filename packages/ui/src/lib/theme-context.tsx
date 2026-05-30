@@ -6,6 +6,7 @@ import {
   useState,
   useEffect,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 
@@ -55,7 +56,8 @@ function ThemeProvider({
       if (e.key !== "t" && e.key !== "T") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable) return;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable)
+        return;
       e.preventDefault();
       setThemeState((prev) => {
         const idx = themeOrder.indexOf(prev);
@@ -73,11 +75,9 @@ function ThemeProvider({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
-  );
+  const contextValue = useMemo(() => ({ theme, setTheme }), [setTheme, theme]);
+
+  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 }
 
 export { ThemeProvider, useThemeContext };

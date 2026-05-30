@@ -132,6 +132,7 @@ export const QueueItemAttachment = ({ className, ...props }: QueueItemAttachment
 export type QueueItemImageProps = ComponentProps<"img">;
 
 export const QueueItemImage = ({ className, ...props }: QueueItemImageProps) => (
+  // oxlint-disable-next-line next/no-img-element
   <img
     alt=""
     className={cn("h-8 w-8 rounded border object-cover", className)}
@@ -145,10 +146,7 @@ export type QueueItemFileProps = ComponentProps<"span">;
 
 export const QueueItemFile = ({ children, className, ...props }: QueueItemFileProps) => (
   <span
-    className={cn(
-      "flex items-center gap-1 rounded border bg-muted px-2 py-1 text-xs",
-      className,
-    )}
+    className={cn("flex items-center gap-1 rounded border bg-muted px-2 py-1 text-xs", className)}
     {...props}
   >
     <PaperclipIcon size={12} />

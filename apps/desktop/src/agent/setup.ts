@@ -61,19 +61,19 @@ const bundleModules = import.meta.glob<{ default: PiExtensionBundle }>("./*/exte
 
 const EXTENSION_BUNDLES: PiExtensionBundle[] = Object.values(bundleModules)
   .map((m) => m.default)
-  .sort((a, b) => a.name.localeCompare(b.name));
+  .toSorted((a, b) => a.name.localeCompare(b.name));
 
 // ---------------------------------------------------------------------------
 // Bundled resource discovery
 // ---------------------------------------------------------------------------
 
-declare const __PROJECT_ROOT__: string;
+declare const PROJECT_ROOT: string;
 
 function getBundledResourcesDir(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
   }
-  return path.join(__PROJECT_ROOT__, "resources", "agent");
+  return path.join(PROJECT_ROOT, "resources", "agent");
 }
 
 function buildSetupContext(
@@ -152,11 +152,11 @@ export function listSkills(): SkillInfo[] {
 
 // Lazy + reset on teardown so a logout flow doesn't carry the prior
 // AuthStorage's cached credentials past auth.json being deleted.
-let _authStorage: ReturnType<typeof createAuthStorage> | null = null;
+let authStorage: ReturnType<typeof createAuthStorage> | null = null;
 
 function getAuthStorage(): ReturnType<typeof createAuthStorage> {
-  if (!_authStorage) _authStorage = createAuthStorage(AUTH_PATH);
-  return _authStorage;
+  if (!authStorage) authStorage = createAuthStorage(AUTH_PATH);
+  return authStorage;
 }
 
 export function isSetupComplete(): boolean {
@@ -170,7 +170,7 @@ export function teardownResources(): void {
   // runtime-ui.json from the warm in-memory shell. With this order, such a
   // write either races against the singleton reset (its write lands before
   // rm and gets wiped) or arrives after the cache is gone.
-  _authStorage = null;
+  authStorage = null;
   resetNotifications();
   resetShellCache();
   resetExecutorDaemon();

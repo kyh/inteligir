@@ -26,8 +26,7 @@ import { SurfaceProvider } from "@repo/ui/lib/surface-context";
 import { Button } from "@repo/ui/components/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
 
-const useIsoLayoutEffect =
-  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 const DEFAULT_ACCEPT = "image/png,image/jpeg,application/pdf";
 
@@ -40,12 +39,9 @@ interface InputMessageSlotContext {
   files: File[];
 }
 
-type InputMessageSlot =
-  | ReactNode
-  | ((ctx: InputMessageSlotContext) => ReactNode);
+type InputMessageSlot = ReactNode | ((ctx: InputMessageSlotContext) => ReactNode);
 
-interface InputMessageProps
-  extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
+interface InputMessageProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
   /** Controlled textarea value. */
   value: string;
   /** Called with the new value on every textarea change. */
@@ -164,6 +160,7 @@ function FilePreviewTile({ file, onRemove, size }: FilePreviewTileProps) {
     renderPdfFirstPage(file, size)
       .then((url) => {
         if (!cancelled) setPdfUrl(url);
+        return undefined;
       })
       .catch(() => {
         /* fall through to icon */
@@ -190,7 +187,7 @@ function FilePreviewTile({ file, onRemove, size }: FilePreviewTileProps) {
         // `cursor-default` opts out of the parent's `cursor-text` so hovering
         // a preview tile doesn't look like it'll land in the textarea.
         "relative shrink-0 overflow-hidden bg-accent border border-border cursor-default group/tile",
-        shape.bg
+        shape.bg,
       )}
       style={{ width: size, height: size }}
     >
@@ -266,7 +263,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
       className,
       ...props
     },
-    ref
+    ref,
   ) => {
     const shape = useShape();
     const ArrowUpIcon = useIcon("arrow-up");
@@ -309,7 +306,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
           handleSend();
         }
       },
-      [handleSend]
+      [handleSend],
     );
 
     const handleContainerMouseDown = useCallback(
@@ -318,22 +315,24 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         const target = e.target as HTMLElement;
         if (target === textareaRef.current) return;
         if (
-          target.closest(
-            'button, a, input, select, textarea, [contenteditable], [role="button"]'
-          )
+          target.closest('button, a, input, select, textarea, [contenteditable], [role="button"]')
         ) {
           return;
         }
         e.preventDefault();
         textareaRef.current?.focus();
       },
-      [clickToFocus, disabled]
+      [clickToFocus, disabled],
     );
 
     // ── File helpers ──────────────────────────────────────────────────
     const acceptTokens = useMemo(
-      () => accept.split(",").map((s) => s.trim()).filter(Boolean),
-      [accept]
+      () =>
+        accept
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean),
+      [accept],
     );
 
     const matchesAccept = useCallback(
@@ -343,7 +342,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
           if (token.startsWith(".")) return file.name.toLowerCase().endsWith(token.toLowerCase());
           return file.type === token;
         }),
-      [acceptTokens]
+      [acceptTokens],
     );
 
     const addFiles = useCallback(
@@ -366,7 +365,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         const next = [...filesArr, ...accepted];
         onFilesChange(maxFiles != null ? next.slice(0, maxFiles) : next);
       },
-      [onFilesChange, filesArr, matchesAccept, maxFiles]
+      [onFilesChange, filesArr, matchesAccept, maxFiles],
     );
 
     const removeFile = useCallback(
@@ -374,7 +373,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         if (!onFilesChange) return;
         onFilesChange(filesArr.filter((_, i) => i !== idx));
       },
-      [onFilesChange, filesArr]
+      [onFilesChange, filesArr],
     );
 
     const openFilePicker = useCallback(
@@ -395,18 +394,16 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         }
         el.click();
       },
-      [accept]
+      [accept],
     );
 
     // ── Slot rendering ────────────────────────────────────────────────
     const slotCtx = useMemo<InputMessageSlotContext>(
       () => ({ openFilePicker, files: filesArr }),
-      [openFilePicker, filesArr]
+      [openFilePicker, filesArr],
     );
-    const leftContent =
-      typeof leftSlot === "function" ? leftSlot(slotCtx) : leftSlot;
-    const rightContent =
-      typeof rightSlot === "function" ? rightSlot(slotCtx) : rightSlot;
+    const leftContent = typeof leftSlot === "function" ? leftSlot(slotCtx) : leftSlot;
+    const rightContent = typeof rightSlot === "function" ? rightSlot(slotCtx) : rightSlot;
 
     // ── Drag-and-drop ────────────────────────────────────────────────
     const handleDragOver = useCallback(
@@ -418,18 +415,15 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         e.dataTransfer.dropEffect = "copy";
         setDragOver(true);
       },
-      [supportsFiles, disabled]
+      [supportsFiles, disabled],
     );
 
-    const handleDragLeave = useCallback(
-      (e: ReactDragEvent<HTMLDivElement>) => {
-        const wrapper = e.currentTarget;
-        const next = e.relatedTarget as Node | null;
-        if (next && wrapper.contains(next)) return;
-        setDragOver(false);
-      },
-      []
-    );
+    const handleDragLeave = useCallback((e: ReactDragEvent<HTMLDivElement>) => {
+      const wrapper = e.currentTarget;
+      const next = e.relatedTarget as Node | null;
+      if (next && wrapper.contains(next)) return;
+      setDragOver(false);
+    }, []);
 
     const handleDrop = useCallback(
       (e: ReactDragEvent<HTMLDivElement>) => {
@@ -438,7 +432,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         if (!supportsFiles || disabled) return;
         addFiles(Array.from(e.dataTransfer.files));
       },
-      [supportsFiles, disabled, addFiles]
+      [supportsFiles, disabled, addFiles],
     );
 
     const handleFileInputChange = useCallback(
@@ -447,7 +441,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         addFiles(Array.from(e.target.files));
         e.target.value = ""; // Allow re-selecting the same file.
       },
-      [addFiles]
+      [addFiles],
     );
 
     return (
@@ -475,10 +469,9 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
           // cascade can't beat the JS-applied focus / drag colours.
           dragOver && "border-[#6B97FF]",
           !dragOver && focusVisible && "border-foreground/20",
-          !dragOver && !focusVisible && clickToFocus && !disabled &&
-            "hover:border-border",
+          !dragOver && !focusVisible && clickToFocus && !disabled && "hover:border-border",
           disabled && "opacity-50 pointer-events-none",
-          className
+          className,
         )}
         {...props}
       >
@@ -539,18 +532,14 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
               if (e.target.matches(":focus-visible")) setFocusVisible(true);
             }}
             onBlur={() => setFocusVisible(false)}
-            placeholder={
-              dragOver && supportsFiles
-                ? "Drop files here to add to chat"
-                : placeholder
-            }
+            placeholder={dragOver && supportsFiles ? "Drop files here to add to chat" : placeholder}
             disabled={disabled}
             rows={minRows}
             aria-label={textareaProps?.["aria-label"] ?? "Message"}
             className={cn(
               "w-full resize-none bg-transparent outline-none",
               "text-[14px] text-foreground placeholder:text-muted-foreground",
-              "px-2 py-2"
+              "px-2 py-2",
             )}
             style={{ fontVariationSettings: fontWeights.normal }}
             {...textareaProps}
@@ -574,7 +563,7 @@ const InputMessage = forwardRef<HTMLDivElement, InputMessageProps>(
         </SurfaceProvider>
       </div>
     );
-  }
+  },
 );
 
 InputMessage.displayName = "InputMessage";

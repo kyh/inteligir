@@ -3,16 +3,16 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-declare const __PROJECT_ROOT__: string;
+declare const PROJECT_ROOT: string;
 
 // Load .env at runtime for voice API keys (ELEVENLABS_API_KEY)
 try {
-  process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
+  process.loadEnvFile(path.resolve(PROJECT_ROOT, ".env"));
 } catch {
   // .env file is optional
 }
@@ -474,7 +474,7 @@ function createWindow(): BrowserWindow {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
+      preload: path.join(moduleDir, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -501,7 +501,7 @@ function createWindow(): BrowserWindow {
   if (isDevelopment && process.env["ELECTRON_RENDERER_URL"]) {
     void window.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
-    void window.loadFile(path.join(__dirname, "../renderer/index.html"));
+    void window.loadFile(path.join(moduleDir, "../renderer/index.html"));
   }
 
   if (isDevelopment) {

@@ -1,4 +1,3 @@
-/// <reference path="./three-fiber.d.ts" />
 "use client";
 
 import React, { useRef, useMemo, useEffect, useCallback } from "react";
