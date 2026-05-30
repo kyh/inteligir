@@ -28,6 +28,23 @@ afterEach(() => {
 });
 
 describe("ShellManager seeding", () => {
+  it("repairs a hand-edited shell.json that omits the chat permanent instance", () => {
+    const path = storePath.replace(".json", "-handedit.json");
+    // A valid Shell shape that doesn't include the chat row; constructor
+    // should rehydrate the missing permanent on load.
+    fs.writeFileSync(
+      path,
+      JSON.stringify({ version: 1, customDefs: [], instances: [], archivedStates: {} }),
+    );
+    const repaired = new ShellManager(path);
+    const chat = repaired.snapshot().instances.find((i) => i.widgetId === CHAT_WIDGET_ID)!;
+    expect(chat).toBeDefined();
+    // ...and the in-memory store contains it too, so writes to that
+    // instanceId are no longer silently dropped.
+    expect(repaired.getInstance(chat.instanceId)).not.toBeNull();
+    fs.rmSync(path, { force: true });
+  });
+
   it("seeds a single permanent, pinned chat instance", () => {
     const { defs, instances } = mgr.snapshot();
     // Snapshot includes built-in defs (chat + tasks + skills + extensions + settings).
@@ -134,6 +151,23 @@ describe("ShellManager.unplaceWidget / deleteWidget", () => {
     expect(mgr.unplaceWidget(placed.instanceId)).toBe(true);
     const replaced = mgr.placeWidget("tasks")!;
     expect(replaced.state).toEqual({ count: 7, note: "hi" });
+  });
+
+  it("does not couple two re-placements that both rehydrate from the same archive", () => {
+    const { def, instance } = mgr.createWidget({
+      title: "Note",
+      spec: SPEC,
+      state: { text: "first" },
+    });
+    mgr.unplaceWidget(instance.instanceId);
+    // Two fresh placements while the archive still holds 'first' — each
+    // instance must own its own state object, not alias the archive.
+    const a = mgr.placeWidget(def.id)!;
+    const b = mgr.placeWidget(def.id)!;
+    expect(a.instanceId).not.toBe(b.instanceId);
+    mgr.setInstanceState(a.instanceId, { text: "edited-a" });
+    const bAfter = mgr.getInstance(b.instanceId)!;
+    expect(bAfter.state).toEqual({ text: "first" });
   });
 
   it("clears archived state when the custom def is deleted", () => {

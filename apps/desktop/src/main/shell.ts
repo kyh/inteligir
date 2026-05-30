@@ -168,6 +168,13 @@ export class ShellManager {
       ShellSchema as unknown as z.ZodType<Shell>,
       DEFAULTS,
     );
+    // Repair a hand-edited shell.json that validates but is missing a
+    // permanent instance (e.g. someone dropped the chat row). Without this,
+    // snapshot()/broadcast() would synthesize the missing instance on the
+    // fly while the in-memory store still lacked it — so getInstance, the
+    // grid-geometry writer, and setInstanceState would silently no-op for
+    // those instanceIds.
+    this.store.update(withPermanents);
   }
 
   snapshot(): ShellSnapshot {
@@ -290,10 +297,14 @@ export class ShellManager {
       }
       // Rehydrate from the per-widgetId archive if a prior instance left state
       // behind on unplace; otherwise seed from the def's initial spec.state.
+      // Copy on use so two back-to-back placements (multi-instance customs)
+      // don't end up sharing one mutable object via the archive.
       const archived = current.archivedStates[def.id];
-      const initial =
-        archived ??
-        (def.source.kind === "custom" && def.source.spec.state ? { ...def.source.spec.state } : {});
+      const initial: Record<string, unknown> = archived
+        ? { ...archived }
+        : def.source.kind === "custom" && def.source.spec.state
+          ? { ...def.source.spec.state }
+          : {};
       const instance = this.makeInstance(current, def, surface ?? "floating", initial);
       result = instance;
       added = true;
