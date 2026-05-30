@@ -255,7 +255,7 @@ export type DesktopBridge = {
   onWidgetFlushRequest: (
     listener: (payload: { instanceId: string; requestId: string }) => void,
   ) => () => void;
-  ackWidgetFlush: (requestId: string) => void;
+  ackWidgetFlush: (requestId: string, persisted: boolean) => void;
 
   // Live widget actions
   widgetSendPrompt: (prompt: string) => Promise<void>;

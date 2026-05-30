@@ -49,26 +49,29 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   const idRef = useRef(instance.instanceId);
   idRef.current = instance.instanceId;
 
-  // Returns a Promise that resolves when the latest pending state has reached
-  // main — so surface-change and unplace callers can await it and avoid
-  // remount-with-stale-state races.
+  // Resolves with whether the latest pending state actually reached main, so
+  // surface-change and unplace callers can tell a true success ("flushed" or
+  // "nothing to flush") from a quiet failure (bridge missing, IPC threw). A
+  // bare ack on failure would let main proceed with stale state.
   const flushPersist = useMemo(
-    () => async (): Promise<void> => {
+    () => async (): Promise<boolean> => {
       if (persistTimerRef.current) {
         clearTimeout(persistTimerRef.current);
         persistTimerRef.current = null;
       }
-      if (!dirtyRef.current) return;
+      if (!dirtyRef.current) return true; // nothing pending → success
       const bridge = getBridge();
-      if (!bridge) return; // bridge not ready; stay dirty so a later flush retries
+      if (!bridge) return false; // bridge not ready; stay dirty so a later flush retries
       // Optimistically clear `dirty` so an interleaved change during the
       // in-flight save isn't lost; only on save failure do we mark dirty again
       // (a successful save is final).
       dirtyRef.current = false;
       try {
         await bridge.setInstanceState(idRef.current, getStore().getSnapshot());
+        return true;
       } catch {
         dirtyRef.current = true;
+        return false;
       }
     },
     [],

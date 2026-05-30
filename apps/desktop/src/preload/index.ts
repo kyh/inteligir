@@ -88,8 +88,8 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ipcRenderer.invoke(IPC_CHANNELS.SHELL_SET_STATE, { instanceId, state }),
   onWidgetFlushRequest: (listener: (payload: unknown) => void) =>
     forwardEvent(IPC_CHANNELS.SHELL_FLUSH_REQUEST, listener),
-  ackWidgetFlush: (requestId: string) =>
-    ipcRenderer.send(IPC_CHANNELS.SHELL_FLUSH_ACK, { requestId }),
+  ackWidgetFlush: (requestId: string, persisted: boolean) =>
+    ipcRenderer.send(IPC_CHANNELS.SHELL_FLUSH_ACK, { requestId, persisted }),
 
   // Live widget actions
   widgetSendPrompt: (prompt: string) =>

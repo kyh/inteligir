@@ -64,10 +64,12 @@ function addWindow(id: number): void {
   });
 }
 
-function sentPayload(index: number): unknown {
+function requestId(index: number): string {
   const message = electronMock.sent[index];
   if (!message) throw new Error("missing sent message");
-  return message.payload;
+  const payload = message.payload as { requestId?: unknown };
+  if (typeof payload.requestId !== "string") throw new Error("missing requestId");
+  return payload.requestId;
 }
 
 function missingFlushResolver(): void {
@@ -75,37 +77,43 @@ function missingFlushResolver(): void {
 }
 
 describe("instance-state-flush", () => {
-  it("flushInstanceState resolves immediately when no viewer is registered", async () => {
-    await expect(flushInstanceState("nope")).resolves.toBeUndefined();
+  it("flushInstanceState resolves true immediately when no viewer is registered", async () => {
+    await expect(flushInstanceState("nope")).resolves.toBe(true);
   });
 
   it("flushInstanceState awaits the registered flush before resolving", async () => {
-    let resolveFlush = missingFlushResolver;
+    let resolveFlush: (value: boolean) => void = missingFlushResolver;
     const flushed = vi.fn(
       () =>
-        new Promise<void>((r) => {
+        new Promise<boolean>((r) => {
           resolveFlush = r;
         }),
     );
     const unregister = registerInstanceFlush("a", flushed);
 
-    let done = false;
-    const pending = flushInstanceState("a").then(() => {
-      done = true;
-      return undefined;
+    let result: boolean | null = null;
+    const pending = flushInstanceState("a").then((value) => {
+      result = value;
+      return value;
     });
     await Promise.resolve();
     expect(flushed).toHaveBeenCalledTimes(1);
-    expect(done).toBe(false);
-    resolveFlush();
+    expect(result).toBeNull();
+    resolveFlush(true);
     await pending;
-    expect(done).toBe(true);
+    expect(result).toBe(true);
+    unregister();
+  });
+
+  it("propagates a failed flush as false", async () => {
+    const unregister = registerInstanceFlush("a-fail", vi.fn(async () => false));
+    await expect(flushInstanceState("a-fail")).resolves.toBe(false);
     unregister();
   });
 
   it("the most-recently-registered flush wins (one viewer per instance)", async () => {
-    const first = vi.fn(async () => {});
-    const second = vi.fn(async () => {});
+    const first = vi.fn(async () => true);
+    const second = vi.fn(async () => true);
     const unregister1 = registerInstanceFlush("b", first);
     const unregister2 = registerInstanceFlush("b", second);
     await flushInstanceState("b");
@@ -116,8 +124,8 @@ describe("instance-state-flush", () => {
   });
 
   it("unregistering only clears the entry when it still owns the slot", async () => {
-    const first = vi.fn(async () => {});
-    const second = vi.fn(async () => {});
+    const first = vi.fn(async () => true);
+    const second = vi.fn(async () => true);
     const unregister1 = registerInstanceFlush("c", first);
     registerInstanceFlush("c", second);
     // First viewer unmounts after second already replaced it — should be a no-op.
@@ -142,12 +150,27 @@ describe("flushRendererInstance (main → renderer round-trip)", () => {
     await Promise.resolve();
 
     expect(electronMock.sent.map((message) => message.webContentsId)).toEqual([1, 2]);
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, sentPayload(0));
+    const id = requestId(0);
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, { requestId: id, persisted: true });
     await Promise.resolve();
     expect(resolved).toBeNull();
 
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 2, sentPayload(0));
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 2, { requestId: id, persisted: true });
     await expect(pending).resolves.toBe(true);
+    expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
+  });
+
+  it("resolves false when any window acks with persisted=false", async () => {
+    electronMock.reset();
+    addWindow(1);
+    addWindow(2);
+
+    const pending = flushRendererInstance("instance", 1000);
+    await Promise.resolve();
+    const id = requestId(0);
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, { requestId: id, persisted: true });
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 2, { requestId: id, persisted: false });
+    await expect(pending).resolves.toBe(false);
     expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
   });
 
@@ -158,7 +181,8 @@ describe("flushRendererInstance (main → renderer round-trip)", () => {
 
     const pending = flushRendererInstance("instance", 10);
     await Promise.resolve();
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, sentPayload(0));
+    const id = requestId(0);
+    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, { requestId: id, persisted: true });
 
     await expect(pending).resolves.toBe(false);
     expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
