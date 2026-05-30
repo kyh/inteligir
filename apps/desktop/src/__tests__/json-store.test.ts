@@ -14,6 +14,7 @@ function memoryFs(): FsAdapter & { files: Map<string, string> } {
 }
 
 const NumbersSchema = z.array(z.number());
+const RecordsSchema = z.array(z.object({ count: z.number() }));
 
 describe("JsonStore", () => {
   it("returns default value when file missing", () => {
@@ -43,6 +44,20 @@ describe("JsonStore", () => {
     expect(store.read()).toEqual([]);
   });
 
+  it("does not expose the cached default by reference", () => {
+    const fs = memoryFs();
+    const defaultValue = [{ count: 1 }];
+    const store = new JsonStore("/test.json", RecordsSchema, defaultValue, fs);
+
+    const first = store.read();
+    const row = first[0];
+    if (!row) throw new Error("missing row");
+    row.count = 99;
+
+    expect(store.read()).toEqual([{ count: 1 }]);
+    expect(defaultValue).toEqual([{ count: 1 }]);
+  });
+
   it("caches after first read", () => {
     const fs = memoryFs();
     fs.files.set("/test.json", JSON.stringify([1]));
@@ -61,6 +76,19 @@ describe("JsonStore", () => {
     store.write([10, 20]);
     expect(store.read()).toEqual([10, 20]);
     expect(JSON.parse(fs.files.get("/test.json") ?? "")).toEqual([10, 20]);
+  });
+
+  it("does not retain the caller's written object by reference", () => {
+    const fs = memoryFs();
+    const store = new JsonStore("/test.json", RecordsSchema, [], fs);
+    const data = [{ count: 1 }];
+
+    store.write(data);
+    const row = data[0];
+    if (!row) throw new Error("missing row");
+    row.count = 99;
+
+    expect(store.read()).toEqual([{ count: 1 }]);
   });
 
   it("update reads, transforms, writes atomically", () => {

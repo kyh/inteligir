@@ -51,25 +51,25 @@ export class JsonStore<T> {
   ) {}
 
   read(): T {
-    if (this.cache !== undefined) return this.cache;
+    if (this.cache !== undefined) return structuredClone(this.cache);
     const raw = this.fs.read(this.filePath);
     if (raw === null) {
-      this.cache = this.defaultValue;
-      return this.cache;
+      this.cache = structuredClone(this.defaultValue);
+      return structuredClone(this.cache);
     }
     try {
       const parsed: unknown = JSON.parse(raw);
       const result = this.schema.safeParse(parsed);
-      this.cache = result.success ? result.data : this.defaultValue;
+      this.cache = result.success ? result.data : structuredClone(this.defaultValue);
     } catch {
-      this.cache = this.defaultValue;
+      this.cache = structuredClone(this.defaultValue);
     }
-    return this.cache;
+    return structuredClone(this.cache);
   }
 
   write(data: T): void {
-    this.cache = data;
-    this.fs.write(this.filePath, JSON.stringify(data, null, 2));
+    this.cache = structuredClone(data);
+    this.fs.write(this.filePath, JSON.stringify(this.cache, null, 2));
   }
 
   /** Update data via a transform function. Reads, transforms, writes atomically. */
