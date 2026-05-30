@@ -7,24 +7,35 @@
 // ---------------------------------------------------------------------------
 
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
-import type {
-  AddGoogleSourceInput,
-  AddGraphqlSourceInput,
-  AddMcpSourceInput,
-  AddOpenApiSourceInput,
-  ExecutorAddSourceResult,
-  ExecutorConnectionRef,
-  ExecutorDetectResult,
-  ExecutorExecuteResult,
-  ExecutorSecretRef,
-  ExecutorSource,
-  ExecutorToolMeta,
-  OAuthAwaitResult,
-  OAuthStartInput,
-  OAuthStartResult,
-  SetSecretInput,
+import {
+  ExecutorAddSourceResultSchema,
+  ExecutorConnectionRefSchema,
+  ExecutorDetectResultSchema,
+  ExecutorExecuteResultSchema,
+  ExecutorRefreshResultSchema,
+  ExecutorRemoveResultSchema,
+  ExecutorSecretRefSchema,
+  ExecutorSourceSchema,
+  ExecutorToolMetaSchema,
+  OAuthAwaitResultSchema,
+  OAuthStartResultSchema,
+  type AddGoogleSourceInput,
+  type AddGraphqlSourceInput,
+  type AddMcpSourceInput,
+  type AddOpenApiSourceInput,
+  type ExecutorAddSourceResult,
+  type ExecutorConnectionRef,
+  type ExecutorDetectResult,
+  type ExecutorExecuteResult,
+  type ExecutorSecretRef,
+  type ExecutorSource,
+  type ExecutorToolMeta,
+  type OAuthAwaitResult,
+  type OAuthStartInput,
+  type OAuthStartResult,
+  type SetSecretInput,
 } from "@/shared/executor";
-import { isRecord } from "@/shared/ipc";
+import type { ZodType } from "zod";
 
 class ExecutorClientError extends Error {
   constructor(
@@ -50,23 +61,6 @@ function enc(value: string): string {
   return encodeURIComponent(value);
 }
 
-function isOAuthAwaitResult(value: unknown): value is OAuthAwaitResult {
-  if (!isRecord(value) || typeof value.ok !== "boolean") return false;
-  if (value.ok) {
-    return (
-      typeof value.sessionId === "string" &&
-      typeof value.connectionId === "string" &&
-      (value.expiresAt === null || typeof value.expiresAt === "number") &&
-      (value.scope === null || typeof value.scope === "string")
-    );
-  }
-  return (
-    (value.sessionId === null || typeof value.sessionId === "string") &&
-    typeof value.error === "string" &&
-    (value.errorDetails === undefined || typeof value.errorDetails === "string")
-  );
-}
-
 type RequestOptions = {
   /** Prepend /scopes/<active scopeId> to the path. */
   scoped?: boolean;
@@ -75,7 +69,25 @@ type RequestOptions = {
   body?: unknown;
 };
 
-async function request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
+async function readJsonResponse(method: string, fullPath: string, resp: Response): Promise<unknown> {
+  const text = await resp.text();
+  if (!text) {
+    throw new ExecutorClientError(`${method} ${fullPath}: empty JSON response`, resp.status);
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return parsed;
+  } catch {
+    throw new ExecutorClientError(`${method} ${fullPath}: invalid JSON response`, resp.status);
+  }
+}
+
+async function request<T>(
+  method: string,
+  path: string,
+  schema: ZodType<T>,
+  opts: RequestOptions = {},
+): Promise<T> {
   // Resolve the connection once so a concurrent stop()/start() can't mix a
   // stale scopeId into the path with a fresh baseUrl/token.
   const conn = connection();
@@ -96,86 +108,111 @@ async function request<T>(method: string, path: string, opts: RequestOptions = {
       resp.status,
     );
   }
-  const text = await resp.text();
-  if (!text) return undefined as T;
-  try {
-    return JSON.parse(text) as T;
-  } catch {
-    throw new ExecutorClientError(`${method} ${fullPath}: invalid JSON response`, resp.status);
+  const body = await readJsonResponse(method, fullPath, resp);
+  const result = schema.safeParse(body);
+  if (!result.success) {
+    throw new ExecutorClientError(`${method} ${fullPath}: invalid response shape`, resp.status);
   }
+  return result.data;
 }
 
 // ---- sources --------------------------------------------------------------
 
 export function listSources(): Promise<ExecutorSource[]> {
-  return request("GET", "/sources", { scoped: true });
+  return request("GET", "/sources", ExecutorSourceSchema.array(), { scoped: true });
 }
 
 export function removeSource(sourceId: string): Promise<{ removed: boolean }> {
-  return request("DELETE", `/sources/${enc(sourceId)}`, { scoped: true });
+  return request("DELETE", `/sources/${enc(sourceId)}`, ExecutorRemoveResultSchema, {
+    scoped: true,
+  });
 }
 
 export function refreshSource(sourceId: string): Promise<{ refreshed: boolean }> {
-  return request("POST", `/sources/${enc(sourceId)}/refresh`, { scoped: true });
+  return request("POST", `/sources/${enc(sourceId)}/refresh`, ExecutorRefreshResultSchema, {
+    scoped: true,
+  });
 }
 
 export function detectSource(url: string): Promise<ExecutorDetectResult[]> {
-  return request("POST", "/sources/detect", { scoped: true, body: { url } });
+  return request("POST", "/sources/detect", ExecutorDetectResultSchema.array(), {
+    scoped: true,
+    body: { url },
+  });
 }
 
 // ---- add source (per plugin kind) -----------------------------------------
 
 export function addMcpSource(input: AddMcpSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", "/mcp/sources", { scoped: true, body: input });
+  return request("POST", "/mcp/sources", ExecutorAddSourceResultSchema, {
+    scoped: true,
+    body: input,
+  });
 }
 
 export function addOpenApiSource(input: AddOpenApiSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", "/openapi/specs", { scoped: true, body: input });
+  return request("POST", "/openapi/specs", ExecutorAddSourceResultSchema, {
+    scoped: true,
+    body: input,
+  });
 }
 
 export function addGraphqlSource(input: AddGraphqlSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", "/graphql/sources", { scoped: true, body: input });
+  return request("POST", "/graphql/sources", ExecutorAddSourceResultSchema, {
+    scoped: true,
+    body: input,
+  });
 }
 
 export function addGoogleSource(input: AddGoogleSourceInput): Promise<ExecutorAddSourceResult> {
-  return request("POST", "/google-discovery/sources", { scoped: true, body: input });
+  return request("POST", "/google-discovery/sources", ExecutorAddSourceResultSchema, {
+    scoped: true,
+    body: input,
+  });
 }
 
 // ---- secrets --------------------------------------------------------------
 
 export function listSecrets(): Promise<ExecutorSecretRef[]> {
-  return request("GET", "/secrets/all", { scoped: true });
+  return request("GET", "/secrets/all", ExecutorSecretRefSchema.array(), { scoped: true });
 }
 
 export function setSecret(input: SetSecretInput): Promise<ExecutorSecretRef> {
-  return request("POST", "/secrets", { scoped: true, body: input });
+  return request("POST", "/secrets", ExecutorSecretRefSchema, { scoped: true, body: input });
 }
 
 export function removeSecret(secretId: string): Promise<{ removed: boolean }> {
-  return request("DELETE", `/secrets/${enc(secretId)}`, { scoped: true });
+  return request("DELETE", `/secrets/${enc(secretId)}`, ExecutorRemoveResultSchema, {
+    scoped: true,
+  });
 }
 
 // ---- connections ----------------------------------------------------------
 
 export function listConnections(): Promise<ExecutorConnectionRef[]> {
-  return request("GET", "/connections", { scoped: true });
+  return request("GET", "/connections", ExecutorConnectionRefSchema.array(), { scoped: true });
 }
 
 export function removeConnection(connectionId: string): Promise<{ removed: boolean }> {
-  return request("DELETE", `/connections/${enc(connectionId)}`, { scoped: true });
+  return request("DELETE", `/connections/${enc(connectionId)}`, ExecutorRemoveResultSchema, {
+    scoped: true,
+  });
 }
 
 // ---- tools ----------------------------------------------------------------
 
 export function listTools(): Promise<ExecutorToolMeta[]> {
-  return request("GET", "/tools", { scoped: true });
+  return request("GET", "/tools", ExecutorToolMetaSchema.array(), { scoped: true });
 }
 
 // ---- executions (code mode) ----------------------------------------------
 
 export function execute(code: string): Promise<ExecutorExecuteResult> {
   // Code mode runs arbitrary agent code against remote APIs — allow long runs.
-  return request("POST", "/executions", { body: { code }, timeoutMs: EXECUTION_TIMEOUT_MS });
+  return request("POST", "/executions", ExecutorExecuteResultSchema, {
+    body: { code },
+    timeoutMs: EXECUTION_TIMEOUT_MS,
+  });
 }
 
 export function resumeExecution(
@@ -183,10 +220,15 @@ export function resumeExecution(
   action: "accept" | "decline" | "cancel",
   content?: unknown,
 ): Promise<ExecutorExecuteResult> {
-  return request("POST", `/executions/${enc(executionId)}/resume`, {
-    body: { action, content },
-    timeoutMs: EXECUTION_TIMEOUT_MS,
-  });
+  return request(
+    "POST",
+    `/executions/${enc(executionId)}/resume`,
+    ExecutorExecuteResultSchema,
+    {
+      body: { action, content },
+      timeoutMs: EXECUTION_TIMEOUT_MS,
+    },
+  );
 }
 
 // ---- oauth ----------------------------------------------------------------
@@ -194,18 +236,23 @@ export function resumeExecution(
 export function oauthStart(input: OAuthStartInput): Promise<OAuthStartResult> {
   const conn = connection();
   // dynamic-dcr: zero pre-configured credentials; the daemon hosts the callback.
-  return request("POST", "/oauth/start", {
-    scoped: true,
-    body: {
-      endpoint: input.endpoint,
-      redirectUrl: `${conn.baseUrl}/oauth/callback`,
-      connectionId: input.connectionId,
-      tokenScope: conn.scopeId,
-      strategy: { kind: "dynamic-dcr" },
-      pluginId: input.pluginId,
-      ...(input.identityLabel ? { identityLabel: input.identityLabel } : {}),
+  return request(
+    "POST",
+    "/oauth/start",
+    OAuthStartResultSchema,
+    {
+      scoped: true,
+      body: {
+        endpoint: input.endpoint,
+        redirectUrl: `${conn.baseUrl}/oauth/callback`,
+        connectionId: input.connectionId,
+        tokenScope: conn.scopeId,
+        strategy: { kind: "dynamic-dcr" },
+        pluginId: input.pluginId,
+        ...(input.identityLabel ? { identityLabel: input.identityLabel } : {}),
+      },
     },
-  });
+  );
 }
 
 /**
@@ -215,7 +262,8 @@ export function oauthStart(input: OAuthStartInput): Promise<OAuthStartResult> {
  */
 export async function awaitOAuth(sessionId: string): Promise<OAuthAwaitResult | null> {
   const conn = connection();
-  const resp = await fetch(`${conn.baseUrl}/oauth/await/${enc(sessionId)}`, {
+  const fullPath = `/oauth/await/${enc(sessionId)}`;
+  const resp = await fetch(`${conn.baseUrl}${fullPath}`, {
     cache: "no-store",
     signal: AbortSignal.timeout(5_000),
   });
@@ -224,8 +272,9 @@ export async function awaitOAuth(sessionId: string): Promise<OAuthAwaitResult | 
   if (!resp.ok) {
     throw new ExecutorClientError(`oauth await failed (${resp.status})`, resp.status);
   }
-  const body: unknown = await resp.json().catch(() => null);
+  const body = await readJsonResponse("GET", fullPath, resp).catch(() => null);
   // Validate the discriminated union before returning — a malformed/partial
   // body must not be treated as a terminal ok/error result by the poller.
-  return isOAuthAwaitResult(body) ? body : null;
+  const result = OAuthAwaitResultSchema.safeParse(body);
+  return result.success ? result.data : null;
 }
