@@ -5,7 +5,7 @@ import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import type { DesktopBridge, ExecutorStatus } from "@/shared/ipc";
+import { isHttpUrl, type DesktopBridge, type ExecutorStatus } from "@/shared/ipc";
 import type { ExecutorExecuteResult, ExecutorToolMeta } from "@/shared/executor";
 
 type SourceKind = "mcp" | "openapi" | "graphql" | "google";
@@ -34,9 +34,7 @@ function useExecutorResource<T>(
     void loadRef
       .current(bridge)
       .then(setData)
-      .catch((err: unknown) =>
-        onErrorRef.current(err instanceof Error ? err.message : "Failed to load."),
-      );
+      .catch((err: unknown) => onErrorRef.current(errorMessage(err, "Failed to load.")));
   }, []);
 
   useEffect(() => {
@@ -62,6 +60,10 @@ function parseHeaders(raw: string): Record<string, string> | undefined {
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 function slug(name: string): string {
   return (
     name
@@ -69,15 +71,6 @@ function slug(name: string): string {
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "") || "source"
   );
-}
-
-function isValidUrl(value: string): boolean {
-  try {
-    const u = new URL(value);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 export function ExecutorPanel() {
@@ -144,7 +137,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
 
   const handleDetect = useCallback(async () => {
     const trimmed = endpoint.trim();
-    if (!isValidUrl(trimmed)) {
+    if (!isHttpUrl(trimmed)) {
       onError("Enter a valid URL to detect.");
       return;
     }
@@ -165,7 +158,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       setKind(map[best.kind] ?? "mcp");
       if (!name.trim()) setName(best.name);
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Detection failed.");
+      onError(errorMessage(err, "Detection failed."));
     }
   }, [endpoint, name, onError]);
 
@@ -178,11 +171,11 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       onError("Name is required.");
       return;
     }
-    if (!isValidUrl(trimmedEndpoint)) {
+    if (!isHttpUrl(trimmedEndpoint)) {
       onError("Enter a valid endpoint URL.");
       return;
     }
-    if (kind === "openapi" && !isValidUrl(trimmedBase)) {
+    if (kind === "openapi" && !isHttpUrl(trimmedBase)) {
       onError("OpenAPI sources need a valid Base URL (the API server, not the spec).");
       return;
     }
@@ -229,7 +222,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       setHeadersText("");
       refresh();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to add source.");
+      onError(errorMessage(err, "Failed to add source."));
     } finally {
       setBusy(false);
     }
@@ -241,7 +234,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
         await getBridge()?.removeExecutorSource(id);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to remove source.");
+        onError(errorMessage(err, "Failed to remove source."));
       }
     },
     [onError, refresh],
@@ -253,7 +246,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
         await getBridge()?.refreshExecutorSource(id);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to refresh source.");
+        onError(errorMessage(err, "Failed to refresh source."));
       }
     },
     [onError, refresh],
@@ -438,7 +431,7 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
         return;
       }
     } catch (err) {
-      onError(err instanceof Error ? err.message : "OAuth failed.");
+      onError(errorMessage(err, "OAuth failed."));
     } finally {
       setBusy(false);
     }
@@ -450,7 +443,7 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
         await getBridge()?.removeExecutorConnection(id);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to remove connection.");
+        onError(errorMessage(err, "Failed to remove connection."));
       }
     },
     [onError, refresh],
@@ -529,7 +522,7 @@ function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
       setValue("");
       refresh();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to save secret.");
+      onError(errorMessage(err, "Failed to save secret."));
     } finally {
       setBusy(false);
     }
@@ -541,7 +534,7 @@ function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
         await getBridge()?.removeExecutorSecret(secretId);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to remove secret.");
+        onError(errorMessage(err, "Failed to remove secret."));
       }
     },
     [onError, refresh],
@@ -611,9 +604,7 @@ function ToolsSection({ onError }: { onError: (e: string | null) => void }) {
     void getBridge()
       ?.listExecutorTools()
       .then(setTools)
-      .catch((err: unknown) =>
-        onError(err instanceof Error ? err.message : "Failed to list tools."),
-      );
+      .catch((err: unknown) => onError(errorMessage(err, "Failed to list tools.")));
   }, [onError]);
 
   useEffect(() => {
@@ -675,7 +666,7 @@ function CodeConsole({ onError }: { onError: (e: string | null) => void }) {
       const result: ExecutorExecuteResult | undefined = await getBridge()?.executorExecute(code);
       setOutput(result?.text ?? "(no output)");
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Execution failed.");
+      onError(errorMessage(err, "Execution failed."));
     } finally {
       setBusy(false);
     }

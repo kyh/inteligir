@@ -1,6 +1,5 @@
 import { describe, it, expect } from "vitest";
 import { reduce } from "@/main/app-reducer";
-import type { MachineEvent } from "@/shared/app-state";
 
 describe("reduce", () => {
   // ---- LOGIN ----------------------------------------------------------------
@@ -130,7 +129,7 @@ describe("reduce", () => {
 
   it("unknown event type → null", () => {
     expect(
-      reduce({ phase: "logged_out" }, { type: "UNKNOWN" } as unknown as MachineEvent),
+      Reflect.apply(reduce, undefined, [{ phase: "logged_out" }, { type: "UNKNOWN" }]),
     ).toBeNull();
   });
 });

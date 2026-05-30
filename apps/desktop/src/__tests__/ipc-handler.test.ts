@@ -15,6 +15,12 @@ beforeEach(() => {
   mockHandle.mockClear();
 });
 
+function invokeRegistered(...args: unknown[]): unknown {
+  const handler = mockHandle.mock.calls[0]?.[1];
+  if (typeof handler !== "function") throw new Error("missing ipc handler");
+  return Reflect.apply(handler, undefined, [{}, ...args]);
+}
+
 describe("createIpcHandler", () => {
   it("registers a handler on ipcMain", () => {
     createIpcHandler("test:channel", z.string(), vi.fn());
@@ -25,8 +31,7 @@ describe("createIpcHandler", () => {
     const fn = vi.fn().mockReturnValue("result");
     createIpcHandler("ch", z.string(), fn);
 
-    const handler = mockHandle.mock.calls[0][1] as (event: unknown, raw: unknown) => unknown;
-    const result = handler({}, "hello");
+    const result = invokeRegistered("hello");
 
     expect(fn).toHaveBeenCalledWith("hello");
     expect(result).toBe("result");
@@ -35,9 +40,7 @@ describe("createIpcHandler", () => {
   it("throws ZodError on invalid input", () => {
     createIpcHandler("ch", z.string(), vi.fn());
 
-    const handler = mockHandle.mock.calls[0][1] as (event: unknown, raw: unknown) => unknown;
-
-    expect(() => handler({}, 42)).toThrow();
+    expect(() => invokeRegistered(42)).toThrow();
   });
 });
 
@@ -46,8 +49,7 @@ describe("createVoidIpcHandler", () => {
     const fn = vi.fn().mockReturnValue({ ok: true });
     createVoidIpcHandler("ch", fn);
 
-    const handler = mockHandle.mock.calls[0][1] as () => unknown;
-    const result = handler();
+    const result = invokeRegistered();
 
     expect(fn).toHaveBeenCalledOnce();
     expect(result).toEqual({ ok: true });

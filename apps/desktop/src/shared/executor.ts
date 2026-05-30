@@ -90,79 +90,102 @@ export const ExecutorRefreshResultSchema = z.object({ refreshed: z.boolean() });
 
 // ---- add-source request payloads (per plugin kind) ------------------------
 
-type ExecutorConfiguredValue = string | { secretId: string; prefix?: string };
-type ExecutorConfiguredMap = Record<string, ExecutorConfiguredValue>;
+const ExecutorConfiguredValueSchema = z.union([
+  z.string(),
+  z.object({
+    secretId: z.string().min(1),
+    prefix: z.string().optional(),
+  }),
+]);
+const ExecutorConfiguredMapSchema = z.record(z.string(), ExecutorConfiguredValueSchema);
 
-type AddMcpRemoteSourceInput = {
-  transport: "remote";
-  name: string;
-  endpoint: string;
-  remoteTransport?: "streamable-http" | "sse" | "auto";
-  namespace?: string;
-  headers?: ExecutorConfiguredMap;
-  queryParams?: ExecutorConfiguredMap;
-};
+const AddMcpRemoteSourceInputSchema = z.object({
+  transport: z.literal("remote"),
+  name: z.string().min(1),
+  endpoint: z.string().min(1),
+  remoteTransport: z.enum(["streamable-http", "sse", "auto"]).optional(),
+  namespace: z.string().min(1).optional(),
+  headers: ExecutorConfiguredMapSchema.optional(),
+  queryParams: ExecutorConfiguredMapSchema.optional(),
+});
 
-type AddMcpStdioSourceInput = {
-  transport: "stdio";
-  name: string;
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  cwd?: string;
-  namespace?: string;
-};
+const AddMcpStdioSourceInputSchema = z.object({
+  transport: z.literal("stdio"),
+  name: z.string().min(1),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  cwd: z.string().optional(),
+  namespace: z.string().min(1).optional(),
+});
 
-export type AddMcpSourceInput = AddMcpRemoteSourceInput | AddMcpStdioSourceInput;
+export const AddMcpSourceInputSchema = z.discriminatedUnion("transport", [
+  AddMcpRemoteSourceInputSchema,
+  AddMcpStdioSourceInputSchema,
+]);
+export type AddMcpSourceInput = z.infer<typeof AddMcpSourceInputSchema>;
 
-export type AddOpenApiSourceInput = {
-  spec: { kind: "url"; url: string } | { kind: "blob"; value: string };
-  name: string;
-  baseUrl: string;
-  namespace: string;
-  headers?: ExecutorConfiguredMap;
-  queryParams?: ExecutorConfiguredMap;
-};
+const OpenApiSpecSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("url"), url: z.string().min(1) }),
+  z.object({ kind: z.literal("blob"), value: z.string().min(1) }),
+]);
 
-export type AddGraphqlSourceInput = {
-  endpoint: string;
-  name: string;
-  introspectionJson?: string;
-  namespace: string;
-  headers?: ExecutorConfiguredMap;
-  queryParams?: ExecutorConfiguredMap;
-};
+export const AddOpenApiSourceInputSchema = z.object({
+  spec: OpenApiSpecSchema,
+  name: z.string().min(1),
+  baseUrl: z.string().min(1),
+  namespace: z.string().min(1),
+  headers: ExecutorConfiguredMapSchema.optional(),
+  queryParams: ExecutorConfiguredMapSchema.optional(),
+});
+export type AddOpenApiSourceInput = z.infer<typeof AddOpenApiSourceInputSchema>;
 
-export type AddGoogleSourceInput = {
-  name: string;
-  discoveryUrl: string;
-  namespace?: string;
-  auth:
-    | { kind: "none" }
-    | {
-        kind: "oauth2";
-        connectionId: string;
-        clientIdSecretId: string;
-        clientSecretSecretId: string | null;
-        scopes: string[];
-      };
-};
+export const AddGraphqlSourceInputSchema = z.object({
+  endpoint: z.string().min(1),
+  name: z.string().min(1),
+  introspectionJson: z.string().optional(),
+  namespace: z.string().min(1),
+  headers: ExecutorConfiguredMapSchema.optional(),
+  queryParams: ExecutorConfiguredMapSchema.optional(),
+});
+export type AddGraphqlSourceInput = z.infer<typeof AddGraphqlSourceInputSchema>;
 
-export type SetSecretInput = {
-  id: string;
-  name: string;
-  value: string;
-  provider?: string;
-};
+const GoogleAuthSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("none") }),
+  z.object({
+    kind: z.literal("oauth2"),
+    connectionId: z.string().min(1),
+    clientIdSecretId: z.string().min(1),
+    clientSecretSecretId: z.string().min(1).nullable(),
+    scopes: z.array(z.string().min(1)),
+  }),
+]);
+
+export const AddGoogleSourceInputSchema = z.object({
+  name: z.string().min(1),
+  discoveryUrl: z.string().min(1),
+  namespace: z.string().min(1).optional(),
+  auth: GoogleAuthSchema,
+});
+export type AddGoogleSourceInput = z.infer<typeof AddGoogleSourceInputSchema>;
+
+export const SetSecretInputSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  value: z.string().min(1),
+  provider: z.string().min(1).optional(),
+});
+export type SetSecretInput = z.infer<typeof SetSecretInputSchema>;
 
 // ---- OAuth ---------------------------------------------------------------
 
-export type OAuthStartInput = {
-  endpoint: string;
-  pluginId: string;
-  connectionId: string;
-  identityLabel?: string;
-};
+export const OAuthStartInputSchema = z.object({
+  endpoint: z.string().min(1),
+  pluginId: z.string().min(1),
+  connectionId: z.string().min(1),
+  identityLabel: z.string().min(1).optional(),
+});
+export type OAuthStartInput = z.infer<typeof OAuthStartInputSchema>;
 
 export const OAuthStartResultSchema = z.object({
   sessionId: z.string(),

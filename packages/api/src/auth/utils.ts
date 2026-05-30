@@ -19,9 +19,8 @@ export const slugify = (str: string) => {
   return str;
 };
 
-export type Primitive = string | number | boolean | null;
-
-export type JsonType = Primitive | { [key: PropertyKey]: JsonType } | JsonType[];
+const JsonSchema = z.json();
+export type JsonType = z.infer<typeof JsonSchema>;
 
 /**
  * Zod schema for parsing JSON strings
@@ -41,7 +40,11 @@ export type JsonType = Primitive | { [key: PropertyKey]: JsonType } | JsonType[]
  */
 export const zJsonString = z.string().transform((str, ctx): JsonType => {
   try {
-    return JSON.parse(str) as JsonType;
+    const parsed: unknown = JSON.parse(str);
+    const result = JsonSchema.safeParse(parsed);
+    if (result.success) return result.data;
+    ctx.addIssue({ code: "custom", message: "Invalid JSON" });
+    return z.NEVER;
   } catch {
     ctx.addIssue({ code: "custom", message: "Invalid JSON" });
     return z.NEVER;

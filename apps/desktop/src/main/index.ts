@@ -39,13 +39,13 @@ import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { ExtensionsList, ExecutorStatus, SkillsList, UpdateState } from "@/shared/ipc";
-import type {
-  AddGoogleSourceInput,
-  AddGraphqlSourceInput,
-  AddMcpSourceInput,
-  AddOpenApiSourceInput,
-  OAuthStartInput,
-  SetSecretInput,
+import {
+  AddGoogleSourceInputSchema,
+  AddGraphqlSourceInputSchema,
+  AddMcpSourceInputSchema,
+  AddOpenApiSourceInputSchema,
+  OAuthStartInputSchema,
+  SetSecretInputSchema,
 } from "@/shared/executor";
 import type { ImageContent } from "@repo/pi-driver";
 
@@ -58,10 +58,6 @@ function toImageContent(images: ImageAttachment[] | undefined): ImageContent[] |
     data: i.data,
     mimeType: i.mimeType,
   }));
-}
-
-function objectPayloadSchema<T>(): z.ZodType<T> {
-  return z.custom<T>((value) => typeof value === "object" && value !== null);
 }
 
 const isDevelopment = !app.isPackaged;
@@ -341,34 +337,26 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(
     IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP,
-    objectPayloadSchema<AddMcpSourceInput>(),
+    AddMcpSourceInputSchema,
     executor.addMcpSource,
   );
   createIpcHandler(
     IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI,
-    objectPayloadSchema<AddOpenApiSourceInput>(),
+    AddOpenApiSourceInputSchema,
     executor.addOpenApiSource,
   );
   createIpcHandler(
     IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL,
-    objectPayloadSchema<AddGraphqlSourceInput>(),
+    AddGraphqlSourceInputSchema,
     executor.addGraphqlSource,
   );
   createIpcHandler(
     IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE,
-    objectPayloadSchema<AddGoogleSourceInput>(),
+    AddGoogleSourceInputSchema,
     executor.addGoogleSource,
   );
-  createIpcHandler(
-    IPC_CHANNELS.EXECUTOR_SECRET_SET,
-    objectPayloadSchema<SetSecretInput>(),
-    executor.setSecret,
-  );
-  createIpcHandler(
-    IPC_CHANNELS.EXECUTOR_OAUTH_START,
-    objectPayloadSchema<OAuthStartInput>(),
-    executor.oauthStart,
-  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SECRET_SET, SetSecretInputSchema, executor.setSecret);
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_OAUTH_START, OAuthStartInputSchema, executor.oauthStart);
 
   // The two non-passthrough handlers stay explicit.
   createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, (): ExecutorStatus => {
