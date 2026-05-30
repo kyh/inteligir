@@ -207,16 +207,10 @@ export function completeOnce(prompt: string, system?: string): Promise<string> {
 
 // ---------------------------------------------------------------------------
 // Agent — Inteligir wrapper around PiAgent that fixes paths + extensions and
-// keeps the legacy public surface app code expects (sendMessage returning
-// SendMessageResult, listTools returning ExtensionToolInfo[]).
+// exposes the small surface the Electron app needs.
 // ---------------------------------------------------------------------------
 
-import type {
-  InterruptResult,
-  SendMessageResult,
-  SteerResult,
-  SessionStatus,
-} from "@/shared/agent";
+import type { SessionStatus } from "@/shared/agent";
 import type { ImageContent, AgentSessionEvent } from "@repo/pi-driver";
 
 function resolveSessionManager(): SessionManager {
@@ -271,25 +265,20 @@ export class Agent {
     return this.pi?.waitForIdle(timeoutMs) ?? Promise.resolve(true);
   }
 
-  async sendMessage(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
+  async sendMessage(message: string, images?: ImageContent[]): Promise<void> {
     await this.ensurePi().sendMessage(message, images);
-    return { accepted: true };
   }
 
-  async steer(message: string, images?: ImageContent[]): Promise<SteerResult> {
+  async steer(message: string, images?: ImageContent[]): Promise<void> {
     await this.ensurePi().steer(message, images);
-    return { accepted: true };
   }
 
-  async followUp(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
+  async followUp(message: string, images?: ImageContent[]): Promise<void> {
     await this.ensurePi().followUp(message, images);
-    return { accepted: true };
   }
 
-  async interrupt(): Promise<InterruptResult> {
-    if (!this.pi) return { interrupted: false };
-    const interrupted = await this.pi.interrupt();
-    return { interrupted };
+  async interrupt(): Promise<boolean> {
+    return this.pi?.interrupt() ?? false;
   }
 
   getState(): { status: SessionStatus; error: string | null } {
