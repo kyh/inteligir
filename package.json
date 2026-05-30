@@ -19,14 +19,12 @@
     "format": "oxfmt",
     "format:fix": "oxfmt --write",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck",
-    "bootstrap": "tsx scripts/bootstrap.ts"
+    "typecheck": "turbo run typecheck"
   },
   "devDependencies": {
     "dotenv-cli": "^11.0.0",
     "oxfmt": "^0.51.0",
     "oxlint": "^1.66.0",
-    "tsx": "^4.22.3",
     "turbo": "^2.9.14",
     "typescript": "catalog:"
   },

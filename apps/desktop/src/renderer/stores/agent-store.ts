@@ -26,8 +26,8 @@ export type ChatMessageMetadata = {
 
 export type ChatMessage = UIMessage<ChatMessageMetadata>;
 
-export type SendIntent = "steer";
-export type SendOptions = { intent?: SendIntent };
+type SendIntent = "steer";
+type SendOptions = { intent?: SendIntent };
 
 // ---------------------------------------------------------------------------
 // Store

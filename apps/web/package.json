@@ -12,7 +12,6 @@
     "with-env": "dotenv -e ../../.env --"
   },
   "dependencies": {
-    "@ai-sdk/react": "^3.0.193",
     "@repo/api": "workspace:*",
     "@repo/db": "workspace:*",
     "@repo/ui": "workspace:*",
@@ -22,7 +21,6 @@
     "@trpc/client": "catalog:",
     "@trpc/server": "catalog:",
     "@trpc/tanstack-react-query": "catalog:",
-    "ai": "^6.0.191",
     "better-auth": "catalog:",
     "lucide-react": "^1.16.0",
     "next": "catalog:",
@@ -34,12 +32,9 @@
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
-    "@tailwindcss/postcss": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "postcss": "^8.5.15",
-    "tailwindcss": "catalog:",
     "typescript": "catalog:"
   }
 }

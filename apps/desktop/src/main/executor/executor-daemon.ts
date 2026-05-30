@@ -39,7 +39,7 @@ const STOP_GRACE_MS = 5_000;
 //   "Daemon ready on http://127.0.0.1:51734"
 const READY_RE = /Daemon ready on (https?:\/\/[^\s]+)/i;
 
-export type ExecutorConnection = {
+type ExecutorConnection = {
   /** Full API base, e.g. http://127.0.0.1:51734/api */
   baseUrl: string;
   /** Bearer token required on every request (OAuth callback/await excepted). */

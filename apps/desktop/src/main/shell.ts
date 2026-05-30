@@ -460,7 +460,7 @@ let instance: ShellManager | null = null;
 // undoing the logout wipe.
 let writesSuspended = false;
 
-export function getShell(): ShellManager {
+function getShell(): ShellManager {
   if (!instance) instance = new ShellManager();
   return instance;
 }

@@ -17,21 +17,10 @@ import type { ChatHistoryEntry } from "@/shared/ipc";
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
 
-/**
- * Resolved session file path from the most recent call to readSessionHistory().
- * Used to ensure the agent opens the same session the UI loaded history from.
- */
-let lastSessionFile: string | undefined;
 let cachedHistory: ChatHistoryEntry[] | undefined;
 
-/** Return the session file path resolved by the last readSessionHistory() call. */
-export function getResolvedSessionFile(): string | undefined {
-  return lastSessionFile;
-}
-
-/** Clear the cached session file path and history (e.g. on logout). */
+/** Clear the cached session history (e.g. on logout). */
 export function clearResolvedSessionFile(): void {
-  lastSessionFile = undefined;
   cachedHistory = undefined;
 }
 
@@ -88,14 +77,13 @@ function extractTextFromContent(content: Message["content"]): string {
  * Read the most recent session's messages from disk and convert to
  * ChatHistoryEntry[] for the renderer.
  *
- * Called eagerly at startup (before initMachine) to populate lastSessionFile,
- * and again by the renderer via IPC to get the cached result.
+ * Called eagerly at startup (before initMachine), and again by the renderer
+ * via IPC to get the cached result.
  */
 export function readSessionHistory(): ChatHistoryEntry[] {
   if (cachedHistory !== undefined) return cachedHistory;
   try {
     const sm = SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
-    lastSessionFile = sm.getSessionFile();
     const entries = sm.getEntries();
     const history: ChatHistoryEntry[] = [];
 

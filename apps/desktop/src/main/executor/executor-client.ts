@@ -25,7 +25,7 @@ import type {
   SetSecretInput,
 } from "@/shared/executor";
 
-export class ExecutorClientError extends Error {
+class ExecutorClientError extends Error {
   constructor(
     message: string,
     readonly status: number,

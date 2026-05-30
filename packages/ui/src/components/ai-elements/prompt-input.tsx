@@ -441,18 +441,15 @@ export const PromptInputHeader = ({ className, ...props }: PromptInputHeaderProp
   />
 );
 
-export type PromptInputFooterProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">;
+export type PromptInputToolbarProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">;
 
-export const PromptInputFooter = ({ className, ...props }: PromptInputFooterProps) => (
+export const PromptInputToolbar = ({ className, ...props }: PromptInputToolbarProps) => (
   <InputGroupAddon
     align="block-end"
     className={cn("justify-between gap-1", className)}
     {...props}
   />
 );
-
-export type PromptInputToolbarProps = PromptInputFooterProps;
-export const PromptInputToolbar = PromptInputFooter;
 
 export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>;
 

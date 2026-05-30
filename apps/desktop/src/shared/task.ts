@@ -31,7 +31,7 @@ export type TaskSchedule = z.infer<typeof TaskScheduleSchema>;
 // Task schema
 // ---------------------------------------------------------------------------
 
-export const TaskSchema = z.object({
+const TaskSchema = z.object({
   id: z.string(),
   label: z.string(),
   prompt: z.string(),

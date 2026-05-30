@@ -14,5 +14,3 @@ export const UiStateSetSchema = z.object({
   key: z.string().min(1),
   value: z.unknown(),
 });
-
-export type UiStateSet = z.infer<typeof UiStateSetSchema>;

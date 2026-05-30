@@ -60,7 +60,7 @@ export function rectEquals(a: FloatRect, b: FloatRect): boolean {
 // Widget definitions — "what's installed"
 // ---------------------------------------------------------------------------
 
-export type WidgetSource =
+type WidgetSource =
   | { kind: "builtin-react" }
   | {
       kind: "json-ui";
@@ -71,7 +71,7 @@ export type WidgetSource =
 
 /** A widget definition. Built-ins live in code (BUILTIN_DEFS); customs are
  * agent-/user-generated and persisted alongside instances. */
-export type BaseWidgetDef = {
+type BaseWidgetDef = {
   id: string;
   title: string;
   description?: string;
@@ -90,7 +90,7 @@ function tuple<const T extends readonly string[]>(...values: T): T {
   return values;
 }
 
-export const BUILTIN_WIDGET_IDS = tuple("chat", "tasks", "skills", "extensions", "settings");
+const BUILTIN_WIDGET_IDS = tuple("chat", "tasks", "skills", "extensions", "settings");
 
 export type BuiltinWidgetId = (typeof BUILTIN_WIDGET_IDS)[number];
 
@@ -163,7 +163,7 @@ export const BUILTIN_DEFS: BuiltinWidgetDef[] = Object.values(BUILTIN_DEFS_BY_ID
 
 export const CHAT_WIDGET_ID = "chat";
 
-export function isBuiltinWidgetId(id: string): id is BuiltinWidgetId {
+function isBuiltinWidgetId(id: string): id is BuiltinWidgetId {
   return BUILTIN_WIDGET_IDS.some((candidate) => candidate === id);
 }
 

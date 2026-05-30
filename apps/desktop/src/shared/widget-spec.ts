@@ -97,12 +97,12 @@ export type WidgetActionRequest = {
   params?: Record<string, unknown>;
 };
 
-export type WidgetRepeat = {
+type WidgetRepeat = {
   statePath: string;
   key?: string;
 };
 
-export type WidgetSpecInputElement = {
+type WidgetSpecInputElement = {
   type: JsonWidgetComponentType;
   props?: Record<string, unknown>;
   children?: string[];

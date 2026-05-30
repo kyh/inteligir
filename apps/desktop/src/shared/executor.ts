@@ -64,10 +64,10 @@ export type ExecutorAddSourceResult = { toolCount: number; namespace: string };
 
 // ---- add-source request payloads (per plugin kind) ------------------------
 
-export type ExecutorConfiguredValue = string | { secretId: string; prefix?: string };
-export type ExecutorConfiguredMap = Record<string, ExecutorConfiguredValue>;
+type ExecutorConfiguredValue = string | { secretId: string; prefix?: string };
+type ExecutorConfiguredMap = Record<string, ExecutorConfiguredValue>;
 
-export type AddMcpRemoteSourceInput = {
+type AddMcpRemoteSourceInput = {
   transport: "remote";
   name: string;
   endpoint: string;
@@ -77,7 +77,7 @@ export type AddMcpRemoteSourceInput = {
   queryParams?: ExecutorConfiguredMap;
 };
 
-export type AddMcpStdioSourceInput = {
+type AddMcpStdioSourceInput = {
   transport: "stdio";
   name: string;
   command: string;

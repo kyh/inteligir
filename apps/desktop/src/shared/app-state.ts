@@ -22,7 +22,7 @@ export type AppEvent = z.infer<typeof AppEventSchema>;
 // Internal events — emitted by effect runner, never from renderer
 // ---------------------------------------------------------------------------
 
-export type InternalEvent =
+type InternalEvent =
   | { type: "LOGIN_OK" }
   | { type: "LOGIN_FAIL"; message: string }
   | { type: "SETUP_OK" }

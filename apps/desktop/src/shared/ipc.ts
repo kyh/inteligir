@@ -125,7 +125,7 @@ export const IPC_CHANNELS = {
 // Update state
 // ---------------------------------------------------------------------------
 
-export type UpdateStatus =
+type UpdateStatus =
   | "idle"
   | "checking"
   | "available"
@@ -141,7 +141,7 @@ export type UpdateState = {
   message: string | null;
 };
 
-export type UpdateResponse = {
+type UpdateResponse = {
   accepted: boolean;
   state: UpdateState;
 };
