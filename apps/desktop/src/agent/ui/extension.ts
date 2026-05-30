@@ -4,6 +4,7 @@
 
 import { Type, type Static } from "@sinclair/typebox";
 
+import { flushRendererInstance } from "@/main/lib/widget-flush";
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
 import { isBuiltin, isCustom, type WidgetSpec } from "@/shared/shell";
@@ -236,6 +237,10 @@ const uiExtension: PiExtensionBundle = {
               if (!params.instanceId) {
                 return text("Error: instanceId is required for action='unplace'");
               }
+              // Let the renderer flush any pending debounced widget state
+              // before we archive — otherwise the user's recent edits get
+              // lost on re-place.
+              await flushRendererInstance(params.instanceId);
               const removed = mgr.unplaceWidget(params.instanceId);
               return text(
                 removed

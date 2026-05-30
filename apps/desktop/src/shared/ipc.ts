@@ -79,6 +79,11 @@ export const IPC_CHANNELS = {
   SHELL_SET_SURFACE: "shell:set-surface",
   SHELL_FOCUS: "shell:focus",
   SHELL_SET_STATE: "shell:set-state",
+  // Round-trip so a main-side action (e.g. agent unplace) can wait for the
+  // renderer's debounced widget state to flush before transitioning the
+  // instance. Request is broadcast; renderer replies with the matching id.
+  SHELL_FLUSH_REQUEST: "shell:flush-request",
+  SHELL_FLUSH_ACK: "shell:flush-ack",
 
   // Live widget actions
   WIDGET_COMPLETE: "widget:complete",
@@ -244,6 +249,10 @@ export type DesktopBridge = {
     instanceId: string,
     state: Record<string, unknown>,
   ) => Promise<WidgetInstance | null>;
+  onWidgetFlushRequest: (
+    listener: (payload: { instanceId: string; requestId: string }) => void,
+  ) => () => void;
+  ackWidgetFlush: (requestId: string) => void;
 
   // Live widget actions
   widgetComplete: (prompt: string, system?: string) => Promise<string>;
