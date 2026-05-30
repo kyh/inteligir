@@ -76,7 +76,10 @@ describe("shell actions", () => {
   it("does not unplace when the renderer flush fails", async () => {
     helpers.flushRendererInstance.mockResolvedValue(false);
 
-    await expect(unplaceWithFlush(instance.instanceId)).resolves.toBe(false);
+    // Flush failure throws so the caller can distinguish a quiet renderer
+    // failure from "widget not found" — the caller's not-found branch must
+    // not be reached.
+    await expect(unplaceWithFlush(instance.instanceId)).rejects.toThrow(/persist/);
 
     expect(helpers.shell.unplaceWidget).not.toHaveBeenCalled();
   });
@@ -84,7 +87,7 @@ describe("shell actions", () => {
   it("does not place a live singleton when its current instance fails to flush", async () => {
     helpers.flushRendererInstance.mockResolvedValue(false);
 
-    await expect(placeWithFlush(singletonDef.id, "floating")).resolves.toBeNull();
+    await expect(placeWithFlush(singletonDef.id, "floating")).rejects.toThrow(/persist/);
 
     expect(helpers.shell.placeWidget).not.toHaveBeenCalled();
   });
@@ -92,7 +95,7 @@ describe("shell actions", () => {
   it("does not delete when any live instance fails to flush", async () => {
     helpers.flushRendererInstance.mockResolvedValue(false);
 
-    await expect(deleteWithFlush(singletonDef.id, 1)).resolves.toBe(false);
+    await expect(deleteWithFlush(singletonDef.id, 1)).rejects.toThrow(/persist/);
 
     expect(helpers.shell.deleteWidget).not.toHaveBeenCalled();
   });

@@ -2,6 +2,7 @@
 // props, used by both the grid (Panel) and floating windows (FloatingWindow).
 
 import { LayoutPanelLeftIcon } from "lucide-react";
+import { toast } from "@repo/ui/components/sonner";
 
 import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
 import { flushInstanceState } from "@/renderer/shell/instance-state-flush";
@@ -57,14 +58,23 @@ export function widgetIcon(def: WidgetDef): React.ComponentType<{ className?: st
  * re-place) reflects the user's last edits, not what was on disk pre-debounce.
  * Deleting a custom definition is a separate gesture (manage_ui delete). */
 export async function closeInstance(instance: WidgetInstance): Promise<void> {
-  await flushInstanceState(instance.instanceId);
+  if (!(await flushInstanceState(instance.instanceId))) {
+    toast.error("Couldn't save the latest changes — close cancelled.");
+    return;
+  }
   await getBridge()?.unplaceWidget(instance.instanceId);
 }
 
 /** Move an instance between surfaces (pinned grid ⇄ floating window). Flushes
- * first so the broadcast that triggers the remount carries the latest state. */
+ * first so the broadcast that triggers the remount carries the latest state.
+ * Unlike unplace, surface changes don't trigger a second main-side flush, so
+ * a quiet flush failure here would seed the remounted viewer with stale
+ * state — cancel instead. */
 export async function moveInstance(instanceId: string, surface: WidgetSurface): Promise<void> {
-  await flushInstanceState(instanceId);
+  if (!(await flushInstanceState(instanceId))) {
+    toast.error("Couldn't save the latest changes — move cancelled.");
+    return;
+  }
   await getBridge()?.setInstanceSurface(instanceId, surface);
 }
 
