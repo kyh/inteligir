@@ -3,6 +3,7 @@
 // commands; this kernel validates specs, placement, and revisions.
 
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
@@ -45,18 +46,21 @@ export class ShellManager {
   private readonly store: JsonStore<Shell>;
 
   constructor(storePath?: string) {
-    this.store = new JsonStore(
-      storePath ?? inteligirPath("runtime-ui.json"),
-      ShellSchema,
-      DEFAULT_SHELL,
-    );
+    const file = storePath ?? inteligirPath("runtime-ui.json");
+    this.store = new JsonStore(file, ShellSchema, DEFAULT_SHELL);
     // Repair a hand-edited shell.json that validates but is missing a
     // permanent instance (e.g. someone dropped the chat row). Without this,
     // snapshot()/broadcast() would synthesize the missing instance on the
     // fly while the in-memory store still lacked it — so getInstance, the
     // grid-geometry writer, and setInstanceState would silently no-op for
     // those instanceIds.
-    this.store.update(withPermanentInstances);
+    //
+    // Only when the file already exists. A post-teardown construct (no
+    // workspace dir, no shell file) would otherwise auto-write DEFAULT_SHELL
+    // and re-create ~/.inteligir, undoing the logout wipe.
+    if (fs.existsSync(file)) {
+      this.store.update(withPermanentInstances);
+    }
   }
 
   snapshot(): ShellSnapshot {

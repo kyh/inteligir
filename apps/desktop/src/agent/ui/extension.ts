@@ -1,5 +1,5 @@
 import { deleteWithFlush, placeWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
-import { getShell } from "@/main/shell";
+import { getShell, isShellWritable } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
 import { describeWidgetSpecLanguage } from "@/shared/widget-spec";
 import { isBuiltin, isJsonUi } from "@/shared/shell";
@@ -31,6 +31,13 @@ const uiExtension: PiExtensionBundle = {
         "and actions. Generated widgets are trusted and can use live actions.",
       parameters: ManageUiSchema,
       execute: async (_toolCallId, params: ManageUiParams) => {
+        // Short-circuit while writes are suspended (post-logout) BEFORE
+        // calling getShell — the constructor's withPermanentInstances repair
+        // and any mutation below would otherwise re-create ~/.inteligir from
+        // an in-flight tool call.
+        if (!isShellWritable()) {
+          return text("Error: shell is unavailable (signed out).");
+        }
         const mgr = getShell();
         try {
           switch (params.action) {
