@@ -25,7 +25,7 @@ export function registerShellIpcHandlers(): void {
   createIpcHandler(
     IPC_CHANNELS.SHELL_PLACE,
     z.object({ widgetId: z.string().min(1), surface: SurfaceSchema.optional() }),
-    ({ widgetId, surface }) => {
+    async ({ widgetId, surface }) => {
       return placeWithFlush(widgetId, surface);
     },
   );
