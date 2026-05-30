@@ -103,7 +103,7 @@ export const ManageUiSchema = Type.Union([
     {
       action: Type.Literal("delete"),
       id: Type.String({ minLength: 1 }),
-      expectedRevision: Type.Integer({ minimum: 1 }),
+      expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })),
     },
     { additionalProperties: false },
   ),
