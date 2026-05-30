@@ -78,9 +78,9 @@ export async function startSTT(
     }
     if (stopped && pendingFlush === null) return;
     try {
-      // Worklet posts a fresh Float32Array (slice()'d in the worklet) so the
-      // backing buffer is always a plain ArrayBuffer, never SharedArrayBuffer.
-      bridge.sendSttAudio(event.data.buffer as ArrayBuffer);
+      // Worklet posts a fresh Float32Array (slice()'d in the worklet), so IPC
+      // can transfer a typed chunk without exposing its backing buffer here.
+      bridge.sendSttAudio(event.data);
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
     }

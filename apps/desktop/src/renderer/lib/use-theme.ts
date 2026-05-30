@@ -7,11 +7,13 @@ export type ResolvedTheme = "light" | "dark";
 
 const THEME_KEY = "theme";
 
+function parseTheme(value: unknown): Theme | undefined {
+  if (value === "system" || value === "light" || value === "dark") return value;
+  return undefined;
+}
+
 function systemPrefersDark(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    window.matchMedia("(prefers-color-scheme: dark)").matches
-  );
+  return typeof window !== "undefined" && window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 /**
@@ -25,7 +27,7 @@ export function useTheme(): {
   setTheme: (theme: Theme) => void;
   resolved: ResolvedTheme;
 } {
-  const [theme, setTheme] = useDiskState<Theme>(THEME_KEY, "dark");
+  const [theme, setTheme] = useDiskState(THEME_KEY, "dark", parseTheme);
   const [systemDark, setSystemDark] = useState(systemPrefersDark);
 
   useEffect(() => {
@@ -35,8 +37,7 @@ export function useTheme(): {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
-  const resolved: ResolvedTheme =
-    theme === "system" ? (systemDark ? "dark" : "light") : theme;
+  const resolved: ResolvedTheme = theme === "system" ? (systemDark ? "dark" : "light") : theme;
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", resolved === "dark");

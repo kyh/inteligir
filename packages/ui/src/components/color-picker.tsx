@@ -9,6 +9,7 @@ import {
   useCallback,
   useMemo,
   type CSSProperties,
+  type ForwardedRef,
   type HTMLAttributes,
   type ReactNode,
 } from "react";
@@ -41,6 +42,20 @@ import {
 // ---------------------------------------------------------------------------
 
 type ColorFormat = "hex" | "rgb" | "hsl" | "oklch";
+
+const COLOR_FORMATS: ColorFormat[] = ["hex", "rgb", "hsl", "oklch"];
+
+function isColorFormat(value: string): value is ColorFormat {
+  return value === "hex" || value === "rgb" || value === "hsl" || value === "oklch";
+}
+
+function assignForwardedRef<T>(ref: ForwardedRef<T>, value: T | null): void {
+  if (typeof ref === "function") {
+    ref(value);
+    return;
+  }
+  if (ref !== null) ref.current = value;
+}
 
 // Allows consumers (e.g. the /demo carousel) to portal popups inside a
 // CSS-scaled ancestor so menu/popover layers visually scale with the picker.
@@ -501,7 +516,7 @@ function SaturationSquare({ h, s, v, onChange }: SaturationSquareProps) {
       e.preventDefault();
       dragging.current = true;
       hasMoved.current = false;
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      e.currentTarget.setPointerCapture(e.pointerId);
       updateFromPointer(e.clientX, e.clientY);
     },
     [updateFromPointer],
@@ -707,7 +722,6 @@ function FormatDropdown({
 }) {
   const ChevronDownIcon = getIcon("chevron-down");
   const shape = getShape();
-  const formats = ["hex", "rgb", "hsl", "oklch"] as const;
 
   return (
     <DropdownMenu {...(open !== undefined ? { open } : { defaultOpen })}>
@@ -732,8 +746,13 @@ function FormatDropdown({
         />
       </DropdownMenuTrigger>
       <DropdownMenuContent className="min-w-(--anchor-width)">
-        <DropdownMenuRadioGroup value={value} onValueChange={(v) => onChange(v as ColorFormat)}>
-          {formats.map((fmt) => (
+        <DropdownMenuRadioGroup
+          value={value}
+          onValueChange={(nextValue) => {
+            if (isColorFormat(nextValue)) onChange(nextValue);
+          }}
+        >
+          {COLOR_FORMATS.map((fmt) => (
             <DropdownMenuRadioItem key={fmt} value={fmt}>
               {FORMAT_LABELS[fmt]}
             </DropdownMenuRadioItem>
@@ -812,8 +831,7 @@ const ColorInput = forwardRef<HTMLInputElement, ColorInputProps>(
     const setInputRef = useCallback(
       (node: HTMLInputElement | null) => {
         inputRef.current = node;
-        if (typeof ref === "function") ref(node);
-        else if (ref) (ref as React.MutableRefObject<HTMLInputElement | null>).current = node;
+        assignForwardedRef(ref, node);
       },
       [ref],
     );
@@ -935,10 +953,10 @@ const ColorInput = forwardRef<HTMLInputElement, ColorInputProps>(
           }}
           onKeyDown={(e) => {
             if (e.key === "Enter") {
-              (e.currentTarget as HTMLInputElement).blur();
+              e.currentTarget.blur();
             } else if (e.key === "Escape") {
               setDraft(value);
-              (e.currentTarget as HTMLInputElement).blur();
+              e.currentTarget.blur();
             } else if (
               (nudgeStep != null || nudgeShiftStep != null) &&
               (e.key === "ArrowUp" || e.key === "ArrowDown")
@@ -973,20 +991,28 @@ interface EyeDropperGlobal {
   open(): Promise<{ sRGBHex: string }>;
 }
 
+declare global {
+  interface Window {
+    EyeDropper?: new () => EyeDropperGlobal;
+  }
+}
+
 function EyeDropperButton({ onPick }: { onPick: (hex: string) => void }) {
   const [supported, setSupported] = useState(false);
   const shape = getShape();
   const PipetteIcon = getIcon("pipette");
 
   useEffect(() => {
-    setSupported(typeof window !== "undefined" && "EyeDropper" in window);
+    setSupported(typeof window !== "undefined" && window.EyeDropper !== undefined);
   }, []);
 
   if (!supported) return null;
 
   const handleClick = async () => {
     try {
-      const Ctor = (window as unknown as { EyeDropper: new () => EyeDropperGlobal }).EyeDropper;
+      const Ctor = window.EyeDropper;
+      if (Ctor === undefined) return;
+
       const eye = new Ctor();
       const result = await eye.open();
       onPick(result.sRGBHex);
@@ -1150,11 +1176,11 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
   ) => {
     const isControlled = value !== undefined;
     const [internalValue, setInternalValue] = useState(value ?? defaultValue);
-    const currentRawValue = isControlled ? (value as string) : internalValue;
+    const currentRawValue = value === undefined ? internalValue : value;
 
     const isFormatControlled = format !== undefined;
     const [internalFormat, setInternalFormat] = useState<ColorFormat>(defaultFormat);
-    const currentFormat = isFormatControlled ? (format as ColorFormat) : internalFormat;
+    const currentFormat = format === undefined ? internalFormat : format;
 
     // Internal HSV state (canonical). H is preserved across S=0 / V=0 transitions.
     const initialParsed = useMemo(() => {
@@ -1177,7 +1203,8 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
     useEffect(() => {
       if (!isControlled) return;
       const emitted = lastEmittedRef.current;
-      const cur = value as string;
+      if (value === undefined) return;
+      const cur = value;
       if (cur === emitted) return;
       const p = parseColor(cur);
       if (!p) return;
@@ -1324,7 +1351,7 @@ const ColorPicker = forwardRef<HTMLDivElement, ColorPickerProps>(
               const p = { ...parsed };
               switch (channel) {
                 case "hex":
-                  handleHexCommit(value as string);
+                  handleHexCommit(value);
                   return;
                 case "r":
                 case "g":
@@ -1680,7 +1707,7 @@ const ColorPickerPopover = forwardRef<HTMLDivElement, ColorPickerPopoverProps>(
     const [internalValue, setInternalValue] = useState(
       pickerProps.value ?? pickerProps.defaultValue ?? "#ff0000",
     );
-    const currentValue = isControlled ? (pickerProps.value as string) : internalValue;
+    const currentValue = pickerProps.value === undefined ? internalValue : pickerProps.value;
 
     const onValueChange = useCallback(
       (v: string, parsed: ParsedColor) => {
@@ -1704,7 +1731,7 @@ const ColorPickerPopover = forwardRef<HTMLDivElement, ColorPickerPopoverProps>(
       window.addEventListener("scroll", update, { passive: true, capture: true });
       window.addEventListener("resize", update);
       return () => {
-        window.removeEventListener("scroll", update, { capture: true } as EventListenerOptions);
+        window.removeEventListener("scroll", update, { capture: true });
         window.removeEventListener("resize", update);
       };
     }, [open, setOpen]);
@@ -1712,10 +1739,8 @@ const ColorPickerPopover = forwardRef<HTMLDivElement, ColorPickerPopoverProps>(
     useEffect(() => {
       if (!open) return;
       const onClick = (e: MouseEvent) => {
-        if (
-          !panelRef.current?.contains(e.target as Node) &&
-          !triggerRef.current?.contains(e.target as Node)
-        ) {
+        if (!(e.target instanceof Node)) return;
+        if (!panelRef.current?.contains(e.target) && !triggerRef.current?.contains(e.target)) {
           setOpen(false);
         }
       };
@@ -1803,7 +1828,7 @@ const ColorPickerPopover = forwardRef<HTMLDivElement, ColorPickerPopoverProps>(
               <AnimatePresence>
                 <motion.div
                   ref={(node) => {
-                    (panelRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+                    panelRef.current = node;
                     setPanelEl(node);
                   }}
                   initial={{ opacity: 0, y: -4, scaleY: 0.96 }}

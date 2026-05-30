@@ -213,7 +213,7 @@ export type DesktopBridge = {
     elevenlabsVoiceId?: string;
   } | null>;
   startStt: () => Promise<{ ok: boolean; reason?: string }>;
-  sendSttAudio: (samples: ArrayBuffer) => void;
+  sendSttAudio: (samples: Float32Array) => void;
   stopStt: () => Promise<Array<{ text: string; isFinal: boolean }>>;
   onSttTranscript: (listener: (event: { text: string; isFinal: boolean }) => void) => () => void;
   getVoiceModelStatus: () => Promise<"ready" | "missing">;

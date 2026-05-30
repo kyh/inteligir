@@ -238,7 +238,7 @@ function registerIpcHandlers(): void {
     return { ok: true };
   });
 
-  ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | Uint8Array) => {
+  ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | ArrayBufferView) => {
     // Fire-and-forget hot path — uncaught throws on the event loop would crash
     // the app, so swallow + log and keep the session alive.
     try {
@@ -247,7 +247,11 @@ function registerIpcHandlers(): void {
       const samples =
         payload instanceof ArrayBuffer
           ? new Float32Array(payload)
-          : new Float32Array(payload.buffer, payload.byteOffset, payload.byteLength / 4);
+          : new Float32Array(
+              payload.buffer,
+              payload.byteOffset,
+              payload.byteLength / Float32Array.BYTES_PER_ELEMENT,
+            );
       const events = pushAudio(samples);
       for (const ev of events) {
         broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
