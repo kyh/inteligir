@@ -13,9 +13,10 @@ import {
   shellSnapshot,
   withPermanentInstances,
 } from "@/main/shell-defaults";
-import { parseWidgetSpec, ShellSchema } from "@/main/shell-schema";
+import { ShellSchema } from "@/main/shell-schema";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
+import { parseWidgetSpec } from "@/shared/widget-spec-schema";
 import {
   builtinDef,
   geometryEquals,

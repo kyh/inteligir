@@ -1,54 +1,6 @@
 import { Type, type Static } from "@sinclair/typebox";
 
-import { JSON_WIDGET_COMPONENT_TYPES, WIDGET_ACTION_NAMES } from "@/shared/widget-spec";
-
-function literalUnion<T extends string>(values: readonly T[]) {
-  return Type.Union(values.map((value) => Type.Literal(value)));
-}
-
-const ComponentTypeParam = literalUnion(JSON_WIDGET_COMPONENT_TYPES);
-const ActionNameParam = literalUnion(WIDGET_ACTION_NAMES);
-
-const ActionRequestParam = Type.Object(
-  {
-    action: ActionNameParam,
-    params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-  },
-  { additionalProperties: false },
-);
-
-const ActionBindingParam = Type.Union([ActionRequestParam, Type.Array(ActionRequestParam)]);
-
-const SpecParam = Type.Object(
-  {
-    root: Type.String({ description: "Key of the root element in elements" }),
-    elements: Type.Record(
-      Type.String(),
-      Type.Object(
-        {
-          type: ComponentTypeParam,
-          props: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-          children: Type.Optional(Type.Array(Type.String())),
-          visible: Type.Optional(Type.Unknown()),
-          repeat: Type.Optional(
-            Type.Object(
-              {
-                statePath: Type.String(),
-                key: Type.Optional(Type.String()),
-              },
-              { additionalProperties: false },
-            ),
-          ),
-          on: Type.Optional(Type.Record(Type.String(), ActionBindingParam)),
-          watch: Type.Optional(Type.Record(Type.String(), ActionBindingParam)),
-        },
-        { additionalProperties: false },
-      ),
-    ),
-    state: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
-  },
-  { additionalProperties: false },
-);
+import { WidgetSpecParam } from "@/shared/widget-spec-schema";
 
 const PatchOpParam = Type.Union([
   Type.Object(
@@ -75,7 +27,7 @@ export const ManageUiSchema = Type.Union([
       id: Type.Optional(Type.String({ minLength: 1 })),
       title: Type.String({ minLength: 1 }),
       description: Type.Optional(Type.String()),
-      spec: SpecParam,
+      spec: WidgetSpecParam,
     },
     { additionalProperties: false },
   ),
@@ -86,7 +38,7 @@ export const ManageUiSchema = Type.Union([
       expectedRevision: Type.Integer({ minimum: 1 }),
       title: Type.Optional(Type.String({ minLength: 1 })),
       description: Type.Optional(Type.String()),
-      spec: SpecParam,
+      spec: WidgetSpecParam,
     },
     { additionalProperties: false },
   ),
