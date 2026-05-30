@@ -213,7 +213,15 @@ export class ShellManager {
         singleton: false,
         permanent: false,
         defaultGeometry: { x: 5, y: 0, ...WIDGET_DEFAULT_SIZE },
-        source: { kind: "custom", spec: input.spec, createdAt: now, updatedAt: now },
+        // Clone the spec so a caller that holds onto `input.spec` can't mutate
+        // the cached def out from under us — matches the patchWidgetSpec path
+        // which clones before validating.
+        source: {
+          kind: "custom",
+          spec: structuredClone(input.spec),
+          createdAt: now,
+          updatedAt: now,
+        },
       };
       // Copy on seed: input.spec.state is also the def's persisted template,
       // so handing the same reference to the instance would let live mutations
@@ -246,7 +254,12 @@ export class ShellManager {
         ...def,
         title: input.title,
         description: input.description ?? def.description,
-        source: { kind: "custom", spec: input.spec, createdAt: def.source.createdAt, updatedAt: now },
+        source: {
+          kind: "custom",
+          spec: structuredClone(input.spec),
+          createdAt: def.source.createdAt,
+          updatedAt: now,
+        },
       };
     });
   }

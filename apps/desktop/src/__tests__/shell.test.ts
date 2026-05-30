@@ -82,6 +82,20 @@ describe("ShellManager.createWidget", () => {
     expect(instance.state).toEqual({ a: 1 });
   });
 
+  it("clones the spec on create so a later caller mutation doesn't change the cached def", () => {
+    const liveSpec: WidgetSpec = {
+      root: "r",
+      elements: { r: { type: "Text", props: { text: "before" } } },
+    };
+    const { def } = mgr.createWidget({ title: "Mut", spec: liveSpec });
+    // Caller mutates the object it handed over — must not affect the stored def.
+    liveSpec.elements["r"]!.props = { text: "after" };
+    if (def.source.kind !== "custom") throw new Error("expected custom");
+    const stored = mgr.getDef(def.id)!;
+    if (stored.source.kind !== "custom") throw new Error("expected custom");
+    expect(stored.source.spec.elements["r"]!.props["text"]).toBe("before");
+  });
+
   it("copies spec.state on seed so live mutations don't leak into the def template", () => {
     const { def, instance } = mgr.createWidget({
       title: "S",
