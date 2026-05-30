@@ -150,6 +150,22 @@ describe("ShellManager.installWidget", () => {
     expect(source(stored).spec.state).toEqual({ a: 1 });
   });
 
+  it("deep-clones nested seed state so collection mutations don't alias the def", () => {
+    const def = mgr.installWidget({
+      title: "List",
+      spec: { ...SPEC, state: { items: ["a", "b"] } },
+    });
+    const instance = place(def.id);
+    // Simulate a live in-place mutation of the instance's nested array — a
+    // shallow copy would have aliased it with the persisted spec.state.items
+    // (and the archive entry on the next unplace cycle).
+    const items = instance.state["items"];
+    if (!Array.isArray(items)) throw new Error("expected items array");
+    items.push("c");
+    const stored = must(mgr.getDef(def.id), "missing stored def");
+    expect(source(stored).spec.state).toEqual({ items: ["a", "b"] });
+  });
+
   it("never collides with a built-in id when auto-slugging", () => {
     const def = mgr.installWidget({ title: "tasks", spec: SPEC });
     expect(def.id).not.toBe("tasks");
@@ -198,6 +214,19 @@ describe("ShellManager.placeWidget", () => {
     const second = place("tasks", "pinned");
     expect(second.instanceId).toBe(first.instanceId);
     expect(second.placement.surface).toBe("pinned");
+  });
+
+  it("leaves a singleton alone when the requested surface already matches", () => {
+    const pinned = place("tasks", "pinned");
+    if (pinned.placement.surface !== "pinned") throw new Error("expected pinned");
+    const geometry = pinned.placement.geometry;
+    // Re-placing with the same surface must not pop to floating — that was
+    // the dock-click fallback, which only applies when no surface is given.
+    const again = place("tasks", "pinned");
+    expect(again.instanceId).toBe(pinned.instanceId);
+    expect(again.placement.surface).toBe("pinned");
+    if (again.placement.surface !== "pinned") throw new Error("expected pinned");
+    expect(again.placement.geometry).toEqual(geometry);
   });
 
   it("pops a pinned singleton to floating on a no-surface dock click", () => {

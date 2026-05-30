@@ -184,10 +184,13 @@ export class ShellManager {
       // cycle; it should not seed a new sibling while a live instance exists.
       const liveInstance = current.instances.some((i) => i.widgetId === def.id);
       const archived = liveInstance ? undefined : current.archivedStates[def.id];
+      // Deep-clone the seed so live state actions that mutate nested
+      // collections (push to an array, splice an object) don't bleed back
+      // into the persisted def template or the archive entry.
       const initial: Record<string, unknown> = archived
-        ? { ...archived }
+        ? structuredClone(archived)
         : isJsonUi(def) && def.source.spec.state
-          ? { ...def.source.spec.state }
+          ? structuredClone(def.source.spec.state)
           : {};
       const instance = this.makeInstance(current, def, surface ?? "floating", initial);
       result = instance;
@@ -291,8 +294,15 @@ export class ShellManager {
     existing: WidgetInstance,
     surface?: WidgetSurface,
   ): WidgetInstance | null {
-    if (surface && existing.placement.surface !== surface) {
-      return { ...existing, placement: this.makePlacement(shell, def, surface) };
+    // An explicit surface request: switch if different, otherwise leave the
+    // placement alone. Falling through to the "no surface" focus path would
+    // pop a pinned singleton to floating even when the caller asked for
+    // pinned.
+    if (surface) {
+      if (existing.placement.surface !== surface) {
+        return { ...existing, placement: this.makePlacement(shell, def, surface) };
+      }
+      return null;
     }
     // No surface override: dock-click intent is "focus this widget." For
     // floating, raise it to the top of z-order. For pinned, there's no z, so
