@@ -72,7 +72,7 @@ const headingClass = {
   "1": "text-base font-semibold",
   "2": "text-sm font-semibold",
   "3": "text-xs font-medium text-muted-foreground",
-} as const;
+};
 
 function Heading({ props }: BaseProps<{ text: string; level?: "1" | "2" | "3" }>) {
   const level = props.level ?? "3";
@@ -88,7 +88,7 @@ const textSizeClass = {
   xs: "text-[11px]",
   sm: "text-xs",
   base: "text-sm",
-} as const;
+};
 
 function Text({
   props,
