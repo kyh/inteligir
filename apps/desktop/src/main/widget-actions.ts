@@ -23,10 +23,13 @@ export function registerWidgetActionIpcHandlers(): void {
   createIpcHandler(
     IPC_CHANNELS.WIDGET_SEND_PROMPT,
     z.object({ prompt: z.string().min(1) }),
-    ({ prompt }) => {
+    async ({ prompt }) => {
       const agent = getAgent();
       if (!agent) throw new Error("Agent unavailable");
-      void agent.sendMessage(prompt);
+      // Await so an agent-side error rejects the IPC and the renderer's
+      // sendPrompt catch can surface a toast — `void`'ing the promise made
+      // the invoke resolve immediately and swallowed failures.
+      await agent.sendMessage(prompt);
     },
   );
 
