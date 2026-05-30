@@ -86,7 +86,13 @@ export type BaseWidgetDef = {
   source: WidgetSource;
 };
 
-export type BuiltinWidgetId = "chat" | "tasks" | "skills" | "extensions" | "settings";
+function tuple<const T extends readonly string[]>(...values: T): T {
+  return values;
+}
+
+export const BUILTIN_WIDGET_IDS = tuple("chat", "tasks", "skills", "extensions", "settings");
+
+export type BuiltinWidgetId = (typeof BUILTIN_WIDGET_IDS)[number];
 
 export type BuiltinWidgetDef = BaseWidgetDef & {
   id: BuiltinWidgetId;
@@ -158,9 +164,7 @@ export const BUILTIN_DEFS: BuiltinWidgetDef[] = Object.values(BUILTIN_DEFS_BY_ID
 export const CHAT_WIDGET_ID = "chat";
 
 export function isBuiltinWidgetId(id: string): id is BuiltinWidgetId {
-  return (
-    id === "chat" || id === "tasks" || id === "skills" || id === "extensions" || id === "settings"
-  );
+  return BUILTIN_WIDGET_IDS.some((candidate) => candidate === id);
 }
 
 export function builtinDef(id: string): BuiltinWidgetDef | undefined {
