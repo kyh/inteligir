@@ -1,4 +1,4 @@
-import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
+import { deleteWithFlush, placeWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { getShell } from "@/main/shell";
 import { toErrorMessage } from "@/shared/ipc";
 import { describeWidgetSpecLanguage } from "@/shared/widget-spec";
@@ -101,7 +101,7 @@ const uiExtension: PiExtensionBundle = {
               );
             }
             case "place": {
-              const instance = mgr.placeWidget(params.id, params.surface);
+              const instance = await placeWithFlush(params.id, params.surface);
               return instance
                 ? text(
                     `Placed '${params.id}' as ${instance.placement.surface} instance ${instance.instanceId}.`,

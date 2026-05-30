@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { deleteWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
+import { deleteWithFlush, placeWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { GeometrySchema, InstallWidgetInputSchema, RectSchema } from "@/main/shell-schema";
 import { getShell } from "@/main/shell";
@@ -16,7 +16,7 @@ export function registerShellIpcHandlers(): void {
   createIpcHandler(
     IPC_CHANNELS.SHELL_PLACE,
     z.object({ widgetId: z.string().min(1), surface: z.enum(["pinned", "floating"]).optional() }),
-    ({ widgetId, surface }) => getShell().placeWidget(widgetId, surface),
+    ({ widgetId, surface }) => placeWithFlush(widgetId, surface),
   );
 
   createIpcHandler(IPC_CHANNELS.SHELL_UNPLACE, z.string().min(1), async (instanceId) => {
