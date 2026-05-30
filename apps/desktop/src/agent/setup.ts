@@ -164,14 +164,17 @@ export function isSetupComplete(): boolean {
 }
 
 export function teardownResources(): void {
-  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
-  // Drop singletons that hold JsonStore caches pointing at files inside
-  // AGENT_DIR — otherwise a re-login would serve stale settings until the
-  // process restarts.
+  // Drop singletons that hold JsonStore caches BEFORE removing the directory.
+  // An in-flight debounced write (e.g. a WidgetViewer's unmount-time flush)
+  // running between the rm and the cache reset would otherwise resurrect
+  // runtime-ui.json from the warm in-memory shell. With this order, such a
+  // write either races against the singleton reset (its write lands before
+  // rm and gets wiped) or arrives after the cache is gone.
   _authStorage = null;
   resetNotifications();
   resetShellCache();
   resetExecutorDaemon();
+  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
 }
 
 export function isLoggedIn(): boolean {

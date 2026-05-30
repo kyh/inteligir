@@ -641,5 +641,9 @@ export function getShell(): ShellManager {
 }
 
 export function resetShellCache(): void {
+  // Null the singleton so the next getShell() builds a fresh instance — a
+  // surviving reference to the old one would keep writing through its warm
+  // cache, undoing logout.
   instance?.invalidate();
+  instance = null;
 }

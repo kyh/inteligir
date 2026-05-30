@@ -40,10 +40,11 @@ function Section({ props, children }: BaseProps<{ title?: string }>) {
   );
 }
 
-function Row({ props, children }: BaseProps<{ bordered?: boolean }>) {
+function Row({ props, emit, children }: BaseProps<{ bordered?: boolean }>) {
   const bordered = props.bordered !== false;
   return (
     <div
+      onClick={() => emit("press")}
       className={cn(
         "flex items-center justify-between gap-2",
         bordered && "rounded-md border border-border px-3 py-2",
