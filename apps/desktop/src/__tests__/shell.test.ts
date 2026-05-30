@@ -127,6 +127,34 @@ describe("ShellManager.unplaceWidget / deleteWidget", () => {
     expect(snap.defs.some((d) => d.id === def.id)).toBe(false);
     expect(snap.instances.some((i) => i.widgetId === def.id)).toBe(false);
   });
+
+  it("archives state on unplace and restores it on next placement", () => {
+    const placed = mgr.placeWidget("tasks")!;
+    mgr.setInstanceState(placed.instanceId, { count: 7, note: "hi" });
+    expect(mgr.unplaceWidget(placed.instanceId)).toBe(true);
+    const replaced = mgr.placeWidget("tasks")!;
+    expect(replaced.state).toEqual({ count: 7, note: "hi" });
+  });
+
+  it("clears archived state when the custom def is deleted", () => {
+    const { def, instance } = mgr.createWidget({
+      title: "Note",
+      spec: SPEC,
+      state: { body: "draft" },
+    });
+    mgr.setInstanceState(instance.instanceId, { body: "edited" });
+    mgr.unplaceWidget(instance.instanceId);
+    mgr.deleteWidget(def.id);
+    // A new custom recreated with the same id (only possible because the
+    // archive was cleared) starts from its own spec.state, not the prior
+    // archived "edited" value.
+    const recreated = mgr.createWidget({
+      id: def.id,
+      title: "Note",
+      spec: { ...SPEC, state: { body: "fresh" } },
+    });
+    expect(recreated.instance.state).toEqual({ body: "fresh" });
+  });
 });
 
 describe("ShellManager.setInstanceState", () => {

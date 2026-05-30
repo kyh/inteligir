@@ -35,16 +35,26 @@ export function initShell(): void {
     broadcastSeen = true;
     apply(next.defs, next.instances);
   });
-  bridge
-    .listShell()
-    .then((next) => {
-      if (broadcastSeen) return null;
-      apply(next.defs, next.instances);
-      return null;
-    })
-    .catch(() => {
-      if (!broadcastSeen) useShellStore.setState({ loading: false });
-    });
+
+  // Retry on failure so a transient IPC hiccup doesn't leave the workspace
+  // stuck at empty defs/instances. A broadcast (which can land any time after
+  // the subscription above is wired) also satisfies the load.
+  const RETRY_DELAYS_MS = [200, 500, 1000];
+  let attempt = 0;
+  const fetchOnce = (): void => {
+    bridge
+      .listShell()
+      .then((next) => {
+        if (!broadcastSeen) apply(next.defs, next.instances);
+      })
+      .catch(() => {
+        if (broadcastSeen) return;
+        const delay = RETRY_DELAYS_MS[attempt++];
+        if (delay !== undefined) setTimeout(fetchOnce, delay);
+        else useShellStore.setState({ loading: false });
+      });
+  };
+  fetchOnce();
 }
 
 /**

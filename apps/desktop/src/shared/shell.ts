@@ -181,11 +181,14 @@ export function isFloating(i: WidgetInstance): i is FloatingInstance {
 // Shell — what's persisted, what the renderer/agent see
 // ---------------------------------------------------------------------------
 
-/** Persisted: only the custom defs (built-ins live in code) + every instance. */
+/** Persisted: only the custom defs (built-ins live in code) + every instance,
+ * plus a per-widgetId archive of state we last saw before an instance was
+ * unplaced — so toggling a widget off and on doesn't wipe what the user typed. */
 export type Shell = {
   version: 1;
   customDefs: WidgetDef[];
   instances: WidgetInstance[];
+  archivedStates: Record<string, Record<string, unknown>>;
 };
 
 /** Broadcast to the renderer + returned from listShell: every def the agent or

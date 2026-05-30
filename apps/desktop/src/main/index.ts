@@ -375,11 +375,26 @@ function registerIpcHandlers(): void {
     // Restrict to http(s) — z.string().url() also accepts file://, ftp://,
     // etc., and this main-process fetch bypasses renderer CSP/CORS, so an
     // agent-authored fetchUrl action must not reach non-web schemes.
-    if (!isHttpUrl(url)) throw new Error("Only http(s) URLs can be fetched");
-    const resp = await fetch(url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(30_000),
-    });
+    // Redirects are followed manually so the scheme check applies to every
+    // hop: `redirect: "follow"` would let an http(s) start hop to file:// or
+    // an internal target via a 3xx Location.
+    const MAX_REDIRECTS = 5;
+    const signal = AbortSignal.timeout(30_000);
+    let currentUrl = url;
+    let resp: Response | null = null;
+    for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (!isHttpUrl(currentUrl)) throw new Error("Only http(s) URLs can be fetched");
+      const r = await fetch(currentUrl, { redirect: "manual", signal });
+      if (r.status >= 300 && r.status < 400) {
+        const location = r.headers.get("location");
+        if (!location) throw new Error(`Redirect with no Location header`);
+        currentUrl = new URL(location, currentUrl).toString();
+        continue;
+      }
+      resp = r;
+      break;
+    }
+    if (!resp) throw new Error(`Too many redirects (>${MAX_REDIRECTS})`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     // Stream-read with a hard cap so a huge/streaming body can't buffer
     // gigabytes into the main process before truncation.

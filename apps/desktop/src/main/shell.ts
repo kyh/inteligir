@@ -107,6 +107,9 @@ const ShellSchema = z.object({
   version: z.literal(1),
   customDefs: z.array(CustomDefSchema),
   instances: z.array(WidgetInstanceSchema),
+  // Default for forward-compat with on-disk shells written before this field
+  // existed; new installs start empty.
+  archivedStates: z.record(z.string(), z.record(z.string(), z.unknown())).default({}),
 });
 
 export const CreateWidgetInputSchema = z.object({
@@ -138,6 +141,7 @@ const DEFAULTS: Shell = {
   version: 1,
   customDefs: [],
   instances: PERMANENT_DEFS.map(seedInstance),
+  archivedStates: {},
 };
 
 /** Ensure every permanent def has a placed instance. Guards a hand-edited
@@ -247,17 +251,20 @@ export class ShellManager {
     });
   }
 
-  /** Delete a custom widget definition and every instance of it. */
+  /** Delete a custom widget definition, every instance of it, and any
+   * archived state — a same-id widget created later should start clean. */
   deleteWidget(widgetId: string): boolean {
     let deleted = false;
     const next = this.store.update((current) => {
       const customDefs = current.customDefs.filter((d) => d.id !== widgetId);
       if (customDefs.length === current.customDefs.length) return current;
       deleted = true;
+      const { [widgetId]: _discarded, ...archivedStates } = current.archivedStates;
       return {
         ...current,
         customDefs,
         instances: current.instances.filter((i) => i.widgetId !== widgetId),
+        archivedStates,
       };
     });
     if (deleted) this.broadcast(next);
@@ -281,8 +288,12 @@ export class ShellManager {
           return current;
         }
       }
+      // Rehydrate from the per-widgetId archive if a prior instance left state
+      // behind on unplace; otherwise seed from the def's initial spec.state.
+      const archived = current.archivedStates[def.id];
       const initial =
-        def.source.kind === "custom" && def.source.spec.state ? { ...def.source.spec.state } : {};
+        archived ??
+        (def.source.kind === "custom" && def.source.spec.state ? { ...def.source.spec.state } : {});
       const instance = this.makeInstance(current, def, surface ?? "floating", initial);
       result = instance;
       added = true;
@@ -302,7 +313,10 @@ export class ShellManager {
     return this.setSurface(instance.instanceId, surface) ?? instance;
   }
 
-  /** Remove a placed instance. Permanent defs' instances can't be removed. */
+  /** Remove a placed instance. Permanent defs' instances can't be removed.
+   * Archives the instance's state by widgetId so a later placeWidget can
+   * restore what the user typed (overwriting any earlier archive — multi-
+   * instance unplaces collapse to the last-closed state). */
   unplaceWidget(instanceId: string): boolean {
     let removed = false;
     const next = this.store.update((current) => {
@@ -311,7 +325,15 @@ export class ShellManager {
       const def = this.findDef(current, target.widgetId);
       if (def?.permanent) return current;
       removed = true;
-      return { ...current, instances: current.instances.filter((i) => i.instanceId !== instanceId) };
+      const archivedStates =
+        Object.keys(target.state).length > 0
+          ? { ...current.archivedStates, [target.widgetId]: target.state }
+          : current.archivedStates;
+      return {
+        ...current,
+        instances: current.instances.filter((i) => i.instanceId !== instanceId),
+        archivedStates,
+      };
     });
     if (removed) this.broadcast(next);
     return removed;
