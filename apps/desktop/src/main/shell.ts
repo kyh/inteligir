@@ -189,6 +189,12 @@ export class ShellManager {
     let result: { def: WidgetDef; instance: WidgetInstance } | null = null;
     const next = this.store.update((current) => {
       const id = input.id ?? this.allocateDefId(current, input.title);
+      // Reject a supplied id that clashes with anything already installed —
+      // built-in or custom — to keep ids globally unique. (Auto-slugged ids
+      // sidestep this via allocateDefId.)
+      if (this.findDef(current, id)) {
+        throw new Error(`Widget '${id}' already exists`);
+      }
       const def: WidgetDef = {
         id,
         title: input.title,
@@ -200,10 +206,11 @@ export class ShellManager {
       };
       const instance = this.makeInstance(current, def, "pinned", input.state ?? input.spec.state ?? {});
       result = { def, instance };
-      const customDefs = current.customDefs.some((d) => d.id === id)
-        ? current.customDefs.map((d) => (d.id === id ? def : d))
-        : [...current.customDefs, def];
-      return { ...current, customDefs, instances: [...current.instances, instance] };
+      return {
+        ...current,
+        customDefs: [...current.customDefs, def],
+        instances: [...current.instances, instance],
+      };
     });
     this.broadcast(next);
     return result!;
@@ -299,17 +306,33 @@ export class ShellManager {
     return removed;
   }
 
-  /** Batch-update pinned instances' grid geometry. Ignored for floating ids. */
+  /** Batch-update pinned instances' grid geometry. Ignored for floating ids.
+   * react-grid-layout's onLayoutChange omits minW/minH on most events, so we
+   * preserve the existing min dimensions when the payload doesn't supply them
+   * — otherwise a single drag would wipe the def's resize floor. */
   setGeometries(geometries: Record<string, WidgetGeometry>): void {
     const current = this.store.read();
     let changed = false;
     const instances = current.instances.map((i) => {
       const geo = geometries[i.instanceId];
-      if (!geo || i.placement.surface !== "pinned" || geometryEquals(i.placement.geometry, geo)) {
+      if (!geo || i.placement.surface !== "pinned") return i;
+      const merged: WidgetGeometry = {
+        x: geo.x,
+        y: geo.y,
+        w: geo.w,
+        h: geo.h,
+        minW: geo.minW ?? i.placement.geometry.minW,
+        minH: geo.minH ?? i.placement.geometry.minH,
+      };
+      if (
+        geometryEquals(i.placement.geometry, merged) &&
+        merged.minW === i.placement.geometry.minW &&
+        merged.minH === i.placement.geometry.minH
+      ) {
         return i;
       }
       changed = true;
-      return { ...i, placement: { surface: "pinned" as const, geometry: geo } };
+      return { ...i, placement: { surface: "pinned" as const, geometry: merged } };
     });
     if (!changed) return;
     this.broadcast(this.store.update(() => ({ ...current, instances })));

@@ -65,9 +65,19 @@ describe("ShellManager.createWidget", () => {
     expect(instance.state).toEqual({ a: 1 });
   });
 
-  it("never collides with a built-in id", () => {
+  it("never collides with a built-in id when auto-slugging", () => {
     const { def } = mgr.createWidget({ title: "tasks", spec: SPEC });
     expect(def.id).not.toBe("tasks");
+  });
+
+  it("rejects a supplied id that matches a built-in", () => {
+    expect(() => mgr.createWidget({ id: "settings", title: "Mine", spec: SPEC })).toThrow();
+  });
+
+  it("rejects a supplied id that already exists as a custom def", () => {
+    mgr.createWidget({ id: "note", title: "First", spec: SPEC });
+    expect(() => mgr.createWidget({ id: "note", title: "Second", spec: SPEC })).toThrow();
+    expect(mgr.snapshot().instances.filter((i) => i.widgetId === "note")).toHaveLength(1);
   });
 });
 
@@ -158,6 +168,20 @@ describe("ShellManager.setGeometries", () => {
     const placed = mgr.placeWidget("tasks", "floating")!;
     mgr.setGeometries({ [placed.instanceId]: { x: 1, y: 2, w: 3, h: 4 } });
     expect(mgr.getInstance(placed.instanceId)!.placement.surface).toBe("floating");
+  });
+
+  it("preserves existing minW/minH when the payload omits them", () => {
+    const placed = mgr.placeWidget("tasks", "pinned")!;
+    if (placed.placement.surface !== "pinned") throw new Error("expected pinned");
+    const { minW, minH } = placed.placement.geometry;
+    expect(minW).toBeDefined();
+    expect(minH).toBeDefined();
+    // react-grid-layout's onLayoutChange typically sends just x/y/w/h.
+    mgr.setGeometries({ [placed.instanceId]: { x: 2, y: 3, w: 5, h: 4 } });
+    const updated = mgr.getInstance(placed.instanceId)!;
+    if (updated.placement.surface !== "pinned") throw new Error("expected pinned");
+    expect(updated.placement.geometry.minW).toBe(minW);
+    expect(updated.placement.geometry.minH).toBe(minH);
   });
 });
 
