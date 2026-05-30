@@ -270,27 +270,13 @@ export class ShellManager {
    * Unknown widget ids return null. */
   placeWidget(widgetId: string, surface?: WidgetSurface): WidgetInstance | null {
     let result: WidgetInstance | null = null;
-    let changed = false;
+    let added = false;
     const next = this.store.update((current) => {
       const def = this.findDef(current, widgetId);
       if (!def) return current;
       if (def.singleton) {
         const existing = current.instances.find((i) => i.widgetId === widgetId);
         if (existing) {
-          if (surface && existing.placement.surface !== surface) {
-            const updated: WidgetInstance = {
-              ...existing,
-              placement: this.makePlacement(current, def, surface),
-            };
-            result = updated;
-            changed = true;
-            return {
-              ...current,
-              instances: current.instances.map((i) =>
-                i.instanceId === existing.instanceId ? updated : i,
-              ),
-            };
-          }
           result = existing;
           return current;
         }
@@ -299,11 +285,21 @@ export class ShellManager {
         def.source.kind === "custom" && def.source.spec.state ? { ...def.source.spec.state } : {};
       const instance = this.makeInstance(current, def, surface ?? "floating", initial);
       result = instance;
-      changed = true;
+      added = true;
       return { ...current, instances: [...current.instances, instance] };
     });
-    if (changed) this.broadcast(next);
-    return result;
+    if (added) this.broadcast(next);
+    // A reused singleton may need a surface change — defer to setSurface so the
+    // placement-switch logic lives in exactly one place.
+    return this.ensureSurface(result, surface);
+  }
+
+  private ensureSurface(
+    instance: WidgetInstance | null,
+    surface: WidgetSurface | undefined,
+  ): WidgetInstance | null {
+    if (!instance || !surface || instance.placement.surface === surface) return instance;
+    return this.setSurface(instance.instanceId, surface) ?? instance;
   }
 
   /** Remove a placed instance. Permanent defs' instances can't be removed. */
