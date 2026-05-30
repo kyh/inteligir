@@ -212,29 +212,52 @@ describe("ShellManager.placeWidget", () => {
   });
 
   it("raises a tied-top floating singleton above its peers on focus", () => {
-    // Place two floating singletons and force them to share a z. A focus on
-    // either must lift it above the other; the prior implementation no-op'd
-    // any z===maxZ instance and left the tie unresolved.
-    const a = place("tasks", "floating");
-    const b = place("skills", "floating");
-    if (a.placement.surface !== "floating" || b.placement.surface !== "floating") {
-      throw new Error("expected floating");
+    const tiedPath = storePath.replace(".json", "-tied-focus.json");
+    const sharedZ = 7;
+    fs.writeFileSync(
+      tiedPath,
+      JSON.stringify({
+        version: 2,
+        customDefs: [],
+        instances: [
+          {
+            instanceId: "tasks",
+            widgetId: "tasks",
+            placement: {
+              surface: "floating",
+              rect: { x: 10, y: 10, width: 320, height: 360 },
+              z: sharedZ,
+            },
+            state: {},
+          },
+          {
+            instanceId: "skills",
+            widgetId: "skills",
+            placement: {
+              surface: "floating",
+              rect: { x: 20, y: 20, width: 320, height: 360 },
+              z: sharedZ,
+            },
+            state: {},
+          },
+        ],
+        archivedStates: {},
+      }),
+    );
+    try {
+      const tied = new ShellManager(tiedPath);
+
+      const focusedA = must(tied.placeWidget("tasks"), "expected focused a");
+      const focusedB = must(tied.placeWidget("skills"), "expected focused b");
+      if (focusedA.placement.surface !== "floating" || focusedB.placement.surface !== "floating") {
+        throw new Error("expected floating");
+      }
+      // After focusing A then B, B must end up strictly above A.
+      expect(focusedB.placement.z).toBeGreaterThan(focusedA.placement.z);
+      expect(focusedA.placement.z).toBeGreaterThanOrEqual(sharedZ);
+    } finally {
+      fs.rmSync(tiedPath, { force: true });
     }
-    const sharedZ = Math.max(a.placement.z, b.placement.z);
-    mgr.setInstanceState(a.instanceId, {}); // touch so we have a known baseline
-    // Force the tie by re-broadcasting both at sharedZ — easiest via setSurface
-    // round-trip, but for this test we just exercise the focus path:
-    const focusedA = must(mgr.placeWidget("tasks"), "expected focused a");
-    const focusedB = must(mgr.placeWidget("skills"), "expected focused b");
-    if (
-      focusedA.placement.surface !== "floating" ||
-      focusedB.placement.surface !== "floating"
-    ) {
-      throw new Error("expected floating");
-    }
-    // After focusing A then B, B must end up strictly above A.
-    expect(focusedB.placement.z).toBeGreaterThan(focusedA.placement.z);
-    expect(focusedA.placement.z).toBeGreaterThanOrEqual(sharedZ);
   });
 
   it("places a generated widget multiple times", () => {

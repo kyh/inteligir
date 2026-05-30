@@ -1,7 +1,6 @@
-// Destructive ShellManager actions wrapped with a pre-step that flushes the
-// renderer's pending widget state. Both the IPC handler surface and the
-// agent's manage_ui tool route through these — keeping mgr.* synchronous and
-// unit-testable while ensuring no caller can drop in-flight edits.
+// ShellManager actions that must flush renderer-owned widget state before
+// changing placement or lifetime. IPC handlers and the agent's manage_ui tool
+// route through these; ShellManager stays synchronous and unit-testable.
 
 import { flushRendererInstance } from "@/main/lib/widget-flush";
 import { getShell } from "@/main/shell";
