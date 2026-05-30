@@ -448,10 +448,23 @@ export class ShellManager {
 }
 
 let instance: ShellManager | null = null;
+// Suspended between logout and the next login. While true, write IPCs and
+// shell-actions wrappers no-op — a debounced setInstanceState landing after
+// teardownResources would otherwise construct a fresh ShellManager that
+// re-creates ~/.inteligir and seeds runtime-ui.json with the in-flight edit,
+// undoing the logout wipe.
+let writesSuspended = false;
 
 export function getShell(): ShellManager {
   if (!instance) instance = new ShellManager();
   return instance;
+}
+
+/** Whether ShellManager mutations should be honored. Reads (snapshot,
+ * listShell) stay live regardless — they're cheap and the renderer needs
+ * something to render on the login screen. */
+export function isShellWritable(): boolean {
+  return !writesSuspended;
 }
 
 export function resetShellCache(): void {
@@ -461,10 +474,17 @@ export function resetShellCache(): void {
   // its broadcast would re-publish the still-on-disk snapshot (the rm hasn't
   // run yet) and let the renderer briefly re-show the prior session's
   // widgets before our defaults broadcast lands.
+  writesSuspended = true;
   instance = null;
   // Push the default snapshot to any renderer subscribers so they drop the
   // prior session's defs/instances. Without this, the renderer's Zustand
   // store keeps stale data (initShell's `initialized` guard prevents a
   // re-fetch) and re-login renders against it.
   broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, defaultShellSnapshot());
+}
+
+/** Re-enable writes after a successful login. Called from the auth flow
+ * once ~/.inteligir is back in a usable state. */
+export function resumeShellWrites(): void {
+  writesSuspended = false;
 }

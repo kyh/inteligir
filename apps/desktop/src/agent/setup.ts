@@ -21,7 +21,7 @@ import open from "open";
 import type { ExtensionToolInfo, IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
-import { resetShellCache } from "@/main/shell";
+import { resetShellCache, resumeShellWrites } from "@/main/shell";
 import { resetNotifications } from "@/main/notifications";
 import {
   runBundleSetups,
@@ -188,6 +188,10 @@ export async function login(): Promise<void> {
       void open(info.url);
     },
   });
+  // resetShellCache (on a previous logout) suspended shell writes to keep an
+  // in-flight setInstanceState from recreating ~/.inteligir. After successful
+  // re-auth, the workspace is allowed to materialize again on the next write.
+  resumeShellWrites();
 }
 
 /**
