@@ -90,6 +90,7 @@ function DialogContent({
   children,
   showCloseButton = true,
   size = "sm",
+  style,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
@@ -108,21 +109,23 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        // Behavioral Popup props (focus management, etc.) and any HTML
+        // attributes/handlers stay on the primitive, so Base UI applies the
+        // behavioral ones and merges the forwardable ones into `popupProps` for
+        // the rendered element. className/style are pulled out and handled in
+        // the render callback to preserve tailwind-merge / motion semantics.
+        {...props}
         render={(popupProps, state) => {
           const exiting = state.transitionStatus === "ending";
           const { style: baseStyle, rest } = stripMotionConflicts(
             popupProps as React.HTMLAttributes<HTMLDivElement>,
           );
-          const { style: consumerStyle, ...consumerRest } = props as StrippedProps & {
-            style?: React.CSSProperties;
-          };
           return (
             <motion.div
-              // Base UI's props first (data attrs, refs, role, etc.)…
+              // Base UI's resolved props (data attrs, refs, role, plus the
+              // consumer's merged HTML attributes/handlers) land on the
+              // visible motion.div.
               {...rest}
-              // …then the consumer's `<DialogContent>` props (className, event
-              // handlers, data-*, etc.) land on the visible motion.div.
-              {...consumerRest}
               // Centering lives in Tailwind's `translate` utilities (a
               // standalone CSS property in v4), not in the motion transform, so
               // consumers can still override placement via className — e.g. the
@@ -138,7 +141,7 @@ function DialogContent({
                 shape.container,
                 className,
               )}
-              style={{ ...baseStyle, ...consumerStyle }}
+              style={{ ...baseStyle, ...(style as React.CSSProperties | undefined) }}
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{
                 opacity: exiting ? 0 : 1,
