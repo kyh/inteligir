@@ -168,30 +168,36 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         // apart from a real result downstream. Treat its absence as an error
         // rather than silently writing null over bound data.
         const bridge = getBridge();
-        const reportError = (message: string) => {
-          if (errorPath) getStore().set(errorPath, message);
-          else toast.error(message);
-        };
         if (!bridge) {
-          reportError("Agent unavailable");
+          if (errorPath) getStore().set(errorPath, "Agent unavailable");
+          else toast.error("Agent unavailable");
           return;
         }
-        // Claim a sequence number for this `into` path; only write if no newer
-        // call to the same path started while this one was in flight.
+        // Latest-wins per state path this call writes: claim a token for each
+        // pointer, then only write a pointer if no newer call has claimed it.
+        // Keying per pointer (not just `into`) means a success on one target
+        // can't null out an error a concurrent call wrote to a shared `error`
+        // pointer. When `error` coincides with `into` it's a single pointer —
+        // claiming once and never clearing it on success.
         const seqMap = callSeqRef.current;
-        const seq = (seqMap.get(into) ?? 0) + 1;
-        seqMap.set(into, seq);
-        const isLatest = () => seqMap.get(into) === seq;
+        const claim = (path: string): (() => boolean) => {
+          const seq = (seqMap.get(path) ?? 0) + 1;
+          seqMap.set(path, seq);
+          return () => seqMap.get(path) === seq;
+        };
+        const intoLatest = claim(into);
+        const errorLatest = errorPath && errorPath !== into ? claim(errorPath) : null;
         try {
           const data = await bridge.widgetCallTool(tool, input);
-          if (!isLatest()) return;
-          getStore().set(into, data ?? null);
-          // Clear a stale error, but never the path we just wrote the result
-          // to (a widget may legitimately point `error` at `into`).
-          if (errorPath && errorPath !== into) getStore().set(errorPath, null);
+          if (intoLatest()) getStore().set(into, data ?? null);
+          // Clear a stale error only if we still own the error pointer and it
+          // isn't the path we just wrote the result to.
+          if (errorLatest?.()) getStore().set(errorPath, null);
         } catch (err) {
-          if (!isLatest()) return;
-          reportError(err instanceof Error ? err.message : "Tool call failed");
+          const message = err instanceof Error ? err.message : "Tool call failed";
+          if (!errorPath) toast.error(message);
+          else if (errorPath === into ? intoLatest() : errorLatest?.())
+            getStore().set(errorPath, message);
         }
       },
     };
