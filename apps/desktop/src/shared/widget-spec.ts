@@ -95,7 +95,7 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
   Card: "Bordered container. Props: {}. Use to group arbitrary children.",
   Collapsible:
     "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
-  Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Each child is the panel for the tab at the same index.",
+  Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Provide exactly one child per tab — child N is the panel for tab N, paired by position. Don't put a `visible` condition on a tab's direct child; the Tabs controls which panel is shown.",
   Separator: "Horizontal hairline divider. Props: {}.",
 };
 

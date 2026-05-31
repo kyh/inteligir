@@ -517,7 +517,10 @@ function CatalogCollapsible({
 function CatalogTabs({ props, children }: BaseProps<{ tabs?: CatalogOption[] }>) {
   const tabs = props.tabs ?? [];
   if (tabs.length === 0) return null;
-  // Children render in `children`-array order; panel[i] belongs to tab[i].
+  // Panels pair with tabs by position: panel[i] is the panel for tab[i]. The
+  // catalog contract is one child per tab with no per-child `visible` (the Tabs
+  // owns panel visibility) — that keeps this positional pairing aligned, since a
+  // child filtered out by a `visible` condition would otherwise shift the rest.
   const panels = Children.toArray(children);
   return (
     <Tabs defaultValue={tabs[0]?.value}>
