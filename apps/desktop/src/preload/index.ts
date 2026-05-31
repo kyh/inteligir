@@ -30,7 +30,6 @@ const desktopBridge: DesktopBridge = {
   sendAgentCommand: (command) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_COMMAND, command),
   getAgentHistory: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_HISTORY),
   reauthenticate: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_REAUTHENTICATE),
-  onAuthRequired: (listener) => forwardEvent(IPC_CHANNELS.AGENT_AUTH_REQUIRED, listener),
 
   // Tasks
   createTask: (params) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, params),

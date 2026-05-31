@@ -67,15 +67,22 @@ That's it. The glob in `setup.ts` picks it up on next build/run.
 
 ```
 agent/
-  extension.ts          # PiExtensionBundle + context types + runBundleSetups
+  extension.ts          # PiExtensionBundle + contexts + runBundleSetups + tool-schema validator
   setup.ts              # orchestrator: glob discovery, Agent class, auth, paths
   browser/extension.ts  # Wraps agent-browser CLI (setup installs binary + browser runtime)
   executor/extension.ts # Code mode — surfaces executor's `execute`/`resume` tools (MCP connectors)
   gws/extension.ts      # Google Workspace CLI (setup downloads tarball + seeds OAuth)
   tasks/extension.ts    # Scheduled task management (no setup)
+  ui/extension.ts       # manage_ui tool — agent-driven runtime UI (install/place/patch/etc.)
 ```
 
 Single-file extensions live as `<name>/extension.ts` rather than `<name>-tool.ts` so they can grow into a folder without churn.
+
+## Tool schema validation
+
+Every tool's `parameters` TypeBox schema must compile to JSON Schema with `type: "object"` at the root — OpenAI silently rejects `anyOf`/`allOf` parameters and the failure manifests as "the agent never replied." We catch this at startup: `setup.ts` wraps each bundle's `ExtensionFactory` with `buildValidatedFactories` (in `extension.ts`), which proxies `pi.registerTool` through `validateToolParametersSchema`. A bad schema throws with the offending bundle + tool name before the agent talks to the provider.
+
+If you need a discriminated-union shape (different fields per `action`), use a flat `Type.Object` with optional fields + an `action` discriminator, and validate per-case at runtime inside `execute` — see `agent/ui/schema.ts` for the pattern.
 
 ## When to use `setup()` vs in-process
 

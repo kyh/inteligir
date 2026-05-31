@@ -40,7 +40,6 @@ export const IPC_CHANNELS = {
   AGENT_COMMAND: "agent:command",
   AGENT_HISTORY: "agent:history",
   AGENT_REAUTHENTICATE: "agent:reauthenticate",
-  AGENT_AUTH_REQUIRED: "agent:auth-required",
 
   // Tasks
   TASK_CREATE: "task:create",
@@ -200,9 +199,6 @@ export type DesktopBridge = {
   /** Re-run the OAuth flow against the active provider and restart the
    * session so the next turn uses fresh credentials. */
   reauthenticate: () => Promise<{ ok: boolean; error?: string }>;
-  /** Fired from main when a turn ends with no assistant output and no tool
-   * calls — almost always an expired/broken provider auth. */
-  onAuthRequired: (listener: (info: { reason: string }) => void) => () => void;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;

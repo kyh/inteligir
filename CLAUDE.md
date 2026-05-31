@@ -80,8 +80,11 @@ the shell is one of several surfaces over that model.
 1. **Shell chrome** (`renderer/shell/{panel-grid,floating-layer,floating-window,bottom-dock}.tsx`)
    — React, owned by us. Not a widget; can't be rearranged by the user.
 2. **Built-in React widgets** (`renderer/shell/builtin-widgets.tsx` → `BUILTIN_WIDGET_UI`)
-   — chat, tasks, skills, extensions, settings. `WidgetDef.source.kind === "builtin-react"`.
+   — chat, widgets, tasks, extensions, settings. `WidgetDef.source.kind === "builtin-react"`.
    Trusted, privileged access to IPC and integrations; ship with the binary.
+   The Extensions panel is the consolidated surface for tool providers (MCP/
+   OpenAPI/GraphQL/Google sources), OAuth connections, secrets, and the
+   read-only skills list. The Widgets panel manages custom JSON-UI defs.
 3. **JSON-UI widgets** (`renderer/shell/widget-viewer.tsx` rendering a `WidgetSpec`)
    — agent-authored or user-added. `WidgetDef.source.kind === "json-ui"`. Constrained
    to a fixed catalog (`shared/widget-spec.ts`: 12 components, 9 actions). The only
@@ -125,8 +128,17 @@ each window to flush:
 ### Agent surface
 
 `agent/ui/extension.ts` registers a single `manage_ui` tool with actions:
-`list`, `catalog`, `read`, `install`, `update`, `patch` (RFC 6902 against a
-custom def's spec, with prototype-pollution guards in
-`shared/json-pointer.ts`), `delete`, `place`, `unplace`. All write actions
-short-circuit when the shell is suspended.
+`list`, `catalog`, `read`, `install` (installs **and** pins the new def in
+one call — the common "make me a widget" path), `update`, `patch` (RFC 6902
+against a custom def's spec, with prototype-pollution guards in
+`shared/json-pointer.ts`), `delete`, `place` (additional instance of an
+already-installed def), `unplace`. All write actions short-circuit when the
+shell is suspended.
+
+The tool's `parameters` schema is intentionally a flat `Type.Object` with
+`action` as a discriminator and the union of all per-action fields as
+optional. `Type.Union([...Type.Object])` compiles to JSON Schema `anyOf`
+without a top-level `type` field, which OpenAI silently rejects on every
+turn — `agent/extension.ts::validateToolParametersSchema` runs at extension
+registration to catch that class of bug at startup rather than runtime.
 

@@ -1,53 +1,27 @@
-// Inteligir-specific composition over @repo/pi-driver and @repo/agent-runtime.
+// Bundle orchestration: discovery, setup, teardown, integrations + skills
+// listings. Auth lives in agent/auth.ts, the Agent wrapper in agent/agent.ts,
+// shared paths in agent/paths.ts.
 
 import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 
-import {
-  completeText,
-  createAuthStorage,
-  hasAuth,
-  listSkills as listSkillsFromDisk,
-  loginWithProvider,
-  PiAgent,
-  resolveModel,
-  SessionManager,
-} from "@repo/pi-driver";
+import { listSkills as listSkillsFromDisk } from "@repo/pi-driver";
 import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import { readCliVersion } from "@repo/agent-runtime/install";
-import open from "open";
 
-import type { IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
-import { inteligirPath } from "@/main/lib/json-store";
-import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
-import { resetShellCache, resumeShellWrites } from "@/main/shell";
-import { resetNotifications } from "@/main/notifications";
+import { resetAuthStorage } from "@/agent/auth";
 import {
-  buildValidatedFactories,
   runBundleSetups,
   type ExtensionRegisterContext,
   type ExtensionSetupContext,
   type PiExtensionBundle,
 } from "@/agent/extension";
-
-// ---------------------------------------------------------------------------
-// Defaults
-// ---------------------------------------------------------------------------
-
-const AUTH_PROVIDER = "openai-codex";
-const MODEL_ID = "gpt-5.5";
-
-/** ~/.inteligir — used as pi's agentDir so all discovery looks here */
-const AGENT_DIR = inteligirPath();
-const AUTH_PATH = inteligirPath("auth.json");
-const SESSION_DIR = inteligirPath("sessions");
-const WORKSPACE_DIR = inteligirPath("workspace");
-const BIN_DIR = inteligirPath("bin");
-const EXTENSIONS_DIR = inteligirPath("extensions");
-
-// Override pi-coding-agent's default getAgentDir() (~/.pi/agent)
-process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
+import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "@/agent/paths";
+import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
+import { resetShellCache } from "@/main/shell";
+import { resetNotifications } from "@/main/notifications";
+import type { IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 
 // ---------------------------------------------------------------------------
 // Extension bundles — auto-discovered from ./<name>/extension.ts default
@@ -60,7 +34,7 @@ const bundleModules = import.meta.glob<{ default: PiExtensionBundle }>("./*/exte
   eager: true,
 });
 
-const EXTENSION_BUNDLES: PiExtensionBundle[] = Object.values(bundleModules)
+export const EXTENSION_BUNDLES: PiExtensionBundle[] = Object.values(bundleModules)
   .map((m) => m.default)
   .toSorted((a, b) => a.name.localeCompare(b.name));
 
@@ -84,9 +58,13 @@ function buildSetupContext(
   return { binDir: BIN_DIR, bundledResourcesDir: getBundledResourcesDir(), onProgress, force };
 }
 
-function buildRegisterContext(): ExtensionRegisterContext {
+export function buildRegisterContext(): ExtensionRegisterContext {
   return { binDir: BIN_DIR };
 }
+
+// ---------------------------------------------------------------------------
+// Lifecycle: setup / teardown
+// ---------------------------------------------------------------------------
 
 /**
  * Seed bundled skills + AGENTS.md into ~/.inteligir/ on first run, ensure the
@@ -114,6 +92,24 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
   seedFile(path.join(ctx.bundledResourcesDir, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
 
   await runBundleSetups(EXTENSION_BUNDLES, ctx);
+}
+
+export function isSetupComplete(): boolean {
+  return fs.existsSync(WORKSPACE_DIR);
+}
+
+export function teardownResources(): void {
+  // Drop singletons that hold JsonStore caches BEFORE removing the directory.
+  // An in-flight debounced write (e.g. a WidgetViewer's unmount-time flush)
+  // running between the rm and the cache reset would otherwise resurrect
+  // runtime-ui.json from the warm in-memory shell. With this order, such a
+  // write either races against the singleton reset (its write lands before
+  // rm and gets wiped) or arrives after the cache is gone.
+  resetAuthStorage();
+  resetNotifications();
+  resetShellCache();
+  resetExecutorDaemon();
+  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -145,156 +141,14 @@ export async function repairIntegrations(onProgress: (p: SetupProgress) => void)
   onProgress({ step: "done", percent: null });
 }
 
+// ---------------------------------------------------------------------------
+// Skills — read-only listing
+// ---------------------------------------------------------------------------
+
 /**
  * Skills available to the agent, read from disk via pi's own discovery so the
  * list is correct whether or not an agent session is currently running.
  */
 export function listSkills(): SkillInfo[] {
   return listSkillsFromDisk({ cwd: WORKSPACE_DIR, agentDir: AGENT_DIR });
-}
-
-// Lazy + reset on teardown so a logout flow doesn't carry the prior
-// AuthStorage's cached credentials past auth.json being deleted.
-let authStorage: ReturnType<typeof createAuthStorage> | null = null;
-
-function getAuthStorage(): ReturnType<typeof createAuthStorage> {
-  if (!authStorage) authStorage = createAuthStorage(AUTH_PATH);
-  return authStorage;
-}
-
-export function isSetupComplete(): boolean {
-  return fs.existsSync(WORKSPACE_DIR);
-}
-
-export function teardownResources(): void {
-  // Drop singletons that hold JsonStore caches BEFORE removing the directory.
-  // An in-flight debounced write (e.g. a WidgetViewer's unmount-time flush)
-  // running between the rm and the cache reset would otherwise resurrect
-  // runtime-ui.json from the warm in-memory shell. With this order, such a
-  // write either races against the singleton reset (its write lands before
-  // rm and gets wiped) or arrives after the cache is gone.
-  authStorage = null;
-  resetNotifications();
-  resetShellCache();
-  resetExecutorDaemon();
-  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
-}
-
-export function isLoggedIn(): boolean {
-  if (!fs.existsSync(AUTH_PATH)) return false;
-  return hasAuth(getAuthStorage(), AUTH_PROVIDER);
-}
-
-export async function login(): Promise<void> {
-  await loginWithProvider(getAuthStorage(), AUTH_PROVIDER, {
-    onAuth: (info) => {
-      void open(info.url);
-    },
-  });
-  // resetShellCache (on a previous logout) suspended shell writes to keep an
-  // in-flight setInstanceState from recreating ~/.inteligir. After successful
-  // re-auth, the workspace is allowed to materialize again on the next write.
-  resumeShellWrites();
-}
-
-/**
- * One-shot model completion outside the agent session — used by "live"
- * widget actions that fill UI state from the model without spawning a
- * chat turn. Uses the same model + credentials as the running agent.
- */
-export function completeOnce(prompt: string, system?: string): Promise<string> {
-  return completeText(getAuthStorage(), resolveModel(AUTH_PROVIDER, MODEL_ID), prompt, system);
-}
-
-// ---------------------------------------------------------------------------
-// Agent — Inteligir wrapper around PiAgent that fixes paths + extensions and
-// exposes the small surface the Electron app needs.
-// ---------------------------------------------------------------------------
-
-import type { SessionStatus } from "@/shared/agent";
-import type { ImageContent, AgentSessionEvent } from "@repo/pi-driver";
-
-function resolveSessionManager(): SessionManager {
-  const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
-  if (sessionFile) {
-    try {
-      return SessionManager.open(sessionFile, SESSION_DIR);
-    } catch (err) {
-      console.warn("[agent] failed to open session file, falling back to continueRecent:", err);
-    }
-  }
-  return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
-}
-
-export type AgentOptions = {
-  /** If true, start a fresh session instead of resuming the most recent one. */
-  newSession?: boolean;
-};
-
-export class Agent {
-  // Lazy so synchronous resolveModel/resolveSessionManager throws surface
-  // through the async start() path rather than out of `new Agent()`.
-  private pi: PiAgent | null = null;
-
-  constructor(private readonly opts: AgentOptions = {}) {}
-
-  async start(): Promise<void> {
-    if (!this.pi) {
-      const sessionManager = this.opts.newSession
-        ? SessionManager.create(WORKSPACE_DIR, SESSION_DIR)
-        : resolveSessionManager();
-      this.pi = new PiAgent({
-        cwd: WORKSPACE_DIR,
-        agentDir: AGENT_DIR,
-        authStorage: getAuthStorage(),
-        model: resolveModel(AUTH_PROVIDER, MODEL_ID),
-        sessionManager,
-        extensionFactories: () => buildValidatedFactories(EXTENSION_BUNDLES, buildRegisterContext()),
-      });
-    }
-    await this.pi.start();
-  }
-
-  async stop(): Promise<void> {
-    await this.pi?.stop();
-  }
-
-  waitForIdle(timeoutMs: number): Promise<boolean> {
-    return this.pi?.waitForIdle(timeoutMs) ?? Promise.resolve(true);
-  }
-
-  async sendMessage(message: string, images?: ImageContent[]): Promise<void> {
-    await this.ensurePi().sendMessage(message, images);
-  }
-
-  async steer(message: string, images?: ImageContent[]): Promise<void> {
-    await this.ensurePi().steer(message, images);
-  }
-
-  async followUp(message: string, images?: ImageContent[]): Promise<void> {
-    await this.ensurePi().followUp(message, images);
-  }
-
-  async interrupt(): Promise<boolean> {
-    return this.pi?.interrupt() ?? false;
-  }
-
-  getState(): { status: SessionStatus; error: string | null } {
-    return this.pi?.getState() ?? { status: "starting", error: null };
-  }
-
-  getLastAssistantText(): string | undefined {
-    return this.pi?.getLastAssistantText();
-  }
-
-  subscribe(listener: (event: AgentSessionEvent) => void): () => void {
-    // Throw — silently dropping the listener would mean no agent events
-    // ever reach the renderer.
-    return this.ensurePi().subscribe(listener);
-  }
-
-  private ensurePi(): PiAgent {
-    if (!this.pi) throw new Error("Agent not started — call start() first");
-    return this.pi;
-  }
 }

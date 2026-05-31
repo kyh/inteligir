@@ -7,7 +7,7 @@ import crypto from "node:crypto";
 import { z } from "zod";
 import { Cron } from "croner";
 
-import type { Agent } from "@/agent/setup";
+import type { Agent } from "@/agent/agent";
 import {
   TasksFileSchema,
   TaskRunLogSchema,

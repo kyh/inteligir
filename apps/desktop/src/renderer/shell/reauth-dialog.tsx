@@ -12,9 +12,9 @@ import {
 
 import { getBridge } from "@/renderer/lib/bridge";
 
-// Pops when main detects an empty agent turn (no assistant text, no tool
-// calls) — almost always an expired provider auth swallowed as success.
-// Single global mount: AppLayout renders one instance.
+// Pops on any agent turn_error with kind === "auth" — main emits that when a
+// turn ends silently with no assistant text, no tool call, and no explicit
+// pi error event. Single global mount in AppLayout.
 export function ReauthDialog() {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState<string | null>(null);
@@ -22,10 +22,12 @@ export function ReauthDialog() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const unsub = getBridge()?.onAuthRequired((info) => {
-      setReason(info.reason);
-      setError(null);
-      setOpen(true);
+    const unsub = getBridge()?.onAgentEvent((event) => {
+      if (event.type === "turn_error" && event.kind === "auth") {
+        setReason(event.reason);
+        setError(null);
+        setOpen(true);
+      }
     });
     return () => unsub?.();
   }, []);

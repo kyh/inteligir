@@ -1,7 +1,7 @@
 import { shell } from "electron";
 import { z } from "zod";
 
-import { completeOnce } from "@/agent/setup";
+import { completeOnce } from "@/agent/auth";
 import { getAgent } from "@/main/app-machine";
 import { execute } from "@/main/executor/executor-client";
 import { createIpcHandler } from "@/main/lib/ipc-handler";

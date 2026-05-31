@@ -70,7 +70,3 @@ export function initAgentLog(): void {
   };
   patched = true;
 }
-
-export function getAgentLogPath(): string {
-  return LOG_PATH;
-}

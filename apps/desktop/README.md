@@ -7,7 +7,7 @@ Three-process Electron app wrapping a pi-coding-agent runtime. The agent does re
 ```
 src/
   main/      Electron main process — app lifecycle, agent singleton, IPC, auto-updater
-  preload/   Bridge — exposes a typed window.api to the renderer over contextBridge
+  preload/   Bridge — exposes a typed window.desktopBridge to the renderer over contextBridge
   renderer/  React UI — chat, login, onboarding, voice, settings
   agent/     pi-coding-agent composition — extension bundles + Agent class
   shared/    Types/schemas crossing the IPC boundary (used by main + renderer)
@@ -26,7 +26,7 @@ Each top-level dir has its own README where the architecture isn't obvious from 
 
 ```
 renderer (sandboxed Chromium)
-   ↕  contextBridge → window.api
+   ↕  contextBridge → window.desktopBridge
 preload (Node, isolated)
    ↕  ipcRenderer ⇄ ipcMain
 main (full Node + Electron)
@@ -93,10 +93,10 @@ Opens Electron with HMR (renderer) + tsc watch (main/preload). CDP exposed on po
 
 | Adding...                                 | Where                                                         | See                                |
 | ----------------------------------------- | ------------------------------------------------------------- | ---------------------------------- |
-| New IPC channel                           | `shared/ipc.ts` + handler in `main/index.ts` + preload bridge | `main/README.md`                   |
+| New IPC channel                           | `shared/ipc.ts` + handler in `main/{index,shell-ipc,executor-ipc,widget-actions}.ts` + preload bridge | `main/README.md`                   |
 | New app state phase                       | `shared/app-state.ts` + reducer + tests                       | `main/README.md`                   |
 | New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring         | `main/README.md`                   |
 | New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                | `agent/README.md`                  |
 | Reusable install primitive                | `packages/agent-runtime/`                                     | `packages/agent-runtime/README.md` |
-| New chat UI panel                         | `renderer/chat/`                                              | (no README — standard React)       |
+| New built-in widget panel                 | `renderer/shell/builtin/<name>-panel.tsx` + register in `builtin-widgets.tsx` + def in `shared/shell.ts` | (no README — standard React)       |
 | Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`            | `agent/README.md`                  |

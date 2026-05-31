@@ -2,14 +2,9 @@
 // App state machine — serialized async queue, injectable deps + broadcast.
 // ---------------------------------------------------------------------------
 
-import {
-  Agent,
-  isLoggedIn,
-  isSetupComplete,
-  login,
-  seedResources,
-  teardownResources,
-} from "@/agent/setup";
+import { Agent } from "@/agent/agent";
+import { isLoggedIn, login } from "@/agent/auth";
+import { isSetupComplete, seedResources, teardownResources } from "@/agent/setup";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
@@ -131,7 +126,6 @@ function handleAgentEvent(event: AppAgentEvent): void {
           kind: "auth",
           reason,
         } satisfies AppAgentEvent);
-        broadcastToRenderer(IPC_CHANNELS.AGENT_AUTH_REQUIRED, { reason });
       }
       machine?.ingest({ type: "AGENT_END" });
       getNotifications().notifyAgentIdle(turn?.assistantText ?? undefined);
