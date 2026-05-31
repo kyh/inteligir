@@ -363,7 +363,12 @@ function CatalogSwitch({
     emit("change");
   };
   return (
-    <div className="flex items-center justify-between gap-2 rounded-md border border-border py-1 pr-1 pl-3">
+    // Stop propagation so toggling the switch inside a Row doesn't also fire the
+    // row's `press` action (Row's interactive-child guard doesn't cover this).
+    <div
+      className="flex items-center justify-between gap-2 rounded-md border border-border py-1 pr-1 pl-3"
+      onClick={(e) => e.stopPropagation()}
+    >
       <span className="flex flex-col">
         <span className="text-xs text-foreground">{props.label}</span>
         {props.description ? (
@@ -492,7 +497,13 @@ function CatalogSlider({
     emit("change");
   };
   return (
-    <div className="flex flex-col gap-1 px-1">
+    // Stop propagation so dragging/clicking the slider inside a Row doesn't also
+    // fire the row's `press` action.
+    <div
+      className="flex flex-col gap-1 px-1"
+      onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       <Slider
         label={props.label}
         value={value}
