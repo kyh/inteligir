@@ -161,6 +161,25 @@ export const widgetCatalog = defineCatalog(schema, {
       }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Image,
     },
+    Chart: {
+      props: z.object({
+        type: z.enum(["line", "bar", "area", "pie"]).optional(),
+        data: z.array(z.record(z.string(), z.unknown())).optional(),
+        series: z.array(
+          z.object({
+            key: z.string(),
+            label: z.string().optional(),
+            color: z.string().optional(),
+          }),
+        ),
+        categoryKey: z.string().optional(),
+        height: z.number().optional(),
+        stacked: z.boolean().optional(),
+        showLegend: z.boolean().optional(),
+        showGrid: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Chart,
+    },
     Card: {
       props: z.object({}),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Card,

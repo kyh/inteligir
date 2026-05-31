@@ -17,6 +17,11 @@ import {
   CollapsibleTrigger,
 } from "@repo/ui/components/collapsible";
 import {
+  DataChart,
+  type DataChartSeries,
+  type DataChartType,
+} from "@repo/ui/components/data-chart";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -520,6 +525,32 @@ function CatalogSpinner({ props }: BaseProps<{ size?: "sm" | "default" | "lg" }>
   return <Spinner width={size} height={size} className="text-muted-foreground" />;
 }
 
+function CatalogChart({
+  props,
+}: BaseProps<{
+  type?: DataChartType;
+  data?: Array<Record<string, unknown>>;
+  series?: DataChartSeries[];
+  categoryKey?: string;
+  height?: number;
+  stacked?: boolean;
+  showLegend?: boolean;
+  showGrid?: boolean;
+}>) {
+  return (
+    <DataChart
+      type={props.type}
+      data={props.data}
+      series={props.series ?? []}
+      categoryKey={props.categoryKey}
+      height={props.height}
+      stacked={props.stacked}
+      showLegend={props.showLegend}
+      showGrid={props.showGrid}
+    />
+  );
+}
+
 function CatalogImage({
   props,
 }: BaseProps<{ src: string; alt?: string; rounded?: boolean }>) {
@@ -724,6 +755,7 @@ export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
     Avatar: CatalogAvatar,
     Spinner: CatalogSpinner,
     Image: CatalogImage,
+    Chart: CatalogChart,
     Card: CatalogCard,
     Collapsible: CatalogCollapsible,
     Tabs: CatalogTabs,

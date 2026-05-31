@@ -24,6 +24,7 @@ export type JsonWidgetComponentType =
   | "Avatar"
   | "Spinner"
   | "Image"
+  | "Chart"
   | "Card"
   | "Collapsible"
   | "Tabs"
@@ -62,6 +63,7 @@ export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
   "Avatar",
   "Spinner",
   "Image",
+  "Chart",
   "Card",
   "Collapsible",
   "Tabs",
@@ -116,6 +118,8 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
   Spinner:
     "Loading spinner. Props: { size?: 'sm'|'default'|'lg' }. Pair with generateText/fetchUrl and a `visible` condition.",
   Image: "Image. Props: { src: string, alt?: string, rounded?: boolean }. Square by default; set rounded: true for rounded corners.",
+  Chart:
+    "Chart (Recharts). Props: { type?: 'line'|'bar'|'area'|'pie' (default 'bar'), data: object[], series: { key: string, label?: string, color?: string }[], categoryKey?: string (x-axis / slice-name field, default 'name'), height?: number (default 220), stacked?: boolean, showLegend?: boolean, showGrid?: boolean }. Bind `data` to a state array via { $bindState: '/path' } (e.g. from fetchUrl); each series plots one numeric field. For pie, the first series is the value field and slices come from `categoryKey`.",
   Card: "Bordered container. Props: {}. Use to group arbitrary children.",
   Collapsible:
     "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
