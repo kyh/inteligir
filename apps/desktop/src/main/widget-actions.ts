@@ -3,6 +3,7 @@ import { z } from "zod";
 
 import { completeOnce } from "@/agent/setup";
 import { getAgent } from "@/main/app-machine";
+import { execute } from "@/main/executor/executor-client";
 import { createIpcHandler } from "@/main/lib/ipc-handler";
 import { IPC_CHANNELS, isHttpUrl } from "@/shared/ipc";
 
@@ -46,9 +47,53 @@ export function registerWidgetActionIpcHandlers(): void {
     fetchHttpText(url),
   );
 
+  createIpcHandler(
+    IPC_CHANNELS.WIDGET_CALL_TOOL,
+    z.object({ tool: z.string().min(1), input: z.unknown().optional() }),
+    ({ tool, input }) => widgetCallTool(tool, input),
+  );
+
   createIpcHandler(IPC_CHANNELS.WIDGET_OPEN_URL, z.object({ url: z.string() }), ({ url }) =>
     openHttpUrl(url),
   );
+}
+
+// A dotted accessor into executor's `tools.*` proxy: a namespace and at least
+// one tool segment (e.g. `github.search_issues`). We interpolate this into the
+// code-mode snippet, so it must be a strict identifier path — never anything
+// that could break out of the member-access expression. The `input` object is
+// JSON-serialized (a safe JS literal), so only `tool` needs guarding.
+const TOOL_PATH_RE = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/;
+
+/**
+ * Invoke a configured integration tool from a widget via executor's code-mode
+ * sandbox, returning just the tool's data. Unlike the agent's `execute` tool —
+ * which lets the model write arbitrary TypeScript — this is a fixed snippet:
+ * one namespaced `tools.*` call with a JSON input, with the standard
+ * `{ ok, data | error }` envelope unwrapped. Throws on a bad tool path, a
+ * failed call, or an execution that pauses for interaction (widgets can't
+ * resume an elicitation).
+ */
+export async function widgetCallTool(tool: string, input: unknown): Promise<unknown> {
+  if (!TOOL_PATH_RE.test(tool)) {
+    throw new Error(`Invalid tool path '${tool}' (expected e.g. 'namespace.tool')`);
+  }
+  const code = [
+    `const __input = ${JSON.stringify(input ?? {})};`,
+    `const __r = await tools.${tool}(__input);`,
+    `if (!__r || __r.ok !== true) {`,
+    `  throw new Error(typeof __r?.error === "string" ? __r.error : "Tool call failed");`,
+    `}`,
+    `return __r.data;`,
+  ].join("\n");
+  const result = await execute(code);
+  if (result.status === "paused") {
+    throw new Error("Tool call requires interaction and cannot run from a widget");
+  }
+  if (result.isError) {
+    throw new Error(result.text || "Tool call failed");
+  }
+  return result.structured;
 }
 
 export async function fetchHttpText(url: string, deps: FetchHttpTextDeps = {}): Promise<string> {

@@ -87,6 +87,8 @@ const desktopBridge: DesktopBridge = {
   widgetComplete: (prompt, system) =>
     ipcRenderer.invoke(IPC_CHANNELS.WIDGET_COMPLETE, { prompt, system }),
   widgetFetch: (url) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_FETCH, { url }),
+  widgetCallTool: (tool, input) =>
+    ipcRenderer.invoke(IPC_CHANNELS.WIDGET_CALL_TOOL, { tool, input }),
   widgetOpenUrl: (url) => ipcRenderer.invoke(IPC_CHANNELS.WIDGET_OPEN_URL, { url }),
 
   // Executor (integration backend)

@@ -4,7 +4,14 @@ vi.mock("electron", () => ({
   shell: { openExternal: vi.fn() },
 }));
 
-import { fetchHttpText, openHttpUrl } from "@/main/widget-actions";
+vi.mock("@/main/executor/executor-client", () => ({
+  execute: vi.fn(),
+}));
+
+import { execute } from "@/main/executor/executor-client";
+import { fetchHttpText, openHttpUrl, widgetCallTool } from "@/main/widget-actions";
+
+const mockExecute = vi.mocked(execute);
 
 describe("widget action network helpers", () => {
   it("rejects non-http fetch URLs before calling fetch", async () => {
@@ -71,5 +78,51 @@ describe("widget action network helpers", () => {
 
     await expect(openHttpUrl("https://example.com", openExternal)).resolves.toBe(true);
     expect(openExternal).toHaveBeenCalledWith("https://example.com");
+  });
+});
+
+describe("widgetCallTool", () => {
+  it("rejects tool paths that aren't a plain namespaced accessor", async () => {
+    for (const bad of ["", "github", "github.search; rm -rf /", "tools['x']", "a.b()"]) {
+      await expect(widgetCallTool(bad, {})).rejects.toThrow(/Invalid tool path/);
+    }
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it("runs a namespaced call with JSON-serialized input and returns the unwrapped data", async () => {
+    mockExecute.mockResolvedValue({
+      status: "completed",
+      text: "",
+      structured: [{ title: "issue 1" }],
+      isError: false,
+    });
+
+    const data = await widgetCallTool("github.search_issues", { query: "bug" });
+
+    expect(data).toEqual([{ title: "issue 1" }]);
+    const code = mockExecute.mock.calls[0]?.[0] ?? "";
+    expect(code).toContain("tools.github.search_issues(__input)");
+    expect(code).toContain('{"query":"bug"}');
+    // unwraps the { ok, data } envelope
+    expect(code).toContain("__r.ok !== true");
+  });
+
+  it("surfaces an execution error", async () => {
+    mockExecute.mockResolvedValue({
+      status: "completed",
+      text: "rate limited",
+      structured: undefined,
+      isError: true,
+    });
+
+    await expect(widgetCallTool("github.search_issues", {})).rejects.toThrow("rate limited");
+  });
+
+  it("rejects when the execution pauses for interaction", async () => {
+    mockExecute.mockResolvedValue({ status: "paused", text: "", structured: undefined });
+
+    await expect(widgetCallTool("github.search_issues", {})).rejects.toThrow(
+      "requires interaction",
+    );
   });
 });

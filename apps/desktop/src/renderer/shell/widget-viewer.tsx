@@ -150,6 +150,25 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           toast.error(err instanceof Error ? err.message : "Fetch failed");
         }
       },
+      // Calls a configured integration tool and writes its data into `into`.
+      // On failure, route the message into the `error` state path when given
+      // (so the widget can show it inline) and otherwise toast.
+      callTool: async (params: Record<string, unknown>) => {
+        const tool = typeof params["tool"] === "string" ? params["tool"] : "";
+        const into = typeof params["into"] === "string" ? params["into"] : "";
+        const errorPath = typeof params["error"] === "string" ? params["error"] : "";
+        const input = params["input"];
+        if (!tool || !into) return;
+        try {
+          const data = await getBridge()?.widgetCallTool(tool, input);
+          getStore().set(into, data ?? null);
+          if (errorPath) getStore().set(errorPath, null);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Tool call failed";
+          if (errorPath) getStore().set(errorPath, message);
+          else toast.error(message);
+        }
+      },
     };
   }, []);
 

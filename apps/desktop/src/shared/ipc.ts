@@ -90,6 +90,7 @@ export const IPC_CHANNELS = {
   WIDGET_SEND_PROMPT: "widget:send-prompt",
   WIDGET_COMPLETE: "widget:complete",
   WIDGET_FETCH: "widget:fetch",
+  WIDGET_CALL_TOOL: "widget:call-tool",
   WIDGET_OPEN_URL: "widget:open-url",
 
   // Executor (integration backend) — wraps the executor daemon's HTTP API
@@ -261,6 +262,7 @@ export type DesktopBridge = {
   widgetSendPrompt: (prompt: string) => Promise<void>;
   widgetComplete: (prompt: string, system?: string) => Promise<string>;
   widgetFetch: (url: string) => Promise<string>;
+  widgetCallTool: (tool: string, input?: unknown) => Promise<unknown>;
   widgetOpenUrl: (url: string) => Promise<boolean>;
 
   // Executor (integration backend)
