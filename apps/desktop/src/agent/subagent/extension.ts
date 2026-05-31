@@ -393,16 +393,19 @@ const subagentExtension: PiExtensionBundle = {
         // Re-discover per call so defs added mid-session are picked up.
         const live = discoverAgents(AGENT_DIR, WORKSPACE_DIR);
 
-        // chain — sequential, threading {previous} through.
+        // chain — sequential, threading {previous} through. Validate every
+        // agent up front (like parallel) so a bad name on a later step doesn't
+        // discard the completed, already-paid-for output of earlier ones.
         if (params.chain && params.chain.length > 0) {
+          const missing = params.chain.find((s) => !findAgent(live, s.agent));
+          if (missing) return unknownAgentResult(live, missing.agent);
+
           const results: SubagentResult[] = [];
           let previous = "";
           for (const step of params.chain) {
             if (signal?.aborted) break;
-            const agent = findAgent(live, step.agent);
-            if (!agent) return unknownAgentResult(live, step.agent);
             const task = step.task.replaceAll("{previous}", previous);
-            const result = await runSubagent(agent, task, signal);
+            const result = await runSubagent(findAgent(live, step.agent)!, task, signal);
             results.push(result);
             previous = result.output;
           }
