@@ -132,6 +132,14 @@ async function runSubagent(
     model: agent.model ?? DEFAULT_MODEL,
   };
 
+  // Don't spawn at all if we're already aborted — keeps a host interrupt from
+  // launching the next chain step or the rest of the parallel queue.
+  if (signal?.aborted) {
+    result.exitCode = 125;
+    result.errorMessage = "Aborted before start";
+    return result;
+  }
+
   const args = [
     "--mode",
     "json",
@@ -390,6 +398,7 @@ const subagentExtension: PiExtensionBundle = {
           const results: SubagentResult[] = [];
           let previous = "";
           for (const step of params.chain) {
+            if (signal?.aborted) break;
             const agent = findAgent(live, step.agent);
             if (!agent) return unknownAgentResult(live, step.agent);
             const task = step.task.replaceAll("{previous}", previous);
