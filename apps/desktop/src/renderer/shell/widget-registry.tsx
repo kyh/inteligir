@@ -491,7 +491,7 @@ function CatalogImage({
     <img
       src={props.src}
       alt={props.alt ?? ""}
-      className={cn("max-w-full object-cover", props.rounded !== false && "rounded-md")}
+      className={cn("max-w-full object-cover", props.rounded === true && "rounded-md")}
     />
   );
 }

@@ -91,7 +91,7 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
     "User avatar. Props: { src?: string, fallback?: string, size?: 'sm'|'default'|'lg' }. Shows `fallback` initials when no image.",
   Spinner:
     "Loading spinner. Props: { size?: 'sm'|'default'|'lg' }. Pair with generateText/fetchUrl and a `visible` condition.",
-  Image: "Image. Props: { src: string, alt?: string, rounded?: boolean }.",
+  Image: "Image. Props: { src: string, alt?: string, rounded?: boolean }. Square by default; set rounded: true for rounded corners.",
   Card: "Bordered container. Props: {}. Use to group arbitrary children.",
   Collapsible:
     "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
