@@ -49,6 +49,10 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   const idRef = useRef(instance.instanceId);
   idRef.current = instance.instanceId;
 
+  // Per-`into`-path invocation counter for callTool: a slower earlier call
+  // must not clobber a newer result written to the same path (latest-wins).
+  const callSeqRef = useRef(new Map<string, number>());
+
   // Resolves with whether the latest pending state actually reached main, so
   // surface-change and unplace callers can tell a true success ("flushed" or
   // "nothing to flush") from a quiet failure (bridge missing, IPC threw). A
@@ -172,13 +176,21 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           reportError("Agent unavailable");
           return;
         }
+        // Claim a sequence number for this `into` path; only write if no newer
+        // call to the same path started while this one was in flight.
+        const seqMap = callSeqRef.current;
+        const seq = (seqMap.get(into) ?? 0) + 1;
+        seqMap.set(into, seq);
+        const isLatest = () => seqMap.get(into) === seq;
         try {
           const data = await bridge.widgetCallTool(tool, input);
+          if (!isLatest()) return;
           getStore().set(into, data ?? null);
           // Clear a stale error, but never the path we just wrote the result
           // to (a widget may legitimately point `error` at `into`).
           if (errorPath && errorPath !== into) getStore().set(errorPath, null);
         } catch (err) {
+          if (!isLatest()) return;
           reportError(err instanceof Error ? err.message : "Tool call failed");
         }
       },

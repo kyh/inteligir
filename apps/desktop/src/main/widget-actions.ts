@@ -61,9 +61,11 @@ export function registerWidgetActionIpcHandlers(): void {
 // A dotted accessor into executor's `tools.*` proxy: a namespace and at least
 // one tool segment (e.g. `github.search_issues`). We interpolate this into the
 // code-mode snippet, so it must be a strict identifier path — never anything
-// that could break out of the member-access expression. The `input` object is
-// JSON-serialized (a safe JS literal), so only `tool` needs guarding.
+// that could break out of the member-access expression. Real tool paths never
+// use JS meta names, and `tools.x.constructor`/`__proto__`/`prototype` would
+// reach the runtime's own machinery rather than a tool, so reject them.
 const TOOL_PATH_RE = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/;
+const UNSAFE_PATH_SEGMENTS = new Set(["__proto__", "prototype", "constructor"]);
 
 /**
  * Invoke a configured integration tool from a widget via executor's code-mode
@@ -75,11 +77,18 @@ const TOOL_PATH_RE = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)+$/;
  * resume an elicitation).
  */
 export async function widgetCallTool(tool: string, input: unknown): Promise<unknown> {
-  if (!TOOL_PATH_RE.test(tool)) {
+  if (
+    !TOOL_PATH_RE.test(tool) ||
+    tool.split(".").some((segment) => UNSAFE_PATH_SEGMENTS.has(segment))
+  ) {
     throw new Error(`Invalid tool path '${tool}' (expected e.g. 'namespace.tool')`);
   }
+  // Pass input as a JSON string parsed inside the sandbox, not as a JS object
+  // literal: a literal reinterprets a "__proto__" key as a prototype setter
+  // (Annex B.3.1), corrupting the tool's input. JSON.parse keeps JSON semantics
+  // and a string literal can't break out of the expression.
   const code = [
-    `const __input = ${JSON.stringify(input ?? {})};`,
+    `const __input = JSON.parse(${JSON.stringify(JSON.stringify(input ?? {}))});`,
     `const __r = await tools.${tool}(__input);`,
     `if (!__r || __r.ok !== true) {`,
     `  throw new Error(typeof __r?.error === "string" ? __r.error : "Tool call failed");`,

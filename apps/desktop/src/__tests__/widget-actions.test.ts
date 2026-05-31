@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
   shell: { openExternal: vi.fn() },
@@ -82,6 +82,10 @@ describe("widget action network helpers", () => {
 });
 
 describe("widgetCallTool", () => {
+  beforeEach(() => {
+    mockExecute.mockReset();
+  });
+
   it("rejects tool paths that aren't a plain namespaced accessor", async () => {
     for (const bad of ["", "github", "github.search; rm -rf /", "tools['x']", "a.b()"]) {
       await expect(widgetCallTool(bad, {})).rejects.toThrow(/Invalid tool path/);
@@ -89,7 +93,20 @@ describe("widgetCallTool", () => {
     expect(mockExecute).not.toHaveBeenCalled();
   });
 
-  it("runs a namespaced call with JSON-serialized input and returns the unwrapped data", async () => {
+  it("rejects paths with JS meta segments that would reach runtime internals", async () => {
+    for (const bad of [
+      "github.constructor",
+      "a.__proto__",
+      "x.prototype",
+      "__proto__.x",
+      "ns.constructor.tool",
+    ]) {
+      await expect(widgetCallTool(bad, {})).rejects.toThrow(/Invalid tool path/);
+    }
+    expect(mockExecute).not.toHaveBeenCalled();
+  });
+
+  it("runs a namespaced call and returns the unwrapped data", async () => {
     mockExecute.mockResolvedValue({
       status: "completed",
       text: "",
@@ -102,9 +119,31 @@ describe("widgetCallTool", () => {
     expect(data).toEqual([{ title: "issue 1" }]);
     const code = mockExecute.mock.calls[0]?.[0] ?? "";
     expect(code).toContain("tools.github.search_issues(__input)");
-    expect(code).toContain('{"query":"bug"}');
+    // Input is parsed from a JSON string in-sandbox (not a JS literal), so a
+    // "__proto__" key stays a data property instead of a prototype setter.
+    expect(code).toContain("JSON.parse(");
+    expect(code).toContain("query");
     // unwraps the { ok, data } envelope
     expect(code).toContain("__r.ok !== true");
+  });
+
+  it("embeds input as a parsed JSON string so a __proto__ key stays data", async () => {
+    mockExecute.mockResolvedValue({
+      status: "completed",
+      text: "",
+      structured: null,
+      isError: false,
+    });
+
+    // Computed key avoids the literal __proto__ setter when building the input.
+    const input = { ["__proto__"]: { polluted: true } };
+    await widgetCallTool("ns.tool", input);
+
+    const firstLine = (mockExecute.mock.calls[0]?.[0] ?? "").split("\n")[0];
+    // The bug being guarded: `const __input = {"__proto__":{...}}` evaluates the
+    // key as a prototype setter. Parsing a JSON string literal instead keeps it
+    // a plain data property.
+    expect(firstLine).toBe(`const __input = JSON.parse(${JSON.stringify(JSON.stringify(input))});`);
   });
 
   it("surfaces an execution error", async () => {
