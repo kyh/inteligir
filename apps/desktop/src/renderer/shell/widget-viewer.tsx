@@ -175,7 +175,9 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         try {
           const data = await bridge.widgetCallTool(tool, input);
           getStore().set(into, data ?? null);
-          if (errorPath) getStore().set(errorPath, null);
+          // Clear a stale error, but never the path we just wrote the result
+          // to (a widget may legitimately point `error` at `into`).
+          if (errorPath && errorPath !== into) getStore().set(errorPath, null);
         } catch (err) {
           reportError(err instanceof Error ? err.message : "Tool call failed");
         }
