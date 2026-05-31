@@ -82,7 +82,6 @@ import {
 import { InputField, InputGroup } from "@repo/ui/components/input-group-fields";
 import { InputMessage } from "@repo/ui/components/input-message";
 import { Label } from "@repo/ui/components/label";
-import { Logo } from "@repo/ui/components/logo";
 import { NavItem } from "@repo/ui/components/nav-item";
 import { NavMenu } from "@repo/ui/components/nav-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
@@ -165,7 +164,6 @@ export default function UiPage() {
   return (
     <main className="mx-auto max-w-3xl px-6 pt-24 pb-32">
       <header className="flex items-center gap-3">
-        <Logo className="size-8" />
         <div className="flex flex-col">
           <h1 className="text-2xl font-semibold">UI library</h1>
           <p className="text-sm text-muted-foreground">
