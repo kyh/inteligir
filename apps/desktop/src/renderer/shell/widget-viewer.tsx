@@ -159,14 +159,25 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         const errorPath = typeof params["error"] === "string" ? params["error"] : "";
         const input = params["input"];
         if (!tool || !into) return;
+        // Resolve the bridge up front: a tool call returns arbitrary data
+        // (including a legitimate null), so a missing bridge can't be told
+        // apart from a real result downstream. Treat its absence as an error
+        // rather than silently writing null over bound data.
+        const bridge = getBridge();
+        const reportError = (message: string) => {
+          if (errorPath) getStore().set(errorPath, message);
+          else toast.error(message);
+        };
+        if (!bridge) {
+          reportError("Agent unavailable");
+          return;
+        }
         try {
-          const data = await getBridge()?.widgetCallTool(tool, input);
+          const data = await bridge.widgetCallTool(tool, input);
           getStore().set(into, data ?? null);
           if (errorPath) getStore().set(errorPath, null);
         } catch (err) {
-          const message = err instanceof Error ? err.message : "Tool call failed";
-          if (errorPath) getStore().set(errorPath, message);
-          else toast.error(message);
+          reportError(err instanceof Error ? err.message : "Tool call failed");
         }
       },
     };
