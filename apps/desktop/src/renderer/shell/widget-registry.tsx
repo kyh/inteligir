@@ -552,7 +552,7 @@ function CatalogChart({
     <DataChart
       type={props.type}
       data={props.data}
-      series={props.series ?? []}
+      series={props.series}
       categoryKey={props.categoryKey}
       height={props.height}
       stacked={props.stacked}
