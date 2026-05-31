@@ -177,6 +177,14 @@ export const widgetCatalog = defineCatalog(schema, {
       props: z.object({ caption: z.string().optional() }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Table,
     },
+    TableHeader: {
+      props: z.object({}),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableHeader,
+    },
+    TableBody: {
+      props: z.object({}),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableBody,
+    },
     TableRow: {
       props: z.object({}),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableRow,

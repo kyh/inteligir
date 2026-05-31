@@ -28,6 +28,8 @@ export type JsonWidgetComponentType =
   | "Collapsible"
   | "Tabs"
   | "Table"
+  | "TableHeader"
+  | "TableBody"
   | "TableRow"
   | "TableHead"
   | "TableCell"
@@ -64,6 +66,8 @@ export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
   "Collapsible",
   "Tabs",
   "Table",
+  "TableHeader",
+  "TableBody",
   "TableRow",
   "TableHead",
   "TableCell",
@@ -117,9 +121,13 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
     "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
   Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Provide exactly one child per tab — child N is the panel for tab N, paired by position. Don't put a `visible` condition on a tab's direct child; the Tabs controls which panel is shown.",
   Table:
-    "Data table. Props: { caption?: string }. Children are TableRow elements; make the first row a row of TableHead cells for the header.",
+    "Data table. Props: { caption?: string }. Children are a TableHeader and/or a TableBody section.",
+  TableHeader:
+    "Table header section (thead). Props: {}. Children are TableRow elements containing TableHead cells.",
+  TableBody:
+    "Table body section (tbody). Props: {}. Children are TableRow elements. Add `repeat: { statePath, key }` on a row to render one per item.",
   TableRow:
-    "Table row. Props: {}. Children are TableHead (header) or TableCell elements. Add `repeat: { statePath, key }` to render one row per item and bind cell text with { $item: 'field' } for a data-driven table.",
+    "Table row. Props: {}. Children are TableHead cells (in a TableHeader) or TableCell cells (in a TableBody). On a body row, add `repeat: { statePath, key }` and bind cell text with { $item: 'field' } for a data-driven table.",
   TableHead: "Table header cell. Props: { text: string }.",
   TableCell:
     "Table body cell. Props: { text?: string }. Set `text`, or omit it and add children (e.g. a Badge or Button) for a rich cell.",

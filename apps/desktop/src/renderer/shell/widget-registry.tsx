@@ -57,10 +57,11 @@ import { Switch } from "@repo/ui/components/switch";
 import { TabItem, TabPanel, Tabs, TabsList } from "@repo/ui/components/tabs";
 import {
   Table as UiTable,
-  TableBody,
+  TableBody as UiTableBody,
   TableCaption,
   TableCell as UiTableCell,
   TableHead as UiTableHead,
+  TableHeader as UiTableHeader,
   TableRow as UiTableRow,
 } from "@repo/ui/components/table";
 import {
@@ -579,9 +580,17 @@ function CatalogTable({ props, children }: BaseProps<{ caption?: string }>) {
   return (
     <UiTable>
       {props.caption ? <TableCaption>{props.caption}</TableCaption> : null}
-      <TableBody>{children}</TableBody>
+      {children}
     </UiTable>
   );
+}
+
+function CatalogTableHeader({ children }: BaseProps<Record<string, never>>) {
+  return <UiTableHeader>{children}</UiTableHeader>;
+}
+
+function CatalogTableBody({ children }: BaseProps<Record<string, never>>) {
+  return <UiTableBody>{children}</UiTableBody>;
 }
 
 function CatalogTableRow({ children }: BaseProps<Record<string, never>>) {
@@ -719,6 +728,8 @@ export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
     Collapsible: CatalogCollapsible,
     Tabs: CatalogTabs,
     Table: CatalogTable,
+    TableHeader: CatalogTableHeader,
+    TableBody: CatalogTableBody,
     TableRow: CatalogTableRow,
     TableHead: CatalogTableHead,
     TableCell: CatalogTableCell,
