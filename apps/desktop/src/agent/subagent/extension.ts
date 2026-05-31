@@ -355,6 +355,20 @@ function unknownAgentResult(agents: AgentConfig[], name: string): ToolTextResult
   return textResult(`Unknown subagent "${name}". Available: ${available}.`);
 }
 
+/** A chain step we deliberately did not run (abort, or a prior step failed), so
+ *  a truncated chain can't be mistaken for a complete, successful pipeline. */
+function skippedResult(agentName: string, task: string, reason: string): SubagentResult {
+  return {
+    agent: agentName,
+    task,
+    output: "",
+    exitCode: 125,
+    stderr: "",
+    usage: emptyUsage(),
+    errorMessage: reason,
+  };
+}
+
 function buildDescription(agents: AgentConfig[]): string {
   const list =
     agents.length > 0
@@ -368,7 +382,10 @@ function buildDescription(agents: AgentConfig[]): string {
     "- single: { agent, task }\n" +
     "- parallel: { tasks: [{ agent, task }, …] }\n" +
     "- chain: { chain: [{ agent, task }, …] } — {previous} is replaced with the prior step's output.\n\n" +
-    `Available subagents:\n${list}`
+    // This list is fixed when the tool is registered (session start). Defs added
+    // to ~/.inteligir/agents/ mid-session still work — invocation re-discovers
+    // them — but only appear here next session.
+    `Subagents available this session:\n${list}`
   );
 }
 
@@ -402,12 +419,23 @@ const subagentExtension: PiExtensionBundle = {
 
           const results: SubagentResult[] = [];
           let previous = "";
+          // Once set, later steps are recorded as skipped rather than run — so a
+          // downstream agent is never handed an empty {previous}, and the result
+          // shows every step instead of silently truncating.
+          let halted: string | null = null;
           for (const step of params.chain) {
-            if (signal?.aborted) break;
+            const reason = signal?.aborted ? "Aborted before start" : halted;
+            if (reason) {
+              results.push(skippedResult(step.agent, step.task, reason));
+              continue;
+            }
             const task = step.task.replaceAll("{previous}", previous);
             const result = await runSubagent(findAgent(live, step.agent)!, task, signal);
             results.push(result);
             previous = result.output;
+            if (result.exitCode !== 0 || result.errorMessage) {
+              halted = `Skipped: prior step "${step.agent}" did not complete successfully`;
+            }
           }
           return textResult(results.map(formatResult).join("\n\n---\n\n"));
         }
