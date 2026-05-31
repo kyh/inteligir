@@ -123,8 +123,14 @@ function DialogContent({
               // …then the consumer's `<DialogContent>` props (className, event
               // handlers, data-*, etc.) land on the visible motion.div.
               {...consumerRest}
+              // Centering lives in Tailwind's `translate` utilities (a
+              // standalone CSS property in v4), not in the motion transform, so
+              // consumers can still override placement via className — e.g. the
+              // command palette's `top-1/3 translate-y-0`. Motion only animates
+              // opacity + scale (the `transform` property), which composes with
+              // `translate` rather than clobbering it.
               className={cn(
-                "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)]",
+                "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
                 surfaceClasses(dialogLevel),
                 "p-6 text-sm text-popover-foreground outline-none",
                 size === "sm" && "max-w-[400px]",
@@ -133,12 +139,10 @@ function DialogContent({
                 className,
               )}
               style={{ ...baseStyle, ...consumerStyle }}
-              initial={{ opacity: 0, scale: 0.97, x: "-50%", y: "-50%" }}
+              initial={{ opacity: 0, scale: 0.97 }}
               animate={{
                 opacity: exiting ? 0 : 1,
                 scale: exiting ? 0.97 : 1,
-                x: "-50%",
-                y: "-50%",
               }}
               transition={exiting ? springs.moderate : springs.slow}
             >
