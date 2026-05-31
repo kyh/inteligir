@@ -7,28 +7,78 @@ export type JsonWidgetComponentType =
   | "Stack"
   | "Section"
   | "Row"
+  | "Grid"
   | "Heading"
   | "Text"
   | "TextBlock"
+  | "Markdown"
+  | "Badge"
   | "Button"
   | "Checkbox"
+  | "Switch"
   | "Input"
   | "Textarea"
+  | "Select"
+  | "RadioGroup"
+  | "Slider"
+  | "Avatar"
+  | "Spinner"
+  | "Image"
+  | "Chart"
   | "Card"
+  | "Collapsible"
+  | "Tabs"
+  | "Table"
+  | "TableHeader"
+  | "TableBody"
+  | "TableRow"
+  | "TableHead"
+  | "TableCell"
+  | "Dialog"
+  | "Drawer"
+  | "Popover"
+  | "Tooltip"
+  | "DropdownMenu"
+  | "MenuItem"
   | "Separator";
 
 export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
   "Stack",
   "Section",
   "Row",
+  "Grid",
   "Heading",
   "Text",
   "TextBlock",
+  "Markdown",
+  "Badge",
   "Button",
   "Checkbox",
+  "Switch",
   "Input",
   "Textarea",
+  "Select",
+  "RadioGroup",
+  "Slider",
+  "Avatar",
+  "Spinner",
+  "Image",
+  "Chart",
   "Card",
+  "Collapsible",
+  "Tabs",
+  "Table",
+  "TableHeader",
+  "TableBody",
+  "TableRow",
+  "TableHead",
+  "TableCell",
+  "Dialog",
+  "Drawer",
+  "Popover",
+  "Tooltip",
+  "DropdownMenu",
+  "MenuItem",
   "Separator",
 ];
 
@@ -38,19 +88,64 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
   Section:
     "Labeled group of rows. Props: { title?: string }. Renders a small uppercase title when set.",
   Row: "Horizontal row with space-between layout. Props: { bordered?: boolean }. Bordered by default.",
+  Grid: "Multi-column grid container. Props: { columns?: number (default 2), gap?: 'sm'|'md'|'lg' }. Lays children out in equal columns.",
   Heading: "Heading text. Props: { text: string, level?: '1'|'2'|'3' }. Defaults to level 3.",
   Text: "Text node. Props: { text: string, muted?: boolean, size?: 'xs'|'sm'|'base' }.",
   TextBlock:
     "Two-line text. Props: { title: string, description?: string }. Use for label/value summaries.",
+  Markdown:
+    "Rendered markdown block. Props: { content?: string }. Bind `content` via { $bindState: '/path' } to show generated/fetched text.",
+  Badge:
+    "Inline status badge. Props: { text: string, variant?: 'default'|'secondary'|'destructive'|'outline'|'ghost' }.",
   Button:
     "Clickable button. Props: { label: string, variant?: 'default'|'outline'|'ghost'|'secondary'|'destructive', size?: 'xs'|'sm'|'default'|'lg', disabled?: boolean }. Wire `on.press` to actions.",
   Checkbox:
     "Checkbox. Props: { label: string, description?: string, checked?: boolean, disabled?: boolean }. Two-way bind `checked` via { $bindState: '/path' }.",
+  Switch:
+    "Toggle switch. Props: { label: string, description?: string, checked?: boolean, disabled?: boolean }. Two-way bind `checked` via { $bindState: '/path' }.",
   Input:
     "Text input. Props: { label?: string, placeholder?: string, value?: string, disabled?: boolean }. Two-way bind `value` via { $bindState: '/path' }.",
   Textarea:
     "Multi-line input. Props: { label?: string, placeholder?: string, value?: string, rows?: number, disabled?: boolean }. Two-way bind `value`.",
+  Select:
+    "Dropdown select. Props: { label?: string, placeholder?: string, value?: string, options: { label: string, value: string }[], disabled?: boolean }. Two-way bind `value`.",
+  RadioGroup:
+    "Single-choice radio group. Props: { label?: string, value?: string, options: { label: string, value: string, description?: string }[], disabled?: boolean }. Two-way bind `value`.",
+  Slider:
+    "Numeric slider. Props: { label?: string, value?: number, min?: number, max?: number, step?: number, disabled?: boolean }. Two-way bind `value` (number).",
+  Avatar:
+    "User avatar. Props: { src?: string, fallback?: string, size?: 'sm'|'default'|'lg' }. Shows `fallback` initials when no image.",
+  Spinner:
+    "Loading spinner. Props: { size?: 'sm'|'default'|'lg' }. Pair with generateText/fetchUrl and a `visible` condition.",
+  Image: "Image. Props: { src: string, alt?: string, rounded?: boolean }. Square by default; set rounded: true for rounded corners.",
+  Chart:
+    "Chart (Recharts). Props: { type?: 'line'|'bar'|'area'|'pie' (default 'bar'), data?: object[], series: { key: string, label?: string, color?: string }[], categoryKey?: string (x-axis / slice-name field, default 'name'), height?: number (default 220), stacked?: boolean, showLegend?: boolean, showGrid?: boolean }. Bind `data` to a state array via { $bindState: '/path' } (e.g. from fetchUrl); each series plots one numeric field. For pie, the first series is the value field and slices come from `categoryKey`.",
   Card: "Bordered container. Props: {}. Use to group arbitrary children.",
+  Collapsible:
+    "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
+  Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Provide exactly one child per tab — child N is the panel for tab N, paired by position. Don't put a `visible` condition on a tab's direct child; the Tabs controls which panel is shown.",
+  Table:
+    "Data table. Props: { caption?: string }. Children are a TableHeader and/or a TableBody section.",
+  TableHeader:
+    "Table header section (thead). Props: {}. Children are TableRow elements containing TableHead cells.",
+  TableBody:
+    "Table body section (tbody). Props: {}. Children are TableRow elements. Add `repeat: { statePath, key }` on a row to render one per item.",
+  TableRow:
+    "Table row. Props: {}. Children are TableHead cells (in a TableHeader) or TableCell cells (in a TableBody). On a body row, add `repeat: { statePath, key }` and bind cell text with { $item: 'field' } for a data-driven table.",
+  TableHead: "Table header cell. Props: { text: string }.",
+  TableCell:
+    "Table body cell. Props: { text?: string }. Set `text`, or omit it and add children (e.g. a Badge or Button) for a rich cell.",
+  Dialog:
+    "Modal dialog. Props: { trigger: string, title?: string, description?: string }. `trigger` renders a button; children are the dialog body. Closes via the ✕, Escape, or an outside click.",
+  Drawer:
+    "Slide-out drawer. Props: { trigger: string, title?: string, description?: string, side?: 'top'|'bottom'|'left'|'right' (default 'right') }. `trigger` renders a button; children are the drawer body.",
+  Popover:
+    "Popover anchored to a trigger button. Props: { trigger: string }. Children are the popover content.",
+  Tooltip: "Hover tooltip. Props: { text: string }. Wraps its single child as the hover target.",
+  DropdownMenu:
+    "Dropdown menu. Props: { trigger: string }. Children are MenuItem elements.",
+  MenuItem:
+    "Dropdown menu item (use inside DropdownMenu). Props: { label: string, variant?: 'default'|'destructive', disabled?: boolean }. Wire `on.press` to actions.",
   Separator: "Horizontal hairline divider. Props: {}.",
 };
 

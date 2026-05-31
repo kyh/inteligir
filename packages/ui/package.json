@@ -32,6 +32,7 @@
     "nanoid": "^5.1.11",
     "pdfjs-dist": "^5.4.149",
     "react-dom": "catalog:",
+    "recharts": "^2.15.4",
     "sonner": "^2.0.7",
     "streamdown": "^2.5.0",
     "tailwind-merge": "^3.6.0",

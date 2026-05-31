@@ -15,6 +15,17 @@ const buttonVariant = z
   .enum(["default", "outline", "ghost", "secondary", "destructive"])
   .optional();
 const buttonSize = z.enum(["xs", "sm", "default", "lg"]).optional();
+const badgeVariant = z
+  .enum(["default", "secondary", "destructive", "outline", "ghost"])
+  .optional();
+const controlSize = z.enum(["sm", "default", "lg"]).optional();
+
+const optionItem = z.object({ label: z.string(), value: z.string() });
+const radioOptionItem = z.object({
+  label: z.string(),
+  value: z.string(),
+  description: z.string().optional(),
+});
 
 const textFieldProps = {
   label: z.string().optional(),
@@ -32,6 +43,10 @@ export const widgetCatalog = defineCatalog(schema, {
     Row: {
       props: z.object({ bordered: z.boolean().optional() }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Row,
+    },
+    Grid: {
+      props: z.object({ columns: z.number().optional(), gap }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Grid,
     },
     Section: {
       props: z.object({ title: z.string().optional() }),
@@ -53,6 +68,14 @@ export const widgetCatalog = defineCatalog(schema, {
       props: z.object({ title: z.string(), description: z.string().optional() }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TextBlock,
     },
+    Markdown: {
+      props: z.object({ content: z.string().optional() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Markdown,
+    },
+    Badge: {
+      props: z.object({ text: z.string(), variant: badgeVariant }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Badge,
+    },
     Button: {
       props: z.object({
         label: z.string(),
@@ -71,6 +94,15 @@ export const widgetCatalog = defineCatalog(schema, {
       }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Checkbox,
     },
+    Switch: {
+      props: z.object({
+        label: z.string(),
+        description: z.string().optional(),
+        checked: z.boolean().optional(),
+        disabled: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Switch,
+    },
     Input: {
       props: z.object(textFieldProps),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Input,
@@ -79,9 +111,147 @@ export const widgetCatalog = defineCatalog(schema, {
       props: z.object({ ...textFieldProps, rows: z.number().optional() }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Textarea,
     },
+    Select: {
+      props: z.object({
+        label: z.string().optional(),
+        placeholder: z.string().optional(),
+        value: z.string().optional(),
+        options: z.array(optionItem).optional(),
+        disabled: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Select,
+    },
+    RadioGroup: {
+      props: z.object({
+        label: z.string().optional(),
+        value: z.string().optional(),
+        options: z.array(radioOptionItem).optional(),
+        disabled: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.RadioGroup,
+    },
+    Slider: {
+      props: z.object({
+        label: z.string().optional(),
+        value: z.number().optional(),
+        min: z.number().optional(),
+        max: z.number().optional(),
+        step: z.number().optional(),
+        disabled: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Slider,
+    },
+    Avatar: {
+      props: z.object({
+        src: z.string().optional(),
+        fallback: z.string().optional(),
+        size: controlSize,
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Avatar,
+    },
+    Spinner: {
+      props: z.object({ size: controlSize }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Spinner,
+    },
+    Image: {
+      props: z.object({
+        src: z.string(),
+        alt: z.string().optional(),
+        rounded: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Image,
+    },
+    Chart: {
+      props: z.object({
+        type: z.enum(["line", "bar", "area", "pie"]).optional(),
+        data: z.array(z.record(z.string(), z.unknown())).optional(),
+        series: z.array(
+          z.object({
+            key: z.string(),
+            label: z.string().optional(),
+            color: z.string().optional(),
+          }),
+        ).optional(),
+        categoryKey: z.string().optional(),
+        height: z.number().optional(),
+        stacked: z.boolean().optional(),
+        showLegend: z.boolean().optional(),
+        showGrid: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Chart,
+    },
     Card: {
       props: z.object({}),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Card,
+    },
+    Collapsible: {
+      props: z.object({ title: z.string(), defaultOpen: z.boolean().optional() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Collapsible,
+    },
+    Tabs: {
+      props: z.object({ tabs: z.array(optionItem) }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Tabs,
+    },
+    Table: {
+      props: z.object({ caption: z.string().optional() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Table,
+    },
+    TableHeader: {
+      props: z.object({}),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableHeader,
+    },
+    TableBody: {
+      props: z.object({}),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableBody,
+    },
+    TableRow: {
+      props: z.object({}),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableRow,
+    },
+    TableHead: {
+      props: z.object({ text: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableHead,
+    },
+    TableCell: {
+      props: z.object({ text: z.string().optional() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableCell,
+    },
+    Dialog: {
+      props: z.object({
+        trigger: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Dialog,
+    },
+    Drawer: {
+      props: z.object({
+        trigger: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        side: z.enum(["top", "bottom", "left", "right"]).optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Drawer,
+    },
+    Popover: {
+      props: z.object({ trigger: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Popover,
+    },
+    Tooltip: {
+      props: z.object({ text: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Tooltip,
+    },
+    DropdownMenu: {
+      props: z.object({ trigger: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.DropdownMenu,
+    },
+    MenuItem: {
+      props: z.object({
+        label: z.string(),
+        variant: z.enum(["default", "destructive"]).optional(),
+        disabled: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.MenuItem,
     },
     Separator: {
       props: z.object({}),
