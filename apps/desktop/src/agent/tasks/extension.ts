@@ -6,7 +6,7 @@
 
 import { Type, type Static } from "@sinclair/typebox";
 
-import { taskManager } from "@/main/tasks/task-singleton";
+import { taskManager } from "@/main/tasks/task-manager";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
 import type { PiExtensionBundle } from "@/agent/extension";

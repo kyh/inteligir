@@ -44,10 +44,9 @@ export const organizationRouter = createTRPCRouter({
     });
     const memberUsersMap = new Map(memberUsers.map((user) => [user.id, user]));
 
-    const membersWithUsers = members.map((member) => ({
-      ...member,
-      user: memberUsersMap.get(member.userId),
-    }));
+    const membersWithUsers = members.map((member) =>
+      Object.assign({}, member, { user: memberUsersMap.get(member.userId) }),
+    );
 
     return {
       currentUserMember,

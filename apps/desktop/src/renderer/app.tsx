@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from "react-router";
 import { motion } from "motion/react";
 
 import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
+import { Toaster } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 import { useTheme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
@@ -45,7 +46,7 @@ export function AppLayout() {
   useEffect(() => init(), [init]);
   useEffect(() => void initUiState(), [initUiState]);
 
-  // Voice store is initialized by ChatPage's useEffect(init). Before that,
+  // Voice store is initialized by ShellPage's useEffect(init). Before that,
   // state.kind defaults to "idle" — orb falls back to the agent-only status.
   const listening = useVoiceStore((s) => s.state.kind === "listening");
   const orbStatus = phaseToOrbStatus(appState.phase, listening);
@@ -77,6 +78,8 @@ export function AppLayout() {
       <div className="flex h-full flex-col">
         {needsRedirect ? <Navigate to={target} replace /> : <Outlet />}
       </div>
+
+      <Toaster />
     </div>
   );
 }

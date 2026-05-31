@@ -7,6 +7,7 @@ import {
   createContext,
   useContext,
   forwardRef,
+  useMemo,
   type ReactNode,
   type HTMLAttributes,
 } from "react";
@@ -16,21 +17,18 @@ import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 interface CheckboxGroupContextValue {
   registerItem: (index: number, element: HTMLElement | null) => void;
   activeIndex: number | null;
 }
 
-const CheckboxGroupContext = createContext<CheckboxGroupContextValue | null>(
-  null
-);
+const CheckboxGroupContext = createContext<CheckboxGroupContextValue | null>(null);
 
 function useCheckboxGroup() {
   const ctx = useContext(CheckboxGroupContext);
-  if (!ctx)
-    throw new Error("useCheckboxGroup must be used within a CheckboxGroup");
+  if (!ctx) throw new Error("useCheckboxGroup must be used within a CheckboxGroup");
   return ctx;
 }
 
@@ -61,7 +59,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
 
     // Group contiguous checked indices into runs with stable IDs
     const runs: { start: number; end: number }[] = [];
-    const sortedChecked = [...checkedIndices].sort((a, b) => a - b);
+    const sortedChecked = [...checkedIndices].toSorted((a, b) => a - b);
     for (const idx of sortedChecked) {
       const last = runs[runs.length - 1];
       if (last && idx === last.end + 1) {
@@ -88,7 +86,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
       for (let i = run.start; i <= run.end; i++) {
         newGroupMap.set(i, id);
       }
-      return { ...run, id };
+      return Object.assign(run, { id });
     });
     prevGroupMap.current = newGroupMap;
 
@@ -96,12 +94,15 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
 
     const activeRect = activeIndex !== null ? itemRects[activeIndex] : null;
     const focusRect = focusedIndex !== null ? itemRects[focusedIndex] : null;
-    const isHoveringOther =
-      activeIndex !== null && !checkedIndices.has(activeIndex);
-    const shape = useShape();
+    const isHoveringOther = activeIndex !== null && !checkedIndices.has(activeIndex);
+    const shape = getShape();
+    const contextValue = useMemo(
+      () => ({ registerItem, activeIndex }),
+      [activeIndex, registerItem],
+    );
 
     return (
-      <CheckboxGroupContext.Provider value={{ registerItem, activeIndex }}>
+      <CheckboxGroupContext.Provider value={contextValue}>
         <div
           ref={(node) => {
             (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
@@ -118,9 +119,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
             if (indexAttr != null) {
               const idx = Number(indexAttr);
               setActiveIndex(idx);
-              setFocusedIndex(
-                (e.target as HTMLElement).matches(":focus-visible") ? idx : null
-              );
+              setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null);
             }
           }}
           onBlur={(e) => {
@@ -131,16 +130,17 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
           }}
           onKeyDown={(e) => {
             const items = Array.from(
-              containerRef.current?.querySelectorAll('[role="checkbox"]') ?? []
+              containerRef.current?.querySelectorAll('[role="checkbox"]') ?? [],
             ) as HTMLElement[];
             const currentIdx = items.indexOf(e.target as HTMLElement);
             if (currentIdx === -1) return;
 
             if (["ArrowDown", "ArrowUp"].includes(e.key)) {
               e.preventDefault();
-              const next = e.key === "ArrowDown"
-                ? (currentIdx + 1) % items.length
-                : (currentIdx - 1 + items.length) % items.length;
+              const next =
+                e.key === "ArrowDown"
+                  ? (currentIdx + 1) % items.length
+                  : (currentIdx - 1 + items.length) % items.length;
               items[next].focus();
             } else if (e.key === "Home") {
               e.preventDefault();
@@ -151,10 +151,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
             }
           }}
           role="group"
-          className={cn(
-            "relative flex flex-col w-72 max-w-full select-none",
-            className
-          )}
+          className={cn("relative flex flex-col w-72 max-w-full select-none", className)}
           {...props}
         >
           {/* Selected backgrounds (merged for contiguous checked items) */}
@@ -164,8 +161,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
               const endRect = itemRects[group.end];
               if (!startRect || !endRect) return null;
               const mergedTop = startRect.top;
-              const mergedHeight =
-                endRect.top + endRect.height - startRect.top;
+              const mergedHeight = endRect.top + endRect.height - startRect.top;
               const mergedLeft = Math.min(startRect.left, endRect.left);
               const mergedWidth = Math.max(startRect.width, endRect.width);
               return (
@@ -244,7 +240,7 @@ const CheckboxGroup = forwardRef<HTMLDivElement, CheckboxGroupProps>(
         </div>
       </CheckboxGroupContext.Provider>
     );
-  }
+  },
 );
 
 CheckboxGroup.displayName = "CheckboxGroup";
@@ -273,7 +269,7 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
 
     const isActive = activeIndex === index;
     const skipAnimation = !hasMounted.current;
-    const shape = useShape();
+    const shape = getShape();
 
     return (
       <div
@@ -296,7 +292,7 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
         }}
         className={cn(
           `relative z-10 flex items-center gap-2.5 ${shape.item} px-3 py-1.5 cursor-pointer outline-none`,
-          className
+          className,
         )}
         {...props}
       >
@@ -316,8 +312,8 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
               checked
                 ? "border-[1.5px] border-transparent"
                 : isActive
-                ? "border-[1.5px] border-neutral-400 dark:border-neutral-500"
-                : "border-[1.5px] border-border"
+                  ? "border-[1.5px] border-neutral-400 dark:border-neutral-500"
+                  : "border-[1.5px] border-border",
             )}
           />
           {/* Check mark */}
@@ -384,14 +380,10 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
           <span
             className={cn(
               "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80",
-              checked || isActive
-                ? "text-foreground"
-                : "text-muted-foreground"
+              checked || isActive ? "text-foreground" : "text-muted-foreground",
             )}
             style={{
-              fontVariationSettings: checked
-                ? fontWeights.semibold
-                : fontWeights.normal,
+              fontVariationSettings: checked ? fontWeights.semibold : fontWeights.normal,
             }}
           >
             {label}
@@ -399,10 +391,9 @@ const CheckboxItem = forwardRef<HTMLDivElement, CheckboxItemProps>(
         </span>
       </div>
     );
-  }
+  },
 );
 
 CheckboxItem.displayName = "CheckboxItem";
 
 export { CheckboxGroup, CheckboxItem };
-export default CheckboxGroup;

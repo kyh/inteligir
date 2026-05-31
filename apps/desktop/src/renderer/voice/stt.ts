@@ -69,16 +69,24 @@ export async function startSTT(
     onTranscript(event.text, event.isFinal);
   });
 
-  workletNode.port.onmessage = (event: MessageEvent<Float32Array>) => {
-    if (stopped) return;
+  let pendingFlush: (() => void) | null = null;
+  const handleWorkletMessage = (event: MessageEvent<Float32Array | "flushed">) => {
+    if (event.data === "flushed") {
+      pendingFlush?.();
+      pendingFlush = null;
+      return;
+    }
+    if (stopped && pendingFlush === null) return;
     try {
-      // Worklet posts a fresh Float32Array (slice()'d in the worklet) so the
-      // backing buffer is always a plain ArrayBuffer, never SharedArrayBuffer.
-      bridge.sendSttAudio(event.data.buffer as ArrayBuffer);
+      // Worklet posts a fresh Float32Array (slice()'d in the worklet), so IPC
+      // can transfer a typed chunk without exposing its backing buffer here.
+      bridge.sendSttAudio(event.data);
     } catch (err) {
       onError(err instanceof Error ? err.message : String(err));
     }
   };
+  workletNode.port.addEventListener("message", handleWorkletMessage);
+  workletNode.port.start();
 
   sourceNode.connect(workletNode);
   workletNode.connect(silentSink);
@@ -92,19 +100,7 @@ export async function startSTT(
   function flushWorklet(): Promise<void> {
     return new Promise<void>((resolveFlush) => {
       const port = workletNode.port;
-      const prev = port.onmessage;
-      port.onmessage = (event: MessageEvent<Float32Array | "flushed">) => {
-        if (event.data === "flushed") {
-          port.onmessage = prev;
-          resolveFlush();
-          return;
-        }
-        try {
-          bridge.sendSttAudio(event.data.buffer as ArrayBuffer);
-        } catch (err) {
-          onError(err instanceof Error ? err.message : String(err));
-        }
-      };
+      pendingFlush = resolveFlush;
       port.postMessage("flush");
     });
   }
@@ -118,12 +114,13 @@ export async function startSTT(
           for (const ev of tailEvents) {
             onTranscript(ev.text, ev.isFinal);
           }
+          return undefined;
         })
         .catch((err: unknown) => {
           onError(err instanceof Error ? err.message : String(err));
         })
         .finally(() => {
-          workletNode.port.onmessage = null;
+          workletNode.port.removeEventListener("message", handleWorkletMessage);
           workletNode.disconnect();
           silentSink.disconnect();
           sourceNode.disconnect();

@@ -48,7 +48,7 @@ If the effect is part of `SETUP` (binary install, config seed), prefer adding it
 
 - `startAgent()` — constructs `new Agent(opts)`, awaits `start()`, restores persisted active tools, subscribes to events. On failure, fully tears down so a retry doesn't see a half-initialized singleton.
 - `stopAgent()` — awaits `agent.stop()`, nulls the ref, stops the task scheduler.
-- `newSession()` — `stop` + `start({ newSession: true })`. Drops the resolved-session-file pointer so we don't resume the prior session.
+- `newSession()` — `stop` + `start({ newSession: true })`. Clears cached history before opening a fresh pi session.
 
 ## IPC handlers
 
@@ -63,6 +63,6 @@ All channel constants live in `shared/ipc.ts`. Renderer + preload share the same
 
 - `active-tools.ts` — persists which extension tools the user has enabled.
 - `notifications.ts` — desktop notification settings + delivery.
-- `session-history.ts` — resolves which pi session file to resume on launch.
+- `session-history.ts` — reads and caches recent pi messages for renderer history.
 - `tasks/` — scheduled task manager (cron/interval/once); the tasks pi extension wraps it.
 - `lib/` — shared helpers (broadcast, IPC handler factory, JSON store).

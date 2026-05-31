@@ -7,4 +7,3 @@ export const authMetadataSchema = zJsonString.pipe(
     personal: z.boolean().optional(),
   }),
 );
-export type AuthMetadata = z.infer<typeof authMetadataSchema>;

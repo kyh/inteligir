@@ -10,5 +10,3 @@ export const fontWeights = {
   semibold: "'wght' 550",
   bold: "'wght' 700",
 } as const;
-
-export type FontWeightToken = keyof typeof fontWeights;

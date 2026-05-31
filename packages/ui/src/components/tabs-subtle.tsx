@@ -9,15 +9,16 @@ import {
   createContext,
   useContext,
   forwardRef,
+  useMemo,
   type ReactNode,
   type HTMLAttributes,
 } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 
 interface TabsSubtleContextValue {
@@ -47,11 +48,22 @@ interface TabsSubtleProps extends Omit<HTMLAttributes<HTMLDivElement>, "onSelect
 }
 
 const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
-  ({ children, selectedIndex, onSelect, idPrefix: idPrefixProp, activeLabel = false, className, ...props }, ref) => {
+  (
+    {
+      children,
+      selectedIndex,
+      onSelect,
+      idPrefix: idPrefixProp,
+      activeLabel = false,
+      className,
+      ...props
+    },
+    ref,
+  ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const isMouseInside = useRef(false);
     const generatedId = useId();
-    const shape = useShape();
+    const shape = getShape();
     const idPrefix = idPrefixProp || generatedId;
 
     const {
@@ -74,7 +86,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
           tabElementsRef.current.delete(index);
         }
       },
-      [registerItem]
+      [registerItem],
     );
 
     useEffect(() => {
@@ -96,7 +108,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
         isMouseInside.current = true;
         handlers.onMouseMove(e);
       },
-      [handlers]
+      [handlers],
     );
 
     const handleMouseLeave = useCallback(() => {
@@ -107,16 +119,24 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
     const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
 
     const selectedRect = tabRects[selectedIndex];
-    const hoverRect =
-      hoveredIndex !== null ? tabRects[hoveredIndex] : null;
+    const hoverRect = hoveredIndex !== null ? tabRects[hoveredIndex] : null;
     const focusRect = focusedIndex !== null ? tabRects[focusedIndex] : null;
     const isHoveringSelected = hoveredIndex === selectedIndex;
     const isHovering = hoveredIndex !== null && !isHoveringSelected;
+    const contextValue = useMemo(
+      () => ({
+        registerTab,
+        hoveredIndex,
+        selectedIndex,
+        onSelect,
+        idPrefix,
+        activeLabel,
+      }),
+      [activeLabel, hoveredIndex, idPrefix, onSelect, registerTab, selectedIndex],
+    );
 
     return (
-      <TabsSubtleContext.Provider
-        value={{ registerTab, hoveredIndex, selectedIndex, onSelect, idPrefix, activeLabel }}
-      >
+      <TabsSubtleContext.Provider value={contextValue}>
         <div
           ref={(node) => {
             (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
@@ -132,9 +152,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
             if (indexAttr != null) {
               const idx = Number(indexAttr);
               setHoveredIndex(idx);
-              setFocusedIndex(
-                (e.target as HTMLElement).matches(":focus-visible") ? idx : null
-              );
+              setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null);
             }
           }}
           onBlur={(e) => {
@@ -145,7 +163,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
           }}
           onKeyDown={(e) => {
             const items = Array.from(
-              containerRef.current?.querySelectorAll('[role="tab"]') ?? []
+              containerRef.current?.querySelectorAll('[role="tab"]') ?? [],
             ) as HTMLElement[];
             const currentIdx = items.indexOf(e.target as HTMLElement);
             if (currentIdx === -1) return;
@@ -166,7 +184,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
           }}
           className={cn(
             "relative flex items-center gap-0.5 select-none overflow-x-auto max-w-full scrollbar-hide -my-1 py-1",
-            className
+            className,
           )}
           role="tablist"
           {...props}
@@ -233,7 +251,10 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
           <AnimatePresence>
             {focusRect && (
               <motion.div
-                className={cn("absolute pointer-events-none z-20 border border-[#6B97FF]", shape.focusRing)}
+                className={cn(
+                  "absolute pointer-events-none z-20 border border-[#6B97FF]",
+                  shape.focusRing,
+                )}
                 initial={false}
                 animate={{
                   left: focusRect.left - 2,
@@ -254,7 +275,7 @@ const TabsSubtle = forwardRef<HTMLDivElement, TabsSubtleProps>(
         </div>
       </TabsSubtleContext.Provider>
     );
-  }
+  },
 );
 
 TabsSubtle.displayName = "TabsSubtle";
@@ -268,7 +289,7 @@ interface TabsSubtleItemProps extends HTMLAttributes<HTMLButtonElement> {
 const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
   ({ icon: Icon, label, index, className, ...props }, ref) => {
     const internalRef = useRef<HTMLButtonElement>(null);
-    const shape = useShape();
+    const shape = getShape();
     const { registerTab, hoveredIndex, selectedIndex, onSelect, idPrefix, activeLabel } =
       useTabsSubtle();
 
@@ -294,12 +315,10 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
         <span
           className={cn(
             "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80",
-            isActive ? "text-foreground" : "text-muted-foreground"
+            isActive ? "text-foreground" : "text-muted-foreground",
           )}
           style={{
-            fontVariationSettings: isSelected
-              ? fontWeights.semibold
-              : fontWeights.normal,
+            fontVariationSettings: isSelected ? fontWeights.semibold : fontWeights.normal,
           }}
         >
           {label}
@@ -326,7 +345,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
           "relative z-10 flex items-center px-3 py-2 cursor-pointer bg-transparent border-none outline-none",
           collapseLabel ? "h-8" : "gap-2",
           shape.bg,
-          className
+          className,
         )}
         {...props}
       >
@@ -336,7 +355,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
             strokeWidth={isActive ? 2 : 1.5}
             className={cn(
               "shrink-0 transition-[color,stroke-width] duration-80",
-              isActive ? "text-foreground" : "text-muted-foreground"
+              isActive ? "text-foreground" : "text-muted-foreground",
             )}
           />
         )}
@@ -363,7 +382,7 @@ const TabsSubtleItem = forwardRef<HTMLButtonElement, TabsSubtleItemProps>(
         )}
       </button>
     );
-  }
+  },
 );
 
 TabsSubtleItem.displayName = "TabsSubtleItem";
@@ -393,10 +412,9 @@ const TabsSubtlePanel = forwardRef<HTMLDivElement, TabsSubtlePanelProps>(
         {isSelected && children}
       </div>
     );
-  }
+  },
 );
 
 TabsSubtlePanel.displayName = "TabsSubtlePanel";
 
 export { TabsSubtle, TabsSubtleItem, TabsSubtlePanel };
-export default TabsSubtle;

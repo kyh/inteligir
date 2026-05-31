@@ -203,7 +203,8 @@ async function fetchExpectedSha(
   releaseBaseUrl: string,
   artifact: string,
 ): Promise<string> {
-  const url = mode === "sha256-sidecar" ? `${artifactUrl}.sha256` : `${releaseBaseUrl}/checksums.txt`;
+  const url =
+    mode === "sha256-sidecar" ? `${artifactUrl}.sha256` : `${releaseBaseUrl}/checksums.txt`;
   const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
   if (!resp.ok) {
     throw new Error(`checksum fetch failed: ${resp.status} ${resp.statusText}`);
@@ -243,7 +244,8 @@ async function downloadVerified(url: string, dest: string, expectedSha: string):
     resp.body,
     async function* (source) {
       for await (const chunk of source) {
-        hash.update(chunk as Uint8Array);
+        if (!isHashableChunk(chunk)) throw new Error("download stream yielded non-binary chunk");
+        hash.update(chunk);
         yield chunk;
       }
     },
@@ -254,6 +256,10 @@ async function downloadVerified(url: string, dest: string, expectedSha: string):
   if (actualSha !== expectedSha) {
     throw new Error(`checksum mismatch: expected ${expectedSha}, got ${actualSha}`);
   }
+}
+
+function isHashableChunk(chunk: unknown): chunk is NodeJS.ArrayBufferView {
+  return ArrayBuffer.isView(chunk);
 }
 
 async function downloadFile(url: string, dest: string): Promise<void> {

@@ -4,6 +4,7 @@ import { Response } from "@repo/ui/components/ai-elements/response";
 import { Shimmer } from "@repo/ui/components/ai-elements/shimmer";
 
 import type { ChatMessage } from "@/renderer/stores/agent-store";
+import { isRecord } from "@/shared/ipc";
 
 // Hoisted so the array reference is stable across renders — the previous
 // inline literal allocated a new array every cycle. Response's memo doesn't
@@ -51,13 +52,7 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
  *
  * Visible only on the live turn; the answer that lands replaces it.
  */
-export function ChatActivityRow({
-  messages,
-  busy,
-}: {
-  messages: ChatMessage[];
-  busy: boolean;
-}) {
+export function ChatActivityRow({ messages, busy }: { messages: ChatMessage[]; busy: boolean }) {
   if (!busy) return null;
 
   // Walk from the end: the latest text/tool message reflects the current step.
@@ -139,17 +134,16 @@ const MAX_ARGS_LEN = 120;
 function formatToolArgs(input: unknown): string | null {
   if (input === null || input === undefined) return null;
   if (typeof input === "string") return truncate(input, MAX_ARGS_LEN);
-  if (typeof input !== "object") return truncate(String(input), MAX_ARGS_LEN);
+  if (!isRecord(input)) return truncate(String(input), MAX_ARGS_LEN);
 
-  const record = input as Record<string, unknown>;
   // Prioritised keys that read well as a one-line subtitle.
   for (const key of ["command", "query", "path", "url", "file", "name", "text"]) {
-    const value = record[key];
+    const value = input[key];
     if (typeof value === "string" && value) return truncate(value, MAX_ARGS_LEN);
   }
   // agent-browser's `args: string[]` — render as a space-joined preview.
-  if (Array.isArray(record["args"])) {
-    const joined = record["args"].filter((v) => typeof v === "string").join(" ");
+  if (Array.isArray(input["args"])) {
+    const joined = input["args"].filter((v) => typeof v === "string").join(" ");
     if (joined) return truncate(joined, MAX_ARGS_LEN);
   }
   // Fallback: compact JSON of the whole input.

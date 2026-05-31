@@ -1,18 +1,13 @@
 "use client";
 
-import {
-  useRef,
-  forwardRef,
-  type ReactNode,
-  type HTMLAttributes,
-} from "react";
+import { forwardRef, type ReactNode, type HTMLAttributes } from "react";
 import { motion } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
-import { useIcon } from "@repo/ui/lib/icon-context";
-import type { IconName } from "@repo/ui/lib/icon-context";
+import { getIcon } from "@repo/ui/lib/icon";
+import type { IconName } from "@repo/ui/lib/icon";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 import {
   Accordion,
   AccordionItem,
@@ -31,8 +26,10 @@ interface ThinkingStepsProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const ThinkingSteps = forwardRef<HTMLDivElement, ThinkingStepsProps>(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  ({ defaultOpen = true, open, onOpenChange, children, className, defaultValue: _, ...props }, ref) => {
+  (
+    { defaultOpen = true, open, onOpenChange, children, className, defaultValue: _, ...props },
+    ref,
+  ) => {
     const controlled = open !== undefined;
     return (
       <Accordion
@@ -41,11 +38,8 @@ const ThinkingSteps = forwardRef<HTMLDivElement, ThinkingStepsProps>(
         collapsible
         {...(controlled
           ? { value: open ? "thinking" : "" }
-          : { defaultValue: defaultOpen ? "thinking" : "" }
-        )}
-        onValueChange={
-          onOpenChange ? (v: string) => onOpenChange(v === "thinking") : undefined
-        }
+          : { defaultValue: defaultOpen ? "thinking" : "" })}
+        onValueChange={onOpenChange ? (v: string) => onOpenChange(v === "thinking") : undefined}
         className={cn("w-80 max-w-full", className)}
         {...props}
       >
@@ -55,7 +49,7 @@ const ThinkingSteps = forwardRef<HTMLDivElement, ThinkingStepsProps>(
         </AccordionItem>
       </Accordion>
     );
-  }
+  },
 );
 ThinkingSteps.displayName = "ThinkingSteps";
 
@@ -65,22 +59,21 @@ interface ThinkingStepsHeaderProps extends HTMLAttributes<HTMLButtonElement> {
   children?: ReactNode;
 }
 
-const ThinkingStepsHeader = forwardRef<
-  HTMLButtonElement,
-  ThinkingStepsHeaderProps
->(({ children = "Thinking", className, ...props }, ref) => {
-  return (
-    <div className="w-fit">
-      <AccordionTrigger
-        ref={ref}
-        className={cn("[&>span:first-child]:flex-none w-auto", className)}
-        {...props}
-      >
-        {children}
-      </AccordionTrigger>
-    </div>
-  );
-});
+const ThinkingStepsHeader = forwardRef<HTMLButtonElement, ThinkingStepsHeaderProps>(
+  ({ children = "Thinking", className, ...props }, ref) => {
+    return (
+      <div className="w-fit">
+        <AccordionTrigger
+          ref={ref}
+          className={cn("[&>span:first-child]:flex-none w-auto", className)}
+          {...props}
+        >
+          {children}
+        </AccordionTrigger>
+      </div>
+    );
+  },
+);
 ThinkingStepsHeader.displayName = "ThinkingStepsHeader";
 
 // ─── ThinkingStepsContent ───────────────────────────────────────────────────
@@ -89,22 +82,17 @@ interface ThinkingStepsContentProps extends HTMLAttributes<HTMLDivElement> {
   children: ReactNode;
 }
 
-const ThinkingStepsContent = forwardRef<
-  HTMLDivElement,
-  ThinkingStepsContentProps
->(({ children, className, ...props }, ref) => {
-  return (
-    <AccordionContent>
-      <div
-        ref={ref}
-        className={cn("flex flex-col", className)}
-        {...props}
-      >
-        {children}
-      </div>
-    </AccordionContent>
-  );
-});
+const ThinkingStepsContent = forwardRef<HTMLDivElement, ThinkingStepsContentProps>(
+  ({ children, className, ...props }, ref) => {
+    return (
+      <AccordionContent>
+        <div ref={ref} className={cn("flex flex-col", className)} {...props}>
+          {children}
+        </div>
+      </AccordionContent>
+    );
+  },
+);
 ThinkingStepsContent.displayName = "ThinkingStepsContent";
 
 // ─── ThinkingStep ───────────────────────────────────────────────────────────
@@ -136,73 +124,66 @@ function ThinkingStep({
   children,
   className,
 }: ThinkingStepProps) {
-    const Icon = useIcon(icon);
-    const shape = useShape();
+  const Icon = getIcon(icon);
+  const shape = getShape();
 
-    if (status === "pending") return null;
+  if (status === "pending") return null;
 
-    const isActive = status === "active";
+  const isActive = status === "active";
 
-    return (
-      /* Outer: animates height to create space smoothly */
+  return (
+    /* Outer: animates height to create space smoothly */
+    <motion.div
+      data-thinking-step-index={index}
+      className={cn("relative z-10 overflow-hidden", className)}
+      initial={{ height: 0 }}
+      animate={{ height: "auto" }}
+      transition={{ ...springs.slow, delay }}
+    >
+      {/* Inner: fades content in after space starts opening */}
       <motion.div
-        className={cn("relative z-10 overflow-hidden", className)}
-        initial={{ height: 0 }}
-        animate={{ height: "auto" }}
-        transition={springs.slow}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.24, delay: 0.08, ease: "easeOut" }}
       >
-        {/* Inner: fades content in after space starts opening */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.24, delay: 0.08, ease: "easeOut" }}
-        >
-          {/* Content row — this is the proximity hover target */}
-          <div className={cn("flex gap-2.5 px-2 py-1.5", shape.item)}>
-            {/* Icon column with continuous connector line */}
-            <div className="flex flex-col items-center shrink-0 w-[14px]">
-              <div className="pt-0.5">
-                {showIcon ? (
-                  <Icon
-                    size={14}
-                    strokeWidth={1.5}
-                    className="text-muted-foreground"
-                  />
-                ) : (
-                  <div className="w-[14px] h-[14px] flex items-center justify-center">
-                    <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60" />
-                  </div>
-                )}
-              </div>
-              {/* Line stretches from icon to bottom of this step */}
-              {!isLast && (
-                <div className="flex-1 w-px bg-border/60 mt-1" />
+        {/* Content row — this is the proximity hover target */}
+        <div className={cn("flex gap-2.5 px-2 py-1.5", shape.item)}>
+          {/* Icon column with continuous connector line */}
+          <div className="flex flex-col items-center shrink-0 w-[14px]">
+            <div className="pt-0.5">
+              {showIcon ? (
+                <Icon size={14} strokeWidth={1.5} className="text-muted-foreground" />
+              ) : (
+                <div className="w-[14px] h-[14px] flex items-center justify-center">
+                  <div className="w-1.5 h-1.5 rounded-full bg-muted-foreground/60" />
+                </div>
               )}
             </div>
-
-            {/* Text content */}
-            <div className="flex-1 flex flex-col gap-1 min-w-0">
-              <span
-                className={cn(
-                  "text-[13px] leading-tight text-foreground",
-                  isActive && "shimmer-text"
-                )}
-                style={{ fontVariationSettings: fontWeights.medium }}
-              >
-                {label}
-                {isActive && "…"}
-              </span>
-              {description && (
-                <span className="text-[13px] text-muted-foreground leading-snug">
-                  {description}
-                </span>
-              )}
-              {children}
-            </div>
+            {/* Line stretches from icon to bottom of this step */}
+            {!isLast && <div className="flex-1 w-px bg-border/60 mt-1" />}
           </div>
-        </motion.div>
+
+          {/* Text content */}
+          <div className="flex-1 flex flex-col gap-1 min-w-0">
+            <span
+              className={cn(
+                "text-[13px] leading-tight text-foreground",
+                isActive && "shimmer-text",
+              )}
+              style={{ fontVariationSettings: fontWeights.medium }}
+            >
+              {label}
+              {isActive && "…"}
+            </span>
+            {description && (
+              <span className="text-[13px] text-muted-foreground leading-snug">{description}</span>
+            )}
+            {children}
+          </div>
+        </div>
       </motion.div>
-    );
+    </motion.div>
+  );
 }
 
 // ─── ThinkingStepDetails (nested accordion) ────────────────────────────────
@@ -222,7 +203,7 @@ function ThinkingStepDetails({
   children,
   className,
 }: ThinkingStepDetailsProps) {
-  const shape = useShape();
+  const shape = getShape();
 
   return (
     <Accordion
@@ -234,21 +215,15 @@ function ThinkingStepDetails({
       <AccordionItem value="details" className="[&>.absolute]:hidden">
         <div className="w-fit">
           <AccordionTrigger
-            className={cn(
-              "[&>span:first-child]:flex-none w-auto py-1 px-3 gap-1.5",
-              shape.item
-            )}
+            className={cn("[&>span:first-child]:flex-none w-auto py-1 px-3 gap-1.5", shape.item)}
           >
             {summary}
           </AccordionTrigger>
         </div>
         <AccordionContent>
           <div className="flex flex-col gap-0.5 pt-0.5">
-            {details?.map((item, i) => (
-              <span
-                key={i}
-                className="text-[12px] text-muted-foreground leading-snug"
-              >
+            {details?.map((item) => (
+              <span key={item} className="text-[12px] text-muted-foreground leading-snug">
                 {item}
               </span>
             ))}
@@ -269,15 +244,11 @@ interface ThinkingStepSourcesProps extends HTMLAttributes<HTMLDivElement> {
 const ThinkingStepSources = forwardRef<HTMLDivElement, ThinkingStepSourcesProps>(
   ({ children, className, ...props }, ref) => {
     return (
-      <div
-        ref={ref}
-        className={cn("flex flex-wrap gap-1.5 mt-1", className)}
-        {...props}
-      >
+      <div ref={ref} className={cn("flex flex-wrap gap-1.5 mt-1", className)} {...props}>
         {children}
       </div>
     );
-  }
+  },
 );
 ThinkingStepSources.displayName = "ThinkingStepSources";
 
@@ -318,8 +289,19 @@ interface ThinkingStepImageProps {
   className?: string;
 }
 
-function ThinkingStepImage({ src, alt = "", caption, delay = 0, className }: ThinkingStepImageProps) {
-  const shape = useShape();
+function ThinkingStepImage({
+  src,
+  alt = "",
+  caption,
+  delay = 0,
+  className,
+}: ThinkingStepImageProps) {
+  const shape = getShape();
+  const image = (
+    // oxlint-disable-next-line next/no-img-element
+    <img src={src} alt={alt} className={cn("w-full max-w-[200px] object-cover", shape.container)} />
+  );
+
   return (
     <motion.div
       className={cn("mt-1.5", className)}
@@ -330,19 +312,8 @@ function ThinkingStepImage({ src, alt = "", caption, delay = 0, className }: Thi
         filter: { duration: 0.15, delay },
       }}
     >
-      <img
-        src={src}
-        alt={alt}
-        className={cn(
-          "w-full max-w-[200px] object-cover",
-          shape.container
-        )}
-      />
-      {caption && (
-        <span className="text-[11px] text-muted-foreground mt-1 block">
-          {caption}
-        </span>
-      )}
+      {image}
+      {caption && <span className="text-[11px] text-muted-foreground mt-1 block">{caption}</span>}
     </motion.div>
   );
 }

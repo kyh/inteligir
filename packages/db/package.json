@@ -24,7 +24,7 @@
     "push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "studio": "pnpm with-env drizzle-kit studio",
     "with-env": "dotenv -e ../../.env --",
-    "generate:auth-schema": "pnpm with-env pnpx @better-auth/cli generate --config ../api/src/auth/auth.ts --output ./src/drizzle-schema-auth.ts"
+    "generate:auth-schema": "pnpm with-env pnpx @better-auth/cli@1.4.21 generate --config ../api/src/auth/auth.ts --output ./src/drizzle-schema-auth.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -32,14 +32,15 @@
     "drizzle-orm": "^0.45.2",
     "next": "catalog:",
     "postgres": "^3.4.9",
-    "react": "catalog:",
-    "zod": "^4.4.3"
+    "react": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "drizzle-kit": "^0.31.10",
     "supabase": "^2.101.0",
+    "tsx": "^4.22.3",
     "typescript": "catalog:"
   }
 }

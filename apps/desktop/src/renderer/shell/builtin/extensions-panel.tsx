@@ -54,7 +54,9 @@ export function ExtensionsPanel() {
 
       // Optimistic update: compute next state synchronously from the ref so
       // rapid back-to-back toggles compose against the latest snapshot.
-      const next = previous.map((t) => (t.name === name ? { ...t, active: nextActive } : t));
+      const next = previous.map((tool) =>
+        tool.name === name ? Object.assign({}, tool, { active: nextActive }) : tool,
+      );
       applyTools(next);
 
       const nextActiveNames = next.filter((t) => t.active).map((t) => t.name);

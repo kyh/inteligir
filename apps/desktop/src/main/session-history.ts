@@ -12,26 +12,15 @@ import {
 } from "@repo/pi-driver";
 
 import { inteligirPath } from "@/main/lib/json-store";
-import type { ChatHistoryEntry } from "@/shared/ipc";
+import { isRecord, type ChatHistoryEntry } from "@/shared/ipc";
 
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
 
-/**
- * Resolved session file path from the most recent call to readSessionHistory().
- * Used to ensure the agent opens the same session the UI loaded history from.
- */
-let lastSessionFile: string | undefined;
 let cachedHistory: ChatHistoryEntry[] | undefined;
 
-/** Return the session file path resolved by the last readSessionHistory() call. */
-export function getResolvedSessionFile(): string | undefined {
-  return lastSessionFile;
-}
-
-/** Clear the cached session file path and history (e.g. on logout). */
-export function clearResolvedSessionFile(): void {
-  lastSessionFile = undefined;
+/** Clear the cached session history (e.g. on logout). */
+export function clearSessionHistoryCache(): void {
   cachedHistory = undefined;
 }
 
@@ -41,34 +30,31 @@ export function clearResolvedSessionFile(): void {
 
 function isTextContent(block: unknown): block is TextContent {
   return (
-    typeof block === "object" &&
-    block !== null &&
-    "type" in block &&
-    (block as Record<string, unknown>).type === "text" &&
-    "text" in block &&
-    typeof (block as Record<string, unknown>).text === "string"
+    isRecord(block) &&
+    block.type === "text" &&
+    typeof block.text === "string"
   );
 }
 
 function isToolCall(block: unknown): block is ToolCall {
   return (
-    typeof block === "object" &&
-    block !== null &&
-    "type" in block &&
-    (block as Record<string, unknown>).type === "toolCall" &&
-    "id" in block &&
-    "name" in block
+    isRecord(block) &&
+    block.type === "toolCall" &&
+    typeof block.id === "string" &&
+    typeof block.name === "string"
   );
 }
 
 function isToolResult(msg: unknown): msg is ToolResultMessage {
   return (
-    typeof msg === "object" &&
-    msg !== null &&
-    "role" in msg &&
-    (msg as Record<string, unknown>).role === "toolResult" &&
-    "toolCallId" in msg
+    isRecord(msg) &&
+    msg.role === "toolResult" &&
+    typeof msg.toolCallId === "string"
   );
+}
+
+function isSessionMessageEntry(entry: unknown): entry is SessionMessageEntry {
+  return isRecord(entry) && entry.type === "message" && "message" in entry;
 }
 
 function extractTextFromContent(content: Message["content"]): string {
@@ -88,21 +74,20 @@ function extractTextFromContent(content: Message["content"]): string {
  * Read the most recent session's messages from disk and convert to
  * ChatHistoryEntry[] for the renderer.
  *
- * Called eagerly at startup (before initMachine) to populate lastSessionFile,
- * and again by the renderer via IPC to get the cached result.
+ * Called eagerly at startup (before initMachine), and again by the renderer
+ * via IPC to get the cached result.
  */
 export function readSessionHistory(): ChatHistoryEntry[] {
   if (cachedHistory !== undefined) return cachedHistory;
   try {
     const sm = SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
-    lastSessionFile = sm.getSessionFile();
     const entries = sm.getEntries();
     const history: ChatHistoryEntry[] = [];
 
     for (const entry of entries) {
-      if (entry.type !== "message") continue;
-      const msg = (entry as SessionMessageEntry).message;
-      if (!msg || typeof msg !== "object" || !("role" in msg)) continue;
+      if (!isSessionMessageEntry(entry)) continue;
+      const msg = entry.message;
+      if (!isRecord(msg) || !("role" in msg)) continue;
 
       if (msg.role === "user") {
         const text = extractTextFromContent(msg.content);

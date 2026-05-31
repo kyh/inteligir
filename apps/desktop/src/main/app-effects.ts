@@ -5,7 +5,7 @@
 
 import { toErrorMessage, type SetupProgress } from "@/shared/ipc";
 import type { MachineEvent } from "@/shared/app-state";
-import { clearResolvedSessionFile } from "./session-history";
+import { clearSessionHistoryCache } from "./session-history";
 import type { EffectTag } from "./app-reducer";
 
 export type EffectDeps = {
@@ -49,7 +49,7 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     }
 
     case "LOGOUT": {
-      clearResolvedSessionFile();
+      clearSessionHistoryCache();
       await deps.stopAgent();
       deps.teardownResources();
       return { type: "LOGOUT_OK" };

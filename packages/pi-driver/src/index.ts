@@ -8,6 +8,7 @@ export type {
 export { listSkills } from "./skills";
 export type { PiAgentSkill, ListSkillsOptions } from "./skills";
 export { createAuthStorage, hasAuth, loginWithProvider, type LoginCallbacks } from "./auth";
+export { completeText } from "./complete";
 export { resolveModel } from "./model";
 
 export { SessionManager } from "@mariozechner/pi-coding-agent";

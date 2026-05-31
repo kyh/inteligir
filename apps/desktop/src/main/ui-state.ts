@@ -39,9 +39,9 @@ export class UiStateManager {
   }
 }
 
-let _instance: UiStateManager | null = null;
+let instance: UiStateManager | null = null;
 
 export function getUiState(): UiStateManager {
-  if (!_instance) _instance = new UiStateManager();
-  return _instance;
+  if (!instance) instance = new UiStateManager();
+  return instance;
 }

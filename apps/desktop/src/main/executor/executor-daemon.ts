@@ -24,6 +24,7 @@ import path from "node:path";
 import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 
 import { inteligirPath } from "@/main/lib/json-store";
+import { isRecord } from "@/shared/ipc";
 
 const EXECUTOR_VERSION = "1.4.33";
 const EXECUTOR_DIR = inteligirPath("executor");
@@ -39,7 +40,7 @@ const STOP_GRACE_MS = 5_000;
 //   "Daemon ready on http://127.0.0.1:51734"
 const READY_RE = /Daemon ready on (https?:\/\/[^\s]+)/i;
 
-export type ExecutorConnection = {
+type ExecutorConnection = {
   /** Full API base, e.g. http://127.0.0.1:51734/api */
   baseUrl: string;
   /** Bearer token required on every request (OAuth callback/await excepted). */
@@ -116,7 +117,10 @@ class ExecutorDaemon {
         return result.connection;
       })
       .catch((err) => {
-        console.error("[executor] daemon failed to start:", err instanceof Error ? err.message : err);
+        console.error(
+          "[executor] daemon failed to start:",
+          err instanceof Error ? err.message : err,
+        );
         return null;
       })
       .finally(() => {
@@ -181,7 +185,7 @@ class ExecutorDaemon {
       ],
       {
         env: {
-          ...(process.env as Record<string, string>),
+          ...process.env,
           EXECUTOR_DATA_DIR: DATA_DIR,
           EXECUTOR_SCOPE_DIR: SCOPE_DIR,
         },
@@ -220,7 +224,8 @@ class ExecutorDaemon {
         if (newlineIdx < 0) return;
         const complete = buffer.slice(0, newlineIdx);
         const match = complete.match(READY_RE);
-        if (match) settle(() => resolve(match[1]!));
+        const origin = match?.[1];
+        if (origin) settle(() => resolve(origin));
       };
       const finish = (): void => {
         proc.stdout?.off("data", onData);
@@ -261,8 +266,10 @@ class ExecutorDaemon {
       signal: AbortSignal.timeout(5_000),
     });
     if (!resp.ok) throw new Error(`GET /scope failed: ${resp.status}`);
-    const body = (await resp.json()) as { id?: unknown; name?: unknown; dir?: unknown };
-    if (typeof body.id !== "string") throw new Error("GET /scope returned no scope id");
+    const body: unknown = await resp.json();
+    if (!isRecord(body) || typeof body.id !== "string") {
+      throw new Error("GET /scope returned no scope id");
+    }
     return {
       id: body.id,
       name: typeof body.name === "string" ? body.name : body.id,
@@ -271,14 +278,14 @@ class ExecutorDaemon {
   }
 }
 
-let _instance: ExecutorDaemon | null = null;
+let instance: ExecutorDaemon | null = null;
 
 export function getExecutorDaemon(): ExecutorDaemon {
-  if (!_instance) _instance = new ExecutorDaemon();
-  return _instance;
+  if (!instance) instance = new ExecutorDaemon();
+  return instance;
 }
 
 /** Drop the singleton on logout/teardown, after stop(), so a re-login starts clean. */
 export function resetExecutorDaemon(): void {
-  _instance = null;
+  instance = null;
 }

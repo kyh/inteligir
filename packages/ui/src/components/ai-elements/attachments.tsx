@@ -49,16 +49,9 @@ export const getMediaCategory = (data: AttachmentData): AttachmentMediaCategory 
   return "unknown";
 };
 
-export const getAttachmentLabel = (data: AttachmentData): string => {
-  if (data.type === "source-document") {
-    return data.title || data.filename || "Source";
-  }
-  const category = getMediaCategory(data);
-  return data.filename || (category === "image" ? "Image" : "Attachment");
-};
-
 const renderAttachmentImage = (url: string, filename: string | undefined, isGrid: boolean) =>
   isGrid ? (
+    // oxlint-disable-next-line next/no-img-element
     <img
       alt={filename || "Image"}
       className="size-full object-cover"
@@ -67,6 +60,7 @@ const renderAttachmentImage = (url: string, filename: string | undefined, isGrid
       width={96}
     />
   ) : (
+    // oxlint-disable-next-line next/no-img-element
     <img
       alt={filename || "Image"}
       className="size-full rounded object-cover"
@@ -215,30 +209,6 @@ export const AttachmentPreview = ({
   );
 };
 
-export type AttachmentInfoProps = HTMLAttributes<HTMLDivElement> & {
-  showMediaType?: boolean;
-};
-
-export const AttachmentInfo = ({
-  showMediaType = false,
-  className,
-  ...props
-}: AttachmentInfoProps) => {
-  const { data, variant } = useAttachmentContext();
-  const label = getAttachmentLabel(data);
-
-  if (variant === "grid") return null;
-
-  return (
-    <div className={cn("min-w-0 flex-1", className)} {...props}>
-      <span className="block truncate">{label}</span>
-      {showMediaType && data.mediaType && (
-        <span className="block truncate text-xs text-muted-foreground">{data.mediaType}</span>
-      )}
-    </div>
-  );
-};
-
 export type AttachmentRemoveProps = ComponentProps<typeof Button> & {
   label?: string;
 };
@@ -290,14 +260,3 @@ export const AttachmentRemove = ({
     </Button>
   );
 };
-
-export type AttachmentEmptyProps = HTMLAttributes<HTMLDivElement>;
-
-export const AttachmentEmpty = ({ className, children, ...props }: AttachmentEmptyProps) => (
-  <div
-    className={cn("flex items-center justify-center p-4 text-sm text-muted-foreground", className)}
-    {...props}
-  >
-    {children ?? "No attachments"}
-  </div>
-);

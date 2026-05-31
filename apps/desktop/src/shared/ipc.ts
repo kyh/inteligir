@@ -1,6 +1,15 @@
 import type { AppAgentEvent } from "./agent-events";
 import type { AppEvent, AppState } from "./app-state";
 import type {
+  FloatRect,
+  InstallWidgetInput,
+  ShellSnapshot,
+  WidgetDef,
+  WidgetGeometry,
+  WidgetInstance,
+  WidgetSurface,
+} from "./shell";
+import type {
   CreateTaskParams,
   CreateTaskResult,
   DeleteTaskResult,
@@ -59,6 +68,30 @@ export const IPC_CHANNELS = {
   EXTENSIONS_LIST: "extensions:list",
   EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 
+  // Shell — the OS-like workspace (widget definitions + placed instances)
+  SHELL_LIST: "shell:list",
+  SHELL_UPDATED: "shell:updated",
+  SHELL_INSTALL: "shell:install",
+  SHELL_PLACE: "shell:place",
+  SHELL_UNPLACE: "shell:unplace",
+  SHELL_DELETE: "shell:delete",
+  SHELL_SET_GEOMETRY: "shell:set-geometry",
+  SHELL_SET_RECT: "shell:set-rect",
+  SHELL_SET_SURFACE: "shell:set-surface",
+  SHELL_FOCUS: "shell:focus",
+  SHELL_SET_STATE: "shell:set-state",
+  // Round-trip so a main-side action (e.g. agent unplace) can wait for the
+  // renderer's debounced widget state to flush before transitioning the
+  // instance. Request is broadcast; renderer replies with the matching id.
+  SHELL_FLUSH_REQUEST: "shell:flush-request",
+  SHELL_FLUSH_ACK: "shell:flush-ack",
+
+  // Live widget actions
+  WIDGET_SEND_PROMPT: "widget:send-prompt",
+  WIDGET_COMPLETE: "widget:complete",
+  WIDGET_FETCH: "widget:fetch",
+  WIDGET_OPEN_URL: "widget:open-url",
+
   // Executor (integration backend) — wraps the executor daemon's HTTP API
   EXECUTOR_STATUS: "executor:status",
   EXECUTOR_SOURCES_LIST: "executor:sources:list",
@@ -92,7 +125,7 @@ export const IPC_CHANNELS = {
 // Update state
 // ---------------------------------------------------------------------------
 
-export type UpdateStatus =
+type UpdateStatus =
   | "idle"
   | "checking"
   | "available"
@@ -108,7 +141,7 @@ export type UpdateState = {
   message: string | null;
 };
 
-export type UpdateResponse = {
+type UpdateResponse = {
   accepted: boolean;
   state: UpdateState;
 };
@@ -180,11 +213,9 @@ export type DesktopBridge = {
     elevenlabsVoiceId?: string;
   } | null>;
   startStt: () => Promise<{ ok: boolean; reason?: string }>;
-  sendSttAudio: (samples: ArrayBuffer) => void;
+  sendSttAudio: (samples: Float32Array) => void;
   stopStt: () => Promise<Array<{ text: string; isFinal: boolean }>>;
-  onSttTranscript: (
-    listener: (event: { text: string; isFinal: boolean }) => void,
-  ) => () => void;
+  onSttTranscript: (listener: (event: { text: string; isFinal: boolean }) => void) => () => void;
   getVoiceModelStatus: () => Promise<"ready" | "missing">;
   downloadVoiceModel: () => Promise<{ ok: boolean; error?: string }>;
   onVoiceModelState: (listener: (event: VoiceModelStateEvent) => void) => () => void;
@@ -202,6 +233,35 @@ export type DesktopBridge = {
   // Extensions / tools
   listExtensions: () => Promise<ExtensionsList>;
   setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
+
+  // Shell — the OS-like workspace
+  listShell: () => Promise<ShellSnapshot>;
+  onShellUpdated: (listener: (next: ShellSnapshot) => void) => () => void;
+  installWidget: (input: InstallWidgetInput) => Promise<WidgetDef>;
+  placeWidget: (widgetId: string, surface?: WidgetSurface) => Promise<WidgetInstance | null>;
+  unplaceWidget: (instanceId: string) => Promise<{ removed: boolean }>;
+  deleteWidget: (widgetId: string, expectedRevision?: number) => Promise<{ deleted: boolean }>;
+  setInstanceGeometry: (geometries: Record<string, WidgetGeometry>) => Promise<void>;
+  setInstanceRect: (instanceId: string, rect: FloatRect) => Promise<void>;
+  setInstanceSurface: (
+    instanceId: string,
+    surface: WidgetSurface,
+  ) => Promise<WidgetInstance | null>;
+  focusInstance: (instanceId: string) => Promise<void>;
+  setInstanceState: (
+    instanceId: string,
+    state: Record<string, unknown>,
+  ) => Promise<WidgetInstance | null>;
+  onWidgetFlushRequest: (
+    listener: (payload: { instanceId: string; requestId: string }) => void,
+  ) => () => void;
+  ackWidgetFlush: (requestId: string, persisted: boolean) => void;
+
+  // Live widget actions
+  widgetSendPrompt: (prompt: string) => Promise<void>;
+  widgetComplete: (prompt: string, system?: string) => Promise<string>;
+  widgetFetch: (url: string) => Promise<string>;
+  widgetOpenUrl: (url: string) => Promise<boolean>;
 
   // Executor (integration backend)
   executorStatus: () => Promise<ExecutorStatus>;

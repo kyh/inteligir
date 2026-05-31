@@ -45,7 +45,7 @@ export type ExtensionSetupContext = ExtensionRegisterContext & {
 
 /** Metadata for a CLI binary a bundle installs, so the UI can show installed-
  *  vs-pinned versions and offer a repair/reinstall. */
-export type ExtensionCliInfo = {
+type ExtensionCliInfo = {
   /** Display name. */
   name: string;
   /** Pinned version the app ships. */

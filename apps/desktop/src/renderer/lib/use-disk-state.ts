@@ -12,24 +12,19 @@ import { useUiStateStore } from "@/renderer/stores/ui-state-store";
 export function useDiskState<T>(
   key: string,
   defaultValue: T,
-): [T, (value: T | ((prev: T) => T)) => void, boolean] {
+  parseStored: (value: unknown) => T | undefined,
+): [T, (value: T) => void, boolean] {
   const loaded = useUiStateStore((s) => s.loaded);
   const stored = useUiStateStore((s) => s.values[key]);
   const setInStore = useUiStateStore((s) => s.set);
 
-  const value = stored === undefined ? defaultValue : (stored as T);
+  const value = parseStored(stored) ?? defaultValue;
 
   const setValue = useCallback(
-    (next: T | ((prev: T) => T)) => {
-      const current =
-        useUiStateStore.getState().values[key] === undefined
-          ? defaultValue
-          : (useUiStateStore.getState().values[key] as T);
-      const resolved =
-        typeof next === "function" ? (next as (prev: T) => T)(current) : next;
-      setInStore(key, resolved);
+    (next: T) => {
+      setInStore(key, next);
     },
-    [key, defaultValue, setInStore],
+    [key, setInStore],
   );
 
   return [value, setValue, loaded];

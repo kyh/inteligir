@@ -5,10 +5,11 @@ import { Label } from "@repo/ui/components/label";
 import { Textarea } from "@repo/ui/components/textarea";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import type { DesktopBridge, ExecutorStatus } from "@/shared/ipc";
+import { isHttpUrl, type DesktopBridge, type ExecutorStatus } from "@/shared/ipc";
 import type { ExecutorExecuteResult, ExecutorToolMeta } from "@/shared/executor";
 
 type SourceKind = "mcp" | "openapi" | "graphql" | "google";
+const SOURCE_KINDS: SourceKind[] = ["mcp", "openapi", "graphql", "google"];
 
 /**
  * Load a resource from the executor bridge on mount, exposing the data and a
@@ -30,11 +31,10 @@ function useExecutorResource<T>(
   const refresh = useCallback(() => {
     const bridge = getBridge();
     if (!bridge) return;
-    void loadRef.current(bridge)
+    void loadRef
+      .current(bridge)
       .then(setData)
-      .catch((err: unknown) =>
-        onErrorRef.current(err instanceof Error ? err.message : "Failed to load."),
-      );
+      .catch((err: unknown) => onErrorRef.current(errorMessage(err, "Failed to load.")));
   }, []);
 
   useEffect(() => {
@@ -60,17 +60,17 @@ function parseHeaders(raw: string): Record<string, string> | undefined {
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
-function slug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "source";
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
 }
 
-function isValidUrl(value: string): boolean {
-  try {
-    const u = new URL(value);
-    return u.protocol === "http:" || u.protocol === "https:";
-  } catch {
-    return false;
-  }
+function slug(name: string): string {
+  return (
+    name
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "source"
+  );
 }
 
 export function ExecutorPanel() {
@@ -98,7 +98,12 @@ export function ExecutorPanel() {
           Executor isn&apos;t running yet. It starts with the agent; integrations appear once
           it&apos;s ready.
         </div>
-        <Button variant="outline" size="sm" onClick={refreshStatus} className="h-7 self-start text-[10px]">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={refreshStatus}
+          className="h-7 self-start text-[10px]"
+        >
           Refresh
         </Button>
       </div>
@@ -132,7 +137,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
 
   const handleDetect = useCallback(async () => {
     const trimmed = endpoint.trim();
-    if (!isValidUrl(trimmed)) {
+    if (!isHttpUrl(trimmed)) {
       onError("Enter a valid URL to detect.");
       return;
     }
@@ -153,7 +158,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       setKind(map[best.kind] ?? "mcp");
       if (!name.trim()) setName(best.name);
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Detection failed.");
+      onError(errorMessage(err, "Detection failed."));
     }
   }, [endpoint, name, onError]);
 
@@ -166,11 +171,11 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       onError("Name is required.");
       return;
     }
-    if (!isValidUrl(trimmedEndpoint)) {
+    if (!isHttpUrl(trimmedEndpoint)) {
       onError("Enter a valid endpoint URL.");
       return;
     }
-    if (kind === "openapi" && !isValidUrl(trimmedBase)) {
+    if (kind === "openapi" && !isHttpUrl(trimmedBase)) {
       onError("OpenAPI sources need a valid Base URL (the API server, not the spec).");
       return;
     }
@@ -180,13 +185,36 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       const ns = slug(trimmedName);
       const headers = parseHeaders(headersText);
       if (kind === "mcp") {
-        await bridge.addMcpSource({ transport: "remote", name: trimmedName, endpoint: trimmedEndpoint, remoteTransport: "auto", namespace: ns, headers });
+        await bridge.addMcpSource({
+          transport: "remote",
+          name: trimmedName,
+          endpoint: trimmedEndpoint,
+          remoteTransport: "auto",
+          namespace: ns,
+          headers,
+        });
       } else if (kind === "openapi") {
-        await bridge.addOpenApiSource({ spec: { kind: "url", url: trimmedEndpoint }, name: trimmedName, baseUrl: trimmedBase, namespace: ns, headers });
+        await bridge.addOpenApiSource({
+          spec: { kind: "url", url: trimmedEndpoint },
+          name: trimmedName,
+          baseUrl: trimmedBase,
+          namespace: ns,
+          headers,
+        });
       } else if (kind === "graphql") {
-        await bridge.addGraphqlSource({ endpoint: trimmedEndpoint, name: trimmedName, namespace: ns, headers });
+        await bridge.addGraphqlSource({
+          endpoint: trimmedEndpoint,
+          name: trimmedName,
+          namespace: ns,
+          headers,
+        });
       } else {
-        await bridge.addGoogleSource({ name: trimmedName, discoveryUrl: trimmedEndpoint, namespace: ns, auth: { kind: "none" } });
+        await bridge.addGoogleSource({
+          name: trimmedName,
+          discoveryUrl: trimmedEndpoint,
+          namespace: ns,
+          auth: { kind: "none" },
+        });
       }
       setName("");
       setEndpoint("");
@@ -194,7 +222,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       setHeadersText("");
       refresh();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to add source.");
+      onError(errorMessage(err, "Failed to add source."));
     } finally {
       setBusy(false);
     }
@@ -206,7 +234,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
         await getBridge()?.removeExecutorSource(id);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to remove source.");
+        onError(errorMessage(err, "Failed to remove source."));
       }
     },
     [onError, refresh],
@@ -218,7 +246,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
         await getBridge()?.refreshExecutorSource(id);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to refresh source.");
+        onError(errorMessage(err, "Failed to refresh source."));
       }
     },
     [onError, refresh],
@@ -236,20 +264,35 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       ) : (
         <div className="flex flex-col gap-1.5">
           {sources.map((s) => (
-            <div key={s.id} className="flex items-start gap-2 rounded-md border border-border px-3 py-2">
+            <div
+              key={s.id}
+              className="flex items-start gap-2 rounded-md border border-border px-3 py-2"
+            >
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-xs text-foreground">
                   {s.name} <span className="text-muted-foreground">({s.kind})</span>
                 </span>
-                {s.url && <span className="truncate text-[10px] text-muted-foreground">{s.url}</span>}
+                {s.url && (
+                  <span className="truncate text-[10px] text-muted-foreground">{s.url}</span>
+                )}
               </div>
               {s.canRefresh !== false && (
-                <Button variant="ghost" size="sm" onClick={() => void handleRefreshSource(s.id)} className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleRefreshSource(s.id)}
+                  className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+                >
                   Refresh
                 </Button>
               )}
               {s.canRemove !== false && (
-                <Button variant="ghost" size="sm" onClick={() => void handleRemove(s.id)} className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => void handleRemove(s.id)}
+                  className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+                >
                   Remove
                 </Button>
               )}
@@ -261,7 +304,7 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
       <div className="flex flex-col gap-1.5 rounded-md border border-border px-3 py-2">
         <span className="text-[10px] font-medium text-muted-foreground">Add source</span>
         <div className="grid grid-cols-4 gap-1">
-          {(["mcp", "openapi", "graphql", "google"] as SourceKind[]).map((k) => (
+          {SOURCE_KINDS.map((k) => (
             <button
               key={k}
               type="button"
@@ -273,12 +316,23 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
             </button>
           ))}
         </div>
-        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" className="h-7 text-xs" />
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name"
+          className="h-7 text-xs"
+        />
         <div className="flex gap-1">
           <Input
             value={endpoint}
             onChange={(e) => setEndpoint(e.target.value)}
-            placeholder={kind === "openapi" ? "OpenAPI spec URL" : kind === "google" ? "Discovery doc URL" : "Endpoint URL"}
+            placeholder={
+              kind === "openapi"
+                ? "OpenAPI spec URL"
+                : kind === "google"
+                  ? "Discovery doc URL"
+                  : "Endpoint URL"
+            }
             className="h-7 flex-1 text-xs"
           />
           <Button
@@ -292,7 +346,12 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
           </Button>
         </div>
         {kind === "openapi" && (
-          <Input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="API base URL (required)" className="h-7 text-xs" />
+          <Input
+            value={baseUrl}
+            onChange={(e) => setBaseUrl(e.target.value)}
+            placeholder="API base URL (required)"
+            className="h-7 text-xs"
+          />
         )}
         {(kind === "mcp" || kind === "openapi" || kind === "graphql") && (
           <Textarea
@@ -303,7 +362,13 @@ function SourcesSection({ onError }: { onError: (e: string | null) => void }) {
             rows={2}
           />
         )}
-        <Button variant="outline" size="sm" onClick={() => void handleAdd()} disabled={busy} className="h-7 self-start px-3 text-[10px]">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleAdd()}
+          disabled={busy}
+          className="h-7 self-start px-3 text-[10px]"
+        >
           {busy ? "Adding…" : "Add source"}
         </Button>
       </div>
@@ -366,7 +431,7 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
         return;
       }
     } catch (err) {
-      onError(err instanceof Error ? err.message : "OAuth failed.");
+      onError(errorMessage(err, "OAuth failed."));
     } finally {
       setBusy(false);
     }
@@ -378,7 +443,7 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
         await getBridge()?.removeExecutorConnection(id);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to remove connection.");
+        onError(errorMessage(err, "Failed to remove connection."));
       }
     },
     [onError, refresh],
@@ -390,12 +455,22 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
       {connections && connections.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {connections.map((c) => (
-            <div key={c.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
+            <div
+              key={c.id}
+              className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
+            >
               <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-xs text-foreground">{c.identityLabel ?? c.provider}</span>
+                <span className="truncate text-xs text-foreground">
+                  {c.identityLabel ?? c.provider}
+                </span>
                 <span className="truncate text-[10px] text-muted-foreground">{c.provider}</span>
               </div>
-              <Button variant="ghost" size="sm" onClick={() => void handleRemove(c.id)} className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleRemove(c.id)}
+                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+              >
                 Disconnect
               </Button>
             </div>
@@ -404,8 +479,19 @@ function ConnectionsSection({ onError }: { onError: (e: string | null) => void }
       )}
       <div className="flex flex-col gap-1.5 rounded-md border border-border px-3 py-2">
         <span className="text-[10px] font-medium text-muted-foreground">Connect a provider</span>
-        <Input value={endpoint} onChange={(e) => setEndpoint(e.target.value)} placeholder="OAuth-protected endpoint URL" className="h-7 text-xs" />
-        <Button variant="outline" size="sm" onClick={() => void handleConnect()} disabled={busy} className="h-7 self-start px-3 text-[10px]">
+        <Input
+          value={endpoint}
+          onChange={(e) => setEndpoint(e.target.value)}
+          placeholder="OAuth-protected endpoint URL"
+          className="h-7 text-xs"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleConnect()}
+          disabled={busy}
+          className="h-7 self-start px-3 text-[10px]"
+        >
           {busy ? "Waiting for browser…" : "Connect"}
         </Button>
       </div>
@@ -436,7 +522,7 @@ function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
       setValue("");
       refresh();
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Failed to save secret.");
+      onError(errorMessage(err, "Failed to save secret."));
     } finally {
       setBusy(false);
     }
@@ -448,7 +534,7 @@ function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
         await getBridge()?.removeExecutorSecret(secretId);
         refresh();
       } catch (err) {
-        onError(err instanceof Error ? err.message : "Failed to remove secret.");
+        onError(errorMessage(err, "Failed to remove secret."));
       }
     },
     [onError, refresh],
@@ -460,9 +546,17 @@ function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
       {secrets && secrets.length > 0 && (
         <div className="flex flex-col gap-1.5">
           {secrets.map((s) => (
-            <div key={s.id} className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
+            <div
+              key={s.id}
+              className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
+            >
               <span className="min-w-0 flex-1 truncate text-xs text-foreground">{s.name}</span>
-              <Button variant="ghost" size="sm" onClick={() => void handleRemove(s.id)} className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleRemove(s.id)}
+                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+              >
                 Remove
               </Button>
             </div>
@@ -471,9 +565,26 @@ function SecretsSection({ onError }: { onError: (e: string | null) => void }) {
       )}
       <div className="flex flex-col gap-1.5 rounded-md border border-border px-3 py-2">
         <span className="text-[10px] font-medium text-muted-foreground">Add secret</span>
-        <Input value={id} onChange={(e) => setId(e.target.value)} placeholder="Secret id (e.g. github-token)" className="h-7 text-xs" />
-        <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="Value" type="password" className="h-7 text-xs" />
-        <Button variant="outline" size="sm" onClick={() => void handleAdd()} disabled={busy} className="h-7 self-start px-3 text-[10px]">
+        <Input
+          value={id}
+          onChange={(e) => setId(e.target.value)}
+          placeholder="Secret id (e.g. github-token)"
+          className="h-7 text-xs"
+        />
+        <Input
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="Value"
+          type="password"
+          className="h-7 text-xs"
+        />
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handleAdd()}
+          disabled={busy}
+          className="h-7 self-start px-3 text-[10px]"
+        >
           {busy ? "Saving…" : "Save secret"}
         </Button>
       </div>
@@ -493,7 +604,7 @@ function ToolsSection({ onError }: { onError: (e: string | null) => void }) {
     void getBridge()
       ?.listExecutorTools()
       .then(setTools)
-      .catch((err: unknown) => onError(err instanceof Error ? err.message : "Failed to list tools."));
+      .catch((err: unknown) => onError(errorMessage(err, "Failed to list tools.")));
   }, [onError]);
 
   useEffect(() => {
@@ -520,7 +631,11 @@ function ToolsSection({ onError }: { onError: (e: string | null) => void }) {
         ) : (
           <div className="flex max-h-48 flex-col gap-1 overflow-auto">
             {tools.map((t) => (
-              <div key={t.id} className="rounded-md border border-border px-3 py-1.5" title={t.description}>
+              <div
+                key={t.id}
+                className="rounded-md border border-border px-3 py-1.5"
+                title={t.description}
+              >
                 <span className="text-xs text-foreground">{t.name}</span>
                 {t.description && (
                   <p className="line-clamp-2 text-[10px] text-muted-foreground">{t.description}</p>
@@ -551,7 +666,7 @@ function CodeConsole({ onError }: { onError: (e: string | null) => void }) {
       const result: ExecutorExecuteResult | undefined = await getBridge()?.executorExecute(code);
       setOutput(result?.text ?? "(no output)");
     } catch (err) {
-      onError(err instanceof Error ? err.message : "Execution failed.");
+      onError(errorMessage(err, "Execution failed."));
     } finally {
       setBusy(false);
     }
@@ -563,11 +678,19 @@ function CodeConsole({ onError }: { onError: (e: string | null) => void }) {
       <Textarea
         value={code}
         onChange={(e) => setCode(e.target.value)}
-        placeholder={'const { items } = await tools.search({ query: "github issues" });\nreturn items.map((i) => i.path);'}
+        placeholder={
+          'const { items } = await tools.search({ query: "github issues" });\nreturn items.map((i) => i.path);'
+        }
         className="min-h-[80px] font-mono text-xs"
         rows={4}
       />
-      <Button variant="outline" size="sm" onClick={() => void handleRun()} disabled={busy} className="h-7 self-start px-3 text-[10px]">
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => void handleRun()}
+        disabled={busy}
+        className="h-7 self-start px-3 text-[10px]"
+      >
         {busy ? "Running…" : "Run"}
       </Button>
       {output !== null && (

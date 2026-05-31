@@ -19,7 +19,7 @@ import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
 
 const streamPipeline = promisify(pipelineCb);
 
-export const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-480ms";
+const MODEL_NAME = "sherpa-onnx-nemo-streaming-fast-conformer-transducer-en-480ms";
 const MODEL_URL = `https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/${MODEL_NAME}.tar.bz2`;
 // All four files must be present before the recognizer can initialize.
 // Checking only tokens.txt would treat an interrupted install as already-done.
@@ -145,9 +145,10 @@ async function fetchToFile(
       }
     }
     if (sinkError) throw sinkError;
-    await new Promise<void>((resolve, reject) => {
-      sink.end((err?: Error | null) => (err ? reject(err) : resolve()));
+    const endError = await new Promise<Error | null>((resolve) => {
+      sink.end((err?: Error | null) => resolve(err ?? null));
     });
+    if (endError) throw endError;
   } catch (err) {
     sink.destroy();
     await reader.cancel().catch(() => {});

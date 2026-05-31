@@ -61,15 +61,6 @@ export type IconComponent = ComponentType<{
   className?: string;
 }>;
 
-/**
- * Upstream Fluid Functionalism ships swappable icon sets (Lucide, Tabler,
- * Phosphor, HugeIcons). This project standardises on lucide-react (see
- * CLAUDE.md), so every library resolves to the same lucide map — the
- * `IconLibrary` API is preserved for source-compatibility with FF components,
- * but switching is a no-op rather than pulling three extra icon packages.
- */
-export type IconLibrary = "lucide" | "tabler" | "phosphor" | "hugeicons";
-
 export type IconName =
   | "chevron-right"
   | "chevron-down"
@@ -118,7 +109,7 @@ export type IconName =
   | "pencil"
   | "skip-forward";
 
-const lucideMap: Record<IconName, IconComponent> = {
+export const iconMap: Record<IconName, IconComponent> = {
   "chevron-right": ChevronRight,
   "chevron-down": ChevronDown,
   pipette: Pipette,
@@ -165,25 +156,4 @@ const lucideMap: Record<IconName, IconComponent> = {
   inbox: Inbox,
   pencil: Pencil,
   "skip-forward": SkipForward,
-};
-
-export const iconMap: Record<IconLibrary, Record<IconName, IconComponent>> = {
-  lucide: lucideMap,
-  tabler: lucideMap,
-  phosphor: lucideMap,
-  hugeicons: lucideMap,
-};
-
-export const iconLibraryOrder: IconLibrary[] = [
-  "lucide",
-  "tabler",
-  "phosphor",
-  "hugeicons",
-];
-
-export const iconLibraryLabels: Record<IconLibrary, string> = {
-  lucide: "Lucide",
-  tabler: "Tabler",
-  phosphor: "Phosphor",
-  hugeicons: "HugeIcons",
 };

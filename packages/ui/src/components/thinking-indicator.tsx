@@ -93,4 +93,3 @@ const ThinkingIndicator = forwardRef<
 ThinkingIndicator.displayName = "ThinkingIndicator";
 
 export { ThinkingIndicator };
-export default ThinkingIndicator;

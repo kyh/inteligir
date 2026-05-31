@@ -1,21 +1,47 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+type PipelineInstance = {
+  connect: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+  config: unknown;
+};
+
+type TranscriptFinalConfig = {
+  onTranscriptFinal: (text: string) => void;
+};
+
 // vi.hoisted runs before vi.mock factories, so the mocks below can reach
 // `helpers` to share state with the test code.
-const helpers = vi.hoisted(() => ({
-  pipelineInstances: [] as Array<{
-    connect: ReturnType<typeof vi.fn>;
-    disconnect: ReturnType<typeof vi.fn>;
-    config: unknown;
-  }>,
-  bridgeMock: {
-    getVoiceConfig: vi.fn<() => Promise<unknown>>(),
-    getVoiceModelStatus: vi.fn<() => Promise<"ready" | "missing">>(),
-    downloadVoiceModel: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(),
-    onVoiceModelState: vi.fn(() => () => {}),
-    sendAgentCommand: vi.fn(),
-  },
-}));
+const helpers = vi.hoisted(
+  (): {
+    pipelineInstances: PipelineInstance[];
+    bridgeMock: {
+      getVoiceConfig: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
+      getVoiceModelStatus: ReturnType<typeof vi.fn<() => Promise<"ready" | "missing">>>;
+      downloadVoiceModel: ReturnType<typeof vi.fn<() => Promise<{ ok: boolean; error?: string }>>>;
+      onVoiceModelState: ReturnType<typeof vi.fn<() => () => void>>;
+      sendAgentCommand: ReturnType<typeof vi.fn>;
+    };
+  } => ({
+    pipelineInstances: [],
+    bridgeMock: {
+      getVoiceConfig: vi.fn<() => Promise<unknown>>(),
+      getVoiceModelStatus: vi.fn<() => Promise<"ready" | "missing">>(),
+      downloadVoiceModel: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(),
+      onVoiceModelState: vi.fn(() => () => {}),
+      sendAgentCommand: vi.fn(),
+    },
+  }),
+);
+
+function hasTranscriptFinalConfig(config: unknown): config is TranscriptFinalConfig {
+  return (
+    typeof config === "object" &&
+    config !== null &&
+    "onTranscriptFinal" in config &&
+    typeof config.onTranscriptFinal === "function"
+  );
+}
 
 vi.mock("@/renderer/lib/bridge", () => ({
   getBridge: () => helpers.bridgeMock,
@@ -38,6 +64,19 @@ const { useVoiceStore, onUserTranscript } = await import("@/renderer/stores/voic
 async function flushMicrotasks() {
   await new Promise((r) => setImmediate(r));
   await new Promise((r) => setImmediate(r));
+}
+
+function createDeferred<T>() {
+  let resolveValue: ((value: T) => void) | null = null;
+  const promise = new Promise<T>((resolve) => {
+    resolveValue = resolve;
+  });
+  return {
+    promise,
+    resolve: (value: T) => {
+      resolveValue?.(value);
+    },
+  };
 }
 
 describe("voice-store", () => {
@@ -112,10 +151,9 @@ describe("voice-store", () => {
         useVoiceStore.getState().reset();
 
         const inst = helpers.pipelineInstances[0];
-        const callbacks = inst?.config as
-          | { onTranscriptFinal: (text: string) => void }
-          | undefined;
-        callbacks?.onTranscriptFinal("late tail words");
+        if (hasTranscriptFinalConfig(inst?.config)) {
+          inst.config.onTranscriptFinal("late tail words");
+        }
 
         expect(listener).not.toHaveBeenCalled();
       } finally {
@@ -126,18 +164,14 @@ describe("voice-store", () => {
 
   describe("toggleVoice — race conditions", () => {
     it("does not connect if the store is torn down mid-getStatus", async () => {
-      let resolveStatus: (v: "ready" | "missing") => void = () => {};
-      helpers.bridgeMock.getVoiceModelStatus.mockReturnValue(
-        new Promise<"ready" | "missing">((r) => {
-          resolveStatus = r;
-        }),
-      );
+      const status = createDeferred<"ready" | "missing">();
+      helpers.bridgeMock.getVoiceModelStatus.mockReturnValue(status.promise);
 
       const cleanup = useVoiceStore.getState().init();
       await flushMicrotasks();
       useVoiceStore.getState().toggleVoice();
       cleanup();
-      resolveStatus("ready");
+      status.resolve("ready");
       await flushMicrotasks();
 
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();
@@ -145,12 +179,8 @@ describe("voice-store", () => {
 
     it("does not connect if the store remounts mid-download", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("missing");
-      let resolveDownload: (v: { ok: boolean }) => void = () => {};
-      helpers.bridgeMock.downloadVoiceModel.mockReturnValue(
-        new Promise<{ ok: boolean }>((r) => {
-          resolveDownload = r;
-        }),
-      );
+      const download = createDeferred<{ ok: boolean }>();
+      helpers.bridgeMock.downloadVoiceModel.mockReturnValue(download.promise);
 
       const cleanup1 = useVoiceStore.getState().init();
       await flushMicrotasks();
@@ -161,7 +191,7 @@ describe("voice-store", () => {
       useVoiceStore.getState().init();
       await flushMicrotasks();
 
-      resolveDownload({ ok: true });
+      download.resolve({ ok: true });
       await flushMicrotasks();
 
       // Generation bump on the cleanup means the stale flow's "model_download_ok"
@@ -175,12 +205,8 @@ describe("voice-store", () => {
 
     it("reset() prevents an in-flight download from connecting", async () => {
       helpers.bridgeMock.getVoiceModelStatus.mockResolvedValue("missing");
-      let resolveDownload: (v: { ok: boolean }) => void = () => {};
-      helpers.bridgeMock.downloadVoiceModel.mockReturnValue(
-        new Promise<{ ok: boolean }>((r) => {
-          resolveDownload = r;
-        }),
-      );
+      const download = createDeferred<{ ok: boolean }>();
+      helpers.bridgeMock.downloadVoiceModel.mockReturnValue(download.promise);
 
       useVoiceStore.getState().init();
       await flushMicrotasks();
@@ -188,7 +214,7 @@ describe("voice-store", () => {
       await flushMicrotasks();
 
       useVoiceStore.getState().reset();
-      resolveDownload({ ok: true });
+      download.resolve({ ok: true });
       await flushMicrotasks();
 
       expect(helpers.pipelineInstances[0]?.connect).not.toHaveBeenCalled();

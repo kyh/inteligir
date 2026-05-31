@@ -1,0 +1,42 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "ignoreBinaries": ["gh"],
+  "workspaces": {
+    ".": {
+      "entry": ["vitest.workspace.ts"]
+    },
+    "apps/desktop": {
+      "entry": [
+        "src/main/index.ts",
+        "src/preload/index.ts",
+        "src/renderer/index.html",
+        "src/renderer/main.tsx",
+        "src/__tests__/**/*.test.ts"
+      ],
+      "project": [
+        "scripts/**/*.mjs",
+        "src/**/*.{ts,tsx,css}"
+      ],
+      "ignoreDependencies": [
+        "@mariozechner/pi-coding-agent",
+        "@tailwindcss/vite",
+        "@vitejs/plugin-react",
+        "electron-builder"
+      ]
+    },
+    "apps/web": {
+      "entry": [
+        "src/app/**/*.{ts,tsx}",
+        "src/components/**/*.{ts,tsx}"
+      ],
+      "project": ["*.config.{js,mjs}", "src/**/*.{ts,tsx}"]
+    },
+    "packages/db": {
+      "entry": ["drizzle.config.ts"],
+      "drizzle": {
+        "config": []
+      },
+      "ignoreDependencies": ["tsx"]
+    }
+  }
+}

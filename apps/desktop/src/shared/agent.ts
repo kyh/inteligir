@@ -12,11 +12,3 @@ export function getSessionStatus(appState: AppState): SessionStatus {
   if (appState.phase === "error") return "error";
   return "starting";
 }
-
-// ---------------------------------------------------------------------------
-// Method params & results
-// ---------------------------------------------------------------------------
-
-export type SendMessageResult = { accepted: true };
-export type SteerResult = { accepted: true };
-export type InterruptResult = { interrupted: boolean };

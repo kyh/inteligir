@@ -1,6 +1,4 @@
 import type { User } from "better-auth";
-import { cache } from "react";
-import { headers } from "next/headers";
 import { expo } from "@better-auth/expo";
 import { eq } from "@repo/db";
 import { db } from "@repo/db/drizzle-client";
@@ -19,12 +17,21 @@ const baseUrl =
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000";
 
+const firstNonEmpty = (...values: Array<string | undefined>): string | undefined =>
+  values.find((value) => value !== undefined && value.trim() !== "");
+
+const localAuthSecret = "kT8mYqX4rN2vP7sL9cH3aW6eJ1bD5uF0gZpR4xQnVtM=";
+const isVercel = process.env.VERCEL_ENV !== undefined;
+const authSecret =
+  firstNonEmpty(process.env.BETTER_AUTH_SECRET, process.env.AUTH_SECRET) ??
+  (isVercel ? firstNonEmpty(process.env.SUPABASE_SERVICE_ROLE_KEY) : localAuthSecret);
+
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
   }),
   baseURL: baseUrl,
-  secret: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+  secret: authSecret,
   plugins: [
     oAuthProxy({
       currentURL: baseUrl,
@@ -57,27 +64,19 @@ export const auth = betterAuth({
   },
 });
 
-export type Auth = typeof auth;
-export type Session = Auth["$Infer"]["Session"];
-
 /**
- * Cached function to get the current user session
- * Uses React cache to avoid unnecessary re-fetching
- * @returns Promise<Session | null> - The current user session or null if not authenticated
+ * Generates an available organization slug by checking for conflicts.
+ * Recursively adds numbers to the slug until a unique one is found.
  */
-export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }));
-
-export const getOrganization = cache(
-  async (query: {
-    organizationId?: string | undefined;
-    organizationSlug?: string | undefined;
-    membersLimit?: string | number | undefined;
-  }) =>
-    auth.api.getFullOrganization({
-      query,
-      headers: await headers(),
-    }),
-);
+const generateAvailableSlug = async (slug: string, attempt = 0): Promise<string> => {
+  const org = await db.query.organization.findFirst({
+    where: (organization, { eq }) => eq(organization.slug, slug),
+  });
+  if (org) {
+    return generateAvailableSlug(slug + `-${attempt + 1}`, attempt + 1);
+  }
+  return slug;
+};
 
 /**
  * Creates a default personal organization for a new user
@@ -87,23 +86,6 @@ export const getOrganization = cache(
  * @throws Error if organization creation fails
  */
 const createDefaultOrganization = async (user: User) => {
-  /**
-   * Generates an available organization slug by checking for conflicts
-   * Recursively adds numbers to the slug until a unique one is found
-   * @param slug - The base slug to check
-   * @param attempt - The current attempt number for uniqueness
-   * @returns Promise<string> - A unique, available slug
-   */
-  const generateAvailableSlug = async (slug: string, attempt = 0) => {
-    const org = await db.query.organization.findFirst({
-      where: (organization, { eq }) => eq(organization.slug, slug),
-    });
-    if (org) {
-      return generateAvailableSlug(slug + `-${attempt + 1}`, attempt + 1);
-    }
-    return slug;
-  };
-
   const slug = await generateAvailableSlug(slugify(user.name));
 
   try {

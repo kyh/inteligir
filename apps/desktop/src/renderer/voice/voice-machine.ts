@@ -103,17 +103,17 @@ function reduce(state: VoiceState, event: VoiceEvent): Transition {
 }
 
 export class VoiceMachine {
-  private _state: VoiceState = IDLE;
-  private _generation = 0;
+  private currentState: VoiceState = IDLE;
+  private currentGeneration = 0;
   private readonly listeners = new Set<(state: VoiceState) => void>();
 
   get state(): VoiceState {
-    return this._state;
+    return this.currentState;
   }
 
   /** Token captured by async ops; if it changes, the op's result is stale. */
   get generation(): number {
-    return this._generation;
+    return this.currentGeneration;
   }
 
   subscribe(listener: (state: VoiceState) => void): () => void {
@@ -124,10 +124,10 @@ export class VoiceMachine {
   }
 
   dispatch(event: VoiceEvent): void {
-    const { state: next, cancelInFlight } = reduce(this._state, event);
-    if (next === this._state) return;
-    if (cancelInFlight) this._generation += 1;
-    this._state = next;
-    for (const listener of this.listeners) listener(this._state);
+    const { state: next, cancelInFlight } = reduce(this.currentState, event);
+    if (next === this.currentState) return;
+    if (cancelInFlight) this.currentGeneration += 1;
+    this.currentState = next;
+    for (const listener of this.listeners) listener(this.currentState);
   }
 }

@@ -7,15 +7,16 @@ import {
   useEffect,
   createContext,
   useContext,
+  useMemo,
   forwardRef,
   type ReactNode,
   type HTMLAttributes,
   type InputHTMLAttributes,
 } from "react";
-import type { IconComponent } from "@repo/ui/lib/icon-context";
+import type { IconComponent } from "@repo/ui/lib/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { useShape } from "@repo/ui/lib/shape-context";
+import { getShape } from "@repo/ui/lib/shape";
 
 interface InputGroupContextValue {
   registerItem: (index: number, element: HTMLLabelElement | null) => void;
@@ -26,8 +27,7 @@ const InputGroupContext = createContext<InputGroupContextValue | null>(null);
 
 function useInputGroup() {
   const ctx = useContext(InputGroupContext);
-  if (!ctx)
-    throw new Error("useInputGroup must be used within an InputGroup");
+  if (!ctx) throw new Error("useInputGroup must be used within an InputGroup");
   return ctx;
 }
 
@@ -40,16 +40,13 @@ const InputGroup = forwardRef<HTMLDivElement, InputGroupProps>(
     const itemsRef = useRef(new Map<number, HTMLLabelElement>());
     const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-    const registerItem = useCallback(
-      (index: number, element: HTMLLabelElement | null) => {
-        if (element) {
-          itemsRef.current.set(index, element);
-        } else {
-          itemsRef.current.delete(index);
-        }
-      },
-      []
-    );
+    const registerItem = useCallback((index: number, element: HTMLLabelElement | null) => {
+      if (element) {
+        itemsRef.current.set(index, element);
+      } else {
+        itemsRef.current.delete(index);
+      }
+    }, []);
 
     const handleMouseMove = useCallback((e: React.MouseEvent) => {
       const mouseY = e.clientY;
@@ -75,10 +72,13 @@ const InputGroup = forwardRef<HTMLDivElement, InputGroupProps>(
       setActiveIndex(null);
     }, []);
 
+    const contextValue = useMemo(
+      () => ({ registerItem, activeIndex }),
+      [activeIndex, registerItem],
+    );
+
     return (
-      <InputGroupContext.Provider
-        value={{ registerItem, activeIndex }}
-      >
+      <InputGroupContext.Provider value={contextValue}>
         <div
           ref={ref}
           onMouseMove={handleMouseMove}
@@ -90,13 +90,15 @@ const InputGroup = forwardRef<HTMLDivElement, InputGroupProps>(
         </div>
       </InputGroupContext.Provider>
     );
-  }
+  },
 );
 
 InputGroup.displayName = "InputGroup";
 
-interface InputFieldProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange" | "index"> {
+interface InputFieldProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "onChange" | "index"
+> {
   label: string;
   placeholder?: string;
   icon?: IconComponent;
@@ -122,12 +124,12 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
       className,
       ...props
     },
-    ref
+    ref,
   ) => {
     const internalRef = useRef<HTMLLabelElement>(null);
     const { registerItem, activeIndex } = useInputGroup();
     const [isFocused, setIsFocused] = useState(false);
-    const shape = useShape();
+    const shape = getShape();
 
     useEffect(() => {
       registerItem(index, internalRef.current);
@@ -178,7 +180,7 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
         className={cn(
           "flex flex-col gap-1 cursor-text",
           disabled && "opacity-50 pointer-events-none",
-          className
+          className,
         )}
       >
         {/* Label */}
@@ -193,7 +195,7 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
           <span
             className={cn(
               "col-start-1 row-start-1",
-              error ? "text-destructive" : "text-muted-foreground"
+              error ? "text-destructive" : "text-muted-foreground",
             )}
             style={{
               fontVariationSettings: fontWeights.normal,
@@ -208,7 +210,7 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
           className={cn(
             `flex items-center gap-2 ${shape.input} px-3 py-2 ring-1 transition-all duration-80`,
             bgClass,
-            ringClass
+            ringClass,
           )}
         >
           {Icon && (
@@ -217,9 +219,7 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
               strokeWidth={labelActive ? 2 : 1.5}
               className={cn(
                 "shrink-0 transition-[color,stroke-width] duration-80",
-                labelActive
-                  ? "text-foreground"
-                  : "text-muted-foreground"
+                labelActive ? "text-foreground" : "text-muted-foreground",
               )}
             />
           )}
@@ -251,10 +251,9 @@ const InputField = forwardRef<HTMLLabelElement, InputFieldProps>(
         )}
       </label>
     );
-  }
+  },
 );
 
 InputField.displayName = "InputField";
 
 export { InputGroup, InputField };
-export default InputGroup;

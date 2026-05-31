@@ -6,6 +6,15 @@ const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 const MODEL_ID = "eleven_flash_v2_5";
 const SAMPLE_RATE = 24000;
 
+function isAudioPayload(value: unknown): value is { audio: string } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "audio" in value &&
+    typeof value.audio === "string"
+  );
+}
+
 export type TTSHandle = {
   sendText: (text: string) => void;
   flush: () => void;
@@ -32,7 +41,7 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
     const socket = new WebSocket(baseUri);
     ws = socket;
 
-    socket.onopen = () => {
+    socket.addEventListener("open", () => {
       socket.send(
         JSON.stringify({
           text: " ",
@@ -45,28 +54,28 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
         socket.send(JSON.stringify({ text, try_trigger_generation: true }));
       }
       pendingText = [];
-    };
+    });
 
-    socket.onmessage = (event) => {
+    socket.addEventListener("message", (event) => {
       if (muted) return;
       try {
-        const data = JSON.parse(String(event.data)) as { audio?: string };
-        if (data.audio) {
+        const data: unknown = JSON.parse(String(event.data));
+        if (isAudioPayload(data)) {
           const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
           playChunk(bytes.buffer);
         }
       } catch {
         // ignore
       }
-    };
+    });
 
-    socket.onerror = () => {
+    socket.addEventListener("error", () => {
       ws = null;
-    };
+    });
 
-    socket.onclose = () => {
+    socket.addEventListener("close", () => {
       ws = null;
-    };
+    });
 
     return socket;
   }
@@ -88,7 +97,7 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     source.connect(audioCtx.destination);
-    source.onended = () => activeSources.delete(source);
+    source.addEventListener("ended", () => activeSources.delete(source), { once: true });
     activeSources.add(source);
 
     const now = audioCtx.currentTime;

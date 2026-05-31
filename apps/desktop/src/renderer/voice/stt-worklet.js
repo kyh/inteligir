@@ -24,14 +24,17 @@ class STTProcessor extends AudioWorkletProcessor {
     // The renderer posts "flush" on stop. Forward whatever partial chunk we
     // have so the trailing ~128ms of speech isn't dropped, then ack with
     // "flushed" so the caller knows it's safe to tear down the recognizer.
-    this.port.onmessage = (event) => {
+    this.port.addEventListener("message", (event) => {
       if (event.data !== "flush") return;
       if (this.offset > 0) {
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin
         this.port.postMessage(this.buffer.slice(0, this.offset));
         this.offset = 0;
       }
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin
       this.port.postMessage("flushed");
-    };
+    });
+    this.port.start();
   }
 
   process(inputs) {
@@ -48,6 +51,7 @@ class STTProcessor extends AudioWorkletProcessor {
       if (this.offset === FRAME_SIZE) {
         // postMessage structured-clones; send a copy so the next iteration
         // can keep using the underlying buffer.
+        // oxlint-disable-next-line unicorn/require-post-message-target-origin
         this.port.postMessage(this.buffer.slice());
         this.offset = 0;
       }

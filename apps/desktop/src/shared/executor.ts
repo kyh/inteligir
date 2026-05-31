@@ -5,138 +5,209 @@
 // scopeId, so renderer-facing calls omit it.
 // ---------------------------------------------------------------------------
 
-export type ExecutorSource = {
-  id: string;
-  scopeId?: string;
-  name: string;
-  kind: string; // "mcp" | "openapi" | "graphql" | "googleDiscovery" | "built-in" | ...
-  url?: string;
-  runtime?: boolean;
-  canRemove?: boolean;
-  canRefresh?: boolean;
-  canEdit?: boolean;
-};
+import { z } from "zod";
 
-export type ExecutorDetectResult = {
-  kind: string;
-  confidence: "high" | "medium" | "low";
-  endpoint: string;
-  name: string;
-  namespace: string;
-};
+export const ExecutorSourceSchema = z.object({
+  id: z.string(),
+  scopeId: z.string().optional(),
+  name: z.string(),
+  // "mcp" | "openapi" | "graphql" | "googleDiscovery" | "built-in" | ...
+  kind: z.string(),
+  url: z.string().optional(),
+  runtime: z.boolean().optional(),
+  canRemove: z.boolean().optional(),
+  canRefresh: z.boolean().optional(),
+  canEdit: z.boolean().optional(),
+});
+export type ExecutorSource = z.infer<typeof ExecutorSourceSchema>;
 
-export type ExecutorToolMeta = {
-  id: string;
-  pluginId: string;
-  sourceId: string;
-  name: string;
-  description?: string;
-  mayElicit?: boolean;
-  requiresApproval?: boolean;
-  approvalDescription?: string;
-};
+export const ExecutorDetectResultSchema = z.object({
+  kind: z.string(),
+  confidence: z.enum(["high", "medium", "low"]),
+  endpoint: z.string(),
+  name: z.string(),
+  namespace: z.string(),
+});
+export type ExecutorDetectResult = z.infer<typeof ExecutorDetectResultSchema>;
 
-export type ExecutorSecretRef = {
-  id: string;
-  scopeId: string;
-  name: string;
-  provider: string;
-  createdAt: number;
-};
+export const ExecutorToolMetaSchema = z.object({
+  id: z.string(),
+  pluginId: z.string(),
+  sourceId: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  mayElicit: z.boolean().optional(),
+  requiresApproval: z.boolean().optional(),
+  approvalDescription: z.string().optional(),
+});
+export type ExecutorToolMeta = z.infer<typeof ExecutorToolMetaSchema>;
 
-export type ExecutorConnectionRef = {
-  id: string;
-  scopeId: string;
-  provider: string;
-  identityLabel: string | null;
-  expiresAt: number | null;
-  oauthScope: string | null;
-  createdAt: number;
-  updatedAt: number;
-};
+export const ExecutorSecretRefSchema = z.object({
+  id: z.string(),
+  scopeId: z.string(),
+  name: z.string(),
+  provider: z.string(),
+  createdAt: z.number(),
+});
+export type ExecutorSecretRef = z.infer<typeof ExecutorSecretRefSchema>;
+
+export const ExecutorConnectionRefSchema = z.object({
+  id: z.string(),
+  scopeId: z.string(),
+  provider: z.string(),
+  identityLabel: z.string().nullable(),
+  expiresAt: z.number().nullable(),
+  oauthScope: z.string().nullable(),
+  createdAt: z.number(),
+  updatedAt: z.number(),
+});
+export type ExecutorConnectionRef = z.infer<typeof ExecutorConnectionRefSchema>;
 
 /** Result of POST /executions and /executions/:id/resume. */
-export type ExecutorExecuteResult =
-  | { status: "completed"; text: string; structured: unknown; isError: boolean }
-  | { status: "paused"; text: string; structured: unknown };
+export const ExecutorExecuteResultSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("completed"),
+    text: z.string(),
+    structured: z.unknown(),
+    isError: z.boolean(),
+  }),
+  z.object({
+    status: z.literal("paused"),
+    text: z.string(),
+    structured: z.unknown(),
+  }),
+]);
+export type ExecutorExecuteResult = z.infer<typeof ExecutorExecuteResultSchema>;
 
-export type ExecutorAddSourceResult = { toolCount: number; namespace: string };
+export const ExecutorAddSourceResultSchema = z.object({
+  toolCount: z.number(),
+  namespace: z.string(),
+});
+export type ExecutorAddSourceResult = z.infer<typeof ExecutorAddSourceResultSchema>;
+
+export const ExecutorRemoveResultSchema = z.object({ removed: z.boolean() });
+export const ExecutorRefreshResultSchema = z.object({ refreshed: z.boolean() });
 
 // ---- add-source request payloads (per plugin kind) ------------------------
 
-export type ExecutorConfiguredValue = string | { secretId: string; prefix?: string };
-export type ExecutorConfiguredMap = Record<string, ExecutorConfiguredValue>;
+const ExecutorConfiguredValueSchema = z.union([
+  z.string(),
+  z.object({
+    secretId: z.string().min(1),
+    prefix: z.string().optional(),
+  }),
+]);
+const ExecutorConfiguredMapSchema = z.record(z.string(), ExecutorConfiguredValueSchema);
 
-export type AddMcpRemoteSourceInput = {
-  transport: "remote";
-  name: string;
-  endpoint: string;
-  remoteTransport?: "streamable-http" | "sse" | "auto";
-  namespace?: string;
-  headers?: ExecutorConfiguredMap;
-  queryParams?: ExecutorConfiguredMap;
-};
+const AddMcpRemoteSourceInputSchema = z.object({
+  transport: z.literal("remote"),
+  name: z.string().min(1),
+  endpoint: z.string().min(1),
+  remoteTransport: z.enum(["streamable-http", "sse", "auto"]).optional(),
+  namespace: z.string().min(1).optional(),
+  headers: ExecutorConfiguredMapSchema.optional(),
+  queryParams: ExecutorConfiguredMapSchema.optional(),
+});
 
-export type AddMcpStdioSourceInput = {
-  transport: "stdio";
-  name: string;
-  command: string;
-  args?: string[];
-  env?: Record<string, string>;
-  cwd?: string;
-  namespace?: string;
-};
+const AddMcpStdioSourceInputSchema = z.object({
+  transport: z.literal("stdio"),
+  name: z.string().min(1),
+  command: z.string().min(1),
+  args: z.array(z.string()).optional(),
+  env: z.record(z.string(), z.string()).optional(),
+  cwd: z.string().optional(),
+  namespace: z.string().min(1).optional(),
+});
 
-export type AddMcpSourceInput = AddMcpRemoteSourceInput | AddMcpStdioSourceInput;
+export const AddMcpSourceInputSchema = z.discriminatedUnion("transport", [
+  AddMcpRemoteSourceInputSchema,
+  AddMcpStdioSourceInputSchema,
+]);
+export type AddMcpSourceInput = z.infer<typeof AddMcpSourceInputSchema>;
 
-export type AddOpenApiSourceInput = {
-  spec: { kind: "url"; url: string } | { kind: "blob"; value: string };
-  name: string;
-  baseUrl: string;
-  namespace: string;
-  headers?: ExecutorConfiguredMap;
-  queryParams?: ExecutorConfiguredMap;
-};
+const OpenApiSpecSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("url"), url: z.string().min(1) }),
+  z.object({ kind: z.literal("blob"), value: z.string().min(1) }),
+]);
 
-export type AddGraphqlSourceInput = {
-  endpoint: string;
-  name: string;
-  introspectionJson?: string;
-  namespace: string;
-  headers?: ExecutorConfiguredMap;
-  queryParams?: ExecutorConfiguredMap;
-};
+export const AddOpenApiSourceInputSchema = z.object({
+  spec: OpenApiSpecSchema,
+  name: z.string().min(1),
+  baseUrl: z.string().min(1),
+  namespace: z.string().min(1),
+  headers: ExecutorConfiguredMapSchema.optional(),
+  queryParams: ExecutorConfiguredMapSchema.optional(),
+});
+export type AddOpenApiSourceInput = z.infer<typeof AddOpenApiSourceInputSchema>;
 
-export type AddGoogleSourceInput = {
-  name: string;
-  discoveryUrl: string;
-  namespace?: string;
-  auth: { kind: "none" } | { kind: "oauth2"; connectionId: string; clientIdSecretId: string; clientSecretSecretId: string | null; scopes: string[] };
-};
+export const AddGraphqlSourceInputSchema = z.object({
+  endpoint: z.string().min(1),
+  name: z.string().min(1),
+  introspectionJson: z.string().optional(),
+  namespace: z.string().min(1),
+  headers: ExecutorConfiguredMapSchema.optional(),
+  queryParams: ExecutorConfiguredMapSchema.optional(),
+});
+export type AddGraphqlSourceInput = z.infer<typeof AddGraphqlSourceInputSchema>;
 
-export type SetSecretInput = {
-  id: string;
-  name: string;
-  value: string;
-  provider?: string;
-};
+const GoogleAuthSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("none") }),
+  z.object({
+    kind: z.literal("oauth2"),
+    connectionId: z.string().min(1),
+    clientIdSecretId: z.string().min(1),
+    clientSecretSecretId: z.string().min(1).nullable(),
+    scopes: z.array(z.string().min(1)),
+  }),
+]);
+
+export const AddGoogleSourceInputSchema = z.object({
+  name: z.string().min(1),
+  discoveryUrl: z.string().min(1),
+  namespace: z.string().min(1).optional(),
+  auth: GoogleAuthSchema,
+});
+export type AddGoogleSourceInput = z.infer<typeof AddGoogleSourceInputSchema>;
+
+export const SetSecretInputSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().min(1),
+  value: z.string().min(1),
+  provider: z.string().min(1).optional(),
+});
+export type SetSecretInput = z.infer<typeof SetSecretInputSchema>;
 
 // ---- OAuth ---------------------------------------------------------------
 
-export type OAuthStartInput = {
-  endpoint: string;
-  pluginId: string;
-  connectionId: string;
-  identityLabel?: string;
-};
+export const OAuthStartInputSchema = z.object({
+  endpoint: z.string().min(1),
+  pluginId: z.string().min(1),
+  connectionId: z.string().min(1),
+  identityLabel: z.string().min(1).optional(),
+});
+export type OAuthStartInput = z.infer<typeof OAuthStartInputSchema>;
 
-export type OAuthStartResult = {
-  sessionId: string;
-  authorizationUrl: string | null;
-  completedConnection: { connectionId: string } | null;
-};
+export const OAuthStartResultSchema = z.object({
+  sessionId: z.string(),
+  authorizationUrl: z.string().nullable(),
+  completedConnection: z.object({ connectionId: z.string() }).nullable(),
+});
+export type OAuthStartResult = z.infer<typeof OAuthStartResultSchema>;
 
 /** Result polled from /api/oauth/await/:sessionId once the browser callback fires. */
-export type OAuthAwaitResult =
-  | { ok: true; sessionId: string; connectionId: string; expiresAt: number | null; scope: string | null }
-  | { ok: false; sessionId: string | null; error: string; errorDetails?: string };
+export const OAuthAwaitResultSchema = z.union([
+  z.object({
+    ok: z.literal(true),
+    sessionId: z.string(),
+    connectionId: z.string(),
+    expiresAt: z.number().nullable(),
+    scope: z.string().nullable(),
+  }),
+  z.object({
+    ok: z.literal(false),
+    sessionId: z.string().nullable(),
+    error: z.string(),
+    errorDetails: z.string().optional(),
+  }),
+]);
+export type OAuthAwaitResult = z.infer<typeof OAuthAwaitResultSchema>;

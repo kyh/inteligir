@@ -3,52 +3,58 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-declare const __PROJECT_ROOT__: string;
+declare const PROJECT_ROOT: string;
 
 // Load .env at runtime for voice API keys (ELEVENLABS_API_KEY)
 try {
-  process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
+  process.loadEnvFile(path.resolve(PROJECT_ROOT, ".env"));
 } catch {
   // .env file is optional
 }
 
-import {
-  initParakeet,
-  pushAudio,
-  startSession,
-  stopSession,
-} from "@/main/voice/parakeet";
+import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice/parakeet";
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
 import { persistActiveTools } from "@/main/active-tools";
 import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import * as executor from "@/main/executor/executor-client";
-import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
-import { taskManager } from "@/main/tasks/task-singleton";
+import { taskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
+import { registerShellIpcHandlers } from "@/main/shell-ipc";
+import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
 import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { ExtensionsList, ExecutorStatus, SkillsList, UpdateState } from "@/shared/ipc";
+import {
+  AddGoogleSourceInputSchema,
+  AddGraphqlSourceInputSchema,
+  AddMcpSourceInputSchema,
+  AddOpenApiSourceInputSchema,
+  OAuthStartInputSchema,
+  SetSecretInputSchema,
+} from "@/shared/executor";
+import type { ImageContent } from "@repo/pi-driver";
 
 const { autoUpdater } = electronUpdater;
 
 /** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
-function toImageContent(images: ImageAttachment[] | undefined) {
+function toImageContent(images: ImageAttachment[] | undefined): ImageContent[] | undefined {
   return images?.map((i) => ({
-    type: "image" as const,
+    type: "image",
     data: i.data,
     mimeType: i.mimeType,
   }));
@@ -206,7 +212,8 @@ function registerIpcHandlers(): void {
 
   createIpcHandler(IPC_CHANNELS.TASK_DELETE, z.string().min(1), (id) => {
     taskManager.deleteTask(id);
-    return { ok: true as const };
+    const result: { ok: true } = { ok: true };
+    return result;
   });
 
   createIpcHandler(IPC_CHANNELS.TASK_TOGGLE, z.string().min(1), (id) => {
@@ -231,7 +238,7 @@ function registerIpcHandlers(): void {
     return { ok: true };
   });
 
-  ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | Uint8Array) => {
+  ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | ArrayBufferView) => {
     // Fire-and-forget hot path — uncaught throws on the event loop would crash
     // the app, so swallow + log and keep the session alive.
     try {
@@ -240,7 +247,11 @@ function registerIpcHandlers(): void {
       const samples =
         payload instanceof ArrayBuffer
           ? new Float32Array(payload)
-          : new Float32Array(payload.buffer, payload.byteOffset, payload.byteLength / 4);
+          : new Float32Array(
+              payload.buffer,
+              payload.byteOffset,
+              payload.byteLength / Float32Array.BYTES_PER_ELEMENT,
+            );
       const events = pushAudio(samples);
       for (const ev of events) {
         broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
@@ -300,13 +311,12 @@ function registerIpcHandlers(): void {
     },
   );
 
+  registerShellIpcHandlers();
+  registerWidgetActionIpcHandlers();
+
   // ---- Executor (integration backend) ---------------------------------------
   //
-  // Almost every handler is a thin pass-through to the executor daemon's HTTP
-  // API, grouped by argument shape. Payloads are validated server-side by
-  // executor, so the loose `anyObj` schema just gates the IPC boundary.
-
-  const anyObj = z.record(z.string(), z.unknown());
+  // Almost every handler is a thin pass-through to the executor daemon's HTTP API.
 
   // No-arg → client getter.
   const voidForwards: [string, () => unknown][] = [
@@ -329,19 +339,28 @@ function registerIpcHandlers(): void {
   ];
   for (const [channel, fn] of stringForwards) createIpcHandler(channel, z.string(), fn);
 
-  // Object payload (executor validates the shape server-side). `as never`
-  // satisfies each client fn's specific param type without per-handler casts.
-  const objectForwards: [string, (arg: never) => unknown][] = [
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP, executor.addMcpSource],
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI, executor.addOpenApiSource],
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL, executor.addGraphqlSource],
-    [IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE, executor.addGoogleSource],
-    [IPC_CHANNELS.EXECUTOR_SECRET_SET, executor.setSecret],
-    [IPC_CHANNELS.EXECUTOR_OAUTH_START, executor.oauthStart],
-  ];
-  for (const [channel, fn] of objectForwards) {
-    createIpcHandler(channel, anyObj, (input) => fn(input as never));
-  }
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_MCP,
+    AddMcpSourceInputSchema,
+    executor.addMcpSource,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_OPENAPI,
+    AddOpenApiSourceInputSchema,
+    executor.addOpenApiSource,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GRAPHQL,
+    AddGraphqlSourceInputSchema,
+    executor.addGraphqlSource,
+  );
+  createIpcHandler(
+    IPC_CHANNELS.EXECUTOR_SOURCE_ADD_GOOGLE,
+    AddGoogleSourceInputSchema,
+    executor.addGoogleSource,
+  );
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_SECRET_SET, SetSecretInputSchema, executor.setSecret);
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_OAUTH_START, OAuthStartInputSchema, executor.oauthStart);
 
   // The two non-passthrough handlers stay explicit.
   createVoidIpcHandler(IPC_CHANNELS.EXECUTOR_STATUS, (): ExecutorStatus => {
@@ -447,7 +466,7 @@ function createWindow(): BrowserWindow {
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
+      preload: path.join(moduleDir, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -474,7 +493,7 @@ function createWindow(): BrowserWindow {
   if (isDevelopment && process.env["ELECTRON_RENDERER_URL"]) {
     void window.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
-    void window.loadFile(path.join(__dirname, "../renderer/index.html"));
+    void window.loadFile(path.join(moduleDir, "../renderer/index.html"));
   }
 
   if (isDevelopment) {
@@ -509,7 +528,7 @@ app.on("before-quit", (event) => {
 
 app
   .whenReady()
-  .then(async () => {
+  .then(() => {
     configureAppIdentity();
     configureApplicationMenu();
     configureAutoUpdater();
@@ -518,10 +537,11 @@ app
     mainWindow = createWindow();
     getNotifications().setTargetWindow(mainWindow);
 
-    // Resolve session file path before initMachine() starts the agent
+    // Warm history before initMachine() starts the agent.
     readSessionHistory();
 
     initMachine();
+    return undefined;
   })
   .catch((error) => {
     console.error("[desktop] fatal startup error", error);

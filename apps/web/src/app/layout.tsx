@@ -55,25 +55,25 @@ export const metadata: Metadata = {
       rel: "icon",
       type: "image/png",
       sizes: "96x96",
-      url: `${siteConfig.url}/favicon/favicon-96x96.png`,
+      url: "/favicon/favicon-96x96.png",
     },
     {
       rel: "icon",
       type: "image/svg+xml",
-      url: `${siteConfig.url}/favicon/favicon.svg`,
+      url: "/favicon/favicon.svg",
     },
     {
       rel: "shortcut icon",
-      url: `${siteConfig.url}/favicon/favicon.ico`,
+      url: "/favicon/favicon.ico",
     },
     {
       rel: "apple-touch-icon",
       sizes: "180x180",
-      url: `${siteConfig.url}/favicon/apple-touch-icon.png`,
+      url: "/favicon/apple-touch-icon.png",
     },
     {
       rel: "manifest",
-      url: `${siteConfig.url}/favicon/site.webmanifest`,
+      url: "/favicon/site.webmanifest",
     },
   ],
   other: {

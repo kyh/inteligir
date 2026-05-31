@@ -107,11 +107,11 @@ export class NotificationsManager {
   }
 }
 
-let _instance: NotificationsManager | null = null;
+let instance: NotificationsManager | null = null;
 
 export function getNotifications(): NotificationsManager {
-  if (!_instance) _instance = new NotificationsManager();
-  return _instance;
+  if (!instance) instance = new NotificationsManager();
+  return instance;
 }
 
 /**
@@ -122,5 +122,5 @@ export function getNotifications(): NotificationsManager {
  * silent no-ops after a logout/re-login cycle.
  */
 export function resetNotifications(): void {
-  _instance?.invalidate();
+  instance?.invalidate();
 }

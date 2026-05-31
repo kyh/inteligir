@@ -5,6 +5,7 @@ import path from "node:path";
 import { app } from "electron";
 
 import {
+  completeText,
   createAuthStorage,
   hasAuth,
   listSkills as listSkillsFromDisk,
@@ -20,6 +21,7 @@ import open from "open";
 import type { ExtensionToolInfo, IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
+import { resetShellCache, resumeShellWrites } from "@/main/shell";
 import { resetNotifications } from "@/main/notifications";
 import {
   runBundleSetups,
@@ -59,19 +61,19 @@ const bundleModules = import.meta.glob<{ default: PiExtensionBundle }>("./*/exte
 
 const EXTENSION_BUNDLES: PiExtensionBundle[] = Object.values(bundleModules)
   .map((m) => m.default)
-  .sort((a, b) => a.name.localeCompare(b.name));
+  .toSorted((a, b) => a.name.localeCompare(b.name));
 
 // ---------------------------------------------------------------------------
 // Bundled resource discovery
 // ---------------------------------------------------------------------------
 
-declare const __PROJECT_ROOT__: string;
+declare const PROJECT_ROOT: string;
 
 function getBundledResourcesDir(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, "app.asar.unpacked", "resources", "agent");
   }
-  return path.join(__PROJECT_ROOT__, "resources", "agent");
+  return path.join(PROJECT_ROOT, "resources", "agent");
 }
 
 function buildSetupContext(
@@ -119,12 +121,14 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
 
 /** Report installed-vs-pinned versions for every bundle that installs a CLI. */
 export async function listIntegrations(): Promise<IntegrationInfo[]> {
-  const bundles = EXTENSION_BUNDLES.filter((b) => b.cli);
+  const clis = EXTENSION_BUNDLES.map((bundle) => bundle.cli).filter(
+    (cli): cli is NonNullable<PiExtensionBundle["cli"]> => cli !== undefined,
+  );
   return Promise.all(
-    bundles.map(async (b) => ({
-      name: b.cli!.name,
-      expected: b.cli!.version,
-      installed: await readCliVersion(b.cli!.binPath),
+    clis.map(async (cli) => ({
+      name: cli.name,
+      expected: cli.version,
+      installed: await readCliVersion(cli.binPath),
     })),
   );
 }
@@ -150,11 +154,11 @@ export function listSkills(): SkillInfo[] {
 
 // Lazy + reset on teardown so a logout flow doesn't carry the prior
 // AuthStorage's cached credentials past auth.json being deleted.
-let _authStorage: ReturnType<typeof createAuthStorage> | null = null;
+let authStorage: ReturnType<typeof createAuthStorage> | null = null;
 
 function getAuthStorage(): ReturnType<typeof createAuthStorage> {
-  if (!_authStorage) _authStorage = createAuthStorage(AUTH_PATH);
-  return _authStorage;
+  if (!authStorage) authStorage = createAuthStorage(AUTH_PATH);
+  return authStorage;
 }
 
 export function isSetupComplete(): boolean {
@@ -162,13 +166,17 @@ export function isSetupComplete(): boolean {
 }
 
 export function teardownResources(): void {
-  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
-  // Drop singletons that hold JsonStore caches pointing at files inside
-  // AGENT_DIR — otherwise a re-login would serve stale settings until the
-  // process restarts.
-  _authStorage = null;
+  // Drop singletons that hold JsonStore caches BEFORE removing the directory.
+  // An in-flight debounced write (e.g. a WidgetViewer's unmount-time flush)
+  // running between the rm and the cache reset would otherwise resurrect
+  // runtime-ui.json from the warm in-memory shell. With this order, such a
+  // write either races against the singleton reset (its write lands before
+  // rm and gets wiped) or arrives after the cache is gone.
+  authStorage = null;
   resetNotifications();
+  resetShellCache();
   resetExecutorDaemon();
+  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
 }
 
 export function isLoggedIn(): boolean {
@@ -182,20 +190,27 @@ export async function login(): Promise<void> {
       void open(info.url);
     },
   });
+  // resetShellCache (on a previous logout) suspended shell writes to keep an
+  // in-flight setInstanceState from recreating ~/.inteligir. After successful
+  // re-auth, the workspace is allowed to materialize again on the next write.
+  resumeShellWrites();
+}
+
+/**
+ * One-shot model completion outside the agent session — used by "live"
+ * widget actions that fill UI state from the model without spawning a
+ * chat turn. Uses the same model + credentials as the running agent.
+ */
+export function completeOnce(prompt: string, system?: string): Promise<string> {
+  return completeText(getAuthStorage(), resolveModel(AUTH_PROVIDER, MODEL_ID), prompt, system);
 }
 
 // ---------------------------------------------------------------------------
 // Agent — Inteligir wrapper around PiAgent that fixes paths + extensions and
-// keeps the legacy public surface app code expects (sendMessage returning
-// SendMessageResult, listTools returning ExtensionToolInfo[]).
+// exposes the small surface the Electron app needs.
 // ---------------------------------------------------------------------------
 
-import type {
-  InterruptResult,
-  SendMessageResult,
-  SteerResult,
-  SessionStatus,
-} from "@/shared/agent";
+import type { SessionStatus } from "@/shared/agent";
 import type { ImageContent, AgentSessionEvent } from "@repo/pi-driver";
 
 function resolveSessionManager(): SessionManager {
@@ -250,25 +265,20 @@ export class Agent {
     return this.pi?.waitForIdle(timeoutMs) ?? Promise.resolve(true);
   }
 
-  async sendMessage(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
+  async sendMessage(message: string, images?: ImageContent[]): Promise<void> {
     await this.ensurePi().sendMessage(message, images);
-    return { accepted: true };
   }
 
-  async steer(message: string, images?: ImageContent[]): Promise<SteerResult> {
+  async steer(message: string, images?: ImageContent[]): Promise<void> {
     await this.ensurePi().steer(message, images);
-    return { accepted: true };
   }
 
-  async followUp(message: string, images?: ImageContent[]): Promise<SendMessageResult> {
+  async followUp(message: string, images?: ImageContent[]): Promise<void> {
     await this.ensurePi().followUp(message, images);
-    return { accepted: true };
   }
 
-  async interrupt(): Promise<InterruptResult> {
-    if (!this.pi) return { interrupted: false };
-    const interrupted = await this.pi.interrupt();
-    return { interrupted };
+  async interrupt(): Promise<boolean> {
+    return this.pi?.interrupt() ?? false;
   }
 
   getState(): { status: SessionStatus; error: string | null } {

@@ -32,7 +32,7 @@ export function seedFile(src: string, dest: string): boolean {
     fs.copyFileSync(src, dest, fs.constants.COPYFILE_EXCL);
     return true;
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") return false;
+    if (err instanceof Error && "code" in err && err.code === "EEXIST") return false;
     throw err;
   }
 }
