@@ -69,7 +69,7 @@ export const widgetCatalog = defineCatalog(schema, {
       description: WIDGET_COMPONENT_DESCRIPTIONS.TextBlock,
     },
     Markdown: {
-      props: z.object({ content: z.string() }),
+      props: z.object({ content: z.string().optional() }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Markdown,
     },
     Badge: {
