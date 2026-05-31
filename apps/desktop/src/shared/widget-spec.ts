@@ -27,6 +27,16 @@ export type JsonWidgetComponentType =
   | "Card"
   | "Collapsible"
   | "Tabs"
+  | "Table"
+  | "TableRow"
+  | "TableHead"
+  | "TableCell"
+  | "Dialog"
+  | "Drawer"
+  | "Popover"
+  | "Tooltip"
+  | "DropdownMenu"
+  | "MenuItem"
   | "Separator";
 
 export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
@@ -53,6 +63,16 @@ export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
   "Card",
   "Collapsible",
   "Tabs",
+  "Table",
+  "TableRow",
+  "TableHead",
+  "TableCell",
+  "Dialog",
+  "Drawer",
+  "Popover",
+  "Tooltip",
+  "DropdownMenu",
+  "MenuItem",
   "Separator",
 ];
 
@@ -96,6 +116,24 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
   Collapsible:
     "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
   Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Provide exactly one child per tab — child N is the panel for tab N, paired by position. Don't put a `visible` condition on a tab's direct child; the Tabs controls which panel is shown.",
+  Table:
+    "Data table. Props: { caption?: string }. Children are TableRow elements; make the first row a row of TableHead cells for the header.",
+  TableRow:
+    "Table row. Props: {}. Children are TableHead (header) or TableCell elements. Add `repeat: { statePath, key }` to render one row per item and bind cell text with { $item: 'field' } for a data-driven table.",
+  TableHead: "Table header cell. Props: { text: string }.",
+  TableCell:
+    "Table body cell. Props: { text?: string }. Set `text`, or omit it and add children (e.g. a Badge or Button) for a rich cell.",
+  Dialog:
+    "Modal dialog. Props: { trigger: string, title?: string, description?: string }. `trigger` renders a button; children are the dialog body. Closes via the ✕, Escape, or an outside click.",
+  Drawer:
+    "Slide-out drawer. Props: { trigger: string, title?: string, description?: string, side?: 'top'|'bottom'|'left'|'right' (default 'right') }. `trigger` renders a button; children are the drawer body.",
+  Popover:
+    "Popover anchored to a trigger button. Props: { trigger: string }. Children are the popover content.",
+  Tooltip: "Hover tooltip. Props: { text: string }. Wraps its single child as the hover target.",
+  DropdownMenu:
+    "Dropdown menu. Props: { trigger: string }. Children are MenuItem elements.",
+  MenuItem:
+    "Dropdown menu item (use inside DropdownMenu). Props: { label: string, variant?: 'default'|'destructive', disabled?: boolean }. Wire `on.press` to actions.",
   Separator: "Horizontal hairline divider. Props: {}.",
 };
 

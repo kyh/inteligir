@@ -9,15 +9,38 @@ import { Children } from "react";
 import { defineRegistry, useStateStore } from "@json-render/react";
 import { Avatar, AvatarFallback, AvatarImage } from "@repo/ui/components/avatar";
 import { Badge } from "@repo/ui/components/badge";
-import { Button } from "@repo/ui/components/button";
+import { Button, buttonVariants } from "@repo/ui/components/button";
 import { Checkbox } from "@repo/ui/components/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@repo/ui/components/collapsible";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@repo/ui/components/dialog";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@repo/ui/components/drawer";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@repo/ui/components/dropdown-menu";
 import { Input as UiInput } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { RadioGroup, RadioGroupItem } from "@repo/ui/components/radio-group";
 import { Response } from "@repo/ui/components/ai-elements/response";
 import {
@@ -32,6 +55,20 @@ import { Slider, type SliderValue } from "@repo/ui/components/slider";
 import { Spinner } from "@repo/ui/components/spinner";
 import { Switch } from "@repo/ui/components/switch";
 import { TabItem, TabPanel, Tabs, TabsList } from "@repo/ui/components/tabs";
+import {
+  Table as UiTable,
+  TableBody,
+  TableCaption,
+  TableCell as UiTableCell,
+  TableHead as UiTableHead,
+  TableRow as UiTableRow,
+} from "@repo/ui/components/table";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 import { ChevronDownIcon } from "lucide-react";
 
@@ -538,6 +575,124 @@ function CatalogTabs({ props, children }: BaseProps<{ tabs?: CatalogOption[] }>)
   );
 }
 
+function CatalogTable({ props, children }: BaseProps<{ caption?: string }>) {
+  return (
+    <UiTable>
+      {props.caption ? <TableCaption>{props.caption}</TableCaption> : null}
+      <TableBody>{children}</TableBody>
+    </UiTable>
+  );
+}
+
+function CatalogTableRow({ children }: BaseProps<Record<string, never>>) {
+  return <UiTableRow>{children}</UiTableRow>;
+}
+
+function CatalogTableHead({ props }: BaseProps<{ text: string }>) {
+  return <UiTableHead>{props.text}</UiTableHead>;
+}
+
+function CatalogTableCell({ props, children }: BaseProps<{ text?: string }>) {
+  return <UiTableCell>{props.text != null ? props.text : children}</UiTableCell>;
+}
+
+// Overlays render their content in a portal. Each takes a `trigger` label that
+// styles the built-in trigger button (via buttonVariants on the native button —
+// not the `render` prop, which the wrapper types don't surface); the children
+// are the overlay body. Built-in affordances (✕ / Escape / outside-click /
+// hover-out) handle closing — overlays are uncontrolled, so an action inside
+// them does not auto-close.
+const overlayTriggerClass = buttonVariants({ variant: "outline", size: "sm" });
+
+function CatalogDialog({
+  props,
+  children,
+}: BaseProps<{ trigger: string; title?: string; description?: string }>) {
+  return (
+    <Dialog>
+      <DialogTrigger className={overlayTriggerClass}>{props.trigger}</DialogTrigger>
+      <DialogContent>
+        {props.title || props.description ? (
+          <DialogHeader>
+            {props.title ? <DialogTitle>{props.title}</DialogTitle> : null}
+            {props.description ? <DialogDescription>{props.description}</DialogDescription> : null}
+          </DialogHeader>
+        ) : null}
+        {children}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CatalogDrawer({
+  props,
+  children,
+}: BaseProps<{
+  trigger: string;
+  title?: string;
+  description?: string;
+  side?: "top" | "bottom" | "left" | "right";
+}>) {
+  return (
+    <Drawer direction={props.side ?? "right"}>
+      <DrawerTrigger className={overlayTriggerClass}>{props.trigger}</DrawerTrigger>
+      <DrawerContent>
+        {props.title || props.description ? (
+          <DrawerHeader>
+            {props.title ? <DrawerTitle>{props.title}</DrawerTitle> : null}
+            {props.description ? <DrawerDescription>{props.description}</DrawerDescription> : null}
+          </DrawerHeader>
+        ) : null}
+        <div className="flex flex-col gap-2 p-4 pt-0">{children}</div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+function CatalogPopover({ props, children }: BaseProps<{ trigger: string }>) {
+  return (
+    <Popover>
+      <PopoverTrigger className={overlayTriggerClass}>{props.trigger}</PopoverTrigger>
+      <PopoverContent>{children}</PopoverContent>
+    </Popover>
+  );
+}
+
+function CatalogTooltip({ props, children }: BaseProps<{ text: string }>) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger className="inline-flex w-fit cursor-help">{children}</TooltipTrigger>
+        <TooltipContent>{props.text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function CatalogDropdownMenu({ props, children }: BaseProps<{ trigger: string }>) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={overlayTriggerClass}>{props.trigger}</DropdownMenuTrigger>
+      <DropdownMenuContent>{children}</DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function CatalogMenuItem({
+  props,
+  emit,
+}: BaseProps<{ label: string; variant?: "default" | "destructive"; disabled?: boolean }>) {
+  return (
+    <DropdownMenuItem
+      variant={props.variant ?? "default"}
+      disabled={props.disabled === true}
+      onClick={() => emit("press")}
+    >
+      {props.label}
+    </DropdownMenuItem>
+  );
+}
+
 export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
   components: {
     Stack,
@@ -563,6 +718,16 @@ export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
     Card: CatalogCard,
     Collapsible: CatalogCollapsible,
     Tabs: CatalogTabs,
+    Table: CatalogTable,
+    TableRow: CatalogTableRow,
+    TableHead: CatalogTableHead,
+    TableCell: CatalogTableCell,
+    Dialog: CatalogDialog,
+    Drawer: CatalogDrawer,
+    Popover: CatalogPopover,
+    Tooltip: CatalogTooltip,
+    DropdownMenu: CatalogDropdownMenu,
+    MenuItem: CatalogMenuItem,
     Separator: CatalogSeparator,
   },
   // Action stubs — real handlers are mounted per-viewer in widget-viewer.tsx

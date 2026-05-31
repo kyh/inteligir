@@ -173,6 +173,59 @@ export const widgetCatalog = defineCatalog(schema, {
       props: z.object({ tabs: z.array(optionItem) }),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Tabs,
     },
+    Table: {
+      props: z.object({ caption: z.string().optional() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Table,
+    },
+    TableRow: {
+      props: z.object({}),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableRow,
+    },
+    TableHead: {
+      props: z.object({ text: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableHead,
+    },
+    TableCell: {
+      props: z.object({ text: z.string().optional() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.TableCell,
+    },
+    Dialog: {
+      props: z.object({
+        trigger: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Dialog,
+    },
+    Drawer: {
+      props: z.object({
+        trigger: z.string(),
+        title: z.string().optional(),
+        description: z.string().optional(),
+        side: z.enum(["top", "bottom", "left", "right"]).optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Drawer,
+    },
+    Popover: {
+      props: z.object({ trigger: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Popover,
+    },
+    Tooltip: {
+      props: z.object({ text: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Tooltip,
+    },
+    DropdownMenu: {
+      props: z.object({ trigger: z.string() }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.DropdownMenu,
+    },
+    MenuItem: {
+      props: z.object({
+        label: z.string(),
+        variant: z.enum(["default", "destructive"]).optional(),
+        disabled: z.boolean().optional(),
+      }),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.MenuItem,
+    },
     Separator: {
       props: z.object({}),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Separator,
