@@ -7,28 +7,52 @@ export type JsonWidgetComponentType =
   | "Stack"
   | "Section"
   | "Row"
+  | "Grid"
   | "Heading"
   | "Text"
   | "TextBlock"
+  | "Markdown"
+  | "Badge"
   | "Button"
   | "Checkbox"
+  | "Switch"
   | "Input"
   | "Textarea"
+  | "Select"
+  | "RadioGroup"
+  | "Slider"
+  | "Avatar"
+  | "Spinner"
+  | "Image"
   | "Card"
+  | "Collapsible"
+  | "Tabs"
   | "Separator";
 
 export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
   "Stack",
   "Section",
   "Row",
+  "Grid",
   "Heading",
   "Text",
   "TextBlock",
+  "Markdown",
+  "Badge",
   "Button",
   "Checkbox",
+  "Switch",
   "Input",
   "Textarea",
+  "Select",
+  "RadioGroup",
+  "Slider",
+  "Avatar",
+  "Spinner",
+  "Image",
   "Card",
+  "Collapsible",
+  "Tabs",
   "Separator",
 ];
 
@@ -38,19 +62,40 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
   Section:
     "Labeled group of rows. Props: { title?: string }. Renders a small uppercase title when set.",
   Row: "Horizontal row with space-between layout. Props: { bordered?: boolean }. Bordered by default.",
+  Grid: "Multi-column grid container. Props: { columns?: number (default 2), gap?: 'sm'|'md'|'lg' }. Lays children out in equal columns.",
   Heading: "Heading text. Props: { text: string, level?: '1'|'2'|'3' }. Defaults to level 3.",
   Text: "Text node. Props: { text: string, muted?: boolean, size?: 'xs'|'sm'|'base' }.",
   TextBlock:
     "Two-line text. Props: { title: string, description?: string }. Use for label/value summaries.",
+  Markdown:
+    "Rendered markdown block. Props: { content: string }. Bind `content` via { $bindState: '/path' } to show generated/fetched text.",
+  Badge:
+    "Inline status badge. Props: { text: string, variant?: 'default'|'secondary'|'destructive'|'outline'|'ghost' }.",
   Button:
     "Clickable button. Props: { label: string, variant?: 'default'|'outline'|'ghost'|'secondary'|'destructive', size?: 'xs'|'sm'|'default'|'lg', disabled?: boolean }. Wire `on.press` to actions.",
   Checkbox:
     "Checkbox. Props: { label: string, description?: string, checked?: boolean, disabled?: boolean }. Two-way bind `checked` via { $bindState: '/path' }.",
+  Switch:
+    "Toggle switch. Props: { label: string, description?: string, checked?: boolean, disabled?: boolean }. Two-way bind `checked` via { $bindState: '/path' }.",
   Input:
     "Text input. Props: { label?: string, placeholder?: string, value?: string, disabled?: boolean }. Two-way bind `value` via { $bindState: '/path' }.",
   Textarea:
     "Multi-line input. Props: { label?: string, placeholder?: string, value?: string, rows?: number, disabled?: boolean }. Two-way bind `value`.",
+  Select:
+    "Dropdown select. Props: { label?: string, placeholder?: string, value?: string, options: { label: string, value: string }[], disabled?: boolean }. Two-way bind `value`.",
+  RadioGroup:
+    "Single-choice radio group. Props: { label?: string, value?: string, options: { label: string, value: string, description?: string }[], disabled?: boolean }. Two-way bind `value`.",
+  Slider:
+    "Numeric slider. Props: { label?: string, value?: number, min?: number, max?: number, step?: number, disabled?: boolean }. Two-way bind `value` (number).",
+  Avatar:
+    "User avatar. Props: { src?: string, fallback?: string, size?: 'sm'|'default'|'lg' }. Shows `fallback` initials when no image.",
+  Spinner:
+    "Loading spinner. Props: { size?: 'sm'|'default'|'lg' }. Pair with generateText/fetchUrl and a `visible` condition.",
+  Image: "Image. Props: { src: string, alt?: string, rounded?: boolean }.",
   Card: "Bordered container. Props: {}. Use to group arbitrary children.",
+  Collapsible:
+    "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
+  Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Each child is the panel for the tab at the same index.",
   Separator: "Horizontal hairline divider. Props: {}.",
 };
 
