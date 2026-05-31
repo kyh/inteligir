@@ -73,11 +73,21 @@ export function DataChart({
 }: DataChartProps) {
   const config = React.useMemo<ChartConfig>(() => {
     const next: ChartConfig = {};
-    series.forEach((s, i) => {
-      next[s.key] = { label: s.label ?? s.key, color: s.color ?? PALETTE[i % PALETTE.length] };
-    });
+    if (type === "pie") {
+      // Pie slices are keyed by their category value (e.g. "Chrome"), which is
+      // how the legend/tooltip resolve labels — config keyed by series names
+      // would never match, leaving the legend as unlabeled dots.
+      data.forEach((row, i) => {
+        const name = String(row[categoryKey] ?? i);
+        next[name] = { label: name, color: PALETTE[i % PALETTE.length] };
+      });
+    } else {
+      series.forEach((s, i) => {
+        next[s.key] = { label: s.label ?? s.key, color: s.color ?? PALETTE[i % PALETTE.length] };
+      });
+    }
     return next;
-  }, [series]);
+  }, [type, series, data, categoryKey]);
 
   const chart = renderChart({ type, data, series, categoryKey, stacked, showGrid, showLegend });
 
