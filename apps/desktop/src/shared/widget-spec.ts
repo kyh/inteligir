@@ -155,6 +155,7 @@ export type WidgetActionName =
   | "sendPrompt"
   | "generateText"
   | "fetchUrl"
+  | "callTool"
   | "setState"
   | "pushState"
   | "removeState"
@@ -166,6 +167,7 @@ export const WIDGET_ACTION_NAMES: readonly WidgetActionName[] = [
   "sendPrompt",
   "generateText",
   "fetchUrl",
+  "callTool",
   "setState",
   "pushState",
   "removeState",
@@ -181,6 +183,8 @@ export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
     "Call the model once and write the resulting text into state at the JSON pointer `into`.",
   fetchUrl:
     "HTTP GET `url` and write the capped response body into state at the JSON pointer `into`.",
+  callTool:
+    "Invoke a configured integration tool (MCP / API source) by its dotted path `tool` (e.g. 'github.search_issues') with the `input` object, and write the returned data into state at the JSON pointer `into`. Pulls live data without an agent turn — bind a Table/Chart/Markdown to `into` to display it. Optional `error` JSON pointer receives the error message on failure (otherwise a toast is shown).",
   setState: "Write a value into widget state.",
   pushState: "Append an item to an array in widget state.",
   removeState: "Remove an item from an array in widget state.",

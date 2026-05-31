@@ -49,6 +49,10 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   const idRef = useRef(instance.instanceId);
   idRef.current = instance.instanceId;
 
+  // Per-`into`-path invocation counter for callTool: a slower earlier call
+  // must not clobber a newer result written to the same path (latest-wins).
+  const callSeqRef = useRef(new Map<string, number>());
+
   // Resolves with whether the latest pending state actually reached main, so
   // surface-change and unplace callers can tell a true success ("flushed" or
   // "nothing to flush") from a quiet failure (bridge missing, IPC threw). A
@@ -148,6 +152,52 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           if (typeof text === "string") getStore().set(into, text);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Fetch failed");
+        }
+      },
+      // Calls a configured integration tool and writes its data into `into`.
+      // On failure, route the message into the `error` state path when given
+      // (so the widget can show it inline) and otherwise toast.
+      callTool: async (params: Record<string, unknown>) => {
+        const tool = typeof params["tool"] === "string" ? params["tool"] : "";
+        const into = typeof params["into"] === "string" ? params["into"] : "";
+        const errorPath = typeof params["error"] === "string" ? params["error"] : "";
+        const input = params["input"];
+        if (!tool || !into) return;
+        // Resolve the bridge up front: a tool call returns arbitrary data
+        // (including a legitimate null), so a missing bridge can't be told
+        // apart from a real result downstream. Treat its absence as an error
+        // rather than silently writing null over bound data.
+        const bridge = getBridge();
+        if (!bridge) {
+          if (errorPath) getStore().set(errorPath, "Agent unavailable");
+          else toast.error("Agent unavailable");
+          return;
+        }
+        // Latest-wins per state path this call writes: claim a token for each
+        // pointer, then only write a pointer if no newer call has claimed it.
+        // Keying per pointer (not just `into`) means a success on one target
+        // can't null out an error a concurrent call wrote to a shared `error`
+        // pointer. When `error` coincides with `into` it's a single pointer —
+        // claiming once and never clearing it on success.
+        const seqMap = callSeqRef.current;
+        const claim = (path: string): (() => boolean) => {
+          const seq = (seqMap.get(path) ?? 0) + 1;
+          seqMap.set(path, seq);
+          return () => seqMap.get(path) === seq;
+        };
+        const intoLatest = claim(into);
+        const errorLatest = errorPath && errorPath !== into ? claim(errorPath) : null;
+        try {
+          const data = await bridge.widgetCallTool(tool, input);
+          if (intoLatest()) getStore().set(into, data ?? null);
+          // Clear a stale error only if we still own the error pointer and it
+          // isn't the path we just wrote the result to.
+          if (errorLatest?.()) getStore().set(errorPath, null);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Tool call failed";
+          if (!errorPath) toast.error(message);
+          else if (errorPath === into ? intoLatest() : errorLatest?.())
+            getStore().set(errorPath, message);
         }
       },
     };

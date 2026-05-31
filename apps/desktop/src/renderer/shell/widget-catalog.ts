@@ -288,5 +288,14 @@ export const widgetCatalog = defineCatalog(schema, {
       params: z.object({ url: z.string().url(), into: z.string() }),
       description: WIDGET_ACTION_DESCRIPTIONS.fetchUrl,
     },
+    callTool: {
+      params: z.object({
+        tool: z.string(),
+        input: z.record(z.string(), z.unknown()).optional(),
+        into: z.string(),
+        error: z.string().optional(),
+      }),
+      description: WIDGET_ACTION_DESCRIPTIONS.callTool,
+    },
   },
 });
