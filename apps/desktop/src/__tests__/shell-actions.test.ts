@@ -105,4 +105,28 @@ describe("shell actions", () => {
 
     expect(helpers.shell.unplaceWidget).toHaveBeenCalledWith(instance.instanceId);
   });
+
+  it("re-checks getWritableShell after the flush so a logout during the await is honored", async () => {
+    // Pre-flush the shell is writable; mid-flush teardown suspends it. The
+    // wrapper must not call mgr.unplaceWidget on the stale reference and
+    // resurrect ~/.inteligir via JsonStore from the (now-orphaned) singleton.
+    helpers.getWritableShell.mockReturnValueOnce(helpers.shell).mockReturnValueOnce(null);
+
+    await expect(unplaceWithFlush(instance.instanceId)).resolves.toBe(false);
+    expect(helpers.shell.unplaceWidget).not.toHaveBeenCalled();
+  });
+
+  it("placeWithFlush re-checks suspension after the flush await", async () => {
+    helpers.getWritableShell.mockReturnValueOnce(helpers.shell).mockReturnValueOnce(null);
+
+    await expect(placeWithFlush(singletonDef.id, "floating")).resolves.toBeNull();
+    expect(helpers.shell.placeWidget).not.toHaveBeenCalled();
+  });
+
+  it("deleteWithFlush re-checks suspension after the flush await", async () => {
+    helpers.getWritableShell.mockReturnValueOnce(helpers.shell).mockReturnValueOnce(null);
+
+    await expect(deleteWithFlush(singletonDef.id, 1)).resolves.toBe(false);
+    expect(helpers.shell.deleteWidget).not.toHaveBeenCalled();
+  });
 });

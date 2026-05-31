@@ -22,9 +22,13 @@ class FlushFailedError extends Error {
  * FlushFailedError when the renderer couldn't persist; returns false when
  * the shell is suspended. */
 export async function unplaceWithFlush(instanceId: string): Promise<boolean> {
+  if (!getWritableShell()) return false;
+  if (!(await flushRendererInstance(instanceId))) throw new FlushFailedError();
+  // Re-check after the await: logout can have run during the flush and the
+  // pre-flush manager reference would still write to JsonStore, re-creating
+  // ~/.inteligir that teardown just wiped.
   const mgr = getWritableShell();
   if (!mgr) return false;
-  if (!(await flushRendererInstance(instanceId))) throw new FlushFailedError();
   return mgr.unplaceWidget(instanceId);
 }
 
@@ -39,13 +43,15 @@ export async function placeWithFlush(
   widgetId: string,
   surface?: WidgetSurface,
 ): Promise<WidgetInstance | null> {
-  const mgr = getWritableShell();
-  if (!mgr) return null;
-  const def = mgr.getDef(widgetId);
+  const preMgr = getWritableShell();
+  if (!preMgr) return null;
+  const def = preMgr.getDef(widgetId);
   const live = def?.singleton
-    ? mgr.snapshot().instances.filter((i) => i.widgetId === widgetId)
+    ? preMgr.snapshot().instances.filter((i) => i.widgetId === widgetId)
     : [];
   if (!(await flushInstances(live))) throw new FlushFailedError();
+  const mgr = getWritableShell();
+  if (!mgr) return null;
   return mgr.placeWidget(widgetId, surface);
 }
 
@@ -59,10 +65,12 @@ export async function deleteWithFlush(
   widgetId: string,
   expectedRevision?: number,
 ): Promise<boolean> {
+  const preMgr = getWritableShell();
+  if (!preMgr) return false;
+  const live = preMgr.snapshot().instances.filter((i) => i.widgetId === widgetId);
+  if (!(await flushInstances(live))) throw new FlushFailedError();
   const mgr = getWritableShell();
   if (!mgr) return false;
-  const live = mgr.snapshot().instances.filter((i) => i.widgetId === widgetId);
-  if (!(await flushInstances(live))) throw new FlushFailedError();
   return mgr.deleteWidget(widgetId, expectedRevision);
 }
 
