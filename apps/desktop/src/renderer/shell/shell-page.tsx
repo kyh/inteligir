@@ -2,7 +2,6 @@ import { useEffect } from "react";
 
 import { BottomDock } from "@/renderer/shell/bottom-dock";
 import { PanelGrid } from "@/renderer/shell/panel-grid";
-import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -32,8 +31,6 @@ export function ShellPage() {
   const initVoice = useVoiceStore((s) => s.init);
   useEffect(() => initVoice(), [initVoice]);
 
-  const newSession = useAgentStore((s) => s.newSession);
-
   return (
     <div className="relative h-full w-full">
       {/* Draggable title strip — the native title bar is hidden. */}
@@ -54,7 +51,7 @@ export function ShellPage() {
         <PanelGrid />
       </div>
 
-      <BottomDock onNewSession={() => void newSession()} />
+      <BottomDock />
     </div>
   );
 }

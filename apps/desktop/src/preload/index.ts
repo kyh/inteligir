@@ -29,6 +29,8 @@ const desktopBridge: DesktopBridge = {
   onAgentEvent: (listener) => forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),
   sendAgentCommand: (command) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_COMMAND, command),
   getAgentHistory: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_HISTORY),
+  reauthenticate: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_REAUTHENTICATE),
+  onAuthRequired: (listener) => forwardEvent(IPC_CHANNELS.AGENT_AUTH_REQUIRED, listener),
 
   // Tasks
   createTask: (params) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, params),
@@ -54,11 +56,6 @@ const desktopBridge: DesktopBridge = {
   // UI state
   getUiState: () => ipcRenderer.invoke(IPC_CHANNELS.UI_STATE_GET),
   setUiState: (key, value) => ipcRenderer.invoke(IPC_CHANNELS.UI_STATE_SET, { key, value }),
-
-  // Extensions
-  listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
-  setActiveExtensions: (toolNames) =>
-    ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
 
   // Shell — OS-like workspace
   listShell: () => ipcRenderer.invoke(IPC_CHANNELS.SHELL_LIST),
@@ -110,8 +107,6 @@ const desktopBridge: DesktopBridge = {
   listExecutorConnections: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST),
   removeExecutorConnection: (connectionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_CONNECTION_REMOVE, connectionId),
-  listExecutorTools: () => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_TOOLS_LIST),
-  executorExecute: (code) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_EXECUTE, code),
   executorOAuthStart: (input) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OAUTH_START, input),
   executorOAuthAwait: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, sessionId),

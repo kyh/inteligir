@@ -17,13 +17,6 @@ import { isRecord, type ChatHistoryEntry } from "@/shared/ipc";
 const SESSION_DIR = inteligirPath("sessions");
 const WORKSPACE_DIR = inteligirPath("workspace");
 
-let cachedHistory: ChatHistoryEntry[] | undefined;
-
-/** Clear the cached session history (e.g. on logout). */
-export function clearSessionHistoryCache(): void {
-  cachedHistory = undefined;
-}
-
 // ---------------------------------------------------------------------------
 // Type guards for pi-ai content blocks
 // ---------------------------------------------------------------------------
@@ -72,13 +65,10 @@ function extractTextFromContent(content: Message["content"]): string {
 
 /**
  * Read the most recent session's messages from disk and convert to
- * ChatHistoryEntry[] for the renderer.
- *
- * Called eagerly at startup (before initMachine), and again by the renderer
- * via IPC to get the cached result.
+ * ChatHistoryEntry[] for the renderer. Called once per renderer mount via
+ * the AGENT_HISTORY IPC.
  */
 export function readSessionHistory(): ChatHistoryEntry[] {
-  if (cachedHistory !== undefined) return cachedHistory;
   try {
     const sm = SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
     const entries = sm.getEntries();
@@ -121,23 +111,16 @@ export function readSessionHistory(): ChatHistoryEntry[] {
     // Cap the final UI message list. Slice at a user-message boundary to
     // avoid orphaned tool/assistant entries at the start.
     const MAX_UI_MESSAGES = 200;
-    if (history.length > MAX_UI_MESSAGES) {
-      const originalStart = history.length - MAX_UI_MESSAGES;
-      let start = originalStart;
-      // Walk forward to the nearest user message so we don't cut mid-turn
-      while (start < history.length && history[start]?.role !== "user") {
-        start++;
-      }
-      // Fall back to the original position if no user message was found
-      if (start >= history.length) start = originalStart;
-      cachedHistory = history.slice(start);
-    } else {
-      cachedHistory = history;
+    if (history.length <= MAX_UI_MESSAGES) return history;
+    const originalStart = history.length - MAX_UI_MESSAGES;
+    let start = originalStart;
+    while (start < history.length && history[start]?.role !== "user") {
+      start++;
     }
-    return cachedHistory;
+    if (start >= history.length) start = originalStart;
+    return history.slice(start);
   } catch (err) {
     console.warn("[session-history] failed to read session:", err);
-    // Don't cache on error — allow retry on the next IPC call
     return [];
   }
 }

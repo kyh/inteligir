@@ -49,7 +49,6 @@ const singletonDef: BuiltinWidgetDef = {
   title: "Tasks",
   revision: 1,
   singleton: true,
-  permanent: false,
   defaultGeometry: geometry,
   source: { kind: "builtin-react" },
 };

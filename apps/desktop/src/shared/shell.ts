@@ -79,8 +79,6 @@ type BaseWidgetDef = {
   revision: number;
   /** At most one instance can be placed at a time. */
   singleton: boolean;
-  /** The seeded instance can't be removed. Implies singleton. */
-  permanent: boolean;
   /** Initial grid placement for new instances. */
   defaultGeometry: WidgetGeometry;
   source: WidgetSource;
@@ -90,7 +88,7 @@ function tuple<const T extends readonly string[]>(...values: T): T {
   return values;
 }
 
-const BUILTIN_WIDGET_IDS = tuple("chat", "tasks", "skills", "extensions", "settings");
+const BUILTIN_WIDGET_IDS = tuple("chat", "widgets", "tasks", "extensions", "settings");
 
 export type BuiltinWidgetId = (typeof BUILTIN_WIDGET_IDS)[number];
 
@@ -102,7 +100,6 @@ export type BuiltinWidgetDef = BaseWidgetDef & {
 
 export type JsonUiWidgetDef = BaseWidgetDef & {
   singleton: false;
-  permanent: false;
   source: Extract<WidgetSource, { kind: "json-ui" }>;
 };
 
@@ -117,25 +114,22 @@ const BUILTIN_DEFS_BY_ID: Record<BuiltinWidgetId, BuiltinWidgetDef> = {
     title: "Conversation",
     revision: 1,
     singleton: true,
-    permanent: true,
     defaultGeometry: { x: 0, y: 0, w: 5, h: 12, minW: 3, minH: 5 },
+    source: { kind: "builtin-react" },
+  },
+  widgets: {
+    id: "widgets",
+    title: "Widgets",
+    revision: 1,
+    singleton: true,
+    defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 },
     source: { kind: "builtin-react" },
   },
   tasks: {
     id: "tasks",
-    title: "Tasks",
+    title: "Scheduled Tasks",
     revision: 1,
     singleton: true,
-    permanent: false,
-    defaultGeometry: { x: 5, y: 0, w: 4, h: 6, minW: 2, minH: 3 },
-    source: { kind: "builtin-react" },
-  },
-  skills: {
-    id: "skills",
-    title: "Skills",
-    revision: 1,
-    singleton: true,
-    permanent: false,
     defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 },
     source: { kind: "builtin-react" },
   },
@@ -144,7 +138,6 @@ const BUILTIN_DEFS_BY_ID: Record<BuiltinWidgetId, BuiltinWidgetDef> = {
     title: "Extensions",
     revision: 1,
     singleton: true,
-    permanent: false,
     defaultGeometry: { x: 5, y: 6, w: 4, h: 6, minW: 2, minH: 3 },
     source: { kind: "builtin-react" },
   },
@@ -153,7 +146,6 @@ const BUILTIN_DEFS_BY_ID: Record<BuiltinWidgetId, BuiltinWidgetDef> = {
     title: "Settings",
     revision: 1,
     singleton: true,
-    permanent: false,
     defaultGeometry: { x: 9, y: 6, w: 3, h: 6, minW: 2, minH: 3 },
     source: { kind: "builtin-react" },
   },

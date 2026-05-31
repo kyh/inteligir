@@ -3,16 +3,10 @@
 // commands; this kernel validates specs, placement, and revisions.
 
 import { randomUUID } from "node:crypto";
-import fs from "node:fs";
 
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
-import {
-  DEFAULT_SHELL,
-  defaultShellSnapshot,
-  shellSnapshot,
-  withPermanentInstances,
-} from "@/main/shell-defaults";
+import { DEFAULT_SHELL, defaultShellSnapshot, shellSnapshot } from "@/main/shell-defaults";
 import { ShellSchema } from "@/main/shell-schema";
 import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
@@ -49,19 +43,6 @@ export class ShellManager {
   constructor(storePath?: string) {
     const file = storePath ?? inteligirPath("runtime-ui.json");
     this.store = new JsonStore(file, ShellSchema, DEFAULT_SHELL);
-    // Repair a hand-edited shell.json that validates but is missing a
-    // permanent instance (e.g. someone dropped the chat row). Without this,
-    // snapshot()/broadcast() would synthesize the missing instance on the
-    // fly while the in-memory store still lacked it — so getInstance, the
-    // grid-geometry writer, and setInstanceState would silently no-op for
-    // those instanceIds.
-    //
-    // Only when the file already exists. A post-teardown construct (no
-    // workspace dir, no shell file) would otherwise auto-write DEFAULT_SHELL
-    // and re-create ~/.inteligir, undoing the logout wipe.
-    if (fs.existsSync(file)) {
-      this.store.update(withPermanentInstances);
-    }
   }
 
   snapshot(): ShellSnapshot {
@@ -90,7 +71,6 @@ export class ShellManager {
         description: input.description,
         revision: 1,
         singleton: false,
-        permanent: false,
         defaultGeometry: { x: 5, y: 0, ...WIDGET_DEFAULT_SIZE },
         source: {
           kind: "json-ui",
@@ -206,17 +186,14 @@ export class ShellManager {
     return result;
   }
 
-  /** Remove a placed instance. Permanent defs' instances can't be removed.
-   * Archives the instance's state by widgetId so a later placeWidget can
-   * restore what the user typed (overwriting any earlier archive — multi-
-   * instance unplaces collapse to the last-closed state). */
+  /** Remove a placed instance. Archives the instance's state by widgetId so a
+   * later placeWidget can restore what the user typed (overwriting any earlier
+   * archive — multi-instance unplaces collapse to the last-closed state). */
   unplaceWidget(instanceId: string): boolean {
     let removed = false;
     const next = this.store.update((current) => {
       const target = current.instances.find((i) => i.instanceId === instanceId);
       if (!target) return current;
-      const def = this.findDef(current, target.widgetId);
-      if (def?.permanent) return current;
       removed = true;
       // Always reflect what state was at unplace time: writing it for non-empty
       // state, dropping any stale prior entry when the user cleared everything.

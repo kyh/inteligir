@@ -87,7 +87,7 @@ afterEach(() => {
 });
 
 describe("ShellManager seeding", () => {
-  it("seeds a single permanent pinned chat instance", () => {
+  it("seeds a single pinned chat instance on first run", () => {
     const { defs, instances } = mgr.snapshot();
     expect(defs.some((d) => d.id === CHAT_WIDGET_ID)).toBe(true);
     expect(defs.every((d) => d.source.kind === "builtin-react")).toBe(true);
@@ -96,24 +96,11 @@ describe("ShellManager seeding", () => {
     expect(must(instances[0], "missing chat").placement.surface).toBe("pinned");
   });
 
-  it("repairs a hand-edited runtime-ui.json that omits the chat permanent instance", () => {
-    const path = storePath.replace(".json", "-handedit.json");
-    fs.writeFileSync(
-      path,
-      JSON.stringify({ version: 2, customDefs: [], instances: [], archivedStates: {} }),
-    );
-    const repaired = new ShellManager(path);
-    const chat = must(
-      repaired.snapshot().instances.find((i) => i.widgetId === CHAT_WIDGET_ID),
-      "missing repaired chat",
-    );
-    expect(repaired.getInstance(chat.instanceId)).not.toBeNull();
-    fs.rmSync(path, { force: true });
-  });
-
-  it("refuses to unplace the chat instance", () => {
+  it("lets chat be unplaced and re-placed", () => {
     const chat = must(mgr.snapshot().instances[0], "missing chat");
-    expect(mgr.unplaceWidget(chat.instanceId)).toBe(false);
+    expect(mgr.unplaceWidget(chat.instanceId)).toBe(true);
+    expect(mgr.snapshot().instances).toHaveLength(0);
+    expect(mgr.placeWidget(CHAT_WIDGET_ID, "pinned")).not.toBeNull();
     expect(mgr.snapshot().instances).toHaveLength(1);
   });
 });
@@ -265,8 +252,8 @@ describe("ShellManager.placeWidget", () => {
             state: {},
           },
           {
-            instanceId: "skills",
-            widgetId: "skills",
+            instanceId: "widgets",
+            widgetId: "widgets",
             placement: {
               surface: "floating",
               rect: { x: 20, y: 20, width: 320, height: 360 },
@@ -282,7 +269,7 @@ describe("ShellManager.placeWidget", () => {
       const tied = new ShellManager(tiedPath);
 
       const focusedA = must(tied.placeWidget("tasks"), "expected focused a");
-      const focusedB = must(tied.placeWidget("skills"), "expected focused b");
+      const focusedB = must(tied.placeWidget("widgets"), "expected focused b");
       if (focusedA.placement.surface !== "floating" || focusedB.placement.surface !== "floating") {
         throw new Error("expected floating");
       }

@@ -1,11 +1,10 @@
 import { memo, useCallback, useEffect, useMemo } from "react";
-import { Maximize2Icon, PlusIcon, XIcon } from "lucide-react";
+import { Maximize2Icon, XIcon } from "lucide-react";
 import { GridLayout, useContainerWidth, type Layout, type LayoutItem } from "react-grid-layout";
 import type { GridConfig, ResizeConfig } from "react-grid-layout/core";
 import "react-grid-layout/css/styles.css";
 
 import { cn } from "@repo/ui/lib/utils";
-import { toast } from "@repo/ui/components/sonner";
 
 import { FloatingLayer } from "@/renderer/shell/floating-layer";
 import {
@@ -20,7 +19,6 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import {
   isPinned,
-  type InstallWidgetInput,
   type PinnedInstance,
   type WidgetDef,
   type WidgetGeometry,
@@ -53,25 +51,6 @@ function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
   if (item.minW !== undefined) geo.minW = item.minW;
   if (item.minH !== undefined) geo.minH = item.minH;
   return geo;
-}
-
-// A blank, user-editable note — the simplest custom widget a user can add
-// without authoring a spec: a multi-line field bound to state.
-function noteStarter(): InstallWidgetInput {
-  return {
-    title: "Note",
-    spec: {
-      root: "root",
-      elements: {
-        root: { type: "Stack", props: { gap: "sm" }, children: ["body"] },
-        body: {
-          type: "Textarea",
-          props: { placeholder: "Type a note…", value: { $bindState: "/text" }, rows: 6 },
-        },
-      },
-      state: { text: "" },
-    },
-  };
 }
 
 // ---------------------------------------------------------------------------
@@ -127,7 +106,7 @@ const InstancePanel = memo(function InstancePanel({
       title={widgetTitle(def, instance)}
       bodyClassName={widgetBodyClassName(def)}
       onPopOut={() => void moveInstance(instance.instanceId, "floating")}
-      onRemove={def?.permanent ? undefined : () => void closeInstance(instance)}
+      onRemove={() => void closeInstance(instance)}
     >
       <WidgetBody def={def} instance={instance} />
     </Panel>
@@ -160,34 +139,12 @@ export function PanelGrid() {
     void getBridge()?.setInstanceGeometry(geometries);
   }, []);
 
-  const addNote = useCallback(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    // installWidget / placeWidget can reject (e.g. the place step's flush of
-    // a live singleton failed) — show the error rather than letting it land
-    // as an unhandled promise rejection.
-    bridge
-      .installWidget(noteStarter())
-      .then((def) => bridge.placeWidget(def.id, "pinned"))
-      .catch((err) => {
-        toast.error(err instanceof Error ? err.message : "Couldn't add a note");
-      });
-  }, []);
-
   const ready = width > 0 && !loading;
 
   return (
     <div ref={containerRef} className="relative h-full w-full">
       {ready && (
         <>
-          <button
-            type="button"
-            onClick={addNote}
-            className="absolute right-1 top-0 z-20 flex items-center gap-1 rounded-md border border-border bg-card/60 px-2 py-1 text-xs text-muted-foreground shadow-sm backdrop-blur-md hover:text-foreground"
-          >
-            <PlusIcon className="size-3.5" />
-            Add note
-          </button>
           <GridLayout
             width={width}
             layout={layout}

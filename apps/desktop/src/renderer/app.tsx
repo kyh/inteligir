@@ -6,6 +6,7 @@ import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-
 import { Toaster } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 import { useTheme } from "@/renderer/lib/use-theme";
+import { ReauthDialog } from "@/renderer/shell/reauth-dialog";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useUiStateStore } from "@/renderer/stores/ui-state-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
@@ -79,6 +80,7 @@ export function AppLayout() {
         {needsRedirect ? <Navigate to={target} replace /> : <Outlet />}
       </div>
 
+      <ReauthDialog />
       <Toaster />
     </div>
   );

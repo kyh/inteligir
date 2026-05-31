@@ -39,6 +39,8 @@ export const IPC_CHANNELS = {
   AGENT_EVENT: "agent:event",
   AGENT_COMMAND: "agent:command",
   AGENT_HISTORY: "agent:history",
+  AGENT_REAUTHENTICATE: "agent:reauthenticate",
+  AGENT_AUTH_REQUIRED: "agent:auth-required",
 
   // Tasks
   TASK_CREATE: "task:create",
@@ -63,10 +65,6 @@ export const IPC_CHANNELS = {
   // UI state (persisted panel layout / view preferences)
   UI_STATE_GET: "ui-state:get",
   UI_STATE_SET: "ui-state:set",
-
-  // Extensions / tools (#7 dock)
-  EXTENSIONS_LIST: "extensions:list",
-  EXTENSIONS_SET_ACTIVE: "extensions:set-active",
 
   // Shell — the OS-like workspace (widget definitions + placed instances)
   SHELL_LIST: "shell:list",
@@ -108,8 +106,6 @@ export const IPC_CHANNELS = {
   EXECUTOR_SECRET_REMOVE: "executor:secret:remove",
   EXECUTOR_CONNECTIONS_LIST: "executor:connections:list",
   EXECUTOR_CONNECTION_REMOVE: "executor:connection:remove",
-  EXECUTOR_TOOLS_LIST: "executor:tools:list",
-  EXECUTOR_EXECUTE: "executor:execute",
   EXECUTOR_OAUTH_START: "executor:oauth:start",
   EXECUTOR_OAUTH_AWAIT: "executor:oauth:await",
   EXECUTOR_OPEN_EXTERNAL: "executor:open-external",
@@ -201,6 +197,12 @@ export type DesktopBridge = {
   onAgentEvent: (listener: (event: AppAgentEvent) => void) => () => void;
   sendAgentCommand: (command: TextChatMessage) => Promise<void>;
   getAgentHistory: () => Promise<ChatHistoryEntry[]>;
+  /** Re-run the OAuth flow against the active provider and restart the
+   * session so the next turn uses fresh credentials. */
+  reauthenticate: () => Promise<{ ok: boolean; error?: string }>;
+  /** Fired from main when a turn ends with no assistant output and no tool
+   * calls — almost always an expired/broken provider auth. */
+  onAuthRequired: (listener: (info: { reason: string }) => void) => () => void;
 
   // Tasks
   createTask: (params: CreateTaskParams) => Promise<CreateTaskResult>;
@@ -230,10 +232,6 @@ export type DesktopBridge = {
   // UI state
   getUiState: () => Promise<Record<string, unknown>>;
   setUiState: (key: string, value: unknown) => Promise<void>;
-
-  // Extensions / tools
-  listExtensions: () => Promise<ExtensionsList>;
-  setActiveExtensions: (toolNames: string[]) => Promise<ExtensionsList>;
 
   // Shell — the OS-like workspace
   listShell: () => Promise<ShellSnapshot>;
@@ -280,8 +278,6 @@ export type DesktopBridge = {
   removeExecutorSecret: (secretId: string) => Promise<{ removed: boolean }>;
   listExecutorConnections: () => Promise<ExecutorConnectionRef[]>;
   removeExecutorConnection: (connectionId: string) => Promise<{ removed: boolean }>;
-  listExecutorTools: () => Promise<ExecutorToolMeta[]>;
-  executorExecute: (code: string) => Promise<ExecutorExecuteResult>;
   executorOAuthStart: (input: OAuthStartInput) => Promise<OAuthStartResult>;
   executorOAuthAwait: (sessionId: string) => Promise<OAuthAwaitResult | null>;
   executorOpenExternal: (url: string) => Promise<void>;
@@ -317,10 +313,10 @@ export type NotificationSettings = {
 };
 
 // ---------------------------------------------------------------------------
-// Extensions (#7) — projection of pi-coding-agent's tool registry for the dock
+// Executor (integration backend) — shared types
 // ---------------------------------------------------------------------------
 
-import type { PiAgentSkill, PiAgentTool } from "@repo/pi-driver";
+import type { PiAgentSkill } from "@repo/pi-driver";
 
 import type {
   AddGoogleSourceInput,
@@ -330,21 +326,13 @@ import type {
   ExecutorAddSourceResult,
   ExecutorConnectionRef,
   ExecutorDetectResult,
-  ExecutorExecuteResult,
   ExecutorSecretRef,
   ExecutorSource,
-  ExecutorToolMeta,
   OAuthAwaitResult,
   OAuthStartInput,
   OAuthStartResult,
   SetSecretInput,
 } from "./executor";
-
-export type ExtensionToolInfo = PiAgentTool;
-
-export type ExtensionsList = {
-  tools: ExtensionToolInfo[];
-};
 
 // ---------------------------------------------------------------------------
 // Skills — SKILL.md capability docs pi discovers under the user (~/.inteligir/

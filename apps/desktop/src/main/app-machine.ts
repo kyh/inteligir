@@ -10,13 +10,11 @@ import {
   seedResources,
   teardownResources,
 } from "@/agent/setup";
-import { getPersistedActiveTools } from "@/main/active-tools";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
-import { clearSessionHistoryCache } from "@/main/session-history";
 import { taskManager } from "@/main/tasks/task-manager";
 import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
@@ -30,30 +28,116 @@ import type { AppState, MachineEvent } from "@/shared/app-state";
 
 let agent: Agent | null = null;
 
-// Track this turn's assistant text directly; getLastAssistantText() on the
-// session would return the *previous* turn's text after an early abort.
-let currentTurnAssistantText: string | null = null;
+// Mutable per-turn scratchpad. `assistantText` is tracked directly because
+// session.getLastAssistantText() returns the *previous* turn's text after an
+// early abort. The flags drive the empty-turn detection below.
+type Turn = {
+  startedAt: number;
+  assistantText: string | null;
+  sawAssistantText: boolean;
+  sawToolCall: boolean;
+  sawError: boolean;
+};
+let turn: Turn | null = null;
+
+function startTurn(): void {
+  turn = {
+    startedAt: Date.now(),
+    assistantText: null,
+    sawAssistantText: false,
+    sawToolCall: false,
+    sawError: false,
+  };
+}
+
+/** Compact, single-line dump of an agent event for the dev terminal. Pretty-
+ * printing every field would flood the log; we keep just the discriminators
+ * and the few fields needed to triage "what did the LLM actually do?". */
+function logAgentEvent(event: AppAgentEvent): void {
+  const dt = turn ? `+${Date.now() - turn.startedAt}ms` : "";
+  switch (event.type) {
+    case "agent_start":
+      console.log(`[agent-event] agent_start`);
+      break;
+    case "agent_end":
+      console.log(`[agent-event] agent_end ${dt}`);
+      break;
+    case "message_start":
+      console.log(`[agent-event] message_start role=${event.role} ${dt}`);
+      break;
+    case "message_end": {
+      const text = event.text ?? "";
+      const preview = text.length > 80 ? `${text.slice(0, 80)}…` : text;
+      console.log(
+        `[agent-event] message_end role=${event.role} stop=${event.stopReason ?? "?"} len=${text.length} ${dt} ${preview ? `text="${preview}"` : ""}`.trim(),
+      );
+      break;
+    }
+    case "tool_execution_start":
+      console.log(`[agent-event] tool_execution_start name=${event.toolName} ${dt}`);
+      break;
+    case "tool_execution_end":
+      console.log(
+        `[agent-event] tool_execution_end ok=${!event.isError} len=${event.resultText.length} ${dt}`,
+      );
+      break;
+    case "turn_error":
+      console.log(`[agent-event] turn_error kind=${event.kind} reason="${event.reason}" ${dt}`);
+      break;
+    default:
+      console.log(`[agent-event] ${event.type} ${dt}`);
+  }
+}
 
 function handleAgentEvent(event: AppAgentEvent): void {
+  logAgentEvent(event);
+
   if (event.type === "message_end" && event.stopReason === "error") {
     console.error("[agent] error event:", event);
   }
 
   switch (event.type) {
     case "agent_start":
-      currentTurnAssistantText = null;
+      startTurn();
       machine?.ingest({ type: "AGENT_START" });
       break;
+    case "tool_execution_start":
+      if (turn) turn.sawToolCall = true;
+      break;
     case "message_end":
-      if (event.role === "assistant" && event.text) {
-        currentTurnAssistantText = event.text;
+      if (turn && event.role === "assistant") {
+        if (event.text) {
+          turn.assistantText = event.text;
+          turn.sawAssistantText = true;
+        }
+        if (event.stopReason === "error") turn.sawError = true;
       }
       break;
-    case "agent_end":
+    case "agent_end": {
+      // Empty-turn fallback: pi finished a turn without producing any
+      // assistant text, any tool call, or an explicit stopReason: "error".
+      // Almost always an upstream/auth failure swallowed as a success.
+      if (turn && !turn.sawAssistantText && !turn.sawToolCall && !turn.sawError) {
+        const elapsed = Date.now() - turn.startedAt;
+        console.warn(
+          `[agent] empty turn — no assistant text and no tool calls (took ${elapsed}ms). ` +
+            "Likely an upstream LLM/auth failure swallowed as success. " +
+            "Check provider auth, model id, and pi-ai output handling.",
+        );
+        const reason =
+          "The model returned no response. The upstream call may have failed silently — try re-authenticating.";
+        broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, {
+          type: "turn_error",
+          kind: "auth",
+          reason,
+        } satisfies AppAgentEvent);
+        broadcastToRenderer(IPC_CHANNELS.AGENT_AUTH_REQUIRED, { reason });
+      }
       machine?.ingest({ type: "AGENT_END" });
-      getNotifications().notifyAgentIdle(currentTurnAssistantText ?? undefined);
-      currentTurnAssistantText = null;
+      getNotifications().notifyAgentIdle(turn?.assistantText ?? undefined);
+      turn = null;
       break;
+    }
   }
 
   broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
@@ -64,8 +148,6 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   const next = new Agent(opts);
   try {
     await next.start();
-    const persisted = getPersistedActiveTools();
-    if (persisted) next.setActiveTools(persisted);
     next.subscribe((raw) => {
       const event = parseAgentEvent(raw);
       if (event) handleAgentEvent(event);
@@ -94,17 +176,31 @@ async function stopAgent(): Promise<void> {
   // The executor daemon is started lazily by the executor extension at agent
   // start; tear it down here so it doesn't outlive the agent.
   await getExecutorDaemon().stop();
-  currentTurnAssistantText = null;
+  turn = null;
 }
 
 async function newSession(): Promise<void> {
-  clearSessionHistoryCache();
   await stopAgent();
   await startAgent({ newSession: true });
 }
 
 export function getAgent(): Agent | null {
   return agent;
+}
+
+/** Re-run the provider OAuth flow and restart the session so the next turn
+ * uses fresh credentials. Used by the "Re-authenticate" Settings affordance
+ * and the empty-turn modal. */
+export async function reauthenticate(): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await login();
+    await newSession();
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("[machine] reauthenticate failed:", message);
+    return { ok: false, error: message };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +312,7 @@ export function initMachine(): void {
     broadcast(machine.getState());
   }
 }
+
 
 export async function shutdown(): Promise<void> {
   console.log("[machine] shutdown");

@@ -30,18 +30,6 @@ export const ExecutorDetectResultSchema = z.object({
 });
 export type ExecutorDetectResult = z.infer<typeof ExecutorDetectResultSchema>;
 
-export const ExecutorToolMetaSchema = z.object({
-  id: z.string(),
-  pluginId: z.string(),
-  sourceId: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  mayElicit: z.boolean().optional(),
-  requiresApproval: z.boolean().optional(),
-  approvalDescription: z.string().optional(),
-});
-export type ExecutorToolMeta = z.infer<typeof ExecutorToolMetaSchema>;
-
 export const ExecutorSecretRefSchema = z.object({
   id: z.string(),
   scopeId: z.string(),

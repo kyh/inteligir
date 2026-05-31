@@ -20,11 +20,18 @@ try {
 import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice/parakeet";
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
-import { persistActiveTools } from "@/main/active-tools";
-import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import {
+  getAgent,
+  getAppState,
+  initMachine,
+  reauthenticate,
+  shutdown,
+  transition,
+} from "@/main/app-machine";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import * as executor from "@/main/executor/executor-client";
+import { initAgentLog } from "@/main/lib/agent-log";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
 import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
@@ -38,7 +45,7 @@ import { AppEventSchema } from "@/shared/app-state";
 import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, ExecutorStatus, SkillsList, UpdateState } from "@/shared/ipc";
+import type { ExecutorStatus, SkillsList, UpdateState } from "@/shared/ipc";
 import {
   AddGoogleSourceInputSchema,
   AddGraphqlSourceInputSchema,
@@ -192,6 +199,8 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
 
+  createVoidIpcHandler(IPC_CHANNELS.AGENT_REAUTHENTICATE, () => reauthenticate());
+
   // ---- App lifecycle --------------------------------------------------------
 
   createVoidIpcHandler(IPC_CHANNELS.APP_GET_STATE, () => getAppState());
@@ -291,26 +300,6 @@ function registerIpcHandlers(): void {
     getUiState().set(key, value);
   });
 
-  // ---- Extensions (#7) ------------------------------------------------------
-
-  createVoidIpcHandler(IPC_CHANNELS.EXTENSIONS_LIST, (): ExtensionsList => {
-    const agent = getAgent();
-    if (!agent) return { tools: [] };
-    return { tools: agent.listTools() };
-  });
-
-  createIpcHandler(
-    IPC_CHANNELS.EXTENSIONS_SET_ACTIVE,
-    z.array(z.string()),
-    (toolNames): ExtensionsList => {
-      const agent = getAgent();
-      if (!agent) return { tools: [] };
-      agent.setActiveTools(toolNames);
-      persistActiveTools(toolNames);
-      return { tools: agent.listTools() };
-    },
-  );
-
   registerShellIpcHandlers();
   registerWidgetActionIpcHandlers();
 
@@ -323,18 +312,16 @@ function registerIpcHandlers(): void {
     [IPC_CHANNELS.EXECUTOR_SOURCES_LIST, executor.listSources],
     [IPC_CHANNELS.EXECUTOR_SECRETS_LIST, executor.listSecrets],
     [IPC_CHANNELS.EXECUTOR_CONNECTIONS_LIST, executor.listConnections],
-    [IPC_CHANNELS.EXECUTOR_TOOLS_LIST, executor.listTools],
   ];
   for (const [channel, fn] of voidForwards) createVoidIpcHandler(channel, fn);
 
-  // Single string arg (id / url / code / sessionId).
+  // Single string arg (id / url / sessionId).
   const stringForwards: [string, (arg: string) => unknown][] = [
     [IPC_CHANNELS.EXECUTOR_SOURCES_DETECT, executor.detectSource],
     [IPC_CHANNELS.EXECUTOR_SOURCE_REMOVE, executor.removeSource],
     [IPC_CHANNELS.EXECUTOR_SOURCE_REFRESH, executor.refreshSource],
     [IPC_CHANNELS.EXECUTOR_SECRET_REMOVE, executor.removeSecret],
     [IPC_CHANNELS.EXECUTOR_CONNECTION_REMOVE, executor.removeConnection],
-    [IPC_CHANNELS.EXECUTOR_EXECUTE, executor.execute],
     [IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, executor.awaitOAuth],
   ];
   for (const [channel, fn] of stringForwards) createIpcHandler(channel, z.string(), fn);
@@ -529,6 +516,7 @@ app.on("before-quit", (event) => {
 app
   .whenReady()
   .then(() => {
+    initAgentLog();
     configureAppIdentity();
     configureApplicationMenu();
     configureAutoUpdater();
@@ -536,9 +524,6 @@ app
 
     mainWindow = createWindow();
     getNotifications().setTargetWindow(mainWindow);
-
-    // Warm history before initMachine() starts the agent.
-    readSessionHistory();
 
     initMachine();
     return undefined;

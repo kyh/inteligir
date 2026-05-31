@@ -8,7 +8,7 @@
  * phase only sees what's meaningful at that point in the lifecycle.
  */
 
-import type { ExtensionFactory } from "@repo/pi-driver";
+import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver";
 
 import type { SetupProgress } from "@/shared/ipc";
 
@@ -99,4 +99,70 @@ export async function runBundleSetups(
       console.error(`[agent] ${bundle.name} setup failed (continuing):`, err);
     }
   }
+}
+
+/**
+ * Validate a tool's TypeBox `parameters` schema before pi forwards it to the
+ * provider. OpenAI (and most others) require `type: "object"` at the root;
+ * TypeBox `Union` / `Intersect` produce `anyOf`/`allOf` with no top-level
+ * type, which the provider silently rejects on every turn. Catching this at
+ * registration time names the offending tool loudly instead of letting
+ * empty turns leak to the user.
+ */
+export function validateToolParametersSchema(
+  tool: { name: string; parameters?: unknown },
+  bundleName: string,
+): void {
+  const params = tool.parameters;
+  if (!params || typeof params !== "object") {
+    throw new Error(
+      `[${bundleName}] tool '${tool.name}' has no parameters schema. ` +
+        `Use Type.Object({}) for tools that take no arguments.`,
+    );
+  }
+  const type = (params as { type?: unknown }).type;
+  if (type !== "object") {
+    throw new Error(
+      `[${bundleName}] tool '${tool.name}' parameters schema must have top-level type 'object' ` +
+        `(got ${JSON.stringify(type) ?? "undefined"}). ` +
+        `TypeBox Union/Intersect produce anyOf/allOf which providers reject — ` +
+        `wrap them in Type.Object with a discriminator field and validate per-case at runtime.`,
+    );
+  }
+}
+
+/**
+ * Wrap a pi `ExtensionAPI` so every `registerTool` call goes through
+ * `validateToolParametersSchema` first. All other methods pass through
+ * unchanged.
+ */
+export function wrapPiWithSchemaValidation(pi: ExtensionAPI, bundleName: string): ExtensionAPI {
+  return new Proxy(pi, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (prop === "registerTool" && typeof value === "function") {
+        return (tool: { name: string; parameters?: unknown }) => {
+          validateToolParametersSchema(tool, bundleName);
+          return (value as (t: unknown) => unknown).call(target, tool);
+        };
+      }
+      return value;
+    },
+  });
+}
+
+/**
+ * Build factory functions that wrap each bundle's pi registration with
+ * schema validation. Used by setup.ts when constructing PiAgent.
+ */
+export function buildValidatedFactories(
+  bundles: PiExtensionBundle[],
+  ctx: ExtensionRegisterContext,
+): ExtensionFactory[] {
+  return bundles.map((b) => {
+    const factory = b.register(ctx);
+    return async (pi: ExtensionAPI) => {
+      await factory(wrapPiWithSchemaValidation(pi, b.name));
+    };
+  });
 }

@@ -1,10 +1,16 @@
 // Renderer registry for built-in widgets: maps each BuiltinWidgetId to the
 // React component that renders its body (inside the shared Panel chrome) plus
 // the icon the dock shows. The chat body lives here too so chat is just another
-// built-in widget. (Metadata — title/singleton/permanent/geometry — is shared
+// built-in widget. (Metadata — title/singleton/geometry — is shared
 // in @/shared/shell so main agrees on what's available.)
 
-import { ListTodoIcon, MessageSquareIcon, PlugIcon, SettingsIcon, SparklesIcon } from "lucide-react";
+import {
+  LayoutGridIcon,
+  ListTodoIcon,
+  MessageSquareIcon,
+  PlugIcon,
+  SettingsIcon,
+} from "lucide-react";
 
 import {
   Conversation,
@@ -17,8 +23,8 @@ import { ChatActivityRow, ChatMessageView } from "@/renderer/shell/chat/chat-mes
 import { Composer } from "@/renderer/shell/chat/composer";
 import { ExtensionsPanel } from "@/renderer/shell/builtin/extensions-panel";
 import { SettingsPanel } from "@/renderer/shell/builtin/settings-panel";
-import { SkillsPanel } from "@/renderer/shell/builtin/skills-panel";
 import { TaskPanel } from "@/renderer/shell/builtin/task-panel";
+import { WidgetsPanel } from "@/renderer/shell/builtin/widgets-panel";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 import type { BuiltinWidgetId } from "@/shared/shell";
@@ -33,7 +39,7 @@ function ChatWidget() {
 
   return (
     <>
-      <Conversation className="min-h-0 flex-1 px-3 pt-2">
+      <Conversation className="min-h-0 flex-1 select-text px-3 pt-2">
         <ConversationContent className="gap-1 p-0 pb-2">
           {messages.length === 0 && !busy ? (
             <ConversationEmptyState
@@ -75,8 +81,8 @@ export type BuiltinWidgetUI = {
 
 export const BUILTIN_WIDGET_UI: Record<BuiltinWidgetId, BuiltinWidgetUI> = {
   chat: { component: ChatWidget, icon: MessageSquareIcon, bodyClassName: "flex flex-col" },
+  widgets: { component: WidgetsPanel, icon: LayoutGridIcon },
   tasks: { component: TaskPanel, icon: ListTodoIcon },
-  skills: { component: SkillsPanel, icon: SparklesIcon },
   extensions: { component: ExtensionsPanel, icon: PlugIcon },
   settings: { component: SettingsPanel, icon: SettingsIcon },
 };

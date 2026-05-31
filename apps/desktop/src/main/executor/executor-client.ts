@@ -16,7 +16,6 @@ import {
   ExecutorRemoveResultSchema,
   ExecutorSecretRefSchema,
   ExecutorSourceSchema,
-  ExecutorToolMetaSchema,
   OAuthAwaitResultSchema,
   OAuthStartResultSchema,
   type AddGoogleSourceInput,
@@ -29,7 +28,6 @@ import {
   type ExecutorExecuteResult,
   type ExecutorSecretRef,
   type ExecutorSource,
-  type ExecutorToolMeta,
   type OAuthAwaitResult,
   type OAuthStartInput,
   type OAuthStartResult,
@@ -197,12 +195,6 @@ export function removeConnection(connectionId: string): Promise<{ removed: boole
   return request("DELETE", `/connections/${enc(connectionId)}`, ExecutorRemoveResultSchema, {
     scoped: true,
   });
-}
-
-// ---- tools ----------------------------------------------------------------
-
-export function listTools(): Promise<ExecutorToolMeta[]> {
-  return request("GET", "/tools", ExecutorToolMetaSchema.array(), { scoped: true });
 }
 
 // ---- executions (code mode) ----------------------------------------------

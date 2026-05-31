@@ -1,5 +1,7 @@
 import {
   BUILTIN_DEFS,
+  builtinDef,
+  CHAT_WIDGET_ID,
   type Shell,
   type ShellSnapshot,
   type WidgetDef,
@@ -15,27 +17,24 @@ function seedInstance(def: WidgetDef): WidgetInstance {
   };
 }
 
-const PERMANENT_DEFS = BUILTIN_DEFS.filter((d) => d.permanent);
+// Chat is the only widget seeded on first run — every other built-in starts
+// off the grid and is launched from the dock when the user wants it.
+const SEED_INSTANCES: WidgetInstance[] = (() => {
+  const chat = builtinDef(CHAT_WIDGET_ID);
+  return chat ? [seedInstance(chat)] : [];
+})();
 
 export const DEFAULT_SHELL: Shell = {
   version: 2,
   customDefs: [],
-  instances: PERMANENT_DEFS.map(seedInstance),
+  instances: SEED_INSTANCES,
   archivedStates: {},
 };
 
-export function withPermanentInstances(shell: Shell): Shell {
-  const missing = PERMANENT_DEFS.filter((d) => !shell.instances.some((i) => i.widgetId === d.id));
-  return missing.length === 0
-    ? shell
-    : { ...shell, instances: [...missing.map(seedInstance), ...shell.instances] };
-}
-
 export function shellSnapshot(shell: Shell): ShellSnapshot {
-  const safe = withPermanentInstances(shell);
   return {
-    defs: [...BUILTIN_DEFS, ...safe.customDefs],
-    instances: safe.instances,
+    defs: [...BUILTIN_DEFS, ...shell.customDefs],
+    instances: shell.instances,
   };
 }
 

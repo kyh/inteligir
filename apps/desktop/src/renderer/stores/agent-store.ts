@@ -22,6 +22,12 @@ import { onUserTranscript, useVoiceStore } from "@/renderer/stores/voice-store";
 export type ChatMessageMetadata = {
   steer?: boolean;
   imageCount?: number;
+  /** When set, the bubble is styled as a turn-failure surface (red border,
+   * "error" copy) and may show an action button based on the kind:
+   *   - "auth": inline Re-authenticate link (likely auth/credentials issue)
+   *   - "unknown": just the error text (pi-reported error of unspecified cause)
+   * The text content is the human-readable error message. */
+  errorKind?: "auth" | "unknown";
 };
 
 export type ChatMessage = UIMessage<ChatMessageMetadata>;
@@ -276,11 +282,28 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
         if (streamingMsgId === null || event.role !== "assistant") break;
         const sid = streamingMsgId;
         const { text } = event;
-        // Tool-only assistant turns emit message_start/message_end with empty
-        // text. Drop those empty bubbles so the "Thinking..." shimmer doesn't
-        // linger between/after tool calls — the tool messages themselves
-        // already represent the agent's activity.
-        if (text.length === 0) {
+        // Error turn: keep the bubble, tag with errorKind, use errorMessage
+        // (or fall back to text) so the failure is visible instead of dropped.
+        // Cause is unknown from pi's perspective — don't claim it's auth.
+        if (event.stopReason === "error") {
+          const errText =
+            event.errorMessage ??
+            (text.length > 0 ? text : "The model returned no response.");
+          set((s) => ({
+            messages: s.messages.map((m) =>
+              m.id === sid
+                ? {
+                    ...mapMessageWithTextPart(m, () => textPart(errText)),
+                    metadata: { ...m.metadata, errorKind: "unknown" },
+                  }
+                : m,
+            ),
+          }));
+        } else if (text.length === 0) {
+          // Tool-only assistant turns emit message_start/message_end with empty
+          // text. Drop those empty bubbles so the "Thinking..." shimmer doesn't
+          // linger between/after tool calls — the tool messages themselves
+          // already represent the agent's activity.
           set((s) => ({ messages: s.messages.filter((m) => m.id !== sid) }));
         } else {
           set((s) => ({
@@ -292,6 +315,18 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
         streamingMsgId = null;
         const voice = useVoiceStore.getState();
         if (voice.state.kind === "listening") voice.flushSpeech();
+        break;
+      }
+
+      case "turn_error": {
+        // Empty-turn fallback from main. Create a fresh assistant bubble
+        // tagged with the error kind so the chat shows the failure (and the
+        // inline Re-authenticate link, if kind === "auth").
+        const msg: ChatMessage = {
+          ...assistantTextMessage(event.reason),
+          metadata: { errorKind: event.kind },
+        };
+        set((s) => ({ messages: [...s.messages, msg] }));
         break;
       }
 

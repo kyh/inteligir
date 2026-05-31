@@ -6,7 +6,6 @@ import { Label } from "@repo/ui/components/label";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { ExecutorPanel } from "@/renderer/shell/builtin/executor-panel";
 import { IntegrationsSection } from "@/renderer/shell/builtin/integrations-section";
 import { useTheme, type Theme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
@@ -26,6 +25,7 @@ export function SettingsPanel() {
 
   const { theme, setTheme } = useTheme();
   const [notifications, setNotifications] = useState<NotificationSettings | null>(null);
+  const [reauthBusy, setReauthBusy] = useState(false);
 
   useEffect(() => {
     const promise = getBridge()?.getNotificationSettings();
@@ -35,6 +35,15 @@ export function SettingsPanel() {
 
   const handleLogout = useCallback(() => {
     getBridge()?.transition({ type: "LOGOUT" });
+  }, []);
+
+  const handleReauthenticate = useCallback(async () => {
+    setReauthBusy(true);
+    try {
+      await getBridge()?.reauthenticate();
+    } finally {
+      setReauthBusy(false);
+    }
   }, []);
 
   const handleNewSession = useCallback(() => {
@@ -55,14 +64,25 @@ export function SettingsPanel() {
         {isReady ? (
           <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
             <span className="text-xs text-foreground">Connected</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-              className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
-            >
-              Log out
-            </Button>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleReauthenticate}
+                disabled={reauthBusy}
+                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+              >
+                {reauthBusy ? "Opening…" : "Re-authenticate"}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleLogout}
+                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground"
+              >
+                Log out
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="rounded-md border border-border px-3 py-2">
@@ -136,7 +156,6 @@ export function SettingsPanel() {
       </div>
 
       <IntegrationsSection />
-      <ExecutorPanel />
     </div>
   );
 }

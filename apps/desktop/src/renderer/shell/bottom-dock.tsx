@@ -1,12 +1,19 @@
 import { useMemo } from "react";
-import { MicIcon, PhoneIcon, PlusIcon } from "lucide-react";
+import { MicIcon, PhoneIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
 import { toast } from "@repo/ui/components/sonner";
-import { widgetIcon } from "@/renderer/shell/widget-render";
+import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useShellStore } from "@/renderer/stores/shell-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
+import { BUILTIN_DEFS, CHAT_WIDGET_ID } from "@/shared/shell";
+
+// The dock is the launcher for built-in widgets only. Custom (JSON-UI) widgets
+// live in the Widgets panel — keeping the dock fixed-size avoids growing every
+// time the agent installs something.
+const CHAT_DEF = BUILTIN_DEFS.find((d) => d.id === CHAT_WIDGET_ID);
+const SECONDARY_BUILTINS = BUILTIN_DEFS.filter((d) => d.id !== CHAT_WIDGET_ID);
 
 type DockButtonProps = {
   icon: React.ComponentType<{ className?: string }>;
@@ -49,15 +56,12 @@ function launchWidget(widgetId: string): void {
     });
 }
 
-export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
+export function BottomDock() {
   const voiceState = useVoiceStore((s) => s.state);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
   const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
   const voiceBusy = voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
 
-  // The dock is the gallery for every installed widget. Clicking launches or
-  // focuses; closing happens in panel/window chrome, not by toggling the dock.
-  const defs = useShellStore((s) => s.defs);
   const instances = useShellStore((s) => s.instances);
   const placedWidgetIds = useMemo(() => {
     const ids = new Set<string>();
@@ -67,12 +71,17 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
     return ids;
   }, [instances]);
 
-  const visibleDefs = defs.filter((d) => !d.permanent);
-
   return (
     <div className="pointer-events-auto fixed bottom-4 left-1/2 z-30 -translate-x-1/2">
       <div className="flex items-center gap-1 rounded-2xl border border-border bg-card/70 px-2 py-1.5 shadow-xl backdrop-blur-md">
-        <DockButton icon={PlusIcon} label="New conversation" onClick={onNewSession} />
+        {CHAT_DEF && (
+          <DockButton
+            icon={BUILTIN_WIDGET_UI[CHAT_DEF.id].icon}
+            label={CHAT_DEF.title}
+            active={placedWidgetIds.has(CHAT_DEF.id)}
+            onClick={() => launchWidget(CHAT_DEF.id)}
+          />
+        )}
         <DockButton
           icon={voiceActive ? PhoneIcon : MicIcon}
           label={voiceActive ? "End call" : "Start call"}
@@ -81,12 +90,12 @@ export function BottomDock({ onNewSession }: { onNewSession: () => void }) {
           active={voiceActive}
         />
 
-        {visibleDefs.length > 0 ? <span className="mx-1 h-5 w-px bg-border" /> : null}
+        <span className="mx-1 h-5 w-px bg-border" />
 
-        {visibleDefs.map((def) => (
+        {SECONDARY_BUILTINS.map((def) => (
           <DockButton
             key={def.id}
-            icon={widgetIcon(def)}
+            icon={BUILTIN_WIDGET_UI[def.id].icon}
             label={def.title}
             active={placedWidgetIds.has(def.id)}
             onClick={() => launchWidget(def.id)}

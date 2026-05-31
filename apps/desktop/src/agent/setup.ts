@@ -18,12 +18,13 @@ import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import { readCliVersion } from "@repo/agent-runtime/install";
 import open from "open";
 
-import type { ExtensionToolInfo, IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
+import type { IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 import { inteligirPath } from "@/main/lib/json-store";
 import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
 import { resetShellCache, resumeShellWrites } from "@/main/shell";
 import { resetNotifications } from "@/main/notifications";
 import {
+  buildValidatedFactories,
   runBundleSetups,
   type ExtensionRegisterContext,
   type ExtensionSetupContext,
@@ -248,10 +249,7 @@ export class Agent {
         authStorage: getAuthStorage(),
         model: resolveModel(AUTH_PROVIDER, MODEL_ID),
         sessionManager,
-        extensionFactories: () => {
-          const ctx = buildRegisterContext();
-          return EXTENSION_BUNDLES.map((b) => b.register(ctx));
-        },
+        extensionFactories: () => buildValidatedFactories(EXTENSION_BUNDLES, buildRegisterContext()),
       });
     }
     await this.pi.start();
@@ -287,14 +285,6 @@ export class Agent {
 
   getLastAssistantText(): string | undefined {
     return this.pi?.getLastAssistantText();
-  }
-
-  listTools(): ExtensionToolInfo[] {
-    return this.pi?.listTools() ?? [];
-  }
-
-  setActiveTools(toolNames: string[]): void {
-    this.pi?.setActiveTools(toolNames);
   }
 
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {

@@ -8,6 +8,20 @@ body,
   overflow: hidden;
 }
 
+/* Desktop-app feel: don't select text when dragging widgets, clicking buttons,
+ * etc. Form fields and any element opted in via the `select-text` Tailwind
+ * utility (e.g. the chat transcript) stay selectable. */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .app-drag {
   -webkit-app-region: drag;
 }

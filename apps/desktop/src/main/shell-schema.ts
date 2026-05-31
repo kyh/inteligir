@@ -27,7 +27,6 @@ const JsonUiDefSchema = z.object({
   description: z.string().optional(),
   revision: z.number(),
   singleton: z.literal(false),
-  permanent: z.literal(false),
   defaultGeometry: GeometrySchema,
   source: z.object({
     kind: z.literal("json-ui"),

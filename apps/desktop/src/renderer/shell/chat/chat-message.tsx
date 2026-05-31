@@ -3,6 +3,7 @@ import { Message, MessageContent } from "@repo/ui/components/ai-elements/message
 import { Response } from "@repo/ui/components/ai-elements/response";
 import { Shimmer } from "@repo/ui/components/ai-elements/shimmer";
 
+import { getBridge } from "@/renderer/lib/bridge";
 import type { ChatMessage } from "@/renderer/stores/agent-store";
 import { isRecord } from "@/shared/ipc";
 
@@ -36,10 +37,32 @@ export function ChatMessageView({ message }: { message: ChatMessage }) {
   if (message.metadata?.steer) {
     return <SteerMessage text={text} imageCount={imageCount} />;
   }
+  if (message.metadata?.errorKind) {
+    return <ErrorMessage text={text} kind={message.metadata.errorKind} />;
+  }
   if (message.role === "user") {
     return <UserMessage text={text} imageCount={imageCount} />;
   }
   return <AssistantMessage text={text} />;
+}
+
+function ErrorMessage({ text, kind }: { text: string; kind: "auth" | "unknown" }) {
+  return (
+    <div className="mr-8">
+      <div className="flex flex-col gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+        <span>{text}</span>
+        {kind === "auth" && (
+          <button
+            type="button"
+            onClick={() => void getBridge()?.reauthenticate()}
+            className="self-start text-[10px] underline underline-offset-2 hover:text-destructive/80"
+          >
+            Re-authenticate
+          </button>
+        )}
+      </div>
+    </div>
+  );
 }
 
 /**

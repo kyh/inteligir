@@ -29,11 +29,15 @@ const MessageUpdateSchema = z.object({
 
 const MessageEndSchema = z.object({
   type: z.literal("message_end"),
+  // pi-coding-agent puts stopReason and errorMessage on the *message* object,
+  // not at the top level of the event. Reading them from the top level
+  // silently swallows every provider error as "unknown stop reason."
   message: z.object({
     role: z.string(),
     content: z.array(z.unknown()).default([]),
+    stopReason: z.string().optional(),
+    errorMessage: z.string().optional(),
   }),
-  stopReason: z.string().optional(),
 });
 
 const ToolExecutionStartSchema = z.object({
@@ -103,7 +107,8 @@ export function parseAgentEvent(raw: unknown): AppAgentEvent | null {
         type: "message_end",
         role: r.data.message.role,
         text: extractText(r.data.message),
-        stopReason: r.data.stopReason,
+        stopReason: r.data.message.stopReason,
+        errorMessage: r.data.message.errorMessage,
       };
     }
 
