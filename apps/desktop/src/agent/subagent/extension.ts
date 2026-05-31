@@ -218,7 +218,10 @@ async function runSubagent(
             result.usage.contextTokens = usage.totalTokens ?? result.usage.contextTokens;
           }
           if (message.model) result.model = message.model;
-          if (message.errorMessage) result.errorMessage = message.errorMessage;
+          // Reflect only the latest turn — clear a prior turn's error when a
+          // later turn succeeds, so a recovered multi-turn run (exit 0) isn't
+          // left flagged as failed and wrongly halting a chain.
+          result.errorMessage = message.errorMessage || undefined;
         }
       };
 
