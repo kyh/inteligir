@@ -36,8 +36,8 @@ export function ShellPage() {
       {/* Draggable title strip — the native title bar is hidden. */}
       <div className="app-drag fixed inset-x-0 top-0 z-10 h-12" />
 
-      {/* Greeting — sits to the right of the docked logo orb. */}
-      <div className="fixed top-3 left-[118px] z-20">
+      {/* Greeting — top left. */}
+      <div className="fixed top-3 left-4 z-20">
         <h1 className="text-sm font-medium text-foreground">{timeOfDayGreeting()}</h1>
       </div>
 
