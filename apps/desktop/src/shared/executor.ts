@@ -9,11 +9,11 @@ import { z } from "zod";
 
 export const ExecutorSourceSchema = z.object({
   id: z.string(),
-  scopeId: z.string().optional(),
+  scopeId: z.string().nullish(),
   name: z.string(),
   // "mcp" | "openapi" | "graphql" | "googleDiscovery" | "built-in" | ...
   kind: z.string(),
-  url: z.string().optional(),
+  url: z.string().nullish(),
   runtime: z.boolean().optional(),
   canRemove: z.boolean().optional(),
   canRefresh: z.boolean().optional(),
