@@ -32,7 +32,7 @@ const KINDS: { id: CustomKind; label: string }[] = [
 type Props = SectionProps & {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAdded: () => void;
+  onAdded: () => void | Promise<void>;
 };
 
 export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError }: Props) {
@@ -138,7 +138,9 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
         });
       }
       reset();
-      onAdded();
+      // Await the refresh so the new connector is in the list before the
+      // dialog closes, rather than popping in a beat later.
+      await onAdded();
       onOpenChange(false);
     } catch (err) {
       onError(errorMessage(err, "Failed to add connector."));
