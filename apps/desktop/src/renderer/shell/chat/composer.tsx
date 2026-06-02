@@ -79,7 +79,7 @@ function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
   });
 }
 
-export function Composer() {
+export function Composer({ className }: { className?: string }) {
   const [hasInput, setHasInput] = useState(false);
   // UI-local signal that the user clicked the Zap button. Consumed once on
   // the next submit; cleared on agent_end so an unsubmitted Zap doesn't
@@ -168,7 +168,7 @@ export function Composer() {
   }, []);
 
   return (
-    <div ref={wrapperRef} className="bg-foreground/8 px-3 py-2 backdrop-blur-sm">
+    <div ref={wrapperRef} className={cn("bg-foreground/8 px-3 py-2 backdrop-blur-sm", className)}>
       {queueCount > 0 && (
         <Queue className="mb-2 rounded-md bg-foreground/5 px-1.5 pb-1 pt-1 shadow-none">
           <QueueList className="-mb-1 mt-0">

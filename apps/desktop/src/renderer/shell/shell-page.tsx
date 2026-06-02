@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 
 import { BottomDock } from "@/renderer/shell/bottom-dock";
+import { LeftDock } from "@/renderer/shell/left-dock";
 import { PanelGrid } from "@/renderer/shell/panel-grid";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -47,11 +48,12 @@ export function ShellPage() {
         <span className="text-xs text-muted-foreground">{todayLabel()}</span>
       </div>
 
-      {/* Widget workspace. */}
-      <div className="absolute inset-0 px-4 pt-14 pb-20">
+      {/* Widget workspace. Left padding clears the vertical LeftDock. */}
+      <div className="absolute inset-0 pt-14 pr-4 pb-24 pl-20">
         <PanelGrid />
       </div>
 
+      <LeftDock />
       <BottomDock />
     </div>
   );
