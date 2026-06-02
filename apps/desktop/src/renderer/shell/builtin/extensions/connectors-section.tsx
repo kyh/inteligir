@@ -152,6 +152,11 @@ export function ConnectorsSection({ onError }: SectionProps) {
           (c) => c.id === `mcp-oauth2-${connector.id}` || c.provider === connector.id,
         );
         if (connection) await bridge.removeExecutorConnection(connection.id);
+        // Drop the secret created during the API-key connect flow so it doesn't
+        // linger in the Secrets list after an explicit disconnect.
+        if (connector.install.auth.kind === "apiKey") {
+          await bridge.removeExecutorSecret(`${connector.id}_key`);
+        }
         refreshSources();
         refreshConnections();
       } catch (err) {
