@@ -18,23 +18,6 @@ export function slug(name: string): string {
   );
 }
 
-/**
- * Normalize a URL for loose equality: lowercase the scheme and host and drop a
- * trailing slash. The path/query are left as-is, since they're case-sensitive
- * per RFC 3986. Falls back to a whole-string lowercase for non-URL inputs.
- */
-export function normalizeUrl(url: string | null | undefined): string {
-  if (!url) return "";
-  const trimmed = url.trim();
-  try {
-    const u = new URL(trimmed);
-    const path = u.pathname.replace(/\/+$/, "");
-    return `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${path}${u.search}`;
-  } catch {
-    return trimmed.replace(/\/+$/, "").toLowerCase();
-  }
-}
-
 /** The executor connection id we use for a namespace's OAuth connection. */
 export function oauthConnectionId(namespace: string): string {
   return `mcp-oauth2-${namespace}`;

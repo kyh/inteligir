@@ -20,31 +20,20 @@ import {
 } from "@/renderer/shell/builtin/extensions/connector-install";
 import {
   errorMessage,
-  normalizeUrl,
   useBridgeResource,
   type SectionProps,
 } from "@/renderer/shell/builtin/extensions/lib";
 import { SecretPromptDialog } from "@/renderer/shell/builtin/extensions/secret-prompt-dialog";
 import type { ExecutorSource } from "@/shared/executor";
 
-/** The remote URL a connector registers against (MCP endpoint or Google discovery doc). */
-function connectorUrl(connector: CatalogConnector): string {
-  return connector.install.type === "mcp"
-    ? connector.install.endpoint
-    : connector.install.discoveryUrl;
-}
-
 /**
- * Does an installed executor source correspond to this catalog connector? Match
- * on identity we control at install time — the namespace (echoed as the source
- * id) or the endpoint URL — never the display name, which a custom source could
- * coincidentally share with a catalog entry.
+ * Whether an installed executor source is this catalog connector. We register
+ * every connector with `namespace: connector.id`, and executor identifies a
+ * source by that namespace (it's the source's id), so this is a single,
+ * unambiguous match — no display-name or URL guessing.
  */
 function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boolean {
-  return (
-    source.id === connector.id ||
-    (source.url != null && normalizeUrl(source.url) === normalizeUrl(connectorUrl(connector)))
-  );
+  return source.id === connector.id;
 }
 
 /** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
