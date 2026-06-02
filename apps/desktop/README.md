@@ -1,6 +1,6 @@
 # `@repo/desktop` — Inteligir Electron app
 
-Three-process Electron app wrapping a pi-coding-agent runtime. The agent does real work (filesystem, shell, browser via agent-browser CLI, Google Workspace via gws CLI); the renderer is a chat UI over it.
+Three-process Electron app wrapping a pi-coding-agent runtime. The agent does real work (filesystem, shell, browser via agent-browser CLI, connected APIs — Google Workspace and more — via executor code mode); the renderer is a chat UI over it.
 
 ## Layout
 
@@ -31,7 +31,7 @@ preload (Node, isolated)
    ↕  ipcRenderer ⇄ ipcMain
 main (full Node + Electron)
    ↕  Agent (pi-coding-agent)
-filesystem / shell / agent-browser CLI / gws CLI
+filesystem / shell / agent-browser CLI / executor daemon (connected APIs)
 ```
 
 - **Renderer** never touches Node APIs. Sandboxed, no nodeIntegration, contextIsolation on.

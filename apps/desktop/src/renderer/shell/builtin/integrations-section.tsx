@@ -6,7 +6,7 @@ import { getBridge } from "@/renderer/lib/bridge";
 import type { IntegrationInfo, SetupProgress } from "@/shared/ipc";
 
 /**
- * Lists the installed CLI binaries (agent-browser, gws, peekaboo, executor)
+ * Lists the installed CLI binaries (agent-browser, peekaboo, executor)
  * with their installed-vs-pinned versions, and a Repair button that
  * force-reinstalls them — useful when a download was skipped (offline
  * onboarding) or a binary got wedged. Binaries normally upgrade automatically
