@@ -109,6 +109,9 @@ export const IPC_CHANNELS = {
   EXECUTOR_OAUTH_AWAIT: "executor:oauth:await",
   EXECUTOR_OPEN_EXTERNAL: "executor:open-external",
 
+  // Google Workspace (gws CLI) auth — backs the Google connector card
+  GWS_AUTH: "gws:auth",
+
   // Skills
   SKILLS_LIST: "skills:list",
 
@@ -278,6 +281,9 @@ export type DesktopBridge = {
   executorOAuthAwait: (sessionId: string) => Promise<OAuthAwaitResult | null>;
   executorOpenExternal: (url: string) => Promise<void>;
 
+  // Google Workspace (gws CLI) auth — backs the Google connector card
+  gwsAuth: (action: GwsAuthAction) => Promise<GwsAuthResult>;
+
   // Skills
   listSkills: () => Promise<SkillsList>;
 
@@ -299,6 +305,12 @@ export type IntegrationInfo = {
 export type ExecutorStatus =
   | { running: false }
   | { running: true; scope: { id: string; name: string; dir: string } };
+
+/** Action for the gws auth IPC backing the Google connector card. */
+export type GwsAuthAction = "status" | "login" | "logout";
+
+/** Result of a gws auth IPC call — whether an account is now authenticated. */
+export type GwsAuthResult = { authenticated: boolean; error?: string };
 
 // ---------------------------------------------------------------------------
 // Notifications

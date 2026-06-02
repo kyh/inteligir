@@ -6,9 +6,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@repo/ui/components/button";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { ConnectionsSection } from "@/renderer/shell/builtin/extensions/connections-section";
+import { ConnectorsSection } from "@/renderer/shell/builtin/extensions/connectors-section";
 import { SecretsSection } from "@/renderer/shell/builtin/extensions/secrets-section";
-import { SourcesSection } from "@/renderer/shell/builtin/extensions/sources-section";
 import type { SectionProps } from "@/renderer/shell/builtin/extensions/lib";
 import type { ExecutorStatus } from "@/shared/ipc";
 
@@ -49,8 +48,7 @@ export function ExecutorSections({ onError }: SectionProps) {
   }
   return (
     <>
-      <SourcesSection onError={onError} />
-      <ConnectionsSection onError={onError} />
+      <ConnectorsSection onError={onError} />
       <SecretsSection onError={onError} />
     </>
   );

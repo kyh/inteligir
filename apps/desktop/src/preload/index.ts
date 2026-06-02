@@ -111,6 +111,9 @@ const desktopBridge: DesktopBridge = {
     ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OAUTH_AWAIT, sessionId),
   executorOpenExternal: (url) => ipcRenderer.invoke(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, url),
 
+  // Google Workspace (gws CLI) auth
+  gwsAuth: (action) => ipcRenderer.invoke(IPC_CHANNELS.GWS_AUTH, action),
+
   // Skills
   listSkills: () => ipcRenderer.invoke(IPC_CHANNELS.SKILLS_LIST),
 

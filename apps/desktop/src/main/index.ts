@@ -37,6 +37,7 @@ import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
+import { registerGwsIpcHandlers } from "@/main/gws-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
 import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
@@ -294,6 +295,7 @@ function registerIpcHandlers(): void {
   registerShellIpcHandlers();
   registerWidgetActionIpcHandlers();
   registerExecutorIpcHandlers();
+  registerGwsIpcHandlers();
 
   // ---- Skills ---------------------------------------------------------------
 

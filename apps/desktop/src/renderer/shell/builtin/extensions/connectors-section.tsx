@@ -1,0 +1,286 @@
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { PlusIcon } from "lucide-react";
+
+import { Button } from "@repo/ui/components/button";
+import { Label } from "@repo/ui/components/label";
+
+import { getBridge } from "@/renderer/lib/bridge";
+import { AddCustomConnectorDialog } from "@/renderer/shell/builtin/extensions/add-custom-connector-dialog";
+import {
+  CONNECTOR_CATALOG,
+  type CatalogConnector,
+} from "@/renderer/shell/builtin/extensions/connector-catalog";
+import { ConnectorCard } from "@/renderer/shell/builtin/extensions/connector-card";
+import {
+  errorMessage,
+  normalizeUrl,
+  runOAuthFlow,
+  useBridgeResource,
+  type SectionProps,
+} from "@/renderer/shell/builtin/extensions/lib";
+import { SecretPromptDialog } from "@/renderer/shell/builtin/extensions/secret-prompt-dialog";
+import type { ExecutorSource } from "@/shared/executor";
+
+/** Does an installed executor source correspond to this catalog connector? */
+function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boolean {
+  if (connector.install.type !== "mcp") return false;
+  return (
+    source.id === connector.id ||
+    source.name === connector.name ||
+    (source.url != null && normalizeUrl(source.url) === normalizeUrl(connector.install.endpoint))
+  );
+}
+
+export function ConnectorsSection({ onError }: SectionProps) {
+  const { data: sources, refresh: refreshSources } = useBridgeResource(
+    (b) => b.listExecutorSources(),
+    onError,
+  );
+  const { data: connections, refresh: refreshConnections } = useBridgeResource(
+    (b) => b.listExecutorConnections(),
+    onError,
+  );
+
+  const [connecting, setConnecting] = useState<ReadonlySet<string>>(new Set());
+  const [googleAuthed, setGoogleAuthed] = useState(false);
+  const [apiKeyTarget, setApiKeyTarget] = useState<CatalogConnector | null>(null);
+  const [apiKeyBusy, setApiKeyBusy] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+
+  // Google's connected state comes from the gws CLI, not executor sources.
+  useEffect(() => {
+    void getBridge()
+      ?.gwsAuth("status")
+      .then((r) => setGoogleAuthed(r.authenticated))
+      .catch(() => setGoogleAuthed(false));
+  }, []);
+
+  const setBusy = useCallback((id: string, busy: boolean) => {
+    setConnecting((prev) => {
+      const next = new Set(prev);
+      if (busy) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
+
+  const statusFor = useCallback(
+    (connector: CatalogConnector) => {
+      if (connecting.has(connector.id)) return "connecting" as const;
+      if (connector.install.type === "google") return googleAuthed ? "connected" : "idle";
+      const installed = (sources ?? []).some((s) => sourceMatches(s, connector));
+      return installed ? ("connected" as const) : ("idle" as const);
+    },
+    [connecting, googleAuthed, sources],
+  );
+
+  /** Register the MCP source for a connector once any auth step has succeeded. */
+  const installMcpSource = useCallback(
+    async (connector: CatalogConnector, headers?: Record<string, { secretId: string; prefix?: string }>) => {
+      const bridge = getBridge();
+      if (!bridge || connector.install.type !== "mcp") return;
+      await bridge.addMcpSource({
+        transport: "remote",
+        name: connector.name,
+        endpoint: connector.install.endpoint,
+        remoteTransport: "auto",
+        namespace: connector.id,
+        headers,
+      });
+      refreshSources();
+    },
+    [refreshSources],
+  );
+
+  const handleConnect = useCallback(
+    async (connector: CatalogConnector) => {
+      const bridge = getBridge();
+      if (!bridge) return;
+
+      // API-key connectors need a secret before we can register the source.
+      if (connector.install.type === "mcp" && connector.install.auth.kind === "apiKey") {
+        setApiKeyTarget(connector);
+        return;
+      }
+
+      setBusy(connector.id, true);
+      onError(null);
+      try {
+        if (connector.install.type === "google") {
+          const result = await bridge.gwsAuth("login");
+          setGoogleAuthed(result.authenticated);
+          if (!result.authenticated) {
+            onError(result.error ?? "Google sign-in didn't complete.");
+          }
+          return;
+        }
+        if (connector.install.auth.kind === "oauth") {
+          await runOAuthFlow(bridge, connector.install.endpoint, `mcp-oauth2-${connector.id}`);
+          refreshConnections();
+        }
+        await installMcpSource(connector);
+      } catch (err) {
+        onError(errorMessage(err, `Couldn't connect ${connector.name}.`));
+      } finally {
+        setBusy(connector.id, false);
+      }
+    },
+    [setBusy, onError, installMcpSource, refreshConnections],
+  );
+
+  const handleApiKeySubmit = useCallback(
+    async (value: string) => {
+      const connector = apiKeyTarget;
+      const bridge = getBridge();
+      if (!connector || !bridge || connector.install.type !== "mcp") return;
+      const auth = connector.install.auth;
+      if (auth.kind !== "apiKey") return;
+      setApiKeyBusy(true);
+      onError(null);
+      try {
+        const secretId = `${connector.id}_key`;
+        await bridge.setExecutorSecret({
+          id: secretId,
+          name: auth.secretLabel,
+          value,
+          provider: connector.id,
+        });
+        await installMcpSource(connector, {
+          [auth.headerName]: { secretId, prefix: auth.prefix },
+        });
+        setApiKeyTarget(null);
+      } catch (err) {
+        onError(errorMessage(err, `Couldn't connect ${connector.name}.`));
+      } finally {
+        setApiKeyBusy(false);
+      }
+    },
+    [apiKeyTarget, onError, installMcpSource],
+  );
+
+  const handleDisconnect = useCallback(
+    async (connector: CatalogConnector) => {
+      const bridge = getBridge();
+      if (!bridge) return;
+      setBusy(connector.id, true);
+      onError(null);
+      try {
+        if (connector.install.type === "google") {
+          await bridge.gwsAuth("logout");
+          setGoogleAuthed(false);
+          return;
+        }
+        const source = (sources ?? []).find((s) => sourceMatches(s, connector));
+        if (source) await bridge.removeExecutorSource(source.id);
+        const connection = (connections ?? []).find(
+          (c) => c.id === `mcp-oauth2-${connector.id}` || c.provider === connector.id,
+        );
+        if (connection) await bridge.removeExecutorConnection(connection.id);
+        refreshSources();
+        refreshConnections();
+      } catch (err) {
+        onError(errorMessage(err, `Couldn't disconnect ${connector.name}.`));
+      } finally {
+        setBusy(connector.id, false);
+      }
+    },
+    [setBusy, onError, sources, connections, refreshSources, refreshConnections],
+  );
+
+  const handleRemoveCustom = useCallback(
+    async (id: string) => {
+      try {
+        await getBridge()?.removeExecutorSource(id);
+        refreshSources();
+      } catch (err) {
+        onError(errorMessage(err, "Failed to remove connector."));
+      }
+    },
+    [onError, refreshSources],
+  );
+
+  // Installed sources that aren't part of the catalog — surfaced so users can
+  // see and remove anything added via the custom escape hatch (or the agent).
+  const customSources = useMemo(() => {
+    return (sources ?? []).filter((s) => {
+      if (s.canRemove === false || s.runtime) return false;
+      return !CONNECTOR_CATALOG.some((c) => sourceMatches(s, c));
+    });
+  }, [sources]);
+
+  const apiKeyLabel =
+    apiKeyTarget?.install.type === "mcp" && apiKeyTarget.install.auth.kind === "apiKey"
+      ? apiKeyTarget.install.auth.secretLabel
+      : "";
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <Label className="text-xs font-medium text-muted-foreground">Connectors</Label>
+
+      <div className="grid grid-cols-2 gap-2">
+        {CONNECTOR_CATALOG.map((connector) => (
+          <ConnectorCard
+            key={connector.id}
+            connector={connector}
+            status={statusFor(connector)}
+            onConnect={() => void handleConnect(connector)}
+            onDisconnect={() => void handleDisconnect(connector)}
+          />
+        ))}
+      </div>
+
+      {customSources.length > 0 && (
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[10px] font-medium text-muted-foreground">Custom</span>
+          {customSources.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
+            >
+              <div className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-xs text-foreground">
+                  {s.name} <span className="text-muted-foreground">({s.kind})</span>
+                </span>
+                {s.url && (
+                  <span className="truncate text-[10px] text-muted-foreground">{s.url}</span>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleRemoveCustom(s.id)}
+                className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground hover:text-destructive"
+              >
+                Remove
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setCustomOpen(true)}
+        className="h-7 self-start text-[10px]"
+      >
+        <PlusIcon className="size-3" />
+        Add custom connector
+      </Button>
+
+      <AddCustomConnectorDialog
+        open={customOpen}
+        onOpenChange={setCustomOpen}
+        onAdded={refreshSources}
+        onError={onError}
+      />
+      <SecretPromptDialog
+        connector={apiKeyTarget}
+        label={apiKeyLabel}
+        busy={apiKeyBusy}
+        onCancel={() => setApiKeyTarget(null)}
+        onSubmit={(v) => void handleApiKeySubmit(v)}
+      />
+    </div>
+  );
+}

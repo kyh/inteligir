@@ -18,6 +18,40 @@ export function slug(name: string): string {
   );
 }
 
+/** Normalize a URL for loose equality (lowercase host/scheme, no trailing slash). */
+export function normalizeUrl(url: string | null | undefined): string {
+  if (!url) return "";
+  return url.trim().replace(/\/+$/, "").toLowerCase();
+}
+
+const OAUTH_POLL_MS = 1500;
+const OAUTH_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * Run executor's dynamic-DCR OAuth flow against an endpoint: start the session,
+ * open the authorization URL in the browser, then poll until the callback
+ * fires. Resolves once connected; throws on failure or timeout.
+ */
+export async function runOAuthFlow(
+  bridge: DesktopBridge,
+  endpoint: string,
+  connectionId: string,
+): Promise<void> {
+  const start = await bridge.executorOAuthStart({ endpoint, pluginId: "mcp", connectionId });
+  if (start.completedConnection) return;
+  if (!start.authorizationUrl) throw new Error("No authorization URL returned.");
+  await bridge.executorOpenExternal(start.authorizationUrl);
+  const deadline = Date.now() + OAUTH_TIMEOUT_MS;
+  for (;;) {
+    if (Date.now() > deadline) throw new Error("OAuth timed out.");
+    await new Promise((r) => setTimeout(r, OAUTH_POLL_MS));
+    const result = await bridge.executorOAuthAwait(start.sessionId);
+    if (!result) continue;
+    if (!result.ok) throw new Error(`OAuth failed: ${result.error}`);
+    return;
+  }
+}
+
 export function parseHeaders(raw: string): Record<string, string> | undefined {
   const headers: Record<string, string> = {};
   for (const line of raw.split("\n")) {
