@@ -2,6 +2,7 @@ import { useCallback } from "react";
 
 import { Button } from "@repo/ui/components/button";
 
+import { InitialOrb } from "@/renderer/components/initial-orb";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 
@@ -22,6 +23,7 @@ export function LoginPage() {
 
   return (
     <div className="flex flex-1 flex-col items-center justify-end px-6 pb-16">
+      <InitialOrb />
       <div className="flex w-full max-w-xs flex-col gap-3">
         <Button
           onClick={loginError ? handleRetry : handleLogin}
