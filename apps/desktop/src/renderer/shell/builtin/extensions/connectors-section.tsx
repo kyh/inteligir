@@ -187,14 +187,25 @@ export function ConnectorsSection({ onError }: SectionProps) {
 
   const handleRemoveCustom = useCallback(
     async (id: string) => {
+      const bridge = getBridge();
+      if (!bridge) return;
       try {
-        await getBridge()?.removeExecutorSource(id);
-        refreshSources();
+        await bridge.removeExecutorSource(id);
+        // The custom dialog's OAuth option creates a connection keyed by the
+        // source's namespace (mcp-oauth2-<id>); remove it too so it isn't left
+        // orphaned and invisible.
+        const connection = (connections ?? []).find(
+          (c) => c.id === `mcp-oauth2-${id}` || c.provider === id,
+        );
+        if (connection) await bridge.removeExecutorConnection(connection.id);
       } catch (err) {
         onError(errorMessage(err, "Failed to remove connector."));
+      } finally {
+        await refreshSources();
+        await refreshConnections();
       }
     },
-    [onError, refreshSources],
+    [onError, connections, refreshSources, refreshConnections],
   );
 
   // Installed sources that aren't part of the catalog — surfaced so users can

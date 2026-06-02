@@ -30,7 +30,14 @@ export function SecretPromptDialog({ connector, label, busy, onCancel, onSubmit 
   }, [connector]);
 
   return (
-    <Dialog open={connector !== null} onOpenChange={(o) => !o && onCancel()}>
+    <Dialog
+      open={connector !== null}
+      onOpenChange={(o) => {
+        // Don't allow Escape/overlay/X to dismiss mid-submit — that could leave
+        // a stored secret with no source. The submit flow owns closing.
+        if (!o && !busy) onCancel();
+      }}
+    >
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Connect {connector?.name}</DialogTitle>
