@@ -45,7 +45,7 @@ const EXTENSION_BUNDLES = Object.values(bundleModules)
 
 ## Why this shape
 
-gws and browser are conceptually identical — pi tools backed by a third-party CLI installed from a GitHub release. Bundling them under one shape means:
+peekaboo and browser are conceptually identical — pi tools backed by a third-party CLI installed from a GitHub release. Bundling them under one shape means:
 
 - Adding an extension is "create one folder." No edits to `setup.ts`, `app-effects.ts`, `app-machine.ts`, or tests.
 - Bootstrap and tool registration live next to each other instead of split across packages.
@@ -70,8 +70,8 @@ agent/
   extension.ts          # PiExtensionBundle + contexts + runBundleSetups + tool-schema validator
   setup.ts              # orchestrator: glob discovery, Agent class, auth, paths
   browser/extension.ts  # Wraps agent-browser CLI (setup installs binary + browser runtime)
-  executor/extension.ts # Code mode — surfaces executor's `execute`/`resume` tools (MCP connectors)
-  gws/extension.ts      # Google Workspace CLI (setup downloads tarball + seeds OAuth)
+  executor/extension.ts # Code mode — surfaces executor's `execute`/`resume` tools (connected APIs, incl. Google Workspace)
+  peekaboo/extension.ts # Native macOS automation CLI (setup downloads tarball)
   tasks/extension.ts    # Scheduled task management (no setup)
   ui/extension.ts       # manage_ui tool — agent-driven runtime UI (install/place/patch/etc.)
 ```

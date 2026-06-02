@@ -1,6 +1,6 @@
 /**
  * Shared formatters for PiExtensionBundle tool results. Each CLI-backed bundle
- * (gws, peekaboo, browser) returns the same content-block shape; centralizing
+ * (peekaboo, browser) returns the same content-block shape; centralizing
  * the construction keeps the bundles focused on tool-specific concerns.
  */
 
