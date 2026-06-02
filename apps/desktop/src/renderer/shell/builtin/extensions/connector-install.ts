@@ -145,23 +145,23 @@ async function registerSource(
 }
 
 /**
- * Register a source against executor, running any auth step first. If anything
- * fails — the auth step (e.g. an OAuth timeout) or the source registration —
- * any secret or OAuth connection created along the way is rolled back so a
- * failed install leaves nothing orphaned.
+ * Register a source against executor, running any auth step first.
+ *
+ * Refuses up front if the namespace is already taken — re-running auth would
+ * overwrite the secret / re-issue the OAuth that the existing source depends on.
+ * Because of that check, the only auth side-effects we ever roll back are ones
+ * this call just created, so a failed first-time install leaves nothing behind.
  */
 export async function installConnector(bridge: DesktopBridge, req: InstallRequest): Promise<void> {
+  if (await namespaceHasSource(bridge, req.source.namespace)) {
+    throw new Error(`A connector for "${req.source.namespace}" is already installed.`);
+  }
   const applied: AppliedAuth = {};
   try {
     await applyAuth(bridge, req, applied);
     await registerSource(bridge, req.source, applied.headers);
   } catch (err) {
-    // Only undo our auth side-effects if no source for this namespace already
-    // exists. A failed *duplicate* install (the namespace is taken) must not
-    // strip the OAuth connection / secret the existing source still depends on.
-    if (!(await namespaceHasSource(bridge, req.source.namespace))) {
-      await rollbackAuth(bridge, applied);
-    }
+    await rollbackAuth(bridge, applied);
     throw err;
   }
 }

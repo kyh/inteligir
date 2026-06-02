@@ -151,19 +151,20 @@ describe("installConnector", () => {
     expect(bridge.removeExecutorConnection).toHaveBeenCalledWith("mcp-oauth2-x");
   });
 
-  it("does NOT roll back auth when a source already occupies the namespace", async () => {
-    // A duplicate install fails at registration, but the existing source still
-    // needs its OAuth connection — rollback must be skipped.
+  it("refuses to install over a namespace that already has a source, untouched", async () => {
+    // A duplicate install must not re-run auth (overwriting the secret / OAuth
+    // the existing source depends on) nor roll anything back.
     const bridge = mockBridge({
-      addMcpSource: vi.fn().mockRejectedValue(new Error("namespace taken")),
       listExecutorSources: vi.fn().mockResolvedValue([{ id: "x", name: "X", kind: "mcp" }]),
-      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-x" })]),
     });
     const req: InstallRequest = {
       source: { type: "mcp", name: "X", namespace: "x", endpoint: "https://e" },
       auth: { kind: "oauth" },
     };
-    await expect(installConnector(bridge, req)).rejects.toThrow("namespace taken");
+    await expect(installConnector(bridge, req)).rejects.toThrow(/already installed/);
+    expect(bridge.executorOAuthStart).not.toHaveBeenCalled();
+    expect(bridge.setExecutorSecret).not.toHaveBeenCalled();
+    expect(bridge.addMcpSource).not.toHaveBeenCalled();
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
   });
 
