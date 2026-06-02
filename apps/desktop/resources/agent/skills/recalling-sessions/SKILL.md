@@ -20,11 +20,13 @@ transcript, but every prior session is on disk.
 ~/.inteligir/sessions/<path>/<timestamp>_<id>.jsonl
 ```
 
-Files are named with a leading timestamp, so newest sorts last. List recent
-sessions first:
+Sessions are nested one directory deep, so list them with `find` (a bare `**`
+glob needs `globstar` and silently misses nested files). Most-recently-modified
+first:
 
 ```bash
-ls -t ~/.inteligir/sessions/**/*.jsonl 2>/dev/null | head
+find ~/.inteligir/sessions -name '*.jsonl' -printf '%T@ %p\n' 2>/dev/null \
+  | sort -rn | cut -d' ' -f2- | head
 ```
 
 ## Searching

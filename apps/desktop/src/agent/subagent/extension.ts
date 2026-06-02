@@ -235,17 +235,22 @@ async function runSubagent(
         result.stderr += data.toString();
       });
 
-      const timer = setTimeout(() => {
-        aborted = true;
-        proc.kill("SIGTERM");
-      }, SUBAGENT_TIMEOUT_MS);
-
-      const onAbort = () => {
-        aborted = true;
+      // SIGTERM, then SIGKILL if the child ignores it — never wait forever.
+      const killWithEscalation = () => {
         proc.kill("SIGTERM");
         setTimeout(() => {
           if (!proc.killed) proc.kill("SIGKILL");
         }, 5000);
+      };
+
+      const timer = setTimeout(() => {
+        aborted = true;
+        killWithEscalation();
+      }, SUBAGENT_TIMEOUT_MS);
+
+      const onAbort = () => {
+        aborted = true;
+        killWithEscalation();
       };
       if (signal) {
         if (signal.aborted) onAbort();
@@ -412,6 +417,18 @@ const subagentExtension: PiExtensionBundle = {
       execute: async (_toolCallId, params: SubagentParams, signal?: AbortSignal) => {
         // Re-discover per call so defs added mid-session are picked up.
         const live = discoverAgents(AGENT_DIR, WORKSPACE_DIR);
+
+        // Enforce the documented "exactly one mode" contract up front so an
+        // ambiguous payload (e.g. both chain and tasks) is rejected rather than
+        // silently running whichever mode is checked first.
+        const hasSingle = Boolean(params.agent || params.task);
+        const hasParallel = Boolean(params.tasks && params.tasks.length > 0);
+        const hasChain = Boolean(params.chain && params.chain.length > 0);
+        if (Number(hasSingle) + Number(hasParallel) + Number(hasChain) > 1) {
+          return textResult(
+            "Provide exactly one mode: { agent, task } | { tasks: [...] } | { chain: [...] }.",
+          );
+        }
 
         // chain — sequential, threading {previous} through. Validate every
         // agent up front (like parallel) so a bad name on a later step doesn't
