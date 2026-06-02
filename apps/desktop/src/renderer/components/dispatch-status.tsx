@@ -21,9 +21,7 @@ export function DispatchStatus() {
     void getBridge()?.refreshDispatchCode();
   }, []);
 
-  if (state.status === "unregistered" || state.status === "registering") {
-    return null;
-  }
+  if (state.status === "idle") return null;
 
   if (state.status === "error") {
     return (
@@ -37,20 +35,22 @@ export function DispatchStatus() {
     );
   }
 
-  if (state.status === "awaiting_pairing") {
+  if (state.status === "awaiting_pair" || state.status === "reconnecting") {
     return (
       <div className="flex items-center gap-3 rounded-lg bg-neutral-900 px-3 py-2">
         <SmartphoneIcon className="size-4 text-neutral-400" />
         <div className="flex flex-col gap-0.5">
-          <span className="text-xs text-neutral-400">Pair with mobile</span>
+          <span className="text-xs text-neutral-400">
+            {state.status === "reconnecting" ? "Reconnecting..." : "Pair with mobile"}
+          </span>
           <span className="font-mono text-lg font-bold tracking-[0.3em] text-white">
-            {state.pairingCode}
+            {state.roomCode}
           </span>
         </div>
         <button
           onClick={handleRefresh}
           className="ml-auto text-neutral-500 hover:text-neutral-300"
-          title="Refresh code"
+          title="New code"
         >
           <RefreshCwIcon className="size-3.5" />
         </button>
@@ -58,7 +58,6 @@ export function DispatchStatus() {
     );
   }
 
-  // Paired
   return (
     <div className="flex items-center gap-2 rounded-lg bg-neutral-900 px-3 py-1.5 text-xs text-green-400">
       <SmartphoneIcon className="size-3.5" />

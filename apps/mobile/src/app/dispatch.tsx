@@ -11,43 +11,22 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useMutation } from "@tanstack/react-query";
 import PartySocket from "partysocket";
+import { parseMessage, encodeMessage, PARTY_NAME } from "@repo/dispatch";
 
-import { trpc } from "@/utils/api";
 import { getPartyHost } from "@/utils/base-url";
-import { clearSession, getMobileToken } from "@/utils/session-store";
+import { clearSession } from "@/utils/session-store";
 
-let msgCounter = 0;
-function generateClientId(): string {
-  return `m_${Date.now()}_${++msgCounter}`;
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-type AgentEvent = {
-  type: string;
-  [key: string]: unknown;
-};
+type AgentEvent = { type: string; [key: string]: unknown };
 
 type ChatEntry =
   | { role: "user"; text: string }
   | { role: "assistant"; text: string }
   | { role: "tool"; text: string; isError: boolean };
 
-// ---------------------------------------------------------------------------
-// Screen
-// ---------------------------------------------------------------------------
-
 export default function DispatchScreen() {
-  const { deviceId, deviceName } = useLocalSearchParams<{
-    deviceId: string;
-    deviceName: string;
-  }>();
+  const { roomCode } = useLocalSearchParams<{ roomCode: string }>();
   const router = useRouter();
-  const mobileToken = getMobileToken();
 
   const [input, setInput] = useState("");
   const [entries, setEntries] = useState<ChatEntry[]>([]);
@@ -57,49 +36,28 @@ export default function DispatchScreen() {
   const assistantTextRef = useRef("");
   const partySocketRef = useRef<PartySocket | null>(null);
 
-  // -- PartySocket connection (replaces Supabase Realtime) -------------------
-
   useEffect(() => {
-    if (!deviceId || !mobileToken) return;
+    if (!roomCode) return;
 
     const ws = new PartySocket({
       host: getPartyHost(),
-      party: "dispatch-server",
-      room: deviceId,
+      party: PARTY_NAME,
+      room: roomCode,
     });
 
     partySocketRef.current = ws;
 
     ws.addEventListener("message", (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.direction !== "to_mobile") return;
-        handleAgentEvent(msg.payload as AgentEvent);
-      } catch {
-        // Skip malformed messages
-      }
-    });
-
-    // Catch up on any missed messages on connect
-    ws.addEventListener("open", () => {
-      // Notify desktop of pairing via WebSocket (DB record already exists
-      // from the pair mutation, but the desktop may not have caught up yet)
-      ws.send(JSON.stringify({
-        direction: "to_device",
-        type: "device_paired",
-        payload: { deviceId },
-      }));
-
-      if (mobileToken) {
-        catchUpMutation.mutate({ mobileToken });
-      }
+      const msg = parseMessage(event.data);
+      if (!msg || msg.direction !== "to_mobile") return;
+      handleAgentEvent(msg.payload as AgentEvent);
     });
 
     return () => {
       ws.close();
       partySocketRef.current = null;
     };
-  }, [deviceId, mobileToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [roomCode]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function handleAgentEvent(event: AgentEvent): void {
     switch (event.type) {
@@ -115,10 +73,8 @@ export default function DispatchScreen() {
         setAssistantText("");
         break;
       case "message_start":
-        if (event.role === "assistant") {
-          if (assistantTextRef.current) {
-            setEntries((prev) => [...prev, { role: "assistant", text: assistantTextRef.current }]);
-          }
+        if (event.role === "assistant" && assistantTextRef.current) {
+          setEntries((prev) => [...prev, { role: "assistant", text: assistantTextRef.current }]);
           assistantTextRef.current = "";
           setAssistantText("");
         }
@@ -160,70 +116,24 @@ export default function DispatchScreen() {
     }
   }
 
-  // -- Catch-up on connect ---------------------------------------------------
-
-  const catchUpMutation = useMutation(
-    trpc.dispatch.mobileCatchUp.mutationOptions({
-      onSuccess(data) {
-        const restored: ChatEntry[] = [];
-        for (const msg of data.messages) {
-          const event = msg.payload as AgentEvent;
-          if (event.type === "message_end" && event.role === "assistant" && typeof event.text === "string") {
-            restored.push({ role: "assistant", text: String(event.text) });
-          }
-        }
-        if (restored.length > 0) {
-          setEntries((prev) => [...prev, ...restored]);
-        }
-      },
-    }),
-  );
-
-  // -- Send message ----------------------------------------------------------
-
-  const sendMutation = useMutation(
-    trpc.dispatch.sendMessage.mutationOptions({}),
-  );
-  const { mutate: sendMessage } = sendMutation;
-
   const handleSend = useCallback(() => {
     const text = input.trim();
-    if (!text || !mobileToken) return;
+    if (!text) return;
     setInput("");
     setEntries((prev) => [...prev, { role: "user", text }]);
-
-    const clientId = generateClientId();
-    const payload = { text, clientId };
-
-    partySocketRef.current?.send(JSON.stringify({
-      direction: "to_device",
-      type: "user_message",
-      payload,
-    }));
-
-    sendMessage({ mobileToken, type: "user_message", payload });
-  }, [input, mobileToken, sendMessage]);
+    partySocketRef.current?.send(
+      encodeMessage("to_device", "user_message", { text }),
+    );
+  }, [input]);
 
   const handleInterrupt = useCallback(() => {
-    if (!mobileToken) return;
-
-    const clientId = generateClientId();
-
-    partySocketRef.current?.send(JSON.stringify({
-      direction: "to_device",
-      type: "interrupt",
-      payload: { clientId },
-    }));
-
-    sendMessage({ mobileToken, type: "interrupt", payload: { clientId } });
-  }, [mobileToken, sendMessage]);
+    partySocketRef.current?.send(encodeMessage("to_device", "interrupt"));
+  }, []);
 
   const handleDisconnect = useCallback(async () => {
     await clearSession();
     router.replace("/");
   }, [router]);
-
-  // -- Build display entries ------------------------------------------------
 
   const displayEntries = useMemo(() => [
     ...entries,
@@ -236,7 +146,7 @@ export default function DispatchScreen() {
     <SafeAreaView className="bg-background flex-1" edges={["bottom"]}>
       <Stack.Screen
         options={{
-          title: deviceName ?? "Dispatch",
+          title: "Dispatch",
           headerRight: () => (
             <Pressable onPress={handleDisconnect}>
               <Text className="text-destructive text-sm">Disconnect</Text>
@@ -249,7 +159,6 @@ export default function DispatchScreen() {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={90}
       >
-        {/* Agent status */}
         {isAgentBusy && (
           <View className="flex-row items-center gap-2 border-b border-border px-4 py-2">
             <ActivityIndicator size="small" color="#d1684e" />
@@ -257,7 +166,6 @@ export default function DispatchScreen() {
           </View>
         )}
 
-        {/* Chat */}
         <FlatList
           ref={flatListRef}
           data={displayEntries}
@@ -308,7 +216,6 @@ export default function DispatchScreen() {
           }
         />
 
-        {/* Input */}
         <View className="flex-row items-end gap-2 border-t border-border px-3 py-3">
           <TextInput
             className="bg-muted text-foreground min-h-[40px] flex-1 rounded-2xl border border-border px-4 py-2.5 text-[15px]"
@@ -334,15 +241,11 @@ export default function DispatchScreen() {
             <Pressable
               className="bg-primary rounded-2xl px-5 py-2.5 disabled:opacity-40"
               onPress={handleSend}
-              disabled={!input.trim() || sendMutation.isPending}
+              disabled={!input.trim()}
             >
-              {sendMutation.isPending ? (
-                <ActivityIndicator color="#fff" size="small" />
-              ) : (
-                <Text className="text-primary-foreground text-[15px] font-semibold">
-                  Send
-                </Text>
-              )}
+              <Text className="text-primary-foreground text-[15px] font-semibold">
+                Send
+              </Text>
             </Pressable>
           )}
         </View>

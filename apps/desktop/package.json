@@ -27,6 +27,7 @@
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.6.1",
     "@repo/agent-runtime": "workspace:^",
+    "@repo/dispatch": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@repo/ui": "workspace:^",
     "@sinclair/typebox": "^0.34.49",

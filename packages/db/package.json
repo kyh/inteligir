@@ -12,14 +12,10 @@
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "dev": "tsc",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false",
-    "supabase": "pnpm with-env supabase",
     "drizzle:kit": "pnpm with-env drizzle-kit",
     "seed": "pnpm with-env tsx src/seed/initial.ts",
-    "start": "pnpm with-env supabase status || supabase start",
-    "stop": "pnpm with-env supabase stop",
-    "reset": "pnpm with-env supabase db reset && pnpm push",
-    "status": "pnpm with-env supabase status",
-    "typegen": "pnpm with-env supabase gen types typescript --local > src/database.types.ts",
+    "generate": "pnpm with-env drizzle-kit generate",
+    "migrate": "pnpm with-env drizzle-kit migrate",
     "push": "pnpm with-env drizzle-kit push",
     "push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "studio": "pnpm with-env drizzle-kit studio",
@@ -27,17 +23,17 @@
     "generate:auth-schema": "pnpm with-env pnpx @better-auth/cli generate --config ../api/src/auth/auth.ts --output ./src/drizzle-schema-auth.ts"
   },
   "dependencies": {
+    "@libsql/client": "^0.15.0",
     "drizzle-orm": "^0.45.2",
     "next": "catalog:",
-    "postgres": "^3.4.9",
     "react": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
+    "@types/node": "catalog:",
     "@types/react": "catalog:",
     "drizzle-kit": "^0.31.10",
-    "supabase": "^2.98.2",
     "typescript": "catalog:"
   }
 }

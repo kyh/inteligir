@@ -1,36 +1,30 @@
 import { useState } from "react";
-import { ActivityIndicator, Pressable, Text, TextInput, View } from "react-native";
+import { Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
-import { useMutation } from "@tanstack/react-query";
 
-import { trpc } from "@/utils/api";
-import { setDeviceId, setDeviceName, setMobileToken } from "@/utils/session-store";
+import { setRoomCode } from "@/utils/session-store";
 
 export default function PairScreen() {
   const router = useRouter();
   const [code, setCode] = useState("");
 
-  const pairMutation = useMutation(
-    trpc.dispatch.pair.mutationOptions({
-      async onSuccess(data) {
-        await setMobileToken(data.mobileToken);
-        await setDeviceId(data.deviceId);
-        await setDeviceName(data.name);
-        router.replace({
-          pathname: "/dispatch",
-          params: { deviceId: data.deviceId, deviceName: data.name },
-        });
-      },
-    }),
-  );
+  const handleConnect = () => {
+    const roomCode = code.toUpperCase().trim();
+    if (roomCode.length !== 6) return;
+    setRoomCode(roomCode);
+    router.replace({
+      pathname: "/dispatch",
+      params: { roomCode },
+    });
+  };
 
   return (
     <SafeAreaView className="bg-background flex-1">
-      <Stack.Screen options={{ title: "Pair Device" }} />
+      <Stack.Screen options={{ title: "Connect" }} />
       <View className="flex-1 justify-center px-6">
         <Text className="text-foreground mb-2 text-center text-2xl font-bold">
-          Pair Your Desktop
+          Connect to Desktop
         </Text>
         <Text className="text-muted-foreground mb-10 text-center text-sm leading-5">
           Enter the 6-character code displayed on your desktop app.
@@ -48,24 +42,14 @@ export default function PairScreen() {
           textAlign="center"
         />
 
-        {pairMutation.error && (
-          <Text className="text-destructive mb-4 text-center text-sm">
-            {pairMutation.error.message ?? "Failed to pair device"}
-          </Text>
-        )}
-
         <Pressable
           className="bg-primary items-center rounded-xl p-4 disabled:opacity-50"
-          onPress={() => pairMutation.mutate({ code: code.toUpperCase() })}
-          disabled={code.length !== 6 || pairMutation.isPending}
+          onPress={handleConnect}
+          disabled={code.length !== 6}
         >
-          {pairMutation.isPending ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text className="text-primary-foreground text-base font-semibold">
-              Pair Device
-            </Text>
-          )}
+          <Text className="text-primary-foreground text-base font-semibold">
+            Connect
+          </Text>
         </Pressable>
       </View>
     </SafeAreaView>

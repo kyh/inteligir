@@ -2,27 +2,13 @@ import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, Redirect, Stack } from "expo-router";
 
-import {
-  getMobileToken,
-  getDeviceId,
-  getDeviceName,
-} from "@/utils/session-store";
+import { getRoomCode } from "@/utils/session-store";
 
 export default function Index() {
-  const mobileToken = getMobileToken();
-  const deviceId = getDeviceId();
-  const deviceName = getDeviceName();
+  const roomCode = getRoomCode();
 
-  // If already paired, go straight to dispatch
-  if (mobileToken && deviceId) {
-    return (
-      <Redirect
-        href={{
-          pathname: "/dispatch",
-          params: { deviceId, deviceName: deviceName ?? "Desktop" },
-        }}
-      />
-    );
+  if (roomCode) {
+    return <Redirect href={{ pathname: "/dispatch", params: { roomCode } }} />;
   }
 
   return (
@@ -39,7 +25,7 @@ export default function Index() {
         <Link href="/pair" asChild>
           <Pressable className="bg-primary w-full items-center rounded-xl p-4">
             <Text className="text-primary-foreground text-base font-semibold">
-              Pair Device
+              Connect
             </Text>
           </Pressable>
         </Link>

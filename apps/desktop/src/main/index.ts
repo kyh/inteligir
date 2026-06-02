@@ -22,7 +22,7 @@ import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main
 import {
   getDispatchState,
   initDispatch,
-  refreshPairingCode,
+  refreshRoomCode,
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
 import { broadcastToRenderer } from "@/main/lib/broadcast";
@@ -193,7 +193,7 @@ function registerIpcHandlers(): void {
   // ---- Dispatch (mobile ↔ desktop relay) -----------------------------------
 
   createVoidIpcHandler(IPC_CHANNELS.DISPATCH_GET_STATE, () => getDispatchState());
-  createVoidIpcHandler(IPC_CHANNELS.DISPATCH_REFRESH_CODE, () => refreshPairingCode());
+  createVoidIpcHandler(IPC_CHANNELS.DISPATCH_REFRESH_CODE, () => refreshRoomCode());
 
   // ---- App lifecycle --------------------------------------------------------
 
