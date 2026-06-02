@@ -51,10 +51,11 @@ function setMembership(
 }
 
 export function ConnectorsSection({ onError }: SectionProps) {
-  const { data: sources, refresh: refreshSources } = useBridgeResource(
-    (b) => b.listExecutorSources(),
-    onError,
-  );
+  const {
+    data: sources,
+    error: sourcesError,
+    refresh: refreshSources,
+  } = useBridgeResource((b) => b.listExecutorSources(), onError);
   // We don't render connections directly — uninstall queries them live — but
   // refreshing keeps the daemon's view current after connect/disconnect.
   const { refresh: refreshConnections } = useBridgeResource(
@@ -209,7 +210,21 @@ export function ConnectorsSection({ onError }: SectionProps) {
           every card reads "idle" and a click could re-install an already-
           connected connector before we know its real state. */}
       {sources === null ? (
-        <div className="text-[10px] text-muted-foreground">Loading…</div>
+        sourcesError ? (
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+            <span>Couldn&apos;t load connectors.</span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void refreshSources()}
+              className="h-auto px-2 py-0.5 text-[10px]"
+            >
+              Retry
+            </Button>
+          </div>
+        ) : (
+          <div className="text-[10px] text-muted-foreground">Loading…</div>
+        )
       ) : (
         <div className="flex flex-col gap-3">
           {CONNECTOR_GROUPS.map(({ category, connectors }) => (

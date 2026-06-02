@@ -241,6 +241,16 @@ describe("uninstallConnector", () => {
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
   });
 
+  it("surfaces a connection-list failure (and still removes the source)", async () => {
+    const bridge = mockBridge({
+      listExecutorConnections: vi.fn().mockRejectedValue(new Error("list down")),
+    });
+    await expect(
+      uninstallConnector(bridge, { sourceId: "src-1", namespace: "github" }),
+    ).rejects.toThrow("list down");
+    expect(bridge.removeExecutorSource).toHaveBeenCalledWith("src-1");
+  });
+
   it("skips connection and secret removal when there is nothing to remove", async () => {
     const bridge = mockBridge();
     await uninstallConnector(bridge, { sourceId: "src-1", namespace: "none" });

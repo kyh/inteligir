@@ -216,7 +216,12 @@ export async function uninstallConnector(
   if (sourceId) await attempt(() => bridge.removeExecutorSource(sourceId));
   // Query current connections rather than trusting a possibly-stale snapshot —
   // a connection created earlier in the session may not be in the cached list.
-  const connections = await bridge.listExecutorConnections().catch(() => null);
+  // Route the fetch through `attempt` so a list failure is recorded (and the
+  // partial uninstall surfaced) rather than silently skipping OAuth cleanup.
+  let connections: ExecutorConnectionRef[] | null = null;
+  await attempt(async () => {
+    connections = await bridge.listExecutorConnections();
+  });
   const connection = findOAuthConnection(connections, opts.namespace);
   if (connection) await attempt(() => bridge.removeExecutorConnection(connection.id));
   if (secretId) await attempt(() => bridge.removeExecutorSecret(secretId));

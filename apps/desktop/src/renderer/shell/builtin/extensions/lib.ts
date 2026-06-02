@@ -87,8 +87,11 @@ export function parseHeaders(raw: string): Record<string, string> | undefined {
 export function useBridgeResource<T>(
   load: (bridge: DesktopBridge) => Promise<T>,
   onError: (e: string | null) => void,
-): { data: T | null; refresh: () => Promise<void> } {
+): { data: T | null; error: string | null; refresh: () => Promise<void> } {
   const [data, setData] = useState<T | null>(null);
+  // Lets callers tell "still loading" (data null, no error) apart from "load
+  // failed" (so they can show a retry instead of a stuck spinner).
+  const [error, setError] = useState<string | null>(null);
   const loadRef = useRef(load);
   loadRef.current = load;
   const onErrorRef = useRef(onError);
@@ -97,17 +100,22 @@ export function useBridgeResource<T>(
   const refresh = useCallback(() => {
     const bridge = getBridge();
     if (!bridge) return Promise.resolve();
+    setError(null);
     return loadRef
       .current(bridge)
-      .then(setData)
-      .catch((err: unknown) => onErrorRef.current(errorMessage(err, "Failed to load.")));
+      .then((value) => setData(value))
+      .catch((err: unknown) => {
+        const message = errorMessage(err, "Failed to load.");
+        setError(message);
+        onErrorRef.current(message);
+      });
   }, []);
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  return { data, refresh };
+  return { data, error, refresh };
 }
 
 export type SectionProps = { onError: (e: string | null) => void };
