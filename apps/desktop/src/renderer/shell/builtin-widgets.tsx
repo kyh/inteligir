@@ -20,7 +20,6 @@ import {
 } from "@repo/ui/components/ai-elements/conversation";
 
 import { ChatActivityRow, ChatMessageView } from "@/renderer/shell/chat/chat-message";
-import { Composer } from "@/renderer/shell/chat/composer";
 import { ExtensionsPanel } from "@/renderer/shell/builtin/extensions-panel";
 import { SettingsPanel } from "@/renderer/shell/builtin/settings-panel";
 import { TaskPanel } from "@/renderer/shell/builtin/task-panel";
@@ -60,14 +59,12 @@ function ChatWidget() {
       </Conversation>
 
       {currentTranscript && (
-        <div className="px-3 pb-1">
+        <div className="px-3 pb-2">
           <p className="truncate text-xs italic text-muted-foreground">
             &ldquo;{currentTranscript}&hellip;&rdquo;
           </p>
         </div>
       )}
-
-      <Composer />
     </>
   );
 }

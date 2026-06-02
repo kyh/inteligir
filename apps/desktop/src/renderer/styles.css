@@ -32,7 +32,8 @@ textarea,
   opacity: 0.1;
   border-radius: var(--radius-xl);
 }
+/* Panels stay resizable from their edges/corner, but we hide the default
+ * diagonal-arrow affordance for a cleaner desktop look. */
 .react-grid-item > .react-resizable-handle::after {
-  border-right-color: color-mix(in oklab, var(--foreground) 40%, transparent);
-  border-bottom-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+  display: none;
 }
