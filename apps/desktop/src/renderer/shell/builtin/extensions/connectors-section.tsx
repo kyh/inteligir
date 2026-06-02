@@ -208,6 +208,14 @@ export function ConnectorsSection({ onError }: SectionProps) {
     [onError, connections, refreshSources, refreshConnections],
   );
 
+  // The custom dialog can create both a source and (with its OAuth option) a
+  // connection, so refresh both — otherwise a later Remove searches a stale
+  // connections list and orphans the connection.
+  const handleCustomAdded = useCallback(async () => {
+    await refreshSources();
+    await refreshConnections();
+  }, [refreshSources, refreshConnections]);
+
   // Installed sources that aren't part of the catalog — surfaced so users can
   // see and remove anything added via the custom escape hatch (or the agent).
   const customSources = useMemo(() => {
@@ -278,7 +286,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
       <AddCustomConnectorDialog
         open={customOpen}
         onOpenChange={setCustomOpen}
-        onAdded={refreshSources}
+        onAdded={handleCustomAdded}
         onError={onError}
       />
       <SecretPromptDialog
