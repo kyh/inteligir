@@ -91,8 +91,10 @@ export function ConnectorsSection({ onError }: SectionProps) {
       if (!bridge) return;
 
       // API-key connectors need a secret first; collect it via the dialog, which
-      // calls handleApiKeySubmit once the user provides a value.
+      // calls handleApiKeySubmit once the user provides a value. Clear any stale
+      // panel error now so it doesn't reappear behind/after the modal.
       if (connector.install.type === "mcp" && connector.install.auth.kind === "apiKey") {
+        onError(null);
         setApiKeyError(null);
         setApiKeyTarget(connector);
         return;
@@ -122,6 +124,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
       try {
         await installConnector(bridge, catalogInstallRequest(connector, value));
         await refreshAll();
+        onError(null);
         setApiKeyTarget(null);
       } catch (err) {
         setApiKeyError(errorMessage(err, `Couldn't connect ${connector.name}.`));
@@ -129,7 +132,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
         setApiKeyBusy(false);
       }
     },
-    [apiKeyTarget, refreshAll],
+    [apiKeyTarget, onError, refreshAll],
   );
 
   const handleDisconnect = useCallback(
