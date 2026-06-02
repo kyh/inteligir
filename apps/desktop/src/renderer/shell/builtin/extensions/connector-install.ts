@@ -37,7 +37,7 @@ export type InstallRequest = {
 };
 
 /** The OAuth connection for a namespace, if any (matched by id or provider). */
-export function findOAuthConnection(
+function findOAuthConnection(
   connections: ExecutorConnectionRef[] | null,
   namespace: string,
 ): ExecutorConnectionRef | undefined {

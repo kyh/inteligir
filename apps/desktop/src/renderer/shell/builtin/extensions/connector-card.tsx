@@ -4,7 +4,7 @@ import { Button } from "@repo/ui/components/button";
 
 import type { CatalogConnector } from "@/renderer/shell/builtin/extensions/connector-catalog";
 
-export type ConnectorStatus = "idle" | "connecting" | "connected" | "disconnecting";
+type ConnectorStatus = "idle" | "connecting" | "connected" | "disconnecting";
 
 type ConnectorCardProps = {
   connector: CatalogConnector;
