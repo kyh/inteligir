@@ -75,6 +75,10 @@ describe("catalogInstallRequest", () => {
     expect(req.source.type).toBe("google");
     expect(req.auth).toEqual({ kind: "none" });
   });
+
+  it("throws when an API-key connector is mapped without a secret value", () => {
+    expect(() => catalogInstallRequest(connector("huggingface"))).toThrow(/secret value/);
+  });
 });
 
 describe("installConnector", () => {
@@ -178,5 +182,21 @@ describe("uninstallConnector", () => {
     await uninstallConnector(bridge, { sourceId: "src-1", namespace: "none", connections: [] });
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
     expect(bridge.removeExecutorSecret).not.toHaveBeenCalled();
+  });
+
+  it("still removes the secret when connection removal fails, then surfaces the error", async () => {
+    const bridge = mockBridge({
+      removeExecutorConnection: vi.fn().mockRejectedValue(new Error("conn boom")),
+    });
+    await expect(
+      uninstallConnector(bridge, {
+        sourceId: "src-1",
+        namespace: "github",
+        connections: [conn({ id: "mcp-oauth2-github" })],
+        secretId: apiKeySecretId("github"),
+      }),
+    ).rejects.toThrow("conn boom");
+    // The later cleanup step ran despite the earlier failure.
+    expect(bridge.removeExecutorSecret).toHaveBeenCalledWith(apiKeySecretId("github"));
   });
 });

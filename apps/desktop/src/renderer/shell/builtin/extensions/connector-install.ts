@@ -154,7 +154,11 @@ export async function installConnector(bridge: DesktopBridge, req: InstallReques
   }
 }
 
-/** Remove a connector's source, its OAuth connection, and any stored secret. */
+/**
+ * Remove a connector's source, its OAuth connection, and any stored secret.
+ * Every step is attempted even if an earlier one fails (so a partial failure
+ * can't orphan the rest), and the first error is surfaced to the caller.
+ */
 export async function uninstallConnector(
   bridge: DesktopBridge,
   opts: {
@@ -164,10 +168,22 @@ export async function uninstallConnector(
     secretId?: string;
   },
 ): Promise<void> {
-  if (opts.sourceId) await bridge.removeExecutorSource(opts.sourceId);
+  const errors: unknown[] = [];
+  const attempt = async (run: () => Promise<unknown>): Promise<void> => {
+    try {
+      await run();
+    } catch (err) {
+      errors.push(err);
+    }
+  };
+
+  const { sourceId, secretId } = opts;
+  if (sourceId) await attempt(() => bridge.removeExecutorSource(sourceId));
   const connection = findOAuthConnection(opts.connections, opts.namespace);
-  if (connection) await bridge.removeExecutorConnection(connection.id);
-  if (opts.secretId) await bridge.removeExecutorSecret(opts.secretId);
+  if (connection) await attempt(() => bridge.removeExecutorConnection(connection.id));
+  if (secretId) await attempt(() => bridge.removeExecutorSecret(secretId));
+
+  if (errors.length > 0) throw errors[0];
 }
 
 /** The stored-secret id for an API-key connector's namespace. */
@@ -200,6 +216,9 @@ export function catalogInstallRequest(
   };
   const auth = install.auth;
   if (auth.kind === "apiKey") {
+    if (!secretValue) {
+      throw new Error("An API-key connector requires a secret value.");
+    }
     return {
       source,
       auth: {
@@ -208,7 +227,7 @@ export function catalogInstallRequest(
         prefix: auth.prefix,
         secretId: apiKeySecretId(connector.id),
         secretName: auth.secretLabel,
-        secretValue: secretValue ?? "",
+        secretValue,
       },
     };
   }
