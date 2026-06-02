@@ -147,8 +147,20 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
     }
   }, [kind, name, endpoint, baseUrl, headersText, oauth, onError, onAdded, onOpenChange, reset]);
 
+  // Don't let Escape / overlay click / the X dismiss the dialog mid-submit —
+  // the success path owns closing it, and a stray close (then re-open) could
+  // wipe a freshly entered form when the background op finally resolves. The
+  // OAuth path makes this window up to 5 minutes long.
+  const handleOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next && busy) return;
+      onOpenChange(next);
+    },
+    [busy, onOpenChange],
+  );
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a custom connector</DialogTitle>
