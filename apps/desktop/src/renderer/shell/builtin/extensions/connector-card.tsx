@@ -4,7 +4,7 @@ import { Button } from "@repo/ui/components/button";
 
 import type { CatalogConnector } from "@/renderer/shell/builtin/extensions/connector-catalog";
 
-export type ConnectorStatus = "idle" | "connecting" | "connected";
+export type ConnectorStatus = "idle" | "connecting" | "connected" | "disconnecting";
 
 type ConnectorCardProps = {
   connector: CatalogConnector;
@@ -27,8 +27,11 @@ function Monogram({ name, accent }: { name: string; accent: string }) {
 }
 
 export function ConnectorCard({ connector, status, onConnect, onDisconnect }: ConnectorCardProps) {
-  const connected = status === "connected";
   const connecting = status === "connecting";
+  const disconnecting = status === "disconnecting";
+  // The "connected" layout also covers an in-progress disconnect, so the card
+  // doesn't fall back to a misleading "Connect" button mid-operation.
+  const showConnected = status === "connected" || disconnecting;
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-background/40 p-3">
@@ -41,7 +44,7 @@ export function ConnectorCard({ connector, status, onConnect, onDisconnect }: Co
           </span>
         </div>
       </div>
-      {connected ? (
+      {showConnected ? (
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
             <CheckIcon className="size-3" />
@@ -51,9 +54,17 @@ export function ConnectorCard({ connector, status, onConnect, onDisconnect }: Co
             variant="ghost"
             size="sm"
             onClick={onDisconnect}
+            disabled={disconnecting}
             className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
           >
-            Disconnect
+            {disconnecting ? (
+              <span className="flex items-center gap-1.5">
+                <Loader2Icon className="size-3 animate-spin" />
+                Disconnecting…
+              </span>
+            ) : (
+              "Disconnect"
+            )}
           </Button>
         </div>
       ) : (

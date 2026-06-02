@@ -73,7 +73,7 @@ export function parseHeaders(raw: string): Record<string, string> | undefined {
 export function useBridgeResource<T>(
   load: (bridge: DesktopBridge) => Promise<T>,
   onError: (e: string | null) => void,
-): { data: T | null; refresh: () => void } {
+): { data: T | null; refresh: () => Promise<void> } {
   const [data, setData] = useState<T | null>(null);
   const loadRef = useRef(load);
   loadRef.current = load;
@@ -82,15 +82,15 @@ export function useBridgeResource<T>(
 
   const refresh = useCallback(() => {
     const bridge = getBridge();
-    if (!bridge) return;
-    void loadRef
+    if (!bridge) return Promise.resolve();
+    return loadRef
       .current(bridge)
       .then(setData)
       .catch((err: unknown) => onErrorRef.current(errorMessage(err, "Failed to load.")));
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
   return { data, refresh };

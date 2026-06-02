@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { PlusIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
@@ -21,13 +21,31 @@ import {
 import { SecretPromptDialog } from "@/renderer/shell/builtin/extensions/secret-prompt-dialog";
 import type { ExecutorSource } from "@/shared/executor";
 
-/** Does an installed executor source correspond to this catalog connector? */
+/**
+ * Does an installed executor source correspond to this catalog connector? Match
+ * on identity we control at install time — the namespace (echoed as the source
+ * id) or the endpoint URL — never the display name, which a custom source could
+ * coincidentally share with a catalog entry.
+ */
 function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boolean {
   return (
     source.id === connector.id ||
-    source.name === connector.name ||
     (source.url != null && normalizeUrl(source.url) === normalizeUrl(connector.install.endpoint))
   );
+}
+
+/** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
+function setMembership(
+  setter: Dispatch<SetStateAction<ReadonlySet<string>>>,
+  id: string,
+  member: boolean,
+): void {
+  setter((prev) => {
+    const next = new Set(prev);
+    if (member) next.add(id);
+    else next.delete(id);
+    return next;
+  });
 }
 
 export function ConnectorsSection({ onError }: SectionProps) {
@@ -41,26 +59,19 @@ export function ConnectorsSection({ onError }: SectionProps) {
   );
 
   const [connecting, setConnecting] = useState<ReadonlySet<string>>(new Set());
+  const [disconnecting, setDisconnecting] = useState<ReadonlySet<string>>(new Set());
   const [apiKeyTarget, setApiKeyTarget] = useState<CatalogConnector | null>(null);
   const [apiKeyBusy, setApiKeyBusy] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
 
-  const setBusy = useCallback((id: string, busy: boolean) => {
-    setConnecting((prev) => {
-      const next = new Set(prev);
-      if (busy) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }, []);
-
   const statusFor = useCallback(
     (connector: CatalogConnector) => {
       if (connecting.has(connector.id)) return "connecting" as const;
+      if (disconnecting.has(connector.id)) return "disconnecting" as const;
       const installed = (sources ?? []).some((s) => sourceMatches(s, connector));
       return installed ? ("connected" as const) : ("idle" as const);
     },
-    [connecting, sources],
+    [connecting, disconnecting, sources],
   );
 
   /** Register the MCP source for a connector once any auth step has succeeded. */
@@ -76,7 +87,10 @@ export function ConnectorsSection({ onError }: SectionProps) {
         namespace: connector.id,
         headers,
       });
-      refreshSources();
+      // Await the refresh so the card reads "connected" from updated sources
+      // before the caller clears its busy flag — otherwise it flickers to
+      // "Connect" for a frame.
+      await refreshSources();
     },
     [refreshSources],
   );
@@ -92,21 +106,21 @@ export function ConnectorsSection({ onError }: SectionProps) {
         return;
       }
 
-      setBusy(connector.id, true);
+      setMembership(setConnecting, connector.id, true);
       onError(null);
       try {
         if (connector.install.auth.kind === "oauth") {
           await runOAuthFlow(bridge, connector.install.endpoint, `mcp-oauth2-${connector.id}`);
-          refreshConnections();
+          await refreshConnections();
         }
         await installMcpSource(connector);
       } catch (err) {
         onError(errorMessage(err, `Couldn't connect ${connector.name}.`));
       } finally {
-        setBusy(connector.id, false);
+        setMembership(setConnecting, connector.id, false);
       }
     },
-    [setBusy, onError, installMcpSource, refreshConnections],
+    [onError, installMcpSource, refreshConnections],
   );
 
   const handleApiKeySubmit = useCallback(
@@ -143,7 +157,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
     async (connector: CatalogConnector) => {
       const bridge = getBridge();
       if (!bridge) return;
-      setBusy(connector.id, true);
+      setMembership(setDisconnecting, connector.id, true);
       onError(null);
       try {
         const source = (sources ?? []).find((s) => sourceMatches(s, connector));
@@ -157,15 +171,15 @@ export function ConnectorsSection({ onError }: SectionProps) {
         if (connector.install.auth.kind === "apiKey") {
           await bridge.removeExecutorSecret(`${connector.id}_key`);
         }
-        refreshSources();
-        refreshConnections();
+        await refreshSources();
+        await refreshConnections();
       } catch (err) {
         onError(errorMessage(err, `Couldn't disconnect ${connector.name}.`));
       } finally {
-        setBusy(connector.id, false);
+        setMembership(setDisconnecting, connector.id, false);
       }
     },
-    [setBusy, onError, sources, connections, refreshSources, refreshConnections],
+    [onError, sources, connections, refreshSources, refreshConnections],
   );
 
   const handleRemoveCustom = useCallback(
