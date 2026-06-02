@@ -235,11 +235,13 @@ async function runSubagent(
         result.stderr += data.toString();
       });
 
-      // SIGTERM, then SIGKILL if the child ignores it — never wait forever.
+      // SIGTERM, then SIGKILL if the child hasn't exited. Checks our own
+      // `settled` flag, not `proc.killed` — Node sets `killed` as soon as a
+      // signal is *sent*, so it can't tell us whether the process actually died.
       const killWithEscalation = () => {
         proc.kill("SIGTERM");
         setTimeout(() => {
-          if (!proc.killed) proc.kill("SIGKILL");
+          if (!settled) proc.kill("SIGKILL");
         }, 5000);
       };
 
