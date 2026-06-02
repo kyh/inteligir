@@ -168,7 +168,6 @@ export async function uninstallConnector(
   opts: {
     sourceId?: string;
     namespace: string;
-    connections: ExecutorConnectionRef[] | null;
     secretId?: string;
   },
 ): Promise<void> {
@@ -183,7 +182,10 @@ export async function uninstallConnector(
 
   const { sourceId, secretId } = opts;
   if (sourceId) await attempt(() => bridge.removeExecutorSource(sourceId));
-  const connection = findOAuthConnection(opts.connections, opts.namespace);
+  // Query current connections rather than trusting a possibly-stale snapshot —
+  // a connection created earlier in the session may not be in the cached list.
+  const connections = await bridge.listExecutorConnections().catch(() => null);
+  const connection = findOAuthConnection(connections, opts.namespace);
   if (connection) await attempt(() => bridge.removeExecutorConnection(connection.id));
   if (secretId) await attempt(() => bridge.removeExecutorSecret(secretId));
 

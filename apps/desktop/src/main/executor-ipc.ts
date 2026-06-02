@@ -69,10 +69,12 @@ export function registerExecutorIpcHandlers(): void {
     return conn ? { running: true, scope: conn.scope } : { running: false };
   });
 
-  createIpcHandler(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, z.string(), (url) => {
+  createIpcHandler(IPC_CHANNELS.EXECUTOR_OPEN_EXTERNAL, z.string(), async (url) => {
     // Throw on a non-http(s) URL so the renderer surfaces it immediately,
     // rather than silently no-op'ing and leaving an OAuth flow to time out.
     if (!isHttpUrl(url)) throw new Error(`refusing to open non-http URL: ${url}`);
-    void shell.openExternal(url);
+    // Await so a browser-launch failure rejects to the renderer (which fails the
+    // OAuth flow fast) instead of being swallowed.
+    await shell.openExternal(url);
   });
 }

@@ -55,7 +55,9 @@ export function ConnectorsSection({ onError }: SectionProps) {
     (b) => b.listExecutorSources(),
     onError,
   );
-  const { data: connections, refresh: refreshConnections } = useBridgeResource(
+  // We don't render connections directly — uninstall queries them live — but
+  // refreshing keeps the daemon's view current after connect/disconnect.
+  const { refresh: refreshConnections } = useBridgeResource(
     (b) => b.listExecutorConnections(),
     onError,
   );
@@ -150,7 +152,6 @@ export function ConnectorsSection({ onError }: SectionProps) {
         await uninstallConnector(bridge, {
           sourceId: source?.id,
           namespace: connector.id,
-          connections,
           secretId,
         });
       } catch (err) {
@@ -163,24 +164,27 @@ export function ConnectorsSection({ onError }: SectionProps) {
         setMembership(setDisconnecting, connector.id, false);
       }
     },
-    [onError, sources, connections, refreshAll],
+    [onError, sources, refreshAll],
   );
 
   const handleRemoveCustom = useCallback(
-    async (id: string) => {
+    async (source: ExecutorSource) => {
       const bridge = getBridge();
       if (!bridge) return;
       try {
-        // A custom source's namespace is its id, so the same uninstall path also
-        // cleans up any OAuth connection the custom dialog created.
-        await uninstallConnector(bridge, { sourceId: id, namespace: id, connections });
+        // Use the source's own namespace (not its id) to find the OAuth
+        // connection the custom dialog may have created.
+        await uninstallConnector(bridge, {
+          sourceId: source.id,
+          namespace: source.namespace ?? source.id,
+        });
       } catch (err) {
         onError(errorMessage(err, "Failed to remove connector."));
       } finally {
         await refreshAll();
       }
     },
-    [onError, connections, refreshAll],
+    [onError, refreshAll],
   );
 
   // Installed sources that aren't part of the catalog — surfaced so users can
@@ -241,7 +245,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => void handleRemoveCustom(s.id)}
+                onClick={() => void handleRemoveCustom(s)}
                 className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground hover:text-destructive"
               >
                 Remove

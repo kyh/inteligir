@@ -110,9 +110,10 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
     setBusy(true);
     setError(null);
     try {
-      // Prefix custom namespaces so they can't collide with a catalog
-      // connector's id (its namespace) and get misidentified as that connector.
-      const ns = `custom_${slug(trimmedName)}`;
+      // Prefix so custom namespaces can't collide with a catalog connector's id,
+      // and add a random suffix so two custom connectors that slug to the same
+      // name still get distinct sources.
+      const ns = `custom_${slug(trimmedName)}_${crypto.randomUUID().slice(0, 8)}`;
       const source: SourceSpec =
         kind === "openapi"
           ? { type: "openapi", name: trimmedName, namespace: ns, specUrl: trimmedEndpoint, baseUrl: trimmedBase }

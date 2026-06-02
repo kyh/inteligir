@@ -171,14 +171,13 @@ describe("installConnector", () => {
 });
 
 describe("uninstallConnector", () => {
-  it("removes the source, its OAuth connection, and the secret", async () => {
+  it("removes the source, its (freshly queried) OAuth connection, and the secret", async () => {
     const bridge = mockBridge({
-      listExecutorConnections: vi.fn(),
+      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-github" })]),
     });
     await uninstallConnector(bridge, {
       sourceId: "src-1",
       namespace: "github",
-      connections: [conn({ id: "mcp-oauth2-github" })],
       secretId: apiKeySecretId("github"),
     });
     expect(bridge.removeExecutorSource).toHaveBeenCalledWith("src-1");
@@ -187,31 +186,29 @@ describe("uninstallConnector", () => {
   });
 
   it("matches the connection by provider when the id scheme differs", async () => {
-    const bridge = mockBridge();
-    await uninstallConnector(bridge, {
-      sourceId: "src-1",
-      namespace: "linear",
-      connections: [conn({ id: "some-other-id", provider: "linear" })],
+    const bridge = mockBridge({
+      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "some-other-id", provider: "linear" })]),
     });
+    await uninstallConnector(bridge, { sourceId: "src-1", namespace: "linear" });
     expect(bridge.removeExecutorConnection).toHaveBeenCalledWith("some-other-id");
   });
 
   it("skips connection and secret removal when there is nothing to remove", async () => {
     const bridge = mockBridge();
-    await uninstallConnector(bridge, { sourceId: "src-1", namespace: "none", connections: [] });
+    await uninstallConnector(bridge, { sourceId: "src-1", namespace: "none" });
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
     expect(bridge.removeExecutorSecret).not.toHaveBeenCalled();
   });
 
   it("still removes the secret when connection removal fails, then surfaces the error", async () => {
     const bridge = mockBridge({
+      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-github" })]),
       removeExecutorConnection: vi.fn().mockRejectedValue(new Error("conn boom")),
     });
     await expect(
       uninstallConnector(bridge, {
         sourceId: "src-1",
         namespace: "github",
-        connections: [conn({ id: "mcp-oauth2-github" })],
         secretId: apiKeySecretId("github"),
       }),
     ).rejects.toThrow("conn boom");
