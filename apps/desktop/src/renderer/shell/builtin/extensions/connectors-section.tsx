@@ -28,12 +28,12 @@ import type { ExecutorSource } from "@/shared/executor";
 
 /**
  * Whether an installed executor source is this catalog connector. We register
- * every connector with `namespace: connector.id`, and executor identifies a
- * source by that namespace (it's the source's id), so this is a single,
- * unambiguous match — no display-name or URL guessing.
+ * every connector with `namespace: connector.id`, so we match on the namespace
+ * the daemon reports — falling back to the source id, which older daemons set to
+ * the namespace. Either way it's a single, unambiguous match (no name/URL guess).
  */
 function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boolean {
-  return source.id === connector.id;
+  return (source.namespace ?? source.id) === connector.id;
 }
 
 /** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
