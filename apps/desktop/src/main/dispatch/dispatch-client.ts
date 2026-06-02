@@ -68,7 +68,11 @@ function connectToRoom(roomCode: string): void {
 
   partySocket.addEventListener("open", () => {
     if (!attempt.isCurrent()) return;
-    setState({ status: "connected", error: null });
+    // Only clear reconnecting state — stay in awaiting_pair until a mobile
+    // device actually sends a message (handled in the message listener above).
+    if (dispatchState.status === "reconnecting") {
+      setState({ status: "awaiting_pair", error: null });
+    }
   });
 
   partySocket.addEventListener("close", () => {
