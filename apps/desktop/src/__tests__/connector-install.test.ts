@@ -168,6 +168,34 @@ describe("installConnector", () => {
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
   });
 
+  it("aborts (fails closed) without touching auth when the source list can't be fetched", async () => {
+    const bridge = mockBridge({
+      listExecutorSources: vi.fn().mockRejectedValue(new Error("daemon down")),
+    });
+    await expect(
+      installConnector(bridge, catalogInstallRequest(connector("huggingface"), "hf_token")),
+    ).rejects.toThrow("daemon down");
+    expect(bridge.setExecutorSecret).not.toHaveBeenCalled();
+    expect(bridge.addMcpSource).not.toHaveBeenCalled();
+  });
+
+  it("rejects a concurrent install of the same namespace", async () => {
+    // addMcpSource hangs on this deferred so the first install stays in flight.
+    let resolveAdd!: (v: { toolCount: number; namespace: string }) => void;
+    const pending = new Promise<{ toolCount: number; namespace: string }>((resolve) => {
+      resolveAdd = resolve;
+    });
+    const bridge = mockBridge({ addMcpSource: vi.fn(() => pending) });
+    const req: InstallRequest = {
+      source: { type: "mcp", name: "X", namespace: "x", endpoint: "https://e" },
+      auth: { kind: "none" },
+    };
+    const first = installConnector(bridge, req);
+    await expect(installConnector(bridge, req)).rejects.toThrow(/in progress/);
+    resolveAdd({ toolCount: 1, namespace: "x" });
+    await first;
+  });
+
   it("rolls back the OAuth connection when the auth flow itself fails", async () => {
     const bridge = mockBridge({
       // Flow proceeds to the browser + poll, then the callback reports failure —

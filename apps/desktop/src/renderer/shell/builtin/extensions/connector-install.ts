@@ -144,6 +144,11 @@ async function registerSource(
   }
 }
 
+// Namespaces with an install in flight, so a re-entrant call (e.g. a double
+// click before the UI marks the card as connecting) can't race the duplicate
+// check and double-register / re-run auth.
+const installing = new Set<string>();
+
 /**
  * Register a source against executor, running any auth step first.
  *
@@ -153,23 +158,36 @@ async function registerSource(
  * this call just created, so a failed first-time install leaves nothing behind.
  */
 export async function installConnector(bridge: DesktopBridge, req: InstallRequest): Promise<void> {
-  if (await namespaceHasSource(bridge, req.source.namespace)) {
-    throw new Error(`A connector for "${req.source.namespace}" is already installed.`);
+  const namespace = req.source.namespace;
+  if (installing.has(namespace)) {
+    throw new Error(`An install for "${namespace}" is already in progress.`);
   }
+  installing.add(namespace);
   const applied: AppliedAuth = {};
   try {
+    if (await namespaceHasSource(bridge, namespace)) {
+      throw new Error(`A connector for "${namespace}" is already installed.`);
+    }
     await applyAuth(bridge, req, applied);
     await registerSource(bridge, req.source, applied.headers);
   } catch (err) {
+    // `applied` is empty if we threw at the duplicate check, so this no-ops then
+    // and only undoes side-effects an actual install attempt created.
     await rollbackAuth(bridge, applied);
     throw err;
+  } finally {
+    installing.delete(namespace);
   }
 }
 
-/** Whether a registered source already occupies this namespace. */
+/**
+ * Whether a registered source already occupies this namespace. Fails closed: if
+ * the source list can't be fetched we can't rule out a duplicate, so the error
+ * propagates and the install aborts rather than risk overwriting existing auth.
+ */
 async function namespaceHasSource(bridge: DesktopBridge, namespace: string): Promise<boolean> {
-  const sources = await bridge.listExecutorSources().catch(() => null);
-  return (sources ?? []).some((s) => (s.namespace ?? s.id) === namespace);
+  const sources = await bridge.listExecutorSources();
+  return sources.some((s) => (s.namespace ?? s.id) === namespace);
 }
 
 /**
