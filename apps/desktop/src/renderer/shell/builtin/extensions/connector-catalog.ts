@@ -22,11 +22,7 @@ export type ConnectorAuth =
   | { kind: "apiKey"; headerName: string; secretLabel: string; prefix?: string };
 
 /** Install recipe — what executor source we register and how it authenticates. */
-export type ConnectorInstall =
-  | { type: "mcp"; endpoint: string; auth: ConnectorAuth }
-  // Google Workspace — registered as executor google-discovery sources using
-  // the bundled OAuth client. Handled by a dedicated code path.
-  | { type: "google" };
+export type ConnectorInstall = { type: "mcp"; endpoint: string; auth: ConnectorAuth };
 
 export type ConnectorCategory =
   | "Development"
@@ -147,13 +143,5 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
         prefix: "Bearer ",
       },
     },
-  },
-  {
-    id: "google",
-    name: "Google Workspace",
-    description: "Gmail, Calendar, Drive, Docs, and Sheets.",
-    category: "Productivity",
-    accent: "#4285f4",
-    install: { type: "google" },
   },
 ];

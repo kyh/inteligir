@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { PlusIcon } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
@@ -23,7 +23,6 @@ import type { ExecutorSource } from "@/shared/executor";
 
 /** Does an installed executor source correspond to this catalog connector? */
 function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boolean {
-  if (connector.install.type !== "mcp") return false;
   return (
     source.id === connector.id ||
     source.name === connector.name ||
@@ -42,18 +41,9 @@ export function ConnectorsSection({ onError }: SectionProps) {
   );
 
   const [connecting, setConnecting] = useState<ReadonlySet<string>>(new Set());
-  const [googleAuthed, setGoogleAuthed] = useState(false);
   const [apiKeyTarget, setApiKeyTarget] = useState<CatalogConnector | null>(null);
   const [apiKeyBusy, setApiKeyBusy] = useState(false);
   const [customOpen, setCustomOpen] = useState(false);
-
-  // Google's connected state comes from the gws CLI, not executor sources.
-  useEffect(() => {
-    void getBridge()
-      ?.gwsAuth("status")
-      .then((r) => setGoogleAuthed(r.authenticated))
-      .catch(() => setGoogleAuthed(false));
-  }, []);
 
   const setBusy = useCallback((id: string, busy: boolean) => {
     setConnecting((prev) => {
@@ -67,18 +57,17 @@ export function ConnectorsSection({ onError }: SectionProps) {
   const statusFor = useCallback(
     (connector: CatalogConnector) => {
       if (connecting.has(connector.id)) return "connecting" as const;
-      if (connector.install.type === "google") return googleAuthed ? "connected" : "idle";
       const installed = (sources ?? []).some((s) => sourceMatches(s, connector));
       return installed ? ("connected" as const) : ("idle" as const);
     },
-    [connecting, googleAuthed, sources],
+    [connecting, sources],
   );
 
   /** Register the MCP source for a connector once any auth step has succeeded. */
   const installMcpSource = useCallback(
     async (connector: CatalogConnector, headers?: Record<string, { secretId: string; prefix?: string }>) => {
       const bridge = getBridge();
-      if (!bridge || connector.install.type !== "mcp") return;
+      if (!bridge) return;
       await bridge.addMcpSource({
         transport: "remote",
         name: connector.name,
@@ -98,7 +87,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
       if (!bridge) return;
 
       // API-key connectors need a secret before we can register the source.
-      if (connector.install.type === "mcp" && connector.install.auth.kind === "apiKey") {
+      if (connector.install.auth.kind === "apiKey") {
         setApiKeyTarget(connector);
         return;
       }
@@ -106,14 +95,6 @@ export function ConnectorsSection({ onError }: SectionProps) {
       setBusy(connector.id, true);
       onError(null);
       try {
-        if (connector.install.type === "google") {
-          const result = await bridge.gwsAuth("login");
-          setGoogleAuthed(result.authenticated);
-          if (!result.authenticated) {
-            onError(result.error ?? "Google sign-in didn't complete.");
-          }
-          return;
-        }
         if (connector.install.auth.kind === "oauth") {
           await runOAuthFlow(bridge, connector.install.endpoint, `mcp-oauth2-${connector.id}`);
           refreshConnections();
@@ -132,7 +113,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
     async (value: string) => {
       const connector = apiKeyTarget;
       const bridge = getBridge();
-      if (!connector || !bridge || connector.install.type !== "mcp") return;
+      if (!connector || !bridge) return;
       const auth = connector.install.auth;
       if (auth.kind !== "apiKey") return;
       setApiKeyBusy(true);
@@ -165,11 +146,6 @@ export function ConnectorsSection({ onError }: SectionProps) {
       setBusy(connector.id, true);
       onError(null);
       try {
-        if (connector.install.type === "google") {
-          await bridge.gwsAuth("logout");
-          setGoogleAuthed(false);
-          return;
-        }
         const source = (sources ?? []).find((s) => sourceMatches(s, connector));
         if (source) await bridge.removeExecutorSource(source.id);
         const connection = (connections ?? []).find(
@@ -209,9 +185,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
   }, [sources]);
 
   const apiKeyLabel =
-    apiKeyTarget?.install.type === "mcp" && apiKeyTarget.install.auth.kind === "apiKey"
-      ? apiKeyTarget.install.auth.secretLabel
-      : "";
+    apiKeyTarget?.install.auth.kind === "apiKey" ? apiKeyTarget.install.auth.secretLabel : "";
 
   return (
     <div className="flex flex-col gap-2.5">
