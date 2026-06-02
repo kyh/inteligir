@@ -36,14 +36,17 @@ export type InstallRequest = {
   headers?: Record<string, string>;
 };
 
-/** The OAuth connection for a namespace, if any (matched by id or provider). */
+/**
+ * The OAuth connection for a namespace, if any. Matched only on the id we
+ * registered it under (mcp-oauth2-<namespace>) — never the provider label,
+ * which several connectors can share and would cause us to remove the wrong one.
+ */
 function findOAuthConnection(
   connections: ExecutorConnectionRef[] | null,
   namespace: string,
 ): ExecutorConnectionRef | undefined {
-  return (connections ?? []).find(
-    (c) => c.id === oauthConnectionId(namespace) || c.provider === namespace,
-  );
+  const id = oauthConnectionId(namespace);
+  return (connections ?? []).find((c) => c.id === id);
 }
 
 /** Auth side-effects, tracked as they happen so any failure can undo them. */

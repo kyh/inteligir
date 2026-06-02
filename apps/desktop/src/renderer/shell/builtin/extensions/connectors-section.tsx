@@ -205,26 +205,33 @@ export function ConnectorsSection({ onError }: SectionProps) {
     <div className="flex flex-col gap-2.5">
       <Label className="text-xs font-medium text-muted-foreground">Connectors</Label>
 
-      <div className="flex flex-col gap-3">
-        {CONNECTOR_GROUPS.map(({ category, connectors }) => (
-          <div key={category} className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-              {category}
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              {connectors.map((connector) => (
-                <ConnectorCard
-                  key={connector.id}
-                  connector={connector}
-                  status={statusFor(connector)}
-                  onConnect={() => void handleConnect(connector)}
-                  onDisconnect={() => void handleDisconnect(connector)}
-                />
-              ))}
+      {/* Wait for the first sources load before showing the grid — otherwise
+          every card reads "idle" and a click could re-install an already-
+          connected connector before we know its real state. */}
+      {sources === null ? (
+        <div className="text-[10px] text-muted-foreground">Loading…</div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {CONNECTOR_GROUPS.map(({ category, connectors }) => (
+            <div key={category} className="flex flex-col gap-1.5">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                {category}
+              </span>
+              <div className="grid grid-cols-2 gap-2">
+                {connectors.map((connector) => (
+                  <ConnectorCard
+                    key={connector.id}
+                    connector={connector}
+                    status={statusFor(connector)}
+                    onConnect={() => void handleConnect(connector)}
+                    onDisconnect={() => void handleDisconnect(connector)}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
 
       {customSources.length > 0 && (
         <div className="flex flex-col gap-1.5">

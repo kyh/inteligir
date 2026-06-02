@@ -185,12 +185,14 @@ describe("uninstallConnector", () => {
     expect(bridge.removeExecutorSecret).toHaveBeenCalledWith(apiKeySecretId("github"));
   });
 
-  it("matches the connection by provider when the id scheme differs", async () => {
+  it("ignores a connection that only matches by provider, not the namespaced id", async () => {
     const bridge = mockBridge({
-      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "some-other-id", provider: "linear" })]),
+      // Same provider label, but a different connector's connection id — must
+      // not be removed.
+      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-other", provider: "linear" })]),
     });
     await uninstallConnector(bridge, { sourceId: "src-1", namespace: "linear" });
-    expect(bridge.removeExecutorConnection).toHaveBeenCalledWith("some-other-id");
+    expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
   });
 
   it("skips connection and secret removal when there is nothing to remove", async () => {
