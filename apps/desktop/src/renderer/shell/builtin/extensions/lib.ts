@@ -103,7 +103,12 @@ export function useBridgeResource<T>(
     setError(null);
     return loadRef
       .current(bridge)
-      .then((value) => setData(value))
+      .then((value) => {
+        setData(value);
+        // Clear a stale panel banner once the load recovers (e.g. after Retry).
+        onErrorRef.current(null);
+        return undefined;
+      })
       .catch((err: unknown) => {
         const message = errorMessage(err, "Failed to load.");
         setError(message);
