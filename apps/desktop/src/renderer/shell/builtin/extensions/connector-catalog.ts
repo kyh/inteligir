@@ -205,3 +205,19 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
     },
   },
 ];
+
+/** Display order for the category sections in the connectors grid. */
+const CATEGORY_ORDER: ConnectorCategory[] = [
+  "Development",
+  "Productivity",
+  "AI",
+  "Support",
+  "Payments",
+];
+
+/** Catalog grouped by category (in display order), skipping empty groups. */
+export const CONNECTOR_GROUPS: { category: ConnectorCategory; connectors: CatalogConnector[] }[] =
+  CATEGORY_ORDER.map((category) => ({
+    category,
+    connectors: CONNECTOR_CATALOG.filter((c) => c.category === category),
+  })).filter((group) => group.connectors.length > 0);

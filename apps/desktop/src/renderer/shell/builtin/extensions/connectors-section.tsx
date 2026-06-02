@@ -8,6 +8,7 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { AddCustomConnectorDialog } from "@/renderer/shell/builtin/extensions/add-custom-connector-dialog";
 import {
   CONNECTOR_CATALOG,
+  CONNECTOR_GROUPS,
   type CatalogConnector,
 } from "@/renderer/shell/builtin/extensions/connector-catalog";
 import { ConnectorCard } from "@/renderer/shell/builtin/extensions/connector-card";
@@ -254,15 +255,24 @@ export function ConnectorsSection({ onError }: SectionProps) {
     <div className="flex flex-col gap-2.5">
       <Label className="text-xs font-medium text-muted-foreground">Connectors</Label>
 
-      <div className="grid grid-cols-2 gap-2">
-        {CONNECTOR_CATALOG.map((connector) => (
-          <ConnectorCard
-            key={connector.id}
-            connector={connector}
-            status={statusFor(connector)}
-            onConnect={() => void handleConnect(connector)}
-            onDisconnect={() => void handleDisconnect(connector)}
-          />
+      <div className="flex flex-col gap-3">
+        {CONNECTOR_GROUPS.map(({ category, connectors }) => (
+          <div key={category} className="flex flex-col gap-1.5">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              {category}
+            </span>
+            <div className="grid grid-cols-2 gap-2">
+              {connectors.map((connector) => (
+                <ConnectorCard
+                  key={connector.id}
+                  connector={connector}
+                  status={statusFor(connector)}
+                  onConnect={() => void handleConnect(connector)}
+                  onDisconnect={() => void handleDisconnect(connector)}
+                />
+              ))}
+            </div>
+          </div>
         ))}
       </div>
 
