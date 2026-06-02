@@ -241,6 +241,18 @@ describe("uninstallConnector", () => {
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
   });
 
+  it("does not remove auth when source removal fails (leaves the source intact)", async () => {
+    const bridge = mockBridge({
+      removeExecutorSource: vi.fn().mockRejectedValue(new Error("source boom")),
+      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-x" })]),
+    });
+    await expect(
+      uninstallConnector(bridge, { sourceId: "src-1", namespace: "x", secretId: apiKeySecretId("x") }),
+    ).rejects.toThrow("source boom");
+    expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
+    expect(bridge.removeExecutorSecret).not.toHaveBeenCalled();
+  });
+
   it("surfaces a connection-list failure (and still removes the source)", async () => {
     const bridge = mockBridge({
       listExecutorConnections: vi.fn().mockRejectedValue(new Error("list down")),

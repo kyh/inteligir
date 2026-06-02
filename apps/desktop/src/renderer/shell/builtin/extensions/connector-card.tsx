@@ -10,6 +10,8 @@ type ConnectorStatus = "idle" | "connecting" | "connected" | "disconnecting";
 type ConnectorCardProps = {
   connector: CatalogConnector;
   status: ConnectorStatus;
+  /** Whether the connected source may be removed (executor's canRemove). */
+  canDisconnect: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
 };
@@ -34,7 +36,13 @@ function BrandTile({ connector }: { connector: CatalogConnector }) {
   );
 }
 
-export function ConnectorCard({ connector, status, onConnect, onDisconnect }: ConnectorCardProps) {
+export function ConnectorCard({
+  connector,
+  status,
+  canDisconnect,
+  onConnect,
+  onDisconnect,
+}: ConnectorCardProps) {
   const connecting = status === "connecting";
   const disconnecting = status === "disconnecting";
   // The "connected" layout also covers an in-progress disconnect, so the card
@@ -64,6 +72,7 @@ export function ConnectorCard({ connector, status, onConnect, onDisconnect }: Co
             <CheckIcon className="size-3" />
             {isGoogle ? "Added" : "Connected"}
           </span>
+          {canDisconnect && (
           <Button
             variant="ghost"
             size="sm"
@@ -80,6 +89,7 @@ export function ConnectorCard({ connector, status, onConnect, onDisconnect }: Co
               "Disconnect"
             )}
           </Button>
+          )}
         </div>
       ) : (
         <Button

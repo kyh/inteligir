@@ -213,18 +213,33 @@ export async function uninstallConnector(
   };
 
   const { sourceId, secretId } = opts;
-  if (sourceId) await attempt(() => bridge.removeExecutorSource(sourceId));
-  // Query current connections rather than trusting a possibly-stale snapshot —
-  // a connection created earlier in the session may not be in the cached list.
-  // Route the fetch through `attempt` so a list failure is recorded (and the
-  // partial uninstall surfaced) rather than silently skipping OAuth cleanup.
-  let connections: ExecutorConnectionRef[] | null = null;
-  await attempt(async () => {
-    connections = await bridge.listExecutorConnections();
-  });
-  const connection = findOAuthConnection(connections, opts.namespace);
-  if (connection) await attempt(() => bridge.removeExecutorConnection(connection.id));
-  if (secretId) await attempt(() => bridge.removeExecutorSecret(secretId));
+  let sourceRemoved = true;
+  if (sourceId) {
+    try {
+      await bridge.removeExecutorSource(sourceId);
+    } catch (err) {
+      errors.push(err);
+      sourceRemoved = false;
+    }
+  }
+
+  // Only tear down the source's auth once the source itself is gone — stripping
+  // the OAuth connection / secret while a still-registered source depends on it
+  // would break that connector. (With no sourceId we're cleaning up orphans, so
+  // proceed.)
+  if (sourceRemoved) {
+    // Query current connections rather than trusting a possibly-stale snapshot —
+    // a connection created earlier in the session may not be in the cached list.
+    // Route the fetch through `attempt` so a list failure is recorded (and the
+    // partial uninstall surfaced) rather than silently skipping OAuth cleanup.
+    let connections: ExecutorConnectionRef[] | null = null;
+    await attempt(async () => {
+      connections = await bridge.listExecutorConnections();
+    });
+    const connection = findOAuthConnection(connections, opts.namespace);
+    if (connection) await attempt(() => bridge.removeExecutorConnection(connection.id));
+    if (secretId) await attempt(() => bridge.removeExecutorSecret(secretId));
+  }
 
   if (errors.length > 0) throw errors[0];
 }

@@ -238,6 +238,9 @@ export function ConnectorsSection({ onError }: SectionProps) {
                     key={connector.id}
                     connector={connector}
                     status={statusFor(connector)}
+                    canDisconnect={
+                      (sources ?? []).find((s) => sourceMatches(s, connector))?.canRemove !== false
+                    }
                     onConnect={() => void handleConnect(connector)}
                     onDisconnect={() => void handleDisconnect(connector)}
                   />
