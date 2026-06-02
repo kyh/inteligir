@@ -13,11 +13,13 @@ import { Textarea } from "@repo/ui/components/textarea";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import {
+  installConnector,
+  type SourceSpec,
+} from "@/renderer/shell/builtin/extensions/connector-install";
+import {
   blockDismissWhileBusy,
   errorMessage,
-  oauthConnectionId,
   parseHeaders,
-  runOAuthFlow,
   slug,
   type SectionProps,
 } from "@/renderer/shell/builtin/extensions/lib";
@@ -103,42 +105,19 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
     onError(null);
     try {
       const ns = slug(trimmedName);
-      const headers = parseHeaders(headersText);
-      if (kind === "mcp") {
-        if (oauth) {
-          await runOAuthFlow(bridge, trimmedEndpoint, oauthConnectionId(ns));
-        }
-        await bridge.addMcpSource({
-          transport: "remote",
-          name: trimmedName,
-          endpoint: trimmedEndpoint,
-          remoteTransport: "auto",
-          namespace: ns,
-          headers,
-        });
-      } else if (kind === "openapi") {
-        await bridge.addOpenApiSource({
-          spec: { kind: "url", url: trimmedEndpoint },
-          name: trimmedName,
-          baseUrl: trimmedBase,
-          namespace: ns,
-          headers,
-        });
-      } else if (kind === "graphql") {
-        await bridge.addGraphqlSource({
-          endpoint: trimmedEndpoint,
-          name: trimmedName,
-          namespace: ns,
-          headers,
-        });
-      } else {
-        await bridge.addGoogleSource({
-          name: trimmedName,
-          discoveryUrl: trimmedEndpoint,
-          namespace: ns,
-          auth: { kind: "none" },
-        });
-      }
+      const source: SourceSpec =
+        kind === "openapi"
+          ? { type: "openapi", name: trimmedName, namespace: ns, specUrl: trimmedEndpoint, baseUrl: trimmedBase }
+          : kind === "graphql"
+            ? { type: "graphql", name: trimmedName, namespace: ns, endpoint: trimmedEndpoint }
+            : kind === "google"
+              ? { type: "google", name: trimmedName, namespace: ns, discoveryUrl: trimmedEndpoint }
+              : { type: "mcp", name: trimmedName, namespace: ns, endpoint: trimmedEndpoint };
+      await installConnector(bridge, {
+        source,
+        auth: kind === "mcp" && oauth ? { kind: "oauth" } : { kind: "none" },
+        headers: parseHeaders(headersText),
+      });
       reset();
       // Await the refresh so the new connector is in the list before the
       // dialog closes, rather than popping in a beat later.

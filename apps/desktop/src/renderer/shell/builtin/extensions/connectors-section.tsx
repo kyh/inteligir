@@ -13,15 +13,19 @@ import {
 } from "@/renderer/shell/builtin/extensions/connector-catalog";
 import { ConnectorCard } from "@/renderer/shell/builtin/extensions/connector-card";
 import {
+  apiKeySecretId,
+  catalogInstallRequest,
+  installConnector,
+  uninstallConnector,
+} from "@/renderer/shell/builtin/extensions/connector-install";
+import {
   errorMessage,
   normalizeUrl,
-  oauthConnectionId,
-  runOAuthFlow,
   useBridgeResource,
   type SectionProps,
 } from "@/renderer/shell/builtin/extensions/lib";
 import { SecretPromptDialog } from "@/renderer/shell/builtin/extensions/secret-prompt-dialog";
-import type { ExecutorConnectionRef, ExecutorSource } from "@/shared/executor";
+import type { ExecutorSource } from "@/shared/executor";
 
 /** The remote URL a connector registers against (MCP endpoint or Google discovery doc). */
 function connectorUrl(connector: CatalogConnector): string {
@@ -40,16 +44,6 @@ function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boo
   return (
     source.id === connector.id ||
     (source.url != null && normalizeUrl(source.url) === normalizeUrl(connectorUrl(connector)))
-  );
-}
-
-/** The OAuth connection created for a namespace, if any (matched by id or provider). */
-function findOAuthConnection(
-  connections: ExecutorConnectionRef[] | null,
-  namespace: string,
-): ExecutorConnectionRef | undefined {
-  return (connections ?? []).find(
-    (c) => c.id === oauthConnectionId(namespace) || c.provider === namespace,
   );
 }
 
@@ -93,35 +87,21 @@ export function ConnectorsSection({ onError }: SectionProps) {
     [connecting, disconnecting, sources],
   );
 
-  /** Register the MCP source for a connector once any auth step has succeeded. */
-  const installMcpSource = useCallback(
-    async (connector: CatalogConnector, headers?: Record<string, { secretId: string; prefix?: string }>) => {
-      const bridge = getBridge();
-      if (!bridge || connector.install.type !== "mcp") return;
-      await bridge.addMcpSource({
-        transport: "remote",
-        name: connector.name,
-        endpoint: connector.install.endpoint,
-        remoteTransport: "auto",
-        namespace: connector.id,
-        headers,
-      });
-      // Await the refresh so the card reads "connected" from updated sources
-      // before the caller clears its busy flag — otherwise it flickers to
-      // "Connect" for a frame.
-      await refreshSources();
-    },
-    [refreshSources],
-  );
+  // Sources and connections are independent; reconcile both at once. Awaited by
+  // the handlers so a card reads its updated status before the busy flag clears
+  // (otherwise it flickers between states for a frame).
+  const refreshAll = useCallback(async () => {
+    await Promise.all([refreshSources(), refreshConnections()]);
+  }, [refreshSources, refreshConnections]);
 
   const handleConnect = useCallback(
     async (connector: CatalogConnector) => {
       const bridge = getBridge();
       if (!bridge) return;
-      const install = connector.install;
 
-      // API-key connectors need a secret before we can register the source.
-      if (install.type === "mcp" && install.auth.kind === "apiKey") {
+      // API-key connectors need a secret first; collect it via the dialog, which
+      // calls handleApiKeySubmit once the user provides a value.
+      if (connector.install.type === "mcp" && connector.install.auth.kind === "apiKey") {
         setApiKeyTarget(connector);
         return;
       }
@@ -129,52 +109,27 @@ export function ConnectorsSection({ onError }: SectionProps) {
       setMembership(setConnecting, connector.id, true);
       onError(null);
       try {
-        if (install.type === "google") {
-          // Register the discovery source; executor handles the OAuth consent
-          // lazily when the agent first calls a Google tool in code mode.
-          await bridge.addGoogleSource({
-            name: connector.name,
-            discoveryUrl: install.discoveryUrl,
-            namespace: connector.id,
-            auth: { kind: "none" },
-          });
-          await refreshSources();
-          return;
-        }
-        if (install.auth.kind === "oauth") {
-          await runOAuthFlow(bridge, install.endpoint, oauthConnectionId(connector.id));
-          await refreshConnections();
-        }
-        await installMcpSource(connector);
+        await installConnector(bridge, catalogInstallRequest(connector));
+        await refreshAll();
       } catch (err) {
         onError(errorMessage(err, `Couldn't connect ${connector.name}.`));
       } finally {
         setMembership(setConnecting, connector.id, false);
       }
     },
-    [onError, installMcpSource, refreshSources, refreshConnections],
+    [onError, refreshAll],
   );
 
   const handleApiKeySubmit = useCallback(
     async (value: string) => {
       const connector = apiKeyTarget;
       const bridge = getBridge();
-      if (!connector || !bridge || connector.install.type !== "mcp") return;
-      const auth = connector.install.auth;
-      if (auth.kind !== "apiKey") return;
+      if (!connector || !bridge) return;
       setApiKeyBusy(true);
       onError(null);
       try {
-        const secretId = `${connector.id}_key`;
-        await bridge.setExecutorSecret({
-          id: secretId,
-          name: auth.secretLabel,
-          value,
-          provider: connector.id,
-        });
-        await installMcpSource(connector, {
-          [auth.headerName]: { secretId, prefix: auth.prefix },
-        });
+        await installConnector(bridge, catalogInstallRequest(connector, value));
+        await refreshAll();
         setApiKeyTarget(null);
       } catch (err) {
         onError(errorMessage(err, `Couldn't connect ${connector.name}.`));
@@ -182,7 +137,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
         setApiKeyBusy(false);
       }
     },
-    [apiKeyTarget, onError, installMcpSource],
+    [apiKeyTarget, onError, refreshAll],
   );
 
   const handleDisconnect = useCallback(
@@ -193,25 +148,27 @@ export function ConnectorsSection({ onError }: SectionProps) {
       onError(null);
       try {
         const source = (sources ?? []).find((s) => sourceMatches(s, connector));
-        if (source) await bridge.removeExecutorSource(source.id);
-        const connection = findOAuthConnection(connections, connector.id);
-        if (connection) await bridge.removeExecutorConnection(connection.id);
-        // Drop the secret created during the API-key connect flow so it doesn't
-        // linger in the Secrets list after an explicit disconnect.
-        if (connector.install.type === "mcp" && connector.install.auth.kind === "apiKey") {
-          await bridge.removeExecutorSecret(`${connector.id}_key`);
-        }
+        const secretId =
+          connector.install.type === "mcp" && connector.install.auth.kind === "apiKey"
+            ? apiKeySecretId(connector.id)
+            : undefined;
+        await uninstallConnector(bridge, {
+          sourceId: source?.id,
+          namespace: connector.id,
+          connections,
+          secretId,
+        });
       } catch (err) {
         onError(errorMessage(err, `Couldn't disconnect ${connector.name}.`));
       } finally {
         // Always reconcile with server state — a partial failure (e.g. the
         // source was removed but a later step threw) must not leave a stale
         // "Connected" card.
-        await Promise.all([refreshSources(), refreshConnections()]);
+        await refreshAll();
         setMembership(setDisconnecting, connector.id, false);
       }
     },
-    [onError, sources, connections, refreshSources, refreshConnections],
+    [onError, sources, connections, refreshAll],
   );
 
   const handleRemoveCustom = useCallback(
@@ -219,27 +176,17 @@ export function ConnectorsSection({ onError }: SectionProps) {
       const bridge = getBridge();
       if (!bridge) return;
       try {
-        await bridge.removeExecutorSource(id);
-        // The custom dialog's OAuth option creates a connection keyed by the
-        // source's namespace (mcp-oauth2-<id>); remove it too so it isn't left
-        // orphaned and invisible.
-        const connection = findOAuthConnection(connections, id);
-        if (connection) await bridge.removeExecutorConnection(connection.id);
+        // A custom source's namespace is its id, so the same uninstall path also
+        // cleans up any OAuth connection the custom dialog created.
+        await uninstallConnector(bridge, { sourceId: id, namespace: id, connections });
       } catch (err) {
         onError(errorMessage(err, "Failed to remove connector."));
       } finally {
-        await Promise.all([refreshSources(), refreshConnections()]);
+        await refreshAll();
       }
     },
-    [onError, connections, refreshSources, refreshConnections],
+    [onError, connections, refreshAll],
   );
-
-  // The custom dialog can create both a source and (with its OAuth option) a
-  // connection, so refresh both — otherwise a later Remove searches a stale
-  // connections list and orphans the connection.
-  const handleCustomAdded = useCallback(async () => {
-    await Promise.all([refreshSources(), refreshConnections()]);
-  }, [refreshSources, refreshConnections]);
 
   // Installed sources that aren't part of the catalog — surfaced so users can
   // see and remove anything added via the custom escape hatch (or the agent).
@@ -322,7 +269,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
       <AddCustomConnectorDialog
         open={customOpen}
         onOpenChange={setCustomOpen}
-        onAdded={handleCustomAdded}
+        onAdded={refreshAll}
         onError={onError}
       />
       <SecretPromptDialog
