@@ -13,7 +13,9 @@ import { Textarea } from "@repo/ui/components/textarea";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import {
+  blockDismissWhileBusy,
   errorMessage,
+  oauthConnectionId,
   parseHeaders,
   runOAuthFlow,
   slug,
@@ -104,7 +106,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
       const headers = parseHeaders(headersText);
       if (kind === "mcp") {
         if (oauth) {
-          await runOAuthFlow(bridge, trimmedEndpoint, `mcp-oauth2-${ns}`);
+          await runOAuthFlow(bridge, trimmedEndpoint, oauthConnectionId(ns));
         }
         await bridge.addMcpSource({
           transport: "remote",
@@ -149,20 +151,8 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
     }
   }, [kind, name, endpoint, baseUrl, headersText, oauth, onError, onAdded, onOpenChange, reset]);
 
-  // Don't let Escape / overlay click / the X dismiss the dialog mid-submit —
-  // the success path owns closing it, and a stray close (then re-open) could
-  // wipe a freshly entered form when the background op finally resolves. The
-  // OAuth path makes this window up to 5 minutes long.
-  const handleOpenChange = useCallback(
-    (next: boolean) => {
-      if (!next && busy) return;
-      onOpenChange(next);
-    },
-    [busy, onOpenChange],
-  );
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={blockDismissWhileBusy(busy, onOpenChange)}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Add a custom connector</DialogTitle>

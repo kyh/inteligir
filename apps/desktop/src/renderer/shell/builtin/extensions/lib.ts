@@ -35,6 +35,26 @@ export function normalizeUrl(url: string | null | undefined): string {
   }
 }
 
+/** The executor connection id we use for a namespace's OAuth connection. */
+export function oauthConnectionId(namespace: string): string {
+  return `mcp-oauth2-${namespace}`;
+}
+
+/**
+ * Wrap a dialog's `onOpenChange` so a close request is ignored while a submit is
+ * in flight — the submit flow owns closing, and a stray dismiss (Escape/overlay/
+ * X) could otherwise strand half-created state or wipe a re-opened form.
+ */
+export function blockDismissWhileBusy(
+  busy: boolean,
+  onOpenChange: (open: boolean) => void,
+): (open: boolean) => void {
+  return (open) => {
+    if (!open && busy) return;
+    onOpenChange(open);
+  };
+}
+
 const OAUTH_POLL_MS = 1500;
 const OAUTH_TIMEOUT_MS = 5 * 60_000;
 

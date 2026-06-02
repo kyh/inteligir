@@ -11,6 +11,7 @@ import {
 import { Input } from "@repo/ui/components/input";
 
 import type { CatalogConnector } from "@/renderer/shell/builtin/extensions/connector-catalog";
+import { blockDismissWhileBusy } from "@/renderer/shell/builtin/extensions/lib";
 
 type Props = {
   /** The connector requesting a key, or null when the dialog is closed. */
@@ -29,14 +30,17 @@ export function SecretPromptDialog({ connector, label, busy, onCancel, onSubmit 
     if (connector) setValue("");
   }, [connector]);
 
+  const trimmed = value.trim();
+  const canSubmit = !busy && trimmed.length > 0;
+
   return (
     <Dialog
       open={connector !== null}
-      onOpenChange={(o) => {
-        // Don't allow Escape/overlay/X to dismiss mid-submit — that could leave
-        // a stored secret with no source. The submit flow owns closing.
-        if (!o && !busy) onCancel();
-      }}
+      // Block dismissal mid-submit — a stray close could leave a stored secret
+      // with no source. The submit flow owns closing (via onCancel on close).
+      onOpenChange={blockDismissWhileBusy(busy, (open) => {
+        if (!open) onCancel();
+      })}
     >
       <DialogContent>
         <DialogHeader>
@@ -52,14 +56,14 @@ export function SecretPromptDialog({ connector, label, busy, onCancel, onSubmit 
             autoFocus
             className="h-8 text-xs"
             onKeyDown={(e) => {
-              if (e.key === "Enter" && value.trim() && !busy) onSubmit(value.trim());
+              if (e.key === "Enter" && canSubmit) onSubmit(trimmed);
             }}
           />
           <Button
             variant="default"
             size="sm"
-            onClick={() => value.trim() && onSubmit(value.trim())}
-            disabled={busy || !value.trim()}
+            onClick={() => canSubmit && onSubmit(trimmed)}
+            disabled={!canSubmit}
             className="h-8 self-end px-4 text-[11px]"
           >
             {busy ? "Connecting…" : "Connect"}
