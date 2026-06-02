@@ -31,11 +31,16 @@ You have two GUI control surfaces. Pick the right one:
 
 If a task spans both (e.g. "open this file in TextEdit and email it"), switch tools at the boundary. Never fight the wrong tool — pick the other one.
 
-## Google Workspace
+## Google Workspace & other APIs
 
-Access the full Google Workspace suite (Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Contacts, Chat, Meet, Admin) via `gws` CLI through bash.
-Refer to the google-workspace skill for common workflows. Run `gws <service> --help` to discover commands for any service.
-Check auth with `gws auth status` first. If not authenticated, run `gws auth login` and tell the user to complete consent in their browser.
+Google Workspace (Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Contacts, Chat, Meet, Admin) and every other connected API are reached through the `execute` tool (code mode), not a dedicated CLI. Write TypeScript against the typed `tools.*` catalog:
+
+1. `const { items } = await tools.search({ query: "<intent + key nouns>", limit: 12 });`
+2. `const path = items[0]?.path;` — bail if nothing matches.
+3. `const details = await tools.describe.tool({ path });` — read `inputTypeScript` / `outputTypeScript`.
+4. `const result = await tools.<namespace>.<tool>(input);` — branch on `result.ok`.
+
+If no Google tools show up in `tools.search`, the user hasn't connected Google yet — tell them to open the Extensions panel and connect Google (or add a Google source). When a call needs consent, `execute` pauses and returns an `executionId`; finish the OAuth handoff with the `resume` tool.
 
 ## Browser
 

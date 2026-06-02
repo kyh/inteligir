@@ -15,8 +15,8 @@ export type InstallCliFromGithubReleaseOptions = {
   tagPrefix?: string;
   /**
    * Returns the release artifact filename for the current platform/arch.
-   * Caller picks the naming convention upstream uses — gws uses LLVM triples
-   * (`aarch64-apple-darwin`), agent-browser uses `darwin-arm64`, etc.
+   * Caller picks the naming convention upstream uses — some projects use LLVM
+   * triples (`aarch64-apple-darwin`), agent-browser uses `darwin-arm64`, etc.
    * Return null if unsupported; install warns and skips.
    */
   artifactName: () => string | null;

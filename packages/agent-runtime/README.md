@@ -24,17 +24,17 @@ Generic GitHub-release CLI installer. Caller supplies identity + an `artifactNam
 Two artifact shapes are supported because upstream conventions diverge:
 
 ```ts
-// Tarball (default) — release ships a .tar.gz, sha256 sidecar verifies download
+// Tarball (default) — release ships a .tar.gz, sha256 sidecar verifies download.
+// archiveBinPath points at the binary when the tarball nests it under a dir.
 await installCliFromGithubRelease({
-  owner: "googleworkspace",
-  repo: "cli",
-  version: "0.22.5",
-  binName: "gws",
+  owner: "openclaw",
+  repo: "Peekaboo",
+  version: "3.0.0",
+  binName: "peekaboo",
   binDir: "/Users/me/.inteligir/bin",
+  archiveBinPath: "peekaboo-macos-universal/peekaboo",
   artifactName: () =>
-    process.platform === "darwin" && process.arch === "arm64"
-      ? "google-workspace-cli-aarch64-apple-darwin.tar.gz"
-      : null,
+    process.platform === "darwin" ? "peekaboo-macos-universal.tar.gz" : null,
 });
 
 // Plain binary — release ships the binary itself, version-check verifies it
@@ -86,4 +86,4 @@ Why `artifactName` is caller-supplied: every upstream uses a different filename 
 
 - It needs `app.isPackaged`, `process.resourcesPath`, `BrowserWindow`, etc. → `apps/desktop/src/main/`
 - It's a pi extension's tool registration → `apps/desktop/src/agent/<name>/extension.ts`
-- It's specific to one integration's quirks (e.g. gws's OAuth client_secret seed). Keep generic primitives here, glue in the consumer.
+- It's specific to one integration's quirks (e.g. an extension's OAuth client_secret seed). Keep generic primitives here, glue in the consumer.
