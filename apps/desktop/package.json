@@ -40,6 +40,7 @@
     "react-grid-layout": "^2.2.3",
     "react-router": "^7.15.1",
     "sherpa-onnx-node": "^1.10.41",
+    "simple-icons": "^16.22.0",
     "tar": "^7.5.15",
     "unbzip2-stream": "^1.4.3",
     "zod": "catalog:",

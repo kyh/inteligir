@@ -46,15 +46,24 @@ function findOAuthConnection(
   );
 }
 
-/** Run the auth side-effects (OAuth / secret) and return the headers to register with. */
-async function applyAuth(
-  bridge: DesktopBridge,
-  req: InstallRequest,
-): Promise<Record<string, ConfiguredHeader> | undefined> {
+/** What applyAuth produced — headers to register with, plus what to roll back on failure. */
+type AppliedAuth = {
+  headers?: Record<string, ConfiguredHeader>;
+  /** A secret that was created and should be removed if registration fails. */
+  createdSecretId?: string;
+  /** A namespace whose OAuth connection should be removed if registration fails. */
+  oauthNamespace?: string;
+};
+
+/** Run the auth side-effects (OAuth / secret) and report what to register and what to undo. */
+async function applyAuth(bridge: DesktopBridge, req: InstallRequest): Promise<AppliedAuth> {
   const headers: Record<string, ConfiguredHeader> = { ...req.headers };
+  let createdSecretId: string | undefined;
+  let oauthNamespace: string | undefined;
   if (req.auth.kind === "oauth") {
     if (req.source.type !== "mcp") throw new Error("OAuth is only supported for MCP sources.");
     await runOAuthFlow(bridge, req.source.endpoint, oauthConnectionId(req.source.namespace));
+    oauthNamespace = req.source.namespace;
   } else if (req.auth.kind === "apiKey") {
     await bridge.setExecutorSecret({
       id: req.auth.secretId,
@@ -62,15 +71,34 @@ async function applyAuth(
       value: req.auth.secretValue,
       provider: req.source.namespace,
     });
+    createdSecretId = req.auth.secretId;
     headers[req.auth.headerName] = { secretId: req.auth.secretId, prefix: req.auth.prefix };
   }
-  return Object.keys(headers).length > 0 ? headers : undefined;
+  return {
+    headers: Object.keys(headers).length > 0 ? headers : undefined,
+    createdSecretId,
+    oauthNamespace,
+  };
 }
 
-/** Register a source against executor, running any auth step first. */
-export async function installConnector(bridge: DesktopBridge, req: InstallRequest): Promise<void> {
-  const headers = await applyAuth(bridge, req);
-  const s = req.source;
+/** Best-effort undo of applyAuth's side-effects when source registration fails. */
+async function rollbackAuth(bridge: DesktopBridge, applied: AppliedAuth): Promise<void> {
+  if (applied.createdSecretId) {
+    await bridge.removeExecutorSecret(applied.createdSecretId).catch(() => {});
+  }
+  if (applied.oauthNamespace) {
+    const connections = await bridge.listExecutorConnections().catch(() => null);
+    const connection = findOAuthConnection(connections, applied.oauthNamespace);
+    if (connection) await bridge.removeExecutorConnection(connection.id).catch(() => {});
+  }
+}
+
+/** Register the source itself against executor (auth already applied). */
+async function registerSource(
+  bridge: DesktopBridge,
+  s: SourceSpec,
+  headers: Record<string, ConfiguredHeader> | undefined,
+): Promise<void> {
   switch (s.type) {
     case "mcp":
       await bridge.addMcpSource({
@@ -108,6 +136,21 @@ export async function installConnector(bridge: DesktopBridge, req: InstallReques
         auth: { kind: "none" },
       });
       return;
+  }
+}
+
+/**
+ * Register a source against executor, running any auth step first. If the
+ * registration fails after auth created a secret or OAuth connection, that side
+ * effect is rolled back so a failed install leaves nothing orphaned.
+ */
+export async function installConnector(bridge: DesktopBridge, req: InstallRequest): Promise<void> {
+  const applied = await applyAuth(bridge, req);
+  try {
+    await registerSource(bridge, req.source, applied.headers);
+  } catch (err) {
+    await rollbackAuth(bridge, applied);
+    throw err;
   }
 }
 

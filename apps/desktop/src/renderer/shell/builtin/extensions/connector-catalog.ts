@@ -42,7 +42,7 @@ export type CatalogConnector = {
   name: string;
   description: string;
   category: ConnectorCategory;
-  /** Accent color (hex) for the monogram tile. */
+  /** Accent color (hex) for the brand-logo tile. */
   accent: string;
   install: ConnectorInstall;
 };
