@@ -79,6 +79,8 @@ type SubagentResult = {
   usage: SubagentUsage;
   model?: string;
   errorMessage?: string;
+  /** Last assistant turn's stop reason (e.g. "stop", "max_tokens", "error"). */
+  stopReason?: string;
 };
 
 // Loose shapes for the JSONL events pi emits in --mode json.
@@ -88,6 +90,7 @@ type PiMessage = {
   content?: string | PiBlock[];
   model?: string;
   errorMessage?: string;
+  stopReason?: string;
   usage?: {
     input?: number;
     output?: number;
@@ -218,10 +221,11 @@ async function runSubagent(
             result.usage.contextTokens = usage.totalTokens ?? result.usage.contextTokens;
           }
           if (message.model) result.model = message.model;
-          // Reflect only the latest turn — clear a prior turn's error when a
-          // later turn succeeds, so a recovered multi-turn run (exit 0) isn't
+          // Reflect only the latest turn — clear a prior turn's error/stop when
+          // a later turn succeeds, so a recovered multi-turn run (exit 0) isn't
           // left flagged as failed and wrongly halting a chain.
           result.errorMessage = message.errorMessage || undefined;
+          result.stopReason = message.stopReason || undefined;
         }
       };
 
@@ -297,6 +301,11 @@ function formatResult(result: SubagentResult): string {
   const footer = formatUsage(result.usage, result.model);
   const lines = [header, body];
   if (result.errorMessage) lines.push(`\n[error] ${result.errorMessage}`);
+  // Surface a non-normal stop (e.g. truncation) so the caller knows the reply
+  // may be incomplete even when the process exited cleanly.
+  if (result.stopReason && result.stopReason !== "stop") {
+    lines.push(`[stopped: ${result.stopReason}]`);
+  }
   if (result.exitCode !== 0) lines.push(`[exit ${result.exitCode}]`);
   if (result.stderr.trim()) lines.push(`[stderr]\n${result.stderr.trim()}`);
   if (footer) lines.push(`_(${footer})_`);
@@ -455,7 +464,8 @@ const subagentExtension: PiExtensionBundle = {
             const result = await runSubagent(findAgent(live, step.agent)!, task, signal);
             results.push(result);
             previous = result.output;
-            if (result.exitCode !== 0 || result.errorMessage) {
+            const failedStop = result.stopReason === "error" || result.stopReason === "aborted";
+            if (result.exitCode !== 0 || result.errorMessage || failedStop) {
               halted = `Skipped: prior step "${step.agent}" did not complete successfully`;
             }
           }

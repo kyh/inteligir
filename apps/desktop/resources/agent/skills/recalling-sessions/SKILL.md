@@ -25,8 +25,7 @@ glob needs `globstar` and silently misses nested files). Most-recently-modified
 first:
 
 ```bash
-find ~/.inteligir/sessions -name '*.jsonl' -printf '%T@ %p\n' 2>/dev/null \
-  | sort -rn | cut -d' ' -f2- | head
+find ~/.inteligir/sessions -name '*.jsonl' -exec ls -t {} + 2>/dev/null | head
 ```
 
 ## Searching
