@@ -149,6 +149,25 @@ describe("installConnector", () => {
     await expect(installConnector(bridge, req)).rejects.toThrow("boom");
     expect(bridge.removeExecutorConnection).toHaveBeenCalledWith("mcp-oauth2-x");
   });
+
+  it("rolls back the OAuth connection when the auth flow itself fails", async () => {
+    const bridge = mockBridge({
+      // Flow proceeds to the browser + poll, then the callback reports failure —
+      // by which point executor may already have created the connection.
+      executorOAuthStart: vi
+        .fn()
+        .mockResolvedValue({ sessionId: "s", authorizationUrl: "https://auth", completedConnection: null }),
+      executorOAuthAwait: vi.fn().mockResolvedValue({ ok: false, sessionId: "s", error: "denied" }),
+      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-x", provider: "x" })]),
+    });
+    const req: InstallRequest = {
+      source: { type: "mcp", name: "X", namespace: "x", endpoint: "https://e" },
+      auth: { kind: "oauth" },
+    };
+    await expect(installConnector(bridge, req)).rejects.toThrow(/OAuth failed/);
+    expect(bridge.addMcpSource).not.toHaveBeenCalled();
+    expect(bridge.removeExecutorConnection).toHaveBeenCalledWith("mcp-oauth2-x");
+  });
 });
 
 describe("uninstallConnector", () => {
