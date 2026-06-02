@@ -27,10 +27,17 @@ import type { ExecutorSource } from "@/shared/executor";
  * id) or the endpoint URL — never the display name, which a custom source could
  * coincidentally share with a catalog entry.
  */
+/** The remote URL a connector registers against (MCP endpoint or Google discovery doc). */
+function connectorUrl(connector: CatalogConnector): string {
+  return connector.install.type === "mcp"
+    ? connector.install.endpoint
+    : connector.install.discoveryUrl;
+}
+
 function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boolean {
   return (
     source.id === connector.id ||
-    (source.url != null && normalizeUrl(source.url) === normalizeUrl(connector.install.endpoint))
+    (source.url != null && normalizeUrl(source.url) === normalizeUrl(connectorUrl(connector)))
   );
 }
 
@@ -78,7 +85,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
   const installMcpSource = useCallback(
     async (connector: CatalogConnector, headers?: Record<string, { secretId: string; prefix?: string }>) => {
       const bridge = getBridge();
-      if (!bridge) return;
+      if (!bridge || connector.install.type !== "mcp") return;
       await bridge.addMcpSource({
         transport: "remote",
         name: connector.name,
@@ -99,9 +106,10 @@ export function ConnectorsSection({ onError }: SectionProps) {
     async (connector: CatalogConnector) => {
       const bridge = getBridge();
       if (!bridge) return;
+      const install = connector.install;
 
       // API-key connectors need a secret before we can register the source.
-      if (connector.install.auth.kind === "apiKey") {
+      if (install.type === "mcp" && install.auth.kind === "apiKey") {
         setApiKeyTarget(connector);
         return;
       }
@@ -109,8 +117,20 @@ export function ConnectorsSection({ onError }: SectionProps) {
       setMembership(setConnecting, connector.id, true);
       onError(null);
       try {
-        if (connector.install.auth.kind === "oauth") {
-          await runOAuthFlow(bridge, connector.install.endpoint, `mcp-oauth2-${connector.id}`);
+        if (install.type === "google") {
+          // Register the discovery source; executor handles the OAuth consent
+          // lazily when the agent first calls a Google tool in code mode.
+          await bridge.addGoogleSource({
+            name: connector.name,
+            discoveryUrl: install.discoveryUrl,
+            namespace: connector.id,
+            auth: { kind: "none" },
+          });
+          await refreshSources();
+          return;
+        }
+        if (install.auth.kind === "oauth") {
+          await runOAuthFlow(bridge, install.endpoint, `mcp-oauth2-${connector.id}`);
           await refreshConnections();
         }
         await installMcpSource(connector);
@@ -120,14 +140,14 @@ export function ConnectorsSection({ onError }: SectionProps) {
         setMembership(setConnecting, connector.id, false);
       }
     },
-    [onError, installMcpSource, refreshConnections],
+    [onError, installMcpSource, refreshSources, refreshConnections],
   );
 
   const handleApiKeySubmit = useCallback(
     async (value: string) => {
       const connector = apiKeyTarget;
       const bridge = getBridge();
-      if (!connector || !bridge) return;
+      if (!connector || !bridge || connector.install.type !== "mcp") return;
       const auth = connector.install.auth;
       if (auth.kind !== "apiKey") return;
       setApiKeyBusy(true);
@@ -168,7 +188,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
         if (connection) await bridge.removeExecutorConnection(connection.id);
         // Drop the secret created during the API-key connect flow so it doesn't
         // linger in the Secrets list after an explicit disconnect.
-        if (connector.install.auth.kind === "apiKey") {
+        if (connector.install.type === "mcp" && connector.install.auth.kind === "apiKey") {
           await bridge.removeExecutorSecret(`${connector.id}_key`);
         }
       } catch (err) {
@@ -226,7 +246,9 @@ export function ConnectorsSection({ onError }: SectionProps) {
   }, [sources]);
 
   const apiKeyLabel =
-    apiKeyTarget?.install.auth.kind === "apiKey" ? apiKeyTarget.install.auth.secretLabel : "";
+    apiKeyTarget?.install.type === "mcp" && apiKeyTarget.install.auth.kind === "apiKey"
+      ? apiKeyTarget.install.auth.secretLabel
+      : "";
 
   return (
     <div className="flex flex-col gap-2.5">

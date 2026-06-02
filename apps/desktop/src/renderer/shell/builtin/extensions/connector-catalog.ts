@@ -22,7 +22,12 @@ export type ConnectorAuth =
   | { kind: "apiKey"; headerName: string; secretLabel: string; prefix?: string };
 
 /** Install recipe — what executor source we register and how it authenticates. */
-export type ConnectorInstall = { type: "mcp"; endpoint: string; auth: ConnectorAuth };
+export type ConnectorInstall =
+  | { type: "mcp"; endpoint: string; auth: ConnectorAuth }
+  // Google Workspace services — registered as executor google-discovery sources
+  // from a Google API discovery doc. Executor handles the OAuth consent lazily
+  // in code mode (the agent's execute call pauses, then resume completes it).
+  | { type: "google"; discoveryUrl: string };
 
 export type ConnectorCategory =
   | "Development"
@@ -142,6 +147,61 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
         secretLabel: "Hugging Face access token",
         prefix: "Bearer ",
       },
+    },
+  },
+  {
+    id: "gmail",
+    name: "Gmail",
+    description: "Read, search, and send email.",
+    category: "Productivity",
+    accent: "#ea4335",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/gmail/v1/rest",
+    },
+  },
+  {
+    id: "google_calendar",
+    name: "Google Calendar",
+    description: "Events, agendas, and scheduling.",
+    category: "Productivity",
+    accent: "#4285f4",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/calendar/v3/rest",
+    },
+  },
+  {
+    id: "google_drive",
+    name: "Google Drive",
+    description: "Browse, search, and manage files.",
+    category: "Productivity",
+    accent: "#1da462",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest",
+    },
+  },
+  {
+    id: "google_docs",
+    name: "Google Docs",
+    description: "Read and edit documents.",
+    category: "Productivity",
+    accent: "#4285f4",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/docs/v1/rest",
+    },
+  },
+  {
+    id: "google_sheets",
+    name: "Google Sheets",
+    description: "Read and write spreadsheets.",
+    category: "Productivity",
+    accent: "#0f9d58",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest",
     },
   },
 ];
