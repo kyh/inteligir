@@ -171,11 +171,14 @@ export function ConnectorsSection({ onError }: SectionProps) {
         if (connector.install.auth.kind === "apiKey") {
           await bridge.removeExecutorSecret(`${connector.id}_key`);
         }
-        await refreshSources();
-        await refreshConnections();
       } catch (err) {
         onError(errorMessage(err, `Couldn't disconnect ${connector.name}.`));
       } finally {
+        // Always reconcile with server state — a partial failure (e.g. the
+        // source was removed but a later step threw) must not leave a stale
+        // "Connected" card.
+        await refreshSources();
+        await refreshConnections();
         setMembership(setDisconnecting, connector.id, false);
       }
     },

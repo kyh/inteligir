@@ -18,10 +18,21 @@ export function slug(name: string): string {
   );
 }
 
-/** Normalize a URL for loose equality (lowercase host/scheme, no trailing slash). */
+/**
+ * Normalize a URL for loose equality: lowercase the scheme and host and drop a
+ * trailing slash. The path/query are left as-is, since they're case-sensitive
+ * per RFC 3986. Falls back to a whole-string lowercase for non-URL inputs.
+ */
 export function normalizeUrl(url: string | null | undefined): string {
   if (!url) return "";
-  return url.trim().replace(/\/+$/, "").toLowerCase();
+  const trimmed = url.trim();
+  try {
+    const u = new URL(trimmed);
+    const path = u.pathname.replace(/\/+$/, "");
+    return `${u.protocol.toLowerCase()}//${u.host.toLowerCase()}${path}${u.search}`;
+  } catch {
+    return trimmed.replace(/\/+$/, "").toLowerCase();
+  }
 }
 
 const OAUTH_POLL_MS = 1500;
