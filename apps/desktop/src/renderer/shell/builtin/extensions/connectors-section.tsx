@@ -64,6 +64,8 @@ export function ConnectorsSection({ onError }: SectionProps) {
   const [disconnecting, setDisconnecting] = useState<ReadonlySet<string>>(new Set());
   const [apiKeyTarget, setApiKeyTarget] = useState<CatalogConnector | null>(null);
   const [apiKeyBusy, setApiKeyBusy] = useState(false);
+  // Shown inside the secret dialog — the panel-level error sits behind its overlay.
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
 
   const statusFor = useCallback(
@@ -91,6 +93,7 @@ export function ConnectorsSection({ onError }: SectionProps) {
       // API-key connectors need a secret first; collect it via the dialog, which
       // calls handleApiKeySubmit once the user provides a value.
       if (connector.install.type === "mcp" && connector.install.auth.kind === "apiKey") {
+        setApiKeyError(null);
         setApiKeyTarget(connector);
         return;
       }
@@ -115,18 +118,18 @@ export function ConnectorsSection({ onError }: SectionProps) {
       const bridge = getBridge();
       if (!connector || !bridge) return;
       setApiKeyBusy(true);
-      onError(null);
+      setApiKeyError(null);
       try {
         await installConnector(bridge, catalogInstallRequest(connector, value));
         await refreshAll();
         setApiKeyTarget(null);
       } catch (err) {
-        onError(errorMessage(err, `Couldn't connect ${connector.name}.`));
+        setApiKeyError(errorMessage(err, `Couldn't connect ${connector.name}.`));
       } finally {
         setApiKeyBusy(false);
       }
     },
-    [apiKeyTarget, onError, refreshAll],
+    [apiKeyTarget, refreshAll],
   );
 
   const handleDisconnect = useCallback(
@@ -259,12 +262,12 @@ export function ConnectorsSection({ onError }: SectionProps) {
         open={customOpen}
         onOpenChange={setCustomOpen}
         onAdded={refreshAll}
-        onError={onError}
       />
       <SecretPromptDialog
         connector={apiKeyTarget}
         label={apiKeyLabel}
         busy={apiKeyBusy}
+        error={apiKeyError}
         onCancel={() => setApiKeyTarget(null)}
         onSubmit={(v) => void handleApiKeySubmit(v)}
       />

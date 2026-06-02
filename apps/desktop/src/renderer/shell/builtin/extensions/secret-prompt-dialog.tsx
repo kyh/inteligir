@@ -19,11 +19,13 @@ type Props = {
   /** The secretLabel describing what to paste (from the connector's apiKey auth). */
   label: string;
   busy: boolean;
+  /** A connect failure to show inside the dialog (the panel error is hidden behind it). */
+  error: string | null;
   onCancel: () => void;
   onSubmit: (value: string) => void;
 };
 
-export function SecretPromptDialog({ connector, label, busy, onCancel, onSubmit }: Props) {
+export function SecretPromptDialog({ connector, label, busy, error, onCancel, onSubmit }: Props) {
   const [value, setValue] = useState("");
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export function SecretPromptDialog({ connector, label, busy, onCancel, onSubmit 
               if (e.key === "Enter" && canSubmit) onSubmit(trimmed);
             }}
           />
+          {error && <div className="text-[10px] text-destructive">{error}</div>}
           <Button
             variant="default"
             size="sm"

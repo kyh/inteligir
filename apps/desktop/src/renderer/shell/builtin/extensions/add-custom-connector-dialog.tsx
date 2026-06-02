@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { Button } from "@repo/ui/components/button";
 import {
@@ -21,7 +21,6 @@ import {
   errorMessage,
   parseHeaders,
   slug,
-  type SectionProps,
 } from "@/renderer/shell/builtin/extensions/lib";
 import { isHttpUrl } from "@/shared/ipc";
 
@@ -33,13 +32,13 @@ const KINDS: { id: CustomKind; label: string }[] = [
   { id: "google", label: "Google" },
 ];
 
-type Props = SectionProps & {
+type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAdded: () => void | Promise<void>;
 };
 
-export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError }: Props) {
+export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props) {
   const [kind, setKind] = useState<CustomKind>("mcp");
   const [name, setName] = useState("");
   const [endpoint, setEndpoint] = useState("");
@@ -47,6 +46,13 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
   const [headersText, setHeadersText] = useState("");
   const [oauth, setOauth] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Errors render inside the dialog — routing them to the panel behind the
+  // modal overlay would hide them from the user.
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) setError(null);
+  }, [open]);
 
   const reset = useCallback(() => {
     setKind("mcp");
@@ -60,15 +66,15 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
   const handleDetect = useCallback(async () => {
     const trimmed = endpoint.trim();
     if (!isHttpUrl(trimmed)) {
-      onError("Enter a valid URL to detect.");
+      setError("Enter a valid URL to detect.");
       return;
     }
-    onError(null);
+    setError(null);
     try {
       const results = await getBridge()?.detectExecutorSource(trimmed);
       const best = results?.[0];
       if (!best) {
-        onError("Couldn't detect a source type for that URL.");
+        setError("Couldn't detect a source type for that URL.");
         return;
       }
       const map: Record<string, CustomKind> = {
@@ -80,9 +86,9 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
       setKind(map[best.kind] ?? "mcp");
       if (!name.trim()) setName(best.name);
     } catch (err) {
-      onError(errorMessage(err, "Detection failed."));
+      setError(errorMessage(err, "Detection failed."));
     }
-  }, [endpoint, name, onError]);
+  }, [endpoint, name]);
 
   const handleAdd = useCallback(async () => {
     const bridge = getBridge();
@@ -90,21 +96,23 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
     const trimmedEndpoint = endpoint.trim();
     const trimmedBase = baseUrl.trim();
     if (!bridge || !trimmedName) {
-      onError("Name is required.");
+      setError("Name is required.");
       return;
     }
     if (!isHttpUrl(trimmedEndpoint)) {
-      onError("Enter a valid endpoint URL.");
+      setError("Enter a valid endpoint URL.");
       return;
     }
     if (kind === "openapi" && !isHttpUrl(trimmedBase)) {
-      onError("OpenAPI sources need a valid Base URL (the API server, not the spec).");
+      setError("OpenAPI sources need a valid Base URL (the API server, not the spec).");
       return;
     }
     setBusy(true);
-    onError(null);
+    setError(null);
     try {
-      const ns = slug(trimmedName);
+      // Prefix custom namespaces so they can't collide with a catalog
+      // connector's id (its namespace) and get misidentified as that connector.
+      const ns = `custom_${slug(trimmedName)}`;
       const source: SourceSpec =
         kind === "openapi"
           ? { type: "openapi", name: trimmedName, namespace: ns, specUrl: trimmedEndpoint, baseUrl: trimmedBase }
@@ -124,11 +132,11 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
       await onAdded();
       onOpenChange(false);
     } catch (err) {
-      onError(errorMessage(err, "Failed to add connector."));
+      setError(errorMessage(err, "Failed to add connector."));
     } finally {
       setBusy(false);
     }
-  }, [kind, name, endpoint, baseUrl, headersText, oauth, onError, onAdded, onOpenChange, reset]);
+  }, [kind, name, endpoint, baseUrl, headersText, oauth, onAdded, onOpenChange, reset]);
 
   return (
     <Dialog open={open} onOpenChange={blockDismissWhileBusy(busy, onOpenChange)}>
@@ -214,6 +222,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded, onError 
               Authenticate with OAuth before adding
             </label>
           )}
+          {error && <div className="text-[10px] text-destructive">{error}</div>}
           <Button
             variant="default"
             size="sm"
