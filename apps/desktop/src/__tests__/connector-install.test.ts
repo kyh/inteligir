@@ -24,6 +24,7 @@ function mockBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridge {
     addOpenApiSource: vi.fn().mockResolvedValue(ok),
     addGraphqlSource: vi.fn().mockResolvedValue(ok),
     addGoogleSource: vi.fn().mockResolvedValue(ok),
+    listExecutorSources: vi.fn().mockResolvedValue([]),
     setExecutorSecret: vi.fn().mockResolvedValue({ id: "s" }),
     removeExecutorSource: vi.fn().mockResolvedValue({ removed: true }),
     removeExecutorConnection: vi.fn().mockResolvedValue({ removed: true }),
@@ -148,6 +149,22 @@ describe("installConnector", () => {
     };
     await expect(installConnector(bridge, req)).rejects.toThrow("boom");
     expect(bridge.removeExecutorConnection).toHaveBeenCalledWith("mcp-oauth2-x");
+  });
+
+  it("does NOT roll back auth when a source already occupies the namespace", async () => {
+    // A duplicate install fails at registration, but the existing source still
+    // needs its OAuth connection — rollback must be skipped.
+    const bridge = mockBridge({
+      addMcpSource: vi.fn().mockRejectedValue(new Error("namespace taken")),
+      listExecutorSources: vi.fn().mockResolvedValue([{ id: "x", name: "X", kind: "mcp" }]),
+      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-x" })]),
+    });
+    const req: InstallRequest = {
+      source: { type: "mcp", name: "X", namespace: "x", endpoint: "https://e" },
+      auth: { kind: "oauth" },
+    };
+    await expect(installConnector(bridge, req)).rejects.toThrow("namespace taken");
+    expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
   });
 
   it("rolls back the OAuth connection when the auth flow itself fails", async () => {

@@ -156,9 +156,20 @@ export async function installConnector(bridge: DesktopBridge, req: InstallReques
     await applyAuth(bridge, req, applied);
     await registerSource(bridge, req.source, applied.headers);
   } catch (err) {
-    await rollbackAuth(bridge, applied);
+    // Only undo our auth side-effects if no source for this namespace already
+    // exists. A failed *duplicate* install (the namespace is taken) must not
+    // strip the OAuth connection / secret the existing source still depends on.
+    if (!(await namespaceHasSource(bridge, req.source.namespace))) {
+      await rollbackAuth(bridge, applied);
+    }
     throw err;
   }
+}
+
+/** Whether a registered source already occupies this namespace. */
+async function namespaceHasSource(bridge: DesktopBridge, namespace: string): Promise<boolean> {
+  const sources = await bridge.listExecutorSources().catch(() => null);
+  return (sources ?? []).some((s) => (s.namespace ?? s.id) === namespace);
 }
 
 /**
