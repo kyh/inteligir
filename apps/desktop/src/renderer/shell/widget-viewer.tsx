@@ -7,6 +7,7 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
 import { widgetRegistry } from "@/renderer/shell/widget-registry";
 import { type JsonUiWidgetDef, type WidgetInstance } from "@/shared/shell";
+import { toRendererSpec } from "@/shared/widget-spec";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
@@ -214,7 +215,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
          * warning. setState/pushState/removeState are framework built-ins too
          * and work automatically with the store passed to JSONUIProvider. */}
         <ValidationProvider>
-          <Renderer spec={def.source.spec} registry={widgetRegistry} />
+          <Renderer spec={toRendererSpec(def.source.spec)} registry={widgetRegistry} />
         </ValidationProvider>
       </JSONUIProvider>
     </div>

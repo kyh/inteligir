@@ -1,48 +1,20 @@
-// Generated widget spec language. Shared by the agent tool contract, main-side
-// validation, and renderer catalog.
+// ---------------------------------------------------------------------------
+// Generated widget spec language. TypeBox is the single source of truth here:
+//   - TypeScript types are derived via Static<typeof ...>
+//   - The agent tool's JSON Schema is the TypeBox object literal itself
+//   - Boundary validation (IPC + agent calls) goes through parseWidgetSpec()
+//     which checks against the TypeBox schema + runs the structural-cycle pass
+// ---------------------------------------------------------------------------
 
-import type { UIElement, VisibilityCondition } from "@json-render/core";
+import { type Static, Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
+import type { Spec } from "@json-render/core";
 
-export type JsonWidgetComponentType =
-  | "Stack"
-  | "Section"
-  | "Row"
-  | "Grid"
-  | "Heading"
-  | "Text"
-  | "TextBlock"
-  | "Markdown"
-  | "Badge"
-  | "Button"
-  | "Checkbox"
-  | "Switch"
-  | "Input"
-  | "Textarea"
-  | "Select"
-  | "RadioGroup"
-  | "Slider"
-  | "Avatar"
-  | "Spinner"
-  | "Image"
-  | "Chart"
-  | "Card"
-  | "Collapsible"
-  | "Tabs"
-  | "Table"
-  | "TableHeader"
-  | "TableBody"
-  | "TableRow"
-  | "TableHead"
-  | "TableCell"
-  | "Dialog"
-  | "Drawer"
-  | "Popover"
-  | "Tooltip"
-  | "DropdownMenu"
-  | "MenuItem"
-  | "Separator";
+// ---------------------------------------------------------------------------
+// Component vocabulary
+// ---------------------------------------------------------------------------
 
-export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
+export const JSON_WIDGET_COMPONENT_TYPES = [
   "Stack",
   "Section",
   "Row",
@@ -80,7 +52,9 @@ export const JSON_WIDGET_COMPONENT_TYPES: readonly JsonWidgetComponentType[] = [
   "DropdownMenu",
   "MenuItem",
   "Separator",
-];
+] as const;
+
+export type JsonWidgetComponentType = (typeof JSON_WIDGET_COMPONENT_TYPES)[number];
 
 export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, string> = {
   Stack:
@@ -149,19 +123,11 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
   Separator: "Horizontal hairline divider. Props: {}.",
 };
 
-export type WidgetActionName =
-  | "notify"
-  | "openUrl"
-  | "sendPrompt"
-  | "generateText"
-  | "fetchUrl"
-  | "callTool"
-  | "setState"
-  | "pushState"
-  | "removeState"
-  | "validateForm";
+// ---------------------------------------------------------------------------
+// Action vocabulary
+// ---------------------------------------------------------------------------
 
-export const WIDGET_ACTION_NAMES: readonly WidgetActionName[] = [
+export const WIDGET_ACTION_NAMES = [
   "notify",
   "openUrl",
   "sendPrompt",
@@ -172,7 +138,9 @@ export const WIDGET_ACTION_NAMES: readonly WidgetActionName[] = [
   "pushState",
   "removeState",
   "validateForm",
-];
+] as const;
+
+export type WidgetActionName = (typeof WIDGET_ACTION_NAMES)[number];
 
 export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
   notify: "Show a toast notification to the user.",
@@ -191,47 +159,145 @@ export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
   validateForm: "Validate registered form fields and write the result into widget state.",
 };
 
-export type WidgetActionRequest = {
-  action: WidgetActionName;
-  params?: Record<string, unknown>;
-};
+// ---------------------------------------------------------------------------
+// TypeBox schemas — the single source of truth for the agent tool's JSON
+// Schema, IPC payload validation, and TypeScript types.
+// ---------------------------------------------------------------------------
 
-type WidgetRepeat = {
-  statePath: string;
-  key?: string;
-};
+function literalUnion<const T extends readonly string[]>(values: T) {
+  return Type.Union(values.map((value) => Type.Literal(value)));
+}
 
-type WidgetSpecInputElement = {
-  type: JsonWidgetComponentType;
-  props?: Record<string, unknown>;
-  children?: string[];
-  visible?: unknown;
-  repeat?: WidgetRepeat;
-  on?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
-  watch?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
-};
+const ComponentTypeParam = literalUnion(JSON_WIDGET_COMPONENT_TYPES);
+const ActionNameParam = literalUnion(WIDGET_ACTION_NAMES);
 
-export type WidgetSpecInput = {
-  root: string;
-  elements: Record<string, WidgetSpecInputElement>;
-  state?: Record<string, unknown>;
-};
+const ActionRequestParam = Type.Object(
+  {
+    action: ActionNameParam,
+    params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  },
+  { additionalProperties: false },
+);
 
-export type WidgetSpecElement = UIElement<JsonWidgetComponentType, Record<string, unknown>> & {
-  type: JsonWidgetComponentType;
-  props: Record<string, unknown>;
-  children?: string[];
-  visible?: VisibilityCondition;
-  repeat?: WidgetRepeat;
-  on?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
-  watch?: Record<string, WidgetActionRequest | WidgetActionRequest[]>;
-};
+const ActionBindingParam = Type.Union([ActionRequestParam, Type.Array(ActionRequestParam)]);
 
-export type WidgetSpec = {
-  root: string;
-  elements: Record<string, WidgetSpecElement>;
-  state?: Record<string, unknown>;
-};
+const RepeatParam = Type.Object(
+  {
+    statePath: Type.String(),
+    key: Type.Optional(Type.String()),
+  },
+  { additionalProperties: false },
+);
+
+// Element shape exposed in the agent tool's JSON Schema. `props` is required
+// here so the generated TypeScript type matches json-render's UIElement (which
+// requires `props`), but parseWidgetSpec accepts inputs that omit props and
+// fills in {} during canonicalization.
+const ElementParam = Type.Object(
+  {
+    type: ComponentTypeParam,
+    props: Type.Record(Type.String(), Type.Unknown()),
+    children: Type.Optional(Type.Array(Type.String())),
+    // The visibility condition's structural validation lives in @json-render/core
+    // and runs at render time; the spec language only commits to "some value".
+    visible: Type.Optional(Type.Unknown()),
+    repeat: Type.Optional(RepeatParam),
+    on: Type.Optional(Type.Record(Type.String(), ActionBindingParam)),
+    watch: Type.Optional(Type.Record(Type.String(), ActionBindingParam)),
+  },
+  { additionalProperties: false },
+);
+
+export const WidgetSpecParam = Type.Object(
+  {
+    root: Type.String({ description: "Key of the root element in elements" }),
+    elements: Type.Record(Type.String(), ElementParam),
+    state: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+  },
+  { additionalProperties: false },
+);
+
+// ---------------------------------------------------------------------------
+// Inferred TypeScript types — derived from TypeBox so the schema, types, and
+// const arrays cannot drift.
+// ---------------------------------------------------------------------------
+
+export type WidgetActionRequest = Static<typeof ActionRequestParam>;
+export type WidgetSpecElement = Static<typeof ElementParam>;
+export type WidgetSpec = Static<typeof WidgetSpecParam>;
+
+/**
+ * Bridge our TypeBox-narrowed WidgetSpec to @json-render/core's wider Spec
+ * (looser action-binding shape, looser visibility). Runtime-safe: every
+ * WidgetSpec already satisfies the json-render runtime contract, but the
+ * type systems are structurally different at the binding-value level.
+ * Centralizing the conversion here means the rest of the renderer can type
+ * Spec naturally without per-call-site casts.
+ */
+export function toRendererSpec(spec: WidgetSpec): Spec {
+  return spec as unknown as Spec;
+}
+
+// ---------------------------------------------------------------------------
+// Validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Parse + structurally validate a widget spec. Accepts inputs that omit the
+ * per-element `props` object (the model often does so for prop-less components
+ * like Stack/Card/Separator) and canonicalizes them to `{}`. Throws on TypeBox
+ * mismatch or on a child cycle.
+ */
+export function parseWidgetSpec(input: unknown): WidgetSpec {
+  const canonical = canonicalizeProps(input);
+  if (!Value.Check(WidgetSpecParam, canonical)) {
+    const first = Value.Errors(WidgetSpecParam, canonical).First();
+    const detail = first ? `${first.path}: ${first.message}` : "shape mismatch";
+    throw new Error(`Invalid widget spec — ${detail}`);
+  }
+  validateStructure(canonical);
+  return canonical;
+}
+
+function canonicalizeProps(input: unknown): unknown {
+  if (typeof input !== "object" || input === null) return input;
+  const record = input as Record<string, unknown>;
+  const elements = record["elements"];
+  if (typeof elements !== "object" || elements === null) return input;
+  const next: Record<string, unknown> = {};
+  for (const [id, raw] of Object.entries(elements as Record<string, unknown>)) {
+    if (typeof raw === "object" && raw !== null) {
+      const el = raw as Record<string, unknown>;
+      next[id] = el["props"] === undefined ? { ...el, props: {} } : el;
+    } else {
+      next[id] = raw;
+    }
+  }
+  return { ...record, elements: next };
+}
+
+function validateStructure(spec: WidgetSpec): void {
+  if (!spec.elements[spec.root]) {
+    throw new Error(`Widget spec root '${spec.root}' does not exist`);
+  }
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string) => {
+    if (visited.has(id)) return;
+    if (visiting.has(id)) throw new Error(`Widget spec has a child cycle at '${id}'`);
+    const element = spec.elements[id];
+    if (!element) throw new Error(`Widget spec references missing child '${id}'`);
+    visiting.add(id);
+    for (const child of element.children ?? []) visit(child);
+    visiting.delete(id);
+    visited.add(id);
+  };
+  visit(spec.root);
+}
+
+// ---------------------------------------------------------------------------
+// Agent prompt
+// ---------------------------------------------------------------------------
 
 export function describeWidgetSpecLanguage(): string {
   return [

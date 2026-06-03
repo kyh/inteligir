@@ -131,7 +131,7 @@ describe("ShellManager.installWidget", () => {
     // Caller mutates the object it handed over — must not affect the stored def.
     must(liveSpec.elements["r"], "missing live element").props = { text: "after" };
     const stored = must(mgr.getDef(def.id), "missing stored def");
-    expect(source(stored).spec.elements["r"]?.props["text"]).toBe("before");
+    expect(source(stored).spec.elements["r"]?.props?.["text"]).toBe("before");
   });
 
   it("copies spec.state on seed so live mutations don't leak into the def template", () => {
@@ -432,7 +432,7 @@ describe("ShellManager state and patching", () => {
       expectedRevision: def.revision,
       ops: [{ op: "replace", path: "/elements/r/props/text", value: "bye" }],
     });
-    expect(source(patched).spec.elements["r"]?.props["text"]).toBe("bye");
+    expect(source(patched).spec.elements["r"]?.props?.["text"]).toBe("bye");
     expect(patched.revision).toBe(2);
   });
 

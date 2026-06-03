@@ -17,7 +17,7 @@ describe("ManageUiSchema", () => {
         action: "install",
         id: "notes",
         title: "Notes",
-        spec: { root: "r", elements: { r: { type: "Text" } } },
+        spec: { root: "r", elements: { r: { type: "Text", props: {} } } },
       }),
     ).toBe(true);
   });

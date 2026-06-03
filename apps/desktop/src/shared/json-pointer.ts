@@ -3,6 +3,8 @@
 // payload. Kept hand-rolled rather than using @json-render/core's applier,
 // which has no prototype-key guard.
 
+import { type Static, Type } from "@sinclair/typebox";
+
 // Object keys we refuse to traverse or write — letting an LLM-supplied path
 // land here would let it mutate Object.prototype.
 const PROTO_RESERVED = new Set(["__proto__", "constructor", "prototype"]);
@@ -18,10 +20,21 @@ function parsePointer(path: string): string[] {
     .map((seg) => seg.replace(/~1/g, "/").replace(/~0/g, "~"));
 }
 
-export type JsonPatchOp =
-  | { op: "add"; path: string; value: unknown }
-  | { op: "replace"; path: string; value: unknown }
-  | { op: "remove"; path: string };
+// TypeBox is the source of truth — the agent tool consumes this as its JSON
+// Schema and the TypeScript type derives via Static.
+export const JsonPatchOpParam = Type.Union([
+  Type.Object(
+    { op: Type.Literal("add"), path: Type.String(), value: Type.Unknown() },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { op: Type.Literal("replace"), path: Type.String(), value: Type.Unknown() },
+    { additionalProperties: false },
+  ),
+  Type.Object({ op: Type.Literal("remove"), path: Type.String() }, { additionalProperties: false }),
+]);
+
+export type JsonPatchOp = Static<typeof JsonPatchOpParam>;
 
 function assertSafeKey(key: string, pointer: string, verb: string): void {
   if (PROTO_RESERVED.has(key)) {

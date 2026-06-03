@@ -1,7 +1,21 @@
 import { z } from "zod";
 
 import type { Shell } from "@/shared/shell";
-import { WidgetSpecSchema } from "@/shared/widget-spec-schema";
+import { type WidgetSpec, parseWidgetSpec } from "@/shared/widget-spec";
+
+// WidgetSpec is validated via TypeBox in widget-spec.ts. Wrap the parser as a
+// Zod schema so we can compose it into ShellSchema for the on-disk JsonStore.
+const WidgetSpecZod: z.ZodType<WidgetSpec> = z.unknown().transform((value, ctx) => {
+  try {
+    return parseWidgetSpec(value);
+  } catch (err) {
+    ctx.addIssue({
+      code: "custom",
+      message: err instanceof Error ? err.message : "invalid widget spec",
+    });
+    return z.NEVER;
+  }
+});
 
 const GeometrySchema = z.object({
   x: z.number(),
@@ -28,7 +42,7 @@ const JsonUiDefSchema = z.object({
   defaultGeometry: GeometrySchema,
   source: z.object({
     kind: z.literal("json-ui"),
-    spec: WidgetSpecSchema,
+    spec: WidgetSpecZod,
     createdAt: z.number(),
     updatedAt: z.number(),
   }),

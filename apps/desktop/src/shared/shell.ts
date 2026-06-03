@@ -14,7 +14,7 @@
 // Types stay loose here so main/preload don't pull renderer code in.
 
 import type { JsonPatchOp } from "./json-pointer";
-import type { WidgetSpec, WidgetSpecInput } from "./widget-spec";
+import type { WidgetSpec } from "./widget-spec";
 
 // ---------------------------------------------------------------------------
 // Geometry + rect
@@ -241,7 +241,7 @@ export type InstallWidgetInput = {
   id?: string;
   title: string;
   description?: string;
-  spec: WidgetSpecInput;
+  spec: WidgetSpec;
 };
 
 export type UpdateWidgetInput = {
@@ -249,7 +249,7 @@ export type UpdateWidgetInput = {
   expectedRevision: number;
   title?: string;
   description?: string;
-  spec: WidgetSpecInput;
+  spec: WidgetSpec;
 };
 
 export type WidgetPatchInput = {

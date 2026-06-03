@@ -9,7 +9,7 @@ import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import { DEFAULT_SHELL, defaultShellSnapshot, shellSnapshot } from "@/main/shell-defaults";
 import { ShellSchema } from "@/main/shell-schema";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
-import { parseWidgetSpec } from "@/shared/widget-spec-schema";
+import { parseWidgetSpec } from "@/shared/widget-spec";
 import {
   builtinDef,
   geometryEquals,

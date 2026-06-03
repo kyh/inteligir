@@ -1,20 +1,8 @@
 import { Type, type Static } from "@sinclair/typebox";
 
+import { JsonPatchOpParam } from "@/shared/json-pointer";
 import { WIDGET_SURFACES } from "@/shared/shell";
-import { WidgetSpecParam } from "@/shared/widget-spec-schema";
-
-// JSON Patch op shape — used by the "patch" action.
-const PatchOpParam = Type.Union([
-  Type.Object(
-    { op: Type.Literal("add"), path: Type.String(), value: Type.Unknown() },
-    { additionalProperties: false },
-  ),
-  Type.Object(
-    { op: Type.Literal("replace"), path: Type.String(), value: Type.Unknown() },
-    { additionalProperties: false },
-  ),
-  Type.Object({ op: Type.Literal("remove"), path: Type.String() }, { additionalProperties: false }),
-]);
+import { WidgetSpecParam } from "@/shared/widget-spec";
 
 const SurfaceParam = Type.Union(WIDGET_SURFACES.map((surface) => Type.Literal(surface)));
 
@@ -53,7 +41,7 @@ export const ManageUiSchema = Type.Object(
     description: Type.Optional(Type.String()),
     spec: Type.Optional(WidgetSpecParam),
     expectedRevision: Type.Optional(Type.Integer({ minimum: 1 })),
-    ops: Type.Optional(Type.Array(PatchOpParam, { minItems: 1 })),
+    ops: Type.Optional(Type.Array(JsonPatchOpParam, { minItems: 1 })),
     surface: Type.Optional(SurfaceParam),
     instanceId: Type.Optional(Type.String({ minLength: 1 })),
   },
