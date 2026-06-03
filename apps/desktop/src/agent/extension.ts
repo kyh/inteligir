@@ -10,7 +10,7 @@
 
 import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver/pi-types";
 
-import type { SetupProgress } from "@/shared/ipc";
+import { isRecord, type SetupProgress } from "@/shared/ipc";
 
 /**
  * Available at agent-start time, every time register() is called. Long-lived
@@ -113,14 +113,14 @@ export function validateToolParametersSchema(
   tool: { name: string; parameters?: unknown },
   bundleName: string,
 ): void {
-  const params = tool.parameters;
-  if (!params || typeof params !== "object") {
+  const params: unknown = tool.parameters;
+  if (!isRecord(params)) {
     throw new Error(
       `[${bundleName}] tool '${tool.name}' has no parameters schema. ` +
         `Use Type.Object({}) for tools that take no arguments.`,
     );
   }
-  const type = (params as { type?: unknown }).type;
+  const type = params["type"];
   if (type !== "object") {
     throw new Error(
       `[${bundleName}] tool '${tool.name}' parameters schema must have top-level type 'object' ` +
@@ -141,9 +141,10 @@ export function wrapPiWithSchemaValidation(pi: ExtensionAPI, bundleName: string)
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);
       if (prop === "registerTool" && typeof value === "function") {
+        const registerTool = value.bind(target);
         return (tool: { name: string; parameters?: unknown }) => {
           validateToolParametersSchema(tool, bundleName);
-          return (value as (t: unknown) => unknown).call(target, tool);
+          return registerTool(tool);
         };
       }
       return value;

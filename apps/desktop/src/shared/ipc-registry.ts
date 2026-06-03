@@ -157,16 +157,15 @@ const WidgetFetchSchema = z.object({ url: z.string() });
 const WidgetCallToolSchema = z.object({ tool: z.string(), input: z.unknown().optional() });
 const WidgetOpenUrlSchema = z.object({ url: z.string() });
 
-// InstallWidgetInput carries a WidgetSpecInput whose Zod schema lives in
-// widget-spec-schema.ts (collapsed in Wave D); parse there, accept as
-// opaque-validated-elsewhere here.
-const InstallWidgetInputSchema: z.ZodType<InstallWidgetInput> = z.custom<InstallWidgetInput>(
-  (v) =>
-    typeof v === "object" &&
-    v !== null &&
-    typeof (v as InstallWidgetInput).title === "string" &&
-    typeof (v as InstallWidgetInput).spec === "object",
-);
+// InstallWidgetInput carries a WidgetSpec — the deep validation lives in
+// widget-spec.ts (TypeBox + cycle check). At the IPC boundary we only need
+// to confirm the wrapper shape so a malformed payload rejects cleanly.
+const InstallWidgetInputSchema: z.ZodType<InstallWidgetInput> = z.object({
+  id: z.string().optional(),
+  title: z.string(),
+  description: z.string().optional(),
+  spec: z.unknown(),
+}) as z.ZodType<InstallWidgetInput>;
 
 // ---------------------------------------------------------------------------
 // Entry helpers — phantom types carry result/event shapes through the registry

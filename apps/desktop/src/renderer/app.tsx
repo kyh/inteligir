@@ -5,8 +5,11 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { ReauthDialog } from "@/renderer/shell/reauth-dialog";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useUiStateStore } from "@/renderer/stores/ui-state-store";
+import type { AppState } from "@/shared/app-state";
 
-function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
+type Phase = AppState["phase"];
+
+function phaseToPath(phase: Phase): "/" | "/login" | "/onboarding" {
   switch (phase) {
     case "logged_out":
     case "logging_in":
@@ -14,7 +17,9 @@ function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
     case "logged_in":
     case "setting_up":
       return "/onboarding";
-    default:
+    case "ready":
+    case "logging_out":
+    case "error":
       return "/";
   }
 }

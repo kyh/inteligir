@@ -413,7 +413,7 @@ function CatalogSelect({
       <Select
         items={options}
         value={props.value ?? ""}
-        onValueChange={(value) => handleChange(value as string | null)}
+        onValueChange={(value) => handleChange(typeof value === "string" ? value : null)}
         disabled={props.disabled === true}
       >
         <SelectTrigger className="w-full">

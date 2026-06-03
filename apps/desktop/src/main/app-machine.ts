@@ -248,8 +248,8 @@ export class AppMachine {
     // Swallow the value on the chain copy so a thrown reauth doesn't poison
     // subsequent events; the caller still sees the throw via the returned p.
     this.queue = p.then(
-      () => {},
-      () => {},
+      () => undefined,
+      () => undefined,
     );
     return p;
   }

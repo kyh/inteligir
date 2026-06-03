@@ -16,12 +16,9 @@ let ws: WebSocket | null = null;
 let pendingText: string[] = [];
 
 function isAudioPayload(value: unknown): value is { audio: string } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "audio" in value &&
-    typeof (value as Record<string, unknown>).audio === "string"
-  );
+  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+  const audio = (value as Record<string, unknown>)["audio"];
+  return typeof audio === "string";
 }
 
 function endpoint(voiceId: string): string {

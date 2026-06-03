@@ -259,21 +259,23 @@ export function parseWidgetSpec(input: unknown): WidgetSpec {
   return canonical;
 }
 
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 function canonicalizeProps(input: unknown): unknown {
-  if (typeof input !== "object" || input === null) return input;
-  const record = input as Record<string, unknown>;
-  const elements = record["elements"];
-  if (typeof elements !== "object" || elements === null) return input;
+  if (!isRecord(input)) return input;
+  const elements = input["elements"];
+  if (!isRecord(elements)) return input;
   const next: Record<string, unknown> = {};
-  for (const [id, raw] of Object.entries(elements as Record<string, unknown>)) {
-    if (typeof raw === "object" && raw !== null) {
-      const el = raw as Record<string, unknown>;
-      next[id] = el["props"] === undefined ? { ...el, props: {} } : el;
+  for (const [id, raw] of Object.entries(elements)) {
+    if (isRecord(raw)) {
+      next[id] = raw["props"] === undefined ? { ...raw, props: {} } : raw;
     } else {
       next[id] = raw;
     }
   }
-  return { ...record, elements: next };
+  return { ...input, elements: next };
 }
 
 function validateStructure(spec: WidgetSpec): void {
