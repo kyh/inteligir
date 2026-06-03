@@ -32,6 +32,8 @@ export type ConnectorInstall =
 export type ConnectorCategory =
   | "Development"
   | "Productivity"
+  | "Communication"
+  | "CRM"
   | "Support"
   | "Payments"
   | "AI";
@@ -86,7 +88,7 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
     description: "Jira issues and Confluence pages.",
     category: "Productivity",
     accent: "#0052cc",
-    install: { type: "mcp", endpoint: "https://mcp.atlassian.com/v1/sse", auth: { kind: "oauth" } },
+    install: { type: "mcp", endpoint: "https://mcp.atlassian.com/v1/mcp/authv2", auth: { kind: "oauth" } },
   },
   {
     id: "asana",
@@ -94,7 +96,7 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
     description: "Tasks, projects, and workspaces.",
     category: "Productivity",
     accent: "#f06a6a",
-    install: { type: "mcp", endpoint: "https://mcp.asana.com/sse", auth: { kind: "oauth" } },
+    install: { type: "mcp", endpoint: "https://mcp.asana.com/v2/mcp", auth: { kind: "oauth" } },
   },
   {
     id: "intercom",
@@ -204,12 +206,114 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
       discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest",
     },
   },
+  {
+    id: "youtube",
+    name: "YouTube",
+    description: "Search videos, channels, and playlists.",
+    category: "Productivity",
+    accent: "#ff0000",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest",
+    },
+  },
+  {
+    id: "gitlab",
+    name: "GitLab",
+    description: "Repos, merge requests, and issues.",
+    category: "Development",
+    accent: "#fc6d26",
+    install: { type: "mcp", endpoint: "https://gitlab.com/api/v4/mcp", auth: { kind: "oauth" } },
+  },
+  {
+    id: "posthog",
+    name: "PostHog",
+    description: "Product analytics, insights, and flags.",
+    category: "Development",
+    accent: "#1d4aff",
+    install: {
+      type: "mcp",
+      endpoint: "https://mcp.posthog.com/mcp",
+      auth: {
+        kind: "apiKey",
+        headerName: "Authorization",
+        secretLabel: "PostHog personal API key",
+        prefix: "Bearer ",
+      },
+    },
+  },
+  {
+    id: "monday",
+    name: "monday.com",
+    description: "Boards, items, and workflows.",
+    category: "Productivity",
+    accent: "#ff3d57",
+    install: { type: "mcp", endpoint: "https://mcp.monday.com/sse", auth: { kind: "oauth" } },
+  },
+  {
+    id: "clickup",
+    name: "ClickUp",
+    description: "Tasks, docs, and projects.",
+    category: "Productivity",
+    accent: "#7b68ee",
+    install: { type: "mcp", endpoint: "https://mcp.clickup.com/mcp", auth: { kind: "oauth" } },
+  },
+  {
+    id: "todoist",
+    name: "Todoist",
+    description: "Tasks, projects, and due dates.",
+    category: "Productivity",
+    accent: "#e44332",
+    install: { type: "mcp", endpoint: "https://ai.todoist.net/mcp", auth: { kind: "oauth" } },
+  },
+  {
+    id: "dropbox",
+    name: "Dropbox",
+    description: "Browse, search, and share files.",
+    category: "Productivity",
+    accent: "#0061ff",
+    install: { type: "mcp", endpoint: "https://mcp.dropbox.com/mcp", auth: { kind: "oauth" } },
+  },
+  {
+    id: "calcom",
+    name: "Cal.com",
+    description: "Bookings, event types, and availability.",
+    category: "Productivity",
+    accent: "#1a1a1a",
+    install: { type: "mcp", endpoint: "https://mcp.cal.com/mcp", auth: { kind: "oauth" } },
+  },
+  {
+    id: "slack",
+    name: "Slack",
+    description: "Messages, channels, and search.",
+    category: "Communication",
+    accent: "#4a154b",
+    install: { type: "mcp", endpoint: "https://mcp.slack.com/mcp", auth: { kind: "oauth" } },
+  },
+  {
+    id: "hubspot",
+    name: "HubSpot",
+    description: "Contacts, deals, and companies.",
+    category: "CRM",
+    accent: "#ff7a59",
+    install: { type: "mcp", endpoint: "https://mcp.hubspot.com", auth: { kind: "oauth" } },
+  },
+  {
+    id: "square",
+    name: "Square",
+    description: "Payments, orders, and inventory.",
+    category: "Payments",
+    accent: "#1a1a1a",
+    install: { type: "mcp", endpoint: "https://mcp.squareup.com/sse", auth: { kind: "oauth" } },
+  },
 ];
 
 /** Display order for the category sections in the connectors grid. */
 const CATEGORY_ORDER: ConnectorCategory[] = [
   "Development",
   "Productivity",
+  "Communication",
+  "CRM",
   "AI",
   "Support",
   "Payments",
