@@ -261,10 +261,11 @@ export const IPC = {
   toggleTask: invoke<string, ToggleTaskResult>("task:toggle", z.string().min(1)),
 
   // Voice
-  getVoiceConfig: invokeVoid<{
-    elevenlabsApiKey: string;
-    elevenlabsVoiceId?: string;
-  } | null>("voice:config"),
+  isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
+  ttsSend: send<{ text: string }>("voice:tts:send", z.object({ text: z.string() })),
+  ttsFlush: send<undefined>("voice:tts:flush", z.undefined()),
+  ttsInterrupt: send<undefined>("voice:tts:interrupt", z.undefined()),
+  onTtsAudio: event<{ audio: ArrayBuffer }>("voice:tts:audio"),
   startStt: invokeVoid<{ ok: boolean; reason?: string }>("voice:stt:start"),
   sendSttAudio: send<ArrayBuffer | ArrayBufferView>(
     "voice:stt:audio",

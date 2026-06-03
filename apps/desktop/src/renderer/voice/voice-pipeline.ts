@@ -1,15 +1,14 @@
 // ---------------------------------------------------------------------------
 // Voice pipeline — pure I/O wrapper over local Parakeet STT (via main process
-// IPC) + ElevenLabs TTS. Holds no internal state; the caller (voice-store +
-// VoiceMachine) owns the lifecycle and reacts to callbacks.
+// IPC) + ElevenLabs TTS (also via main process IPC). Holds no internal state;
+// the caller (voice-store + VoiceMachine) owns the lifecycle and reacts to
+// callbacks.
 // ---------------------------------------------------------------------------
 
 import { startSTT, type STTHandle } from "./stt";
 import { createTTS, type TTSHandle } from "./tts";
 
 export type VoicePipelineConfig = {
-  elevenlabsApiKey: string;
-  elevenlabsVoiceId?: string;
   onTranscriptPartial: (text: string) => void;
   onTranscriptFinal: (text: string) => void;
   onError: (message: string) => void;
@@ -27,7 +26,7 @@ export class VoicePipeline {
    * the caller decides what to do).
    */
   async connect(): Promise<void> {
-    this.tts = createTTS(this.config.elevenlabsApiKey, this.config.elevenlabsVoiceId);
+    this.tts = createTTS();
 
     try {
       this.stt = await startSTT(
@@ -43,9 +42,6 @@ export class VoicePipeline {
           }
         },
         (error) => {
-          // STT failed mid-session — release mic + TTS + recognizer before
-          // surfacing the error so resources don't keep running after the
-          // store moves to its error state.
           void this.disconnect();
           this.config.onError(error);
         },
@@ -57,11 +53,6 @@ export class VoicePipeline {
     }
   }
 
-  /**
-   * Tear down mic + recognizer + TTS. Resolves after the main-process
-   * stopStt response arrives so callers can safely start a new session
-   * without IPC interleaving.
-   */
   disconnect(): Promise<void> {
     const pendingStop = this.stt?.stop() ?? Promise.resolve();
     this.stt = null;

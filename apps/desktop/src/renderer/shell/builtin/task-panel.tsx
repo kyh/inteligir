@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
@@ -9,37 +9,90 @@ import { formatSchedule, type CreateTaskParams, type TaskSchedule } from "@/shar
 import { useTaskStore } from "@/renderer/stores/task-store";
 
 // ---------------------------------------------------------------------------
-// Create task form
+// Natural-language schedule presets — Chief-of-Staff scheduling speaks in
+// English, not cron. Each preset resolves to a TaskSchedule at submit time;
+// time-of-day presets honor the user's local timezone (croner runs in local
+// time on the main process).
 // ---------------------------------------------------------------------------
 
-type ScheduleType = "cron" | "interval" | "once";
-const SCHEDULE_TYPES: ScheduleType[] = ["cron", "interval", "once"];
+type Preset = {
+  id: string;
+  label: string;
+  resolve: (timeOfDay: string) => TaskSchedule;
+  needsTime: boolean;
+};
+
+const PRESETS: Preset[] = [
+  {
+    id: "weekdays",
+    label: "Every weekday",
+    needsTime: true,
+    resolve: (t) => cronAt(t, "1-5"),
+  },
+  {
+    id: "daily",
+    label: "Every day",
+    needsTime: true,
+    resolve: (t) => cronAt(t, "*"),
+  },
+  {
+    id: "mon-fri-9",
+    label: "Mondays",
+    needsTime: true,
+    resolve: (t) => cronAt(t, "1"),
+  },
+  {
+    id: "hourly",
+    label: "Every hour",
+    needsTime: false,
+    resolve: () => ({ type: "interval", intervalMs: 60 * 60_000 }),
+  },
+  {
+    id: "every-15-min",
+    label: "Every 15 minutes",
+    needsTime: false,
+    resolve: () => ({ type: "interval", intervalMs: 15 * 60_000 }),
+  },
+];
+
+function cronAt(timeOfDay: string, dayOfWeek: string): TaskSchedule {
+  const [hh, mm] = timeOfDay.split(":");
+  const hour = Number(hh ?? "9");
+  const minute = Number(mm ?? "0");
+  return { type: "cron", cron: `${minute} ${hour} * * ${dayOfWeek}` };
+}
+
+// ---------------------------------------------------------------------------
+// Create-task form
+// ---------------------------------------------------------------------------
 
 function CreateTaskForm({ onDone }: { onDone: () => void }) {
   const createTask = useTaskStore((s) => s.createTask);
   const [label, setLabel] = useState("");
   const [prompt, setPrompt] = useState("");
-  const [scheduleType, setScheduleType] = useState<ScheduleType>("cron");
-  const [cronValue, setCronValue] = useState("0 9 * * 1-5");
-  const [intervalMins, setIntervalMins] = useState("60");
+  const [presetId, setPresetId] = useState<string>("weekdays");
+  const [timeOfDay, setTimeOfDay] = useState("09:00");
+  const [advanced, setAdvanced] = useState(false);
   const [onceDate, setOnceDate] = useState("");
+  const [cronValue, setCronValue] = useState("0 9 * * 1-5");
   const [submitting, setSubmitting] = useState(false);
+
+  const preset = useMemo(() => PRESETS.find((p) => p.id === presetId), [presetId]);
 
   const handleSubmit = useCallback(async () => {
     if (!label.trim() || !prompt.trim()) return;
     setSubmitting(true);
 
     let schedule: TaskSchedule;
-    switch (scheduleType) {
-      case "cron":
-        schedule = { type: "cron", cron: cronValue };
-        break;
-      case "interval":
-        schedule = { type: "interval", intervalMs: Number(intervalMins) * 60_000 };
-        break;
-      case "once":
-        schedule = { type: "once", runAt: new Date(onceDate).getTime() };
-        break;
+    if (advanced && onceDate) {
+      schedule = { type: "once", runAt: new Date(onceDate).getTime() };
+    } else if (advanced) {
+      schedule = { type: "cron", cron: cronValue };
+    } else if (preset) {
+      schedule = preset.resolve(timeOfDay);
+    } else {
+      setSubmitting(false);
+      return;
     }
 
     const params: CreateTaskParams = {
@@ -51,7 +104,7 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
     const ok = await createTask(params);
     setSubmitting(false);
     if (ok) onDone();
-  }, [label, prompt, scheduleType, cronValue, intervalMins, onceDate, createTask, onDone]);
+  }, [label, prompt, advanced, onceDate, cronValue, preset, timeOfDay, createTask, onDone]);
 
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-3">
@@ -70,53 +123,62 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
       />
 
       <div className="flex flex-col gap-1.5">
-        <Label className="text-[10px] text-muted-foreground">Schedule</Label>
-        <div className="flex gap-1">
-          {SCHEDULE_TYPES.map((t) => (
-            <button
-              key={t}
-              type="button"
-              className={`rounded px-2 py-0.5 text-[10px] transition-colors ${
-                scheduleType === t
-                  ? "bg-secondary text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              }`}
-              onClick={() => setScheduleType(t)}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-
-        {scheduleType === "cron" && (
-          <Input
-            placeholder="0 9 * * 1-5"
-            value={cronValue}
-            onChange={(e) => setCronValue(e.target.value)}
-            className="text-xs"
-          />
-        )}
-        {scheduleType === "interval" && (
-          <div className="flex items-center gap-2">
+        <Label className="text-[10px] text-muted-foreground">Run</Label>
+        {!advanced ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap gap-1">
+              {PRESETS.map((p) => (
+                <button
+                  key={p.id}
+                  type="button"
+                  className={`rounded px-2 py-0.5 text-[10px] transition-colors ${
+                    presetId === p.id
+                      ? "bg-secondary text-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => setPresetId(p.id)}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            {preset?.needsTime && (
+              <Input
+                type="time"
+                value={timeOfDay}
+                onChange={(e) => setTimeOfDay(e.target.value)}
+                className="w-24 text-xs"
+              />
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5">
             <Input
-              type="number"
-              min={1}
-              placeholder="60"
-              value={intervalMins}
-              onChange={(e) => setIntervalMins(e.target.value)}
-              className="w-20 text-xs"
+              type="datetime-local"
+              value={onceDate}
+              onChange={(e) => setOnceDate(e.target.value)}
+              placeholder="Once at"
+              className="text-xs"
             />
-            <span className="text-[10px] text-muted-foreground">minutes</span>
+            <Input
+              value={cronValue}
+              onChange={(e) => setCronValue(e.target.value)}
+              placeholder="Or cron expression"
+              className="text-xs"
+            />
+            <p className="text-[10px] text-muted-foreground">
+              Fill the date for a one-shot task, or leave it blank and use a cron expression
+              (minute, hour, day-of-month, month, day-of-week).
+            </p>
           </div>
         )}
-        {scheduleType === "once" && (
-          <Input
-            type="datetime-local"
-            value={onceDate}
-            onChange={(e) => setOnceDate(e.target.value)}
-            className="text-xs"
-          />
-        )}
+        <button
+          type="button"
+          className="self-start text-[10px] text-muted-foreground/70 hover:text-foreground"
+          onClick={() => setAdvanced((a) => !a)}
+        >
+          {advanced ? "← back to presets" : "Advanced (cron / one-shot)"}
+        </button>
       </div>
 
       <Button
@@ -174,7 +236,7 @@ export function TaskPanel() {
                 className={`h-2 w-2 shrink-0 rounded-full transition-colors ${
                   task.enabled ? "bg-green-400" : "bg-muted-foreground/30"
                 }`}
-                onClick={() => toggleTask(task.id)}
+                onClick={() => void toggleTask(task.id)}
                 title={task.enabled ? "Disable" : "Enable"}
               />
               <div className="flex min-w-0 flex-1 flex-col">
@@ -188,7 +250,7 @@ export function TaskPanel() {
               <button
                 type="button"
                 className="shrink-0 text-[10px] text-muted-foreground/50 transition-colors hover:text-destructive-foreground"
-                onClick={() => deleteTask(task.id)}
+                onClick={() => void deleteTask(task.id)}
                 title="Delete"
               >
                 ×

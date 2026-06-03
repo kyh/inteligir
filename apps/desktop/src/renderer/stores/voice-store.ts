@@ -162,11 +162,9 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
       machine.dispatch({ type: "model_progress", progress: event });
     });
 
-    void bridge.getVoiceConfig().then((config) => {
-      if (cancelled || !config) return undefined;
+    void bridge.isTtsAvailable().then((available) => {
+      if (cancelled || !available) return undefined;
       pipeline = new VoicePipeline({
-        elevenlabsApiKey: config.elevenlabsApiKey,
-        elevenlabsVoiceId: config.elevenlabsVoiceId,
         onTranscriptPartial: (text) => {
           machine.dispatch({ type: "transcript_partial", text });
         },

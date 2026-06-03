@@ -89,14 +89,36 @@ export type ToggleTaskResult = { task: Task };
 export function formatSchedule(schedule: TaskSchedule): string {
   switch (schedule.type) {
     case "cron":
-      return `cron: ${schedule.cron}`;
+      return humanizeCron(schedule.cron);
     case "interval": {
       const mins = Math.round(schedule.intervalMs / 60_000);
-      if (mins < 60) return `every ${mins}m`;
+      if (mins < 60) return mins === 1 ? "every minute" : `every ${mins} minutes`;
       const hrs = Math.round(mins / 60);
-      return `every ${hrs}h`;
+      return hrs === 1 ? "every hour" : `every ${hrs} hours`;
     }
     case "once":
-      return `once: ${new Date(schedule.runAt).toLocaleString()}`;
+      return `once on ${new Date(schedule.runAt).toLocaleString()}`;
   }
+}
+
+const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+// Cheap English-ifier for the cron expressions our presets generate. Falls
+// back to the raw expression for shapes we don't cover.
+function humanizeCron(cron: string): string {
+  const [minute, hour, day, month, weekday] = cron.split(/\s+/);
+  if (!minute || !hour || !day || !month || !weekday) return cron;
+  if (day !== "*" || month !== "*") return cron;
+
+  const minN = Number(minute);
+  const hourN = Number(hour);
+  if (Number.isNaN(minN) || Number.isNaN(hourN)) return cron;
+  const time = `${hourN.toString().padStart(2, "0")}:${minN.toString().padStart(2, "0")}`;
+
+  if (weekday === "*") return `every day at ${time}`;
+  if (weekday === "1-5") return `every weekday at ${time}`;
+  if (/^[0-6]$/.test(weekday)) {
+    return `every ${DAY_NAMES[Number(weekday)]} at ${time}`;
+  }
+  return cron;
 }

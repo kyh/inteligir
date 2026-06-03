@@ -23,6 +23,7 @@ if (!app.isPackaged) {
 import { configurePaths } from "@/agent/paths";
 import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice/parakeet";
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
+import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-proxy";
 
 import {
   getAgent,
@@ -211,14 +212,10 @@ function registerIpcHandlers(): void {
 
   // ---- Voice ----------------------------------------------------------------
 
-  handle("getVoiceConfig", () => {
-    const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
-    if (!elevenlabsApiKey) return null;
-    return {
-      elevenlabsApiKey,
-      elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
-    };
-  });
+  handle("isTtsAvailable", () => ttsAvailable());
+  handle("ttsSend", ({ text }) => ttsSend(text));
+  handle("ttsFlush", () => ttsFlush());
+  handle("ttsInterrupt", () => ttsInterrupt());
 
   handle("startStt", async () => {
     const result = await initParakeet();

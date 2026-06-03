@@ -16,7 +16,7 @@ const helpers = vi.hoisted(
   (): {
     pipelineInstances: PipelineInstance[];
     bridgeMock: {
-      getVoiceConfig: ReturnType<typeof vi.fn<() => Promise<unknown>>>;
+      isTtsAvailable: ReturnType<typeof vi.fn<() => Promise<boolean>>>;
       getVoiceModelStatus: ReturnType<typeof vi.fn<() => Promise<"ready" | "missing">>>;
       downloadVoiceModel: ReturnType<typeof vi.fn<() => Promise<{ ok: boolean; error?: string }>>>;
       onVoiceModelState: ReturnType<typeof vi.fn<() => () => void>>;
@@ -25,7 +25,7 @@ const helpers = vi.hoisted(
   } => ({
     pipelineInstances: [],
     bridgeMock: {
-      getVoiceConfig: vi.fn<() => Promise<unknown>>(),
+      isTtsAvailable: vi.fn<() => Promise<boolean>>(),
       getVoiceModelStatus: vi.fn<() => Promise<"ready" | "missing">>(),
       downloadVoiceModel: vi.fn<() => Promise<{ ok: boolean; error?: string }>>(),
       onVoiceModelState: vi.fn(() => () => {}),
@@ -84,10 +84,7 @@ describe("voice-store", () => {
     vi.clearAllMocks();
     helpers.pipelineInstances.length = 0;
     useVoiceStore.getState().reset();
-    helpers.bridgeMock.getVoiceConfig.mockResolvedValue({
-      elevenlabsApiKey: "k",
-      elevenlabsVoiceId: "v",
-    });
+    helpers.bridgeMock.isTtsAvailable.mockResolvedValue(true);
   });
 
   afterEach(() => {

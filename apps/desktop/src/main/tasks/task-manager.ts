@@ -171,10 +171,12 @@ export class TaskManager {
       return updated.length > MAX_RUNS ? updated.slice(-MAX_RUNS) : updated;
     });
 
-    const prefix = `[Scheduled task: ${task.label}]\n\n`;
-
     try {
-      await agent.sendMessage(prefix + task.prompt);
+      // No inline `[Scheduled task: ...]` prefix — the task system already
+      // tracks which run produced what via TaskRunLog, and prepending a
+      // string the agent then has to parse out contaminates the single
+      // persistent thread the user sees in the chat panel.
+      await agent.sendMessage(task.prompt);
       const finished = await agent.waitForIdle(TASK_TIMEOUT_MS);
 
       if (!finished) {
