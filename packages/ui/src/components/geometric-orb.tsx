@@ -570,7 +570,7 @@ function OrbLine({
   material,
 }: {
   lineIdx: number;
-  groupRefs: React.MutableRefObject<(THREE.Group | null)[]>;
+  groupRefs: React.RefObject<(THREE.Group | null)[]>;
   geometry: LineGeometry;
   material: LineMaterial;
 }) {

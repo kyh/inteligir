@@ -9,40 +9,12 @@ import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { springs } from "@repo/ui/lib/springs";
 import { getShape } from "@repo/ui/lib/shape";
+import { stripMotionConflicts } from "@repo/ui/lib/motion-bridge";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
 
 // A dialog floats four elevation steps above whatever surface it opens over.
 const DIALOG_OFFSET = 4;
-
-// framer-motion needs these stripped from Base UI's render-prop props so its
-// own (incompatible) drag/animation handler signatures win on the motion.div.
-type StrippedProps = Omit<
-  React.HTMLAttributes<HTMLDivElement>,
-  | "onDrag"
-  | "onDragStart"
-  | "onDragEnd"
-  | "onAnimationStart"
-  | "onAnimationEnd"
-  | "onAnimationIteration"
->;
-
-function stripMotionConflicts(props: React.HTMLAttributes<HTMLDivElement>): {
-  style?: React.CSSProperties;
-  rest: StrippedProps;
-} {
-  const {
-    style,
-    onDrag: _onDrag,
-    onDragStart: _onDragStart,
-    onDragEnd: _onDragEnd,
-    onAnimationStart: _onAnimationStart,
-    onAnimationEnd: _onAnimationEnd,
-    onAnimationIteration: _onAnimationIteration,
-    ...rest
-  } = props;
-  return { style: style as React.CSSProperties | undefined, rest };
-}
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;

@@ -25,6 +25,7 @@ import { getShape } from "@repo/ui/lib/shape";
 import { useSurface } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
+import { useMergeRefs } from "@repo/ui/hooks/use-merge-refs";
 
 /* ─────────────────────── Contexts ─────────────────────── */
 
@@ -166,6 +167,8 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
       [registerItem],
     );
 
+    const mergedListRef = useMergeRefs<HTMLDivElement>(containerRef, ref);
+
     useEffect(() => {
       measureItems();
     }, [measureItems, children]);
@@ -227,11 +230,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
         <TabsPrimitive.List
           // Match Radix's `activationMode="automatic"` — arrow keys move + activate.
           activateOnFocus
-          ref={(node) => {
-            (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
-            if (typeof ref === "function") ref(node);
-            else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
-          }}
+          ref={mergedListRef}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onFocus={(e) => {
@@ -377,18 +376,12 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
 
     const isSelected = selectedValue === value;
     const isActive = hoveredIndex === _index || isSelected;
+    const mergedTabRef = useMergeRefs<HTMLButtonElement>(internalRef, ref);
 
     return (
       <TabsPrimitive.Tab
         onClick={() => setOptimisticIdx(_index)}
-        ref={(node) => {
-          (internalRef as React.MutableRefObject<HTMLElement | null>).current =
-            node as HTMLButtonElement | null;
-          if (typeof ref === "function") ref(node as HTMLButtonElement);
-          else if (ref)
-            (ref as React.MutableRefObject<HTMLButtonElement | null>).current =
-              node as HTMLButtonElement | null;
-        }}
+        ref={mergedTabRef}
         value={value}
         data-proximity-index={_index}
         className={cn(
