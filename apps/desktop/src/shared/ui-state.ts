@@ -4,13 +4,13 @@
 // and any other view preference the renderer wants to survive restarts.
 // ---------------------------------------------------------------------------
 
-import { z } from "zod";
+import { type Static, Type } from "@sinclair/typebox";
 
-export const UiStateSchema = z.record(z.string(), z.unknown());
+export const UiStateSchema = Type.Record(Type.String(), Type.Unknown());
 
-export type UiState = z.infer<typeof UiStateSchema>;
+export type UiState = Static<typeof UiStateSchema>;
 
-export const UiStateSetSchema = z.object({
-  key: z.string().min(1),
-  value: z.unknown(),
-});
+export const UiStateSetSchema = Type.Object(
+  { key: Type.String({ minLength: 1 }), value: Type.Unknown() },
+  { additionalProperties: false },
+);

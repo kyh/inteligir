@@ -1,79 +1,93 @@
-import { z } from "zod";
+import { type Static, Type } from "@sinclair/typebox";
 
 // ---------------------------------------------------------------------------
 // Task schedule schemas — discriminated union
 // ---------------------------------------------------------------------------
 
-const CronScheduleSchema = z.object({
-  type: z.literal("cron"),
-  cron: z.string(),
-});
+const CronScheduleSchema = Type.Object(
+  { type: Type.Literal("cron"), cron: Type.String() },
+  { additionalProperties: false },
+);
 
-const IntervalScheduleSchema = z.object({
-  type: z.literal("interval"),
-  intervalMs: z.number().int().positive(),
-});
+const IntervalScheduleSchema = Type.Object(
+  { type: Type.Literal("interval"), intervalMs: Type.Integer({ minimum: 1 }) },
+  { additionalProperties: false },
+);
 
-const OnceScheduleSchema = z.object({
-  type: z.literal("once"),
-  runAt: z.number(),
-});
+const OnceScheduleSchema = Type.Object(
+  { type: Type.Literal("once"), runAt: Type.Number() },
+  { additionalProperties: false },
+);
 
-export const TaskScheduleSchema = z.discriminatedUnion("type", [
+export const TaskScheduleSchema = Type.Union([
   CronScheduleSchema,
   IntervalScheduleSchema,
   OnceScheduleSchema,
 ]);
 
-export type TaskSchedule = z.infer<typeof TaskScheduleSchema>;
+export type TaskSchedule = Static<typeof TaskScheduleSchema>;
 
 // ---------------------------------------------------------------------------
 // Task schema
 // ---------------------------------------------------------------------------
 
-const TaskSchema = z.object({
-  id: z.string(),
-  label: z.string(),
-  prompt: z.string(),
-  schedule: TaskScheduleSchema,
-  enabled: z.boolean(),
-  lastRunAt: z.number().nullable(),
-  createdAt: z.number(),
-});
+export const TaskSchema = Type.Object(
+  {
+    id: Type.String(),
+    label: Type.String(),
+    prompt: Type.String(),
+    schedule: TaskScheduleSchema,
+    enabled: Type.Boolean(),
+    lastRunAt: Type.Union([Type.Number(), Type.Null()]),
+    createdAt: Type.Number(),
+  },
+  { additionalProperties: false },
+);
 
-export type Task = z.infer<typeof TaskSchema>;
+export type Task = Static<typeof TaskSchema>;
 
-export const TasksFileSchema = z.object({
-  tasks: z.array(TaskSchema),
-});
+export const TasksFileSchema = Type.Object(
+  { tasks: Type.Array(TaskSchema) },
+  { additionalProperties: false },
+);
 
 // ---------------------------------------------------------------------------
 // Task run log — per-execution tracking
 // ---------------------------------------------------------------------------
 
-export const TaskRunLogSchema = z.object({
-  id: z.string(),
-  taskId: z.string(),
-  startedAt: z.number(),
-  durationMs: z.number().nullable(),
-  status: z.enum(["running", "completed", "failed"]),
-  error: z.string().nullable(),
-  resultSummary: z.string().nullable(),
-});
+export const TaskRunLogSchema = Type.Object(
+  {
+    id: Type.String(),
+    taskId: Type.String(),
+    startedAt: Type.Number(),
+    durationMs: Type.Union([Type.Number(), Type.Null()]),
+    status: Type.Union([
+      Type.Literal("running"),
+      Type.Literal("completed"),
+      Type.Literal("failed"),
+    ]),
+    error: Type.Union([Type.String(), Type.Null()]),
+    resultSummary: Type.Union([Type.String(), Type.Null()]),
+  },
+  { additionalProperties: false },
+);
 
-export type TaskRunLog = z.infer<typeof TaskRunLogSchema>;
+export type TaskRunLog = Static<typeof TaskRunLogSchema>;
 
 // ---------------------------------------------------------------------------
 // Method params & results
 // ---------------------------------------------------------------------------
 
-export const CreateTaskParamsSchema = z.object({
-  label: z.string().min(1),
-  prompt: z.string().min(1),
-  schedule: TaskScheduleSchema,
-});
+export const CreateTaskParamsSchema = Type.Object(
+  {
+    label: Type.String({ minLength: 1 }),
+    prompt: Type.String({ minLength: 1 }),
+    schedule: TaskScheduleSchema,
+  },
+  { additionalProperties: false },
+);
 
-export type CreateTaskParams = z.infer<typeof CreateTaskParamsSchema>;
+export type CreateTaskParams = Static<typeof CreateTaskParamsSchema>;
 export type CreateTaskResult = { task: Task };
 
 export type ListTasksResult = { tasks: Task[] };

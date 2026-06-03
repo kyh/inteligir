@@ -3,61 +3,54 @@
 // Pure function — no Electron dependency. Testable in plain Node.
 // ---------------------------------------------------------------------------
 
-import { z } from "zod";
+import { Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
+
 import type { AppAgentEvent } from "./agent-events";
 import { extractText, isRecord } from "./ipc";
 
 // ---------------------------------------------------------------------------
-// Per-event-type Zod schemas (only the 8 types the app cares about)
+// Per-event-type schemas (only the 8 types the app cares about)
 // ---------------------------------------------------------------------------
 
-const AgentStartSchema = z.object({ type: z.literal("agent_start") });
-const AgentEndSchema = z.object({ type: z.literal("agent_end") });
-
-const MessageStartSchema = z.object({
-  type: z.literal("message_start"),
-  message: z.object({ role: z.string() }),
+const MessageStartSchema = Type.Object({
+  message: Type.Object({ role: Type.String() }),
 });
 
-const MessageUpdateSchema = z.object({
-  type: z.literal("message_update"),
-  assistantMessageEvent: z.object({
-    type: z.string(),
-    delta: z.string().optional(),
+const MessageUpdateSchema = Type.Object({
+  assistantMessageEvent: Type.Object({
+    type: Type.String(),
+    delta: Type.Optional(Type.String()),
   }),
 });
 
-const MessageEndSchema = z.object({
-  type: z.literal("message_end"),
+const MessageEndSchema = Type.Object({
   // pi-coding-agent puts stopReason and errorMessage on the *message* object,
   // not at the top level of the event. Reading them from the top level
   // silently swallows every provider error as "unknown stop reason."
-  message: z.object({
-    role: z.string(),
-    content: z.array(z.unknown()).default([]),
-    stopReason: z.string().optional(),
-    errorMessage: z.string().optional(),
+  message: Type.Object({
+    role: Type.String(),
+    content: Type.Optional(Type.Array(Type.Unknown())),
+    stopReason: Type.Optional(Type.String()),
+    errorMessage: Type.Optional(Type.String()),
   }),
 });
 
-const ToolExecutionStartSchema = z.object({
-  type: z.literal("tool_execution_start"),
-  toolCallId: z.string(),
-  toolName: z.string(),
-  args: z.unknown().optional(),
+const ToolExecutionStartSchema = Type.Object({
+  toolCallId: Type.String(),
+  toolName: Type.String(),
+  args: Type.Optional(Type.Unknown()),
 });
 
-const ToolExecutionEndSchema = z.object({
-  type: z.literal("tool_execution_end"),
-  toolCallId: z.string(),
-  isError: z.boolean(),
-  result: z.unknown(),
+const ToolExecutionEndSchema = Type.Object({
+  toolCallId: Type.String(),
+  isError: Type.Boolean(),
+  result: Type.Unknown(),
 });
 
-const QueueUpdateSchema = z.object({
-  type: z.literal("queue_update"),
-  steering: z.array(z.string()).default([]),
-  followUp: z.array(z.string()).default([]),
+const QueueUpdateSchema = Type.Object({
+  steering: Type.Optional(Type.Array(Type.String())),
+  followUp: Type.Optional(Type.Array(Type.String())),
 });
 
 // ---------------------------------------------------------------------------
@@ -70,77 +63,67 @@ const QueueUpdateSchema = z.object({
  * Never throws.
  */
 export function parseAgentEvent(raw: unknown): AppAgentEvent | null {
-  if (!isRecord(raw) || typeof raw.type !== "string") return null;
+  if (!isRecord(raw) || typeof raw["type"] !== "string") return null;
 
-  switch (raw.type) {
-    case "agent_start": {
-      const r = AgentStartSchema.safeParse(raw);
-      return r.success ? { type: "agent_start" } : null;
-    }
+  switch (raw["type"]) {
+    case "agent_start":
+      return { type: "agent_start" };
 
-    case "agent_end": {
-      const r = AgentEndSchema.safeParse(raw);
-      return r.success ? { type: "agent_end" } : null;
-    }
+    case "agent_end":
+      return { type: "agent_end" };
 
     case "message_start": {
-      const r = MessageStartSchema.safeParse(raw);
-      if (!r.success) return null;
-      const role = r.data.message.role;
+      if (!Value.Check(MessageStartSchema, raw)) return null;
+      const role = raw.message.role;
       if (role !== "assistant" && role !== "user") return null;
       return { type: "message_start", role };
     }
 
     case "message_update": {
-      const r = MessageUpdateSchema.safeParse(raw);
-      if (!r.success) return null;
-      const ame = r.data.assistantMessageEvent;
+      if (!Value.Check(MessageUpdateSchema, raw)) return null;
+      const ame = raw.assistantMessageEvent;
       // Only text_delta events carry meaningful content for the renderer
       if (ame.type !== "text_delta" || !ame.delta) return null;
       return { type: "message_update", delta: ame.delta };
     }
 
     case "message_end": {
-      const r = MessageEndSchema.safeParse(raw);
-      if (!r.success) return null;
+      if (!Value.Check(MessageEndSchema, raw)) return null;
       return {
         type: "message_end",
-        role: r.data.message.role,
-        text: extractText(r.data.message),
-        stopReason: r.data.message.stopReason,
-        errorMessage: r.data.message.errorMessage,
+        role: raw.message.role,
+        text: extractText(raw.message),
+        stopReason: raw.message.stopReason,
+        errorMessage: raw.message.errorMessage,
       };
     }
 
     case "tool_execution_start": {
-      const r = ToolExecutionStartSchema.safeParse(raw);
-      if (!r.success) return null;
+      if (!Value.Check(ToolExecutionStartSchema, raw)) return null;
       return {
         type: "tool_execution_start",
-        toolCallId: r.data.toolCallId,
-        toolName: r.data.toolName,
-        args: r.data.args,
+        toolCallId: raw.toolCallId,
+        toolName: raw.toolName,
+        args: raw.args,
       };
     }
 
     case "tool_execution_end": {
-      const r = ToolExecutionEndSchema.safeParse(raw);
-      if (!r.success) return null;
+      if (!Value.Check(ToolExecutionEndSchema, raw)) return null;
       return {
         type: "tool_execution_end",
-        toolCallId: r.data.toolCallId,
-        isError: r.data.isError,
-        resultText: extractText(r.data.result),
+        toolCallId: raw.toolCallId,
+        isError: raw.isError,
+        resultText: extractText(raw.result),
       };
     }
 
     case "queue_update": {
-      const r = QueueUpdateSchema.safeParse(raw);
-      if (!r.success) return null;
+      if (!Value.Check(QueueUpdateSchema, raw)) return null;
       return {
         type: "queue_update",
-        steering: [...r.data.steering],
-        followUp: [...r.data.followUp],
+        steering: [...(raw.steering ?? [])],
+        followUp: [...(raw.followUp ?? [])],
       };
     }
 

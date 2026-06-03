@@ -17,8 +17,7 @@
     "@trpc/server": "catalog:",
     "better-auth": "catalog:",
     "next": "catalog:",
-    "superjson": "catalog:",
-    "zod": "catalog:"
+    "superjson": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",

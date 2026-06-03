@@ -1,81 +1,82 @@
-import { z } from "zod";
+import { type Static, Type } from "@sinclair/typebox";
 
-import type { Shell } from "@/shared/shell";
-import { type WidgetSpec, parseWidgetSpec } from "@/shared/widget-spec";
+const GeometrySchema = Type.Object(
+  {
+    x: Type.Number(),
+    y: Type.Number(),
+    w: Type.Number(),
+    h: Type.Number(),
+    minW: Type.Optional(Type.Number()),
+    minH: Type.Optional(Type.Number()),
+  },
+  { additionalProperties: false },
+);
 
-// WidgetSpec is validated via TypeBox in widget-spec.ts. Wrap the parser as a
-// Zod schema so we can compose it into ShellSchema for the on-disk JsonStore.
-const WidgetSpecZod: z.ZodType<WidgetSpec> = z.unknown().transform((value, ctx) => {
-  try {
-    return parseWidgetSpec(value);
-  } catch (err) {
-    ctx.addIssue({
-      code: "custom",
-      message: err instanceof Error ? err.message : "invalid widget spec",
-    });
-    return z.NEVER;
-  }
-});
+const RectSchema = Type.Object(
+  {
+    x: Type.Number(),
+    y: Type.Number(),
+    width: Type.Number(),
+    height: Type.Number(),
+  },
+  { additionalProperties: false },
+);
 
-const GeometrySchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  w: z.number(),
-  h: z.number(),
-  minW: z.number().optional(),
-  minH: z.number().optional(),
-});
+// WidgetSpec is validated via parseWidgetSpec (TypeBox + cycle check) at the
+// boundary that produces it (install/update/patch in shell.ts). The on-disk
+// field is kept as Unknown here so a malformed spec on disk doesn't reject
+// the whole shell — consumers parseWidgetSpec it on access.
+const JsonUiDefSchema = Type.Object(
+  {
+    id: Type.String(),
+    title: Type.String(),
+    description: Type.Optional(Type.String()),
+    revision: Type.Number(),
+    singleton: Type.Literal(false),
+    defaultGeometry: GeometrySchema,
+    source: Type.Object(
+      {
+        kind: Type.Literal("json-ui"),
+        spec: Type.Unknown(),
+        createdAt: Type.Number(),
+        updatedAt: Type.Number(),
+      },
+      { additionalProperties: false },
+    ),
+  },
+  { additionalProperties: false },
+);
 
-const RectSchema = z.object({
-  x: z.number(),
-  y: z.number(),
-  width: z.number(),
-  height: z.number(),
-});
+const PinnedPlacementSchema = Type.Object(
+  { surface: Type.Literal("pinned"), geometry: GeometrySchema },
+  { additionalProperties: false },
+);
 
-const JsonUiDefSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string().optional(),
-  revision: z.number(),
-  singleton: z.literal(false),
-  defaultGeometry: GeometrySchema,
-  source: z.object({
-    kind: z.literal("json-ui"),
-    spec: WidgetSpecZod,
-    createdAt: z.number(),
-    updatedAt: z.number(),
-  }),
-});
+const FloatingPlacementSchema = Type.Object(
+  { surface: Type.Literal("floating"), rect: RectSchema, z: Type.Number() },
+  { additionalProperties: false },
+);
 
-const PinnedPlacementSchema = z.object({
-  surface: z.literal("pinned"),
-  geometry: GeometrySchema,
-});
+const PlacementSchema = Type.Union([PinnedPlacementSchema, FloatingPlacementSchema]);
 
-const FloatingPlacementSchema = z.object({
-  surface: z.literal("floating"),
-  rect: RectSchema,
-  z: z.number(),
-});
+const WidgetInstanceSchema = Type.Object(
+  {
+    instanceId: Type.String(),
+    widgetId: Type.String(),
+    placement: PlacementSchema,
+    state: Type.Record(Type.String(), Type.Unknown()),
+  },
+  { additionalProperties: false },
+);
 
-const PlacementSchema = z.discriminatedUnion("surface", [
-  PinnedPlacementSchema,
-  FloatingPlacementSchema,
-]);
+export const ShellSchema = Type.Object(
+  {
+    version: Type.Literal(2),
+    customDefs: Type.Array(JsonUiDefSchema),
+    instances: Type.Array(WidgetInstanceSchema),
+    archivedStates: Type.Record(Type.String(), Type.Record(Type.String(), Type.Unknown())),
+  },
+  { additionalProperties: false },
+);
 
-const WidgetInstanceSchema = z.object({
-  instanceId: z.string(),
-  widgetId: z.string(),
-  placement: PlacementSchema,
-  state: z.record(z.string(), z.unknown()),
-});
-
-export const ShellSchema: z.ZodType<Shell> = z.object({
-  version: z.literal(2),
-  customDefs: z.array(JsonUiDefSchema),
-  instances: z.array(WidgetInstanceSchema),
-  // Default for forward-compat with on-disk shells written before this field
-  // existed; new installs start empty.
-  archivedStates: z.record(z.string(), z.record(z.string(), z.unknown())).default({}),
-});
+export type ShellSchemaT = Static<typeof ShellSchema>;

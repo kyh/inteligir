@@ -2,15 +2,23 @@
 
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Type } from "@sinclair/typebox";
 import { Button } from "@repo/ui/components/button";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@repo/ui/components/field";
 import { Input } from "@repo/ui/components/input";
 import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 import { useForm } from "@tanstack/react-form";
-import { z } from "zod";
 
 import { authClient } from "@/lib/auth-client";
+import { tb } from "@/lib/form-schema";
+
+const EmailField = Type.String({ format: "email", minLength: 1 });
+const PasswordField = Type.String({ minLength: 1 });
+const PasswordMin8 = Type.String({ minLength: 8 });
+
+const LoginSchema = tb(Type.Object({ email: EmailField, password: PasswordField }));
+const EmailOnlySchema = tb(Type.Object({ email: EmailField }));
 
 type AuthFormProps = {
   type: "login" | "register";
@@ -34,10 +42,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
       password: "",
     },
     validators: {
-      onSubmit: z.object({
-        email: z.email("Invalid email address"),
-        password: z.string().min(1, "Password is required"),
-      }),
+      onSubmit: LoginSchema,
     },
     onSubmit: async ({ value }) => {
       if (type === "register") {
@@ -121,7 +126,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
           <form.Field
             name="email"
             validators={{
-              onBlur: z.email("Invalid email address"),
+              onBlur: tb(EmailField),
             }}
           >
             {(field) => {
@@ -157,7 +162,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
           <form.Field
             name="password"
             validators={{
-              onBlur: z.string().min(1, "Password is required"),
+              onBlur: tb(PasswordField),
             }}
           >
             {(field) => {
@@ -205,9 +210,7 @@ export const RequestPasswordResetForm = () => {
       email: "",
     },
     validators: {
-      onSubmit: z.object({
-        email: z.email("Invalid email address"),
-      }),
+      onSubmit: EmailOnlySchema,
     },
     onSubmit: async ({ value }) => {
       await authClient.requestPasswordReset({
@@ -249,7 +252,7 @@ export const RequestPasswordResetForm = () => {
         <form.Field
           name="email"
           validators={{
-            onBlur: z.email("Invalid email address"),
+            onBlur: tb(EmailField),
           }}
         >
           {(field) => {
@@ -298,15 +301,14 @@ export const UpdatePasswordForm = () => {
       confirmPassword: "",
     },
     validators: {
-      onSubmit: z
-        .object({
-          password: z.string().min(8, "Password must be at least 8 characters"),
-          confirmPassword: z.string(),
-        })
-        .refine((data) => data.password === data.confirmPassword, {
-          message: "Passwords don't match",
-          path: ["confirmPassword"],
-        }),
+      // Cross-field "passwords match" check runs inside the form-level
+      // onSubmit instead of inside the schema (TypeBox doesn't have a
+      // built-in "refine"). The password-length check stays at the field
+      // level so the user gets immediate per-field feedback.
+      onSubmit: ({ value }) =>
+        value.password === value.confirmPassword
+          ? undefined
+          : { fields: { confirmPassword: "Passwords don't match" } },
     },
     onSubmit: async ({ value }) => {
       await authClient.resetPassword({
@@ -336,7 +338,7 @@ export const UpdatePasswordForm = () => {
         <form.Field
           name="password"
           validators={{
-            onBlur: z.string().min(8, "Password must be at least 8 characters"),
+            onBlur: tb(PasswordMin8),
           }}
         >
           {(field) => {

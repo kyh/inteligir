@@ -237,11 +237,13 @@ export type ShellSnapshot = {
 // Agent / IPC inputs
 // ---------------------------------------------------------------------------
 
+// Inputs cross the IPC boundary, so `spec` arrives as `unknown` — the
+// receiver runs parseWidgetSpec to deep-validate before persisting.
 export type InstallWidgetInput = {
   id?: string;
   title: string;
   description?: string;
-  spec: WidgetSpec;
+  spec: unknown;
 };
 
 export type UpdateWidgetInput = {
@@ -249,7 +251,7 @@ export type UpdateWidgetInput = {
   expectedRevision: number;
   title?: string;
   description?: string;
-  spec: WidgetSpec;
+  spec: unknown;
 };
 
 export type WidgetPatchInput = {

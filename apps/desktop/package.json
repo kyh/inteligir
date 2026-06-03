@@ -27,7 +27,7 @@
     "@repo/agent-runtime": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@repo/ui": "workspace:^",
-    "@sinclair/typebox": "^0.34.49",
+    "@sinclair/typebox": "catalog:",
     "ai": "^6.0.191",
     "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
@@ -40,7 +40,7 @@
     "sherpa-onnx-node": "^1.10.41",
     "tar": "^7.5.15",
     "unbzip2-stream": "^1.4.3",
-    "zod": "catalog:",
+    "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
   "optionalDependencies": {

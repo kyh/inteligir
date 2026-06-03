@@ -5,200 +5,284 @@
 // scopeId, so renderer-facing calls omit it.
 // ---------------------------------------------------------------------------
 
-import { z } from "zod";
+import { type Static, Type } from "@sinclair/typebox";
 
-export const ExecutorSourceSchema = z.object({
-  id: z.string(),
-  scopeId: z.string().nullish(),
-  name: z.string(),
-  // The namespace the source was registered under (what tool calls are prefixed
-  // with). Present on newer daemons; when absent, the source id is the namespace.
-  namespace: z.string().nullish(),
-  // "mcp" | "openapi" | "graphql" | "googleDiscovery" | "built-in" | ...
-  kind: z.string(),
-  url: z.string().nullish(),
-  runtime: z.boolean().optional(),
-  canRemove: z.boolean().optional(),
-  canRefresh: z.boolean().optional(),
-  canEdit: z.boolean().optional(),
-});
-export type ExecutorSource = z.infer<typeof ExecutorSourceSchema>;
+// Helpers — TypeBox doesn't have a built-in `.nullish()`; spell it out.
+const NullishString = Type.Optional(Type.Union([Type.String(), Type.Null()]));
+const NullableNumber = Type.Union([Type.Number(), Type.Null()]);
+const NullableString = Type.Union([Type.String(), Type.Null()]);
 
-export const ExecutorDetectResultSchema = z.object({
-  kind: z.string(),
-  confidence: z.enum(["high", "medium", "low"]),
-  endpoint: z.string(),
-  name: z.string(),
-  namespace: z.string(),
-});
-export type ExecutorDetectResult = z.infer<typeof ExecutorDetectResultSchema>;
+export const ExecutorSourceSchema = Type.Object(
+  {
+    id: Type.String(),
+    scopeId: NullishString,
+    name: Type.String(),
+    // The namespace the source was registered under (what tool calls are prefixed
+    // with). Present on newer daemons; when absent, the source id is the namespace.
+    namespace: NullishString,
+    // "mcp" | "openapi" | "graphql" | "googleDiscovery" | "built-in" | ...
+    kind: Type.String(),
+    url: NullishString,
+    runtime: Type.Optional(Type.Boolean()),
+    canRemove: Type.Optional(Type.Boolean()),
+    canRefresh: Type.Optional(Type.Boolean()),
+    canEdit: Type.Optional(Type.Boolean()),
+  },
+  { additionalProperties: false },
+);
+export type ExecutorSource = Static<typeof ExecutorSourceSchema>;
 
-export const ExecutorSecretRefSchema = z.object({
-  id: z.string(),
-  scopeId: z.string(),
-  name: z.string(),
-  provider: z.string(),
-  createdAt: z.number(),
-});
-export type ExecutorSecretRef = z.infer<typeof ExecutorSecretRefSchema>;
+export const ExecutorDetectResultSchema = Type.Object(
+  {
+    kind: Type.String(),
+    confidence: Type.Union([
+      Type.Literal("high"),
+      Type.Literal("medium"),
+      Type.Literal("low"),
+    ]),
+    endpoint: Type.String(),
+    name: Type.String(),
+    namespace: Type.String(),
+  },
+  { additionalProperties: false },
+);
+export type ExecutorDetectResult = Static<typeof ExecutorDetectResultSchema>;
 
-export const ExecutorConnectionRefSchema = z.object({
-  id: z.string(),
-  scopeId: z.string(),
-  provider: z.string(),
-  identityLabel: z.string().nullable(),
-  expiresAt: z.number().nullable(),
-  oauthScope: z.string().nullable(),
-  createdAt: z.number(),
-  updatedAt: z.number(),
-});
-export type ExecutorConnectionRef = z.infer<typeof ExecutorConnectionRefSchema>;
+export const ExecutorSecretRefSchema = Type.Object(
+  {
+    id: Type.String(),
+    scopeId: Type.String(),
+    name: Type.String(),
+    provider: Type.String(),
+    createdAt: Type.Number(),
+  },
+  { additionalProperties: false },
+);
+export type ExecutorSecretRef = Static<typeof ExecutorSecretRefSchema>;
+
+export const ExecutorConnectionRefSchema = Type.Object(
+  {
+    id: Type.String(),
+    scopeId: Type.String(),
+    provider: Type.String(),
+    identityLabel: NullableString,
+    expiresAt: NullableNumber,
+    oauthScope: NullableString,
+    createdAt: Type.Number(),
+    updatedAt: Type.Number(),
+  },
+  { additionalProperties: false },
+);
+export type ExecutorConnectionRef = Static<typeof ExecutorConnectionRefSchema>;
 
 /** Result of POST /executions and /executions/:id/resume. */
-export const ExecutorExecuteResultSchema = z.discriminatedUnion("status", [
-  z.object({
-    status: z.literal("completed"),
-    text: z.string(),
-    structured: z.unknown(),
-    isError: z.boolean(),
-  }),
-  z.object({
-    status: z.literal("paused"),
-    text: z.string(),
-    structured: z.unknown(),
-  }),
+export const ExecutorExecuteResultSchema = Type.Union([
+  Type.Object(
+    {
+      status: Type.Literal("completed"),
+      text: Type.String(),
+      structured: Type.Unknown(),
+      isError: Type.Boolean(),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      status: Type.Literal("paused"),
+      text: Type.String(),
+      structured: Type.Unknown(),
+    },
+    { additionalProperties: false },
+  ),
 ]);
-export type ExecutorExecuteResult = z.infer<typeof ExecutorExecuteResultSchema>;
+export type ExecutorExecuteResult = Static<typeof ExecutorExecuteResultSchema>;
 
-export const ExecutorAddSourceResultSchema = z.object({
-  toolCount: z.number(),
-  namespace: z.string(),
-});
-export type ExecutorAddSourceResult = z.infer<typeof ExecutorAddSourceResultSchema>;
+export const ExecutorAddSourceResultSchema = Type.Object(
+  { toolCount: Type.Number(), namespace: Type.String() },
+  { additionalProperties: false },
+);
+export type ExecutorAddSourceResult = Static<typeof ExecutorAddSourceResultSchema>;
 
-export const ExecutorRemoveResultSchema = z.object({ removed: z.boolean() });
-export const ExecutorRefreshResultSchema = z.object({ refreshed: z.boolean() });
+export const ExecutorRemoveResultSchema = Type.Object(
+  { removed: Type.Boolean() },
+  { additionalProperties: false },
+);
+export const ExecutorRefreshResultSchema = Type.Object(
+  { refreshed: Type.Boolean() },
+  { additionalProperties: false },
+);
 
 // ---- add-source request payloads (per plugin kind) ------------------------
 
-const ExecutorConfiguredValueSchema = z.union([
-  z.string(),
-  z.object({
-    secretId: z.string().min(1),
-    prefix: z.string().optional(),
-  }),
+const ExecutorConfiguredValueSchema = Type.Union([
+  Type.String(),
+  Type.Object(
+    {
+      secretId: Type.String({ minLength: 1 }),
+      prefix: Type.Optional(Type.String()),
+    },
+    { additionalProperties: false },
+  ),
 ]);
-const ExecutorConfiguredMapSchema = z.record(z.string(), ExecutorConfiguredValueSchema);
+const ExecutorConfiguredMapSchema = Type.Record(Type.String(), ExecutorConfiguredValueSchema);
 
-const AddMcpRemoteSourceInputSchema = z.object({
-  transport: z.literal("remote"),
-  name: z.string().min(1),
-  endpoint: z.string().min(1),
-  remoteTransport: z.enum(["streamable-http", "sse", "auto"]).optional(),
-  namespace: z.string().min(1).optional(),
-  headers: ExecutorConfiguredMapSchema.optional(),
-  queryParams: ExecutorConfiguredMapSchema.optional(),
-});
+const AddMcpRemoteSourceInputSchema = Type.Object(
+  {
+    transport: Type.Literal("remote"),
+    name: Type.String({ minLength: 1 }),
+    endpoint: Type.String({ minLength: 1 }),
+    remoteTransport: Type.Optional(
+      Type.Union([
+        Type.Literal("streamable-http"),
+        Type.Literal("sse"),
+        Type.Literal("auto"),
+      ]),
+    ),
+    namespace: Type.Optional(Type.String({ minLength: 1 })),
+    headers: Type.Optional(ExecutorConfiguredMapSchema),
+    queryParams: Type.Optional(ExecutorConfiguredMapSchema),
+  },
+  { additionalProperties: false },
+);
 
-const AddMcpStdioSourceInputSchema = z.object({
-  transport: z.literal("stdio"),
-  name: z.string().min(1),
-  command: z.string().min(1),
-  args: z.array(z.string()).optional(),
-  env: z.record(z.string(), z.string()).optional(),
-  cwd: z.string().optional(),
-  namespace: z.string().min(1).optional(),
-});
+const AddMcpStdioSourceInputSchema = Type.Object(
+  {
+    transport: Type.Literal("stdio"),
+    name: Type.String({ minLength: 1 }),
+    command: Type.String({ minLength: 1 }),
+    args: Type.Optional(Type.Array(Type.String())),
+    env: Type.Optional(Type.Record(Type.String(), Type.String())),
+    cwd: Type.Optional(Type.String()),
+    namespace: Type.Optional(Type.String({ minLength: 1 })),
+  },
+  { additionalProperties: false },
+);
 
-export const AddMcpSourceInputSchema = z.discriminatedUnion("transport", [
+export const AddMcpSourceInputSchema = Type.Union([
   AddMcpRemoteSourceInputSchema,
   AddMcpStdioSourceInputSchema,
 ]);
-export type AddMcpSourceInput = z.infer<typeof AddMcpSourceInputSchema>;
+export type AddMcpSourceInput = Static<typeof AddMcpSourceInputSchema>;
 
-const OpenApiSpecSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("url"), url: z.string().min(1) }),
-  z.object({ kind: z.literal("blob"), value: z.string().min(1) }),
+const OpenApiSpecSchema = Type.Union([
+  Type.Object(
+    { kind: Type.Literal("url"), url: Type.String({ minLength: 1 }) },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { kind: Type.Literal("blob"), value: Type.String({ minLength: 1 }) },
+    { additionalProperties: false },
+  ),
 ]);
 
-export const AddOpenApiSourceInputSchema = z.object({
-  spec: OpenApiSpecSchema,
-  name: z.string().min(1),
-  baseUrl: z.string().min(1),
-  namespace: z.string().min(1),
-  headers: ExecutorConfiguredMapSchema.optional(),
-  queryParams: ExecutorConfiguredMapSchema.optional(),
-});
-export type AddOpenApiSourceInput = z.infer<typeof AddOpenApiSourceInputSchema>;
+export const AddOpenApiSourceInputSchema = Type.Object(
+  {
+    spec: OpenApiSpecSchema,
+    name: Type.String({ minLength: 1 }),
+    baseUrl: Type.String({ minLength: 1 }),
+    namespace: Type.String({ minLength: 1 }),
+    headers: Type.Optional(ExecutorConfiguredMapSchema),
+    queryParams: Type.Optional(ExecutorConfiguredMapSchema),
+  },
+  { additionalProperties: false },
+);
+export type AddOpenApiSourceInput = Static<typeof AddOpenApiSourceInputSchema>;
 
-export const AddGraphqlSourceInputSchema = z.object({
-  endpoint: z.string().min(1),
-  name: z.string().min(1),
-  introspectionJson: z.string().optional(),
-  namespace: z.string().min(1),
-  headers: ExecutorConfiguredMapSchema.optional(),
-  queryParams: ExecutorConfiguredMapSchema.optional(),
-});
-export type AddGraphqlSourceInput = z.infer<typeof AddGraphqlSourceInputSchema>;
+export const AddGraphqlSourceInputSchema = Type.Object(
+  {
+    endpoint: Type.String({ minLength: 1 }),
+    name: Type.String({ minLength: 1 }),
+    introspectionJson: Type.Optional(Type.String()),
+    namespace: Type.String({ minLength: 1 }),
+    headers: Type.Optional(ExecutorConfiguredMapSchema),
+    queryParams: Type.Optional(ExecutorConfiguredMapSchema),
+  },
+  { additionalProperties: false },
+);
+export type AddGraphqlSourceInput = Static<typeof AddGraphqlSourceInputSchema>;
 
-const GoogleAuthSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("none") }),
-  z.object({
-    kind: z.literal("oauth2"),
-    connectionId: z.string().min(1),
-    clientIdSecretId: z.string().min(1),
-    clientSecretSecretId: z.string().min(1).nullable(),
-    scopes: z.array(z.string().min(1)),
-  }),
+const GoogleAuthSchema = Type.Union([
+  Type.Object({ kind: Type.Literal("none") }, { additionalProperties: false }),
+  Type.Object(
+    {
+      kind: Type.Literal("oauth2"),
+      connectionId: Type.String({ minLength: 1 }),
+      clientIdSecretId: Type.String({ minLength: 1 }),
+      clientSecretSecretId: Type.Union([Type.String({ minLength: 1 }), Type.Null()]),
+      scopes: Type.Array(Type.String({ minLength: 1 })),
+    },
+    { additionalProperties: false },
+  ),
 ]);
 
-export const AddGoogleSourceInputSchema = z.object({
-  name: z.string().min(1),
-  discoveryUrl: z.string().min(1),
-  namespace: z.string().min(1).optional(),
-  auth: GoogleAuthSchema,
-});
-export type AddGoogleSourceInput = z.infer<typeof AddGoogleSourceInputSchema>;
+export const AddGoogleSourceInputSchema = Type.Object(
+  {
+    name: Type.String({ minLength: 1 }),
+    discoveryUrl: Type.String({ minLength: 1 }),
+    namespace: Type.Optional(Type.String({ minLength: 1 })),
+    auth: GoogleAuthSchema,
+  },
+  { additionalProperties: false },
+);
+export type AddGoogleSourceInput = Static<typeof AddGoogleSourceInputSchema>;
 
-export const SetSecretInputSchema = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  value: z.string().min(1),
-  provider: z.string().min(1).optional(),
-});
-export type SetSecretInput = z.infer<typeof SetSecretInputSchema>;
+export const SetSecretInputSchema = Type.Object(
+  {
+    id: Type.String({ minLength: 1 }),
+    name: Type.String({ minLength: 1 }),
+    value: Type.String({ minLength: 1 }),
+    provider: Type.Optional(Type.String({ minLength: 1 })),
+  },
+  { additionalProperties: false },
+);
+export type SetSecretInput = Static<typeof SetSecretInputSchema>;
 
 // ---- OAuth ---------------------------------------------------------------
 
-export const OAuthStartInputSchema = z.object({
-  endpoint: z.string().min(1),
-  pluginId: z.string().min(1),
-  connectionId: z.string().min(1),
-  identityLabel: z.string().min(1).optional(),
-});
-export type OAuthStartInput = z.infer<typeof OAuthStartInputSchema>;
+export const OAuthStartInputSchema = Type.Object(
+  {
+    endpoint: Type.String({ minLength: 1 }),
+    pluginId: Type.String({ minLength: 1 }),
+    connectionId: Type.String({ minLength: 1 }),
+    identityLabel: Type.Optional(Type.String({ minLength: 1 })),
+  },
+  { additionalProperties: false },
+);
+export type OAuthStartInput = Static<typeof OAuthStartInputSchema>;
 
-export const OAuthStartResultSchema = z.object({
-  sessionId: z.string(),
-  authorizationUrl: z.string().nullable(),
-  completedConnection: z.object({ connectionId: z.string() }).nullable(),
-});
-export type OAuthStartResult = z.infer<typeof OAuthStartResultSchema>;
+export const OAuthStartResultSchema = Type.Object(
+  {
+    sessionId: Type.String(),
+    authorizationUrl: NullableString,
+    completedConnection: Type.Union([
+      Type.Object({ connectionId: Type.String() }, { additionalProperties: false }),
+      Type.Null(),
+    ]),
+  },
+  { additionalProperties: false },
+);
+export type OAuthStartResult = Static<typeof OAuthStartResultSchema>;
 
 /** Result polled from /api/oauth/await/:sessionId once the browser callback fires. */
-export const OAuthAwaitResultSchema = z.union([
-  z.object({
-    ok: z.literal(true),
-    sessionId: z.string(),
-    connectionId: z.string(),
-    expiresAt: z.number().nullable(),
-    scope: z.string().nullable(),
-  }),
-  z.object({
-    ok: z.literal(false),
-    sessionId: z.string().nullable(),
-    error: z.string(),
-    errorDetails: z.string().optional(),
-  }),
+export const OAuthAwaitResultSchema = Type.Union([
+  Type.Object(
+    {
+      ok: Type.Literal(true),
+      sessionId: Type.String(),
+      connectionId: Type.String(),
+      expiresAt: NullableNumber,
+      scope: NullableString,
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    {
+      ok: Type.Literal(false),
+      sessionId: NullableString,
+      error: Type.String(),
+      errorDetails: Type.Optional(Type.String()),
+    },
+    { additionalProperties: false },
+  ),
 ]);
-export type OAuthAwaitResult = z.infer<typeof OAuthAwaitResultSchema>;
+export type OAuthAwaitResult = Static<typeof OAuthAwaitResultSchema>;

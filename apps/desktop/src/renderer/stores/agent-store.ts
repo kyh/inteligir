@@ -2,6 +2,8 @@ import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
 import { create } from "zustand";
 
 import type { AppAgentEvent } from "@/shared/agent-events";
+import { Value } from "@sinclair/typebox/value";
+
 import { AppStateSchema, type AppState } from "@/shared/app-state";
 import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
 import type { ImageAttachment } from "@/shared/voice";
@@ -364,11 +366,10 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
 
 function subscribeAppState(bridge: DesktopBridge, set: SetFn): () => void {
   return bridge.onAppState((appState: unknown) => {
-    const parsed = AppStateSchema.safeParse(appState);
-    if (!parsed.success) return;
-    set({ appState: parsed.data });
+    if (!Value.Check(AppStateSchema, appState)) return;
+    set({ appState });
 
-    if (parsed.data.phase === "logged_out") {
+    if (appState.phase === "logged_out") {
       set({ messages: [], queuedFollowUp: [], queuedSteering: [], setupProgress: null });
       useVoiceStore.getState().reset();
     }

@@ -6,6 +6,9 @@
 // have to. Throws ExecutorClientError on a non-2xx response.
 // ---------------------------------------------------------------------------
 
+import { type Static, type TSchema, Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
+
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import {
   ExecutorAddSourceResultSchema,
@@ -33,7 +36,6 @@ import {
   type OAuthStartResult,
   type SetSecretInput,
 } from "@/shared/executor";
-import type { ZodType } from "zod";
 
 class ExecutorClientError extends Error {
   constructor(
@@ -80,12 +82,12 @@ async function readJsonResponse(method: string, fullPath: string, resp: Response
   }
 }
 
-async function request<T>(
+async function request<S extends TSchema>(
   method: string,
   path: string,
-  schema: ZodType<T>,
+  schema: S,
   opts: RequestOptions = {},
-): Promise<T> {
+): Promise<Static<S>> {
   // Resolve the connection once so a concurrent stop()/start() can't mix a
   // stale scopeId into the path with a fresh baseUrl/token.
   const conn = connection();
@@ -107,17 +109,16 @@ async function request<T>(
     );
   }
   const body = await readJsonResponse(method, fullPath, resp);
-  const result = schema.safeParse(body);
-  if (!result.success) {
+  if (!Value.Check(schema, body)) {
     throw new ExecutorClientError(`${method} ${fullPath}: invalid response shape`, resp.status);
   }
-  return result.data;
+  return body;
 }
 
 // ---- sources --------------------------------------------------------------
 
 export function listSources(): Promise<ExecutorSource[]> {
-  return request("GET", "/sources", ExecutorSourceSchema.array(), { scoped: true });
+  return request("GET", "/sources", Type.Array(ExecutorSourceSchema), { scoped: true });
 }
 
 export function removeSource(sourceId: string): Promise<{ removed: boolean }> {
@@ -133,7 +134,7 @@ export function refreshSource(sourceId: string): Promise<{ refreshed: boolean }>
 }
 
 export function detectSource(url: string): Promise<ExecutorDetectResult[]> {
-  return request("POST", "/sources/detect", ExecutorDetectResultSchema.array(), {
+  return request("POST", "/sources/detect", Type.Array(ExecutorDetectResultSchema), {
     scoped: true,
     body: { url },
   });
@@ -172,7 +173,7 @@ export function addGoogleSource(input: AddGoogleSourceInput): Promise<ExecutorAd
 // ---- secrets --------------------------------------------------------------
 
 export function listSecrets(): Promise<ExecutorSecretRef[]> {
-  return request("GET", "/secrets/all", ExecutorSecretRefSchema.array(), { scoped: true });
+  return request("GET", "/secrets/all", Type.Array(ExecutorSecretRefSchema), { scoped: true });
 }
 
 export function setSecret(input: SetSecretInput): Promise<ExecutorSecretRef> {
@@ -188,7 +189,7 @@ export function removeSecret(secretId: string): Promise<{ removed: boolean }> {
 // ---- connections ----------------------------------------------------------
 
 export function listConnections(): Promise<ExecutorConnectionRef[]> {
-  return request("GET", "/connections", ExecutorConnectionRefSchema.array(), { scoped: true });
+  return request("GET", "/connections", Type.Array(ExecutorConnectionRefSchema), { scoped: true });
 }
 
 export function removeConnection(connectionId: string): Promise<{ removed: boolean }> {
@@ -200,7 +201,6 @@ export function removeConnection(connectionId: string): Promise<{ removed: boole
 // ---- executions (code mode) ----------------------------------------------
 
 export function execute(code: string): Promise<ExecutorExecuteResult> {
-  // Code mode runs arbitrary agent code against remote APIs — allow long runs.
   return request("POST", "/executions", ExecutorExecuteResultSchema, {
     body: { code },
     timeoutMs: EXECUTION_TIMEOUT_MS,
@@ -227,7 +227,6 @@ export function resumeExecution(
 
 export function oauthStart(input: OAuthStartInput): Promise<OAuthStartResult> {
   const conn = connection();
-  // dynamic-dcr: zero pre-configured credentials; the daemon hosts the callback.
   return request(
     "POST",
     "/oauth/start",
@@ -259,14 +258,11 @@ export async function awaitOAuth(sessionId: string): Promise<OAuthAwaitResult | 
     cache: "no-store",
     signal: AbortSignal.timeout(5_000),
   });
-  // A non-2xx is a real backend failure (daemon down, route error) — surface it
-  // so the poller fails fast instead of mistaking it for "callback not fired".
   if (!resp.ok) {
     throw new ExecutorClientError(`oauth await failed (${resp.status})`, resp.status);
   }
   const body = await readJsonResponse("GET", fullPath, resp).catch(() => null);
   // Validate the discriminated union before returning — a malformed/partial
   // body must not be treated as a terminal ok/error result by the poller.
-  const result = OAuthAwaitResultSchema.safeParse(body);
-  return result.success ? result.data : null;
+  return Value.Check(OAuthAwaitResultSchema, body) ? body : null;
 }

@@ -2,27 +2,39 @@
 // Voice types shared between main <-> preload <-> renderer
 // ---------------------------------------------------------------------------
 
-import { z } from "zod";
+import { type Static, Type } from "@sinclair/typebox";
 
 // Image attachments — base64 data + mime, matches pi-ai's ImageContent shape.
-const ImageAttachmentSchema = z.object({
-  data: z.string().min(1),
-  mimeType: z.string().min(1),
-});
+const ImageAttachmentSchema = Type.Object(
+  {
+    data: Type.String({ minLength: 1 }),
+    mimeType: Type.String({ minLength: 1 }),
+  },
+  { additionalProperties: false },
+);
 
-export type ImageAttachment = z.infer<typeof ImageAttachmentSchema>;
+export type ImageAttachment = Static<typeof ImageAttachmentSchema>;
 
-const TextWithImagesSchema = z.object({
-  text: z.string(),
-  images: z.array(ImageAttachmentSchema).optional(),
-});
+const TextWithImagesObject = {
+  text: Type.String(),
+  images: Type.Optional(Type.Array(ImageAttachmentSchema)),
+};
 
 /** Messages sent between renderer and agent via IPC. */
-export const TextChatMessageSchema = z.discriminatedUnion("type", [
-  TextWithImagesSchema.extend({ type: z.literal("user_message") }),
-  TextWithImagesSchema.extend({ type: z.literal("steer") }),
-  TextWithImagesSchema.extend({ type: z.literal("follow_up") }),
-  z.object({ type: z.literal("interrupt") }),
+export const TextChatMessageSchema = Type.Union([
+  Type.Object(
+    { type: Type.Literal("user_message"), ...TextWithImagesObject },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { type: Type.Literal("steer"), ...TextWithImagesObject },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { type: Type.Literal("follow_up"), ...TextWithImagesObject },
+    { additionalProperties: false },
+  ),
+  Type.Object({ type: Type.Literal("interrupt") }, { additionalProperties: false }),
 ]);
 
-export type TextChatMessage = z.infer<typeof TextChatMessageSchema>;
+export type TextChatMessage = Static<typeof TextChatMessageSchema>;

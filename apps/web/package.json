@@ -27,7 +27,7 @@
     "react": "catalog:",
     "react-dom": "catalog:",
     "superjson": "catalog:",
-    "zod": "catalog:"
+    "@sinclair/typebox": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",

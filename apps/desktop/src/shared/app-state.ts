@@ -2,21 +2,21 @@
 // App lifecycle state machine types
 // ---------------------------------------------------------------------------
 
-import { z } from "zod";
+import { type Static, Type } from "@sinclair/typebox";
 
 // ---------------------------------------------------------------------------
 // External events — sent by renderer via IPC
 // ---------------------------------------------------------------------------
 
-export const AppEventSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("LOGIN") }),
-  z.object({ type: z.literal("SETUP") }),
-  z.object({ type: z.literal("LOGOUT") }),
-  z.object({ type: z.literal("RETRY") }),
-  z.object({ type: z.literal("NEW_SESSION") }),
+export const AppEventSchema = Type.Union([
+  Type.Object({ type: Type.Literal("LOGIN") }, { additionalProperties: false }),
+  Type.Object({ type: Type.Literal("SETUP") }, { additionalProperties: false }),
+  Type.Object({ type: Type.Literal("LOGOUT") }, { additionalProperties: false }),
+  Type.Object({ type: Type.Literal("RETRY") }, { additionalProperties: false }),
+  Type.Object({ type: Type.Literal("NEW_SESSION") }, { additionalProperties: false }),
 ]);
 
-export type AppEvent = z.infer<typeof AppEventSchema>;
+export type AppEvent = Static<typeof AppEventSchema>;
 
 // ---------------------------------------------------------------------------
 // Internal events — emitted by effect runner, never from renderer
@@ -39,18 +39,31 @@ export type MachineEvent = AppEvent | InternalEvent;
 // App state
 // ---------------------------------------------------------------------------
 
-export const AppStateSchema = z.discriminatedUnion("phase", [
-  z.object({ phase: z.literal("logged_out") }),
-  z.object({ phase: z.literal("logging_in") }),
-  z.object({ phase: z.literal("logged_in") }),
-  z.object({ phase: z.literal("setting_up") }),
-  z.object({ phase: z.literal("ready"), agent: z.enum(["idle", "busy"]) }),
-  z.object({ phase: z.literal("logging_out") }),
-  z.object({
-    phase: z.literal("error"),
-    prev: z.enum(["logging_in", "setting_up", "ready"]),
-    message: z.string(),
-  }),
+export const AppStateSchema = Type.Union([
+  Type.Object({ phase: Type.Literal("logged_out") }, { additionalProperties: false }),
+  Type.Object({ phase: Type.Literal("logging_in") }, { additionalProperties: false }),
+  Type.Object({ phase: Type.Literal("logged_in") }, { additionalProperties: false }),
+  Type.Object({ phase: Type.Literal("setting_up") }, { additionalProperties: false }),
+  Type.Object(
+    {
+      phase: Type.Literal("ready"),
+      agent: Type.Union([Type.Literal("idle"), Type.Literal("busy")]),
+    },
+    { additionalProperties: false },
+  ),
+  Type.Object({ phase: Type.Literal("logging_out") }, { additionalProperties: false }),
+  Type.Object(
+    {
+      phase: Type.Literal("error"),
+      prev: Type.Union([
+        Type.Literal("logging_in"),
+        Type.Literal("setting_up"),
+        Type.Literal("ready"),
+      ]),
+      message: Type.String(),
+    },
+    { additionalProperties: false },
+  ),
 ]);
 
-export type AppState = z.infer<typeof AppStateSchema>;
+export type AppState = Static<typeof AppStateSchema>;

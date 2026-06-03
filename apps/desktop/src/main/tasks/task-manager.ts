@@ -4,12 +4,12 @@
 // ---------------------------------------------------------------------------
 
 import crypto from "node:crypto";
-import { z } from "zod";
+import { Type } from "@sinclair/typebox";
 import { Cron } from "croner";
 
 import type { Agent } from "@/agent/agent";
 import {
-  TasksFileSchema,
+  TaskSchema,
   TaskRunLogSchema,
   type Task,
   type TaskRunLog,
@@ -30,8 +30,8 @@ const MAX_RUNS = 500;
 // Store schemas
 // ---------------------------------------------------------------------------
 
-const TasksSchema = TasksFileSchema.shape.tasks;
-const RunsSchema = z.array(TaskRunLogSchema);
+const TasksSchema = Type.Array(TaskSchema);
+const RunsSchema = Type.Array(TaskRunLogSchema);
 
 // ---------------------------------------------------------------------------
 // TaskManager
@@ -55,13 +55,13 @@ export class TaskManager {
   private getAgent: (() => Agent | null) | null = null;
 
   constructor(opts?: TaskManagerOptions) {
-    this.tasks = new JsonStore(
+    this.tasks = new JsonStore<Task[]>(
       opts?.tasksPath ?? inteligirPath("tasks.json"),
       TasksSchema,
       [],
       opts?.fs,
     );
-    this.runs = new JsonStore(
+    this.runs = new JsonStore<TaskRunLog[]>(
       opts?.runsPath ?? inteligirPath("task-runs.json"),
       RunsSchema,
       [],

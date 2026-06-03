@@ -3,6 +3,7 @@
 // commands; this kernel validates specs, placement, and revisions.
 
 import { randomUUID } from "node:crypto";
+import type { Static } from "@sinclair/typebox";
 
 import { broadcast } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
@@ -41,7 +42,22 @@ export class ShellManager {
 
   constructor(storePath?: string) {
     const file = storePath ?? inteligirPath("runtime-ui.json");
-    this.store = new JsonStore(file, ShellSchema, DEFAULT_SHELL);
+    this.store = new JsonStore<Shell>(file, ShellSchema, DEFAULT_SHELL, {
+      // On-disk WidgetSpec is Type.Unknown() in ShellSchema — narrow each
+      // custom def's spec via parseWidgetSpec on read so callers see the
+      // tightened WidgetSpec type. A spec that fails the deep validation
+      // throws and triggers JsonStore's corrupt-recovery path.
+      decode: (raw) => {
+        const v = raw as Static<typeof ShellSchema>;
+        return {
+          ...v,
+          customDefs: v.customDefs.map((d) => ({
+            ...d,
+            source: { ...d.source, spec: parseWidgetSpec(d.source.spec) },
+          })),
+        };
+      },
+    });
   }
 
   snapshot(): ShellSnapshot {

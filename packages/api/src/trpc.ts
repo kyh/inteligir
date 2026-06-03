@@ -1,7 +1,6 @@
 import { db } from "@repo/db/drizzle-client";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
-import { ZodError } from "zod";
 
 import { auth } from "./auth/auth";
 
@@ -20,13 +19,6 @@ export type TRPCContext = Awaited<ReturnType<typeof createTRPCContext>>;
 
 const t = initTRPC.context<TRPCContext>().create({
   transformer: superjson,
-  errorFormatter: ({ shape, error }) => ({
-    ...shape,
-    data: {
-      ...shape.data,
-      zodError: error.cause instanceof ZodError ? error.cause.flatten() : null,
-    },
-  }),
 });
 
 export const createCallerFactory = t.createCallerFactory;

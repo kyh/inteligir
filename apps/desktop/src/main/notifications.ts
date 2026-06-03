@@ -3,16 +3,17 @@
 // unfocused. Uses Electron's built-in Notification API — no extra binary.
 // ---------------------------------------------------------------------------
 
-import { z } from "zod";
+import { type Static, Type } from "@sinclair/typebox";
 import { BrowserWindow, Notification } from "electron";
 
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 
-const NotificationSettingsSchema = z.object({
-  enabled: z.boolean(),
-});
+const NotificationSettingsSchema = Type.Object(
+  { enabled: Type.Boolean() },
+  { additionalProperties: false },
+);
 
-export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
+export type NotificationSettings = Static<typeof NotificationSettingsSchema>;
 
 const DEFAULT_SETTINGS: NotificationSettings = {
   enabled: true,
