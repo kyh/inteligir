@@ -141,8 +141,12 @@ function syncBundledResources(bundledDir: string): void {
     return;
   }
 
-  // Up to date (or a bundled source was missing) — only seed what's absent,
-  // never overwrite the user's files.
+  // Up to date (or a bundled source was missing). Recreate a resource only when
+  // the user removed it wholesale (seedDirectory/seedFile no-op when dest
+  // exists), never overwriting their files. Updates to existing bundled
+  // resources are intentionally NOT pushed here — that's the version-bump
+  // syncDirectory path above; between versions we respect the user's deletions
+  // and edits within skills/agents.
   seedDirectory(skillsSrc, skillsDest);
   seedFile(agentsMdSrc, agentsMdDest);
   seedDirectory(agentsSrc, agentsDest);
