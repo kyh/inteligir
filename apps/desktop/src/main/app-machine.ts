@@ -181,19 +181,26 @@ export function getAgent(): Agent | null {
   return agent;
 }
 
-/** Re-run the provider OAuth flow and restart the session so the next turn
- * uses fresh credentials. Used by the "Re-authenticate" Settings affordance
- * and the empty-turn modal. */
+/**
+ * Re-run the provider OAuth flow and restart the session so the next turn
+ * uses fresh credentials. Runs through the AppMachine's serialized queue so
+ * a concurrent LOGIN/LOGOUT/SETUP can't race with the reauth's stopAgent +
+ * startAgent. Used by the "Re-authenticate" Settings affordance and the
+ * empty-turn modal.
+ */
 export async function reauthenticate(): Promise<{ ok: boolean; error?: string }> {
-  try {
-    await login();
-    await newSession();
-    return { ok: true };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    console.error("[machine] reauthenticate failed:", message);
-    return { ok: false, error: message };
-  }
+  if (!machine) return { ok: false, error: "Machine not initialized" };
+  return machine.enqueueAsync(async () => {
+    try {
+      await login();
+      await newSession();
+      return { ok: true };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      console.error("[machine] reauthenticate failed:", message);
+      return { ok: false, error: message };
+    }
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -229,6 +236,22 @@ export class AppMachine {
   /** Non-awaitable enqueue — for callers that cannot await. */
   ingest(event: MachineEvent): void {
     void this.send(event);
+  }
+
+  /**
+   * Run an async block through the same FIFO queue as send(). Lets external
+   * lifecycle actions (e.g. reauthenticate) interleave safely with state
+   * machine events instead of mutating the agent singleton in parallel.
+   */
+  enqueueAsync<T>(fn: () => Promise<T>): Promise<T> {
+    const p = this.queue.then(fn);
+    // Swallow the value on the chain copy so a thrown reauth doesn't poison
+    // subsequent events; the caller still sees the throw via the returned p.
+    this.queue = p.then(
+      () => {},
+      () => {},
+    );
+    return p;
   }
 
   async shutdown(): Promise<void> {
