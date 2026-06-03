@@ -121,29 +121,28 @@ function syncBundledResources(bundledDir: string): void {
   const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
   const agentsDest = path.join(AGENT_DIR, "agents");
 
-  if (readResourceVersion() < RESOURCE_VERSION) {
-    const copied = [
-      syncDirectory(skillsSrc, skillsDest),
-      syncFile(agentsMdSrc, agentsMdDest),
-      syncDirectory(agentsSrc, agentsDest),
-    ];
-    // Only record the version once every source actually copied — otherwise a
-    // missing bundled source would mark the install current and never retry the
-    // overwrite on a later launch.
-    if (copied.every(Boolean)) {
-      try {
-        fs.writeFileSync(RESOURCE_VERSION_PATH, String(RESOURCE_VERSION));
-      } catch (err) {
-        console.warn("[agent] failed to record resource version:", err);
-      }
-    } else {
-      console.warn("[agent] bundled resources incomplete; deferring version bump");
+  // Only enter the overwrite path when ALL bundled sources are present, so a
+  // broken/partial bundle never repeatedly clobbers user edits and never marks
+  // the version current without a real sync. Gating on existence up front keeps
+  // sync-and-record atomic: either every source is overwritten and the version
+  // is recorded once, or we fall through to the non-destructive seed-once below.
+  const allSourcesPresent =
+    fs.existsSync(skillsSrc) && fs.existsSync(agentsMdSrc) && fs.existsSync(agentsSrc);
+
+  if (readResourceVersion() < RESOURCE_VERSION && allSourcesPresent) {
+    syncDirectory(skillsSrc, skillsDest);
+    syncFile(agentsMdSrc, agentsMdDest);
+    syncDirectory(agentsSrc, agentsDest);
+    try {
+      fs.writeFileSync(RESOURCE_VERSION_PATH, String(RESOURCE_VERSION));
+    } catch (err) {
+      console.warn("[agent] failed to record resource version:", err);
     }
     return;
   }
 
-  // Up to date — only seed what's missing (e.g. a dir a user deleted), never
-  // overwrite their edits.
+  // Up to date (or a bundled source was missing) — only seed what's absent,
+  // never overwrite the user's files.
   seedDirectory(skillsSrc, skillsDest);
   seedFile(agentsMdSrc, agentsMdDest);
   seedDirectory(agentsSrc, agentsDest);
