@@ -16,6 +16,7 @@ export {
   generateRoomCode,
   createRoomConfig,
   PARTY_NAME,
+  DEFAULT_PARTY_HOST,
   type RoomConfig,
 } from "./room";
 

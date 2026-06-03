@@ -15,6 +15,7 @@ export type RoomConfig = {
 };
 
 export const PARTY_NAME = "dispatch-server";
+export const DEFAULT_PARTY_HOST = "localhost:1999";
 
 export function createRoomConfig(host: string, roomCode: string): RoomConfig {
   return { host, party: PARTY_NAME, room: roomCode };

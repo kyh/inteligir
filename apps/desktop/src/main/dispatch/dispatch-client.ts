@@ -2,6 +2,7 @@ import PartySocket from "partysocket";
 import {
   generateRoomCode,
   PARTY_NAME,
+  DEFAULT_PARTY_HOST,
   parseMessage,
   encodeMessage,
   createConnectionAttemptRegistry,
@@ -14,7 +15,7 @@ import { DISPATCH_INITIAL_STATE } from "@/shared/dispatch";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import { z } from "zod";
 
-const PARTY_HOST = process.env["DISPATCH_PARTY_HOST"] ?? "localhost:1999";
+const PARTY_HOST = process.env["DISPATCH_PARTY_HOST"] ?? DEFAULT_PARTY_HOST;
 
 const roomStore = new JsonStore<string | null>(
   inteligirPath("dispatch-room.json"),
@@ -84,7 +85,7 @@ function connectToRoom(roomCode: string): void {
 }
 
 export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> {
-  if (dispatchState.status !== "connected" || !partySocket) return;
+  if (!partySocket || partySocket.readyState !== WebSocket.OPEN) return;
   const payload = event as Record<string, unknown>;
   partySocket.send(encodeMessage("to_mobile", event.type, payload));
 }
