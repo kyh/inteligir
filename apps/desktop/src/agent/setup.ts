@@ -122,13 +122,22 @@ function syncBundledResources(bundledDir: string): void {
   const agentsDest = path.join(AGENT_DIR, "agents");
 
   if (readResourceVersion() < RESOURCE_VERSION) {
-    syncDirectory(skillsSrc, skillsDest);
-    syncFile(agentsMdSrc, agentsMdDest);
-    syncDirectory(agentsSrc, agentsDest);
-    try {
-      fs.writeFileSync(RESOURCE_VERSION_PATH, String(RESOURCE_VERSION));
-    } catch (err) {
-      console.warn("[agent] failed to record resource version:", err);
+    const copied = [
+      syncDirectory(skillsSrc, skillsDest),
+      syncFile(agentsMdSrc, agentsMdDest),
+      syncDirectory(agentsSrc, agentsDest),
+    ];
+    // Only record the version once every source actually copied — otherwise a
+    // missing bundled source would mark the install current and never retry the
+    // overwrite on a later launch.
+    if (copied.every(Boolean)) {
+      try {
+        fs.writeFileSync(RESOURCE_VERSION_PATH, String(RESOURCE_VERSION));
+      } catch (err) {
+        console.warn("[agent] failed to record resource version:", err);
+      }
+    } else {
+      console.warn("[agent] bundled resources incomplete; deferring version bump");
     }
     return;
   }

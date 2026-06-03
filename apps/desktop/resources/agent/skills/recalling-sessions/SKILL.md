@@ -25,11 +25,12 @@ glob needs `globstar` and silently misses nested files). Most-recently-modified
 first:
 
 ```bash
-ls -t $(find ~/.inteligir/sessions -name '*.jsonl') 2>/dev/null | head
+find ~/.inteligir/sessions -name '*.jsonl' 2>/dev/null | sort | tail
 ```
 
-(One `ls -t` call sorts everything by mtime; `find` handles any nesting. Session
-filenames have no spaces, so the unquoted expansion is safe.)
+Session filenames lead with a timestamp, so the newest sort last — this streams
+(no arg-length limits), is POSIX-portable, and prints nothing when there are no
+sessions. It's a starting point; adapt it (e.g. `head` for oldest) as needed.
 
 ## Searching
 
