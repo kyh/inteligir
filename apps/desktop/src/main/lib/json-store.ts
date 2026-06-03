@@ -3,25 +3,19 @@ import path from "node:path";
 import os from "node:os";
 import type { ZodType } from "zod";
 
-// ---------------------------------------------------------------------------
-// Shared JSON file I/O for ~/.inteligir stores
-// ---------------------------------------------------------------------------
-
 const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
 
 export function inteligirPath(...segments: string[]): string {
   return path.join(INTELIGIR_DIR, ...segments);
 }
 
-// ---------------------------------------------------------------------------
-// Filesystem adapter — injectable for testing
-// ---------------------------------------------------------------------------
-
 export type FsAdapter = {
   read: (filePath: string) => string | null;
   write: (filePath: string, content: string) => void;
 };
 
+// Write to <path>.tmp then rename — atomic on POSIX + NTFS, so a crash mid-write
+// leaves the previous file intact instead of a half-written one.
 const realFs: FsAdapter = {
   read: (filePath) => {
     try {
@@ -32,24 +26,47 @@ const realFs: FsAdapter = {
   },
   write: (filePath, content) => {
     fs.mkdirSync(path.dirname(filePath), { recursive: true });
-    fs.writeFileSync(filePath, content, "utf8");
+    const tmp = `${filePath}.tmp`;
+    fs.writeFileSync(tmp, content, "utf8");
+    fs.renameSync(tmp, filePath);
   },
 };
 
-// ---------------------------------------------------------------------------
-// JsonStore<T> — typed, validated, cached file store
-// ---------------------------------------------------------------------------
+export type JsonStoreOptions = {
+  fs?: FsAdapter;
+  /**
+   * Called once when a corrupt file (unparseable JSON or schema-rejected) is
+   * detected. Receives the path the corrupt file was moved to. Lets callers
+   * surface a warning to the user instead of silently losing state.
+   */
+  onCorrupt?: (backupPath: string) => void;
+};
 
 export class JsonStore<T> {
   private cache: T | undefined;
+  private readonly fs: FsAdapter;
+  private readonly onCorrupt: ((backupPath: string) => void) | undefined;
 
   constructor(
     private readonly filePath: string,
     private readonly schema: ZodType<T>,
     private readonly defaultValue: T,
-    private readonly fs: FsAdapter = realFs,
-  ) {}
+    options: JsonStoreOptions | FsAdapter = {},
+  ) {
+    // Back-compat: tests pass an FsAdapter directly as the fourth arg.
+    const opts: JsonStoreOptions =
+      "read" in options && "write" in options ? { fs: options } : options;
+    this.fs = opts.fs ?? realFs;
+    this.onCorrupt = opts.onCorrupt;
+  }
 
+  /**
+   * Read + validate. Returns the defaultValue if the file is missing or if
+   * the file is unrecoverable (unparseable / schema-rejected); in the
+   * recoverable cases the corrupt file is moved aside to <path>.corrupt-<ts>
+   * and `onCorrupt` (if set) is called with the backup path so callers can
+   * surface a warning.
+   */
   read(): T {
     if (this.cache !== undefined) return structuredClone(this.cache);
     const raw = this.fs.read(this.filePath);
@@ -57,13 +74,19 @@ export class JsonStore<T> {
       this.cache = structuredClone(this.defaultValue);
       return structuredClone(this.cache);
     }
+    let parsed: unknown;
     try {
-      const parsed: unknown = JSON.parse(raw);
-      const result = this.schema.safeParse(parsed);
-      this.cache = result.success ? result.data : structuredClone(this.defaultValue);
+      parsed = JSON.parse(raw);
     } catch {
-      this.cache = structuredClone(this.defaultValue);
+      this.recoverCorrupt(raw);
+      return structuredClone(this.defaultValue);
     }
+    const result = this.schema.safeParse(parsed);
+    if (!result.success) {
+      this.recoverCorrupt(raw);
+      return structuredClone(this.defaultValue);
+    }
+    this.cache = result.data;
     return structuredClone(this.cache);
   }
 
@@ -72,7 +95,6 @@ export class JsonStore<T> {
     this.fs.write(this.filePath, JSON.stringify(this.cache, null, 2));
   }
 
-  /** Update data via a transform function. Reads, transforms, writes atomically. */
   update(fn: (current: T) => T): T {
     const updated = fn(this.read());
     this.write(updated);
@@ -82,5 +104,16 @@ export class JsonStore<T> {
   /** Invalidate cache — next read() will re-read from disk. */
   invalidate(): void {
     this.cache = undefined;
+  }
+
+  private recoverCorrupt(raw: string): void {
+    const backupPath = `${this.filePath}.corrupt-${process.hrtime.bigint()}`;
+    try {
+      this.fs.write(backupPath, raw);
+    } catch {
+      // Recovery is best-effort; if the disk is dead we can't help.
+    }
+    this.cache = structuredClone(this.defaultValue);
+    this.onCorrupt?.(backupPath);
   }
 }

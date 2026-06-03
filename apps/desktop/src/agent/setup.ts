@@ -84,12 +84,17 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
 
   const ctx = buildSetupContext(onProgress);
   if (!fs.existsSync(ctx.bundledResourcesDir)) {
-    console.warn("[agent] bundled resources not found at", ctx.bundledResourcesDir);
-    return;
+    // In packaged builds the resources/ dir is laid down by electron-builder;
+    // missing it means the install is corrupt and setup must fail loudly.
+    // In dev the path is derived from PROJECT_ROOT and can be absent on a
+    // fresh checkout — warn but continue so bundle setups still run.
+    const msg = `Bundled resources not found at ${ctx.bundledResourcesDir}`;
+    if (app.isPackaged) throw new Error(msg);
+    console.warn(`[agent] ${msg} — continuing without seed (dev only)`);
+  } else {
+    seedDirectory(path.join(ctx.bundledResourcesDir, "skills"), path.join(AGENT_DIR, "skills"));
+    seedFile(path.join(ctx.bundledResourcesDir, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
   }
-
-  seedDirectory(path.join(ctx.bundledResourcesDir, "skills"), path.join(AGENT_DIR, "skills"));
-  seedFile(path.join(ctx.bundledResourcesDir, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
 
   await runBundleSetups(EXTENSION_BUNDLES, ctx);
 }

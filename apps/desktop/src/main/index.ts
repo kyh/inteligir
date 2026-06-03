@@ -10,13 +10,18 @@ import electronUpdater from "electron-updater";
 
 declare const PROJECT_ROOT: string;
 
-// Load .env at runtime for voice API keys (ELEVENLABS_API_KEY)
-try {
-  process.loadEnvFile(path.resolve(PROJECT_ROOT, ".env"));
-} catch {
-  // .env file is optional
+// Dev-only .env loader. In packaged builds PROJECT_ROOT points to a path that
+// no longer exists on the user's machine, so loadEnvFile would always fail.
+// Production reads from process.env directly (set by launcher/system).
+if (!app.isPackaged) {
+  try {
+    process.loadEnvFile(path.resolve(PROJECT_ROOT, ".env"));
+  } catch {
+    // .env is optional in dev
+  }
 }
 
+import { configurePaths } from "@/agent/paths";
 import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice/parakeet";
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 
@@ -447,6 +452,8 @@ app.on("before-quit", (event) => {
 app
   .whenReady()
   .then(() => {
+    // Must run before any pi-coding-agent call that consults getAgentDir().
+    configurePaths();
     initAgentLog();
     configureAppIdentity();
     configureApplicationMenu();

@@ -18,6 +18,12 @@ export const WORKSPACE_DIR = inteligirPath("workspace");
 export const BIN_DIR = inteligirPath("bin");
 export const EXTENSIONS_DIR = inteligirPath("extensions");
 
-// Override pi-coding-agent's default getAgentDir() (~/.pi/agent). Imported
-// for side-effect by setup.ts at module load.
-process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
+/**
+ * Override pi-coding-agent's default getAgentDir() (~/.pi/agent). Must be
+ * called once at process startup, before any pi-coding-agent module loads.
+ * Lives behind a function so paths.ts has no import-time side effects (which
+ * makes tests + reload flows easier to reason about).
+ */
+export function configurePaths(): void {
+  process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
+}
