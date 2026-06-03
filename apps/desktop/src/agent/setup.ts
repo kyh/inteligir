@@ -14,7 +14,7 @@ import {
   resolveModel,
   SessionManager,
 } from "@repo/pi-driver";
-import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
+import { prependPath, seedDirectory, seedFile, syncDirectory, syncFile } from "@repo/agent-runtime/seed";
 import { readCliVersion } from "@repo/agent-runtime/install";
 import open from "open";
 
@@ -36,6 +36,15 @@ import {
 
 const AUTH_PROVIDER = "openai-codex";
 const MODEL_ID = "gpt-5.5";
+
+/**
+ * Bump when bundled resources (skills, AGENTS.md, agent defs) change and should
+ * be pushed to already-installed users. On a bump, seedResources overwrites the
+ * bundled-named files in ~/.inteligir (user-added files are left intact). This
+ * does overwrite user edits to those bundled files — the accepted trade-off for
+ * delivering updated prompts/skills on upgrade.
+ */
+const RESOURCE_VERSION = 1;
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here */
 const AGENT_DIR = inteligirPath();
@@ -87,6 +96,50 @@ function buildRegisterContext(): ExtensionRegisterContext {
   return { binDir: BIN_DIR };
 }
 
+const RESOURCE_VERSION_PATH = inteligirPath(".resources-version");
+
+function readResourceVersion(): number {
+  try {
+    return Number.parseInt(fs.readFileSync(RESOURCE_VERSION_PATH, "utf8").trim(), 10) || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/**
+ * Copy bundled skills / AGENTS.md / agent defs into ~/.inteligir. Fresh installs
+ * and version bumps overwrite the bundled-named files (so upgraded users get new
+ * skills and updated prompts); when the on-disk version is already current we
+ * fall back to seed-once, which only fills in anything missing without
+ * clobbering user edits.
+ */
+function syncBundledResources(bundledDir: string): void {
+  const skillsSrc = path.join(bundledDir, "skills");
+  const agentsMdSrc = path.join(bundledDir, "AGENTS.md");
+  const agentsSrc = path.join(bundledDir, "agents");
+  const skillsDest = path.join(AGENT_DIR, "skills");
+  const agentsMdDest = path.join(AGENT_DIR, "AGENTS.md");
+  const agentsDest = path.join(AGENT_DIR, "agents");
+
+  if (readResourceVersion() < RESOURCE_VERSION) {
+    syncDirectory(skillsSrc, skillsDest);
+    syncFile(agentsMdSrc, agentsMdDest);
+    syncDirectory(agentsSrc, agentsDest);
+    try {
+      fs.writeFileSync(RESOURCE_VERSION_PATH, String(RESOURCE_VERSION));
+    } catch (err) {
+      console.warn("[agent] failed to record resource version:", err);
+    }
+    return;
+  }
+
+  // Up to date — only seed what's missing (e.g. a dir a user deleted), never
+  // overwrite their edits.
+  seedDirectory(skillsSrc, skillsDest);
+  seedFile(agentsMdSrc, agentsMdDest);
+  seedDirectory(agentsSrc, agentsDest);
+}
+
 /**
  * Seed bundled skills + AGENTS.md into ~/.inteligir/ on first run, ensure the
  * bundled CLI bin dir is on PATH so agent tools can find it, and run each
@@ -109,8 +162,7 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
     return;
   }
 
-  seedDirectory(path.join(ctx.bundledResourcesDir, "skills"), path.join(AGENT_DIR, "skills"));
-  seedFile(path.join(ctx.bundledResourcesDir, "AGENTS.md"), path.join(AGENT_DIR, "AGENTS.md"));
+  syncBundledResources(ctx.bundledResourcesDir);
 
   await runBundleSetups(EXTENSION_BUNDLES, ctx);
 }

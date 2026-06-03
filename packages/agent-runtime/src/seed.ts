@@ -38,6 +38,31 @@ export function seedFile(src: string, dest: string): boolean {
 }
 
 /**
+ * Recursively copy `src` over `dest`, overwriting bundled files but leaving
+ * unrelated user-added files in `dest` untouched. Unlike `seedDirectory` this
+ * runs even when `dest` exists — used to push updated bundled resources to
+ * already-installed users on a version bump. Returns true if `src` exists.
+ */
+export function syncDirectory(src: string, dest: string): boolean {
+  if (!fs.existsSync(src)) return false;
+  fs.cpSync(src, dest, { recursive: true, force: true });
+  return true;
+}
+
+/**
+ * Copy a single file from `src` to `dest`, overwriting any existing file.
+ * Creates the parent directory if needed. The overwriting counterpart to
+ * `seedFile` — do NOT use for sensitive seed-once files (OAuth secrets/tokens).
+ * Returns true if the copy happened, false if `src` is missing.
+ */
+export function syncFile(src: string, dest: string): boolean {
+  if (!fs.existsSync(src)) return false;
+  fs.mkdirSync(path.dirname(dest), { recursive: true });
+  fs.copyFileSync(src, dest);
+  return true;
+}
+
+/**
  * Prepend `entry` to the calling process's PATH if it is not already on it.
  * Idempotent. Used so subprocesses spawned by the agent's bash tool can find
  * binaries we install under `~/.inteligir/bin`.

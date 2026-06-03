@@ -27,7 +27,6 @@ import os from "node:os";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
-import { seedDirectory } from "@repo/agent-runtime/seed";
 
 import { inteligirPath } from "@/main/lib/json-store";
 import type { PiExtensionBundle } from "@/agent/extension";
@@ -411,12 +410,8 @@ function buildDescription(agents: AgentConfig[]): string {
 const subagentExtension: PiExtensionBundle = {
   name: "subagent",
 
-  // Seed the bundled agent definitions into ~/.inteligir/agents on first run,
-  // the same way skills/AGENTS.md are seeded in setup.ts.
-  setup: async ({ bundledResourcesDir }) => {
-    seedDirectory(path.join(bundledResourcesDir, "agents"), path.join(AGENT_DIR, "agents"));
-  },
-
+  // Agent definitions are seeded centrally with the other bundled resources
+  // (skills, AGENTS.md) in setup.ts, so the bundle has no setup() of its own.
   register: () => (pi) => {
     const agents = discoverAgents(AGENT_DIR, WORKSPACE_DIR);
 
@@ -432,7 +427,9 @@ const subagentExtension: PiExtensionBundle = {
         // Enforce the documented "exactly one mode" contract up front so an
         // ambiguous payload (e.g. both chain and tasks) is rejected rather than
         // silently running whichever mode is checked first.
-        const hasSingle = Boolean(params.agent || params.task);
+        // Single mode needs BOTH fields; using `||` would flag a stray leftover
+        // `agent`/`task` next to a tasks/chain payload as ambiguous and reject it.
+        const hasSingle = Boolean(params.agent && params.task);
         const hasParallel = Boolean(params.tasks && params.tasks.length > 0);
         const hasChain = Boolean(params.chain && params.chain.length > 0);
         if (Number(hasSingle) + Number(hasParallel) + Number(hasChain) > 1) {
@@ -464,7 +461,10 @@ const subagentExtension: PiExtensionBundle = {
             const result = await runSubagent(findAgent(live, step.agent)!, task, signal);
             results.push(result);
             previous = result.output;
-            const failedStop = result.stopReason === "error" || result.stopReason === "aborted";
+            // In a chain the output feeds {previous}, so any non-normal stop
+            // (error/aborted, or truncation like max_tokens/length) means the
+            // handoff is incomplete — halt rather than pass partial work on.
+            const failedStop = Boolean(result.stopReason && result.stopReason !== "stop");
             if (result.exitCode !== 0 || result.errorMessage || failedStop) {
               halted = `Skipped: prior step "${step.agent}" did not complete successfully`;
             }
