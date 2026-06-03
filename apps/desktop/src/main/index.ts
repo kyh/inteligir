@@ -1,7 +1,6 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
-import { app, BrowserWindow, dialog, ipcMain, Menu, nativeTheme, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from "electron";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,8 +34,8 @@ import {
 } from "@/main/app-machine";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { initAgentLog } from "@/main/lib/agent-log";
-import { broadcastToRenderer } from "@/main/lib/broadcast";
-import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
+import { broadcast } from "@/main/lib/broadcast";
+import { handle } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
 import { taskManager } from "@/main/tasks/task-manager";
@@ -44,12 +43,9 @@ import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
-import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
-import { AppEventSchema } from "@/shared/app-state";
-import { CreateTaskParamsSchema } from "@/shared/task";
-import { UiStateSetSchema } from "@/shared/ui-state";
-import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { SkillsList, UpdateState } from "@/shared/ipc";
+import type { ImageAttachment } from "@/shared/voice";
+import { isHttpUrl, toErrorMessage } from "@/shared/ipc";
+import type { UpdateState } from "@/shared/ipc";
 import type { ImageContent } from "@repo/pi-driver/pi-types";
 
 const { autoUpdater } = electronUpdater;
@@ -83,7 +79,7 @@ let updateState: UpdateState = {
 
 function setUpdateState(patch: Partial<UpdateState>): void {
   updateState = { ...updateState, ...patch };
-  broadcastToRenderer(IPC_CHANNELS.UPDATE_STATE, updateState);
+  broadcast("onUpdateState", updateState);
 }
 
 // ---------------------------------------------------------------------------
@@ -135,14 +131,14 @@ function configureApplicationMenu(): void {
 // ---------------------------------------------------------------------------
 
 function registerIpcHandlers(): void {
-  // ---- Desktop --------------------------------------------------------------
+  // ---- Desktop / updates ----------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.UPDATE_CHECK, async () => {
+  handle("checkForUpdates", async () => {
     await checkForUpdates();
     return updateState;
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
+  handle("downloadUpdate", async () => {
     if (updateState.status !== "available") {
       return { accepted: false, state: updateState };
     }
@@ -156,7 +152,7 @@ function registerIpcHandlers(): void {
     }
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.UPDATE_INSTALL, () => {
+  handle("installUpdate", () => {
     if (updateState.status !== "downloaded") {
       return { accepted: false, state: updateState };
     }
@@ -174,7 +170,7 @@ function registerIpcHandlers(): void {
 
   // ---- Agent ----------------------------------------------------------------
 
-  createIpcHandler(IPC_CHANNELS.AGENT_COMMAND, TextChatMessageSchema, (command) => {
+  handle("sendAgentCommand", (command) => {
     const agent = getAgent();
     if (!agent) return;
     switch (command.type) {
@@ -193,41 +189,29 @@ function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
-
-  createVoidIpcHandler(IPC_CHANNELS.AGENT_REAUTHENTICATE, () => reauthenticate());
+  handle("getAgentHistory", () => readSessionHistory());
+  handle("reauthenticate", () => reauthenticate());
 
   // ---- App lifecycle --------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.APP_GET_STATE, () => getAppState());
-
-  createIpcHandler(IPC_CHANNELS.APP_TRANSITION, AppEventSchema, (event) => {
+  handle("getAppState", () => getAppState());
+  handle("transition", (event) => {
     transition(event);
   });
 
   // ---- Tasks ----------------------------------------------------------------
 
-  createIpcHandler(IPC_CHANNELS.TASK_CREATE, CreateTaskParamsSchema, (params) => {
-    return { task: taskManager.createTask(params) };
-  });
-
-  createVoidIpcHandler(IPC_CHANNELS.TASK_LIST, () => {
-    return { tasks: taskManager.getTasks() };
-  });
-
-  createIpcHandler(IPC_CHANNELS.TASK_DELETE, z.string().min(1), (id) => {
+  handle("createTask", (params) => ({ task: taskManager.createTask(params) }));
+  handle("listTasks", () => ({ tasks: taskManager.getTasks() }));
+  handle("deleteTask", (id): { ok: true } => {
     taskManager.deleteTask(id);
-    const result: { ok: true } = { ok: true };
-    return result;
+    return { ok: true };
   });
-
-  createIpcHandler(IPC_CHANNELS.TASK_TOGGLE, z.string().min(1), (id) => {
-    return { task: taskManager.toggleTask(id) };
-  });
+  handle("toggleTask", (id) => ({ task: taskManager.toggleTask(id) }));
 
   // ---- Voice ----------------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_CONFIG, () => {
+  handle("getVoiceConfig", () => {
     const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
     if (!elevenlabsApiKey) return null;
     return {
@@ -236,14 +220,14 @@ function registerIpcHandlers(): void {
     };
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_START, async () => {
+  handle("startStt", async () => {
     const result = await initParakeet();
     if (!result.ok) return { ok: false, reason: result.reason };
     startSession();
     return { ok: true };
   });
 
-  ipcMain.on(IPC_CHANNELS.VOICE_STT_AUDIO, (_event, payload: ArrayBuffer | ArrayBufferView) => {
+  handle("sendSttAudio", (payload) => {
     // Fire-and-forget hot path — uncaught throws on the event loop would crash
     // the app, so swallow + log and keep the session alive.
     try {
@@ -259,40 +243,26 @@ function registerIpcHandlers(): void {
             );
       const events = pushAudio(samples);
       for (const ev of events) {
-        broadcastToRenderer(IPC_CHANNELS.VOICE_STT_TRANSCRIPT, ev);
+        broadcast("onSttTranscript", ev);
       }
     } catch (err) {
       console.error("[voice] audio chunk handler failed:", err);
     }
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_STT_STOP, () => stopSession());
-
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_STATUS, () =>
-    isModelInstalled() ? "ready" : "missing",
-  );
-
-  createVoidIpcHandler(IPC_CHANNELS.VOICE_MODEL_DOWNLOAD, () => downloadModel());
+  handle("stopStt", () => stopSession());
+  handle("getVoiceModelStatus", () => (isModelInstalled() ? "ready" : "missing"));
+  handle("downloadVoiceModel", () => downloadModel());
 
   // ---- Notifications --------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.NOTIFICATIONS_GET, () => {
-    return getNotifications().getSettings();
-  });
-
-  createIpcHandler(
-    IPC_CHANNELS.NOTIFICATIONS_UPDATE,
-    z.object({ enabled: z.boolean().optional() }),
-    (patch) => {
-      return getNotifications().updateSettings(patch);
-    },
-  );
+  handle("getNotificationSettings", () => getNotifications().getSettings());
+  handle("updateNotificationSettings", (patch) => getNotifications().updateSettings(patch));
 
   // ---- UI state -------------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.UI_STATE_GET, () => getUiState().getAll());
-
-  createIpcHandler(IPC_CHANNELS.UI_STATE_SET, UiStateSetSchema, ({ key, value }) => {
+  handle("getUiState", () => getUiState().getAll());
+  handle("setUiState", ({ key, value }) => {
     getUiState().set(key, value);
   });
 
@@ -302,16 +272,13 @@ function registerIpcHandlers(): void {
 
   // ---- Skills ---------------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.SKILLS_LIST, (): SkillsList => {
-    return { skills: listSkills() };
-  });
+  handle("listSkills", () => ({ skills: listSkills() }));
 
   // ---- Integrations (CLI binaries) ------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.INTEGRATIONS_LIST, () => listIntegrations());
-  createVoidIpcHandler(IPC_CHANNELS.INTEGRATIONS_REPAIR, () =>
-    // Stream progress over the same channel onboarding uses.
-    repairIntegrations((p) => broadcastToRenderer(IPC_CHANNELS.SETUP_PROGRESS, p)),
+  handle("listIntegrations", () => listIntegrations());
+  handle("repairIntegrations", () =>
+    repairIntegrations((p) => broadcast("onSetupProgress", p)),
   );
 }
 

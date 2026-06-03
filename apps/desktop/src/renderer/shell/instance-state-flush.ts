@@ -49,6 +49,6 @@ export function initFlushBridge(): void {
   bridgeSubscribed = true;
   bridge.onWidgetFlushRequest(async ({ instanceId, requestId }) => {
     const persisted = await flushInstanceState(instanceId);
-    bridge.ackWidgetFlush(requestId, persisted);
+    bridge.ackWidgetFlush({ requestId, persisted });
   });
 }

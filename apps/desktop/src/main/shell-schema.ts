@@ -1,11 +1,9 @@
 import { z } from "zod";
 
-import { type InstallWidgetInput, type Shell, WIDGET_SURFACES } from "@/shared/shell";
+import type { Shell } from "@/shared/shell";
 import { WidgetSpecSchema } from "@/shared/widget-spec-schema";
 
-export const SurfaceSchema = z.enum(WIDGET_SURFACES);
-
-export const GeometrySchema = z.object({
+const GeometrySchema = z.object({
   x: z.number(),
   y: z.number(),
   w: z.number(),
@@ -14,7 +12,7 @@ export const GeometrySchema = z.object({
   minH: z.number().optional(),
 });
 
-export const RectSchema = z.object({
+const RectSchema = z.object({
   x: z.number(),
   y: z.number(),
   width: z.number(),
@@ -66,11 +64,4 @@ export const ShellSchema: z.ZodType<Shell> = z.object({
   // Default for forward-compat with on-disk shells written before this field
   // existed; new installs start empty.
   archivedStates: z.record(z.string(), z.record(z.string(), z.unknown())).default({}),
-});
-
-export const InstallWidgetInputSchema: z.ZodType<InstallWidgetInput> = z.object({
-  id: z.string().min(1).optional(),
-  title: z.string().min(1),
-  description: z.string().optional(),
-  spec: WidgetSpecSchema,
 });

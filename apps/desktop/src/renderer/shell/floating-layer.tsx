@@ -34,7 +34,9 @@ export function FloatingLayer() {
             z={instance.placement.z}
             bodyClassName={widgetBodyClassName(def)}
             onFocus={() => void getBridge()?.focusInstance(instance.instanceId)}
-            onRect={(rect: FloatRect) => void getBridge()?.setInstanceRect(instance.instanceId, rect)}
+            onRect={(rect: FloatRect) =>
+              void getBridge()?.setInstanceRect({ instanceId: instance.instanceId, rect })
+            }
             onDock={() => void moveInstance(instance.instanceId, "pinned")}
             onClose={() => void closeInstance(instance)}
           >

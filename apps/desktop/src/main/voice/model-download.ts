@@ -14,8 +14,8 @@ import { app } from "electron";
 import { x as tarExtract } from "tar";
 import unbzip2 from "unbzip2-stream";
 
-import { broadcastToRenderer } from "@/main/lib/broadcast";
-import { IPC_CHANNELS, type VoiceModelStateEvent } from "@/shared/ipc";
+import { broadcast } from "@/main/lib/broadcast";
+import type { VoiceModelStateEvent } from "@/shared/ipc";
 
 const streamPipeline = promisify(pipelineCb);
 
@@ -30,7 +30,7 @@ export type ModelDownloadResult = { ok: true } | { ok: false; error: string };
 let downloadInflight: Promise<ModelDownloadResult> | null = null;
 
 function emitProgress(event: VoiceModelStateEvent): void {
-  broadcastToRenderer(IPC_CHANNELS.VOICE_MODEL_STATE, event);
+  broadcast("onVoiceModelState", event);
 }
 
 /**

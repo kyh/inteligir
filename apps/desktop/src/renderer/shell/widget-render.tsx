@@ -75,7 +75,7 @@ export async function moveInstance(instanceId: string, surface: WidgetSurface): 
     toast.error("Couldn't save the latest changes — move cancelled.");
     return;
   }
-  await getBridge()?.setInstanceSurface(instanceId, surface);
+  await getBridge()?.setInstanceSurface({ instanceId, surface });
 }
 
 export function WidgetBody({

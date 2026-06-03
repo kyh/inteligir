@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { BrowserWindow, ipcMain } from "electron";
 
-import { IPC_CHANNELS } from "@/shared/ipc";
+import { sendToWindow } from "@/main/lib/broadcast";
+import { IPC } from "@/shared/ipc-registry";
 
 // Asks every alive renderer window to flush its pending debounced state for
 // the given instance to main, and resolves with whether all targeted windows
@@ -45,11 +46,11 @@ export async function flushRendererInstance(
     }, timeoutMs);
     const cleanup = (): void => {
       clearTimeout(timer);
-      ipcMain.removeListener(IPC_CHANNELS.SHELL_FLUSH_ACK, handler);
+      ipcMain.removeListener(IPC.ackWidgetFlush.channel, handler);
     };
-    ipcMain.on(IPC_CHANNELS.SHELL_FLUSH_ACK, handler);
+    ipcMain.on(IPC.ackWidgetFlush.channel, handler);
     for (const w of wins) {
-      w.webContents.send(IPC_CHANNELS.SHELL_FLUSH_REQUEST, { instanceId, requestId });
+      sendToWindow(w.webContents, "onWidgetFlushRequest", { instanceId, requestId });
     }
   });
 }

@@ -91,7 +91,7 @@ function launchWidget(widgetId: string): void {
   // pending state didn't persist — surface that to the user instead of
   // letting it land as an unhandled promise rejection.
   getBridge()
-    ?.placeWidget(widgetId)
+    ?.placeWidget({ widgetId })
     .catch((err) => {
       toast.error(err instanceof Error ? err.message : "Couldn't open the widget");
     });

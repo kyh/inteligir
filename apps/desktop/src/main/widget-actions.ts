@@ -1,11 +1,10 @@
 import { shell } from "electron";
-import { z } from "zod";
 
 import { completeOnce } from "@/agent/auth";
 import { getAgent } from "@/main/app-machine";
 import { execute } from "@/main/executor/executor-client";
-import { createIpcHandler } from "@/main/lib/ipc-handler";
-import { IPC_CHANNELS, isHttpUrl } from "@/shared/ipc";
+import { handle } from "@/main/lib/ipc-handler";
+import { isHttpUrl } from "@/shared/ipc";
 
 const FETCH_TIMEOUT_MS = 30_000;
 const FETCH_TEXT_CAP = 100_000;
@@ -21,41 +20,19 @@ type FetchHttpTextDeps = {
 type OpenExternal = (url: string) => Promise<unknown>;
 
 export function registerWidgetActionIpcHandlers(): void {
-  createIpcHandler(
-    IPC_CHANNELS.WIDGET_SEND_PROMPT,
-    z.object({ prompt: z.string().min(1) }),
-    async ({ prompt }) => {
-      const agent = getAgent();
-      if (!agent) throw new Error("Agent unavailable");
-      // Await so an agent-side error rejects the IPC and the renderer's
-      // sendPrompt catch can surface a toast — `void`'ing the promise made
-      // the invoke resolve immediately and swallowed failures.
-      await agent.sendMessage(prompt);
-    },
-  );
+  handle("widgetSendPrompt", async ({ prompt }) => {
+    const agent = getAgent();
+    if (!agent) throw new Error("Agent unavailable");
+    // Await so an agent-side error rejects the IPC and the renderer's
+    // sendPrompt catch can surface a toast — `void`'ing the promise made
+    // the invoke resolve immediately and swallowed failures.
+    await agent.sendMessage(prompt);
+  });
 
-  createIpcHandler(
-    IPC_CHANNELS.WIDGET_COMPLETE,
-    z.object({
-      prompt: z.string().min(1),
-      system: z.string().optional(),
-    }),
-    ({ prompt, system }) => completeOnce(prompt, system),
-  );
-
-  createIpcHandler(IPC_CHANNELS.WIDGET_FETCH, z.object({ url: z.string() }), ({ url }) =>
-    fetchHttpText(url),
-  );
-
-  createIpcHandler(
-    IPC_CHANNELS.WIDGET_CALL_TOOL,
-    z.object({ tool: z.string().min(1), input: z.unknown().optional() }),
-    ({ tool, input }) => widgetCallTool(tool, input),
-  );
-
-  createIpcHandler(IPC_CHANNELS.WIDGET_OPEN_URL, z.object({ url: z.string() }), ({ url }) =>
-    openHttpUrl(url),
-  );
+  handle("widgetComplete", ({ prompt, system }) => completeOnce(prompt, system));
+  handle("widgetFetch", ({ url }) => fetchHttpText(url));
+  handle("widgetCallTool", ({ tool, input }) => widgetCallTool(tool, input));
+  handle("widgetOpenUrl", ({ url }) => openHttpUrl(url));
 }
 
 // A dotted accessor into executor's `tools.*` proxy: a namespace and at least

@@ -4,11 +4,10 @@
 
 import { randomUUID } from "node:crypto";
 
-import { broadcastToRenderer } from "@/main/lib/broadcast";
+import { broadcast } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import { DEFAULT_SHELL, defaultShellSnapshot, shellSnapshot } from "@/main/shell-defaults";
 import { ShellSchema } from "@/main/shell-schema";
-import { IPC_CHANNELS } from "@/shared/ipc";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
 import { parseWidgetSpec } from "@/shared/widget-spec-schema";
 import {
@@ -421,7 +420,7 @@ export class ShellManager {
   }
 
   private broadcast(shell: Shell): void {
-    broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, shellSnapshot(shell));
+    broadcast("onShellUpdated", shellSnapshot(shell));
   }
 }
 
@@ -459,7 +458,7 @@ export function resetShellCache(): void {
   // prior session's defs/instances. Without this, the renderer's Zustand
   // store keeps stale data (initShell's `initialized` guard prevents a
   // re-fetch) and re-login renders against it.
-  broadcastToRenderer(IPC_CHANNELS.SHELL_UPDATED, defaultShellSnapshot());
+  broadcast("onShellUpdated", defaultShellSnapshot());
 }
 
 /** Re-enable writes after a successful login. Called from the auth flow

@@ -71,7 +71,10 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
       // (a successful save is final).
       dirtyRef.current = false;
       try {
-        await bridge.setInstanceState(idRef.current, getStore().getSnapshot());
+        await bridge.setInstanceState({
+          instanceId: idRef.current,
+          state: getStore().getSnapshot(),
+        });
         return true;
       } catch {
         dirtyRef.current = true;
@@ -111,7 +114,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
       openUrl: async (params: Record<string, unknown>) => {
         const url = typeof params["url"] === "string" ? params["url"] : "";
         if (!url) return;
-        await getBridge()?.widgetOpenUrl(url);
+        await getBridge()?.widgetOpenUrl({ url });
       },
       // Live actions. generateText/fetchUrl write their result into the store
       // at `into`; the store subscriber persists it and bound components
@@ -127,7 +130,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           toast.error("Agent unavailable");
           return;
         }
-        bridge.widgetSendPrompt(prompt).catch((err) => {
+        bridge.widgetSendPrompt({ prompt }).catch((err) => {
           toast.error(err instanceof Error ? err.message : "Failed to send prompt");
         });
       },
@@ -137,7 +140,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         const system = typeof params["system"] === "string" ? params["system"] : undefined;
         if (!prompt || !into) return;
         try {
-          const text = await getBridge()?.widgetComplete(prompt, system);
+          const text = await getBridge()?.widgetComplete({ prompt, system });
           if (typeof text === "string") getStore().set(into, text);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Generation failed");
@@ -148,7 +151,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         const into = typeof params["into"] === "string" ? params["into"] : "";
         if (!url || !into) return;
         try {
-          const text = await getBridge()?.widgetFetch(url);
+          const text = await getBridge()?.widgetFetch({ url });
           if (typeof text === "string") getStore().set(into, text);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Fetch failed");
@@ -188,7 +191,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         const intoLatest = claim(into);
         const errorLatest = errorPath && errorPath !== into ? claim(errorPath) : null;
         try {
-          const data = await bridge.widgetCallTool(tool, input);
+          const data = await bridge.widgetCallTool({ tool, input });
           if (intoLatest()) getStore().set(into, data ?? null);
           // Clear a stale error only if we still own the error pointer and it
           // isn't the path we just wrote the result to.

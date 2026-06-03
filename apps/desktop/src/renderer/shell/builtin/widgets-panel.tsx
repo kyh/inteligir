@@ -9,7 +9,7 @@ import { isJsonUi, type JsonUiWidgetDef } from "@/shared/shell";
 
 function launch(def: JsonUiWidgetDef): void {
   getBridge()
-    ?.placeWidget(def.id, "pinned")
+    ?.placeWidget({ widgetId: def.id, surface: "pinned" })
     .catch((err) => {
       toast.error(err instanceof Error ? err.message : "Couldn't launch the widget");
     });
@@ -17,7 +17,7 @@ function launch(def: JsonUiWidgetDef): void {
 
 function remove(def: JsonUiWidgetDef): void {
   getBridge()
-    ?.deleteWidget(def.id, def.revision)
+    ?.deleteWidget({ widgetId: def.id, expectedRevision: def.revision })
     .catch((err) => {
       toast.error(err instanceof Error ? err.message : "Couldn't delete the widget");
     });

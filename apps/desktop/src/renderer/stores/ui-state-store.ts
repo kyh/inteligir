@@ -27,7 +27,7 @@ function scheduleFlush(key: string, value: unknown): void {
     key,
     setTimeout(() => {
       flushTimers.delete(key);
-      void getBridge()?.setUiState(key, value);
+      void getBridge()?.setUiState({ key, value });
     }, FLUSH_DELAY_MS),
   );
 }

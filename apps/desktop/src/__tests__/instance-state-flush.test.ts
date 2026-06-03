@@ -50,7 +50,9 @@ vi.mock("electron", () => ({
 
 import { flushInstanceState, registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
 import { flushRendererInstance } from "@/main/lib/widget-flush";
-import { IPC_CHANNELS } from "@/shared/ipc";
+import { IPC } from "@/shared/ipc-registry";
+
+const FLUSH_ACK = IPC.ackWidgetFlush.channel;
 
 function addWindow(id: number): void {
   electronMock.windows.push({
@@ -160,13 +162,13 @@ describe("flushRendererInstance (main → renderer round-trip)", () => {
 
     expect(electronMock.sent.map((message) => message.webContentsId)).toEqual([1, 2]);
     const id = requestId(0);
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, { requestId: id, persisted: true });
+    electronMock.emit(FLUSH_ACK, 1, { requestId: id, persisted: true });
     await Promise.resolve();
     expect(resolved).toBeNull();
 
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 2, { requestId: id, persisted: true });
+    electronMock.emit(FLUSH_ACK, 2, { requestId: id, persisted: true });
     await expect(pending).resolves.toBe(true);
-    expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
+    expect(electronMock.listenerCount(FLUSH_ACK)).toBe(0);
   });
 
   it("resolves false when any window acks with persisted=false", async () => {
@@ -177,10 +179,10 @@ describe("flushRendererInstance (main → renderer round-trip)", () => {
     const pending = flushRendererInstance("instance", 1000);
     await Promise.resolve();
     const id = requestId(0);
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, { requestId: id, persisted: true });
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 2, { requestId: id, persisted: false });
+    electronMock.emit(FLUSH_ACK, 1, { requestId: id, persisted: true });
+    electronMock.emit(FLUSH_ACK, 2, { requestId: id, persisted: false });
     await expect(pending).resolves.toBe(false);
-    expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
+    expect(electronMock.listenerCount(FLUSH_ACK)).toBe(0);
   });
 
   it("returns false and removes the listener when a targeted window does not ack", async () => {
@@ -191,10 +193,10 @@ describe("flushRendererInstance (main → renderer round-trip)", () => {
     const pending = flushRendererInstance("instance", 10);
     await Promise.resolve();
     const id = requestId(0);
-    electronMock.emit(IPC_CHANNELS.SHELL_FLUSH_ACK, 1, { requestId: id, persisted: true });
+    electronMock.emit(FLUSH_ACK, 1, { requestId: id, persisted: true });
 
     await expect(pending).resolves.toBe(false);
-    expect(electronMock.listenerCount(IPC_CHANNELS.SHELL_FLUSH_ACK)).toBe(0);
+    expect(electronMock.listenerCount(FLUSH_ACK)).toBe(0);
   });
 
   it("resolves true immediately when no renderer window is alive", async () => {

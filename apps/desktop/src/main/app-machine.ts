@@ -8,13 +8,12 @@ import { isSetupComplete, seedResources, teardownResources } from "@/agent/setup
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
-import { broadcastToRenderer } from "@/main/lib/broadcast";
+import { broadcast } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
 import { taskManager } from "@/main/tasks/task-manager";
 import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
-import { IPC_CHANNELS } from "@/shared/ipc";
 import type { AppState, MachineEvent } from "@/shared/app-state";
 
 // ---------------------------------------------------------------------------
@@ -121,7 +120,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
         );
         const reason =
           "The model returned no response. The upstream call may have failed silently — try re-authenticating.";
-        broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, {
+        broadcast("onAgentEvent", {
           type: "turn_error",
           kind: "auth",
           reason,
@@ -134,7 +133,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
     }
   }
 
-  broadcastToRenderer(IPC_CHANNELS.AGENT_EVENT, event);
+  broadcast("onAgentEvent", event);
 }
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
@@ -262,8 +261,8 @@ export class AppMachine {
 
 let machine: AppMachine | null = null;
 
-function broadcast(state: AppState): void {
-  broadcastToRenderer(IPC_CHANNELS.APP_STATE, state);
+function broadcastAppState(state: AppState): void {
+  broadcast("onAppState", state);
 }
 
 async function downloadVoiceModel(): Promise<void> {
@@ -281,7 +280,7 @@ const realDeps: EffectDeps = {
   stopAgent,
   teardownResources,
   newSession,
-  reportSetupProgress: (progress) => broadcastToRenderer(IPC_CHANNELS.SETUP_PROGRESS, progress),
+  reportSetupProgress: (progress) => broadcast("onSetupProgress", progress),
 };
 
 export function getAppState(): AppState {
@@ -296,14 +295,14 @@ export function transition(event: MachineEvent): void {
 export function initMachine(): void {
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
-  machine = new AppMachine(realDeps, broadcast, initial);
+  machine = new AppMachine(realDeps, broadcastAppState, initial);
 
   if (loggedIn && isSetupComplete()) {
     void machine.send({ type: "SETUP" }).catch((err) => {
       console.error("[machine] init setup failed:", err);
     });
   } else {
-    broadcast(machine.getState());
+    broadcastAppState(machine.getState());
   }
 }
 
