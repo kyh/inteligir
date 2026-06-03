@@ -11,6 +11,9 @@ export const ExecutorSourceSchema = z.object({
   id: z.string(),
   scopeId: z.string().nullish(),
   name: z.string(),
+  // The namespace the source was registered under (what tool calls are prefixed
+  // with). Present on newer daemons; when absent, the source id is the namespace.
+  namespace: z.string().nullish(),
   // "mcp" | "openapi" | "graphql" | "googleDiscovery" | "built-in" | ...
   kind: z.string(),
   url: z.string().nullish(),
