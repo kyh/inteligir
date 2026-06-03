@@ -5,20 +5,17 @@
 import fs from "node:fs";
 import open from "open";
 
-import {
-  completeText,
-  createAuthStorage,
-  hasAuth,
-  loginWithProvider,
-  resolveModel,
-} from "@repo/pi-driver";
+import { createAuthStorage, hasAuth, loginWithProvider } from "@repo/pi-driver/auth";
+import { completeText } from "@repo/pi-driver/complete";
+import { resolveModel } from "@repo/pi-driver/model";
+import type { AuthStorage } from "@repo/pi-driver/pi-types";
 
 import { AUTH_PATH, AUTH_PROVIDER, MODEL_ID } from "@/agent/paths";
 import { resumeShellWrites } from "@/main/shell";
 
-let authStorage: ReturnType<typeof createAuthStorage> | null = null;
+let authStorage: AuthStorage | null = null;
 
-export function getAuthStorage(): ReturnType<typeof createAuthStorage> {
+export function getAuthStorage(): AuthStorage {
   if (!authStorage) authStorage = createAuthStorage(AUTH_PATH);
   return authStorage;
 }

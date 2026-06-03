@@ -37,9 +37,6 @@
       "esbuild",
       "sharp",
       "spawn-sync"
-    ],
-    "overrides": {
-      "zod": "^4.4.2"
-    }
+    ]
   }
 }

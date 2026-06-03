@@ -24,8 +24,6 @@
   "dependencies": {
     "@json-render/core": "^0.19.0",
     "@json-render/react": "^0.19.0",
-    "@mariozechner/pi-ai": "^0.73.1",
-    "@mariozechner/pi-coding-agent": "^0.73.1",
     "@repo/agent-runtime": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@repo/ui": "workspace:^",
@@ -33,7 +31,7 @@
     "ai": "^6.0.191",
     "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
-    "motion": "^12.40.0",
+    "lucide-react": "catalog:",
     "open": "^11.0.0",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -64,7 +62,6 @@
     "electron": "^42.2.0",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
-    "lucide-react": "^1.16.0",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "^4.1.7"

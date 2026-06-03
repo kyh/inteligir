@@ -8,8 +8,10 @@
 // every registerTool call hits validateToolParametersSchema first (see
 // agent/extension.ts).
 
-import { PiAgent, resolveModel, SessionManager } from "@repo/pi-driver";
-import type { AgentSessionEvent, ImageContent } from "@repo/pi-driver";
+import { PiAgent } from "@repo/pi-driver/agent";
+import { resolveModel } from "@repo/pi-driver/model";
+import { SessionManager } from "@repo/pi-driver/pi-types";
+import type { AgentSessionEvent, ImageContent } from "@repo/pi-driver/pi-types";
 
 import { getAuthStorage } from "@/agent/auth";
 import { buildValidatedFactories } from "@/agent/extension";

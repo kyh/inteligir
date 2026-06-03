@@ -21,13 +21,13 @@
     "@trpc/server": "catalog:",
     "@trpc/tanstack-react-query": "catalog:",
     "better-auth": "catalog:",
-    "lucide-react": "^1.16.0",
+    "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "^0.4.6",
     "react": "catalog:",
     "react-dom": "catalog:",
     "superjson": "catalog:",
-    "zod": "^4.4.3"
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",

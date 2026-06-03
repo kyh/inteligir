@@ -14,7 +14,7 @@
  */
 
 import { Type } from "@sinclair/typebox";
-import type { ExtensionAPI } from "@repo/pi-driver";
+import type { ExtensionAPI } from "@repo/pi-driver/pi-types";
 
 import { execute, resumeExecution } from "@/main/executor/executor-client";
 import { EXECUTOR_CLI, installExecutor, getExecutorDaemon } from "@/main/executor/executor-daemon";

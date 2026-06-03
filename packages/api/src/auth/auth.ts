@@ -1,14 +1,8 @@
-import type { User } from "better-auth";
-import { expo } from "@better-auth/expo";
-import { eq } from "@repo/db";
 import { db } from "@repo/db/drizzle-client";
-import { user as userSchema } from "@repo/db/drizzle-schema-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
-import { admin, oAuthProxy, organization } from "better-auth/plugins";
-
-import { slugify } from "./utils";
+import { oAuthProxy } from "better-auth/plugins";
 
 const baseUrl =
   process.env.VERCEL_ENV === "production"
@@ -17,14 +11,10 @@ const baseUrl =
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000";
 
-const firstNonEmpty = (...values: Array<string | undefined>): string | undefined =>
-  values.find((value) => value !== undefined && value.trim() !== "");
-
-const localAuthSecret = "kT8mYqX4rN2vP7sL9cH3aW6eJ1bD5uF0gZpR4xQnVtM=";
-const isVercel = process.env.VERCEL_ENV !== undefined;
-const authSecret =
-  firstNonEmpty(process.env.BETTER_AUTH_SECRET, process.env.AUTH_SECRET) ??
-  (isVercel ? firstNonEmpty(process.env.SUPABASE_SERVICE_ROLE_KEY) : localAuthSecret);
+const authSecret = process.env.BETTER_AUTH_SECRET ?? process.env.AUTH_SECRET;
+if (!authSecret) {
+  throw new Error("BETTER_AUTH_SECRET (or AUTH_SECRET) is not set");
+}
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -37,90 +27,9 @@ export const auth = betterAuth({
       currentURL: baseUrl,
       productionURL: `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL ?? "init.kyh.io"}`,
     }),
-    expo(),
-    organization(),
-    admin(),
     nextCookies(),
   ],
   emailAndPassword: {
     enabled: true,
   },
-  trustedOrigins: ["expo://"],
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (user) => {
-          await createDefaultOrganization(user);
-        },
-      },
-    },
-    session: {
-      create: {
-        before: async (session) => {
-          return await setActiveOrganization(session);
-        },
-      },
-    },
-  },
 });
-
-/**
- * Generates an available organization slug by checking for conflicts.
- * Recursively adds numbers to the slug until a unique one is found.
- */
-const generateAvailableSlug = async (slug: string, attempt = 0): Promise<string> => {
-  const org = await db.query.organization.findFirst({
-    where: (organization, { eq }) => eq(organization.slug, slug),
-  });
-  if (org) {
-    return generateAvailableSlug(slug + `-${attempt + 1}`, attempt + 1);
-  }
-  return slug;
-};
-
-/**
- * Creates a default personal organization for a new user
- * Generates a unique slug and creates the organization
- * If organization creation fails, the user is deleted to maintain data consistency
- * @param user - The user object for whom to create the organization
- * @throws Error if organization creation fails
- */
-const createDefaultOrganization = async (user: User) => {
-  const slug = await generateAvailableSlug(slugify(user.name));
-
-  try {
-    await auth.api.createOrganization({
-      body: {
-        userId: user.id,
-        name: "Personal Organization",
-        slug,
-        metadata: {
-          personal: true,
-        },
-      },
-    });
-  } catch (err) {
-    // If organization creation fails, delete the user to maintain data consistency
-    await db.delete(userSchema).where(eq(userSchema.id, user.id));
-    throw err;
-  }
-};
-
-/**
- * Sets the active organization for a user session
- * Finds the first organization the user is a member of and sets it as active
- * @param session - The session object containing the user ID
- * @returns Promise<object> - Session data with activeOrganizationId set
- */
-const setActiveOrganization = async (session: { userId: string }) => {
-  const firstOrg = await db.query.member.findFirst({
-    where: (member, { eq }) => eq(member.userId, session.userId),
-  });
-
-  return {
-    data: {
-      ...session,
-      activeOrganizationId: firstOrg?.organizationId,
-    },
-  };
-};

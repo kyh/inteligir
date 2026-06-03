@@ -45,7 +45,7 @@ import { CreateTaskParamsSchema } from "@/shared/task";
 import { UiStateSetSchema } from "@/shared/ui-state";
 import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { SkillsList, UpdateState } from "@/shared/ipc";
-import type { ImageContent } from "@repo/pi-driver";
+import type { ImageContent } from "@repo/pi-driver/pi-types";
 
 const { autoUpdater } = electronUpdater;
 

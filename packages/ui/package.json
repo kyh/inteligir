@@ -27,11 +27,9 @@
     "ai": "^6.0.191",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "cmdk": "^1.1.1",
-    "lucide-react": "^1.16.0",
+    "lucide-react": "catalog:",
     "motion": "^12.40.0",
     "nanoid": "^5.1.11",
-    "pdfjs-dist": "^5.4.149",
     "react-dom": "catalog:",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
@@ -48,13 +46,11 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/three": "^0.184.1",
-    "next": "catalog:",
     "shadcn": "^4.8.0",
     "tailwindcss": "catalog:",
     "typescript": "catalog:"
   },
   "peerDependencies": {
-    "react": "catalog:",
-    "zod": "catalog:"
+    "react": "catalog:"
   }
 }

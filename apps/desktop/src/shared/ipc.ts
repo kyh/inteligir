@@ -312,7 +312,7 @@ export type NotificationSettings = {
 // Executor (integration backend) — shared types
 // ---------------------------------------------------------------------------
 
-import type { PiAgentSkill } from "@repo/pi-driver";
+import type { PiAgentSkill } from "@repo/pi-driver/skills";
 
 import type {
   AddGoogleSourceInput,

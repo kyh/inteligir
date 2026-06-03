@@ -5,7 +5,6 @@
   "description": "Pi-coding-agent wrapper used by the Inteligir desktop app. Exposes a stable Agent class so app code does not depend on pi-coding-agent internals directly.",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {

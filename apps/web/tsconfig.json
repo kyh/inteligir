@@ -3,12 +3,7 @@
   "compilerOptions": {
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "preserve",
-    // Consumes vendored Fluid Functionalism components from @repo/ui, which are
-    // authored without noUncheckedIndexedAccess. Match that here so the source
-    // typechecks when bundled by the app. (strict stays on.)
-    "noUncheckedIndexedAccess": false,
     "paths": {
-      "@/.source": ["./.source"],
       "@/*": ["./src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     },

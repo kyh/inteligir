@@ -6,7 +6,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { app } from "electron";
 
-import { listSkills as listSkillsFromDisk } from "@repo/pi-driver";
+import { listSkills as listSkillsFromDisk } from "@repo/pi-driver/skills";
 import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import { readCliVersion } from "@repo/agent-runtime/install";
 

@@ -4,7 +4,6 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.5.0
-  "@better-auth/expo": ^1.6.11
   "@kyh/tsconfig": ^1.1.14
   "@tailwindcss/postcss": ^4.3.0
   "@tailwindcss/vite": ^4.3.0
@@ -18,6 +17,7 @@ catalog:
   "@types/react-dom": ^19.2.3
   "@vitejs/plugin-react": ^6.0.2
   better-auth: ^1.6.11
+  lucide-react: ^1.16.0
   next: ^16.2.6
   react: ^19.2.6
   react-dom: ^19.2.6

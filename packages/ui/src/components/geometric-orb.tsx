@@ -443,6 +443,7 @@ function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor
       if (!group) continue;
 
       const lineConst = lineConstants[lineIdx];
+      if (!lineConst) continue;
       const { longitudeRotation } = lineConst;
 
       // Longitude spread: 0 when circle (expand=0), full when sphere
@@ -498,9 +499,9 @@ function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor
 
         // --- Blend helix → target based on morph ---
         const hIdx = (lineIdx * POINTS_PER_LINE + i) * 3;
-        const hx = helixCache[hIdx];
-        const hy = helixCache[hIdx + 1];
-        const hz = helixCache[hIdx + 2];
+        const hx = helixCache[hIdx] ?? 0;
+        const hy = helixCache[hIdx + 1] ?? 0;
+        const hz = helixCache[hIdx + 2] ?? 0;
 
         const x = hx + (tx - hx) * morph;
         const y = hy + (ty - hy) * morph;
@@ -525,15 +526,18 @@ function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor
       }
 
       const last = POINTS_PER_LINE * 3;
-      positionBuffer[last] = positionBuffer[0];
-      positionBuffer[last + 1] = positionBuffer[1];
-      positionBuffer[last + 2] = positionBuffer[2];
-      colorBuffer[last] = colorBuffer[0];
-      colorBuffer[last + 1] = colorBuffer[1];
-      colorBuffer[last + 2] = colorBuffer[2];
+      positionBuffer[last] = positionBuffer[0] ?? 0;
+      positionBuffer[last + 1] = positionBuffer[1] ?? 0;
+      positionBuffer[last + 2] = positionBuffer[2] ?? 0;
+      colorBuffer[last] = colorBuffer[0] ?? 0;
+      colorBuffer[last + 1] = colorBuffer[1] ?? 0;
+      colorBuffer[last + 2] = colorBuffer[2] ?? 0;
 
-      geometries[lineIdx].setPositions(positionBuffer);
-      geometries[lineIdx].setColors(colorBuffer);
+      const lineGeom = geometries[lineIdx];
+      if (lineGeom) {
+        lineGeom.setPositions(positionBuffer);
+        lineGeom.setColors(colorBuffer);
+      }
     }
   });
 
@@ -541,15 +545,19 @@ function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor
     <group ref={parentGroupRef}>
       <group ref={spinGroupRef}>
         <mesh ref={helixMeshRef} geometry={helixGeometry} material={helixMaterial} />
-        {Array.from({ length: NUM_LINES }, (_, lineIdx) => (
-          <OrbLine
-            key={lineIdx}
-            lineIdx={lineIdx}
-            groupRefs={groupRefs}
-            geometry={geometries[lineIdx]}
-            material={materials[lineIdx]}
-          />
-        ))}
+        {geometries.map((geometry, lineIdx) => {
+          const material = materials[lineIdx];
+          if (!material) return null;
+          return (
+            <OrbLine
+              key={`orb-line-${lineIdx}`}
+              lineIdx={lineIdx}
+              groupRefs={groupRefs}
+              geometry={geometry}
+              material={material}
+            />
+          );
+        })}
       </group>
     </group>
   );

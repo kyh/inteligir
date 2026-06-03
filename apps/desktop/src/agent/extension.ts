@@ -8,7 +8,7 @@
  * phase only sees what's meaningful at that point in the lifecycle.
  */
 
-import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver";
+import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver/pi-types";
 
 import type { SetupProgress } from "@/shared/ipc";
 

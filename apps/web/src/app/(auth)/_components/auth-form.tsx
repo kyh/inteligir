@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@repo/ui/components/button";
 import { Field, FieldContent, FieldError, FieldGroup, FieldLabel } from "@repo/ui/components/field";
 import { Input } from "@repo/ui/components/input";
@@ -16,9 +16,16 @@ type AuthFormProps = {
   type: "login" | "register";
 } & React.HTMLAttributes<HTMLDivElement>;
 
+/** Same-origin path only — prevents open-redirect via crafted ?nextPath= values. */
+const safeNext = (raw: string | null): string => {
+  if (!raw) return "/";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "/";
+  return raw;
+};
+
 export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
   const router = useRouter();
-  const params = useParams<{ nextPath?: string }>();
+  const nextPath = safeNext(useSearchParams().get("nextPath"));
   const [submittingGithub, setSubmittingGithub] = useState(false);
 
   const form = useForm({
@@ -41,7 +48,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
           name: emailPrefix ?? "User",
           fetchOptions: {
             onSuccess: () => {
-              router.replace(params.nextPath ?? "/dashboard");
+              router.replace(nextPath);
             },
             onError: (ctx) => {
               toast.error(ctx.error.message);
@@ -56,7 +63,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
           password: value.password,
           fetchOptions: {
             onSuccess: () => {
-              router.replace(params.nextPath ?? "/dashboard");
+              router.replace(nextPath);
             },
             onError: (ctx) => {
               toast.error(ctx.error.message);
@@ -73,7 +80,7 @@ export const AuthForm = ({ className, type, ...props }: AuthFormProps) => {
       provider: "github",
       fetchOptions: {
         onSuccess: () => {
-          router.replace(params.nextPath ?? "/dashboard");
+          router.replace(nextPath);
         },
         onError: (ctx) => {
           toast.error(ctx.error.message);
@@ -307,7 +314,7 @@ export const UpdatePasswordForm = () => {
         fetchOptions: {
           onSuccess: () => {
             toast.success("Password updated successfully!");
-            router.push("/dashboard");
+            router.push("/");
           },
           onError: (ctx) => {
             toast.error(ctx.error.message);
