@@ -241,4 +241,20 @@ export function shouldFire(task: Task, now: number): boolean {
   }
 }
 
-export const taskManager = new TaskManager();
+// Lazy singleton — TaskManager's constructor reads tasks.json + task-runs.json
+// from disk, so eagerly instantiating it at module load forced an import-time
+// fs touch and prevented tests from mocking the path. Callers now pull the
+// instance via getTaskManager().
+let instance: TaskManager | null = null;
+
+export function getTaskManager(): TaskManager {
+  if (!instance) instance = new TaskManager();
+  return instance;
+}
+
+/** Reset the cached TaskManager. Called from teardownResources() so the next
+ * read goes back to disk after AGENT_DIR is wiped. */
+export function resetTaskManager(): void {
+  instance?.stopScheduler();
+  instance = null;
+}

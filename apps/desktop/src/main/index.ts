@@ -38,7 +38,7 @@ import { broadcast } from "@/main/lib/broadcast";
 import { handle } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
-import { taskManager } from "@/main/tasks/task-manager";
+import { getTaskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
@@ -201,13 +201,13 @@ function registerIpcHandlers(): void {
 
   // ---- Tasks ----------------------------------------------------------------
 
-  handle("createTask", (params) => ({ task: taskManager.createTask(params) }));
-  handle("listTasks", () => ({ tasks: taskManager.getTasks() }));
+  handle("createTask", (params) => ({ task: getTaskManager().createTask(params) }));
+  handle("listTasks", () => ({ tasks: getTaskManager().getTasks() }));
   handle("deleteTask", (id): { ok: true } => {
-    taskManager.deleteTask(id);
+    getTaskManager().deleteTask(id);
     return { ok: true };
   });
-  handle("toggleTask", (id) => ({ task: taskManager.toggleTask(id) }));
+  handle("toggleTask", (id) => ({ task: getTaskManager().toggleTask(id) }));
 
   // ---- Voice ----------------------------------------------------------------
 

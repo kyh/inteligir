@@ -6,7 +6,7 @@
 
 import { Type, type Static } from "@sinclair/typebox";
 
-import { taskManager } from "@/main/tasks/task-manager";
+import { getTaskManager } from "@/main/tasks/task-manager";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
 import type { PiExtensionBundle } from "@/agent/extension";
@@ -45,7 +45,7 @@ const tasksExtension: PiExtensionBundle = {
 
         switch (p.action) {
           case "list": {
-            const tasks = taskManager.getTasks();
+            const tasks = getTaskManager().getTasks();
             if (tasks.length === 0) return textResult("No tasks configured.");
             const lines = tasks.map(
               (t) =>
@@ -58,13 +58,13 @@ const tasksExtension: PiExtensionBundle = {
             if (!p.prompt) return textResult("Error: prompt is required for create");
             if (!p.schedule) return textResult("Error: schedule is required for create");
             const schedule = TaskScheduleSchema.parse(p.schedule);
-            const task = taskManager.createTask({ label: p.label, prompt: p.prompt, schedule });
+            const task = getTaskManager().createTask({ label: p.label, prompt: p.prompt, schedule });
             return textResult(`Created task "${task.label}" (${task.id})`);
           }
           case "toggle": {
             if (!p.taskId) return textResult("Error: taskId is required for toggle");
             try {
-              const task = taskManager.toggleTask(p.taskId);
+              const task = getTaskManager().toggleTask(p.taskId);
               return textResult(
                 `Task "${task.label}" is now ${task.enabled ? "enabled" : "disabled"}`,
               );
@@ -74,7 +74,7 @@ const tasksExtension: PiExtensionBundle = {
           }
           case "delete": {
             if (!p.taskId) return textResult("Error: taskId is required for delete");
-            taskManager.deleteTask(p.taskId);
+            getTaskManager().deleteTask(p.taskId);
             return textResult(`Deleted task ${p.taskId}`);
           }
         }
@@ -82,7 +82,7 @@ const tasksExtension: PiExtensionBundle = {
     });
 
     pi.on("before_agent_start", (_event, _ctx) => {
-      const tasks = taskManager.getTasks().filter((t) => t.enabled);
+      const tasks = getTaskManager().getTasks().filter((t) => t.enabled);
       if (tasks.length === 0) return;
 
       const summary = tasks
