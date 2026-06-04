@@ -14,20 +14,14 @@
   "dependencies": {
     "@repo/api": "workspace:*",
     "@repo/ui": "workspace:*",
+    "@sinclair/typebox": "catalog:",
     "@tanstack/react-form": "catalog:",
-    "@tanstack/react-query": "catalog:",
-    "@tanstack/react-query-devtools": "^5.100.13",
-    "@trpc/client": "catalog:",
-    "@trpc/server": "catalog:",
-    "@trpc/tanstack-react-query": "catalog:",
     "better-auth": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "^0.4.6",
     "react": "catalog:",
-    "react-dom": "catalog:",
-    "superjson": "catalog:",
-    "@sinclair/typebox": "catalog:"
+    "react-dom": "catalog:"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",

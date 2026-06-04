@@ -7,7 +7,6 @@ import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { siteConfig } from "@/lib/site-config";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
-import { TRPCReactProvider } from "@/trpc/react";
 
 import "./styles/globals.css";
 
@@ -99,7 +98,7 @@ const RootLayout = (props: LayoutProps) => {
         <ThemeProvider>
           <TooltipProvider>
             <SiteHeader />
-            <TRPCReactProvider>{props.children}</TRPCReactProvider>
+            {props.children}
             <Toaster />
             <GlobalAlertDialog />
           </TooltipProvider>

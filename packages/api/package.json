@@ -14,10 +14,8 @@
   },
   "dependencies": {
     "@repo/db": "workspace:^",
-    "@trpc/server": "catalog:",
     "better-auth": "catalog:",
     "next": "catalog:",
-    "superjson": "catalog:",
     "zod": "^4.4.3"
   },
   "devDependencies": {
