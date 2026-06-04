@@ -1,17 +1,17 @@
-import { db } from "@repo/db/drizzle-client";
+import { getDb } from "@repo/db/drizzle-client";
 import { initTRPC, TRPCError } from "@trpc/server";
 import superjson from "superjson";
 
-import { auth } from "./auth/auth";
+import { getAuth } from "./auth/auth";
 
 export const createTRPCContext = async (opts: { headers: Headers }) => {
-  const session = await auth.api.getSession({
+  const session = await getAuth().api.getSession({
     headers: opts.headers,
   });
 
   return {
     session,
-    db,
+    db: getDb(),
   };
 };
 

@@ -1,4 +1,10 @@
-import { db } from "@repo/db/drizzle-client";
+// better-auth's return type leaks an internal `$strip` symbol from Zod's
+// type declarations; the TS-emitted .d.ts for getAuth() can only name it
+// when `zod` is reachable as a type-only import from this module. The
+// runtime code below uses TypeBox; zod is a vendor-type carrier only.
+import type {} from "zod";
+
+import { getDb } from "@repo/db/drizzle-client";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { nextCookies } from "better-auth/next-js";
@@ -17,7 +23,7 @@ function buildAuth() {
     throw new Error("BETTER_AUTH_SECRET (or AUTH_SECRET) is not set");
   }
   return betterAuth({
-    database: drizzleAdapter(db, {
+    database: drizzleAdapter(getDb(), {
       provider: "pg",
     }),
     baseURL: baseUrl,
@@ -35,18 +41,15 @@ function buildAuth() {
   });
 }
 
-// Lazy auth — initializing better-auth at module load forces every consumer
-// (route handlers, trpc context) to have the secret in env even at build
-// time. Defer to first request.
 let cached: ReturnType<typeof buildAuth> | null = null;
 
-function getAuth(): ReturnType<typeof buildAuth> {
+/**
+ * Lazy better-auth init. Initializing at module load makes `next build` fail
+ * when BETTER_AUTH_SECRET isn't in the build env (Next 16 evaluates route
+ * handlers to collect page data). Callers reach for auth only inside request
+ * handlers, where the env is set.
+ */
+export function getAuth(): ReturnType<typeof buildAuth> {
   if (!cached) cached = buildAuth();
   return cached;
 }
-
-export const auth = new Proxy({} as ReturnType<typeof buildAuth>, {
-  get(_target, prop, receiver) {
-    return Reflect.get(getAuth(), prop, receiver);
-  },
-});
