@@ -224,13 +224,19 @@ const UP_NEXT_WIDGET: SeedDef = {
         children: ["eyebrow", "emptyState", "list"],
       },
       eyebrow: { type: "Text", props: { text: "▦ UP NEXT", muted: true, size: "xs" } },
-      // Shown only when the Google Calendar source is missing or the call
-      // failed — visible binds to /error so it disappears as soon as a
-      // successful response writes /events and clears /error.
+      // Static guidance shown whenever there are no events — i.e. before the
+      // Google Calendar source is connected, or when the call fails. Bound to
+      // the data's emptiness (`not: true`) rather than the error string so an
+      // expected "source not connected" failure never paints a raw message
+      // here; the callTool error still routes to /error (below), unrendered.
       emptyState: {
         type: "Text",
-        props: { text: { $bindState: "/error" }, size: "sm", muted: true },
-        visible: { $state: "/error" },
+        props: {
+          text: "Connect Google Calendar in Extensions to see your next events.",
+          size: "sm",
+          muted: true,
+        },
+        visible: { $state: "/events", not: true },
       },
       list: {
         type: "Stack",
@@ -258,7 +264,12 @@ const UP_NEXT_WIDGET: SeedDef = {
         props: { text: { $item: "start/dateTime" }, size: "xs", muted: true },
       },
     },
-    state: { events: [], error: "Connect Google Calendar to see your next events" },
+    // No initial /events: an empty array is truthy (`Boolean([]) === true`), so
+    // the `not: true` guidance check would read it as "has data" and hide the
+    // prompt. Leaving it absent keeps /events falsy until a successful call
+    // writes rows; the repeat reads a missing path as []. /error captures a
+    // failed call (unrendered) so callTool doesn't toast on the cold-start miss.
+    state: {},
     onMount: [
       // Stamp current ISO into /timeMin so the callTool input below can
       // reference it dynamically. Always re-fires (no skipIf) so the lookup
@@ -300,10 +311,16 @@ const PEOPLE_WIDGET: SeedDef = {
         children: ["eyebrow", "emptyState", "row"],
       },
       eyebrow: { type: "Text", props: { text: "👤 PEOPLE", muted: true, size: "xs" } },
+      // Static guidance shown until contacts load (see UP_NEXT for the rationale
+      // on binding to data-emptiness rather than the error string).
       emptyState: {
         type: "Text",
-        props: { text: { $bindState: "/error" }, size: "sm", muted: true },
-        visible: { $state: "/error" },
+        props: {
+          text: "Connect Google Contacts in Extensions to populate this card.",
+          size: "sm",
+          muted: true,
+        },
+        visible: { $state: "/contacts", not: true },
       },
       row: {
         type: "Row",
@@ -323,10 +340,9 @@ const PEOPLE_WIDGET: SeedDef = {
         },
       },
     },
-    state: {
-      contacts: [],
-      error: "Connect Google Contacts in Extensions to populate this card.",
-    },
+    // No initial /contacts — see UP_NEXT on why an empty array would hide the
+    // guidance. /error captures a failed call (unrendered).
+    state: {},
     onMount: [
       {
         action: "callTool",

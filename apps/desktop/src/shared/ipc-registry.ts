@@ -176,6 +176,15 @@ const WidgetCallToolSchema = Type.Object(
   { tool: Type.String(), input: Type.Optional(Type.Unknown()) },
   { additionalProperties: false },
 );
+
+// Result envelope for widget:call-tool. The handler returns this instead of
+// throwing so a failed tool call never reaches the renderer as Electron's
+// "Error invoking remote method '…': <main-side stack>" string — which a widget
+// would otherwise render verbatim into its error state. `ok:false` carries a
+// short, already-cleaned message safe to show inline.
+export type WidgetCallToolResult =
+  | { ok: true; data: unknown }
+  | { ok: false; error: string };
 const WidgetOpenUrlSchema = Type.Object({ url: Type.String() }, { additionalProperties: false });
 
 // InstallWidgetInput carries a WidgetSpec — the deep validation lives in
@@ -374,7 +383,7 @@ export const IPC = {
     WidgetCompleteSchema,
   ),
   widgetFetch: invoke<typeof WidgetFetchSchema, string>("widget:fetch", WidgetFetchSchema),
-  widgetCallTool: invoke<typeof WidgetCallToolSchema, unknown>(
+  widgetCallTool: invoke<typeof WidgetCallToolSchema, WidgetCallToolResult>(
     "widget:call-tool",
     WidgetCallToolSchema,
   ),

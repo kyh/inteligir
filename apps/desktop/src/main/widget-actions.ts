@@ -41,7 +41,17 @@ export function registerWidgetActionIpcHandlers(): void {
     // and returns the cached in-flight promise, so this just awaits the same
     // eager-start kicked off by seedResources.
     await getExecutorDaemon().start();
-    return widgetCallTool(tool, input);
+    // Return a result envelope rather than throwing: a thrown handler reaches
+    // the renderer as Electron's "Error invoking remote method '…': <stack>"
+    // string, which a widget renders verbatim into its error card (and which
+    // Electron also dumps to the main log). An expected failure — e.g. a seed
+    // widget calling a Google tool before the source is connected — should be a
+    // clean inline message, not a stack trace.
+    try {
+      return { ok: true, data: await widgetCallTool(tool, input) };
+    } catch (err) {
+      return { ok: false, error: cleanToolError(err) };
+    }
   });
   handle("widgetOpenUrl", ({ url }) => openHttpUrl(url));
 }
@@ -64,6 +74,15 @@ const UNSAFE_PATH_SEGMENTS = new Set(["__proto__", "prototype", "constructor"]);
  * failed call, or an execution that pauses for interaction (widgets can't
  * resume an elicitation).
  */
+// Collapse the error into a short message safe to show in a widget. The failure
+// is re-wrapped as it bubbles sandbox → executor → client → here, so the raw
+// message accumulates leading "Error: " prefixes ("Error: Error: Tool call
+// failed"); strip them. Stacks never reach this path — we only read `.message`.
+function cleanToolError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  return raw.replace(/^(?:Error:\s*)+/i, "").trim() || "Tool call failed";
+}
+
 export async function widgetCallTool(tool: string, input: unknown): Promise<unknown> {
   if (
     !TOOL_PATH_RE.test(tool) ||

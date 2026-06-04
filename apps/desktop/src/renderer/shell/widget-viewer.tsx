@@ -242,18 +242,28 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         };
         const intoLatest = claim(into);
         const errorLatest = errorPath && errorPath !== into ? claim(errorPath) : null;
-        try {
-          const data = await bridge.widgetCallTool({ tool, input });
-          const value = selectPath ? readJsonPointer(data, selectPath) : data;
-          if (intoLatest()) getStore().set(into, value ?? null);
-          // Clear a stale error only if we still own the error pointer and it
-          // isn't the path we just wrote the result to.
-          if (errorLatest?.()) getStore().set(errorPath, null);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : "Tool call failed";
+        // widgetCallTool returns a {ok,data|error} envelope — a failed tool
+        // call resolves with ok:false rather than rejecting, so the message we
+        // surface is the clean one from main, not Electron's IPC stack string.
+        const writeError = (message: string): void => {
           if (!errorPath) toast.error(message);
           else if (errorPath === into ? intoLatest() : errorLatest?.())
             getStore().set(errorPath, message);
+        };
+        try {
+          const res = await bridge.widgetCallTool({ tool, input });
+          if (!res.ok) {
+            writeError(res.error);
+          } else {
+            const value = selectPath ? readJsonPointer(res.data, selectPath) : res.data;
+            if (intoLatest()) getStore().set(into, value ?? null);
+            // Clear a stale error only if we still own the error pointer and it
+            // isn't the path we just wrote the result to.
+            if (errorLatest?.()) getStore().set(errorPath, null);
+          }
+        } catch (err) {
+          // Transport-level failure (bridge unavailable / IPC rejected).
+          writeError(err instanceof Error ? err.message : "Tool call failed");
         }
       },
     };
