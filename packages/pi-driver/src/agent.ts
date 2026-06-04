@@ -118,26 +118,26 @@ export class PiAgent {
    */
   async waitForIdle(timeoutMs: number): Promise<boolean> {
     if (!this.session) return true;
-    return new Promise<boolean>((resolve) => {
-      let settled = false;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let unsub: (() => void) | undefined;
-      const settle = (value: boolean) => {
-        if (settled) return;
-        settled = true;
-        if (timer) clearTimeout(timer);
-        unsub?.();
-        resolve(value);
-      };
-      unsub = this.subscribe((event) => {
-        if (event.type === "agent_end") settle(true);
+    let unsubscribe: (() => void) | undefined;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const ended = new Promise<true>((resolve) => {
+      unsubscribe = this.subscribe((event) => {
+        if (event.type === "agent_end") resolve(true);
       });
-      if (this.status !== "busy") {
-        settle(true);
-        return;
-      }
-      timer = setTimeout(() => settle(false), timeoutMs);
     });
+    if (this.status !== "busy") {
+      unsubscribe?.();
+      return true;
+    }
+    const timedOut = new Promise<false>((resolve) => {
+      timeout = setTimeout(() => resolve(false), timeoutMs);
+    });
+    try {
+      return await Promise.race([ended, timedOut]);
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      unsubscribe?.();
+    }
   }
 
   // ---- public API ----------------------------------------------------------

@@ -4,12 +4,12 @@
 // ---------------------------------------------------------------------------
 
 import crypto from "node:crypto";
-import { z } from "zod";
+import { Type } from "@sinclair/typebox";
 import { Cron } from "croner";
 
-import type { Agent } from "@/agent/setup";
+import type { Agent } from "@/agent/agent";
 import {
-  TasksFileSchema,
+  TaskSchema,
   TaskRunLogSchema,
   type Task,
   type TaskRunLog,
@@ -30,8 +30,8 @@ const MAX_RUNS = 500;
 // Store schemas
 // ---------------------------------------------------------------------------
 
-const TasksSchema = TasksFileSchema.shape.tasks;
-const RunsSchema = z.array(TaskRunLogSchema);
+const TasksSchema = Type.Array(TaskSchema);
+const RunsSchema = Type.Array(TaskRunLogSchema);
 
 // ---------------------------------------------------------------------------
 // TaskManager
@@ -55,13 +55,13 @@ export class TaskManager {
   private getAgent: (() => Agent | null) | null = null;
 
   constructor(opts?: TaskManagerOptions) {
-    this.tasks = new JsonStore(
+    this.tasks = new JsonStore<Task[]>(
       opts?.tasksPath ?? inteligirPath("tasks.json"),
       TasksSchema,
       [],
       opts?.fs,
     );
-    this.runs = new JsonStore(
+    this.runs = new JsonStore<TaskRunLog[]>(
       opts?.runsPath ?? inteligirPath("task-runs.json"),
       RunsSchema,
       [],
@@ -171,10 +171,12 @@ export class TaskManager {
       return updated.length > MAX_RUNS ? updated.slice(-MAX_RUNS) : updated;
     });
 
-    const prefix = `[Scheduled task: ${task.label}]\n\n`;
-
     try {
-      await agent.sendMessage(prefix + task.prompt);
+      // No inline `[Scheduled task: ...]` prefix — the task system already
+      // tracks which run produced what via TaskRunLog, and prepending a
+      // string the agent then has to parse out contaminates the single
+      // persistent thread the user sees in the chat panel.
+      await agent.sendMessage(task.prompt);
       const finished = await agent.waitForIdle(TASK_TIMEOUT_MS);
 
       if (!finished) {
@@ -226,8 +228,8 @@ export function shouldFire(task: Task, now: number): boolean {
         const cron = new Cron(schedule.cron);
         const next = cron.nextRun(new Date(lastRun));
         return next !== null && next.getTime() <= now;
-      } catch (err) {
-        console.warn(`[scheduler] invalid cron "${schedule.cron}" for task ${task.id}:`, err);
+      } catch {
+        console.warn(`[scheduler] invalid cron "${schedule.cron}" for task ${task.id}`);
         return false;
       }
     }
@@ -239,4 +241,22 @@ export function shouldFire(task: Task, now: number): boolean {
     case "once":
       return task.lastRunAt === null && now >= schedule.runAt;
   }
+}
+
+// Lazy singleton — TaskManager's constructor reads tasks.json + task-runs.json
+// from disk, so eagerly instantiating it at module load forced an import-time
+// fs touch and prevented tests from mocking the path. Callers now pull the
+// instance via getTaskManager().
+let instance: TaskManager | null = null;
+
+export function getTaskManager(): TaskManager {
+  if (!instance) instance = new TaskManager();
+  return instance;
+}
+
+/** Reset the cached TaskManager. Called from teardownResources() so the next
+ * read goes back to disk after AGENT_DIR is wiped. */
+export function resetTaskManager(): void {
+  instance?.stopScheduler();
+  instance = null;
 }

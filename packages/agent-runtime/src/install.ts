@@ -15,8 +15,8 @@ export type InstallCliFromGithubReleaseOptions = {
   tagPrefix?: string;
   /**
    * Returns the release artifact filename for the current platform/arch.
-   * Caller picks the naming convention upstream uses — gws uses LLVM triples
-   * (`aarch64-apple-darwin`), agent-browser uses `darwin-arm64`, etc.
+   * Caller picks the naming convention upstream uses — some projects use LLVM
+   * triples (`aarch64-apple-darwin`), agent-browser uses `darwin-arm64`, etc.
    * Return null if unsupported; install warns and skips.
    */
   artifactName: () => string | null;
@@ -26,10 +26,15 @@ export type InstallCliFromGithubReleaseOptions = {
   binDir: string;
   /**
    * Artifact shape:
-   * - "tarball" (default): release asset is a .tar.gz; we extract the binary from it.
+   * - "tarball" (default): release asset is a .tar.gz; we extract a single
+   *   binary from it.
    * - "binary": release asset IS the binary; we download + chmod it directly.
+   * - "archive": release asset is a .tar.gz or .zip containing the binary plus
+   *   sidecar files (e.g. a .wasm / .node next to it). We extract the whole
+   *   archive into binDir, keeping every file, and chmod `binName`. Use this
+   *   for binaries that do relative-path lookups for their sidecars.
    */
-  artifactKind?: "tarball" | "binary";
+  artifactKind?: "tarball" | "binary" | "archive";
   /**
    * Path to the binary inside the tarball, when "tarball" kind. Defaults to
    * `binName` for flat archives. Set to e.g. `"peekaboo-macos-universal/peekaboo"`
@@ -41,15 +46,35 @@ export type InstallCliFromGithubReleaseOptions = {
    * - "sha256-sidecar" (default): expects `${artifactUrl}.sha256` next to the artifact.
    * - "checksums-txt": expects `checksums.txt` at the release root with
    *   `<hex>  <filename>` lines; we find the row matching our artifact.
+   * - "inline-sha256": uses `sha256` (a per-artifact hash baked into this app).
+   *   Stronger than the upstream-checksum modes — guards against a compromised
+   *   release too, not just transport corruption. Use when the maintainer is
+   *   willing to update the pinned hash on every dependency bump.
    * - "version-check": runs `${binName} --version` on the staged binary and
-   *   matches against `version`. Use when upstream doesn't publish checksums.
+   *   matches against `version`. Weakest — a malicious binary that fakes
+   *   --version output passes. Reserve for upstreams that publish neither
+   *   checksums nor stable enough release engineering to pin against.
    */
-  verify?: "sha256-sidecar" | "checksums-txt" | "version-check";
+  verify?: "sha256-sidecar" | "checksums-txt" | "inline-sha256" | "version-check";
+  /**
+   * Per-artifact SHA-256 hex hash, required when `verify === "inline-sha256"`.
+   * Keys are artifact filenames as returned by `artifactName()`, values are
+   * lowercase 64-char hex digests. The set of expected platforms is
+   * intentionally explicit — running on a platform whose artifact isn't in
+   * the map fails closed, instead of silently skipping verification.
+   */
+  sha256?: Record<string, string>;
   /**
    * Optional post-install hook — receives the installed binary path. Errors
    * are logged but do not throw; the binary is already in place.
    */
   postInstall?: (binPath: string) => Promise<void>;
+  /**
+   * Force a fresh download even when the requested version is already installed.
+   * Used by an explicit "repair / reinstall" action to recover a corrupt or
+   * partially-installed binary.
+   */
+  force?: boolean;
 };
 
 /**
@@ -74,6 +99,12 @@ export async function installCliFromGithubRelease(
   }
 }
 
+/** Read a CLI's reported version (the first x.y.z in `--version`), or null if
+ *  it's missing/unreadable. Exposed so callers can show installed-vs-pinned. */
+export async function readCliVersion(binPath: string): Promise<string | null> {
+  return getInstalledVersion(binPath);
+}
+
 async function getInstalledVersion(binPath: string): Promise<string | null> {
   if (!fs.existsSync(binPath)) return null;
   try {
@@ -91,7 +122,7 @@ async function getInstalledVersion(binPath: string): Promise<string | null> {
 
 async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<void> {
   const binPath = path.join(opts.binDir, opts.binName);
-  if ((await getInstalledVersion(binPath)) === opts.version) return;
+  if (!opts.force && (await getInstalledVersion(binPath)) === opts.version) return;
 
   const artifact = opts.artifactName();
   if (!artifact) {
@@ -109,10 +140,14 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
   const artifactUrl = `${releaseBaseUrl}/${artifact}`;
   const stagingDir = path.join(opts.binDir, `.${opts.binName}-staging-${process.pid}`);
   const stagedArtifactPath = path.join(stagingDir, artifact);
-  // For "binary" artifacts, the downloaded file IS the binary; for "tarball",
-  // the binary lands at stagingDir/<archiveBinPath> after extraction.
+  // Where the binary lands after the download/extract step:
+  // - "binary": the downloaded file IS the binary.
+  // - "tarball": the single extracted entry at stagingDir/<archiveBinPath>.
+  // - "archive": the binary sits among the extracted files at stagingDir/<binName>.
   const stagedBinPath =
-    artifactKind === "tarball" ? path.join(stagingDir, archiveBinPath) : stagedArtifactPath;
+    artifactKind === "binary"
+      ? stagedArtifactPath
+      : path.join(stagingDir, artifactKind === "archive" ? opts.binName : archiveBinPath);
 
   fs.mkdirSync(opts.binDir, { recursive: true });
   fs.mkdirSync(stagingDir, { recursive: true });
@@ -122,12 +157,25 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
     if (verify === "sha256-sidecar" || verify === "checksums-txt") {
       const expectedSha = await fetchExpectedSha(verify, artifactUrl, releaseBaseUrl, artifact);
       await downloadVerified(artifactUrl, stagedArtifactPath, expectedSha);
+    } else if (verify === "inline-sha256") {
+      const expectedSha = opts.sha256?.[artifact];
+      if (!expectedSha || !/^[0-9a-f]{64}$/.test(expectedSha)) {
+        throw new Error(
+          `inline-sha256: no valid pinned hash for ${artifact} (have ${
+            opts.sha256 ? Object.keys(opts.sha256).join(", ") : "no map"
+          })`,
+        );
+      }
+      await downloadVerified(artifactUrl, stagedArtifactPath, expectedSha);
     } else {
       await downloadFile(artifactUrl, stagedArtifactPath);
     }
 
     if (artifactKind === "tarball") {
-      await extractFromTarball(stagedArtifactPath, stagingDir, archiveBinPath);
+      await extractArchive(stagedArtifactPath, stagingDir, archiveBinPath);
+    } else if (artifactKind === "archive") {
+      await extractArchive(stagedArtifactPath, stagingDir);
+      fs.rmSync(stagedArtifactPath, { force: true });
     }
 
     fs.chmodSync(stagedBinPath, 0o755);
@@ -141,9 +189,20 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
       }
     }
 
-    // renameSync is atomic on the same filesystem — the old binary is never
-    // partially overwritten.
-    fs.renameSync(stagedBinPath, binPath);
+    if (artifactKind === "archive") {
+      // Multi-file artifact: move every extracted file into binDir (binary +
+      // its sidecars), overwriting any prior install. Not atomic per-file, but
+      // matches how these binaries expect their sidecars laid out beside them.
+      for (const entry of fs.readdirSync(stagingDir)) {
+        const dest = path.join(opts.binDir, entry);
+        fs.rmSync(dest, { recursive: true, force: true });
+        fs.renameSync(path.join(stagingDir, entry), dest);
+      }
+    } else {
+      // renameSync is atomic on the same filesystem — the old binary is never
+      // partially overwritten.
+      fs.renameSync(stagedBinPath, binPath);
+    }
     console.log(`[install] installed ${opts.binName} to ${binPath}`);
   } finally {
     try {
@@ -168,7 +227,8 @@ async function fetchExpectedSha(
   releaseBaseUrl: string,
   artifact: string,
 ): Promise<string> {
-  const url = mode === "sha256-sidecar" ? `${artifactUrl}.sha256` : `${releaseBaseUrl}/checksums.txt`;
+  const url =
+    mode === "sha256-sidecar" ? `${artifactUrl}.sha256` : `${releaseBaseUrl}/checksums.txt`;
   const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
   if (!resp.ok) {
     throw new Error(`checksum fetch failed: ${resp.status} ${resp.statusText}`);
@@ -208,7 +268,8 @@ async function downloadVerified(url: string, dest: string, expectedSha: string):
     resp.body,
     async function* (source) {
       for await (const chunk of source) {
-        hash.update(chunk as Uint8Array);
+        if (!isHashableChunk(chunk)) throw new Error("download stream yielded non-binary chunk");
+        hash.update(chunk);
         yield chunk;
       }
     },
@@ -221,6 +282,10 @@ async function downloadVerified(url: string, dest: string, expectedSha: string):
   }
 }
 
+function isHashableChunk(chunk: unknown): chunk is NodeJS.ArrayBufferView {
+  return ArrayBuffer.isView(chunk);
+}
+
 async function downloadFile(url: string, dest: string): Promise<void> {
   const resp = await fetch(url, { redirect: "follow", signal: AbortSignal.timeout(60_000) });
   if (!resp.ok || !resp.body) {
@@ -229,9 +294,27 @@ async function downloadFile(url: string, dest: string): Promise<void> {
   await pipeline(resp.body, fs.createWriteStream(dest));
 }
 
-function extractFromTarball(tarballPath: string, outDir: string, entryName: string): Promise<void> {
+/**
+ * Extract an archive into `outDir`. Uses `tar`, which (via libarchive/bsdtar on
+ * macOS and Windows) handles both `.tar.gz`/`.tgz` (Linux releases) and `.zip`
+ * (macOS/Windows releases) — avoiding a dependency on `unzip`, which isn't on
+ * the default Windows PATH. When `entryName` is given, extract only that entry.
+ *
+ * `.tar.gz` is read with `-xzf` (gzip); `.zip` with `-xf` (auto-detected) since
+ * forcing gzip on a zip fails. Linux releases are always `.tar.gz`, and GNU tar
+ * there can't read zip — but no Linux artifact is a zip, so that's never hit.
+ */
+function extractArchive(archivePath: string, outDir: string, entryName?: string): Promise<void> {
+  const isZip = /\.zip$/i.test(archivePath);
+  const args = [
+    isZip ? "-xf" : "-xzf",
+    archivePath,
+    "-C",
+    outDir,
+    ...(entryName ? [entryName] : []),
+  ];
   return new Promise((resolve, reject) => {
-    execFile("tar", ["xzf", tarballPath, "-C", outDir, entryName], { timeout: 30_000 }, (err) => {
+    execFile("tar", args, { timeout: 60_000 }, (err) => {
       if (err) reject(err);
       else resolve();
     });

@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts",
     "./*": "./src/*.ts"
   },
   "scripts": {
@@ -14,19 +13,14 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@better-auth/expo": "catalog:",
     "@repo/db": "workspace:^",
-    "@trpc/server": "catalog:",
     "better-auth": "catalog:",
     "next": "catalog:",
-    "react": "catalog:",
-    "superjson": "catalog:",
-    "zod": "catalog:"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
-    "@types/react": "catalog:",
     "typescript": "catalog:"
   }
 }

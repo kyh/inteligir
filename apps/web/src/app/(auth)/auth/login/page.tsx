@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
 
 import { AuthForm } from "@/app/(auth)/_components/auth-form";
 
@@ -13,7 +14,9 @@ const Page = () => {
       <div className="flex flex-col text-center">
         <h1 className="text-lg font-light">Welcome back</h1>
       </div>
-      <AuthForm type="login" />
+      <Suspense fallback={null}>
+        <AuthForm type="login" />
+      </Suspense>
       <p className="text-muted-foreground px-8 text-center text-sm">
         Don't have an account?{" "}
         <Link href="/auth/register" className="underline">

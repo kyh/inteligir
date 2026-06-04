@@ -46,13 +46,24 @@ If the effect is part of `SETUP` (binary install, config seed), prefer adding it
 
 `app-machine.ts` holds the single `Agent` instance. `getAgent()` is the only way the IPC layer reaches it. Lifecycle:
 
-- `startAgent()` — constructs `new Agent(opts)`, awaits `start()`, restores persisted active tools, subscribes to events. On failure, fully tears down so a retry doesn't see a half-initialized singleton.
+- `startAgent()` — constructs `new Agent(opts)`, awaits `start()`, subscribes to events. On failure, fully tears down so a retry doesn't see a half-initialized singleton.
 - `stopAgent()` — awaits `agent.stop()`, nulls the ref, stops the task scheduler.
-- `newSession()` — `stop` + `start({ newSession: true })`. Drops the resolved-session-file pointer so we don't resume the prior session.
+- `newSession()` — `stop` + `start({ newSession: true })`. Opens a fresh pi session.
+
+## Per-turn instrumentation
+
+`handleAgentEvent` in `app-machine.ts` mirrors every pi event to the dev terminal (and to `~/.inteligir/logs/agent.log` — see `lib/agent-log.ts`) with an `[agent-event]` prefix, and tracks per-turn state in a `Turn` object. If a turn ends without any assistant text, tool call, or pi-emitted error, it emits a synthetic `turn_error { kind: "auth" }` event — the silent-empty-turn fallback for upstream failures that pi swallowed as success. The renderer's `ReauthDialog` listens on the same event.
 
 ## IPC handlers
 
-Live in `index.ts`. Two helpers:
+Domain-grouped across a few files:
+
+- `index.ts::registerIpcHandlers()` — desktop, agent, app lifecycle, tasks, voice, notifications, UI state, skills, integrations.
+- `shell-ipc.ts::registerShellIpcHandlers()` — runtime UI shell (def install/place/unplace/delete/state).
+- `executor-ipc.ts::registerExecutorIpcHandlers()` — executor daemon pass-throughs (sources/connections/secrets/OAuth).
+- `widget-actions.ts::registerWidgetActionIpcHandlers()` — live actions JSON-UI widgets can fire (prompt/complete/fetch/openUrl).
+
+Two helpers wrap `ipcMain.handle`:
 
 - `createIpcHandler(channel, schema, handler)` — Zod-validated input.
 - `createVoidIpcHandler(channel, handler)` — no input.
@@ -61,8 +72,7 @@ All channel constants live in `shared/ipc.ts`. Renderer + preload share the same
 
 ## Other modules
 
-- `active-tools.ts` — persists which extension tools the user has enabled.
 - `notifications.ts` — desktop notification settings + delivery.
-- `session-history.ts` — resolves which pi session file to resume on launch.
+- `session-history.ts` — reads recent pi messages from disk for renderer history rehydration (one-shot per renderer mount; no cache).
 - `tasks/` — scheduled task manager (cron/interval/once); the tasks pi extension wraps it.
-- `lib/` — shared helpers (broadcast, IPC handler factory, JSON store).
+- `lib/` — shared helpers (broadcast, IPC handler factory, JSON store, agent-log tee, widget flush).

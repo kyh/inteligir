@@ -1,6 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { Type } from "@sinclair/typebox";
 import {
+  buildValidatedFactories,
   runBundleSetups,
+  validateToolParametersSchema,
+  type ExtensionRegisterContext,
   type ExtensionSetupContext,
   type PiExtensionBundle,
 } from "@/agent/extension";
@@ -102,5 +106,86 @@ describe("runBundleSetups", () => {
     await runBundleSetups(bundles, ctx);
 
     expect(order).toEqual(["first", "second", "third"]);
+  });
+});
+
+describe("validateToolParametersSchema", () => {
+  it("accepts Type.Object schemas", () => {
+    expect(() =>
+      validateToolParametersSchema(
+        { name: "ok", parameters: Type.Object({ x: Type.String() }) },
+        "test",
+      ),
+    ).not.toThrow();
+  });
+
+  it("rejects Type.Union (compiles to anyOf without type)", () => {
+    expect(() =>
+      validateToolParametersSchema(
+        {
+          name: "bad",
+          parameters: Type.Union([
+            Type.Object({ a: Type.Literal("x") }),
+            Type.Object({ a: Type.Literal("y") }),
+          ]),
+        },
+        "test",
+      ),
+    ).toThrow(/top-level type 'object'/);
+  });
+
+  it("rejects missing parameters", () => {
+    expect(() => validateToolParametersSchema({ name: "bad" }, "test")).toThrow(/no parameters/);
+  });
+});
+
+describe("buildValidatedFactories", () => {
+  const ctx: ExtensionRegisterContext = { binDir: "/fake/bin" };
+
+  it("forwards valid registrations to the underlying pi", async () => {
+    const registerTool = vi.fn();
+    const pi = { registerTool } as unknown as Parameters<ReturnType<PiExtensionBundle["register"]>>[0];
+    const bundles: PiExtensionBundle[] = [
+      {
+        name: "good",
+        register: () => (api) => {
+          api.registerTool({
+            name: "ok",
+            label: "ok",
+            description: "",
+            parameters: Type.Object({}),
+            execute: async () => ({ content: [], details: {} }),
+          });
+        },
+      },
+    ];
+    const [factory] = buildValidatedFactories(bundles, ctx);
+    await factory!(pi);
+    expect(registerTool).toHaveBeenCalledTimes(1);
+  });
+
+  it("throws when a bundle registers a tool with an invalid schema", async () => {
+    const registerTool = vi.fn();
+    const pi = { registerTool } as unknown as Parameters<ReturnType<PiExtensionBundle["register"]>>[0];
+    const bundles: PiExtensionBundle[] = [
+      {
+        name: "broken",
+        register: () => (api) => {
+          api.registerTool({
+            name: "bad",
+            label: "bad",
+            description: "",
+            parameters: Type.Union([
+              Type.Object({ a: Type.Literal("x") }),
+              Type.Object({ a: Type.Literal("y") }),
+            ]),
+            execute: async () => ({ content: [], details: {} }),
+          });
+        },
+      },
+    ];
+    const [factory] = buildValidatedFactories(bundles, ctx);
+    await expect(factory!(pi)).rejects.toThrow(/broken.*'bad'/);
+    expect(registerTool).not.toHaveBeenCalled();
   });
 });

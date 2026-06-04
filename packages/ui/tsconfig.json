@@ -4,6 +4,8 @@
     "skipLibCheck": true,
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "preserve",
+    "noUncheckedIndexedAccess": false,
+    "checkJs": false,
     "paths": {
       "@repo/ui/*": ["./src/*"]
     }

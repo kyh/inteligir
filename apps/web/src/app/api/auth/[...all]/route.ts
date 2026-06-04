@@ -1,4 +1,5 @@
-import { auth } from "@repo/api/auth/auth";
+import { getAuth } from "@repo/api/auth/auth";
 
-export const GET = auth.handler;
-export const POST = auth.handler;
+const handler = (request: Request): Response | Promise<Response> => getAuth().handler(request);
+
+export { handler as GET, handler as POST };

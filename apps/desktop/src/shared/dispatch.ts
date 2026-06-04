@@ -1,12 +1,18 @@
-import { z } from "zod";
+import { Type, type Static } from "@sinclair/typebox";
 
-export const DispatchStateSchema = z.object({
-  status: z.enum(["idle", "awaiting_pair", "connected", "reconnecting", "error"]),
-  roomCode: z.string().nullable(),
-  error: z.string().nullable(),
+export const DispatchStateSchema = Type.Object({
+  status: Type.Union([
+    Type.Literal("idle"),
+    Type.Literal("awaiting_pair"),
+    Type.Literal("connected"),
+    Type.Literal("reconnecting"),
+    Type.Literal("error"),
+  ]),
+  roomCode: Type.Union([Type.String(), Type.Null()]),
+  error: Type.Union([Type.String(), Type.Null()]),
 });
 
-export type DispatchState = z.infer<typeof DispatchStateSchema>;
+export type DispatchState = Static<typeof DispatchStateSchema>;
 
 export const DISPATCH_INITIAL_STATE: DispatchState = {
   status: "idle",

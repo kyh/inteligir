@@ -2,10 +2,19 @@
 
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { motion } from "motion/react";
+import { XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
-import { XIcon } from "lucide-react";
+import { springs } from "@repo/ui/lib/springs";
+import { getShape } from "@repo/ui/lib/shape";
+import { stripMotionConflicts } from "@repo/ui/lib/motion-bridge";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
+import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
+
+// A dialog floats four elevation steps above whatever surface it opens over.
+const DIALOG_OFFSET = 4;
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />;
@@ -23,15 +32,27 @@ function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
 }
 
-function DialogOverlay({ className, ...props }: DialogPrimitive.Backdrop.Props) {
+// Spring-animated scrim. Motion is information — the backdrop eases in on the
+// slow spring and out on the moderate one, matching the popup's tempo.
+function DialogOverlay({ className }: { className?: string }) {
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn(
-        "fixed inset-0 isolate z-50 bg-black/10 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
-        className,
-      )}
-      {...props}
+      render={(backdropProps, state) => {
+        const exiting = state.transitionStatus === "ending";
+        const { rest } = stripMotionConflicts(
+          backdropProps as React.HTMLAttributes<HTMLDivElement>,
+        );
+        return (
+          <motion.div
+            {...rest}
+            className={cn("fixed inset-0 z-50 bg-black/40 dark:bg-black/80", className)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: exiting ? 0 : 1 }}
+            transition={exiting ? springs.moderate : springs.slow}
+          />
+        );
+      }}
     />
   );
 }
@@ -40,39 +61,95 @@ function DialogContent({
   className,
   children,
   showCloseButton = true,
+  size = "sm",
+  style,
   ...props
 }: DialogPrimitive.Popup.Props & {
   showCloseButton?: boolean;
+  size?: "sm" | "lg";
 }) {
+  const shape = getShape();
+  const substrate = useSurface();
+  const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
+
+  // No `if (!open) return null` here — Base UI's `<DialogPrimitive.Popup>`
+  // handles mount/unmount itself, and waits for the motion opacity/scale tween
+  // below to finish (via `element.getAnimations()`) before unmounting.
+  // Returning null early would short-circuit the closing animation.
   return (
     <DialogPortal>
       <DialogOverlay />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
-        className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-6 rounded-xl bg-popover p-6 text-sm text-popover-foreground ring-1 ring-foreground/10 duration-100 outline-none sm:max-w-md data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
-          className,
-        )}
+        // Behavioral Popup props (focus management, etc.) and any HTML
+        // attributes/handlers stay on the primitive, so Base UI applies the
+        // behavioral ones and merges the forwardable ones into `popupProps` for
+        // the rendered element. className/style are pulled out and handled in
+        // the render callback to preserve tailwind-merge / motion semantics.
         {...props}
-      >
-        {children}
-        {showCloseButton && (
-          <DialogPrimitive.Close
-            data-slot="dialog-close"
-            render={<Button variant="ghost" className="absolute top-4 right-4" size="icon-sm" />}
-          >
-            <XIcon />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Popup>
+        render={(popupProps, state) => {
+          const exiting = state.transitionStatus === "ending";
+          const { style: baseStyle, rest } = stripMotionConflicts(
+            popupProps as React.HTMLAttributes<HTMLDivElement>,
+          );
+          return (
+            <motion.div
+              // Base UI's resolved props (data attrs, refs, role, plus the
+              // consumer's merged HTML attributes/handlers) land on the
+              // visible motion.div.
+              {...rest}
+              // Centering lives in Tailwind's `translate` utilities (a
+              // standalone CSS property in v4), not in the motion transform, so
+              // consumers can still override placement via className — e.g. the
+              // command palette's `top-1/3 translate-y-0`. Motion only animates
+              // opacity + scale (the `transform` property), which composes with
+              // `translate` rather than clobbering it.
+              className={cn(
+                "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
+                surfaceClasses(dialogLevel),
+                "p-6 text-sm text-popover-foreground outline-none",
+                size === "sm" && "max-w-[400px]",
+                size === "lg" && "max-w-[540px]",
+                shape.container,
+                className,
+              )}
+              style={{ ...baseStyle, ...(style as React.CSSProperties | undefined) }}
+              initial={{ opacity: 0, scale: 0.97 }}
+              animate={{
+                opacity: exiting ? 0 : 1,
+                scale: exiting ? 0.97 : 1,
+              }}
+              transition={exiting ? springs.moderate : springs.slow}
+            >
+              <SurfaceProvider value={dialogLevel}>
+                {children}
+                {showCloseButton && (
+                  <DialogPrimitive.Close
+                    data-slot="dialog-close"
+                    render={
+                      <Button variant="ghost" size="icon-sm" className="absolute top-3 right-3" />
+                    }
+                  >
+                    <XIcon />
+                    <span className="sr-only">Close</span>
+                  </DialogPrimitive.Close>
+                )}
+              </SurfaceProvider>
+            </motion.div>
+          );
+        }}
+      />
     </DialogPortal>
   );
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
-    <div data-slot="dialog-header" className={cn("flex flex-col gap-2", className)} {...props} />
+    <div
+      data-slot="dialog-header"
+      className={cn("flex flex-col gap-1.5 mb-4", className)}
+      {...props}
+    />
   );
 }
 
@@ -87,7 +164,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
-      className={cn("flex flex-col-reverse gap-2 sm:flex-row sm:justify-end", className)}
+      className={cn("flex justify-end gap-2 mt-6", className)}
       {...props}
     >
       {children}
@@ -102,7 +179,8 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("font-heading text-base leading-none font-medium", className)}
+      className={cn("text-[16px] text-foreground leading-tight", className)}
+      style={{ fontVariationSettings: "'wght' 700" }}
       {...props}
     />
   );
@@ -113,7 +191,7 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-sm text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        "text-[13px] text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
         className,
       )}
       {...props}

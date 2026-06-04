@@ -6,10 +6,11 @@
 
 import { Type, type Static } from "@sinclair/typebox";
 
-import { taskManager } from "@/main/tasks/task-singleton";
+import { getTaskManager } from "@/main/tasks/task-manager";
 import { TaskScheduleSchema, type TaskSchedule } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
 import type { PiExtensionBundle } from "@/agent/extension";
+import { textResult } from "@/agent/extension-helpers";
 
 const manageTasksSchema = Type.Object({
   action: Type.Union(
@@ -40,50 +41,48 @@ const tasksExtension: PiExtensionBundle = {
         "Tasks run automatically on a cron/interval/once schedule.",
       parameters: manageTasksSchema,
       execute: async (_toolCallId, params: Static<typeof manageTasksSchema>) => {
-        const text = (s: string) => ({
-          content: [{ type: "text" as const, text: s }],
-          details: {},
-        });
         const p = params;
 
         switch (p.action) {
           case "list": {
-            const tasks = taskManager.getTasks();
-            if (tasks.length === 0) return text("No tasks configured.");
+            const tasks = getTaskManager().getTasks();
+            if (tasks.length === 0) return textResult("No tasks configured.");
             const lines = tasks.map(
               (t) =>
                 `- [${t.enabled ? "ON" : "OFF"}] ${t.label} (${t.id})\n  schedule: ${JSON.stringify(t.schedule)}\n  prompt: ${t.prompt.slice(0, 100)}${t.prompt.length > 100 ? "..." : ""}`,
             );
-            return text(lines.join("\n\n"));
+            return textResult(lines.join("\n\n"));
           }
           case "create": {
-            if (!p.label) return text("Error: label is required for create");
-            if (!p.prompt) return text("Error: prompt is required for create");
-            if (!p.schedule) return text("Error: schedule is required for create");
+            if (!p.label) return textResult("Error: label is required for create");
+            if (!p.prompt) return textResult("Error: prompt is required for create");
+            if (!p.schedule) return textResult("Error: schedule is required for create");
             const schedule = TaskScheduleSchema.parse(p.schedule);
-            const task = taskManager.createTask({ label: p.label, prompt: p.prompt, schedule });
-            return text(`Created task "${task.label}" (${task.id})`);
+            const task = getTaskManager().createTask({ label: p.label, prompt: p.prompt, schedule });
+            return textResult(`Created task "${task.label}" (${task.id})`);
           }
           case "toggle": {
-            if (!p.taskId) return text("Error: taskId is required for toggle");
+            if (!p.taskId) return textResult("Error: taskId is required for toggle");
             try {
-              const task = taskManager.toggleTask(p.taskId);
-              return text(`Task "${task.label}" is now ${task.enabled ? "enabled" : "disabled"}`);
+              const task = getTaskManager().toggleTask(p.taskId);
+              return textResult(
+                `Task "${task.label}" is now ${task.enabled ? "enabled" : "disabled"}`,
+              );
             } catch (err) {
-              return text(`Error: ${toErrorMessage(err)}`);
+              return textResult(`Error: ${toErrorMessage(err)}`);
             }
           }
           case "delete": {
-            if (!p.taskId) return text("Error: taskId is required for delete");
-            taskManager.deleteTask(p.taskId);
-            return text(`Deleted task ${p.taskId}`);
+            if (!p.taskId) return textResult("Error: taskId is required for delete");
+            getTaskManager().deleteTask(p.taskId);
+            return textResult(`Deleted task ${p.taskId}`);
           }
         }
       },
     });
 
     pi.on("before_agent_start", (_event, _ctx) => {
-      const tasks = taskManager.getTasks().filter((t) => t.enabled);
+      const tasks = getTaskManager().getTasks().filter((t) => t.enabled);
       if (tasks.length === 0) return;
 
       const summary = tasks

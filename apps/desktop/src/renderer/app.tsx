@@ -1,23 +1,15 @@
 import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 
-import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
+import { Toaster } from "@repo/ui/components/sonner";
+import { ReauthDialog } from "@/renderer/shell/reauth-dialog";
 import { useAgentStore } from "@/renderer/stores/agent-store";
-import { useVoiceStore } from "@/renderer/stores/voice-store";
+import { useUiStateStore } from "@/renderer/stores/ui-state-store";
+import type { AppState } from "@/shared/app-state";
 
-function phaseToOrbStatus(phase: string, voiceState: string): DisplayStatus {
-  if (voiceState === "connected") return "listening";
-  switch (phase) {
-    case "ready":
-      return "idle";
-    case "error":
-      return "error";
-    default:
-      return "starting";
-  }
-}
+type Phase = AppState["phase"];
 
-function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
+function phaseToPath(phase: Phase): "/" | "/login" | "/onboarding" {
   switch (phase) {
     case "logged_out":
     case "logging_in":
@@ -25,7 +17,9 @@ function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
     case "logged_in":
     case "setting_up":
       return "/onboarding";
-    default:
+    case "ready":
+    case "logging_out":
+    case "error":
       return "/";
   }
 }
@@ -33,14 +27,11 @@ function phaseToPath(phase: string): "/" | "/login" | "/onboarding" {
 export function AppLayout() {
   const appState = useAgentStore((s) => s.appState);
   const init = useAgentStore((s) => s.init);
+  const initUiState = useUiStateStore((s) => s.init);
   const { pathname } = useLocation();
 
   useEffect(() => init(), [init]);
-
-  // Voice store is initialized by ChatPage's useEffect(init). Before that,
-  // sessionState defaults to "inactive" which maps to the agent-only status — safe.
-  const voiceState = useVoiceStore((s) => s.sessionState);
-  const orbStatus = phaseToOrbStatus(appState.phase, voiceState);
+  useEffect(() => void initUiState(), [initUiState]);
 
   // Redirect during render (not in useEffect) so we never flash the wrong
   // route while the navigation effect runs after first paint.
@@ -50,15 +41,12 @@ export function AppLayout() {
 
   return (
     <div className="relative h-full w-full font-mono">
-      <div className="pointer-events-none absolute inset-0 -z-10 grid place-items-center">
-        <div className="h-48 w-48">
-          <GeometricOrb status={orbStatus} />
-        </div>
-      </div>
-
       <div className="flex h-full flex-col">
         {needsRedirect ? <Navigate to={target} replace /> : <Outlet />}
       </div>
+
+      <ReauthDialog />
+      <Toaster />
     </div>
   );
 }

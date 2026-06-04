@@ -10,7 +10,16 @@ import type {
   KeyboardEventHandler,
   ReactNode,
 } from "react";
-import { Children, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Children,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ChatStatus, FileUIPart } from "ai";
 import { CornerDownLeftIcon, SquareIcon, XIcon } from "lucide-react";
 import { nanoid } from "nanoid";
@@ -30,21 +39,26 @@ import {
 } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
-import { createContext, useContext } from "react";
-
 const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
   try {
     const response = await fetch(url);
     const blob = await response.blob();
     return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
+      reader.addEventListener("loadend", () => {
+        resolve(typeof reader.result === "string" ? reader.result : null);
+      });
+      reader.addEventListener("error", () => resolve(null), { once: true });
       reader.readAsDataURL(blob);
     });
   } catch {
     return null;
   }
+};
+
+const filePartWithoutId = ({ id, ...item }: FileUIPart & { id: string }): FileUIPart => {
+  void id;
+  return item;
 };
 
 export interface AttachmentsContext {
@@ -72,19 +86,13 @@ export interface PromptInputMessage {
   files: FileUIPart[];
 }
 
-export type PromptInputProps = Omit<
-  HTMLAttributes<HTMLFormElement>,
-  "onSubmit" | "onError"
-> & {
+export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
   accept?: string;
   multiple?: boolean;
   globalDrop?: boolean;
   maxFiles?: number;
   maxFileSize?: number;
-  onError?: (err: {
-    code: "max_files" | "max_file_size" | "accept";
-    message: string;
-  }) => void;
+  onError?: (err: { code: "max_files" | "max_file_size" | "accept"; message: string }) => void;
   onSubmit: (
     message: PromptInputMessage,
     event: FormEvent<HTMLFormElement>,
@@ -180,11 +188,11 @@ export const PromptInput = ({
         onError?.({ code: "max_files", message: "Too many files. Some were not added." });
       }
       if (capped.length === 0) return;
-      const newItems = capped.map((file) => ({
+      const newItems: (FileUIPart & { id: string })[] = capped.map((file) => ({
         filename: file.name,
         id: nanoid(),
         mediaType: file.type,
-        type: "file" as const,
+        type: "file",
         url: URL.createObjectURL(file),
       }));
       liveCountRef.current += newItems.length;
@@ -279,7 +287,8 @@ export const PromptInput = ({
       submittingRef.current = true;
       const form = event.currentTarget;
       const formData = new FormData(form);
-      const text = (formData.get("message") as string) || "";
+      const message = formData.get("message");
+      const text = typeof message === "string" ? message : "";
       form.reset();
 
       // Snapshot the IDs we're about to submit. Anything the user adds to
@@ -296,15 +305,16 @@ export const PromptInput = ({
       };
 
       try {
-        const convertedFiles: FileUIPart[] = await Promise.all(
-          submittedItems.map(async ({ id: _id, ...item }) => {
-            if (item.url?.startsWith("blob:")) {
-              const dataUrl = await convertBlobUrlToDataUrl(item.url);
-              return { ...item, url: dataUrl ?? item.url };
-            }
-            return item;
-          }),
-        );
+        const convertedFiles: FileUIPart[] = [];
+        for (const submittedItem of submittedItems) {
+          const item = filePartWithoutId(submittedItem);
+          if (item.url?.startsWith("blob:")) {
+            const dataUrl = await convertBlobUrlToDataUrl(item.url);
+            convertedFiles.push(Object.assign({}, item, { url: dataUrl ?? item.url }));
+            continue;
+          }
+          convertedFiles.push(item);
+        }
 
         const result = onSubmit({ files: convertedFiles, text }, event);
         if (result instanceof Promise) {
@@ -338,12 +348,7 @@ export const PromptInput = ({
         title="Upload files"
         type="file"
       />
-      <form
-        className={cn("w-full", className)}
-        onSubmit={handleSubmit}
-        ref={formRef}
-        {...props}
-      >
+      <form className={cn("w-full", className)} onSubmit={handleSubmit} ref={formRef} {...props}>
         <InputGroup className="overflow-hidden">{children}</InputGroup>
       </form>
     </LocalAttachmentsContext.Provider>
@@ -378,9 +383,7 @@ export const PromptInputTextarea = ({
         if (e.shiftKey) return;
         e.preventDefault();
         const { form } = e.currentTarget;
-        const submitButton = form?.querySelector(
-          'button[type="submit"]',
-        ) as HTMLButtonElement | null;
+        const submitButton = form?.querySelector<HTMLButtonElement>('button[type="submit"]');
         // Skip if no submit button is in the DOM (e.g., parent renders a
         // type="button" stop control instead while the agent is busy) or
         // if it exists but is disabled.
@@ -388,11 +391,7 @@ export const PromptInputTextarea = ({
         form?.requestSubmit();
       }
 
-      if (
-        e.key === "Backspace" &&
-        e.currentTarget.value === "" &&
-        attachments.files.length > 0
-      ) {
+      if (e.key === "Backspace" && e.currentTarget.value === "" && attachments.files.length > 0) {
         e.preventDefault();
         const lastAttachment = attachments.files.at(-1);
         if (lastAttachment) attachments.remove(lastAttachment.id);
@@ -438,28 +437,15 @@ export const PromptInputTextarea = ({
   );
 };
 
-export type PromptInputHeaderProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">;
+export type PromptInputToolbarProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">;
 
-export const PromptInputHeader = ({ className, ...props }: PromptInputHeaderProps) => (
-  <InputGroupAddon
-    align="block-end"
-    className={cn("order-first flex-wrap gap-1", className)}
-    {...props}
-  />
-);
-
-export type PromptInputFooterProps = Omit<ComponentProps<typeof InputGroupAddon>, "align">;
-
-export const PromptInputFooter = ({ className, ...props }: PromptInputFooterProps) => (
+export const PromptInputToolbar = ({ className, ...props }: PromptInputToolbarProps) => (
   <InputGroupAddon
     align="block-end"
     className={cn("justify-between gap-1", className)}
     {...props}
   />
 );
-
-export type PromptInputToolbarProps = PromptInputFooterProps;
-export const PromptInputToolbar = PromptInputFooter;
 
 export type PromptInputToolsProps = HTMLAttributes<HTMLDivElement>;
 
@@ -542,18 +528,17 @@ export const PromptInputSubmit = ({
   else if (status === "streaming") Icon = <SquareIcon className="size-4" />;
   else if (status === "error") Icon = <XIcon className="size-4" />;
 
-  const handleClick: NonNullable<ComponentProps<typeof InputGroupButton>["onClick"]> =
-    useCallback(
-      (e) => {
-        if (isGenerating && onStop) {
-          e.preventDefault();
-          onStop();
-          return;
-        }
-        onClick?.(e);
-      },
-      [isGenerating, onStop, onClick],
-    );
+  const handleClick: NonNullable<ComponentProps<typeof InputGroupButton>["onClick"]> = useCallback(
+    (e) => {
+      if (isGenerating && onStop) {
+        e.preventDefault();
+        onStop();
+        return;
+      }
+      onClick?.(e);
+    },
+    [isGenerating, onStop, onClick],
+  );
 
   return (
     <InputGroupButton

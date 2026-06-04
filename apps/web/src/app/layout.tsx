@@ -1,12 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { Inter } from "next/font/google";
 import { GlobalAlertDialog } from "@repo/ui/components/alert-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 
 import { siteConfig } from "@/lib/site-config";
-import { TRPCReactProvider } from "@/trpc/react";
+import { SiteHeader } from "@/components/site-header";
+import { ThemeProvider } from "@/components/theme-provider";
 
 import "./styles/globals.css";
+
+// Inter Variable powers Fluid Functionalism's weight-axis transitions
+// (labels easing normal -> semibold). Exposed as --font-sans.
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteConfig.url),
@@ -48,25 +54,25 @@ export const metadata: Metadata = {
       rel: "icon",
       type: "image/png",
       sizes: "96x96",
-      url: `${siteConfig.url}/favicon/favicon-96x96.png`,
+      url: "/favicon/favicon-96x96.png",
     },
     {
       rel: "icon",
       type: "image/svg+xml",
-      url: `${siteConfig.url}/favicon/favicon.svg`,
+      url: "/favicon/favicon.svg",
     },
     {
       rel: "shortcut icon",
-      url: `${siteConfig.url}/favicon/favicon.ico`,
+      url: "/favicon/favicon.ico",
     },
     {
       rel: "apple-touch-icon",
       sizes: "180x180",
-      url: `${siteConfig.url}/favicon/apple-touch-icon.png`,
+      url: "/favicon/apple-touch-icon.png",
     },
     {
       rel: "manifest",
-      url: `${siteConfig.url}/favicon/site.webmanifest`,
+      url: "/favicon/site.webmanifest",
     },
   ],
   other: {
@@ -75,7 +81,10 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#d1684e",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+  ],
 };
 
 type LayoutProps = {
@@ -84,13 +93,16 @@ type LayoutProps = {
 
 const RootLayout = (props: LayoutProps) => {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning className={inter.variable}>
       <body className="bg-background text-foreground font-sans antialiased">
-        <TooltipProvider>
-          <TRPCReactProvider>{props.children}</TRPCReactProvider>
-          <Toaster />
-          <GlobalAlertDialog />
-        </TooltipProvider>
+        <ThemeProvider>
+          <TooltipProvider>
+            <SiteHeader />
+            {props.children}
+            <Toaster />
+            <GlobalAlertDialog />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

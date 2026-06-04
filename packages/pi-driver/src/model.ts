@@ -1,4 +1,4 @@
-import { getModel } from "@mariozechner/pi-ai";
+import { getModels } from "@mariozechner/pi-ai";
 import type { Api, Model } from "@mariozechner/pi-ai";
 
 /**
@@ -9,11 +9,11 @@ import type { Api, Model } from "@mariozechner/pi-ai";
  * Generic over `Provider` so callers (e.g. `getModel("openai-codex", "gpt-5.5")`)
  * preserve the provider literal for downstream type narrowing.
  */
-export function resolveModel<Provider extends Parameters<typeof getModel>[0]>(
+export function resolveModel<Provider extends Parameters<typeof getModels>[0]>(
   provider: Provider,
   modelId: string,
 ): Model<Api> {
-  const model = getModel(provider, modelId as never);
+  const model = getModels(provider).find((candidate) => candidate.id === modelId);
   if (!model) {
     throw new Error(`Model "${String(provider)}/${modelId}" not found in pi-ai model registry`);
   }

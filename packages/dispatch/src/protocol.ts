@@ -1,38 +1,49 @@
-import { z } from "zod";
+import { Type, type Static } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 
-export const dispatchDirection = z.enum(["to_device", "to_mobile"]);
-export type DispatchDirection = z.infer<typeof dispatchDirection>;
-
-export const mobileCommandType = z.enum(["user_message", "steer", "interrupt"]);
-export type MobileCommandType = z.infer<typeof mobileCommandType>;
-
-export const agentEventType = z.enum([
-  "agent_start",
-  "agent_end",
-  "message_start",
-  "message_update",
-  "message_end",
-  "tool_execution_start",
-  "tool_execution_end",
+export const DispatchDirectionSchema = Type.Union([
+  Type.Literal("to_device"),
+  Type.Literal("to_mobile"),
 ]);
-export type AgentEventType = z.infer<typeof agentEventType>;
+export type DispatchDirection = Static<typeof DispatchDirectionSchema>;
+
+export const MobileCommandTypeSchema = Type.Union([
+  Type.Literal("user_message"),
+  Type.Literal("steer"),
+  Type.Literal("interrupt"),
+]);
+export type MobileCommandType = Static<typeof MobileCommandTypeSchema>;
+
+export const AgentEventTypeSchema = Type.Union([
+  Type.Literal("agent_start"),
+  Type.Literal("agent_end"),
+  Type.Literal("message_start"),
+  Type.Literal("message_update"),
+  Type.Literal("message_end"),
+  Type.Literal("tool_execution_start"),
+  Type.Literal("tool_execution_end"),
+]);
+export type AgentEventType = Static<typeof AgentEventTypeSchema>;
 
 export const EPHEMERAL_EVENT_TYPES = new Set<string>([
   "message_update",
   "message_start",
 ]);
 
-export const dispatchEnvelope = z.object({
-  direction: dispatchDirection,
-  type: z.string(),
-  payload: z.record(z.string(), z.unknown()).default({}),
+export const DispatchEnvelopeSchema = Type.Object({
+  direction: DispatchDirectionSchema,
+  type: Type.String(),
+  payload: Type.Record(Type.String(), Type.Unknown(), { default: {} }),
 });
-export type DispatchEnvelope = z.infer<typeof dispatchEnvelope>;
+export type DispatchEnvelope = Static<typeof DispatchEnvelopeSchema>;
 
 export function parseMessage(data: string): DispatchEnvelope | null {
   try {
-    const result = dispatchEnvelope.safeParse(JSON.parse(data));
-    return result.success ? result.data : null;
+    const parsed = JSON.parse(data);
+    if (Value.Check(DispatchEnvelopeSchema, parsed)) {
+      return parsed;
+    }
+    return null;
   } catch {
     return null;
   }

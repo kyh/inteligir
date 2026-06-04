@@ -2,11 +2,13 @@ import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
 import { create } from "zustand";
 
 import type { AppAgentEvent } from "@/shared/agent-events";
+import { Value } from "@sinclair/typebox/value";
+
 import { AppStateSchema, type AppState } from "@/shared/app-state";
 import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
 import type { ImageAttachment } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
-import { useVoiceStore } from "@/renderer/stores/voice-store";
+import { onUserTranscript, useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -22,12 +24,18 @@ import { useVoiceStore } from "@/renderer/stores/voice-store";
 export type ChatMessageMetadata = {
   steer?: boolean;
   imageCount?: number;
+  /** When set, the bubble is styled as a turn-failure surface (red border,
+   * "error" copy) and may show an action button based on the kind:
+   *   - "auth": inline Re-authenticate link (likely auth/credentials issue)
+   *   - "unknown": just the error text (pi-reported error of unspecified cause)
+   * The text content is the human-readable error message. */
+  errorKind?: "auth" | "unknown";
 };
 
 export type ChatMessage = UIMessage<ChatMessageMetadata>;
 
-export type SendIntent = "steer";
-export type SendOptions = { intent?: SendIntent };
+type SendIntent = "steer";
+type SendOptions = { intent?: SendIntent };
 
 // ---------------------------------------------------------------------------
 // Store
@@ -58,8 +66,6 @@ type AgentStore = {
   send: (text: string, images?: ImageAttachment[], options?: SendOptions) => void;
   interrupt: () => void;
   newSession: () => Promise<void>;
-  addUserMessage: (text: string) => void;
-  addSteerMessage: (text: string) => void;
 };
 
 let nextMsgId = 0;
@@ -85,19 +91,24 @@ function textPart(text: string, state?: TextUIPart["state"]): TextUIPart {
   return state ? { type: "text", text, state } : { type: "text", text };
 }
 
-function toolPartRunning(toolCallId: string, toolName: string): DynamicToolUIPart {
+function toolPartRunning(
+  toolCallId: string,
+  toolName: string,
+  args: unknown,
+): DynamicToolUIPart {
   return {
     type: "dynamic-tool",
     toolCallId,
     toolName,
     state: "input-available",
-    input: undefined as unknown,
+    input: args,
   };
 }
 
 function toolPartDone(
   toolCallId: string,
   toolName: string,
+  args: unknown,
   resultText: string,
 ): DynamicToolUIPart {
   return {
@@ -105,7 +116,7 @@ function toolPartDone(
     toolCallId,
     toolName,
     state: "output-available",
-    input: undefined as unknown,
+    input: args,
     output: resultText,
   };
 }
@@ -113,6 +124,7 @@ function toolPartDone(
 function toolPartError(
   toolCallId: string,
   toolName: string,
+  args: unknown,
   errorText: string,
 ): DynamicToolUIPart {
   return {
@@ -120,7 +132,7 @@ function toolPartError(
     toolCallId,
     toolName,
     state: "output-error",
-    input: undefined as unknown,
+    input: args,
     errorText,
   };
 }
@@ -166,15 +178,12 @@ function historyToChatMessages(
       case "assistant":
         messages.push(assistantTextMessage(entry.text));
         break;
-      case "tool": {
-        const toolName = entry.toolName ?? "";
-        const toolCallId = entry.toolCallId ?? "";
-        const part = entry.isError
-          ? toolPartError(toolCallId, toolName, entry.text)
-          : toolPartDone(toolCallId, toolName, entry.text);
-        messages.push(assistantToolMessage(part));
+      case "tool":
+        // Tool activity is ephemeral chat-surface decoration during the live
+        // turn. Once the turn ends the live store sweeps these messages
+        // (agent_end); on rehydrate we skip them entirely so reloaded
+        // history matches the post-sweep state.
         break;
-      }
     }
   }
   return messages;
@@ -212,11 +221,22 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
 
   return bridge.onAgentEvent((event: AppAgentEvent) => {
     switch (event.type) {
-      case "agent_end":
+      case "agent_end": {
         streamingMsgId = null;
+        // Sweep the tool messages we created during this turn — only the
+        // final assistant answer (and the user's prompt) should remain on
+        // the chat surface. The activity rows are an ephemeral progress
+        // indicator, not part of the persisted conversation.
+        const sweepIds = new Set(toolMsgIds.values());
         toolMsgIds.clear();
-        set({ queuedFollowUp: [], queuedSteering: [] });
+        set((s) => ({
+          messages:
+            sweepIds.size > 0 ? s.messages.filter((m) => !sweepIds.has(m.id)) : s.messages,
+          queuedFollowUp: [],
+          queuedSteering: [],
+        }));
         break;
+      }
 
       case "queue_update":
         // Skip the set() if the queue is identical to what we already hold.
@@ -256,7 +276,7 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
           ),
         }));
         const voice = useVoiceStore.getState();
-        if (voice.sessionState === "connected") voice.speakText(delta);
+        if (voice.state.kind === "listening") voice.speakText(delta);
         break;
       }
 
@@ -264,11 +284,28 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
         if (streamingMsgId === null || event.role !== "assistant") break;
         const sid = streamingMsgId;
         const { text } = event;
-        // Tool-only assistant turns emit message_start/message_end with empty
-        // text. Drop those empty bubbles so the "Thinking..." shimmer doesn't
-        // linger between/after tool calls — the tool messages themselves
-        // already represent the agent's activity.
-        if (text.length === 0) {
+        // Error turn: keep the bubble, tag with errorKind, use errorMessage
+        // (or fall back to text) so the failure is visible instead of dropped.
+        // Cause is unknown from pi's perspective — don't claim it's auth.
+        if (event.stopReason === "error") {
+          const errText =
+            event.errorMessage ??
+            (text.length > 0 ? text : "The model returned no response.");
+          set((s) => ({
+            messages: s.messages.map((m) =>
+              m.id === sid
+                ? {
+                    ...mapMessageWithTextPart(m, () => textPart(errText)),
+                    metadata: { ...m.metadata, errorKind: "unknown" },
+                  }
+                : m,
+            ),
+          }));
+        } else if (text.length === 0) {
+          // Tool-only assistant turns emit message_start/message_end with empty
+          // text. Drop those empty bubbles so the "Thinking..." shimmer doesn't
+          // linger between/after tool calls — the tool messages themselves
+          // already represent the agent's activity.
           set((s) => ({ messages: s.messages.filter((m) => m.id !== sid) }));
         } else {
           set((s) => ({
@@ -279,12 +316,26 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
         }
         streamingMsgId = null;
         const voice = useVoiceStore.getState();
-        if (voice.sessionState === "connected") voice.flushSpeech();
+        if (voice.state.kind === "listening") voice.flushSpeech();
+        break;
+      }
+
+      case "turn_error": {
+        // Empty-turn fallback from main. Create a fresh assistant bubble
+        // tagged with the error kind so the chat shows the failure (and the
+        // inline Re-authenticate link, if kind === "auth").
+        const msg: ChatMessage = {
+          ...assistantTextMessage(event.reason),
+          metadata: { errorKind: event.kind },
+        };
+        set((s) => ({ messages: [...s.messages, msg] }));
         break;
       }
 
       case "tool_execution_start": {
-        const msg = assistantToolMessage(toolPartRunning(event.toolCallId, event.toolName));
+        const msg = assistantToolMessage(
+          toolPartRunning(event.toolCallId, event.toolName, event.args),
+        );
         toolMsgIds.set(event.toolCallId, msg.id);
         set((s) => ({ messages: [...s.messages, msg] }));
         break;
@@ -299,9 +350,11 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
             if (m.id !== msgId) return m;
             const first = m.parts[0];
             if (!first || first.type !== "dynamic-tool") return m;
+            // Preserve args (input) captured at start — tool_execution_end
+            // doesn't re-send them.
             const next = event.isError
-              ? toolPartError(first.toolCallId, first.toolName, event.resultText)
-              : toolPartDone(first.toolCallId, first.toolName, event.resultText);
+              ? toolPartError(first.toolCallId, first.toolName, first.input, event.resultText)
+              : toolPartDone(first.toolCallId, first.toolName, first.input, event.resultText);
             return replaceToolPart(m, next);
           }),
         }));
@@ -313,11 +366,10 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
 
 function subscribeAppState(bridge: DesktopBridge, set: SetFn): () => void {
   return bridge.onAppState((appState: unknown) => {
-    const parsed = AppStateSchema.safeParse(appState);
-    if (!parsed.success) return;
-    set({ appState: parsed.data });
+    if (!Value.Check(AppStateSchema, appState)) return;
+    set({ appState });
 
-    if (parsed.data.phase === "logged_out") {
+    if (appState.phase === "logged_out") {
       set({ messages: [], queuedFollowUp: [], queuedSteering: [], setupProgress: null });
       useVoiceStore.getState().reset();
     }
@@ -368,12 +420,20 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const unsubAgent = subscribeAgentEvents(bridge, set);
     const unsubState = subscribeAppState(bridge, set);
     const unsubProgress = subscribeSetupProgress(bridge, set);
+    // Voice transcripts that completed while the user was actually listening
+    // get routed through the same path as a typed user message: send to the
+    // agent + append to the local chat list.
+    const unsubVoice = onUserTranscript((text) => {
+      void bridge.sendAgentCommand({ type: "user_message", text });
+      set((s) => ({ messages: [...s.messages, userMessage(text)] }));
+    });
     void loadInitialHistory(bridge, set);
 
     return () => {
       unsubAgent();
       unsubState();
       unsubProgress();
+      unsubVoice();
     };
   },
 
@@ -407,15 +467,5 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
   newSession: async () => {
     set({ messages: [], queuedFollowUp: [], queuedSteering: [] });
     await getBridge()?.transition({ type: "NEW_SESSION" });
-  },
-
-  // --- UI-only message additions (used by voice transcripts) ----------------
-
-  addUserMessage: (text: string) => {
-    set((s) => ({ messages: [...s.messages, userMessage(text)] }));
-  },
-
-  addSteerMessage: (text: string) => {
-    set((s) => ({ messages: [...s.messages, userMessage(text, { steer: true })] }));
   },
 }));

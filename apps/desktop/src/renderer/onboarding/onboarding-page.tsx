@@ -1,14 +1,38 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@repo/ui/components/button";
 
+import { InitialOrb } from "@/renderer/components/initial-orb";
 import { getBridge } from "@/renderer/lib/bridge";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import type { VoiceModelStateEvent } from "@/shared/ipc";
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function modelStatusLabel(state: VoiceModelStateEvent | null): string | null {
+  if (!state) return null;
+  switch (state.status) {
+    case "downloading":
+      return `Downloading speech model… ${String(state.percent)}% (${formatBytes(state.receivedBytes)} / ${formatBytes(state.totalBytes)})`;
+    case "extracting":
+      return "Extracting speech model…";
+    case "ready":
+      return null;
+    case "error":
+      return `Speech model failed: ${state.message}`;
+    case "idle":
+      return null;
+  }
+}
 
 export function OnboardingPage() {
   const appState = useAgentStore((s) => s.appState);
   const setupProgress = useAgentStore((s) => s.setupProgress);
   const triggered = useRef(false);
+  const [modelState, setModelState] = useState<VoiceModelStateEvent | null>(null);
 
   const setupError =
     appState.phase === "error" && appState.prev === "setting_up" ? appState.message : null;
@@ -21,16 +45,33 @@ export function OnboardingPage() {
     }
   }, [appState.phase]);
 
+  // Subscribe to model-download progress events so we can show progress
+  // while seedResources/startAgent hold us in the setting_up phase.
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    return bridge.onVoiceModelState((event) => {
+      setModelState(event);
+    });
+  }, []);
+
   const handleRetry = useCallback(() => {
     getBridge()?.transition({ type: "RETRY" });
   }, []);
 
-  // Indeterminate when percent is null — render a faint, slow pulse stripe.
-  const percent = setupProgress?.percent ?? null;
+  // Prefer the granular model-download progress when the voice model step is
+  // active; otherwise fall back to the generic setup-step text + bar.
+  const modelLabel = modelStatusLabel(modelState);
+  const modelDownloading = modelState?.status === "downloading";
+  const label = modelLabel ?? setupProgress?.step ?? "Setting up...";
+  const percent = modelDownloading
+    ? modelState.percent
+    : (setupProgress?.percent ?? null);
   const isIndeterminate = percent === null;
 
   return (
     <div className="flex flex-1 flex-col items-center justify-end px-6 pb-16">
+      <InitialOrb />
       <div className="flex w-full max-w-xs flex-col gap-3 text-center">
         {setupError ? (
           <>
@@ -44,16 +85,19 @@ export function OnboardingPage() {
             </Button>
           </>
         ) : (
-          <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={
-                isIndeterminate
-                  ? "h-full w-1/3 animate-pulse bg-foreground/40"
-                  : "h-full bg-foreground/60 transition-[width] duration-200 ease-out"
-              }
-              style={isIndeterminate ? undefined : { width: `${percent}%` }}
-            />
-          </div>
+          <>
+            <p className="text-xs text-muted-foreground">{label}</p>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+              <div
+                className={
+                  isIndeterminate
+                    ? "h-full w-1/3 animate-pulse bg-foreground/40"
+                    : "h-full bg-foreground/60 transition-[width] duration-200 ease-out"
+                }
+                style={isIndeterminate ? undefined : { width: `${String(percent)}%` }}
+              />
+            </div>
+          </>
         )}
       </div>
     </div>

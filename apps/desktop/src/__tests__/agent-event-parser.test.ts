@@ -69,13 +69,28 @@ describe("parseAgentEvent", () => {
   });
 
   it("preserves stopReason on message_end", () => {
+    // pi-coding-agent puts stopReason inside the message object, not at the
+    // top level. The parser must read from message.stopReason.
     const raw = {
       type: "message_end",
-      message: { role: "assistant", content: [] },
-      stopReason: "error",
+      message: { role: "assistant", content: [], stopReason: "error" },
     };
     const result = parseAgentEvent(raw);
     expect(result?.type === "message_end" && result.stopReason).toBe("error");
+  });
+
+  it("preserves errorMessage on message_end", () => {
+    const raw = {
+      type: "message_end",
+      message: {
+        role: "assistant",
+        content: [],
+        stopReason: "error",
+        errorMessage: "Codex error: ...",
+      },
+    };
+    const result = parseAgentEvent(raw);
+    expect(result?.type === "message_end" && result.errorMessage).toBe("Codex error: ...");
   });
 
   it("parses tool_execution_start", () => {

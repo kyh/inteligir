@@ -1,9 +1,9 @@
 export {
-  dispatchDirection,
-  mobileCommandType,
-  agentEventType,
+  DispatchDirectionSchema,
+  MobileCommandTypeSchema,
+  AgentEventTypeSchema,
   EPHEMERAL_EVENT_TYPES,
-  dispatchEnvelope,
+  DispatchEnvelopeSchema,
   parseMessage,
   encodeMessage,
   type DispatchDirection,

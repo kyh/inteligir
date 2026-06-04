@@ -43,11 +43,11 @@ export function runCli(
       args,
       { timeout: opts.timeoutMs, maxBuffer: opts.maxBuffer },
       (err, stdout, stderr) => {
-        if (err && (err as NodeJS.ErrnoException).code === "ENOENT") {
+        const rawCode = err instanceof Error && "code" in err ? err.code : undefined;
+        if (rawCode === "ENOENT") {
           reject(new Error(opts.notFoundMessage ?? `${binPath} not installed`));
           return;
         }
-        const rawCode = (err as { code?: unknown } | null)?.code;
         const code = typeof rawCode === "number" ? rawCode : err ? 1 : 0;
         resolve({ stdout: String(stdout), stderr: String(stderr), code });
       },

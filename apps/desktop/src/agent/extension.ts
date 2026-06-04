@@ -8,9 +8,9 @@
  * phase only sees what's meaningful at that point in the lifecycle.
  */
 
-import type { ExtensionFactory } from "@repo/pi-driver";
+import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver/pi-types";
 
-import type { SetupProgress } from "@/shared/ipc";
+import { isRecord, type SetupProgress } from "@/shared/ipc";
 
 /**
  * Available at agent-start time, every time register() is called. Long-lived
@@ -35,11 +35,30 @@ export type ExtensionSetupContext = ExtensionRegisterContext & {
    * is null when the step has no measurable progress.
    */
   onProgress: (progress: SetupProgress) => void;
+  /**
+   * Re-install even if the pinned version is already present. Set by the
+   * "Repair integrations" action; normal onboarding leaves it false so an
+   * up-to-date binary is skipped.
+   */
+  force?: boolean;
+};
+
+/** Metadata for a CLI binary a bundle installs, so the UI can show installed-
+ *  vs-pinned versions and offer a repair/reinstall. */
+type ExtensionCliInfo = {
+  /** Display name. */
+  name: string;
+  /** Pinned version the app ships. */
+  version: string;
+  /** Absolute path to the installed binary. */
+  binPath: string;
 };
 
 export type PiExtensionBundle = {
   /** Used for log prefixes and stable sort order. Should match the registered tool name. */
   name: string;
+  /** If the bundle installs a CLI binary, declare it here for the integrations UI. */
+  cli?: ExtensionCliInfo;
   /**
    * If true, a thrown setup() aborts onboarding (SETUP_FAIL). Default false:
    * setup is best-effort and the tool surfaces its own failure later (e.g.
@@ -80,4 +99,71 @@ export async function runBundleSetups(
       console.error(`[agent] ${bundle.name} setup failed (continuing):`, err);
     }
   }
+}
+
+/**
+ * Validate a tool's TypeBox `parameters` schema before pi forwards it to the
+ * provider. OpenAI (and most others) require `type: "object"` at the root;
+ * TypeBox `Union` / `Intersect` produce `anyOf`/`allOf` with no top-level
+ * type, which the provider silently rejects on every turn. Catching this at
+ * registration time names the offending tool loudly instead of letting
+ * empty turns leak to the user.
+ */
+export function validateToolParametersSchema(
+  tool: { name: string; parameters?: unknown },
+  bundleName: string,
+): void {
+  const params: unknown = tool.parameters;
+  if (!isRecord(params)) {
+    throw new Error(
+      `[${bundleName}] tool '${tool.name}' has no parameters schema. ` +
+        `Use Type.Object({}) for tools that take no arguments.`,
+    );
+  }
+  const type = params["type"];
+  if (type !== "object") {
+    throw new Error(
+      `[${bundleName}] tool '${tool.name}' parameters schema must have top-level type 'object' ` +
+        `(got ${JSON.stringify(type) ?? "undefined"}). ` +
+        `TypeBox Union/Intersect produce anyOf/allOf which providers reject — ` +
+        `wrap them in Type.Object with a discriminator field and validate per-case at runtime.`,
+    );
+  }
+}
+
+/**
+ * Wrap a pi `ExtensionAPI` so every `registerTool` call goes through
+ * `validateToolParametersSchema` first. All other methods pass through
+ * unchanged.
+ */
+function wrapPiWithSchemaValidation(pi: ExtensionAPI, bundleName: string): ExtensionAPI {
+  return new Proxy(pi, {
+    get(target, prop, receiver) {
+      const value = Reflect.get(target, prop, receiver);
+      if (prop === "registerTool" && typeof value === "function") {
+        const registerTool = value.bind(target);
+        return (tool: { name: string; parameters?: unknown }) => {
+          validateToolParametersSchema(tool, bundleName);
+          return registerTool(tool);
+        };
+      }
+      return value;
+    },
+  });
+}
+
+/**
+ * Build factory functions that wrap each bundle's pi registration with
+ * schema validation. Used by setup.ts when constructing PiAgent.
+ */
+export function buildValidatedFactories(
+  bundles: PiExtensionBundle[],
+  ctx: ExtensionRegisterContext,
+): ExtensionFactory[] {
+  return bundles.map((b) => {
+    const factory = b.register(ctx);
+    return async (pi: ExtensionAPI) => {
+      await factory(wrapPiWithSchemaValidation(pi, b.name));
+    };
+  });
 }

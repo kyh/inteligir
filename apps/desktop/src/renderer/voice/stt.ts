@@ -1,119 +1,133 @@
 // ---------------------------------------------------------------------------
-// Deepgram streaming STT via raw WebSocket — zero dependencies
+// Local STT — captures mic audio in the renderer, pushes 16kHz Float32 PCM
+// chunks to the main process where sherpa-onnx + streaming Parakeet runs.
 // ---------------------------------------------------------------------------
+
+import { getBridge } from "@/renderer/lib/bridge";
+import sttWorkletUrl from "@/renderer/voice/stt-worklet.js?url";
 
 export type TranscriptCallback = (text: string, isFinal: boolean) => void;
 
 export type STTHandle = {
-  stop: () => void;
-};
-
-type DeepgramMessage = {
-  type?: string;
-  is_final?: boolean;
-  channel?: {
-    alternatives?: Array<{ transcript?: string }>;
-  };
+  /**
+   * Resolves after the main-process recognizer has been told to stop and the
+   * tail transcript has been forwarded. Callers must AWAIT this before
+   * starting a new STT session — otherwise the new session's
+   * startStt/stopStt can interleave with the previous session's teardown,
+   * letting stopSession finalize the wrong stream.
+   */
+  stop: () => Promise<void>;
 };
 
 export async function startSTT(
-  apiKey: string,
   onTranscript: TranscriptCallback,
   onError: (error: string) => void,
 ): Promise<STTHandle> {
+  const maybeBridge = getBridge();
+  if (!maybeBridge) throw new Error("Desktop bridge unavailable");
+  // Capture in a const so TS narrowing survives into nested closures below.
+  const bridge = maybeBridge;
+
+  // Request mic permission BEFORE starting the main-process recognizer
+  // session — if the user denies, there's no main-process state to leak.
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  const params = new URLSearchParams({
-    model: "nova-3",
-    language: "en",
-    smart_format: "true",
-    interim_results: "true",
-    utterance_end_ms: "1000",
-    endpointing: "300",
-    encoding: "linear16",
-    sample_rate: "16000",
-  });
+  let startResult: Awaited<ReturnType<typeof bridge.startStt>>;
+  try {
+    startResult = await bridge.startStt();
+  } catch (err) {
+    stream.getTracks().forEach((t) => t.stop());
+    throw err;
+  }
+  if (!startResult.ok) {
+    stream.getTracks().forEach((t) => t.stop());
+    throw new Error(startResult.reason ?? "Failed to start STT");
+  }
 
-  const ws = new WebSocket(`wss://api.deepgram.com/v1/listen?${params.toString()}`, [
-    "token",
-    apiKey,
-  ]);
+  const audioContext = new AudioContext({ sampleRate: 16000 });
+  try {
+    await audioContext.audioWorklet.addModule(sttWorkletUrl);
+  } catch (err) {
+    void audioContext.close();
+    stream.getTracks().forEach((t) => t.stop());
+    void bridge.stopStt();
+    throw err;
+  }
 
-  let keepAliveInterval: ReturnType<typeof setInterval> | null = null;
-  let audioContext: AudioContext | null = null;
-  let sourceNode: MediaStreamAudioSourceNode | null = null;
-  let processorNode: ScriptProcessorNode | null = null;
+  const sourceNode = audioContext.createMediaStreamSource(stream);
+  const workletNode = new AudioWorkletNode(audioContext, "stt-processor");
+  // Web Audio only invokes process() for nodes that have an unbroken path to
+  // the AudioDestinationNode. A muted gain keeps the worklet running without
+  // emitting any audible output.
+  const silentSink = audioContext.createGain();
+  silentSink.gain.value = 0;
+
   let stopped = false;
 
-  ws.onopen = () => {
+  const unsubscribe = bridge.onSttTranscript((event) => {
     if (stopped) return;
+    onTranscript(event.text, event.isFinal);
+  });
 
-    // ScriptProcessorNode sends raw PCM (linear16 @ 16kHz) to Deepgram.
-    // Connected to a silent gain node — NOT to destination (avoids echo).
-    audioContext = new AudioContext({ sampleRate: 16000 });
-    sourceNode = audioContext.createMediaStreamSource(stream);
-    processorNode = audioContext.createScriptProcessor(4096, 1, 1);
-    const silentOutput = audioContext.createGain();
-    silentOutput.gain.value = 0;
-
-    processorNode.onaudioprocess = (event) => {
-      if (ws.readyState !== WebSocket.OPEN) return;
-      const float32 = event.inputBuffer.getChannelData(0);
-      const int16 = new Int16Array(float32.length);
-      for (let i = 0; i < float32.length; i++) {
-        const s = Math.max(-1, Math.min(1, float32[i] ?? 0));
-        int16[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
-      }
-      ws.send(int16.buffer);
-    };
-
-    sourceNode.connect(processorNode);
-    processorNode.connect(silentOutput);
-    silentOutput.connect(audioContext.destination);
-
-    keepAliveInterval = setInterval(() => {
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "KeepAlive" }));
-      }
-    }, 8000);
-  };
-
-  ws.onmessage = (event) => {
+  let pendingFlush: (() => void) | null = null;
+  const handleWorkletMessage = (event: MessageEvent<Float32Array | "flushed">) => {
+    if (event.data === "flushed") {
+      pendingFlush?.();
+      pendingFlush = null;
+      return;
+    }
+    if (stopped && pendingFlush === null) return;
     try {
-      const data = JSON.parse(String(event.data)) as DeepgramMessage;
-      const transcript = data.channel?.alternatives?.[0]?.transcript;
-      if (transcript) {
-        onTranscript(transcript, data.is_final ?? false);
-      }
-    } catch {
-      // Non-JSON message — ignore
+      // Worklet posts a fresh Float32Array (slice()'d in the worklet), so IPC
+      // can transfer a typed chunk without exposing its backing buffer here.
+      bridge.sendSttAudio(event.data);
+    } catch (err) {
+      onError(err instanceof Error ? err.message : String(err));
     }
   };
+  workletNode.port.addEventListener("message", handleWorkletMessage);
+  workletNode.port.start();
 
-  ws.onerror = () => {
-    onError("Deepgram connection error");
-  };
+  sourceNode.connect(workletNode);
+  workletNode.connect(silentSink);
+  silentSink.connect(audioContext.destination);
 
-  ws.onclose = (event) => {
-    if (!stopped && event.code !== 1000) {
-      onError(`Deepgram disconnected: ${event.reason || `code ${String(event.code)}`}`);
-    }
-  };
+  /**
+   * Ask the worklet to flush its partial buffer. Resolves after the flushed
+   * chunk (if any) has crossed the message port and our onmessage handler
+   * forwarded it to the main process — so the trailing ~128ms isn't dropped.
+   */
+  function flushWorklet(): Promise<void> {
+    return new Promise<void>((resolveFlush) => {
+      const port = workletNode.port;
+      pendingFlush = resolveFlush;
+      port.postMessage("flush");
+    });
+  }
 
   return {
     stop: () => {
       stopped = true;
-      if (keepAliveInterval) clearInterval(keepAliveInterval);
-      processorNode?.disconnect();
-      sourceNode?.disconnect();
-      processorNode = null;
-      sourceNode = null;
-      void audioContext?.close();
-      audioContext = null;
-      stream.getTracks().forEach((t) => t.stop());
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close(1000);
-      }
+      return flushWorklet()
+        .then(() => bridge.stopStt())
+        .then((tailEvents) => {
+          for (const ev of tailEvents) {
+            onTranscript(ev.text, ev.isFinal);
+          }
+          return undefined;
+        })
+        .catch((err: unknown) => {
+          onError(err instanceof Error ? err.message : String(err));
+        })
+        .finally(() => {
+          workletNode.port.removeEventListener("message", handleWorkletMessage);
+          workletNode.disconnect();
+          silentSink.disconnect();
+          sourceNode.disconnect();
+          void audioContext.close();
+          stream.getTracks().forEach((t) => t.stop());
+          unsubscribe();
+        });
     },
   };
 }

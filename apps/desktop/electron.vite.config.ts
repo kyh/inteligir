@@ -5,24 +5,28 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import type { LibraryFormats } from "vite";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const configDir = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => ({
   main: {
     plugins: [],
     define: {
-      __PROJECT_ROOT__: JSON.stringify(__dirname),
+      PROJECT_ROOT: JSON.stringify(configDir),
     },
     resolve: {
-      alias: { "@": resolve(__dirname, "src") },
+      alias: { "@": resolve(configDir, "src") },
     },
     build: {
       externalizeDeps: false,
       outDir: ".output/app/main",
       rollupOptions: {
-        external: ["electron"],
+        // sherpa-onnx-node loads a native .node addon via __dirname-relative
+        // paths. Bundling it breaks that lookup (the bundle's __dirname is the
+        // chunks dir, not the package). Externalize so it's require()'d from
+        // node_modules at runtime, where the addon + dylibs sit beside it.
+        external: ["electron", "sherpa-onnx-node"],
         input: {
-          index: resolve(__dirname, "src/main/index.ts"),
+          index: resolve(configDir, "src/main/index.ts"),
         },
       },
     },
@@ -30,12 +34,12 @@ export default defineConfig(() => ({
   preload: {
     plugins: [],
     resolve: {
-      alias: { "@": resolve(__dirname, "src") },
+      alias: { "@": resolve(configDir, "src") },
     },
     build: {
       outDir: ".output/app/preload",
       lib: {
-        entry: resolve(__dirname, "src/preload/index.ts"),
+        entry: resolve(configDir, "src/preload/index.ts"),
         formats: ["cjs"] satisfies LibraryFormats[],
       },
       rollupOptions: {
@@ -52,13 +56,13 @@ export default defineConfig(() => ({
   renderer: {
     plugins: [tailwindcss(), react()],
     resolve: {
-      alias: { "@": resolve(__dirname, "src") },
+      alias: { "@": resolve(configDir, "src") },
     },
     build: {
       outDir: ".output/app/renderer",
       rollupOptions: {
         input: {
-          index: resolve(__dirname, "src/renderer/index.html"),
+          index: resolve(configDir, "src/renderer/index.html"),
         },
       },
     },

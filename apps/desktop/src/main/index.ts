@@ -1,47 +1,66 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { z } from "zod";
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from "electron";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 import type { MenuItemConstructorOptions } from "electron";
 import electronUpdater from "electron-updater";
 
-declare const __PROJECT_ROOT__: string;
+declare const PROJECT_ROOT: string;
 
-// Load .env at runtime for voice API keys (DEEPGRAM_API_KEY, ELEVENLABS_API_KEY)
-try {
-  process.loadEnvFile(path.resolve(__PROJECT_ROOT__, ".env"));
-} catch {
-  // .env file is optional
+// Dev-only .env loader. In packaged builds PROJECT_ROOT points to a path that
+// no longer exists on the user's machine, so loadEnvFile would always fail.
+// Production reads from process.env directly (set by launcher/system).
+if (!app.isPackaged) {
+  try {
+    process.loadEnvFile(path.resolve(PROJECT_ROOT, ".env"));
+  } catch {
+    // .env is optional in dev
+  }
 }
 
-import { persistActiveTools } from "@/main/active-tools";
-import { getAgent, getAppState, initMachine, shutdown, transition } from "@/main/app-machine";
+import { configurePaths } from "@/agent/paths";
+import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice/parakeet";
+import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
+import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-proxy";
+
+import {
+  getAgent,
+  getAppState,
+  initMachine,
+  reauthenticate,
+  shutdown,
+  transition,
+} from "@/main/app-machine";
 import {
   getDispatchState,
   initDispatch,
   refreshRoomCode,
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
-import { broadcastToRenderer } from "@/main/lib/broadcast";
-import { createIpcHandler, createVoidIpcHandler } from "@/main/lib/ipc-handler";
+import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
+import { initAgentLog } from "@/main/lib/agent-log";
+import { broadcast } from "@/main/lib/broadcast";
+import { handle } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
-import { taskManager } from "@/main/tasks/task-singleton";
+import { getUiState } from "@/main/ui-state";
+import { getTaskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
-import { TextChatMessageSchema, type ImageAttachment } from "@/shared/voice";
-import { AppEventSchema } from "@/shared/app-state";
-import { CreateTaskParamsSchema } from "@/shared/task";
-import { IPC_CHANNELS, isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { ExtensionsList, UpdateState } from "@/shared/ipc";
+import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
+import { registerShellIpcHandlers } from "@/main/shell-ipc";
+import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
+import type { ImageAttachment } from "@/shared/voice";
+import { isHttpUrl, toErrorMessage } from "@/shared/ipc";
+import type { UpdateState } from "@/shared/ipc";
+import type { ImageContent } from "@repo/pi-driver/pi-types";
 
 const { autoUpdater } = electronUpdater;
 
 /** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
-function toImageContent(images: ImageAttachment[] | undefined) {
+function toImageContent(images: ImageAttachment[] | undefined): ImageContent[] | undefined {
   return images?.map((i) => ({
-    type: "image" as const,
+    type: "image",
     data: i.data,
     mimeType: i.mimeType,
   }));
@@ -67,7 +86,7 @@ let updateState: UpdateState = {
 
 function setUpdateState(patch: Partial<UpdateState>): void {
   updateState = { ...updateState, ...patch };
-  broadcastToRenderer(IPC_CHANNELS.UPDATE_STATE, updateState);
+  broadcast("onUpdateState", updateState);
 }
 
 // ---------------------------------------------------------------------------
@@ -119,25 +138,14 @@ function configureApplicationMenu(): void {
 // ---------------------------------------------------------------------------
 
 function registerIpcHandlers(): void {
-  // ---- Desktop --------------------------------------------------------------
+  // ---- Desktop / updates ----------------------------------------------------
 
-  ipcMain.handle(IPC_CHANNELS.OPEN_EXTERNAL, async (_event, rawUrl: unknown) => {
-    if (typeof rawUrl !== "string" || rawUrl.length === 0) return false;
-    if (!isHttpUrl(rawUrl)) return false;
-    try {
-      await shell.openExternal(rawUrl);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-
-  createVoidIpcHandler(IPC_CHANNELS.UPDATE_CHECK, async () => {
+  handle("checkForUpdates", async () => {
     await checkForUpdates();
     return updateState;
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.UPDATE_DOWNLOAD, async () => {
+  handle("downloadUpdate", async () => {
     if (updateState.status !== "available") {
       return { accepted: false, state: updateState };
     }
@@ -151,7 +159,7 @@ function registerIpcHandlers(): void {
     }
   });
 
-  createVoidIpcHandler(IPC_CHANNELS.UPDATE_INSTALL, () => {
+  handle("installUpdate", () => {
     if (updateState.status !== "downloaded") {
       return { accepted: false, state: updateState };
     }
@@ -169,7 +177,7 @@ function registerIpcHandlers(): void {
 
   // ---- Agent ----------------------------------------------------------------
 
-  createIpcHandler(IPC_CHANNELS.AGENT_COMMAND, TextChatMessageSchema, (command) => {
+  handle("sendAgentCommand", (command) => {
     const agent = getAgent();
     if (!agent) return;
     switch (command.type) {
@@ -188,85 +196,97 @@ function registerIpcHandlers(): void {
     }
   });
 
-  ipcMain.handle(IPC_CHANNELS.AGENT_HISTORY, () => readSessionHistory());
+  handle("getAgentHistory", () => readSessionHistory());
+  handle("reauthenticate", () => reauthenticate());
 
   // ---- Dispatch (mobile ↔ desktop relay) -----------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.DISPATCH_GET_STATE, () => getDispatchState());
-  createVoidIpcHandler(IPC_CHANNELS.DISPATCH_REFRESH_CODE, () => refreshRoomCode());
+  handle("getDispatchState", () => getDispatchState());
+  handle("refreshDispatchCode", () => refreshRoomCode());
 
   // ---- App lifecycle --------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.APP_GET_STATE, () => getAppState());
-
-  createIpcHandler(IPC_CHANNELS.APP_TRANSITION, AppEventSchema, (event) => {
+  handle("getAppState", () => getAppState());
+  handle("transition", (event) => {
     transition(event);
   });
 
   // ---- Tasks ----------------------------------------------------------------
 
-  createIpcHandler(IPC_CHANNELS.TASK_CREATE, CreateTaskParamsSchema, (params) => {
-    return { task: taskManager.createTask(params) };
+  handle("createTask", (params) => ({ task: getTaskManager().createTask(params) }));
+  handle("listTasks", () => ({ tasks: getTaskManager().getTasks() }));
+  handle("deleteTask", (id): { ok: true } => {
+    getTaskManager().deleteTask(id);
+    return { ok: true };
   });
-
-  createVoidIpcHandler(IPC_CHANNELS.TASK_LIST, () => {
-    return { tasks: taskManager.getTasks() };
-  });
-
-  createIpcHandler(IPC_CHANNELS.TASK_DELETE, z.string().min(1), (id) => {
-    taskManager.deleteTask(id);
-    return { ok: true as const };
-  });
-
-  createIpcHandler(IPC_CHANNELS.TASK_TOGGLE, z.string().min(1), (id) => {
-    return { task: taskManager.toggleTask(id) };
-  });
+  handle("toggleTask", (id) => ({ task: getTaskManager().toggleTask(id) }));
 
   // ---- Voice ----------------------------------------------------------------
 
-  ipcMain.handle(IPC_CHANNELS.VOICE_CONFIG, () => {
-    const deepgramApiKey = process.env["DEEPGRAM_API_KEY"];
-    const elevenlabsApiKey = process.env["ELEVENLABS_API_KEY"];
-    if (!deepgramApiKey || !elevenlabsApiKey) return null;
-    return {
-      deepgramApiKey,
-      elevenlabsApiKey,
-      elevenlabsVoiceId: process.env["ELEVENLABS_VOICE_ID"],
-    };
+  handle("isTtsAvailable", () => ttsAvailable());
+  handle("ttsSend", ({ text }) => ttsSend(text));
+  handle("ttsFlush", () => ttsFlush());
+  handle("ttsInterrupt", () => ttsInterrupt());
+
+  handle("startStt", async () => {
+    const result = await initParakeet();
+    if (!result.ok) return { ok: false, reason: result.reason };
+    startSession();
+    return { ok: true };
   });
+
+  handle("sendSttAudio", (payload) => {
+    // Fire-and-forget hot path — uncaught throws on the event loop would crash
+    // the app, so swallow + log and keep the session alive.
+    try {
+      // Honor byteOffset/byteLength: a Buffer view may sit inside a larger
+      // pooled ArrayBuffer.
+      const samples =
+        payload instanceof ArrayBuffer
+          ? new Float32Array(payload)
+          : new Float32Array(
+              payload.buffer,
+              payload.byteOffset,
+              payload.byteLength / Float32Array.BYTES_PER_ELEMENT,
+            );
+      const events = pushAudio(samples);
+      for (const ev of events) {
+        broadcast("onSttTranscript", ev);
+      }
+    } catch (err) {
+      console.error("[voice] audio chunk handler failed:", err);
+    }
+  });
+
+  handle("stopStt", () => stopSession());
+  handle("getVoiceModelStatus", () => (isModelInstalled() ? "ready" : "missing"));
+  handle("downloadVoiceModel", () => downloadModel());
 
   // ---- Notifications --------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.NOTIFICATIONS_GET, () => {
-    return getNotifications().getSettings();
+  handle("getNotificationSettings", () => getNotifications().getSettings());
+  handle("updateNotificationSettings", (patch) => getNotifications().updateSettings(patch));
+
+  // ---- UI state -------------------------------------------------------------
+
+  handle("getUiState", () => getUiState().getAll());
+  handle("setUiState", ({ key, value }) => {
+    getUiState().set(key, value);
   });
 
-  createIpcHandler(
-    IPC_CHANNELS.NOTIFICATIONS_UPDATE,
-    z.object({ enabled: z.boolean().optional() }),
-    (patch) => {
-      return getNotifications().updateSettings(patch);
-    },
-  );
+  registerShellIpcHandlers();
+  registerWidgetActionIpcHandlers();
+  registerExecutorIpcHandlers();
 
-  // ---- Extensions (#7) ------------------------------------------------------
+  // ---- Skills ---------------------------------------------------------------
 
-  createVoidIpcHandler(IPC_CHANNELS.EXTENSIONS_LIST, (): ExtensionsList => {
-    const agent = getAgent();
-    if (!agent) return { tools: [] };
-    return { tools: agent.listTools() };
-  });
+  handle("listSkills", () => ({ skills: listSkills() }));
 
-  createIpcHandler(
-    IPC_CHANNELS.EXTENSIONS_SET_ACTIVE,
-    z.array(z.string()),
-    (toolNames): ExtensionsList => {
-      const agent = getAgent();
-      if (!agent) return { tools: [] };
-      agent.setActiveTools(toolNames);
-      persistActiveTools(toolNames);
-      return { tools: agent.listTools() };
-    },
+  // ---- Integrations (CLI binaries) ------------------------------------------
+
+  handle("listIntegrations", () => listIntegrations());
+  handle("repairIntegrations", () =>
+    repairIntegrations((p) => broadcast("onSetupProgress", p)),
   );
 }
 
@@ -319,6 +339,18 @@ function configureAutoUpdater(): void {
 // Window creation
 // ---------------------------------------------------------------------------
 
+/**
+ * Pick the window chrome color from the persisted theme so the pre-paint
+ * background matches what the renderer will render (no dark flash in light
+ * mode). Mirrors the renderer's default-to-dark behaviour for unset/invalid.
+ */
+function startupBackgroundColor(): string {
+  const stored = getUiState().getAll()["theme"];
+  const theme = stored === "light" || stored === "system" ? stored : "dark";
+  const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
+  return dark ? "#09090b" : "#ffffff";
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1200,
@@ -326,13 +358,13 @@ function createWindow(): BrowserWindow {
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor: "#d1684e",
+    backgroundColor: startupBackgroundColor(),
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {
-      preload: path.join(__dirname, "../preload/index.js"),
+      preload: path.join(moduleDir, "../preload/index.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -359,7 +391,7 @@ function createWindow(): BrowserWindow {
   if (isDevelopment && process.env["ELECTRON_RENDERER_URL"]) {
     void window.loadURL(process.env["ELECTRON_RENDERER_URL"]);
   } else {
-    void window.loadFile(path.join(__dirname, "../renderer/index.html"));
+    void window.loadFile(path.join(moduleDir, "../renderer/index.html"));
   }
 
   if (isDevelopment) {
@@ -395,7 +427,10 @@ app.on("before-quit", (event) => {
 
 app
   .whenReady()
-  .then(async () => {
+  .then(() => {
+    // Must run before any pi-coding-agent call that consults getAgentDir().
+    configurePaths();
+    initAgentLog();
     configureAppIdentity();
     configureApplicationMenu();
     configureAutoUpdater();
@@ -403,9 +438,6 @@ app
 
     mainWindow = createWindow();
     getNotifications().setTargetWindow(mainWindow);
-
-    // Resolve session file path before initMachine() starts the agent
-    readSessionHistory();
 
     initMachine();
 

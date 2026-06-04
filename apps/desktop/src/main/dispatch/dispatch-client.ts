@@ -1,4 +1,5 @@
 import PartySocket from "partysocket";
+import { Type } from "@sinclair/typebox";
 import {
   generateRoomCode,
   PARTY_NAME,
@@ -7,19 +8,17 @@ import {
   encodeMessage,
   createConnectionAttemptRegistry,
 } from "@repo/dispatch";
-import { broadcastToRenderer } from "@/main/lib/broadcast";
+import { broadcast } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
-import { IPC_CHANNELS } from "@/shared/ipc";
 import type { DispatchState } from "@/shared/dispatch";
 import { DISPATCH_INITIAL_STATE } from "@/shared/dispatch";
 import type { AppAgentEvent } from "@/shared/agent-events";
-import { z } from "zod";
 
 const PARTY_HOST = process.env["DISPATCH_PARTY_HOST"] ?? DEFAULT_PARTY_HOST;
 
 const roomStore = new JsonStore<string | null>(
   inteligirPath("dispatch-room.json"),
-  z.string().nullable(),
+  Type.Union([Type.String(), Type.Null()]),
   null,
 );
 
@@ -34,7 +33,7 @@ function setState(patch: Partial<DispatchState>): void {
   );
   if (!hasChange) return;
   dispatchState = { ...dispatchState, ...patch };
-  broadcastToRenderer(IPC_CHANNELS.DISPATCH_STATE, dispatchState);
+  broadcast("onDispatchState", dispatchState);
 }
 
 export function getDispatchState(): DispatchState {
@@ -69,8 +68,6 @@ function connectToRoom(roomCode: string): void {
 
   partySocket.addEventListener("open", () => {
     if (!attempt.isCurrent()) return;
-    // Only clear reconnecting state — stay in awaiting_pair until a mobile
-    // device actually sends a message (handled in the message listener above).
     if (dispatchState.status === "reconnecting") {
       setState({ status: "awaiting_pair", error: null });
     }

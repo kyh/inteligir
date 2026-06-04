@@ -1,9 +1,11 @@
 // ---------------------------------------------------------------------------
-// ElevenLabs streaming TTS — lazy WebSocket, immediate playback
+// Renderer-side TTS client. The WebSocket + API key live in main (see
+// main/voice/tts-proxy.ts); the renderer's job is just to push outgoing text
+// through the bridge and play the PCM chunks main streams back.
 // ---------------------------------------------------------------------------
 
-const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
-const MODEL_ID = "eleven_flash_v2_5";
+import { getBridge } from "@/renderer/lib/bridge";
+
 const SAMPLE_RATE = 24000;
 
 export type TTSHandle = {
@@ -13,68 +15,16 @@ export type TTSHandle = {
   close: () => void;
 };
 
-export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): TTSHandle {
-  const baseUri =
-    `wss://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream-input` +
-    `?model_id=${MODEL_ID}&output_format=pcm_${SAMPLE_RATE}`;
-
+export function createTTS(): TTSHandle {
   const audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
   let nextPlayTime = 0;
   let muted = false;
   const activeSources: Set<AudioBufferSourceNode> = new Set();
 
-  let ws: WebSocket | null = null;
-  let pendingText: string[] = [];
-
-  function ensureConnection(): WebSocket {
-    if (ws && ws.readyState <= WebSocket.OPEN) return ws;
-
-    const socket = new WebSocket(baseUri);
-    ws = socket;
-
-    socket.onopen = () => {
-      socket.send(
-        JSON.stringify({
-          text: " ",
-          voice_settings: { stability: 0.5, similarity_boost: 0.75 },
-          xi_api_key: apiKey,
-        }),
-      );
-      // Send any text that arrived while connecting
-      for (const text of pendingText) {
-        socket.send(JSON.stringify({ text, try_trigger_generation: true }));
-      }
-      pendingText = [];
-    };
-
-    socket.onmessage = (event) => {
-      if (muted) return;
-      try {
-        const data = JSON.parse(String(event.data)) as { audio?: string };
-        if (data.audio) {
-          const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
-          playChunk(bytes.buffer);
-        }
-      } catch {
-        // ignore
-      }
-    };
-
-    socket.onerror = () => {
-      ws = null;
-    };
-
-    socket.onclose = () => {
-      ws = null;
-    };
-
-    return socket;
-  }
-
   function playChunk(pcm: ArrayBuffer): void {
+    if (muted) return;
     const int16 = new Int16Array(pcm);
     if (int16.length === 0) return;
-
     if (audioCtx.state === "suspended") void audioCtx.resume();
 
     const float32 = new Float32Array(int16.length);
@@ -88,7 +38,7 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
     const source = audioCtx.createBufferSource();
     source.buffer = buffer;
     source.connect(audioCtx.destination);
-    source.onended = () => activeSources.delete(source);
+    source.addEventListener("ended", () => activeSources.delete(source), { once: true });
     activeSources.add(source);
 
     const now = audioCtx.currentTime;
@@ -109,43 +59,30 @@ export function createTTS(apiKey: string, voiceId: string = DEFAULT_VOICE_ID): T
     nextPlayTime = 0;
   }
 
+  const bridge = getBridge();
+  const unsubscribe = bridge?.onTtsAudio((event) => {
+    playChunk(event.audio);
+  });
+
   return {
     sendText: (text: string) => {
-      // New text from agent always unmutes — the agent is responding fresh
       muted = false;
-      const socket = ensureConnection();
-      if (socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ text, try_trigger_generation: true }));
-      } else {
-        pendingText.push(text);
-      }
+      bridge?.ttsSend({ text });
     },
     flush: () => {
-      // Close the current connection so it doesn't timeout idle.
-      // Next sendText will open a fresh one.
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ text: "" }));
-      }
-      ws = null;
+      bridge?.ttsFlush(undefined);
       muted = false;
     },
     interrupt: () => {
       muted = true;
-      pendingText = [];
       stopAllSources();
-      // Kill the connection — remaining server-side audio is discarded
-      if (ws) {
-        ws.close();
-        ws = null;
-      }
+      bridge?.ttsInterrupt(undefined);
     },
     close: () => {
+      unsubscribe?.();
       stopAllSources();
       void audioCtx.close();
-      if (ws) {
-        ws.close();
-        ws = null;
-      }
+      bridge?.ttsInterrupt(undefined);
     },
   };
 }

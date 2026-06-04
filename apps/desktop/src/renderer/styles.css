@@ -1,5 +1,4 @@
 @import "@repo/ui/globals.css";
-@import "streamdown/styles.css";
 
 html,
 body,
@@ -9,6 +8,32 @@ body,
   overflow: hidden;
 }
 
+/* Desktop-app feel: don't select text when dragging widgets, clicking buttons,
+ * etc. Form fields and any element opted in via the `select-text` Tailwind
+ * utility (e.g. the chat transcript) stay selectable. */
+body {
+  user-select: none;
+  -webkit-user-select: none;
+}
+input,
+textarea,
+[contenteditable] {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .app-drag {
   -webkit-app-region: drag;
+}
+
+/* react-grid-layout — theme the placeholder + resize affordances for dark UI */
+.react-grid-item.react-grid-placeholder {
+  background: var(--foreground);
+  opacity: 0.1;
+  border-radius: var(--radius-xl);
+}
+/* Panels stay resizable from their edges/corner, but we hide the default
+ * diagonal-arrow affordance for a cleaner desktop look. */
+.react-grid-item > .react-resizable-handle::after {
+  display: none;
 }

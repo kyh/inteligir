@@ -4,7 +4,6 @@
     "lib": ["ES2023", "dom", "dom.iterable"],
     "jsx": "preserve",
     "paths": {
-      "@/.source": ["./.source"],
       "@/*": ["./src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     },

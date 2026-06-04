@@ -20,7 +20,6 @@ const NUM_LINES = 20;
 const RADIUS = 1.5;
 const POINTS_PER_LINE = 96;
 const LINE_WIDTH = 2;
-const BACKGROUND = "#d1684e";
 const INITIAL_COLOR_INT = new THREE.Color("#eeeeee").getHex();
 const PI2 = Math.PI * 2;
 
@@ -53,62 +52,67 @@ type Mood = {
 
 const tmpColor = new THREE.Color();
 
-const moods: Record<DisplayStatus, Mood> = {
-  idle: {
-    speed: 20,
-    squiggleAmount: 0.04,
-    squiggleFrequency: 4,
-    squiggleSpeed: 2,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#eeeeee"),
-  },
-  busy: {
-    speed: 10,
-    squiggleAmount: 0.08,
-    squiggleFrequency: 6,
-    squiggleSpeed: 5,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#66bbff"),
-  },
-  error: {
-    speed: 14,
-    squiggleAmount: 0.12,
-    squiggleFrequency: 8,
-    squiggleSpeed: 7,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#ff6666"),
-  },
-  starting: {
-    speed: 25,
-    squiggleAmount: 0.01,
-    squiggleFrequency: 2,
-    squiggleSpeed: 1,
-    morphProgress: 0,
-    helixSpin: ROTATE_VALUE,
-    ...rgb("#ffffff"),
-  },
-  listening: {
-    speed: 15,
-    squiggleAmount: 0.06,
-    squiggleFrequency: 5,
-    squiggleSpeed: 3,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#44dd88"),
-  },
-  speaking: {
-    speed: 8,
-    squiggleAmount: 0.1,
-    squiggleFrequency: 7,
-    squiggleSpeed: 6,
-    morphProgress: 1,
-    helixSpin: 0,
-    ...rgb("#aa88ff"),
-  },
-};
+// The idle/starting states use a neutral base color that tracks the active
+// theme so the orb stays legible on both light and dark backgrounds; the
+// other states keep their semantic hues (visible against either background).
+function makeMoods(baseColor: string): Record<DisplayStatus, Mood> {
+  return {
+    idle: {
+      speed: 20,
+      squiggleAmount: 0.04,
+      squiggleFrequency: 4,
+      squiggleSpeed: 2,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb(baseColor),
+    },
+    busy: {
+      speed: 10,
+      squiggleAmount: 0.08,
+      squiggleFrequency: 6,
+      squiggleSpeed: 5,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#66bbff"),
+    },
+    error: {
+      speed: 14,
+      squiggleAmount: 0.12,
+      squiggleFrequency: 8,
+      squiggleSpeed: 7,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#ff6666"),
+    },
+    starting: {
+      speed: 25,
+      squiggleAmount: 0.01,
+      squiggleFrequency: 2,
+      squiggleSpeed: 1,
+      morphProgress: 0,
+      helixSpin: ROTATE_VALUE,
+      ...rgb(baseColor),
+    },
+    listening: {
+      speed: 15,
+      squiggleAmount: 0.06,
+      squiggleFrequency: 5,
+      squiggleSpeed: 3,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#44dd88"),
+    },
+    speaking: {
+      speed: 8,
+      squiggleAmount: 0.1,
+      squiggleFrequency: 7,
+      squiggleSpeed: 6,
+      morphProgress: 1,
+      helixSpin: 0,
+      ...rgb("#aa88ff"),
+    },
+  };
+}
 
 function rgb(hex: string): { r: number; g: number; b: number } {
   tmpColor.set(hex);
@@ -153,6 +157,11 @@ function lerpMood(current: Mood, target: Mood, alpha: number): void {
 // ---------------------------------------------------------------------------
 
 class HelixCurve extends THREE.Curve<THREE.Vector3> {
+  // eslint-disable-next-line no-useless-constructor -- exposes protected base constructor
+  constructor() {
+    super();
+  }
+
   getPoint(percent: number): THREE.Vector3 {
     const x = HELIX_LENGTH * Math.sin(PI2 * percent);
     const y = HELIX_AMPLITUDE * Math.cos(PI2 * 3 * percent);
@@ -192,12 +201,16 @@ function helixPoint(percent: number, tubeAngle: number): [number, number, number
 // LatitudeLines — all rendering in a single useFrame
 // ---------------------------------------------------------------------------
 
-function LatitudeLines({ status }: { status: DisplayStatus }) {
+function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor: string }) {
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
   const parentGroupRef = useRef<THREE.Group>(null);
   const spinGroupRef = useRef<THREE.Group>(null);
   const camDirRef = useRef(new THREE.Vector3());
   const helixRotationRef = useRef(0);
+  // Theme-reactive moods. useFrame lerps the live mood toward `moods[status]`,
+  // so a theme change smoothly recolors the orb without remounting. The refs
+  // below read it only for their one-time initial value.
+  const moods = useMemo(() => makeMoods(baseColor), [baseColor]);
   const sphereExpandRef = useRef(moods[status].morphProgress > 0.5 ? 1 : 0);
   const { size } = useThree();
 
@@ -220,14 +233,7 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
   // --- Tube mesh ---
   const helixMeshRef = useRef<THREE.Mesh>(null);
   const helixGeometry = useMemo(
-    () =>
-      new THREE.TubeGeometry(
-        new (HelixCurve as unknown as new () => THREE.Curve<THREE.Vector3>)(),
-        200,
-        HELIX_TUBE_RADIUS,
-        2,
-        true,
-      ),
+    () => new THREE.TubeGeometry(new HelixCurve(), 200, HELIX_TUBE_RADIUS, 2, true),
     [],
   );
   const helixMaterial = useMemo(
@@ -418,6 +424,10 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
     const morph = mood.morphProgress;
     const expand = sphereExpandRef.current;
 
+    // Keep the helix tube — the only visible element while "starting" — in sync
+    // with the mood color so baseColor / theme changes are actually reflected.
+    helixMaterial.color.setRGB(mood.r, mood.g, mood.b);
+
     const camDir = camDirRef.current.copy(state.camera.position).normalize();
 
     // During spin-up: kill spin quickly before group unwind (at morph≈0.2)
@@ -432,7 +442,8 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
       const group = groupRefs.current[lineIdx];
       if (!group) continue;
 
-      const lineConst = lineConstants[lineIdx]!;
+      const lineConst = lineConstants[lineIdx];
+      if (!lineConst) continue;
       const { longitudeRotation } = lineConst;
 
       // Longitude spread: 0 when circle (expand=0), full when sphere
@@ -488,9 +499,9 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
 
         // --- Blend helix → target based on morph ---
         const hIdx = (lineIdx * POINTS_PER_LINE + i) * 3;
-        const hx = helixCache[hIdx]!;
-        const hy = helixCache[hIdx + 1]!;
-        const hz = helixCache[hIdx + 2]!;
+        const hx = helixCache[hIdx] ?? 0;
+        const hy = helixCache[hIdx + 1] ?? 0;
+        const hz = helixCache[hIdx + 2] ?? 0;
 
         const x = hx + (tx - hx) * morph;
         const y = hy + (ty - hy) * morph;
@@ -515,35 +526,40 @@ function LatitudeLines({ status }: { status: DisplayStatus }) {
       }
 
       const last = POINTS_PER_LINE * 3;
-      positionBuffer[last] = positionBuffer[0]!;
-      positionBuffer[last + 1] = positionBuffer[1]!;
-      positionBuffer[last + 2] = positionBuffer[2]!;
-      colorBuffer[last] = colorBuffer[0]!;
-      colorBuffer[last + 1] = colorBuffer[1]!;
-      colorBuffer[last + 2] = colorBuffer[2]!;
+      positionBuffer[last] = positionBuffer[0] ?? 0;
+      positionBuffer[last + 1] = positionBuffer[1] ?? 0;
+      positionBuffer[last + 2] = positionBuffer[2] ?? 0;
+      colorBuffer[last] = colorBuffer[0] ?? 0;
+      colorBuffer[last + 1] = colorBuffer[1] ?? 0;
+      colorBuffer[last + 2] = colorBuffer[2] ?? 0;
 
-      geometries[lineIdx]!.setPositions(positionBuffer);
-      geometries[lineIdx]!.setColors(colorBuffer);
+      const lineGeom = geometries[lineIdx];
+      if (lineGeom) {
+        lineGeom.setPositions(positionBuffer);
+        lineGeom.setColors(colorBuffer);
+      }
     }
   });
 
   return (
     <group ref={parentGroupRef}>
       <group ref={spinGroupRef}>
-        <mesh
-          ref={helixMeshRef}
-          geometry={helixGeometry as never}
-          material={helixMaterial as never}
-        />
-        {Array.from({ length: NUM_LINES }, (_, lineIdx) => (
-          <OrbLine
-            key={lineIdx}
-            lineIdx={lineIdx}
-            groupRefs={groupRefs}
-            geometry={geometries[lineIdx]!}
-            material={materials[lineIdx]!}
-          />
-        ))}
+        <mesh ref={helixMeshRef} geometry={helixGeometry} material={helixMaterial} />
+        {geometries.map((geometry, lineIdx) => {
+          const material = materials[lineIdx];
+          if (!material) return null;
+          return (
+            <OrbLine
+              // three.js gives each geometry a stable per-instance uuid; safer
+              // than the loop index even though the line set is fixed-length.
+              key={geometry.uuid}
+              lineIdx={lineIdx}
+              groupRefs={groupRefs}
+              geometry={geometry}
+              material={material}
+            />
+          );
+        })}
       </group>
     </group>
   );
@@ -556,7 +572,7 @@ function OrbLine({
   material,
 }: {
   lineIdx: number;
-  groupRefs: React.MutableRefObject<(THREE.Group | null)[]>;
+  groupRefs: React.RefObject<(THREE.Group | null)[]>;
   geometry: LineGeometry;
   material: LineMaterial;
 }) {
@@ -569,13 +585,7 @@ function OrbLine({
   return (
     <group ref={ref}>
       {/* Line2 from three/examples/jsm — extended via extend() at runtime */}
-      {(
-        React.createElement as (
-          type: string,
-          props: object,
-          ...children: React.ReactNode[]
-        ) => React.ReactElement
-      )(
+      {React.createElement(
         "line2",
         {},
         React.createElement("primitive", { object: geometry, attach: "geometry" }),
@@ -592,18 +602,20 @@ function OrbLine({
 export function GeometricOrb({
   status = "idle",
   className = "",
+  baseColor = "#eeeeee",
 }: {
   status?: DisplayStatus;
   className?: string;
+  /** Neutral color for idle/starting states; pass a dark value in light mode. */
+  baseColor?: string;
 }) {
   return (
     <Canvas
       className={className}
       camera={{ position: [0, 0, CAMERA_Z], fov: 65 }}
-      gl={{ antialias: true, alpha: false }}
+      gl={{ antialias: true, alpha: true }}
     >
-      <color attach="background" args={[BACKGROUND]} />
-      <LatitudeLines status={status} />
+      <LatitudeLines status={status} baseColor={baseColor} />
     </Canvas>
   );
 }

@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { TaskManager, shouldFire } from "@/main/tasks/task-manager";
+import { TaskManager } from "@/main/tasks/task-manager";
 import type { FsAdapter } from "@/main/lib/json-store";
-import type { Task } from "@/shared/task";
 
 function memoryFs(): FsAdapter {
   const files = new Map<string, string>();
@@ -81,58 +80,5 @@ describe("TaskManager CRUD", () => {
 
     expect(mgr.getTasks()).toHaveLength(3);
     expect(mgr.getTasks().map((t) => t.label)).toEqual(["A", "B", "C"]);
-  });
-});
-
-describe("shouldFire", () => {
-  const base: Task = {
-    id: "t1",
-    label: "Test",
-    prompt: "x",
-    schedule: { type: "once", runAt: 1000 },
-    enabled: true,
-    lastRunAt: null,
-    createdAt: 500,
-  };
-
-  it("once: fires when now >= runAt and never run", () => {
-    expect(shouldFire(base, 1000)).toBe(true);
-    expect(shouldFire(base, 2000)).toBe(true);
-  });
-
-  it("once: does not fire before runAt", () => {
-    expect(shouldFire(base, 999)).toBe(false);
-  });
-
-  it("once: does not fire if already run", () => {
-    expect(shouldFire({ ...base, lastRunAt: 1000 }, 2000)).toBe(false);
-  });
-
-  it("interval: fires immediately if never run", () => {
-    const task: Task = { ...base, schedule: { type: "interval", intervalMs: 60_000 } };
-    expect(shouldFire(task, 1000)).toBe(true);
-  });
-
-  it("interval: fires after interval elapsed", () => {
-    const task: Task = {
-      ...base,
-      schedule: { type: "interval", intervalMs: 60_000 },
-      lastRunAt: 1000,
-    };
-    expect(shouldFire(task, 61_000)).toBe(true);
-  });
-
-  it("interval: does not fire before interval", () => {
-    const task: Task = {
-      ...base,
-      schedule: { type: "interval", intervalMs: 60_000 },
-      lastRunAt: 1000,
-    };
-    expect(shouldFire(task, 30_000)).toBe(false);
-  });
-
-  it("cron: returns false for invalid cron", () => {
-    const task: Task = { ...base, schedule: { type: "cron", cron: "invalid" } };
-    expect(shouldFire(task, Date.now())).toBe(false);
   });
 });

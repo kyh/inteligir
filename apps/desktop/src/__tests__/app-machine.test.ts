@@ -8,18 +8,25 @@ vi.mock("electron", () => ({
 }));
 
 vi.mock("@/agent/setup", () => ({
-  Agent: vi.fn(),
-  isLoggedIn: vi.fn().mockReturnValue(false),
   isSetupComplete: vi.fn().mockReturnValue(false),
-  login: vi.fn().mockResolvedValue(undefined),
   seedResources: vi.fn().mockResolvedValue(undefined),
   teardownResources: vi.fn(),
+}));
+
+vi.mock("@/agent/auth", () => ({
+  isLoggedIn: vi.fn().mockReturnValue(false),
+  login: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/agent/agent", () => ({
+  Agent: vi.fn(),
 }));
 
 function fakeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn().mockResolvedValue(undefined),
     seedResources: vi.fn().mockResolvedValue(undefined),
+    downloadVoiceModel: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(undefined),
     stopAgent: vi.fn().mockResolvedValue(undefined),
     teardownResources: vi.fn(),

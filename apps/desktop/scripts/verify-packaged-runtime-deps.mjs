@@ -21,7 +21,12 @@ import { fileURLToPath } from "node:url";
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(APP_ROOT, ".output/bin");
 const PACKAGE_JSON = join(APP_ROOT, "package.json");
-const REQUIRED_RUNTIME_DEPS = ["@mariozechner/pi-coding-agent", "@mariozechner/pi-ai"];
+const REQUIRED_RUNTIME_DEPS = [
+  "@mariozechner/pi-coding-agent",
+  "@mariozechner/pi-ai",
+  // Native STT binding — .node files must also be asar-unpacked; see check below.
+  "sherpa-onnx-node",
+];
 
 // `electron-builder --mac dmg` produces a .app inside .output/bin/mac{,-arm64}/
 function findAppBundle() {
@@ -52,6 +57,28 @@ function assertExists(path, label) {
   console.log(`[verify-packaged] OK: ${label}`);
 }
 
+// Find an unpacked sherpa-onnx-{platform} package containing the native
+// sherpa-onnx.node addon. There's exactly one for the built target's
+// platform/arch; we don't hardcode which so the check works on any host.
+function assertPlatformBinaryUnpacked(unpackedNodeModules) {
+  if (!existsSync(unpackedNodeModules)) {
+    fail(`No unpacked node_modules at ${unpackedNodeModules}`);
+  }
+  const platformPkgs = readdirSync(unpackedNodeModules).filter(
+    (name) => name.startsWith("sherpa-onnx-") && name !== "sherpa-onnx-node",
+  );
+  const withBinary = platformPkgs.find((name) =>
+    existsSync(join(unpackedNodeModules, name, "sherpa-onnx.node")),
+  );
+  if (!withBinary) {
+    fail(
+      `No unpacked sherpa-onnx platform package with sherpa-onnx.node found. ` +
+        `Saw: [${platformPkgs.join(", ") || "none"}]. Check asarUnpack globs in electron-builder.yml.`,
+    );
+  }
+  console.log(`[verify-packaged] OK: native addon ${withBinary}/sherpa-onnx.node (unpacked)`);
+}
+
 const app = findAppBundle();
 const resources = join(app, "Contents", "Resources");
 
@@ -67,6 +94,19 @@ assertExists(
 
 // asar exists at all
 assertExists(join(resources, "app.asar"), "app.asar");
+
+// sherpa-onnx-node must be asar-unpacked: .node binaries cannot be loaded
+// from inside an asar archive. Without unpacking, voice STT crashes on
+// first mic click in the packaged DMG.
+const unpackedNodeModules = join(resources, "app.asar.unpacked", "node_modules");
+assertExists(join(unpackedNodeModules, "sherpa-onnx-node"), "sherpa-onnx-node (unpacked)");
+
+// The actual native addon lives in a per-platform package (e.g.
+// sherpa-onnx-darwin-arm64), NOT in sherpa-onnx-node itself. sherpa-onnx-node
+// require()s sibling/../sherpa-onnx-{platform}/sherpa-onnx.node at runtime, so
+// that package — with its sherpa-onnx.node binary — must also be unpacked.
+// This is the gap that silently breaks voice even when sherpa-onnx-node is present.
+assertPlatformBinaryUnpacked(unpackedNodeModules);
 
 // Reading inside app.asar without the `asar` CLI is awkward, so verify the
 // source-of-truth that decides what ends up in the asar: every required

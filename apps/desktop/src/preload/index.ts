@@ -1,9 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { IPC_CHANNELS } from "@/shared/ipc";
+import { IPC, type DesktopBridge } from "@/shared/ipc-registry";
 
-function forwardEvent(channel: string, listener: (data: unknown) => void): () => void {
-  const wrapped = (_event: Electron.IpcRendererEvent, data: unknown) => {
+function forwardEvent<T>(channel: string, listener: (data: T) => void): () => void {
+  const wrapped = (_event: Electron.IpcRendererEvent, data: T) => {
     listener(data);
   };
   ipcRenderer.on(channel, wrapped);
@@ -12,51 +12,26 @@ function forwardEvent(channel: string, listener: (data: unknown) => void): () =>
   };
 }
 
-contextBridge.exposeInMainWorld("desktopBridge", {
-  // Desktop
-  openExternal: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_EXTERNAL, url),
-  checkForUpdates: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_CHECK),
-  downloadUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_DOWNLOAD),
-  installUpdate: () => ipcRenderer.invoke(IPC_CHANNELS.UPDATE_INSTALL),
-  onUpdateState: (listener: (state: unknown) => void) =>
-    forwardEvent(IPC_CHANNELS.UPDATE_STATE, listener),
-
-  // App lifecycle
-  getAppState: () => ipcRenderer.invoke(IPC_CHANNELS.APP_GET_STATE),
-  transition: (event: unknown) => ipcRenderer.invoke(IPC_CHANNELS.APP_TRANSITION, event),
-  onAppState: (listener: (state: unknown) => void) =>
-    forwardEvent(IPC_CHANNELS.APP_STATE, listener),
-  onSetupProgress: (listener: (progress: unknown) => void) =>
-    forwardEvent(IPC_CHANNELS.SETUP_PROGRESS, listener),
-
-  // Agent
-  onAgentEvent: (listener: (event: unknown) => void) =>
-    forwardEvent(IPC_CHANNELS.AGENT_EVENT, listener),
-  sendAgentCommand: (command: unknown) => ipcRenderer.invoke(IPC_CHANNELS.AGENT_COMMAND, command),
-  getAgentHistory: () => ipcRenderer.invoke(IPC_CHANNELS.AGENT_HISTORY),
-
-  // Tasks
-  createTask: (params: unknown) => ipcRenderer.invoke(IPC_CHANNELS.TASK_CREATE, params),
-  listTasks: () => ipcRenderer.invoke(IPC_CHANNELS.TASK_LIST),
-  deleteTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_DELETE, id),
-  toggleTask: (id: string) => ipcRenderer.invoke(IPC_CHANNELS.TASK_TOGGLE, id),
-
-  // Voice
-  getVoiceConfig: () => ipcRenderer.invoke(IPC_CHANNELS.VOICE_CONFIG),
-
-  // Dispatch (mobile ↔ desktop relay)
-  getDispatchState: () => ipcRenderer.invoke(IPC_CHANNELS.DISPATCH_GET_STATE),
-  refreshDispatchCode: () => ipcRenderer.invoke(IPC_CHANNELS.DISPATCH_REFRESH_CODE),
-  onDispatchState: (listener: (state: unknown) => void) =>
-    forwardEvent(IPC_CHANNELS.DISPATCH_STATE, listener),
-
-  // Notifications
-  getNotificationSettings: () => ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATIONS_GET),
-  updateNotificationSettings: (patch: unknown) =>
-    ipcRenderer.invoke(IPC_CHANNELS.NOTIFICATIONS_UPDATE, patch),
-
-  // Extensions
-  listExtensions: () => ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_LIST),
-  setActiveExtensions: (toolNames: string[]) =>
-    ipcRenderer.invoke(IPC_CHANNELS.EXTENSIONS_SET_ACTIVE, toolNames),
+// Auto-construct the bridge from the registry. Each entry's `kind` decides
+// the IPC mechanism; the registry's per-entry typing flows into DesktopBridge
+// via the `as DesktopBridge` at the end (the runtime shape exactly matches
+// what the derivation produces).
+const entries = Object.entries(IPC).map(([method, def]) => {
+  switch (def.kind) {
+    case "invoke":
+      return [method, (payload: unknown) => ipcRenderer.invoke(def.channel, payload)] as const;
+    case "invoke-void":
+      return [method, () => ipcRenderer.invoke(def.channel)] as const;
+    case "send":
+      return [method, (payload: unknown) => ipcRenderer.send(def.channel, payload)] as const;
+    case "event":
+      return [
+        method,
+        (listener: (event: unknown) => void) => forwardEvent(def.channel, listener),
+      ] as const;
+  }
 });
+
+const desktopBridge = Object.fromEntries(entries) as unknown as DesktopBridge;
+
+contextBridge.exposeInMainWorld("desktopBridge", desktopBridge);
