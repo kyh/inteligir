@@ -1,8 +1,5 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { MoonIcon, SunIcon } from "lucide-react";
-import { useTheme } from "next-themes";
 
 import { Button } from "@repo/ui/components/button";
 
@@ -28,26 +25,28 @@ function XIcon({ className }: { className?: string }) {
 }
 
 function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  const [isDark, setIsDark] = useState(true);
 
-  const isDark = resolvedTheme === "dark";
+  useEffect(() => {
+    setIsDark(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  const toggle = () => {
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    localStorage.setItem("theme", next ? "dark" : "light");
+  };
+
   return (
     <Button
       variant="secondary"
       size="icon"
       className="rounded-full"
-      onClick={() => setTheme(isDark ? "light" : "dark")}
+      onClick={toggle}
       aria-label="Toggle theme"
     >
-      {/* Render an invisible icon before mount to avoid a hydration mismatch
-          while next-themes resolves the active theme. */}
-      {mounted && !isDark ? (
-        <MoonIcon />
-      ) : (
-        <SunIcon className={mounted ? undefined : "opacity-0"} />
-      )}
+      {isDark ? <SunIcon /> : <MoonIcon />}
     </Button>
   );
 }
@@ -56,8 +55,6 @@ export function SiteHeader() {
   return (
     <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
       <ThemeToggle />
-      {/* `render` makes the anchor the host element while Button's children
-          (the icon) render inside it; nativeButton={false} since it's an <a>. */}
       <Button
         variant="secondary"
         size="icon"

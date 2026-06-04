@@ -12,19 +12,18 @@
     "dev": "tsc",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false",
     "drizzle:kit": "pnpm with-env drizzle-kit",
-    "generate": "pnpm with-env drizzle-kit generate",
-    "migrate": "pnpm with-env drizzle-kit migrate",
     "push": "pnpm with-env drizzle-kit push",
+    "push:local": "pnpm with-env drizzle-kit push --config drizzle.config.local.ts",
     "push:remote": "dotenv -e ../../.env.production.local -- drizzle-kit push",
     "studio": "pnpm with-env drizzle-kit studio",
     "with-env": "dotenv -e ../../.env --",
     "generate:auth-schema": "pnpm with-env pnpx @better-auth/cli@1.4.21 generate --config ../api/src/auth/auth.ts --output ./src/drizzle-schema-auth.ts"
   },
   "dependencies": {
-    "@libsql/client": "^0.15.0",
     "drizzle-orm": "^0.45.2"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250525.0",
     "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "drizzle-kit": "^0.31.10",

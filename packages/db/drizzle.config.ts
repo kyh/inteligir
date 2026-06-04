@@ -2,11 +2,13 @@ import type { Config } from "drizzle-kit";
 
 export default {
   schema: ["./src/drizzle-schema-auth.ts"],
-  out: "./drizzle/migrations",
-  dialect: "turso",
+  out: "./drizzle",
+  dialect: "sqlite",
+  driver: "d1-http",
   dbCredentials: {
-    url: process.env.TURSO_DATABASE_URL ?? "file:local.db",
-    authToken: process.env.TURSO_AUTH_TOKEN,
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID!,
+    databaseId: process.env.CLOUDFLARE_DATABASE_ID!,
+    token: process.env.CLOUDFLARE_D1_TOKEN!,
   },
   casing: "snake_case",
 } satisfies Config;
