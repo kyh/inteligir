@@ -7,10 +7,11 @@
 // and asserts:
 //   - resources/agent/AGENTS.md and resources/agent/skills/ are asar-unpacked
 //   - app.asar exists at all
-//   - pi-coding-agent + pi-ai are listed under "dependencies" in
-//     apps/desktop/package.json (not devDependencies). electron-builder
-//     bundles only declared prod deps into the asar, so a misplacement is
-//     the most likely way these would silently drop out of the DMG.
+//   - pi-coding-agent + pi-ai are bundled into the built main process. They
+//     arrive transitively via the @repo/pi-driver workspace dep and are
+//     tree-shaken INTO main/index.js by electron-vite — electron-builder.yml
+//     excludes node_modules wholesale, so the failure mode is "didn't bundle,"
+//     not "missing from package.json."
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
@@ -20,13 +21,11 @@ import { fileURLToPath } from "node:url";
 // directory) so the script behaves the same regardless of CWD.
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BIN_DIR = join(APP_ROOT, ".output/bin");
-const PACKAGE_JSON = join(APP_ROOT, "package.json");
-const REQUIRED_RUNTIME_DEPS = [
-  "@mariozechner/pi-coding-agent",
-  "@mariozechner/pi-ai",
-  // Native STT binding — .node files must also be asar-unpacked; see check below.
-  "sherpa-onnx-node",
-];
+const MAIN_BUNDLE = join(APP_ROOT, ".output/app/main/index.js");
+// pi ships bundled into the main process, not via node_modules. Verify the
+// bundle actually contains it rather than guessing from package.json. (sherpa
+// is the opposite — a native dep checked on-disk below, not bundled.)
+const BUNDLED_RUNTIME_DEPS = ["@mariozechner/pi-coding-agent", "@mariozechner/pi-ai"];
 
 // `electron-builder --mac dmg` produces a .app inside .output/bin/mac{,-arm64}/
 function findAppBundle() {
@@ -108,20 +107,18 @@ assertExists(join(unpackedNodeModules, "sherpa-onnx-node"), "sherpa-onnx-node (u
 // This is the gap that silently breaks voice even when sherpa-onnx-node is present.
 assertPlatformBinaryUnpacked(unpackedNodeModules);
 
-// Reading inside app.asar without the `asar` CLI is awkward, so verify the
-// source-of-truth that decides what ends up in the asar: every required
-// runtime dep must be in `dependencies` (not `devDependencies`) of
-// apps/desktop/package.json. electron-builder reads this file directly.
-const pkg = JSON.parse(readFileSync(PACKAGE_JSON, "utf8"));
-const declared = new Set(Object.keys(pkg.dependencies ?? {}));
-const devOnly = new Set(Object.keys(pkg.devDependencies ?? {}));
-for (const dep of REQUIRED_RUNTIME_DEPS) {
-  if (declared.has(dep)) {
-    console.log(`[verify-packaged] OK: ${dep} declared in dependencies`);
-  } else if (devOnly.has(dep)) {
-    fail(`${dep} is in devDependencies — won't be bundled into the DMG`);
+// pi is tree-shaken into main/index.js (the pre-asar bundle electron-builder
+// packs), so grep the built bundle for it. A miss means electron-vite dropped
+// it — agent boot would crash in the DMG even though dev works.
+if (!existsSync(MAIN_BUNDLE)) {
+  fail(`No built main bundle at ${MAIN_BUNDLE}. Run 'electron-vite build' first.`);
+}
+const mainBundle = readFileSync(MAIN_BUNDLE, "utf8");
+for (const dep of BUNDLED_RUNTIME_DEPS) {
+  if (mainBundle.includes(dep)) {
+    console.log(`[verify-packaged] OK: ${dep} bundled into main process`);
   } else {
-    fail(`${dep} is not declared in apps/desktop/package.json`);
+    fail(`${dep} not found in the built main bundle — agent boot will crash in the DMG`);
   }
 }
 
