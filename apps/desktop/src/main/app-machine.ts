@@ -121,11 +121,13 @@ function handleAgentEvent(event: AppAgentEvent): void {
         );
         const reason =
           "The model returned no response. The upstream call may have failed silently — try re-authenticating.";
-        broadcast("onAgentEvent", {
+        const errorEvent = {
           type: "turn_error",
           kind: "auth",
           reason,
-        } satisfies AppAgentEvent);
+        } satisfies AppAgentEvent;
+        broadcast("onAgentEvent", errorEvent);
+        void sendDispatchResponse(errorEvent);
       }
       machine?.ingest({ type: "AGENT_END" });
       getNotifications().notifyAgentIdle(turn?.assistantText ?? undefined);

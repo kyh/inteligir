@@ -14,7 +14,7 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_classes": ["DispatchServer"]
+      "new_sqlite_classes": ["DispatchServer"]
     }
   ]
 }

@@ -9,8 +9,12 @@ let cached: Db | null = null;
 
 export function getDb(): Db {
   if (cached) return cached;
+  const url = process.env["TURSO_DATABASE_URL"];
+  if (!url) {
+    throw new Error("TURSO_DATABASE_URL is not set");
+  }
   const client = createClient({
-    url: process.env["TURSO_DATABASE_URL"] ?? "file:local.db",
+    url,
     authToken: process.env["TURSO_AUTH_TOKEN"],
   });
   cached = drizzle({
