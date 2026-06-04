@@ -27,15 +27,7 @@ import {
 } from "@repo/ui/components/ai-elements/queue";
 
 import type { ImageAttachment } from "@/shared/voice";
-import { getSessionStatus, type SessionStatus } from "@/shared/agent";
 import { useAgentStore } from "@/renderer/stores/agent-store";
-
-const statusColors: Record<SessionStatus, string> = {
-  idle: "bg-green-400",
-  busy: "bg-yellow-400 animate-pulse",
-  error: "bg-red-400",
-  starting: "bg-blue-400 animate-pulse",
-};
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
 const MAX_ATTACHMENT_COUNT = 8;
@@ -97,7 +89,6 @@ export function Composer({ className }: { className?: string }) {
   const queuedSteering = useAgentStore((s) => s.queuedSteering);
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
-  const sessionStatus = getSessionStatus(appState);
 
   useEffect(() => {
     if (!busy) pendingSteerRef.current = false;
@@ -219,12 +210,6 @@ export function Composer({ className }: { className?: string }) {
         </PromptInputBody>
         <PromptInputToolbar>
           <PromptInputTools>
-            <span
-              className={cn(
-                "ml-1 inline-block h-1.5 w-1.5 shrink-0 rounded-full",
-                statusColors[sessionStatus],
-              )}
-            />
             <AttachButton />
             <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
           </PromptInputTools>

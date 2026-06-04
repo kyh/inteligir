@@ -19,7 +19,7 @@ extend({ Line2, LineMaterial, LineGeometry });
 const NUM_LINES = 20;
 const RADIUS = 1.5;
 const POINTS_PER_LINE = 96;
-const LINE_WIDTH = 2;
+const DEFAULT_LINE_WIDTH = 2;
 const INITIAL_COLOR_INT = new THREE.Color("#eeeeee").getHex();
 const PI2 = Math.PI * 2;
 
@@ -201,7 +201,15 @@ function helixPoint(percent: number, tubeAngle: number): [number, number, number
 // LatitudeLines — all rendering in a single useFrame
 // ---------------------------------------------------------------------------
 
-function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor: string }) {
+function LatitudeLines({
+  status,
+  baseColor,
+  lineWidth,
+}: {
+  status: DisplayStatus;
+  baseColor: string;
+  lineWidth: number;
+}) {
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
   const parentGroupRef = useRef<THREE.Group>(null);
   const spinGroupRef = useRef<THREE.Group>(null);
@@ -277,13 +285,13 @@ function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor
         () =>
           new LineMaterial({
             color: INITIAL_COLOR_INT,
-            linewidth: LINE_WIDTH,
+            linewidth: lineWidth,
             transparent: true,
             opacity: 1,
             vertexColors: true,
           }),
       ),
-    [],
+    [lineWidth],
   );
 
   const geometries = useMemo(() => Array.from({ length: NUM_LINES }, () => new LineGeometry()), []);
@@ -603,19 +611,35 @@ export function GeometricOrb({
   status = "idle",
   className = "",
   baseColor = "#eeeeee",
+  frameloop = "always",
+  lineWidth = DEFAULT_LINE_WIDTH,
 }: {
   status?: DisplayStatus;
   className?: string;
   /** Neutral color for idle/starting states; pass a dark value in light mode. */
   baseColor?: string;
+  /**
+   * R3F render mode. "always" runs useFrame every animation frame (default —
+   * used for hero placements). "demand" only paints when state changes —
+   * useful when the orb shrinks to a dock-sized status indicator and you
+   * don't want a continuous render loop in every shell window.
+   */
+  frameloop?: "always" | "demand";
+  /**
+   * Pixel width of each latitude line. The default (2) reads cleanly at
+   * hero sizes; bump to 4–6 when the orb shrinks into a small dock indicator
+   * so the strands stay legible instead of dissolving into a blur.
+   */
+  lineWidth?: number;
 }) {
   return (
     <Canvas
       className={className}
       camera={{ position: [0, 0, CAMERA_Z], fov: 65 }}
       gl={{ antialias: true, alpha: true }}
+      frameloop={frameloop}
     >
-      <LatitudeLines status={status} baseColor={baseColor} />
+      <LatitudeLines status={status} baseColor={baseColor} lineWidth={lineWidth} />
     </Canvas>
   );
 }

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 import { toast } from "@repo/ui/components/sonner";
+import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-orb";
 import {
   Tooltip,
   TooltipContent,
@@ -10,6 +11,7 @@ import {
 } from "@repo/ui/components/tooltip";
 import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
 import { getBridge } from "@/renderer/lib/bridge";
+import { useTheme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useShellStore } from "@/renderer/stores/shell-store";
 import { getSessionStatus, type SessionStatus } from "@/shared/agent";
@@ -19,14 +21,16 @@ import { BUILTIN_DEFS } from "@/shared/shell";
 // input and voice now live in the BottomDock; custom (JSON-UI) widgets live in
 // the Widgets panel — so this stays fixed-size no matter what's installed.
 
-// The orb is the first item: a status-only indicator (not a launcher). Its
-// gradient + label reflect the agent's current session status.
-const ORB_GRADIENT: Record<SessionStatus, string> = {
-  idle: "from-sky-300 to-blue-600",
-  busy: "from-amber-300 to-orange-500 animate-pulse",
-  error: "from-red-400 to-rose-600",
-  starting: "from-sky-200 to-blue-500 animate-pulse",
+// SessionStatus and GeometricOrb's DisplayStatus overlap exactly today; spell
+// the mapping out so a future SessionStatus addition fails the typechecker
+// instead of falling through to "starting".
+const SESSION_TO_ORB_STATUS: Record<SessionStatus, DisplayStatus> = {
+  idle: "idle",
+  busy: "busy",
+  error: "error",
+  starting: "starting",
 };
+
 const ORB_LABEL: Record<SessionStatus, string> = {
   idle: "Ready",
   busy: "Working…",
@@ -34,9 +38,16 @@ const ORB_LABEL: Record<SessionStatus, string> = {
   starting: "Starting…",
 };
 
+/**
+ * Status-only indicator at the top of the dock. Mounts the shared GeometricOrb
+ * at 24px so the dock telegraphs agent status with the same visual the
+ * pre-shell surfaces (login/onboarding) use — one orb across the whole app
+ * instead of a gradient swatch in the shell and a real orb everywhere else.
+ */
 function StatusOrb() {
   const appState = useAgentStore((s) => s.appState);
   const status = getSessionStatus(appState);
+  const { resolved } = useTheme();
   return (
     <Tooltip>
       <TooltipTrigger
@@ -44,15 +55,18 @@ function StatusOrb() {
         // as a button to the user or to assistive tech.
         render={<div />}
         aria-label={`Status: ${ORB_LABEL[status]}`}
-        className="flex size-9 items-center justify-center"
+        className="flex size-10 items-center justify-center"
       >
-        <span
-          className={cn(
-            "size-6 rounded-full bg-gradient-to-br shadow-inner",
-            "shadow-white/40 ring-1 ring-white/30",
-            ORB_GRADIENT[status],
-          )}
-        />
+        <div className={cn("size-9 overflow-hidden rounded-full")}>
+          <GeometricOrb
+            status={SESSION_TO_ORB_STATUS[status]}
+            baseColor={resolved === "dark" ? "#eeeeee" : "#0a0a0a"}
+            // 20 strands × ~5px would saturate a 36px disc; keep the strands
+            // thin so the helix→sphere morph is visible as individual lines.
+            lineWidth={1.5}
+            className="h-full w-full"
+          />
+        </div>
       </TooltipTrigger>
       <TooltipContent side="right">{ORB_LABEL[status]}</TooltipContent>
     </Tooltip>
