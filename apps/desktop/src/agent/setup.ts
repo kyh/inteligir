@@ -18,7 +18,7 @@ import {
   type PiExtensionBundle,
 } from "@/agent/extension";
 import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "@/agent/paths";
-import { resetExecutorDaemon } from "@/main/executor/executor-daemon";
+import { getExecutorDaemon, resetExecutorDaemon } from "@/main/executor/executor-daemon";
 import { resetShellCache } from "@/main/shell";
 import { resetNotifications } from "@/main/notifications";
 import { resetTaskManager } from "@/main/tasks/task-manager";
@@ -82,6 +82,21 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
   fs.mkdirSync(EXTENSIONS_DIR, { recursive: true });
 
   prependPath(BIN_DIR);
+
+  // Eager-start the executor daemon: spawning + reading the "ready on …"
+  // banner is the longest single setup step (~10–20s warm), and it doesn't
+  // depend on bundle setups or the agent factory. start() caches its
+  // in-flight promise, so the later executor extension register() (which
+  // already calls start() before returning its tools) just awaits the same
+  // promise — the daemon spawn now overlaps with bundle CLI version checks
+  // instead of stacking after them.
+  void getExecutorDaemon()
+    .start()
+    .catch((err: unknown) => {
+      // Swallow here; the executor extension register() awaits start() too
+      // and will surface a real failure with the right error path.
+      console.warn("[agent] executor eager start failed (continuing):", err);
+    });
 
   const ctx = buildSetupContext(onProgress);
   if (!fs.existsSync(ctx.bundledResourcesDir)) {

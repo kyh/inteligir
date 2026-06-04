@@ -1,33 +1,18 @@
+import { SEED_WIDGET_DEFS, SEED_WIDGET_INSTANCES } from "@/main/seed-widgets";
 import {
   BUILTIN_DEFS,
-  builtinDef,
-  CHAT_WIDGET_ID,
   type Shell,
   type ShellSnapshot,
-  type WidgetDef,
-  type WidgetInstance,
 } from "@/shared/shell";
 
-function seedInstance(def: WidgetDef): WidgetInstance {
-  return {
-    instanceId: def.id,
-    widgetId: def.id,
-    placement: { surface: "pinned", geometry: { ...def.defaultGeometry } },
-    state: {},
-  };
-}
-
-// Chat is the only widget seeded on first run — every other built-in starts
-// off the grid and is launched from the dock when the user wants it.
-const SEED_INSTANCES: WidgetInstance[] = (() => {
-  const chat = builtinDef(CHAT_WIDGET_ID);
-  return chat ? [seedInstance(chat)] : [];
-})();
-
+// Only the seven patina-style dashboard widgets are pinned on first run.
+// Every built-in (chat / widgets / tasks / extensions / settings) is
+// launchable from the dock when the user wants it, but the grid starts as a
+// pure dashboard surface.
 export const DEFAULT_SHELL: Shell = {
   version: 2,
-  customDefs: [],
-  instances: SEED_INSTANCES,
+  customDefs: [...SEED_WIDGET_DEFS],
+  instances: [...SEED_WIDGET_INSTANCES],
   archivedStates: {},
 };
 
@@ -40,7 +25,7 @@ export function shellSnapshot(shell: Shell): ShellSnapshot {
 
 export function defaultShellSnapshot(): ShellSnapshot {
   return {
-    defs: [...BUILTIN_DEFS],
-    instances: structuredClone(DEFAULT_SHELL.instances),
+    defs: [...BUILTIN_DEFS, ...SEED_WIDGET_DEFS],
+    instances: structuredClone(SEED_WIDGET_INSTANCES),
   };
 }

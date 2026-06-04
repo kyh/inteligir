@@ -324,6 +324,36 @@ function CatalogCard({ children }: BaseProps<Record<string, never>>) {
   return <div className="rounded-md border border-border p-3">{children}</div>;
 }
 
+// Tailwind utilities aren't generated for dynamic class names, so list each
+// accent color literally. We map to bg-{color}-500 instead of var(--{color})
+// so widget tints are independent of the theme tokens (which only encode the
+// neutral / destructive / etc. palette).
+const ACCENT_BAR_CLASS = {
+  yellow: "bg-yellow-500",
+  blue: "bg-blue-500",
+  purple: "bg-purple-500",
+  green: "bg-green-500",
+  orange: "bg-orange-500",
+  red: "bg-red-500",
+} as const;
+
+type AccentColor = keyof typeof ACCENT_BAR_CLASS;
+
+function CatalogAccent({
+  props,
+  children,
+}: BaseProps<{ color: AccentColor }>) {
+  return (
+    <div className="flex items-stretch gap-3">
+      <span
+        aria-hidden
+        className={cn("w-[3px] shrink-0 rounded-full", ACCENT_BAR_CLASS[props.color])}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-1">{children}</div>
+    </div>
+  );
+}
+
 function CatalogSeparator() {
   return <Separator />;
 }
@@ -768,6 +798,7 @@ export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
     Image: CatalogImage,
     Chart: CatalogChart,
     Card: CatalogCard,
+    Accent: CatalogAccent,
     Collapsible: CatalogCollapsible,
     Tabs: CatalogTabs,
     Table: CatalogTable,
@@ -792,6 +823,8 @@ export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
     sendPrompt: async () => {},
     generateText: async () => {},
     fetchUrl: async () => {},
+    fetchJson: async () => {},
+    setNow: async () => {},
     callTool: async () => {},
   },
 });

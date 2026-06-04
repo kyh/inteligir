@@ -339,6 +339,26 @@
   }
 }
 
+/* Pseudo-determinate progress fill for setup when we don't have real percent
+   data yet. Grows from 0 to 92% on an ease-out curve over ~14s — matching
+   the typical cold-start window — then holds. As soon as a real percent
+   arrives, the determinate path takes over and continues from there. The
+   small held remainder ("almost done") keeps the bar from looking stuck at
+   100% while later steps are still finishing. */
+@keyframes progress-fill {
+  0% {
+    transform: scaleX(0.02);
+  }
+  100% {
+    transform: scaleX(0.92);
+  }
+}
+
+.animate-progress-fill {
+  transform-origin: left center;
+  animation: progress-fill 14s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
 /* Variable-font weight tokens animate smoothly when a component eases the
    'wght' axis (e.g. a label shifting normal → semibold on selection). */
 .shimmer-text {

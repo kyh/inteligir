@@ -3,6 +3,7 @@ import { shell } from "electron";
 import { completeOnce } from "@/agent/auth";
 import { getAgent } from "@/main/app-machine";
 import { execute } from "@/main/executor/executor-client";
+import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { handle } from "@/main/lib/ipc-handler";
 import { isHttpUrl } from "@/shared/ipc";
 
@@ -31,7 +32,17 @@ export function registerWidgetActionIpcHandlers(): void {
 
   handle("widgetComplete", ({ prompt, system }) => completeOnce(prompt, system));
   handle("widgetFetch", ({ url }) => fetchHttpText(url));
-  handle("widgetCallTool", ({ tool, input }) => widgetCallTool(tool, input));
+  handle("widgetCallTool", async ({ tool, input }) => {
+    // Wait for the daemon to finish starting before invoking the tool. Widgets
+    // fire onMount within ~100ms of the renderer mounting; the daemon's
+    // spawn+ready dance takes 10–20s warm. Without this, every cold-start
+    // callTool surfaces as "ExecutorClientError: executor daemon is not
+    // running" even though the daemon is on its way. start() is idempotent
+    // and returns the cached in-flight promise, so this just awaits the same
+    // eager-start kicked off by seedResources.
+    await getExecutorDaemon().start();
+    return widgetCallTool(tool, input);
+  });
   handle("widgetOpenUrl", ({ url }) => openHttpUrl(url));
 }
 

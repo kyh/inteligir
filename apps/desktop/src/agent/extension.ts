@@ -80,9 +80,15 @@ export type PiExtensionBundle = {
 };
 
 /**
- * Run each bundle's setup() in order. Non-critical failures log and continue;
- * critical failures rethrow so callers can surface them (e.g. as SETUP_FAIL
- * in the app state machine).
+ * Run each bundle's setup() in parallel. Non-critical failures log and
+ * continue; a critical bundle's failure rethrows after every other bundle
+ * has settled, so we surface it as SETUP_FAIL without orphaning concurrent
+ * disk writes mid-flight.
+ *
+ * Parallel is safe because each bundle owns its own bin path / config slot
+ * and they don't share mutable state across setup(). The wall-clock win is
+ * the ~150–500ms cold-cache `--version` execs the bundles run in series
+ * otherwise, plus any download stages that would have stacked.
  *
  * Extracted for unit testing — see __tests__/extension.test.ts.
  */
@@ -90,15 +96,23 @@ export async function runBundleSetups(
   bundles: PiExtensionBundle[],
   ctx: ExtensionSetupContext,
 ): Promise<void> {
-  for (const bundle of bundles) {
-    if (!bundle.setup) continue;
-    try {
-      await bundle.setup(ctx);
-    } catch (err) {
-      if (bundle.critical) throw err;
-      console.error(`[agent] ${bundle.name} setup failed (continuing):`, err);
-    }
-  }
+  const results = await Promise.allSettled(
+    bundles
+      .filter((bundle) => bundle.setup !== undefined)
+      .map(async (bundle) => {
+        try {
+          await bundle.setup?.(ctx);
+        } catch (err) {
+          if (bundle.critical) throw err;
+          console.error(`[agent] ${bundle.name} setup failed (continuing):`, err);
+        }
+      }),
+  );
+  // Surface the first critical failure (if any) — bundles that returned
+  // successfully or whose non-critical errors were swallowed above don't
+  // produce a "rejected" result, so any rejection here is a critical throw.
+  const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
+  if (firstFailure) throw firstFailure.reason as Error;
 }
 
 /**

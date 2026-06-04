@@ -91,7 +91,7 @@ export function OnboardingPage() {
               <div
                 className={
                   isIndeterminate
-                    ? "h-full w-1/3 animate-pulse bg-foreground/40"
+                    ? "h-full w-full animate-progress-fill bg-foreground/60"
                     : "h-full bg-foreground/60 transition-[width] duration-200 ease-out"
                 }
                 style={isIndeterminate ? undefined : { width: `${String(percent)}%` }}

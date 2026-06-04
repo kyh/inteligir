@@ -439,6 +439,15 @@ export class ShellManager {
   private broadcast(shell: Shell): void {
     broadcast("onShellUpdated", shellSnapshot(shell));
   }
+
+  /**
+   * Disable writes on the underlying store. Called by resetShellCache before
+   * the AGENT_DIR rm so a stale reference held elsewhere cannot resurrect
+   * the file between the cache reset and the recursive delete.
+   */
+  closeStore(): void {
+    this.store.close();
+  }
 }
 
 let instance: ShellManager | null = null;
@@ -463,6 +472,11 @@ export function getWritableShell(): ShellManager | null {
 }
 
 export function resetShellCache(): void {
+  // Close the underlying JsonStore before nulling the singleton — any handler
+  // holding the old `instance` reference would otherwise still be able to
+  // call store.update(), which mkdirSyncs the dir and writes the file,
+  // undoing the AGENT_DIR rm later in teardownResources.
+  if (instance) instance.closeStore();
   // Null the singleton so the next getShell() builds a fresh instance — a
   // surviving reference to the old one would keep writing through its warm
   // cache, undoing logout. We intentionally do NOT call invalidate() here:

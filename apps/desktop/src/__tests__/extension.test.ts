@@ -63,41 +63,50 @@ describe("runBundleSetups", () => {
     );
   });
 
-  it("rethrows when a critical bundle's setup throws", async () => {
+  it("rethrows when a critical bundle's setup throws — after siblings settle", async () => {
     const err = new Error("auth provider unreachable");
     const failing = vi.fn().mockRejectedValue(err);
-    const later = vi.fn().mockResolvedValue(undefined);
+    const sibling = vi.fn().mockResolvedValue(undefined);
     const bundles = [
       bundle({ name: "critical-one", critical: true, setup: failing }),
-      bundle({ name: "later", setup: later }),
+      bundle({ name: "sibling", setup: sibling }),
     ];
 
     await expect(runBundleSetups(bundles, ctx)).rejects.toBe(err);
 
     expect(failing).toHaveBeenCalledOnce();
-    // Halts on critical failure — later bundles do not run.
-    expect(later).not.toHaveBeenCalled();
+    // Parallel: the sibling still runs to completion before the critical
+    // rejection bubbles, so concurrent disk work isn't orphaned mid-flight.
+    expect(sibling).toHaveBeenCalledOnce();
     expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
-  it("runs setups in array order", async () => {
+  it("runs setups concurrently rather than in array order", async () => {
+    // Each setup awaits the next tick before pushing — under serial execution
+    // the order would be [first, second, third], but parallel execution lets
+    // all three resolve in the same microtask burst. We verify only that all
+    // three ran (parallel does not promise ordering).
     const order: string[] = [];
+    const tick = () => new Promise<void>((r) => setTimeout(r, 0));
     const bundles = [
       bundle({
         name: "first",
         setup: async () => {
+          await tick();
           order.push("first");
         },
       }),
       bundle({
         name: "second",
         setup: async () => {
+          await tick();
           order.push("second");
         },
       }),
       bundle({
         name: "third",
         setup: async () => {
+          await tick();
           order.push("third");
         },
       }),
@@ -105,7 +114,8 @@ describe("runBundleSetups", () => {
 
     await runBundleSetups(bundles, ctx);
 
-    expect(order).toEqual(["first", "second", "third"]);
+    expect(order).toHaveLength(3);
+    expect(order.toSorted()).toEqual(["first", "second", "third"]);
   });
 });
 

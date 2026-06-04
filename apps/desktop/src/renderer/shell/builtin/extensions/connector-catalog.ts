@@ -204,6 +204,17 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
       discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest",
     },
   },
+  {
+    id: "google_contacts",
+    name: "Google Contacts",
+    description: "Find people, recent contacts, and email aliases.",
+    category: "Productivity",
+    accent: "#4285f4",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/people/v1/rest",
+    },
+  },
 ];
 
 /** Display order for the category sections in the connectors grid. */

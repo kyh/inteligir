@@ -87,21 +87,37 @@ afterEach(() => {
 });
 
 describe("ShellManager seeding", () => {
-  it("seeds a single pinned chat instance on first run", () => {
+  it("seeds the seven patina dashboard widgets on first run, no chat", () => {
     const { defs, instances } = mgr.snapshot();
+    // The chat widget def still exists (it's a launchable built-in) but is
+    // NOT pre-placed on the grid. Only the seven seed json-ui dashboard
+    // widgets get pinned by default.
     expect(defs.some((d) => d.id === CHAT_WIDGET_ID)).toBe(true);
-    expect(defs.every((d) => d.source.kind === "builtin-react")).toBe(true);
-    expect(instances).toHaveLength(1);
-    expect(must(instances[0], "missing chat").widgetId).toBe(CHAT_WIDGET_ID);
-    expect(must(instances[0], "missing chat").placement.surface).toBe("pinned");
+    const jsonUiIds = defs.filter((d) => d.source.kind === "json-ui").map((d) => d.id).toSorted();
+    expect(jsonUiIds).toEqual([
+      "date",
+      "meeting-prep",
+      "people",
+      "today",
+      "todo",
+      "up-next",
+      "weather",
+    ]);
+    expect(instances.length).toBe(jsonUiIds.length);
+    expect(instances.every((i) => i.placement.surface === "pinned")).toBe(true);
+    expect(instances.some((i) => i.widgetId === CHAT_WIDGET_ID)).toBe(false);
   });
 
-  it("lets chat be unplaced and re-placed", () => {
-    const chat = must(mgr.snapshot().instances[0], "missing chat");
-    expect(mgr.unplaceWidget(chat.instanceId)).toBe(true);
-    expect(mgr.snapshot().instances).toHaveLength(0);
+  it("lets chat be launched on demand from the dock", () => {
+    const totalBefore = mgr.snapshot().instances.length;
     expect(mgr.placeWidget(CHAT_WIDGET_ID, "pinned")).not.toBeNull();
-    expect(mgr.snapshot().instances).toHaveLength(1);
+    expect(mgr.snapshot().instances).toHaveLength(totalBefore + 1);
+    const chatInstance = must(
+      mgr.snapshot().instances.find((i) => i.widgetId === CHAT_WIDGET_ID),
+      "missing chat",
+    );
+    expect(mgr.unplaceWidget(chatInstance.instanceId)).toBe(true);
+    expect(mgr.snapshot().instances).toHaveLength(totalBefore);
   });
 });
 

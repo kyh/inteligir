@@ -8,6 +8,7 @@ vi.mock("@/main/executor/executor-client", () => ({
   execute: vi.fn(),
 }));
 
+
 import { execute } from "@/main/executor/executor-client";
 import { fetchHttpText, openHttpUrl, widgetCallTool } from "@/main/widget-actions";
 

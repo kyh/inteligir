@@ -37,6 +37,7 @@ const JSON_WIDGET_COMPONENT_TYPES = [
   "Image",
   "Chart",
   "Card",
+  "Accent",
   "Collapsible",
   "Tabs",
   "Table",
@@ -95,6 +96,8 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
   Chart:
     "Chart (Recharts). Props: { type?: 'line'|'bar'|'area'|'pie' (default 'bar'), data?: object[], series: { key: string, label?: string, color?: string }[], categoryKey?: string (x-axis / slice-name field, default 'name'), height?: number (default 220), stacked?: boolean, showLegend?: boolean, showGrid?: boolean }. Bind `data` to a state array via { $bindState: '/path' } (e.g. from fetchUrl); each series plots one numeric field. For pie, the first series is the value field and slices come from `categoryKey`.",
   Card: "Bordered container. Props: {}. Use to group arbitrary children.",
+  Accent:
+    "Colored left-stripe container. Props: { color: 'yellow'|'blue'|'purple'|'green'|'orange'|'red' }. Renders a 3px vertical bar in the chosen color with the children stacked to its right. Use for timeline rows or meeting prep where a small color tag identifies a category.",
   Collapsible:
     "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
   Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Provide exactly one child per tab — child N is the panel for tab N, paired by position. Don't put a `visible` condition on a tab's direct child; the Tabs controls which panel is shown.",
@@ -133,7 +136,9 @@ const WIDGET_ACTION_NAMES = [
   "sendPrompt",
   "generateText",
   "fetchUrl",
+  "fetchJson",
   "callTool",
+  "setNow",
   "setState",
   "pushState",
   "removeState",
@@ -151,8 +156,12 @@ export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
     "Call the model once and write the resulting text into state at the JSON pointer `into`.",
   fetchUrl:
     "HTTP GET `url` and write the capped response body into state at the JSON pointer `into`.",
+  fetchJson:
+    "HTTP GET a JSON `url` and route fields into state. `paths` maps a destination JSON pointer (in widget state) to a source JSON pointer (into the response body). E.g. paths: { '/temp': '/current/temperature_2m' } writes the response's /current/temperature_2m to state /temp. Optional `error` JSON pointer receives the error message on failure (otherwise a toast is shown).",
+  setNow:
+    "Write the current date/time into state. `paths` maps a destination JSON pointer to one of: 'dayShort' (e.g. 'Wed'), 'dayLong' ('Wednesday'), 'dayNum' ('03'), 'monthShort' ('Jun'), 'monthLong' ('June'), 'year' ('2026'), 'iso' (full ISO timestamp), 'hourMinute12' ('2:30 PM'). Local time zone.",
   callTool:
-    "Invoke a configured integration tool (MCP / API source) by its dotted path `tool` (e.g. 'github.search_issues') with the `input` object, and write the returned data into state at the JSON pointer `into`. Pulls live data without an agent turn — bind a Table/Chart/Markdown to `into` to display it. Optional `error` JSON pointer receives the error message on failure (otherwise a toast is shown).",
+    "Invoke a configured integration tool (MCP / API source) by its dotted path `tool` (e.g. 'github.search_issues') with the `input` object, and write the returned data into state at the JSON pointer `into`. Pulls live data without an agent turn — bind a Table/Chart/Markdown to `into` to display it. Optional `select` JSON pointer extracts a sub-path of the response before writing (e.g. select='/items' for an envelope-wrapped list). Optional `error` JSON pointer receives the error message on failure (otherwise a toast is shown). Input values can use `{ $state: '/path' }` to embed live state (e.g. timeMin for an events list).",
   setState: "Write a value into widget state.",
   pushState: "Append an item to an array in widget state.",
   removeState: "Remove an item from an array in widget state.",
@@ -175,6 +184,11 @@ const ActionRequestParam = Type.Object(
   {
     action: ActionNameParam,
     params: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    // Optional JSON pointer. If the value at this state path is "non-empty"
+    // (not null/undefined/empty-string/empty-array/empty-object), the runtime
+    // skips this action. Primary use: onMount data loaders that should cache
+    // across restarts. Empty pointer ("") references the whole state object.
+    skipIf: Type.Optional(Type.String()),
   },
   { additionalProperties: false },
 );
@@ -213,6 +227,10 @@ export const WidgetSpecParam = Type.Object(
     root: Type.String({ description: "Key of the root element in elements" }),
     elements: Type.Record(Type.String(), ElementParam),
     state: Type.Optional(Type.Record(Type.String(), Type.Unknown())),
+    // Actions to fire once on first render, in order. Use for live data
+    // loaders (setNow, fetchJson, callTool, generateText) so the widget
+    // populates without a user click.
+    onMount: Type.Optional(Type.Array(ActionRequestParam)),
   },
   { additionalProperties: false },
 );
@@ -268,7 +286,22 @@ function canonicalizeProps(input: unknown): unknown {
   const next: Record<string, unknown> = {};
   for (const [id, raw] of Object.entries(elements)) {
     if (isRecord(raw)) {
-      next[id] = raw["props"] === undefined ? { ...raw, props: {} } : raw;
+      // Fill the four "optional-but-the-framework-spec-schema-requires-them-
+      // to-be-present" fields. Our TypeBox schema marks props/children/visible
+      // as optional, but json-render's auto-generated spec schema (built from
+      // its React schema declarations) declares them as required `any`/array,
+      // so a leaf element written as `{ type: 'Text', props: {...} }` would
+      // fail catalog.validate() with "expected nonopt" at render time. We
+      // normalize the missing slots at parse time so the on-disk shape is
+      // stable and the renderer's validation gate stays useful.
+      const merged: Record<string, unknown> = { ...raw };
+      if (merged["props"] === undefined) merged["props"] = {};
+      if (merged["children"] === undefined) merged["children"] = [];
+      // `true` (always visible), not `null` — json-render evaluates `visible`
+      // through resolvePropValue, which checks `key in value` for `$cond` /
+      // `$index` / etc. on the visibility object; `'$index' in null` throws.
+      if (merged["visible"] === undefined) merged["visible"] = true;
+      next[id] = merged;
     } else {
       next[id] = raw;
     }
@@ -302,7 +335,13 @@ function validateStructure(spec: WidgetSpec): void {
 export function describeWidgetSpecLanguage(): string {
   return [
     "Generated widget spec:",
-    "  { root: string, elements: Record<string, element>, state?: object }",
+    "  { root: string, elements: Record<string, element>, state?: object, onMount?: Action[] }",
+    "",
+    "onMount fires its actions once when the widget first renders — use this",
+    "for live data loaders (setNow / fetchJson / callTool / generateText) so the",
+    "widget populates without a user click. Add `skipIf: <state JSON pointer>` to",
+    "an action to skip it when that path is already populated (cached value",
+    "across restarts).",
     "",
     "Element:",
     "  { type, props?, children?, visible?, repeat?, on?, watch? }",

@@ -9,6 +9,53 @@ import { z } from "zod";
 
 import { WIDGET_ACTION_DESCRIPTIONS, WIDGET_COMPONENT_DESCRIPTIONS } from "@/shared/widget-spec";
 
+// Props that display data (text, label, content, src, …) routinely carry a
+// dynamic-value object — e.g. `{ $bindState: "/temp" }` — instead of a literal.
+// json-render resolves these at render time; strict z.string() would reject
+// them and surface as a "spec is invalid" error inside the viewer. dynamicString
+// accepts the literal AND the documented dynamic expression objects, so the
+// per-component schemas can stay otherwise strict (catching the original empty-
+// Card / unknown-prop class of bugs) without breaking live data binding.
+const DYNAMIC_KEYS = [
+  "$state",
+  "$bindState",
+  "$template",
+  "$item",
+  "$bindItem",
+  "$index",
+  "$cond",
+  "$computed",
+] as const;
+
+function isDynamicValue(v: unknown): boolean {
+  if (v === null || typeof v !== "object" || Array.isArray(v)) return false;
+  const record = v as Record<string, unknown>;
+  return DYNAMIC_KEYS.some((key) => key in record);
+}
+
+// The component receives a resolved primitive — json-render evaluates the
+// dynamic-value object before mounting. So at compile time we declare the
+// component's prop as the primitive; at runtime, our `validateWidgetProps`
+// walker (see bottom of this file) calls each component's `.props.safeParse`
+// directly, and these schemas accept the literal AND any documented dynamic
+// shape. z.custom carries the static type without forcing a TypeScript
+// widening (which would propagate through every component implementation as
+// `props.text: string | object`).
+const dynamicString = () =>
+  z.custom<string>((v) => typeof v === "string" || isDynamicValue(v), {
+    message: "Expected a string or a dynamic-value object (e.g. { $bindState: '/path' })",
+  });
+
+const dynamicNumber = () =>
+  z.custom<number>((v) => typeof v === "number" || isDynamicValue(v), {
+    message: "Expected a number or a dynamic-value object",
+  });
+
+const dynamicBoolean = () =>
+  z.custom<boolean>((v) => typeof v === "boolean" || isDynamicValue(v), {
+    message: "Expected a boolean or a dynamic-value object",
+  });
+
 const gap = z.enum(["sm", "md", "lg"]).optional();
 const textSize = z.enum(["xs", "sm", "base"]).optional();
 const buttonVariant = z
@@ -30,8 +77,8 @@ const radioOptionItem = z.object({
 const textFieldProps = {
   label: z.string().optional(),
   placeholder: z.string().optional(),
-  value: z.string().optional(),
-  disabled: z.boolean().optional(),
+  value: dynamicString().optional(),
+  disabled: dynamicBoolean().optional(),
 };
 
 export const widgetCatalog = defineCatalog(schema, {
@@ -53,53 +100,53 @@ export const widgetCatalog = defineCatalog(schema, {
       description: WIDGET_COMPONENT_DESCRIPTIONS.Section,
     },
     Heading: {
-      props: z.object({ text: z.string(), level: z.enum(["1", "2", "3"]).optional() }).strict(),
+      props: z.object({ text: dynamicString(), level: z.enum(["1", "2", "3"]).optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Heading,
     },
     Text: {
       props: z.object({
-        text: z.string(),
+        text: dynamicString(),
         muted: z.boolean().optional(),
         size: textSize,
       }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Text,
     },
     TextBlock: {
-      props: z.object({ title: z.string(), description: z.string().optional() }).strict(),
+      props: z.object({ title: dynamicString(), description: dynamicString().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TextBlock,
     },
     Markdown: {
-      props: z.object({ content: z.string().optional() }).strict(),
+      props: z.object({ content: dynamicString().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Markdown,
     },
     Badge: {
-      props: z.object({ text: z.string(), variant: badgeVariant }).strict(),
+      props: z.object({ text: dynamicString(), variant: badgeVariant }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Badge,
     },
     Button: {
       props: z.object({
-        label: z.string(),
+        label: dynamicString(),
         variant: buttonVariant,
         size: buttonSize,
-        disabled: z.boolean().optional(),
+        disabled: dynamicBoolean().optional(),
       }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Button,
     },
     Checkbox: {
       props: z.object({
-        label: z.string(),
-        description: z.string().optional(),
-        checked: z.boolean().optional(),
-        disabled: z.boolean().optional(),
+        label: dynamicString(),
+        description: dynamicString().optional(),
+        checked: dynamicBoolean().optional(),
+        disabled: dynamicBoolean().optional(),
       }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Checkbox,
     },
     Switch: {
       props: z.object({
-        label: z.string(),
-        description: z.string().optional(),
-        checked: z.boolean().optional(),
-        disabled: z.boolean().optional(),
+        label: dynamicString(),
+        description: dynamicString().optional(),
+        checked: dynamicBoolean().optional(),
+        disabled: dynamicBoolean().optional(),
       }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Switch,
     },
@@ -133,18 +180,18 @@ export const widgetCatalog = defineCatalog(schema, {
     Slider: {
       props: z.object({
         label: z.string().optional(),
-        value: z.number().optional(),
+        value: dynamicNumber().optional(),
         min: z.number().optional(),
         max: z.number().optional(),
         step: z.number().optional(),
-        disabled: z.boolean().optional(),
+        disabled: dynamicBoolean().optional(),
       }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Slider,
     },
     Avatar: {
       props: z.object({
-        src: z.string().optional(),
-        fallback: z.string().optional(),
+        src: dynamicString().optional(),
+        fallback: dynamicString().optional(),
         size: controlSize,
       }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Avatar,
@@ -155,8 +202,8 @@ export const widgetCatalog = defineCatalog(schema, {
     },
     Image: {
       props: z.object({
-        src: z.string(),
-        alt: z.string().optional(),
+        src: dynamicString(),
+        alt: dynamicString().optional(),
         rounded: z.boolean().optional(),
       }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Image,
@@ -184,6 +231,12 @@ export const widgetCatalog = defineCatalog(schema, {
       props: z.object({}).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Card,
     },
+    Accent: {
+      props: z.object({
+        color: z.enum(["yellow", "blue", "purple", "green", "orange", "red"]),
+      }).strict(),
+      description: WIDGET_COMPONENT_DESCRIPTIONS.Accent,
+    },
     Collapsible: {
       props: z.object({ title: z.string(), defaultOpen: z.boolean().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Collapsible,
@@ -209,11 +262,11 @@ export const widgetCatalog = defineCatalog(schema, {
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableRow,
     },
     TableHead: {
-      props: z.object({ text: z.string() }).strict(),
+      props: z.object({ text: dynamicString() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableHead,
     },
     TableCell: {
-      props: z.object({ text: z.string().optional() }).strict(),
+      props: z.object({ text: dynamicString().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableCell,
     },
     Dialog: {
@@ -288,14 +341,83 @@ export const widgetCatalog = defineCatalog(schema, {
       params: z.object({ url: z.string().url(), into: z.string() }),
       description: WIDGET_ACTION_DESCRIPTIONS.fetchUrl,
     },
+    fetchJson: {
+      params: z.object({
+        url: z.string().url(),
+        paths: z.record(z.string(), z.string()),
+        error: z.string().optional(),
+      }),
+      description: WIDGET_ACTION_DESCRIPTIONS.fetchJson,
+    },
+    setNow: {
+      params: z.object({ paths: z.record(z.string(), z.string()) }),
+      description: WIDGET_ACTION_DESCRIPTIONS.setNow,
+    },
     callTool: {
       params: z.object({
         tool: z.string(),
         input: z.record(z.string(), z.unknown()).optional(),
         into: z.string(),
         error: z.string().optional(),
+        select: z.string().optional(),
       }),
       description: WIDGET_ACTION_DESCRIPTIONS.callTool,
     },
   },
 });
+
+// ---------------------------------------------------------------------------
+// Pre-render spec validation
+// ---------------------------------------------------------------------------
+
+// Why this exists: @json-render/core's `catalog.validate()` builds its
+// per-element prop schema via `propsOf(elementType)`, which falls back to
+// `z.record(z.string(), z.unknown())` whenever the catalog has more than one
+// component (which is always — we have ~38). So `catalog.validate` silently
+// accepts unknown props at the element level and the strict `.strict()` on
+// each component is decorative for that path. We get the actual guarantee
+// only by walking elements ourselves and running each component's
+// `.props.safeParse(...)` directly.
+//
+// The walker accepts dynamic-value objects in slots where the component's
+// schema uses `dynamicString()` / `dynamicNumber()` / `dynamicBoolean()` (via
+// z.custom predicates above) — no pre-resolution needed.
+
+export type WidgetPropsIssue = {
+  elementKey: string;
+  component: string;
+  path: string;
+  message: string;
+};
+
+export type WidgetPropsValidation =
+  | { success: true; issues: [] }
+  | { success: false; issues: WidgetPropsIssue[] };
+
+const COMPONENT_SCHEMAS = widgetCatalog.data.components as Record<
+  string,
+  { props?: { safeParse: (v: unknown) => z.ZodSafeParseResult<unknown> } } | undefined
+>;
+
+export function validateWidgetProps(spec: {
+  elements: Record<string, { type: string; props: Record<string, unknown> }>;
+}): WidgetPropsValidation {
+  const issues: WidgetPropsIssue[] = [];
+  for (const [elementKey, element] of Object.entries(spec.elements)) {
+    const entry = COMPONENT_SCHEMAS[element.type];
+    if (!entry?.props) continue;
+    const parsed = entry.props.safeParse(element.props);
+    if (parsed.success) continue;
+    for (const issue of parsed.error.issues) {
+      issues.push({
+        elementKey,
+        component: element.type,
+        path: issue.path.length === 0 ? "<root>" : issue.path.map(String).join("."),
+        message: issue.message,
+      });
+    }
+  }
+  return issues.length === 0
+    ? { success: true, issues: [] }
+    : { success: false, issues };
+}

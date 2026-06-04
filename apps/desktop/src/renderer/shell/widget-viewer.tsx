@@ -1,14 +1,14 @@
 import { memo, useEffect, useMemo, useRef } from "react";
 import { createStateStore, type StateStore } from "@json-render/core";
-import { JSONUIProvider, Renderer, ValidationProvider } from "@json-render/react";
+import { JSONUIProvider, Renderer, useActions, ValidationProvider } from "@json-render/react";
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
-import { widgetCatalog } from "@/renderer/shell/widget-catalog";
+import { validateWidgetProps } from "@/renderer/shell/widget-catalog";
 import { widgetRegistry } from "@/renderer/shell/widget-registry";
 import { type JsonUiWidgetDef, type WidgetInstance } from "@/shared/shell";
-import { toRendererSpec } from "@/shared/widget-spec";
+import { toRendererSpec, type WidgetSpec } from "@/shared/widget-spec";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
@@ -159,6 +159,45 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           toast.error(err instanceof Error ? err.message : "Fetch failed");
         }
       },
+      // Fetch JSON and route specific fields into specific state pointers. Bind
+      // a Heading/Text to each path. We share widgetFetch's IPC (capped text +
+      // redirect-safe) and only diverge on parsing + multi-target routing —
+      // no new IPC channel, no widening of the trusted surface.
+      fetchJson: async (params: Record<string, unknown>) => {
+        const url = typeof params["url"] === "string" ? params["url"] : "";
+        const errorPath = typeof params["error"] === "string" ? params["error"] : "";
+        const paths = isPlainRecord(params["paths"]) ? params["paths"] : null;
+        if (!url || !paths) return;
+        const reportError = (message: string): void => {
+          if (errorPath) getStore().set(errorPath, message);
+          else toast.error(message);
+        };
+        try {
+          const text = await getBridge()?.widgetFetch({ url });
+          if (typeof text !== "string") return;
+          const parsed: unknown = JSON.parse(text);
+          for (const [dest, source] of Object.entries(paths)) {
+            if (typeof source !== "string") continue;
+            getStore().set(dest, readJsonPointer(parsed, source));
+          }
+          if (errorPath) getStore().set(errorPath, null);
+        } catch (err) {
+          reportError(err instanceof Error ? err.message : "Fetch failed");
+        }
+      },
+      // Pure-renderer date stamper for "today" widgets. Same params shape as
+      // fetchJson — destination pointer → field name — so the spec language
+      // stays uniform.
+      setNow: (params: Record<string, unknown>) => {
+        const paths = isPlainRecord(params["paths"]) ? params["paths"] : null;
+        if (!paths) return;
+        const parts = formatNow();
+        for (const [dest, field] of Object.entries(paths)) {
+          if (typeof field !== "string") continue;
+          const value = parts[field as keyof NowParts];
+          if (value !== undefined) getStore().set(dest, value);
+        }
+      },
       // Calls a configured integration tool and writes its data into `into`.
       // On failure, route the message into the `error` state path when given
       // (so the widget can show it inline) and otherwise toast.
@@ -166,7 +205,18 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         const tool = typeof params["tool"] === "string" ? params["tool"] : "";
         const into = typeof params["into"] === "string" ? params["into"] : "";
         const errorPath = typeof params["error"] === "string" ? params["error"] : "";
-        const input = params["input"];
+        // Optional sub-path into the response body to extract before writing
+        // to `into`. Useful for APIs that wrap results in an envelope (e.g.
+        // Google Calendar's `{ items: [...] }`). Pointer empty/absent → use
+        // the whole response.
+        const selectPath = typeof params["select"] === "string" ? params["select"] : "";
+        // resolveAction only walks the top-level params map and only handles
+        // `{$state}` at that layer (not $bindState, not recursion). Tool input
+        // objects routinely carry nested dynamic values — e.g. timeMin set by
+        // a setNow earlier in the same onMount sequence. Recursively resolve
+        // here so widgets can write `input: { timeMin: { $state: '/now' } }`
+        // and have the live state value reach the executor.
+        const input = resolveStateRefs(params["input"], getStore().getSnapshot());
         if (!tool || !into) return;
         // Resolve the bridge up front: a tool call returns arbitrary data
         // (including a legitimate null), so a missing bridge can't be told
@@ -194,7 +244,8 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         const errorLatest = errorPath && errorPath !== into ? claim(errorPath) : null;
         try {
           const data = await bridge.widgetCallTool({ tool, input });
-          if (intoLatest()) getStore().set(into, data ?? null);
+          const value = selectPath ? readJsonPointer(data, selectPath) : data;
+          if (intoLatest()) getStore().set(into, value ?? null);
           // Clear a stale error only if we still own the error pointer and it
           // isn't the path we just wrote the result to.
           if (errorLatest?.()) getStore().set(errorPath, null);
@@ -208,21 +259,21 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
     };
   }, []);
 
-  // Run the catalog's per-component prop validation before rendering. If the
-  // agent emitted a spec with unknown props (e.g. "Card with className/children
-  // as props" — both rejected by the strict catalog schemas), surface what's
-  // wrong instead of mounting an empty Card. parseWidgetSpec at install time
-  // only validates structural shape, not per-component prop schemas.
+  // Per-element prop validation. The catalog's own `validate()` falls back to
+  // a permissive `z.record(string, unknown)` for multi-component catalogs and
+  // so silently accepts unknown element props — see widget-catalog.ts for the
+  // full story. validateWidgetProps walks elements and calls each component's
+  // `.props.safeParse` directly, which catches the "Card with className /
+  // children-as-prop" class of bugs and rejects bad types.
   const validation = useMemo(
-    () => widgetCatalog.validate(toRendererSpec(def.source.spec)),
+    () => validateWidgetProps(def.source.spec),
     [def.source.spec],
   );
 
   if (!validation.success) {
-    const message =
-      validation.error?.issues
-        .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
-        .join("\n") ?? "Unknown spec validation error";
+    const message = validation.issues
+      .map((issue) => `${issue.elementKey} (${issue.component}).${issue.path}: ${issue.message}`)
+      .join("\n");
     return (
       <div className="flex flex-col gap-2 p-3 text-xs">
         <p className="font-medium text-destructive">Widget spec is invalid</p>
@@ -245,9 +296,181 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
          * warning. setState/pushState/removeState are framework built-ins too
          * and work automatically with the store passed to JSONUIProvider. */}
         <ValidationProvider>
+          <OnMountRunner spec={def.source.spec} store={getStore()} />
           <Renderer spec={toRendererSpec(def.source.spec)} registry={widgetRegistry} />
         </ValidationProvider>
       </JSONUIProvider>
     </div>
   );
 });
+
+/**
+ * Fires the spec's onMount actions exactly once after first render. Must live
+ * inside the JSONUIProvider tree so it can reach `useActions().execute`, which
+ * runs both host handlers (fetchJson, callTool, ...) and framework built-ins
+ * (setState, pushState) through the same machinery as user-triggered actions.
+ *
+ * Keyed off the spec object identity: an in-place spec edit re-fires (so the
+ * agent can re-load), a sibling write doesn't.
+ */
+function OnMountRunner({
+  spec,
+  store,
+}: {
+  spec: WidgetSpec;
+  store: StateStore;
+}): null {
+  const { execute } = useActions();
+  const lastSpecRef = useRef<WidgetSpec | null>(null);
+  useEffect(() => {
+    if (lastSpecRef.current === spec) return;
+    lastSpecRef.current = spec;
+    const actions = spec.onMount ?? [];
+    if (actions.length === 0) return;
+    // Snapshot once outside the loop — actions earlier in the list may write
+    // into state, but `skipIf` is meant to gate against PERSISTED state from
+    // prior runs, not against state another onMount action just produced.
+    const snapshot = store.getSnapshot();
+    void (async () => {
+      for (const a of actions) {
+        if (a.skipIf !== undefined && hasNonEmptyValue(snapshot, a.skipIf)) continue;
+        await execute({ action: a.action, params: a.params ?? {} }).catch(() => undefined);
+      }
+    })();
+  }, [spec, execute, store]);
+  return null;
+}
+
+/**
+ * "Non-empty" for `skipIf` caching: defined, not null, not "", not [], not {}.
+ * Numbers (including 0) and booleans (including false) count as populated —
+ * a temperature of 0°C is still real data the widget should not overwrite.
+ */
+function hasNonEmptyValue(state: Record<string, unknown>, pointer: string): boolean {
+  const value = readJsonPointer(state, pointer);
+  if (value === undefined || value === null) return false;
+  if (typeof value === "string") return value.length > 0;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.keys(value).length > 0;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers for setNow / fetchJson
+// ---------------------------------------------------------------------------
+
+function isPlainRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Walk an unknown value, replacing every `{ $state: "/path" }` with the
+ * resolved value at that path. Leaves everything else untouched. Used to
+ * deep-resolve callTool's `input` object since json-render's built-in
+ * resolveAction only walks the top-level params keys.
+ */
+function resolveStateRefs(value: unknown, state: Record<string, unknown>): unknown {
+  if (Array.isArray(value)) return value.map((v) => resolveStateRefs(v, state));
+  if (!isPlainRecord(value)) return value;
+  if (typeof value["$state"] === "string") {
+    return readJsonPointer(state, value["$state"]);
+  }
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(value)) {
+    out[k] = resolveStateRefs(v, state);
+  }
+  return out;
+}
+
+/**
+ * Resolve a JSON pointer ("/a/b/0") against a parsed JSON value. Returns
+ * `undefined` for an unresolvable path so the caller can choose to skip the
+ * write. Empty pointer ("") returns the whole document.
+ */
+function readJsonPointer(value: unknown, pointer: string): unknown {
+  if (pointer === "") return value;
+  if (!pointer.startsWith("/")) return undefined;
+  let cur: unknown = value;
+  for (const raw of pointer.slice(1).split("/")) {
+    const segment = raw.replace(/~1/g, "/").replace(/~0/g, "~");
+    if (Array.isArray(cur)) {
+      const idx = Number(segment);
+      if (!Number.isInteger(idx) || idx < 0 || idx >= cur.length) return undefined;
+      cur = cur[idx];
+    } else if (isPlainRecord(cur)) {
+      if (!(segment in cur)) return undefined;
+      cur = cur[segment];
+    } else {
+      return undefined;
+    }
+  }
+  return cur;
+}
+
+type NowParts = {
+  dayShort: string;
+  dayLong: string;
+  dayNum: string;
+  monthShort: string;
+  monthLong: string;
+  year: string;
+  iso: string;
+  hourMinute12: string;
+};
+
+const DAYS_LONG = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
+const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+const MONTHS_LONG = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+const MONTHS_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+function formatNow(now: Date = new Date()): NowParts {
+  const day = now.getDay();
+  const month = now.getMonth();
+  const hour24 = now.getHours();
+  const minute = now.getMinutes();
+  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
+  return {
+    dayShort: DAYS_SHORT[day] ?? "",
+    dayLong: DAYS_LONG[day] ?? "",
+    dayNum: String(now.getDate()).padStart(2, "0"),
+    monthShort: MONTHS_SHORT[month] ?? "",
+    monthLong: MONTHS_LONG[month] ?? "",
+    year: String(now.getFullYear()),
+    iso: now.toISOString(),
+    hourMinute12: `${hour12}:${String(minute).padStart(2, "0")} ${hour24 < 12 ? "AM" : "PM"}`,
+  };
+}

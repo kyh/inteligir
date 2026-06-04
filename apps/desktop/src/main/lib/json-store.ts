@@ -55,6 +55,13 @@ export type JsonStoreOptions<T> = {
 
 export class JsonStore<T> {
   private cache: T | undefined;
+  // One-way kill switch — once `close()` runs, every subsequent write/update
+  // is a no-op. This prevents a stale ShellManager reference (captured before
+  // resetShellCache) from resurrecting `~/.inteligir/` between resetShellCache
+  // and the recursive `fs.rmSync(AGENT_DIR)` later in teardownResources: any
+  // such write would have re-created the dir via the `mkdirSync(dirname)` in
+  // `realFs.write`, undoing the deletion.
+  private closed = false;
   private readonly fs: FsAdapter;
   private readonly onCorrupt: ((backupPath: string) => void) | undefined;
   private readonly decode: (raw: unknown) => T;
@@ -109,11 +116,13 @@ export class JsonStore<T> {
   }
 
   write(data: T): void {
+    if (this.closed) return;
     this.cache = structuredClone(data);
     this.fs.write(this.filePath, JSON.stringify(this.encode(this.cache), null, 2));
   }
 
   update(fn: (current: T) => T): T {
+    if (this.closed) return this.read();
     const updated = fn(this.read());
     this.write(updated);
     return updated;
@@ -121,6 +130,16 @@ export class JsonStore<T> {
 
   invalidate(): void {
     this.cache = undefined;
+  }
+
+  /**
+   * Permanently disable writes on this store instance. Any subsequent
+   * write/update is a no-op (update still returns the current read). Use this
+   * before deleting the underlying directory so an in-flight handler holding
+   * an old reference can't recreate the file on its way out. Idempotent.
+   */
+  close(): void {
+    this.closed = true;
   }
 
   private recoverCorrupt(raw: string): void {
