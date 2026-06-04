@@ -14,7 +14,7 @@ import type { Spec } from "@json-render/core";
 // Component vocabulary
 // ---------------------------------------------------------------------------
 
-export const JSON_WIDGET_COMPONENT_TYPES = [
+const JSON_WIDGET_COMPONENT_TYPES = [
   "Stack",
   "Section",
   "Row",
@@ -127,7 +127,7 @@ export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, stri
 // Action vocabulary
 // ---------------------------------------------------------------------------
 
-export const WIDGET_ACTION_NAMES = [
+const WIDGET_ACTION_NAMES = [
   "notify",
   "openUrl",
   "sendPrompt",
@@ -222,8 +222,6 @@ export const WidgetSpecParam = Type.Object(
 // const arrays cannot drift.
 // ---------------------------------------------------------------------------
 
-export type WidgetActionRequest = Static<typeof ActionRequestParam>;
-export type WidgetSpecElement = Static<typeof ElementParam>;
 export type WidgetSpec = Static<typeof WidgetSpecParam>;
 
 /**

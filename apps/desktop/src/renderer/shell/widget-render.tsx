@@ -1,7 +1,6 @@
 // Shared resolution of a placed instance + its def to rendered body + chrome
 // props, used by both the grid (Panel) and floating windows (FloatingWindow).
 
-import { LayoutPanelLeftIcon } from "lucide-react";
 import { toast } from "@repo/ui/components/sonner";
 
 import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
@@ -47,10 +46,6 @@ export function widgetTitle(def: WidgetDef | undefined, instance: WidgetInstance
 
 export function widgetBodyClassName(def: WidgetDef | undefined): string | undefined {
   return def && isBuiltin(def) ? BUILTIN_WIDGET_UI[def.id].bodyClassName : undefined;
-}
-
-export function widgetIcon(def: WidgetDef): React.ComponentType<{ className?: string }> {
-  return isBuiltin(def) ? BUILTIN_WIDGET_UI[def.id].icon : LayoutPanelLeftIcon;
 }
 
 /** Close (unplace) an instance — the definition survives in the dock and can

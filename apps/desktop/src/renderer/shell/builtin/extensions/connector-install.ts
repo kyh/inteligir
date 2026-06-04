@@ -22,7 +22,7 @@ export type SourceSpec =
   | { type: "google"; name: string; namespace: string; discoveryUrl: string };
 
 /** How the source authenticates, resolved at install time. */
-export type AuthSpec =
+type AuthSpec =
   | { kind: "none" }
   // Dynamic-DCR OAuth against the source endpoint (MCP only).
   | { kind: "oauth" }

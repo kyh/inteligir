@@ -11,7 +11,7 @@
 // ---------------------------------------------------------------------------
 
 /** How a connector authenticates when installed. */
-export type ConnectorAuth =
+type ConnectorAuth =
   // OAuth via executor's dynamic client registration (the "connect → browser
   // → done" flow). Works for MCP servers that advertise DCR.
   | { kind: "oauth" }
@@ -22,7 +22,7 @@ export type ConnectorAuth =
   | { kind: "apiKey"; headerName: string; secretLabel: string; prefix?: string };
 
 /** Install recipe — what executor source we register and how it authenticates. */
-export type ConnectorInstall =
+type ConnectorInstall =
   | { type: "mcp"; endpoint: string; auth: ConnectorAuth }
   // Google Workspace services — registered as executor google-discovery sources
   // from a Google API discovery doc. Executor handles the OAuth consent lazily

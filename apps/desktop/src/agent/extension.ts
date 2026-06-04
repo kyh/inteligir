@@ -136,7 +136,7 @@ export function validateToolParametersSchema(
  * `validateToolParametersSchema` first. All other methods pass through
  * unchanged.
  */
-export function wrapPiWithSchemaValidation(pi: ExtensionAPI, bundleName: string): ExtensionAPI {
+function wrapPiWithSchemaValidation(pi: ExtensionAPI, bundleName: string): ExtensionAPI {
   return new Proxy(pi, {
     get(target, prop, receiver) {
       const value = Reflect.get(target, prop, receiver);

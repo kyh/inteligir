@@ -51,7 +51,7 @@ const UpdateStatusSchema = Type.Union([
   Type.Literal("error"),
 ]);
 
-export const UpdateStateSchema = Type.Object(
+const UpdateStateSchema = Type.Object(
   {
     status: UpdateStatusSchema,
     version: Type.Union([Type.String(), Type.Null()]),
@@ -63,7 +63,7 @@ export const UpdateStateSchema = Type.Object(
 
 export type UpdateState = Static<typeof UpdateStateSchema>;
 
-export type UpdateResponse = {
+type UpdateResponse = {
   accepted: boolean;
   state: UpdateState;
 };
@@ -453,7 +453,7 @@ export const IPC = {
   repairIntegrations: invokeVoid<void>("integrations:repair"),
 } as const satisfies Record<string, IpcEntry>;
 
-export type IpcRegistry = typeof IPC;
+type IpcRegistry = typeof IPC;
 export type IpcMethod = keyof IpcRegistry;
 
 // ---------------------------------------------------------------------------

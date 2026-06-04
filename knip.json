@@ -11,14 +11,14 @@
         "src/preload/index.ts",
         "src/renderer/index.html",
         "src/renderer/main.tsx",
-        "src/__tests__/**/*.test.ts"
+        "src/__tests__/**/*.test.ts",
+        "scripts/**/*.mjs"
       ],
       "project": [
         "scripts/**/*.mjs",
         "src/**/*.{ts,tsx,css}"
       ],
       "ignoreDependencies": [
-        "@mariozechner/pi-coding-agent",
         "@tailwindcss/vite",
         "@vitejs/plugin-react",
         "electron-builder"
@@ -35,8 +35,7 @@
       "entry": ["drizzle.config.ts"],
       "drizzle": {
         "config": []
-      },
-      "ignoreDependencies": ["tsx"]
+      }
     }
   }
 }

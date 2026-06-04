@@ -1,27 +1,13 @@
 // ---------------------------------------------------------------------------
 // IPC public surface for renderer + main consumers. The channel-and-schema
-// registry now lives in ipc-registry.ts; this file keeps a handful of
-// peripheral types and helpers (Skills, Integrations, executor types,
-// helpers) close to the renderer's existing import paths.
+// registry lives in ipc-registry.ts; this file is the renderer-facing
+// re-export of the types that actually flow through it, plus a handful of
+// adjacent helpers (Skills, Integrations, isRecord/isHttpUrl/extractText).
+// Specialized payload types (executor, IPC registry internals) are imported
+// directly from their owning modules.
 // ---------------------------------------------------------------------------
 
 import type { PiAgentSkill } from "@repo/pi-driver/skills";
-
-export type {
-  AddGoogleSourceInput,
-  AddGraphqlSourceInput,
-  AddMcpSourceInput,
-  AddOpenApiSourceInput,
-  ExecutorAddSourceResult,
-  ExecutorConnectionRef,
-  ExecutorDetectResult,
-  ExecutorSecretRef,
-  ExecutorSource,
-  OAuthAwaitResult,
-  OAuthStartInput,
-  OAuthStartResult,
-  SetSecretInput,
-} from "./executor";
 
 export type {
   ChatHistoryEntry,
@@ -29,12 +15,9 @@ export type {
   ExecutorStatus,
   NotificationSettings,
   SetupProgress,
-  UpdateResponse,
   UpdateState,
   VoiceModelStateEvent,
 } from "./ipc-registry";
-
-export { IPC, type IpcMethod, type IpcHandler, type IpcEvent } from "./ipc-registry";
 
 /** Installed-vs-pinned version of a CLI binary an extension installs. */
 export type IntegrationInfo = {
@@ -45,11 +28,6 @@ export type IntegrationInfo = {
   installed: string | null;
 };
 
-/**
- * Progress event emitted while seedResources runs bundle setups. `percent` is
- * null when a step has no measurable progress (e.g. a binary download with
- * unknown total). `null` after `step === "done"` signals completion.
- */
 export type SkillInfo = PiAgentSkill;
 
 export type SkillsList = {

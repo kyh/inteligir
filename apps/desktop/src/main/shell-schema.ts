@@ -1,4 +1,4 @@
-import { type Static, Type } from "@sinclair/typebox";
+import { Type } from "@sinclair/typebox";
 
 const GeometrySchema = Type.Object(
   {
@@ -79,4 +79,3 @@ export const ShellSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export type ShellSchemaT = Static<typeof ShellSchema>;

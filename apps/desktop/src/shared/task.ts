@@ -46,11 +46,6 @@ export const TaskSchema = Type.Object(
 
 export type Task = Static<typeof TaskSchema>;
 
-export const TasksFileSchema = Type.Object(
-  { tasks: Type.Array(TaskSchema) },
-  { additionalProperties: false },
-);
-
 // ---------------------------------------------------------------------------
 // Task run log — per-execution tracking
 // ---------------------------------------------------------------------------

@@ -16,7 +16,7 @@ export const AppEventSchema = Type.Union([
   Type.Object({ type: Type.Literal("NEW_SESSION") }, { additionalProperties: false }),
 ]);
 
-export type AppEvent = Static<typeof AppEventSchema>;
+type AppEvent = Static<typeof AppEventSchema>;
 
 // ---------------------------------------------------------------------------
 // Internal events — emitted by effect runner, never from renderer
