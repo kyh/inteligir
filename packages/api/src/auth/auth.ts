@@ -1,8 +1,8 @@
-// better-auth's return type leaks an internal `$strip` symbol from Zod's
-// type declarations; the TS-emitted .d.ts for getAuth() can only name it
-// when `zod` is reachable as a type-only import from this module. The
-// runtime code below uses TypeBox; zod is a vendor-type carrier only.
-import type {} from "zod";
+/// <reference types="zod" />
+// ^^^^ better-auth's return type leaks an internal `$strip` symbol from
+// Zod's type declarations; the TS-emitted .d.ts for getAuth() can only name
+// it when `zod` is reachable as a type reference. The runtime code below
+// uses TypeBox; zod is a vendor-type carrier only.
 
 import { getDb } from "@repo/db/drizzle-client";
 import { betterAuth } from "better-auth";

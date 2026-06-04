@@ -49,13 +49,14 @@ export class ShellManager {
       // throws and triggers JsonStore's corrupt-recovery path.
       decode: (raw) => {
         const v = raw as Static<typeof ShellSchema>;
-        return {
-          ...v,
-          customDefs: v.customDefs.map((d) => ({
+        const customDefs: JsonUiWidgetDef[] = [];
+        for (const d of v.customDefs) {
+          customDefs.push({
             ...d,
             source: { ...d.source, spec: parseWidgetSpec(d.source.spec) },
-          })),
-        };
+          });
+        }
+        return { ...v, customDefs };
       },
     });
   }

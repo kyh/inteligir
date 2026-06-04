@@ -550,7 +550,9 @@ function LatitudeLines({ status, baseColor }: { status: DisplayStatus; baseColor
           if (!material) return null;
           return (
             <OrbLine
-              key={`orb-line-${lineIdx}`}
+              // three.js gives each geometry a stable per-instance uuid; safer
+              // than the loop index even though the line set is fixed-length.
+              key={geometry.uuid}
               lineIdx={lineIdx}
               groupRefs={groupRefs}
               geometry={geometry}
