@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getServerContext } from "@/lib/server-context";
+import { getServerContext } from "@/auth/server";
 
 function handler({ request }: { request: Request }) {
   const { auth } = getServerContext();

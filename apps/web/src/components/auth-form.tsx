@@ -7,7 +7,7 @@ import { Button } from "@repo/ui/components/button";
 import { Field, FieldError } from "@repo/ui/components/field";
 import { Input } from "@repo/ui/components/input";
 
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/auth/client";
 import { tb } from "@/lib/form-schema";
 
 const EmailSchema = Type.String({
