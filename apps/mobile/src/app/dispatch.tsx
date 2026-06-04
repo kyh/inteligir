@@ -115,6 +115,8 @@ export default function DispatchScreen() {
         break;
       case "turn_error":
         setIsAgentBusy(false);
+        assistantTextRef.current = "";
+        setAssistantText("");
         setEntries((prev) => [
           ...prev,
           { role: "tool", text: String(event.reason), isError: true },
