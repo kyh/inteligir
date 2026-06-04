@@ -37,23 +37,23 @@ const textFieldProps = {
 export const widgetCatalog = defineCatalog(schema, {
   components: {
     Stack: {
-      props: z.object({ gap }),
+      props: z.object({ gap }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Stack,
     },
     Row: {
-      props: z.object({ bordered: z.boolean().optional() }),
+      props: z.object({ bordered: z.boolean().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Row,
     },
     Grid: {
-      props: z.object({ columns: z.number().optional(), gap }),
+      props: z.object({ columns: z.number().optional(), gap }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Grid,
     },
     Section: {
-      props: z.object({ title: z.string().optional() }),
+      props: z.object({ title: z.string().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Section,
     },
     Heading: {
-      props: z.object({ text: z.string(), level: z.enum(["1", "2", "3"]).optional() }),
+      props: z.object({ text: z.string(), level: z.enum(["1", "2", "3"]).optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Heading,
     },
     Text: {
@@ -61,19 +61,19 @@ export const widgetCatalog = defineCatalog(schema, {
         text: z.string(),
         muted: z.boolean().optional(),
         size: textSize,
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Text,
     },
     TextBlock: {
-      props: z.object({ title: z.string(), description: z.string().optional() }),
+      props: z.object({ title: z.string(), description: z.string().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TextBlock,
     },
     Markdown: {
-      props: z.object({ content: z.string().optional() }),
+      props: z.object({ content: z.string().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Markdown,
     },
     Badge: {
-      props: z.object({ text: z.string(), variant: badgeVariant }),
+      props: z.object({ text: z.string(), variant: badgeVariant }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Badge,
     },
     Button: {
@@ -82,7 +82,7 @@ export const widgetCatalog = defineCatalog(schema, {
         variant: buttonVariant,
         size: buttonSize,
         disabled: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Button,
     },
     Checkbox: {
@@ -91,7 +91,7 @@ export const widgetCatalog = defineCatalog(schema, {
         description: z.string().optional(),
         checked: z.boolean().optional(),
         disabled: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Checkbox,
     },
     Switch: {
@@ -100,15 +100,15 @@ export const widgetCatalog = defineCatalog(schema, {
         description: z.string().optional(),
         checked: z.boolean().optional(),
         disabled: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Switch,
     },
     Input: {
-      props: z.object(textFieldProps),
+      props: z.object(textFieldProps).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Input,
     },
     Textarea: {
-      props: z.object({ ...textFieldProps, rows: z.number().optional() }),
+      props: z.object({ ...textFieldProps, rows: z.number().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Textarea,
     },
     Select: {
@@ -118,7 +118,7 @@ export const widgetCatalog = defineCatalog(schema, {
         value: z.string().optional(),
         options: z.array(optionItem).optional(),
         disabled: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Select,
     },
     RadioGroup: {
@@ -127,7 +127,7 @@ export const widgetCatalog = defineCatalog(schema, {
         value: z.string().optional(),
         options: z.array(radioOptionItem).optional(),
         disabled: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.RadioGroup,
     },
     Slider: {
@@ -138,7 +138,7 @@ export const widgetCatalog = defineCatalog(schema, {
         max: z.number().optional(),
         step: z.number().optional(),
         disabled: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Slider,
     },
     Avatar: {
@@ -146,11 +146,11 @@ export const widgetCatalog = defineCatalog(schema, {
         src: z.string().optional(),
         fallback: z.string().optional(),
         size: controlSize,
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Avatar,
     },
     Spinner: {
-      props: z.object({ size: controlSize }),
+      props: z.object({ size: controlSize }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Spinner,
     },
     Image: {
@@ -158,7 +158,7 @@ export const widgetCatalog = defineCatalog(schema, {
         src: z.string(),
         alt: z.string().optional(),
         rounded: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Image,
     },
     Chart: {
@@ -181,39 +181,39 @@ export const widgetCatalog = defineCatalog(schema, {
       description: WIDGET_COMPONENT_DESCRIPTIONS.Chart,
     },
     Card: {
-      props: z.object({}),
+      props: z.object({}).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Card,
     },
     Collapsible: {
-      props: z.object({ title: z.string(), defaultOpen: z.boolean().optional() }),
+      props: z.object({ title: z.string(), defaultOpen: z.boolean().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Collapsible,
     },
     Tabs: {
-      props: z.object({ tabs: z.array(optionItem) }),
+      props: z.object({ tabs: z.array(optionItem) }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Tabs,
     },
     Table: {
-      props: z.object({ caption: z.string().optional() }),
+      props: z.object({ caption: z.string().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Table,
     },
     TableHeader: {
-      props: z.object({}),
+      props: z.object({}).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableHeader,
     },
     TableBody: {
-      props: z.object({}),
+      props: z.object({}).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableBody,
     },
     TableRow: {
-      props: z.object({}),
+      props: z.object({}).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableRow,
     },
     TableHead: {
-      props: z.object({ text: z.string() }),
+      props: z.object({ text: z.string() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableHead,
     },
     TableCell: {
-      props: z.object({ text: z.string().optional() }),
+      props: z.object({ text: z.string().optional() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.TableCell,
     },
     Dialog: {
@@ -221,7 +221,7 @@ export const widgetCatalog = defineCatalog(schema, {
         trigger: z.string(),
         title: z.string().optional(),
         description: z.string().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Dialog,
     },
     Drawer: {
@@ -230,19 +230,19 @@ export const widgetCatalog = defineCatalog(schema, {
         title: z.string().optional(),
         description: z.string().optional(),
         side: z.enum(["top", "bottom", "left", "right"]).optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Drawer,
     },
     Popover: {
-      props: z.object({ trigger: z.string() }),
+      props: z.object({ trigger: z.string() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Popover,
     },
     Tooltip: {
-      props: z.object({ text: z.string() }),
+      props: z.object({ text: z.string() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Tooltip,
     },
     DropdownMenu: {
-      props: z.object({ trigger: z.string() }),
+      props: z.object({ trigger: z.string() }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.DropdownMenu,
     },
     MenuItem: {
@@ -250,11 +250,11 @@ export const widgetCatalog = defineCatalog(schema, {
         label: z.string(),
         variant: z.enum(["default", "destructive"]).optional(),
         disabled: z.boolean().optional(),
-      }),
+      }).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.MenuItem,
     },
     Separator: {
-      props: z.object({}),
+      props: z.object({}).strict(),
       description: WIDGET_COMPONENT_DESCRIPTIONS.Separator,
     },
   },

@@ -5,6 +5,7 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
+import { widgetCatalog } from "@/renderer/shell/widget-catalog";
 import { widgetRegistry } from "@/renderer/shell/widget-registry";
 import { type JsonUiWidgetDef, type WidgetInstance } from "@/shared/shell";
 import { toRendererSpec } from "@/shared/widget-spec";
@@ -206,6 +207,35 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
       },
     };
   }, []);
+
+  // Run the catalog's per-component prop validation before rendering. If the
+  // agent emitted a spec with unknown props (e.g. "Card with className/children
+  // as props" — both rejected by the strict catalog schemas), surface what's
+  // wrong instead of mounting an empty Card. parseWidgetSpec at install time
+  // only validates structural shape, not per-component prop schemas.
+  const validation = useMemo(
+    () => widgetCatalog.validate(toRendererSpec(def.source.spec)),
+    [def.source.spec],
+  );
+
+  if (!validation.success) {
+    const message =
+      validation.error?.issues
+        .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
+        .join("\n") ?? "Unknown spec validation error";
+    return (
+      <div className="flex flex-col gap-2 p-3 text-xs">
+        <p className="font-medium text-destructive">Widget spec is invalid</p>
+        <pre className="overflow-auto rounded border border-border bg-muted/40 p-2 text-[10px] text-muted-foreground">
+          {message}
+        </pre>
+        <p className="text-[10px] text-muted-foreground">
+          Ask the agent to fix the spec — likely an unknown prop, or text passed
+          via <code>props.children</code> instead of a separate Text element.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 p-3">
