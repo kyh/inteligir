@@ -61,3 +61,4 @@ apps/desktop/resources/agent/client_secret.json
 .claude/scheduled_tasks.lock
 .claude/worktrees
 .playwright-mcp
+apps/web/.wrangler/
