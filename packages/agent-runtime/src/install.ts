@@ -46,10 +46,24 @@ export type InstallCliFromGithubReleaseOptions = {
    * - "sha256-sidecar" (default): expects `${artifactUrl}.sha256` next to the artifact.
    * - "checksums-txt": expects `checksums.txt` at the release root with
    *   `<hex>  <filename>` lines; we find the row matching our artifact.
+   * - "inline-sha256": uses `sha256` (a per-artifact hash baked into this app).
+   *   Stronger than the upstream-checksum modes — guards against a compromised
+   *   release too, not just transport corruption. Use when the maintainer is
+   *   willing to update the pinned hash on every dependency bump.
    * - "version-check": runs `${binName} --version` on the staged binary and
-   *   matches against `version`. Use when upstream doesn't publish checksums.
+   *   matches against `version`. Weakest — a malicious binary that fakes
+   *   --version output passes. Reserve for upstreams that publish neither
+   *   checksums nor stable enough release engineering to pin against.
    */
-  verify?: "sha256-sidecar" | "checksums-txt" | "version-check";
+  verify?: "sha256-sidecar" | "checksums-txt" | "inline-sha256" | "version-check";
+  /**
+   * Per-artifact SHA-256 hex hash, required when `verify === "inline-sha256"`.
+   * Keys are artifact filenames as returned by `artifactName()`, values are
+   * lowercase 64-char hex digests. The set of expected platforms is
+   * intentionally explicit — running on a platform whose artifact isn't in
+   * the map fails closed, instead of silently skipping verification.
+   */
+  sha256?: Record<string, string>;
   /**
    * Optional post-install hook — receives the installed binary path. Errors
    * are logged but do not throw; the binary is already in place.
@@ -142,6 +156,16 @@ async function runInstall(opts: InstallCliFromGithubReleaseOptions): Promise<voi
   try {
     if (verify === "sha256-sidecar" || verify === "checksums-txt") {
       const expectedSha = await fetchExpectedSha(verify, artifactUrl, releaseBaseUrl, artifact);
+      await downloadVerified(artifactUrl, stagedArtifactPath, expectedSha);
+    } else if (verify === "inline-sha256") {
+      const expectedSha = opts.sha256?.[artifact];
+      if (!expectedSha || !/^[0-9a-f]{64}$/.test(expectedSha)) {
+        throw new Error(
+          `inline-sha256: no valid pinned hash for ${artifact} (have ${
+            opts.sha256 ? Object.keys(opts.sha256).join(", ") : "no map"
+          })`,
+        );
+      }
       await downloadVerified(artifactUrl, stagedArtifactPath, expectedSha);
     } else {
       await downloadFile(artifactUrl, stagedArtifactPath);

@@ -26,6 +26,22 @@ import { textResult } from "@/agent/extension-helpers";
 import type { SetupProgress } from "@/shared/ipc";
 
 const AGENT_BROWSER_VERSION = "0.26.0";
+
+// SHA-256 of every release artifact, pinned at the time of the
+// AGENT_BROWSER_VERSION bump above. Verified at install time. Recompute via
+// `curl -L <url> | shasum -a 256` for each platform when bumping.
+const AGENT_BROWSER_SHA256: Record<string, string> = {
+  "agent-browser-darwin-arm64":
+    "18f7af7c57ab522bd80f64112b8d7ff43e63a98d98064ba13a96363aa9ae2650",
+  "agent-browser-darwin-x64":
+    "f5198f4485430ff425f7682db405eca66b80ad82d501d04d6d409574dd4283db",
+  "agent-browser-linux-arm64":
+    "b3901b17298f6ce6511fcae5c576068a3e8a510ecb365c8ccd876b9b82db4447",
+  "agent-browser-linux-x64":
+    "8784dc259abf72ee04e751b45677d956387af50c99aec5dcd7a41a9bc498e3c3",
+  "agent-browser-win32-x64.exe":
+    "540fc7d8b3ec8dea2f84df605492d5ca0e1921281adf8543dc0326109c851b2a",
+};
 const BROWSER_TIMEOUT_MS = 120_000;
 const BROWSER_MAX_BUFFER = 20 * 1024 * 1024;
 const BROWSER_SESSION = "inteligir";
@@ -64,7 +80,8 @@ const browserExtension: PiExtensionBundle = {
       binName: binaryName,
       binDir,
       artifactKind: "binary",
-      verify: "version-check",
+      verify: "inline-sha256",
+      sha256: AGENT_BROWSER_SHA256,
       artifactName: agentBrowserAssetName,
       postInstall: (binPath) => installBrowserRuntime(binPath, onProgress),
       force,
