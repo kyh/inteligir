@@ -61,9 +61,11 @@ function StatusOrb() {
           <GeometricOrb
             status={SESSION_TO_ORB_STATUS[status]}
             baseColor={resolved === "dark" ? "#eeeeee" : "#0a0a0a"}
-            // 20 strands × ~5px would saturate a 36px disc; keep the strands
-            // thin so the helix→sphere morph is visible as individual lines.
-            lineWidth={1.5}
+            // Hero uses 20 strands × 2px on a 176px canvas (≈23% coverage).
+            // At 36px we cut both numbers proportionally so individual
+            // strands stay visible instead of saturating into a white disc.
+            numLines={8}
+            lineWidth={1}
             className="h-full w-full"
           />
         </div>

@@ -16,7 +16,7 @@ extend({ Line2, LineMaterial, LineGeometry });
 // Static config
 // ---------------------------------------------------------------------------
 
-const NUM_LINES = 20;
+const DEFAULT_NUM_LINES = 20;
 const RADIUS = 1.5;
 const POINTS_PER_LINE = 96;
 const DEFAULT_LINE_WIDTH = 2;
@@ -205,10 +205,12 @@ function LatitudeLines({
   status,
   baseColor,
   lineWidth,
+  numLines: NUM_LINES,
 }: {
   status: DisplayStatus;
   baseColor: string;
   lineWidth: number;
+  numLines: number;
 }) {
   const groupRefs = useRef<(THREE.Group | null)[]>([]);
   const parentGroupRef = useRef<THREE.Group>(null);
@@ -260,7 +262,7 @@ function LatitudeLines({
         longitudeRotation: (i / NUM_LINES) * Math.PI,
         tubeAngle: (i / NUM_LINES) * PI2,
       })),
-    [],
+    [NUM_LINES],
   );
 
   const helixCache = useMemo(() => {
@@ -276,7 +278,7 @@ function LatitudeLines({
       }
     }
     return cache;
-  }, []);
+  }, [NUM_LINES]);
 
   const materials = useMemo(
     () =>
@@ -291,10 +293,13 @@ function LatitudeLines({
             vertexColors: true,
           }),
       ),
-    [lineWidth],
+    [lineWidth, NUM_LINES],
   );
 
-  const geometries = useMemo(() => Array.from({ length: NUM_LINES }, () => new LineGeometry()), []);
+  const geometries = useMemo(
+    () => Array.from({ length: NUM_LINES }, () => new LineGeometry()),
+    [NUM_LINES],
+  );
 
   useEffect(() => {
     return () => {
@@ -613,6 +618,7 @@ export function GeometricOrb({
   baseColor = "#eeeeee",
   frameloop = "always",
   lineWidth = DEFAULT_LINE_WIDTH,
+  numLines = DEFAULT_NUM_LINES,
 }: {
   status?: DisplayStatus;
   className?: string;
@@ -627,10 +633,16 @@ export function GeometricOrb({
   frameloop?: "always" | "demand";
   /**
    * Pixel width of each latitude line. The default (2) reads cleanly at
-   * hero sizes; bump to 4–6 when the orb shrinks into a small dock indicator
+   * hero sizes; drop to ~1.5 when the orb shrinks into a small dock indicator
    * so the strands stay legible instead of dissolving into a blur.
    */
   lineWidth?: number;
+  /**
+   * Number of latitude strands. Hero placements use the default (20). Smaller
+   * placements (dock-sized status indicators) should drop to ~8–12 so the
+   * helix→sphere morph reads as individual strands instead of a solid disc.
+   */
+  numLines?: number;
 }) {
   return (
     <Canvas
@@ -639,7 +651,12 @@ export function GeometricOrb({
       gl={{ antialias: true, alpha: true }}
       frameloop={frameloop}
     >
-      <LatitudeLines status={status} baseColor={baseColor} lineWidth={lineWidth} />
+      <LatitudeLines
+        status={status}
+        baseColor={baseColor}
+        lineWidth={lineWidth}
+        numLines={numLines}
+      />
     </Canvas>
   );
 }
