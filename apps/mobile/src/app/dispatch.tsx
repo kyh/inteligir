@@ -113,6 +113,13 @@ export default function DispatchScreen() {
           },
         ]);
         break;
+      case "turn_error":
+        setIsAgentBusy(false);
+        setEntries((prev) => [
+          ...prev,
+          { role: "tool", text: String(event.reason), isError: true },
+        ]);
+        break;
     }
   }
 
