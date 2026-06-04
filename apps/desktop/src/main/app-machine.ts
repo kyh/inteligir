@@ -5,6 +5,7 @@
 import { Agent } from "@/agent/agent";
 import { isLoggedIn, login } from "@/agent/auth";
 import { isSetupComplete, seedResources, teardownResources } from "@/agent/setup";
+import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
@@ -120,11 +121,13 @@ function handleAgentEvent(event: AppAgentEvent): void {
         );
         const reason =
           "The model returned no response. The upstream call may have failed silently — try re-authenticating.";
-        broadcast("onAgentEvent", {
+        const errorEvent = {
           type: "turn_error",
           kind: "auth",
           reason,
-        } satisfies AppAgentEvent);
+        } satisfies AppAgentEvent;
+        broadcast("onAgentEvent", errorEvent);
+        void sendDispatchResponse(errorEvent);
       }
       machine?.ingest({ type: "AGENT_END" });
       getNotifications().notifyAgentIdle(turn?.assistantText ?? undefined);
@@ -134,6 +137,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
   }
 
   broadcast("onAgentEvent", event);
+  void sendDispatchResponse(event);
 }
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {

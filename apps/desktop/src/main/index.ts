@@ -33,6 +33,12 @@ import {
   shutdown,
   transition,
 } from "@/main/app-machine";
+import {
+  getDispatchState,
+  initDispatch,
+  refreshRoomCode,
+  shutdownDispatch,
+} from "@/main/dispatch/dispatch-client";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { initAgentLog } from "@/main/lib/agent-log";
 import { broadcast } from "@/main/lib/broadcast";
@@ -192,6 +198,11 @@ function registerIpcHandlers(): void {
 
   handle("getAgentHistory", () => readSessionHistory());
   handle("reauthenticate", () => reauthenticate());
+
+  // ---- Dispatch (mobile ↔ desktop relay) -----------------------------------
+
+  handle("getDispatchState", () => getDispatchState());
+  handle("refreshDispatchCode", () => refreshRoomCode());
 
   // ---- App lifecycle --------------------------------------------------------
 
@@ -408,6 +419,7 @@ app.on("before-quit", (event) => {
   if (isQuitting) return;
   isQuitting = true;
   event.preventDefault();
+  shutdownDispatch();
   void shutdown().finally(() => {
     app.quit();
   });
@@ -428,7 +440,26 @@ app
     getNotifications().setTargetWindow(mainWindow);
 
     initMachine();
-    return undefined;
+
+    initDispatch((msg) => {
+      const agent = getAgent();
+      if (!agent) return;
+      switch (msg.type) {
+        case "user_message": {
+          const text = (msg.payload as { text?: string }).text ?? "";
+          if (text) void agent.sendMessage(text);
+          break;
+        }
+        case "steer": {
+          const text = (msg.payload as { text?: string }).text ?? "";
+          if (text) void agent.steer(text);
+          break;
+        }
+        case "interrupt":
+          void agent.interrupt();
+          break;
+      }
+    });
   })
   .catch((error) => {
     console.error("[desktop] fatal startup error", error);

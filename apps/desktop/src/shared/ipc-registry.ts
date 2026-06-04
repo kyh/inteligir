@@ -36,6 +36,7 @@ import {
 } from "./task";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
+import type { DispatchState } from "./dispatch";
 
 // ---------------------------------------------------------------------------
 // Shared shapes referenced by registry entries
@@ -322,6 +323,11 @@ export const IPC = {
   getVoiceModelStatus: invokeVoid<"ready" | "missing">("voice:model:status"),
   downloadVoiceModel: invokeVoid<{ ok: boolean; error?: string }>("voice:model:download"),
   onVoiceModelState: event<VoiceModelStateEvent>("voice:model:state"),
+
+  // Dispatch (mobile ↔ desktop relay)
+  getDispatchState: invokeVoid<DispatchState>("dispatch:get-state"),
+  refreshDispatchCode: invokeVoid<void>("dispatch:refresh-code"),
+  onDispatchState: event<DispatchState>("dispatch:state"),
 
   // Notifications
   getNotificationSettings: invokeVoid<NotificationSettings>("notifications:get"),

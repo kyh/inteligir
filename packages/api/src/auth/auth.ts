@@ -1,39 +1,28 @@
 /// <reference types="zod" />
-// ^^^^ better-auth's return type leaks an internal `$strip` symbol from
-// Zod's type declarations; the TS-emitted .d.ts for getAuth() can only name
-// it when `zod` is reachable as a type reference. The runtime code below
-// uses TypeBox; zod is a vendor-type carrier only.
-
-import { getDb } from "@repo/db/drizzle-client";
+import type { Db } from "@repo/db/drizzle-client";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { nextCookies } from "better-auth/next-js";
 import { oAuthProxy } from "better-auth/plugins";
 
-const baseUrl =
-  process.env["VERCEL_ENV"] === "production"
-    ? `https://${process.env["VERCEL_PROJECT_PRODUCTION_URL"]}`
-    : process.env["VERCEL_ENV"] === "preview"
-      ? `https://${process.env["VERCEL_URL"]}`
-      : "http://localhost:3000";
+export type AuthConfig = {
+  db: Db;
+  baseURL: string;
+  secret: string;
+  productionURL?: string;
+};
 
-function buildAuth() {
-  const authSecret = process.env["BETTER_AUTH_SECRET"] ?? process.env["AUTH_SECRET"];
-  if (!authSecret) {
-    throw new Error("BETTER_AUTH_SECRET (or AUTH_SECRET) is not set");
-  }
+export function initAuth(config: AuthConfig) {
   return betterAuth({
-    database: drizzleAdapter(getDb(), {
-      provider: "pg",
+    database: drizzleAdapter(config.db, {
+      provider: "sqlite",
     }),
-    baseURL: baseUrl,
-    secret: authSecret,
+    baseURL: config.baseURL,
+    secret: config.secret,
     plugins: [
       oAuthProxy({
-        currentURL: baseUrl,
-        productionURL: `https://${process.env["VERCEL_PROJECT_PRODUCTION_URL"] ?? "init.kyh.io"}`,
+        currentURL: config.baseURL,
+        productionURL: config.productionURL ?? config.baseURL,
       }),
-      nextCookies(),
     ],
     emailAndPassword: {
       enabled: true,
@@ -41,15 +30,4 @@ function buildAuth() {
   });
 }
 
-let cached: ReturnType<typeof buildAuth> | null = null;
-
-/**
- * Lazy better-auth init. Initializing at module load makes `next build` fail
- * when BETTER_AUTH_SECRET isn't in the build env (Next 16 evaluates route
- * handlers to collect page data). Callers reach for auth only inside request
- * handlers, where the env is set.
- */
-export function getAuth(): ReturnType<typeof buildAuth> {
-  if (!cached) cached = buildAuth();
-  return cached;
-}
+export type Auth = ReturnType<typeof initAuth>;
