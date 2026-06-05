@@ -56,6 +56,16 @@ export class DispatchServer extends Server<Env> {
         const secret = this.env.CHAT_RELAY_SECRET;
         const provided = (parsed.payload as { secret?: unknown }).secret;
         if (secret && provided === secret) {
+          // Exactly one device owns the session. A stale reconnect or a second
+          // client with the same secret would otherwise leave multiple sockets
+          // flagged `device`, and the relay's `.find()` could route to the wrong
+          // (or dead) one while the real desktop never sees the prompt. Demote
+          // every other connection so the newest registrant is the sole device.
+          for (const conn of this.getConnections<ConnState>()) {
+            if (conn.id !== sender.id && conn.state?.device) {
+              conn.setState({ device: false });
+            }
+          }
           sender.setState({ device: true });
         }
         return;
