@@ -320,18 +320,12 @@ importers:
       '@repo/dispatch':
         specifier: workspace:*
         version: link:../../packages/dispatch
-      ai:
-        specifier: ^6.0.182
-        version: 6.0.191(zod@4.4.3)
       chat:
         specifier: ^4.30.0
         version: 4.30.0(ai@6.0.191(zod@4.4.3))(zod@4.4.3)
       partyserver:
         specifier: ^0.5.6
         version: 0.5.6(@cloudflare/workers-types@4.20260604.1)
-      zod:
-        specifier: ^4.0.0
-        version: 4.4.3
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20260522.1
