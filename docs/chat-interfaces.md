@@ -56,6 +56,12 @@ Note its host, e.g. `inteligir-party.<acct>.workers.dev`.
 Open the desktop app and copy its **dispatch room code** (the same code used for
 mobile pairing). This is the room the gateway relays into.
 
+Set `DISPATCH_CHAT_SECRET` in the desktop's environment to the **same value** as
+the party's `CHAT_RELAY_SECRET`. The desktop presents it when registering as the
+agent host; without a matching secret the relay won't route chat to it (in
+production — see Security below). In local dev, leave the secret unset
+everywhere and registration stays open.
+
 ### 3. Configure & deploy the gateway (`apps/web`)
 
 Copy `apps/web/.dev.vars.example` → `.dev.vars` for local dev, or set the same
@@ -79,6 +85,21 @@ CHAT_RELAY_SECRET=<same as the party secret>
 | **Discord** | `DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY`, `DISCORD_APPLICATION_ID` | `/api/webhooks/discord` (Interactions endpoint) |
 
 DM the bot, or @-mention it in a channel — it replies with the agent's answer.
+
+## Security
+
+The relay room is reachable by anyone who knows the 6-char room code, so the
+chat bridge authenticates with a shared secret that must match on all three
+sides: the party's `CHAT_RELAY_SECRET`, the gateway's `CHAT_RELAY_SECRET`, and
+the desktop's `DISPATCH_CHAT_SECRET`.
+
+- The gateway's inbound `POST` carries the secret (`x-relay-secret`); the room
+  rejects mismatches, so only your gateway can inject messages.
+- The desktop presents the secret to register as the agent host; only a
+  registered (authenticated) device receives chat messages and can resolve a
+  reply — a room intruder can't impersonate the desktop or forge replies.
+- **Set the secret in production.** When `CHAT_RELAY_SECRET` is unset the relay
+  leaves registration open for local dev — don't deploy that way.
 
 ## Limitations (v1)
 

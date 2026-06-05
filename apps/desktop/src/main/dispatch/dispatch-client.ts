@@ -17,6 +17,10 @@ import { DISPATCH_INITIAL_STATE } from "@/shared/dispatch";
 import type { AppAgentEvent } from "@/shared/agent-events";
 
 const PARTY_HOST = process.env["DISPATCH_PARTY_HOST"] ?? DEFAULT_PARTY_HOST;
+// Shared secret proving this client is the authorized agent host. Must match
+// the party room's CHAT_RELAY_SECRET (and the gateway's). Empty in dev, where
+// the relay leaves registration open.
+const CHAT_SECRET = process.env["DISPATCH_CHAT_SECRET"] ?? "";
 
 const roomStore = new JsonStore<string | null>(
   inteligirPath("dispatch-room.json"),
@@ -72,7 +76,7 @@ function connectToRoom(roomCode: string): void {
     if (!attempt.isCurrent()) return;
     // Identify as a real agent host so the chat relay targets this socket (and
     // fails fast when no desktop is connected). Re-sent on every reconnect.
-    partySocket?.send(encodeMessage("to_mobile", CHAT_DEVICE_REGISTER_TYPE, {}));
+    partySocket?.send(encodeMessage("to_mobile", CHAT_DEVICE_REGISTER_TYPE, { secret: CHAT_SECRET }));
     if (dispatchState.status === "reconnecting") {
       setState({ status: "awaiting_pair", error: null });
     }
