@@ -1,5 +1,5 @@
 {
-  "name": "inteligir-party",
+  "name": "inteligir-server",
   "main": "src/server.ts",
   "compatibility_date": "2024-09-23",
   "compatibility_flags": ["nodejs_compat"],

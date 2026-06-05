@@ -8,7 +8,7 @@
     "dev": "turbo watch dev --continue",
     "dev:web": "turbo watch dev -F @repo/web...",
     "dev:desktop": "turbo watch dev -F @repo/desktop...",
-    "dev:party": "pnpm -F @repo/party dev",
+    "dev:server": "pnpm -F @repo/server dev",
     "lint": "oxlint --report-unused-disable-directives",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt",

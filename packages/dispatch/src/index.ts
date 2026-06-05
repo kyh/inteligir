@@ -27,7 +27,9 @@ export {
   generateRoomCode,
   createRoomConfig,
   PARTY_NAME,
-  DEFAULT_PARTY_HOST,
+  SERVER_PORT,
+  DEFAULT_SERVER_HOST,
+  PRODUCTION_SERVER_HOST,
   type RoomConfig,
 } from "./room";
 

@@ -14,7 +14,7 @@ import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import PartySocket from "partysocket";
 import { parseMessage, encodeMessage, PARTY_NAME } from "@repo/dispatch";
 
-import { getPartyHost } from "@/utils/base-url";
+import { getServerHost } from "@/utils/base-url";
 import { clearSession } from "@/utils/session-store";
 
 type AgentEvent = { type: string; [key: string]: unknown };
@@ -40,7 +40,7 @@ export default function DispatchScreen() {
     if (!roomCode) return;
 
     const ws = new PartySocket({
-      host: getPartyHost(),
+      host: getServerHost(),
       party: PARTY_NAME,
       room: roomCode,
     });
