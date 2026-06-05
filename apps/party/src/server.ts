@@ -46,14 +46,16 @@ export class DispatchServer extends Server<Env> {
       const parsed = parseMessage(message);
 
       // Registration handshake: mark this socket as a real agent host so the
-      // chat relay can target it. Gated on the shared secret so a peer that
-      // merely knows the room code can't register as the desktop, intercept
-      // inbound chat messages, or forge replies. When no secret is configured
-      // (local dev) registration is open — set CHAT_RELAY_SECRET in production.
+      // chat relay can target it. Fail closed — a non-empty CHAT_RELAY_SECRET
+      // must be configured and match, so a peer that merely knows the room code
+      // can't register as the desktop, intercept inbound chat messages, or forge
+      // replies. No secret ⇒ no device registers ⇒ inbound chat returns
+      // no_device rather than running unauthenticated (set the secret to enable
+      // chat, including in local dev).
       if (parsed?.type === CHAT_DEVICE_REGISTER_TYPE) {
         const secret = this.env.CHAT_RELAY_SECRET;
         const provided = (parsed.payload as { secret?: unknown }).secret;
-        if (!secret || provided === secret) {
+        if (secret && provided === secret) {
           sender.setState({ device: true });
         }
         return;

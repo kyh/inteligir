@@ -2,9 +2,10 @@
 # never commit). In production set each with `wrangler secret put <NAME>`.
 
 # --- Bridge ---
-# Shared secret. Must match the desktop's DISPATCH_CHAT_SECRET. The desktop
-# presents it to register as the agent host; leave empty to disable the check
-# (local dev only — set it in production).
+# Shared secret authenticating the desktop as the agent host. REQUIRED to enable
+# chat (fail closed): set a non-empty value that matches the desktop's
+# DISPATCH_CHAT_SECRET. If empty, no device registers and inbound chat returns
+# no_device — true in local dev too.
 CHAT_RELAY_SECRET=""
 # The desktop's dispatch room code (shown in the Inteligir desktop app).
 CHAT_RELAY_ROOM=""

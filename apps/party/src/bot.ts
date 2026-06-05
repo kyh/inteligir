@@ -44,7 +44,10 @@ function create(env: Env): Chat {
             }),
           }
         : {}),
-      ...(env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID
+      ...(env.WHATSAPP_ACCESS_TOKEN &&
+      env.WHATSAPP_APP_SECRET &&
+      env.WHATSAPP_PHONE_NUMBER_ID &&
+      env.WHATSAPP_VERIFY_TOKEN
         ? {
             whatsapp: createWhatsAppAdapter({
               accessToken: env.WHATSAPP_ACCESS_TOKEN,
@@ -54,7 +57,7 @@ function create(env: Env): Chat {
             }),
           }
         : {}),
-      ...(env.DISCORD_BOT_TOKEN && env.DISCORD_PUBLIC_KEY
+      ...(env.DISCORD_BOT_TOKEN && env.DISCORD_PUBLIC_KEY && env.DISCORD_APPLICATION_ID
         ? {
             discord: createDiscordAdapter({
               botToken: env.DISCORD_BOT_TOKEN,

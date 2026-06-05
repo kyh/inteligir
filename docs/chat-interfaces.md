@@ -45,7 +45,8 @@ Open the desktop app and copy its **dispatch room code** (the same code used for
 mobile pairing). Set it as `CHAT_RELAY_ROOM` on the worker (below). Set
 `DISPATCH_CHAT_SECRET` in the desktop's environment to the same value as the
 worker's `CHAT_RELAY_SECRET` — the desktop presents it to register as the agent
-host. In local dev, leave both unset and registration stays open.
+host. This secret is **required** (including in local dev): without it no device
+registers and inbound chat returns `no_device`.
 
 ### 2. Configure & deploy the party worker
 
@@ -84,8 +85,10 @@ the worker's `CHAT_RELAY_SECRET` and the desktop's `DISPATCH_CHAT_SECRET`.
   reply — a room intruder can't impersonate the desktop or forge replies.
 - The internal relay call from the gateway handler to the DO carries the secret
   too.
-- **Set the secret in production.** When `CHAT_RELAY_SECRET` is unset the relay
-  leaves registration open for local dev — don't deploy that way.
+- **Fail closed.** Registration requires a non-empty, matching secret. When it's
+  unset no device registers and inbound chat returns `no_device` — so a
+  misconfigured deploy is unreachable rather than unauthenticated. Set the secret
+  (on the worker and the desktop) to enable chat, in every environment.
 
 ## Limitations (v1)
 

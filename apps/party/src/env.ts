@@ -5,8 +5,11 @@ export type Env = {
   DispatchServer: DurableObjectNamespace<DispatchServer>;
 
   // --- Chat bridge ---
-  /** Shared secret: the desktop presents it to register, and it gates the
-   * internal relay call. Open registration when unset (local dev only). */
+  /** Shared secret that authenticates the desktop as the agent host. Required
+   * to enable chat (fail closed): a non-empty value must match the desktop's
+   * DISPATCH_CHAT_SECRET, otherwise no device registers and inbound chat returns
+   * no_device. Optional at the type level only because the binding may be
+   * absent. */
   CHAT_RELAY_SECRET?: string;
   /** Desktop dispatch room code the gateway relays into. */
   CHAT_RELAY_ROOM?: string;
