@@ -80,6 +80,7 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
   // so we can't miss the assistant message or agent_end.
   let assistantText = "";
   let errorMessage: string | null = null;
+  let sawToolCall = false;
   let resolveEnd: () => void;
   const ended = new Promise<void>((resolve) => {
     resolveEnd = resolve;
@@ -89,6 +90,9 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
     const event = parseAgentEvent(raw);
     if (!event) return;
     switch (event.type) {
+      case "tool_execution_start":
+        sawToolCall = true;
+        break;
       case "message_end":
         if (event.role === "assistant") {
           if (event.text) assistantText = event.text;
@@ -96,9 +100,6 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
             errorMessage = event.errorMessage ?? "the model returned an error";
           }
         }
-        break;
-      case "turn_error":
-        errorMessage = event.reason;
         break;
       case "agent_end":
         resolveEnd();
@@ -126,7 +127,21 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
       sendChatReply(correlationId, `The agent hit an error: ${errorMessage}`);
       return;
     }
-    sendChatReply(correlationId, assistantText.trim() ? assistantText : "(no response)");
+    if (assistantText.trim()) {
+      sendChatReply(correlationId, assistantText);
+      return;
+    }
+    // No assistant text and no tool call ≈ an upstream/auth failure pi swallowed
+    // as success (mirrors app-machine's synthetic turn_error). Surface it rather
+    // than a bare "(no response)".
+    if (!sawToolCall) {
+      sendChatReply(
+        correlationId,
+        "The model returned no response — the upstream call may have failed. Make sure Inteligir is authenticated, then try again.",
+      );
+      return;
+    }
+    sendChatReply(correlationId, "(no response)");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     sendChatReply(correlationId, `Something went wrong: ${message}`);
