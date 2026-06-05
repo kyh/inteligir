@@ -20,6 +20,7 @@ packages/
 
 Architecture-level docs live next to the code:
 
+- [`docs/chat-interfaces.md`](./docs/chat-interfaces.md) — chat with the agent from Slack/Telegram/WhatsApp/Discord (Chat SDK gateway + party relay bridge)
 - [`apps/desktop/README.md`](./apps/desktop/README.md) — process boundary, IPC, lifecycle, "where do I add X?"
 - [`apps/desktop/src/main/README.md`](./apps/desktop/src/main/README.md) — state machine triad (reducer/effects/machine)
 - [`apps/desktop/src/agent/README.md`](./apps/desktop/src/agent/README.md) — pi extension bundle pattern

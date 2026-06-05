@@ -1,12 +1,115 @@
-import { Server, type Connection, type WSMessage } from "partyserver";
+import { routePartykitRequest, Server, type Connection, type WSMessage } from "partyserver";
+import {
+  CHAT_MESSAGE_TYPE,
+  CHAT_REPLY_TYPE,
+  encodeMessage,
+  parseChatReply,
+  parseMessage,
+} from "@repo/dispatch";
 
-export class DispatchServer extends Server {
-  onMessage(sender: Connection, message: WSMessage) {
-    // Relay to all other connections in the room
+type Env = {
+  DispatchServer: DurableObjectNamespace;
+  /** Optional shared secret the chat gateway must present on inbound POSTs. */
+  CHAT_RELAY_SECRET?: string;
+};
+
+/** How long the gateway's inbound POST waits for the desktop to answer before
+ * giving up. The desktop runs a full agent turn, which can be slow. */
+const REPLY_TIMEOUT_MS = 120_000;
+
+/**
+ * Dispatch relay room. Two roles share a room:
+ *
+ *  - **WebSocket clients** (the desktop, the mobile app) connect and exchange
+ *    ephemeral relay traffic. `onMessage` forwards each message to every other
+ *    connection — the original mobile ↔ desktop behaviour.
+ *
+ *  - **HTTP POST** (the Chat SDK gateway in @repo/web) injects a `chat_message`
+ *    via `onRequest` and blocks until the desktop replies with a matching
+ *    `chat_reply`. This makes the room a correlated request/response bridge for
+ *    external messaging interfaces, not just a fire-and-forget relay.
+ */
+export class DispatchServer extends Server<Env> {
+  /** correlationId -> resolver for an in-flight gateway POST awaiting a reply. */
+  private readonly pending = new Map<string, (text: string) => void>();
+
+  onMessage(sender: Connection, message: WSMessage): void {
+    // Intercept chat replies from the desktop and resolve the waiting HTTP
+    // request instead of relaying them to other sockets.
+    if (typeof message === "string") {
+      const parsed = parseMessage(message);
+      if (parsed?.type === CHAT_REPLY_TYPE) {
+        const reply = parseChatReply(parsed.payload);
+        if (reply) {
+          const resolve = this.pending.get(reply.correlationId);
+          if (resolve) {
+            this.pending.delete(reply.correlationId);
+            resolve(reply.text);
+            return;
+          }
+        }
+      }
+    }
+
+    // Default behaviour: relay to all other connections in the room.
     for (const conn of this.getConnections()) {
       if (conn.id !== sender.id) {
         conn.send(message);
       }
     }
   }
+
+  async onRequest(request: Request): Promise<Response> {
+    if (request.method !== "POST") {
+      return new Response("Method not allowed", { status: 405 });
+    }
+
+    const secret = this.env.CHAT_RELAY_SECRET;
+    if (secret && request.headers.get("x-relay-secret") !== secret) {
+      return Response.json({ error: "unauthorized" }, { status: 401 });
+    }
+
+    let body: { text?: unknown; conversation?: unknown };
+    try {
+      body = (await request.json()) as typeof body;
+    } catch {
+      return Response.json({ error: "invalid_json" }, { status: 400 });
+    }
+
+    const text = typeof body.text === "string" ? body.text : "";
+    if (!text) return Response.json({ error: "missing_text" }, { status: 400 });
+
+    const devices = [...this.getConnections()];
+    if (devices.length === 0) {
+      return Response.json({ error: "no_device" }, { status: 503 });
+    }
+
+    const correlationId = crypto.randomUUID();
+    const envelope = encodeMessage("to_device", CHAT_MESSAGE_TYPE, {
+      correlationId,
+      text,
+      conversation: (body.conversation ?? undefined) as Record<string, unknown> | undefined,
+    });
+    for (const conn of devices) conn.send(envelope);
+
+    const replyPromise = new Promise<string>((resolve) => {
+      this.pending.set(correlationId, resolve);
+    });
+    const timeoutPromise = new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), REPLY_TIMEOUT_MS);
+    });
+
+    const reply = await Promise.race([replyPromise, timeoutPromise]);
+    this.pending.delete(correlationId);
+
+    if (reply === null) return Response.json({ error: "timeout" }, { status: 504 });
+    return Response.json({ text: reply });
+  }
 }
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const routed = await routePartykitRequest(request, env as unknown as Record<string, unknown>);
+    return routed ?? new Response("Not found", { status: 404 });
+  },
+};

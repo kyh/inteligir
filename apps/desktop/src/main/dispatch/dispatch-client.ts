@@ -7,6 +7,7 @@ import {
   parseMessage,
   encodeMessage,
   createConnectionAttemptRegistry,
+  CHAT_REPLY_TYPE,
 } from "@repo/dispatch";
 import { broadcast } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
@@ -85,6 +86,17 @@ export async function sendDispatchResponse(event: AppAgentEvent): Promise<void> 
   if (!partySocket || partySocket.readyState !== WebSocket.OPEN) return;
   const payload = event as Record<string, unknown>;
   partySocket.send(encodeMessage("to_mobile", event.type, payload));
+}
+
+/**
+ * Answer a relayed `chat_message` with the agent's final text. The party room
+ * matches this back to the waiting gateway request by `correlationId`. No-op
+ * when disconnected — the gateway request will time out and surface an error
+ * to the user on the messaging platform.
+ */
+export function sendChatReply(correlationId: string, text: string): void {
+  if (!partySocket || partySocket.readyState !== WebSocket.OPEN) return;
+  partySocket.send(encodeMessage("to_mobile", CHAT_REPLY_TYPE, { correlationId, text }));
 }
 
 export function initDispatch(

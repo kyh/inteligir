@@ -10,18 +10,27 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@chat-adapter/discord": "^4.30.0",
+    "@chat-adapter/slack": "^4.30.0",
+    "@chat-adapter/state-memory": "^4.30.0",
+    "@chat-adapter/telegram": "^4.30.0",
+    "@chat-adapter/whatsapp": "^4.30.0",
     "@repo/api": "workspace:*",
     "@repo/db": "workspace:*",
+    "@repo/dispatch": "workspace:*",
     "@repo/ui": "workspace:*",
     "@sinclair/typebox": "catalog:",
     "@tanstack/react-form": "catalog:",
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
+    "ai": "^6.0.182",
     "better-auth": "catalog:",
+    "chat": "^4.30.0",
     "lucide-react": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "sonner": "^2.0.7"
+    "sonner": "^2.0.7",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "catalog:",

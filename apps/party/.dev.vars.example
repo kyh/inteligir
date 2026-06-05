@@ -1,0 +1,6 @@
+# Party relay secrets for `wrangler dev` (copy to .dev.vars; never commit).
+# In production: `wrangler secret put CHAT_RELAY_SECRET`.
+
+# Shared secret the chat gateway (@repo/web) must present on inbound POSTs.
+# Must match CHAT_RELAY_SECRET in apps/web. Leave empty to disable the check.
+CHAT_RELAY_SECRET=""

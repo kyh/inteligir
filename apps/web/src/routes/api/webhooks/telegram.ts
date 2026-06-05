@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { getServerContext } from "@/auth/server";
+import { getBot } from "@/server/chat/bot";
 
 function handler({ request }: { request: Request }) {
-  const { auth } = getServerContext();
-  return auth.handler(request);
+  return getBot().webhooks.telegram(request);
 }
 
-export const Route = createFileRoute("/api/auth/$")({
+export const Route = createFileRoute("/api/webhooks/telegram")({
   server: {
     handlers: {
       GET: handler,
