@@ -125,11 +125,13 @@ export class DispatchServer extends Server<Env> {
     const replyPromise = new Promise<string>((resolve) => {
       this.pending.set(correlationId, resolve);
     });
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     const timeoutPromise = new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), REPLY_TIMEOUT_MS);
+      timeoutId = setTimeout(() => resolve(null), REPLY_TIMEOUT_MS);
     });
 
     const reply = await Promise.race([replyPromise, timeoutPromise]);
+    if (timeoutId) clearTimeout(timeoutId);
     this.pending.delete(correlationId);
 
     if (reply === null) return Response.json({ error: "timeout" }, { status: 504 });
@@ -142,18 +144,23 @@ export default {
     const { pathname } = new URL(request.url);
 
     // Chat SDK gateway: platform webhooks land here and are bridged to the
-    // desktop agent over the dispatch relay (same worker, same room).
-    switch (pathname) {
-      case "/api/webhooks/slack":
-        return getBot(env).webhooks.slack(request);
-      case "/api/webhooks/telegram":
-        return getBot(env).webhooks.telegram(request);
-      case "/api/webhooks/whatsapp":
-        return getBot(env).webhooks.whatsapp(request);
-      case "/api/webhooks/discord":
-        return getBot(env).webhooks.discord(request);
-      case "/api/discord/gateway":
-        return discordGateway(request, env);
+    // desktop agent over the dispatch relay (same worker, same room). Only
+    // configured platforms have a handler; others 404 rather than throw.
+    const webhookMatch = pathname.match(/^\/api\/webhooks\/(slack|telegram|whatsapp|discord)$/);
+    if (webhookMatch) {
+      const platform = webhookMatch[1]!;
+      const webhooks = getBot(env).webhooks as unknown as Record<
+        string,
+        ((request: Request) => Response | Promise<Response>) | undefined
+      >;
+      const handler = webhooks[platform];
+      if (!handler) {
+        return new Response(`${platform} adapter not configured`, { status: 404 });
+      }
+      return handler(request);
+    }
+    if (pathname === "/api/discord/gateway") {
+      return discordGateway(request, env);
     }
 
     const routed = await routePartykitRequest(request, env as unknown as Record<string, unknown>);
@@ -175,12 +182,15 @@ async function discordGateway(request: Request, env: Env): Promise<Response> {
   if (request.headers.get("authorization") !== `Bearer ${env.CRON_SECRET}`) {
     return new Response("Unauthorized", { status: 401 });
   }
-  const webhookUrl = `https://${new URL(request.url).host}/api/webhooks/discord`;
-  const discord = getBot(env).getAdapter("discord") as unknown as {
-    startGatewayListener?: (webhookUrl: string) => Promise<Response> | Response;
-  };
-  if (typeof discord.startGatewayListener !== "function") {
+  let discord: { startGatewayListener?: (webhookUrl: string) => Promise<Response> | Response } | undefined;
+  try {
+    discord = getBot(env).getAdapter("discord") as unknown as typeof discord;
+  } catch {
+    discord = undefined;
+  }
+  if (!discord || typeof discord.startGatewayListener !== "function") {
     return new Response("Discord gateway listener unavailable", { status: 501 });
   }
+  const webhookUrl = `https://${new URL(request.url).host}/api/webhooks/discord`;
   return discord.startGatewayListener(webhookUrl);
 }

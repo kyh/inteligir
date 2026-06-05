@@ -24,27 +24,45 @@ let cached: Chat | null = null;
 function create(env: Env): Chat {
   const bot = new Chat({
     userName: env.CHAT_BOT_USERNAME || "inteligir",
+    // Register only platforms that are actually configured — a missing
+    // credential for one platform must not break the others' webhook routes.
     adapters: {
-      slack: createSlackAdapter({
-        botToken: env.SLACK_BOT_TOKEN,
-        signingSecret: env.SLACK_SIGNING_SECRET,
-      }),
-      telegram: createTelegramAdapter({
-        botToken: env.TELEGRAM_BOT_TOKEN,
-        secretToken: env.TELEGRAM_WEBHOOK_SECRET_TOKEN,
-        mode: "webhook",
-      }),
-      whatsapp: createWhatsAppAdapter({
-        accessToken: env.WHATSAPP_ACCESS_TOKEN,
-        appSecret: env.WHATSAPP_APP_SECRET,
-        phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
-        verifyToken: env.WHATSAPP_VERIFY_TOKEN,
-      }),
-      discord: createDiscordAdapter({
-        botToken: env.DISCORD_BOT_TOKEN,
-        publicKey: env.DISCORD_PUBLIC_KEY,
-        applicationId: env.DISCORD_APPLICATION_ID,
-      }),
+      ...(env.SLACK_BOT_TOKEN && env.SLACK_SIGNING_SECRET
+        ? {
+            slack: createSlackAdapter({
+              botToken: env.SLACK_BOT_TOKEN,
+              signingSecret: env.SLACK_SIGNING_SECRET,
+            }),
+          }
+        : {}),
+      ...(env.TELEGRAM_BOT_TOKEN
+        ? {
+            telegram: createTelegramAdapter({
+              botToken: env.TELEGRAM_BOT_TOKEN,
+              secretToken: env.TELEGRAM_WEBHOOK_SECRET_TOKEN,
+              mode: "webhook",
+            }),
+          }
+        : {}),
+      ...(env.WHATSAPP_ACCESS_TOKEN && env.WHATSAPP_PHONE_NUMBER_ID
+        ? {
+            whatsapp: createWhatsAppAdapter({
+              accessToken: env.WHATSAPP_ACCESS_TOKEN,
+              appSecret: env.WHATSAPP_APP_SECRET,
+              phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID,
+              verifyToken: env.WHATSAPP_VERIFY_TOKEN,
+            }),
+          }
+        : {}),
+      ...(env.DISCORD_BOT_TOKEN && env.DISCORD_PUBLIC_KEY
+        ? {
+            discord: createDiscordAdapter({
+              botToken: env.DISCORD_BOT_TOKEN,
+              publicKey: env.DISCORD_PUBLIC_KEY,
+              applicationId: env.DISCORD_APPLICATION_ID,
+            }),
+          }
+        : {}),
     },
     state: createMemoryState(),
   });
