@@ -1,7 +1,28 @@
-import { drizzle } from "drizzle-orm/d1";
+import { createClient } from "@libsql/client";
+import { drizzle } from "drizzle-orm/libsql";
+
 import * as schemaAuth from "./drizzle-schema-auth";
 
-export const createDb = (d1: D1Database) =>
-  drizzle(d1, { schema: { ...schemaAuth }, casing: "snake_case" });
+type Db = ReturnType<typeof drizzle<typeof schemaAuth>>;
 
-export type Db = ReturnType<typeof createDb>;
+let cached: Db | null = null;
+
+export function getDb(): Db {
+  if (cached) return cached;
+  const url = process.env["TURSO_DATABASE_URL"];
+  if (!url) {
+    throw new Error("TURSO_DATABASE_URL is not set");
+  }
+  const client = createClient({
+    url,
+    authToken: process.env["TURSO_AUTH_TOKEN"],
+  });
+  cached = drizzle({
+    client,
+    schema: { ...schemaAuth },
+    casing: "snake_case",
+  });
+  return cached;
+}
+
+export type { Db };

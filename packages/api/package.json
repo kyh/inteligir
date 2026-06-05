@@ -15,10 +15,10 @@
   "dependencies": {
     "@repo/db": "workspace:^",
     "better-auth": "catalog:",
+    "next": "catalog:",
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20250525.0",
     "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"

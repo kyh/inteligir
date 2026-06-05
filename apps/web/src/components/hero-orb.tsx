@@ -1,21 +1,17 @@
+"use client";
+
 import { useEffect, useState } from "react";
+import { useTheme } from "next-themes";
 
 import { GeometricOrb } from "@repo/ui/components/geometric-orb";
 
 export function HeroOrb() {
-  const [isDark, setIsDark] = useState(true);
+  const { resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  useEffect(() => {
-    setIsDark(document.documentElement.classList.contains("dark"));
-    const observer = new MutationObserver(() => {
-      setIsDark(document.documentElement.classList.contains("dark"));
-    });
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-    return () => observer.disconnect();
-  }, []);
-
-  return <GeometricOrb status="starting" baseColor={isDark ? "#eeeeee" : "#0a0a0a"} />;
+  // Default to the dark-mode base before mount (matches the default theme),
+  // then track the resolved theme so the orb stays legible on either bg.
+  const dark = !mounted || resolvedTheme === "dark";
+  return <GeometricOrb status="starting" baseColor={dark ? "#eeeeee" : "#0a0a0a"} />;
 }
