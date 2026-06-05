@@ -482,6 +482,10 @@ app
           break;
         }
         case "interrupt":
+          // An external chat turn owns the session and self-aborts at its own
+          // timeout; a mobile interrupt mid-turn would abort it early and post a
+          // partial/empty reply to the platform. Defer like the other controls.
+          if (isChatTurnActive()) break;
           void agent.interrupt();
           break;
       }
