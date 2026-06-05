@@ -9,22 +9,29 @@ Turborepo monorepo with Next.js marketing site + shared packages.
 ## Tech Stack
 
 - **Monorepo**: Turborepo + pnpm workspaces
-- **Frontend**: Next.js 15, React 19, Tailwind CSS 4
-- **API**: tRPC, better-auth
-- **Database**: Supabase + Drizzle ORM + PostgreSQL
+- **Frontend**: Next.js 15, React 19, Tailwind CSS 4 (static marketing site, no backend)
 - **UI**: shadcn/ui (Base UI), lucide-react, vaul, sonner
-- **Desktop** (planned): Electron + electron-vite
-- **AI Agent** (planned): pi coding agent framework (RPC mode)
+- **Desktop**: Electron + electron-vite (@repo/desktop) — the actual product
+- **Mobile**: Expo (@repo/mobile) — remote surface, pairs to desktop
+- **Transport**: partyserver Worker (@repo/party) — WebSocket relay, mobile↔desktop
+- **AI Agent**: pi coding agent framework (@mariozechner/pi-coding-agent)
+
+The agent runs locally in the desktop app. There is no server-side API or
+database — auth is provider OAuth (OpenAI), handled by pi on-device.
 
 ## Workspace Structure
 
 ```
 apps/
-  web/           # Marketing site + docs (@repo/web)
+  web/           # Static marketing site (@repo/web) — landing page only
+  desktop/       # Electron app — agent UI, voice, extensions (@repo/desktop)
+  mobile/        # Expo app — remote surface, pairs to desktop (@repo/mobile)
+  party/         # partyserver Worker — WS relay, mobile↔desktop (@repo/party)
 packages/
-  api/           # tRPC routers, auth (@repo/api)
-  db/            # Drizzle schema, Supabase (@repo/db)
   ui/            # Shared UI components (@repo/ui)
+  agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
+  pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
+  dispatch/      # Shared mobile↔desktop message types (@repo/dispatch)
 ```
 
 ## Common Commands
@@ -39,13 +46,6 @@ pnpm lint             # Lint all
 pnpm lint:fix         # Lint fix all
 pnpm format           # Format check
 pnpm format:fix       # Format fix
-
-# Database
-pnpm db:start         # Start local Supabase
-pnpm db:stop          # Stop local Supabase
-pnpm db:push          # Push schema to local
-pnpm db:push-remote   # Push schema to prod
-pnpm db:reset         # Reset local DB
 ```
 
 ## Desktop Debugging

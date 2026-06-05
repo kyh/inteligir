@@ -1,14 +1,15 @@
 {
   "extends": "@kyh/tsconfig/base.json",
   "compilerOptions": {
-    "lib": ["ES2023", "DOM", "DOM.Iterable"],
-    "jsx": "react-jsx",
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "preserve",
     "paths": {
       "@/*": ["./src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     },
-    "types": ["vite/client", "@cloudflare/workers-types/2023-07-01"]
+    "plugins": [{ "name": "next" }],
+    "module": "esnext"
   },
-  "include": ["src", "env.d.ts", "vite.config.ts"],
+  "include": [".", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }
