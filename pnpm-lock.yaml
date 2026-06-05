@@ -302,25 +302,6 @@ importers:
 
   apps/party:
     dependencies:
-      '@repo/dispatch':
-        specifier: workspace:*
-        version: link:../../packages/dispatch
-      partyserver:
-        specifier: ^0.5.6
-        version: 0.5.6(@cloudflare/workers-types@4.20260604.1)
-    devDependencies:
-      '@cloudflare/workers-types':
-        specifier: ^4.20260522.1
-        version: 4.20260604.1
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-      wrangler:
-        specifier: ^4.93.1
-        version: 4.97.0(@cloudflare/workers-types@4.20260604.1)
-
-  apps/web:
-    dependencies:
       '@chat-adapter/discord':
         specifier: ^4.30.0
         version: 4.30.0(ai@6.0.191(zod@4.4.3))(zod@4.4.3)
@@ -336,15 +317,40 @@ importers:
       '@chat-adapter/whatsapp':
         specifier: ^4.30.0
         version: 4.30.0(ai@6.0.191(zod@4.4.3))(zod@4.4.3)
+      '@repo/dispatch':
+        specifier: workspace:*
+        version: link:../../packages/dispatch
+      ai:
+        specifier: ^6.0.182
+        version: 6.0.191(zod@4.4.3)
+      chat:
+        specifier: ^4.30.0
+        version: 4.30.0(ai@6.0.191(zod@4.4.3))(zod@4.4.3)
+      partyserver:
+        specifier: ^0.5.6
+        version: 0.5.6(@cloudflare/workers-types@4.20260604.1)
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^4.20260522.1
+        version: 4.20260604.1
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      wrangler:
+        specifier: ^4.93.1
+        version: 4.97.0(@cloudflare/workers-types@4.20260604.1)
+
+  apps/web:
+    dependencies:
       '@repo/api':
         specifier: workspace:*
         version: link:../../packages/api
       '@repo/db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@repo/dispatch':
-        specifier: workspace:*
-        version: link:../../packages/dispatch
       '@repo/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -360,15 +366,9 @@ importers:
       '@tanstack/react-start':
         specifier: 'catalog:'
         version: 1.168.19(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.44.1)(tsx@4.22.3)(yaml@2.9.0))
-      ai:
-        specifier: ^6.0.182
-        version: 6.0.191(zod@4.4.3)
       better-auth:
         specifier: 'catalog:'
         version: 1.6.11(88bc41cc1f04f016e7780dbdecd938ff)
-      chat:
-        specifier: ^4.30.0
-        version: 4.30.0(ai@6.0.191(zod@4.4.3))(zod@4.4.3)
       lucide-react:
         specifier: 'catalog:'
         version: 1.16.0(react@19.2.6)
@@ -381,9 +381,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      zod:
-        specifier: ^4.0.0
-        version: 4.4.3
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: 'catalog:'

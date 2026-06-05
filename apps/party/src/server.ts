@@ -8,15 +8,12 @@ import {
   parseMessage,
 } from "@repo/dispatch";
 
+import { getBot } from "./bot";
+import type { Env } from "./env";
+
 /** Connection state — `device: true` marks a real agent host (the desktop),
  * stored on the connection so it survives Durable Object hibernation. */
 type ConnState = { device?: boolean };
-
-type Env = {
-  DispatchServer: DurableObjectNamespace;
-  /** Optional shared secret the chat gateway must present on inbound POSTs. */
-  CHAT_RELAY_SECRET?: string;
-};
 
 /** How long the gateway's inbound POST waits for the desktop to answer before
  * giving up. Must exceed the desktop's per-turn budget (120s) plus its
@@ -107,10 +104,13 @@ export class DispatchServer extends Server<Env> {
     const text = typeof body.text === "string" ? body.text : "";
     if (!text) return Response.json({ error: "missing_text" }, { status: 400 });
 
-    // Only registered desktops can answer — a paired mobile client in the room
-    // would receive (and ignore) chat messages, blocking until timeout.
-    const devices = [...this.getConnections<ConnState>()].filter((c) => c.state?.device);
-    if (devices.length === 0) {
+    // Only a registered desktop can answer — a paired mobile client in the room
+    // would receive (and ignore) chat messages, blocking until timeout. Send to
+    // exactly one device: multiple hosts would each run the turn and emit a
+    // chat_reply for the same correlationId (duplicate work; only the first
+    // matches). One agent owns the session, so pick a single connection.
+    const device = [...this.getConnections<ConnState>()].find((c) => c.state?.device);
+    if (!device) {
       return Response.json({ error: "no_device" }, { status: 503 });
     }
 
@@ -120,7 +120,7 @@ export class DispatchServer extends Server<Env> {
       text,
       conversation: (body.conversation ?? undefined) as Record<string, unknown> | undefined,
     });
-    for (const conn of devices) conn.send(envelope);
+    device.send(envelope);
 
     const replyPromise = new Promise<string>((resolve) => {
       this.pending.set(correlationId, resolve);
@@ -139,7 +139,48 @@ export class DispatchServer extends Server<Env> {
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    const { pathname } = new URL(request.url);
+
+    // Chat SDK gateway: platform webhooks land here and are bridged to the
+    // desktop agent over the dispatch relay (same worker, same room).
+    switch (pathname) {
+      case "/api/webhooks/slack":
+        return getBot(env).webhooks.slack(request);
+      case "/api/webhooks/telegram":
+        return getBot(env).webhooks.telegram(request);
+      case "/api/webhooks/whatsapp":
+        return getBot(env).webhooks.whatsapp(request);
+      case "/api/webhooks/discord":
+        return getBot(env).webhooks.discord(request);
+      case "/api/discord/gateway":
+        return discordGateway(request, env);
+    }
+
     const routed = await routePartykitRequest(request, env as unknown as Record<string, unknown>);
     return routed ?? new Response("Not found", { status: 404 });
   },
 };
+
+/**
+ * Discord delivers regular messages over a persistent Gateway WebSocket, which
+ * Cloudflare Workers can't hold open. This route (meant to be hit by a
+ * scheduler, guarded by CRON_SECRET) starts the adapter's gateway listener for
+ * the invocation window — see docs for the Cloudflare caveat. Slack / Telegram
+ * / WhatsApp are plain webhooks and need none of this.
+ */
+async function discordGateway(request: Request, env: Env): Promise<Response> {
+  if (!env.CRON_SECRET) {
+    return new Response("CRON_SECRET not configured", { status: 500 });
+  }
+  if (request.headers.get("authorization") !== `Bearer ${env.CRON_SECRET}`) {
+    return new Response("Unauthorized", { status: 401 });
+  }
+  const webhookUrl = `https://${new URL(request.url).host}/api/webhooks/discord`;
+  const discord = getBot(env).getAdapter("discord") as unknown as {
+    startGatewayListener?: (webhookUrl: string) => Promise<Response> | Response;
+  };
+  if (typeof discord.startGatewayListener !== "function") {
+    return new Response("Discord gateway listener unavailable", { status: 501 });
+  }
+  return discord.startGatewayListener(webhookUrl);
+}

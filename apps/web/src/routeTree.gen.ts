@@ -13,11 +13,6 @@ import { Route as AuthRouteRouteImport } from './routes/auth/route'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthRegisterRouteImport } from './routes/auth/register'
 import { Route as AuthLoginRouteImport } from './routes/auth/login'
-import { Route as ApiWebhooksWhatsappRouteImport } from './routes/api/webhooks/whatsapp'
-import { Route as ApiWebhooksTelegramRouteImport } from './routes/api/webhooks/telegram'
-import { Route as ApiWebhooksSlackRouteImport } from './routes/api/webhooks/slack'
-import { Route as ApiWebhooksDiscordRouteImport } from './routes/api/webhooks/discord'
-import { Route as ApiDiscordGatewayRouteImport } from './routes/api/discord/gateway'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth.$'
 
 const AuthRouteRoute = AuthRouteRouteImport.update({
@@ -40,31 +35,6 @@ const AuthLoginRoute = AuthLoginRouteImport.update({
   path: '/login',
   getParentRoute: () => AuthRouteRoute,
 } as any)
-const ApiWebhooksWhatsappRoute = ApiWebhooksWhatsappRouteImport.update({
-  id: '/api/webhooks/whatsapp',
-  path: '/api/webhooks/whatsapp',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWebhooksTelegramRoute = ApiWebhooksTelegramRouteImport.update({
-  id: '/api/webhooks/telegram',
-  path: '/api/webhooks/telegram',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWebhooksSlackRoute = ApiWebhooksSlackRouteImport.update({
-  id: '/api/webhooks/slack',
-  path: '/api/webhooks/slack',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiWebhooksDiscordRoute = ApiWebhooksDiscordRouteImport.update({
-  id: '/api/webhooks/discord',
-  path: '/api/webhooks/discord',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiDiscordGatewayRoute = ApiDiscordGatewayRouteImport.update({
-  id: '/api/discord/gateway',
-  path: '/api/discord/gateway',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -77,11 +47,6 @@ export interface FileRoutesByFullPath {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/discord/gateway': typeof ApiDiscordGatewayRoute
-  '/api/webhooks/discord': typeof ApiWebhooksDiscordRoute
-  '/api/webhooks/slack': typeof ApiWebhooksSlackRoute
-  '/api/webhooks/telegram': typeof ApiWebhooksTelegramRoute
-  '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -89,11 +54,6 @@ export interface FileRoutesByTo {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/discord/gateway': typeof ApiDiscordGatewayRoute
-  '/api/webhooks/discord': typeof ApiWebhooksDiscordRoute
-  '/api/webhooks/slack': typeof ApiWebhooksSlackRoute
-  '/api/webhooks/telegram': typeof ApiWebhooksTelegramRoute
-  '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -102,37 +62,12 @@ export interface FileRoutesById {
   '/auth/login': typeof AuthLoginRoute
   '/auth/register': typeof AuthRegisterRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
-  '/api/discord/gateway': typeof ApiDiscordGatewayRoute
-  '/api/webhooks/discord': typeof ApiWebhooksDiscordRoute
-  '/api/webhooks/slack': typeof ApiWebhooksSlackRoute
-  '/api/webhooks/telegram': typeof ApiWebhooksTelegramRoute
-  '/api/webhooks/whatsapp': typeof ApiWebhooksWhatsappRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/auth'
-    | '/auth/login'
-    | '/auth/register'
-    | '/api/auth/$'
-    | '/api/discord/gateway'
-    | '/api/webhooks/discord'
-    | '/api/webhooks/slack'
-    | '/api/webhooks/telegram'
-    | '/api/webhooks/whatsapp'
+  fullPaths: '/' | '/auth' | '/auth/login' | '/auth/register' | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/auth'
-    | '/auth/login'
-    | '/auth/register'
-    | '/api/auth/$'
-    | '/api/discord/gateway'
-    | '/api/webhooks/discord'
-    | '/api/webhooks/slack'
-    | '/api/webhooks/telegram'
-    | '/api/webhooks/whatsapp'
+  to: '/' | '/auth' | '/auth/login' | '/auth/register' | '/api/auth/$'
   id:
     | '__root__'
     | '/'
@@ -140,22 +75,12 @@ export interface FileRouteTypes {
     | '/auth/login'
     | '/auth/register'
     | '/api/auth/$'
-    | '/api/discord/gateway'
-    | '/api/webhooks/discord'
-    | '/api/webhooks/slack'
-    | '/api/webhooks/telegram'
-    | '/api/webhooks/whatsapp'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthRouteRoute: typeof AuthRouteRouteWithChildren
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
-  ApiDiscordGatewayRoute: typeof ApiDiscordGatewayRoute
-  ApiWebhooksDiscordRoute: typeof ApiWebhooksDiscordRoute
-  ApiWebhooksSlackRoute: typeof ApiWebhooksSlackRoute
-  ApiWebhooksTelegramRoute: typeof ApiWebhooksTelegramRoute
-  ApiWebhooksWhatsappRoute: typeof ApiWebhooksWhatsappRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -188,41 +113,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthLoginRouteImport
       parentRoute: typeof AuthRouteRoute
     }
-    '/api/webhooks/whatsapp': {
-      id: '/api/webhooks/whatsapp'
-      path: '/api/webhooks/whatsapp'
-      fullPath: '/api/webhooks/whatsapp'
-      preLoaderRoute: typeof ApiWebhooksWhatsappRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/webhooks/telegram': {
-      id: '/api/webhooks/telegram'
-      path: '/api/webhooks/telegram'
-      fullPath: '/api/webhooks/telegram'
-      preLoaderRoute: typeof ApiWebhooksTelegramRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/webhooks/slack': {
-      id: '/api/webhooks/slack'
-      path: '/api/webhooks/slack'
-      fullPath: '/api/webhooks/slack'
-      preLoaderRoute: typeof ApiWebhooksSlackRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/webhooks/discord': {
-      id: '/api/webhooks/discord'
-      path: '/api/webhooks/discord'
-      fullPath: '/api/webhooks/discord'
-      preLoaderRoute: typeof ApiWebhooksDiscordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/discord/gateway': {
-      id: '/api/discord/gateway'
-      path: '/api/discord/gateway'
-      fullPath: '/api/discord/gateway'
-      preLoaderRoute: typeof ApiDiscordGatewayRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -251,11 +141,6 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthRouteRoute: AuthRouteRouteWithChildren,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
-  ApiDiscordGatewayRoute: ApiDiscordGatewayRoute,
-  ApiWebhooksDiscordRoute: ApiWebhooksDiscordRoute,
-  ApiWebhooksSlackRoute: ApiWebhooksSlackRoute,
-  ApiWebhooksTelegramRoute: ApiWebhooksTelegramRoute,
-  ApiWebhooksWhatsappRoute: ApiWebhooksWhatsappRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
