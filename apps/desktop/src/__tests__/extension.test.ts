@@ -58,7 +58,7 @@ describe("runBundleSetups", () => {
     expect(failing).toHaveBeenCalledOnce();
     expect(succeeding).toHaveBeenCalledOnce();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "[agent] broken setup failed (continuing):",
+      "[agent-host] broken setup failed (continuing):",
       expect.any(Error),
     );
   });

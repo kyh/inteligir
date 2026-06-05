@@ -83,6 +83,9 @@ importers:
       '@json-render/react':
         specifier: ^0.19.0
         version: 0.19.0(react@19.2.6)(zod@4.4.3)
+      '@repo/agent-host':
+        specifier: workspace:^
+        version: link:../../packages/agent-host
       '@repo/agent-runtime':
         specifier: workspace:^
         version: link:../../packages/agent-runtime
@@ -334,6 +337,22 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.15)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+
+  packages/agent-host:
+    dependencies:
+      '@repo/pi-driver':
+        specifier: workspace:^
+        version: link:../pi-driver
+    devDependencies:
+      '@kyh/tsconfig':
+        specifier: 'catalog:'
+        version: 1.1.14
+      '@types/node':
+        specifier: 'catalog:'
+        version: 25.9.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

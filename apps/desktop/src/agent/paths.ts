@@ -1,29 +1,36 @@
-// Shared filesystem paths the desktop agent uses. Imported by setup.ts,
-// auth.ts, agent.ts; isolating keeps every other agent/* module from
-// reaching across each other for path constants.
+// Shared filesystem paths the desktop agent uses. The layout + provider/model
+// defaults now live in @repo/agent-host/paths (Electron-free, relocatable via
+// INTELIGIR_HOME) so a headless runner can reuse the exact same structure.
+// This module binds the host paths to the desktop's home (~/.inteligir) and
+// keeps the existing constant names so other agent/* modules don't change.
 
-import { inteligirPath } from "@/main/lib/json-store";
+import {
+  AUTH_PROVIDER as HOST_AUTH_PROVIDER,
+  MODEL_ID as HOST_MODEL_ID,
+  configurePaths as configureHostPaths,
+  resolveAgentPaths,
+} from "@repo/agent-host/paths";
+
+const PATHS = resolveAgentPaths();
 
 /** Provider in pi-ai's model registry. */
-export const AUTH_PROVIDER = "openai-codex";
+export const AUTH_PROVIDER = HOST_AUTH_PROVIDER;
 
 /** Default model id for new sessions. */
-export const MODEL_ID = "gpt-5.5";
+export const MODEL_ID = HOST_MODEL_ID;
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here. */
-export const AGENT_DIR = inteligirPath();
-export const AUTH_PATH = inteligirPath("auth.json");
-export const SESSION_DIR = inteligirPath("sessions");
-export const WORKSPACE_DIR = inteligirPath("workspace");
-export const BIN_DIR = inteligirPath("bin");
-export const EXTENSIONS_DIR = inteligirPath("extensions");
+export const AGENT_DIR = PATHS.agentDir;
+export const AUTH_PATH = PATHS.authPath;
+export const SESSION_DIR = PATHS.sessionDir;
+export const WORKSPACE_DIR = PATHS.workspaceDir;
+export const BIN_DIR = PATHS.binDir;
+export const EXTENSIONS_DIR = PATHS.extensionsDir;
 
 /**
  * Override pi-coding-agent's default getAgentDir() (~/.pi/agent). Must be
  * called once at process startup, before any pi-coding-agent module loads.
- * Lives behind a function so paths.ts has no import-time side effects (which
- * makes tests + reload flows easier to reason about).
  */
 export function configurePaths(): void {
-  process.env["PI_CODING_AGENT_DIR"] = AGENT_DIR;
+  configureHostPaths();
 }
