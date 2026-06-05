@@ -40,6 +40,7 @@ import {
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
 import { handleChatMessage } from "@/main/dispatch/chat-bridge";
+import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { CHAT_MESSAGE_TYPE, parseChatMessage } from "@repo/dispatch";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { initAgentLog } from "@/main/lib/agent-log";
@@ -449,7 +450,16 @@ app
       // requires a live agent and only does fire-and-forget.
       if (msg.type === CHAT_MESSAGE_TYPE) {
         const payload = parseChatMessage(msg.payload);
-        if (payload) handleChatMessage(payload);
+        if (payload) {
+          handleChatMessage(payload);
+        } else {
+          // Reply with an error if we can still recover the correlationId, so
+          // the gateway request resolves instead of waiting out its timeout.
+          const cid = (msg.payload as { correlationId?: unknown }).correlationId;
+          if (typeof cid === "string") {
+            sendChatReply(cid, "Sorry, that message couldn't be processed.");
+          }
+        }
         return;
       }
 

@@ -14,8 +14,12 @@ type Env = {
 };
 
 /** How long the gateway's inbound POST waits for the desktop to answer before
- * giving up. The desktop runs a full agent turn, which can be slow. */
-const REPLY_TIMEOUT_MS = 120_000;
+ * giving up. Must exceed the desktop's per-turn budget (120s) plus its
+ * interrupt-drain grace so a slow-but-completing turn still lands inside the
+ * window. The desktop processes one chat turn at a time and replies to any
+ * message that arrives mid-turn immediately ("busy"), so this only ever covers
+ * a single turn — not a queue backlog. */
+const REPLY_TIMEOUT_MS = 150_000;
 
 /**
  * Dispatch relay room. Two roles share a room:

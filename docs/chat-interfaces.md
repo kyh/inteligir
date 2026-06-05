@@ -82,10 +82,12 @@ DM the bot, or @-mention it in a channel — it replies with the agent's answer.
 
 ## Limitations (v1)
 
-- **Single agent session.** Every interface (and the desktop UI) funnels into the
-  one shared session. External messages are serialized through a queue so replies
-  don't cross, but a message sent while the *desktop user* is mid-turn waits
-  behind them.
+- **Single agent session, one turn at a time.** Every interface (and the desktop
+  UI) funnels into the one shared session. The bridge runs a single chat turn at
+  a time; a message that arrives mid-turn gets an immediate "busy" reply rather
+  than being queued, which keeps replies from crossing conversations and keeps
+  the gateway request short. A turn started by the *desktop user* still occupies
+  the session.
 - **Single user / one room.** The gateway relays into one configured desktop
   room. Multi-user routing (per-conversation pairing) is not implemented yet.
 - **Discord messages need the Gateway.** The Interactions webhook handles
@@ -97,5 +99,6 @@ DM the bot, or @-mention it in a channel — it replies with the agent's answer.
 - **Slack 3s retry.** A slow agent turn can exceed Slack's retry window. For
   production, add a persistent Chat SDK state adapter (Redis/Postgres) so retried
   events dedupe across requests instead of the in-memory default.
-- **Reply latency.** The gateway holds the webhook request open for up to 120s
-  while the desktop runs the turn (matching the party room's reply timeout).
+- **Reply latency.** The gateway holds the webhook request open while the desktop
+  runs the turn — up to ~120s per turn, with the party room's reply timeout
+  (150s) giving margin for the turn plus its interrupt-drain.
