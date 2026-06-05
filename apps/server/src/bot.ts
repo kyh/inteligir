@@ -20,8 +20,37 @@ import type { Env } from "./env";
 const FALLBACK = "Inteligir is offline right now — please try again in a moment.";
 
 let cached: Chat | null = null;
+let cachedKey: string | null = null;
+// Persist webhook-dedup state across rebuilds. Rebuilding the bot on a config
+// change must NOT drop the Chat SDK's processed-event store, or Slack's 3s
+// retries (etc.) would be reprocessed. The state outlives any single `Chat`.
+let sharedState: ReturnType<typeof createMemoryState> | null = null;
+
+/** Signature of the env values that shape the bot and its relay handlers. The
+ * bot is cached per isolate; if these ever differ from the cached snapshot
+ * (e.g. a rotated secret seen by a warm isolate) we rebuild instead of serving
+ * stale credentials. */
+function configKey(env: Env): string {
+  return JSON.stringify([
+    env.CHAT_BOT_USERNAME,
+    env.SLACK_BOT_TOKEN,
+    env.SLACK_SIGNING_SECRET,
+    env.TELEGRAM_BOT_TOKEN,
+    env.TELEGRAM_WEBHOOK_SECRET_TOKEN,
+    env.WHATSAPP_ACCESS_TOKEN,
+    env.WHATSAPP_APP_SECRET,
+    env.WHATSAPP_PHONE_NUMBER_ID,
+    env.WHATSAPP_VERIFY_TOKEN,
+    env.DISCORD_BOT_TOKEN,
+    env.DISCORD_PUBLIC_KEY,
+    env.DISCORD_APPLICATION_ID,
+    env.CHAT_RELAY_SECRET,
+    env.CHAT_RELAY_ROOM,
+  ]);
+}
 
 function create(env: Env): Chat {
+  sharedState ??= createMemoryState();
   const bot = new Chat({
     userName: env.CHAT_BOT_USERNAME || "inteligir",
     // Register only platforms that are actually configured — a missing
@@ -67,7 +96,7 @@ function create(env: Env): Chat {
           }
         : {}),
     },
-    state: createMemoryState(),
+    state: sharedState,
   });
 
   const handle = makeHandler(env);
@@ -77,9 +106,14 @@ function create(env: Env): Chat {
   return bot;
 }
 
-/** Lazily constructed, cached for the lifetime of the isolate. */
+/** Lazily constructed and cached per isolate, rebuilt only if the relevant env
+ * signature changes (dedup state is preserved across rebuilds). */
 export function getBot(env: Env): Chat {
-  if (!cached) cached = create(env);
+  const key = configKey(env);
+  if (!cached || key !== cachedKey) {
+    cached = create(env);
+    cachedKey = key;
+  }
   return cached;
 }
 
