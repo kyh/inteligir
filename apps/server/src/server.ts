@@ -67,6 +67,12 @@ export class DispatchServer extends Server<Env> {
             }
           }
           sender.setState({ device: true });
+        } else {
+          // A register attempt that fails to authenticate revokes this socket's
+          // device status. Without this, a secret rotation or a desktop that
+          // reconnects with a now-wrong secret would keep an earlier `device`
+          // flag and could still receive relayed chat / send chat_reply.
+          if (sender.state?.device) sender.setState({ device: false });
         }
         return;
       }
@@ -101,8 +107,12 @@ export class DispatchServer extends Server<Env> {
       return new Response("Method not allowed", { status: 405 });
     }
 
+    // Fail closed: the relay POST requires a configured, non-empty secret that
+    // matches the caller's header. An unset secret is not "open" — it means no
+    // gateway is authorized, mirroring device registration (no secret ⇒ no
+    // device registers), so we reject rather than relay unauthenticated.
     const secret = this.env.CHAT_RELAY_SECRET;
-    if (secret && request.headers.get("x-relay-secret") !== secret) {
+    if (!secret || request.headers.get("x-relay-secret") !== secret) {
       return Response.json({ error: "unauthorized" }, { status: 401 });
     }
 
