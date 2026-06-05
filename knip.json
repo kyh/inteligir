@@ -30,12 +30,6 @@
         "src/components/**/*.{ts,tsx}"
       ],
       "project": ["*.config.{js,mjs}", "src/**/*.{ts,tsx}"]
-    },
-    "packages/db": {
-      "entry": ["drizzle.config.ts"],
-      "drizzle": {
-        "config": []
-      }
     }
   }
 }

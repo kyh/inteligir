@@ -4,19 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "pnpm with-env next build --turbopack",
+    "build": "next build --turbopack",
     "clean": "git clean -xdf .cache .next .turbo node_modules",
-    "dev": "pnpm with-env next dev --turbopack",
-    "start": "pnpm with-env next start",
-    "typecheck": "tsc --noEmit",
-    "with-env": "dotenv -e ../../.env --"
+    "dev": "next dev --turbopack",
+    "start": "next start",
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/api": "workspace:*",
     "@repo/ui": "workspace:*",
-    "@sinclair/typebox": "catalog:",
-    "@tanstack/react-form": "catalog:",
-    "better-auth": "catalog:",
     "lucide-react": "catalog:",
     "next": "catalog:",
     "next-themes": "^0.4.6",

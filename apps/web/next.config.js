@@ -17,7 +17,7 @@ const getRemotePatterns = () => {
 const config = {
   cacheComponents: true,
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
-  transpilePackages: ["@repo/api", "@repo/db", "@repo/ui"],
+  transpilePackages: ["@repo/ui"],
   images: {
     remotePatterns: getRemotePatterns(),
     localPatterns: [{ pathname: "/assets/**" }],

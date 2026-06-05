@@ -30,12 +30,6 @@
     }
   },
   "globalEnv": [
-    "TURSO_DATABASE_URL",
-    "TURSO_AUTH_TOKEN",
-    "BETTER_AUTH_SECRET",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
-    "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
     "PORT"
   ],
   "globalPassThroughEnv": [
