@@ -71,6 +71,10 @@ export function encodeMessage(
 
 export const CHAT_MESSAGE_TYPE = "chat_message";
 export const CHAT_REPLY_TYPE = "chat_reply";
+/** Sent by the desktop on connect so the relay knows which WebSocket is a real
+ * agent host. Without it the room can't tell a desktop from a paired mobile
+ * client and would relay chat messages to a peer that can't answer. */
+export const CHAT_DEVICE_REGISTER_TYPE = "chat_device_register";
 
 /** Where a chat message originated. Used for logging/routing on the desktop;
  * the gateway posts the reply back through the live thread handle it already

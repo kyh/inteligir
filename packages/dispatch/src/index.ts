@@ -8,6 +8,7 @@ export {
   encodeMessage,
   CHAT_MESSAGE_TYPE,
   CHAT_REPLY_TYPE,
+  CHAT_DEVICE_REGISTER_TYPE,
   ChatConversationSchema,
   ChatMessagePayloadSchema,
   ChatReplyPayloadSchema,

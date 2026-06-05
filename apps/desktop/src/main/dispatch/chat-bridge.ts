@@ -2,20 +2,25 @@
 // Chat bridge — answers `chat_message` envelopes relayed from external
 // messaging interfaces (Slack/Telegram/WhatsApp/Discord) via the party room.
 //
-// One turn at a time. The agent session is shared with the desktop UI and
-// `getLastAssistantText()` is only meaningful for the turn we started, so we
-// run a single chat turn at a time. A message that arrives while a turn is in
-// flight gets an immediate "busy" reply rather than being queued — this keeps
-// the gateway's request short (no waiting past its timeout for a turn that
-// hasn't started) and avoids cross-attributing replies between conversations.
+// One turn at a time. The agent session is shared with the desktop UI, so we
+// run a single chat turn at a time and reject (with an immediate "busy" reply)
+// any message that arrives while a chat turn is in flight OR while the session
+// is already busy with a desktop-initiated turn. This keeps the gateway request
+// short and prevents one conversation's answer from leaking into another's.
+//
+// The reply text is captured from THIS turn's agent events (the assistant
+// `message_end`), not `getLastAssistantText()` — which returns the *previous*
+// turn's text after an early abort. Errors surface via `message_end`
+// stopReason/`turn_error` because pi swallows prompt failures asynchronously
+// and they never reach a try/catch here.
 //
 // Every inbound message with a correlationId is always answered with exactly
-// one `chat_reply`, so the gateway never blocks for the full timeout waiting on
-// a reply that isn't coming.
+// one `chat_reply`, so the gateway never blocks for the full timeout.
 // ---------------------------------------------------------------------------
 
 import { getAgent } from "@/main/app-machine";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
+import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { ChatMessagePayload } from "@repo/dispatch";
 
 /** Upper bound on a single chat turn before we abort it. Kept below the party
@@ -55,6 +60,8 @@ export function handleChatMessage(payload: ChatMessagePayload): void {
   });
 }
 
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
 async function runTurn(correlationId: string, text: string): Promise<void> {
   const agent = getAgent();
   if (!agent) {
@@ -62,22 +69,68 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
     return;
   }
 
+  // Don't attach to a turn the desktop user already started — its assistant
+  // text isn't ours to relay. Ask the sender to retry shortly.
+  if (agent.getState().status === "busy") {
+    sendChatReply(correlationId, "Inteligir is busy with another task right now — try again shortly.");
+    return;
+  }
+
+  // Capture this turn's result from the event stream. Subscribe BEFORE sending
+  // so we can't miss the assistant message or agent_end.
+  let assistantText = "";
+  let errorMessage: string | null = null;
+  let resolveEnd: () => void;
+  const ended = new Promise<void>((resolve) => {
+    resolveEnd = resolve;
+  });
+
+  const unsubscribe = agent.subscribe((raw) => {
+    const event = parseAgentEvent(raw);
+    if (!event) return;
+    switch (event.type) {
+      case "message_end":
+        if (event.role === "assistant") {
+          if (event.text) assistantText = event.text;
+          if (event.stopReason === "error") {
+            errorMessage = event.errorMessage ?? "the model returned an error";
+          }
+        }
+        break;
+      case "turn_error":
+        errorMessage = event.reason;
+        break;
+      case "agent_end":
+        resolveEnd();
+        break;
+    }
+  });
+
   try {
     await agent.sendMessage(text);
-    const finished = await agent.waitForIdle(TURN_TIMEOUT_MS);
+    const finished = await Promise.race([
+      ended.then(() => true),
+      delay(TURN_TIMEOUT_MS).then(() => false),
+    ]);
+
     if (!finished) {
       // Abort the runaway turn before releasing the slot, otherwise the next
-      // message's sendMessage would land mid-turn as a follow-up and its reply
-      // would be attributed to the wrong correlationId.
+      // message's sendMessage would land mid-turn as a follow-up.
       await agent.interrupt().catch(() => {});
-      await agent.waitForIdle(DRAIN_TIMEOUT_MS);
+      await Promise.race([ended, delay(DRAIN_TIMEOUT_MS)]);
       sendChatReply(correlationId, "That's taking longer than expected — I've stopped it. Try again.");
       return;
     }
-    const reply = agent.getLastAssistantText();
-    sendChatReply(correlationId, reply?.trim() ? reply : "(no response)");
+
+    if (errorMessage) {
+      sendChatReply(correlationId, `The agent hit an error: ${errorMessage}`);
+      return;
+    }
+    sendChatReply(correlationId, assistantText.trim() ? assistantText : "(no response)");
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     sendChatReply(correlationId, `Something went wrong: ${message}`);
+  } finally {
+    unsubscribe();
   }
 }

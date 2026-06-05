@@ -1,11 +1,16 @@
 import { routePartykitRequest, Server, type Connection, type WSMessage } from "partyserver";
 import {
+  CHAT_DEVICE_REGISTER_TYPE,
   CHAT_MESSAGE_TYPE,
   CHAT_REPLY_TYPE,
   encodeMessage,
   parseChatReply,
   parseMessage,
 } from "@repo/dispatch";
+
+/** Connection state — `device: true` marks a real agent host (the desktop),
+ * stored on the connection so it survives Durable Object hibernation. */
+type ConnState = { device?: boolean };
 
 type Env = {
   DispatchServer: DurableObjectNamespace;
@@ -37,11 +42,19 @@ export class DispatchServer extends Server<Env> {
   /** correlationId -> resolver for an in-flight gateway POST awaiting a reply. */
   private readonly pending = new Map<string, (text: string) => void>();
 
-  onMessage(sender: Connection, message: WSMessage): void {
+  onMessage(sender: Connection<ConnState>, message: WSMessage): void {
     // Intercept chat replies from the desktop and resolve the waiting HTTP
     // request instead of relaying them to other sockets.
     if (typeof message === "string") {
       const parsed = parseMessage(message);
+
+      // Registration handshake: mark this socket as a real agent host so the
+      // chat relay can target it (and fail fast when none is connected).
+      if (parsed?.type === CHAT_DEVICE_REGISTER_TYPE) {
+        sender.setState({ device: true });
+        return;
+      }
+
       if (parsed?.type === CHAT_REPLY_TYPE) {
         const reply = parseChatReply(parsed.payload);
         if (reply) {
@@ -83,7 +96,9 @@ export class DispatchServer extends Server<Env> {
     const text = typeof body.text === "string" ? body.text : "";
     if (!text) return Response.json({ error: "missing_text" }, { status: 400 });
 
-    const devices = [...this.getConnections()];
+    // Only registered desktops can answer — a paired mobile client in the room
+    // would receive (and ignore) chat messages, blocking until timeout.
+    const devices = [...this.getConnections<ConnState>()].filter((c) => c.state?.device);
     if (devices.length === 0) {
       return Response.json({ error: "no_device" }, { status: 503 });
     }

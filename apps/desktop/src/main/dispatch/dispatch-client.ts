@@ -8,6 +8,7 @@ import {
   encodeMessage,
   createConnectionAttemptRegistry,
   CHAT_REPLY_TYPE,
+  CHAT_DEVICE_REGISTER_TYPE,
 } from "@repo/dispatch";
 import { broadcast } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
@@ -69,6 +70,9 @@ function connectToRoom(roomCode: string): void {
 
   partySocket.addEventListener("open", () => {
     if (!attempt.isCurrent()) return;
+    // Identify as a real agent host so the chat relay targets this socket (and
+    // fails fast when no desktop is connected). Re-sent on every reconnect.
+    partySocket?.send(encodeMessage("to_mobile", CHAT_DEVICE_REGISTER_TYPE, {}));
     if (dispatchState.status === "reconnecting") {
       setState({ status: "awaiting_pair", error: null });
     }
