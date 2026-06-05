@@ -13,7 +13,7 @@ Turborepo monorepo with Next.js marketing site + shared packages.
 - **UI**: shadcn/ui (Base UI), lucide-react, vaul, sonner
 - **Desktop**: Electron + electron-vite (@repo/desktop) — the actual product
 - **Mobile**: Expo (@repo/mobile) — remote surface, pairs to desktop
-- **Transport**: partyserver Worker (@repo/party) — WebSocket relay, mobile↔desktop
+- **Transport**: partyserver Worker (@repo/server) — WebSocket relay, mobile↔desktop
 - **AI Agent**: pi coding agent framework (@mariozechner/pi-coding-agent)
 
 The agent runs locally in the desktop app. There is no server-side API or
@@ -26,7 +26,8 @@ apps/
   web/           # Static marketing site (@repo/web) — landing page only
   desktop/       # Electron app — agent UI, voice, extensions (@repo/desktop)
   mobile/        # Expo app — remote surface, pairs to desktop (@repo/mobile)
-  party/         # partyserver Worker — WS relay, mobile↔desktop (@repo/party)
+  server/        # partyserver Worker — WS relay, mobile↔desktop (@repo/server)
+                 # deployed to Cloudflare (inteligir-server) via .github/workflows/deploy.yml
 packages/
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)

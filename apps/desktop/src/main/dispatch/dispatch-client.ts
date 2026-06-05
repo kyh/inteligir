@@ -1,9 +1,11 @@
+import { app } from "electron";
 import PartySocket from "partysocket";
 import { Type } from "@sinclair/typebox";
 import {
   generateRoomCode,
   PARTY_NAME,
-  DEFAULT_PARTY_HOST,
+  DEFAULT_SERVER_HOST,
+  PRODUCTION_SERVER_HOST,
   parseMessage,
   encodeMessage,
   createConnectionAttemptRegistry,
@@ -14,7 +16,11 @@ import type { DispatchState } from "@/shared/dispatch";
 import { DISPATCH_INITIAL_STATE } from "@/shared/dispatch";
 import type { AppAgentEvent } from "@/shared/agent-events";
 
-const PARTY_HOST = process.env["DISPATCH_PARTY_HOST"] ?? DEFAULT_PARTY_HOST;
+// Packaged builds hit the deployed Worker; dev hits local `wrangler dev`.
+// DISPATCH_SERVER_HOST overrides either (e.g. staging).
+const SERVER_HOST =
+  process.env["DISPATCH_SERVER_HOST"] ??
+  (app.isPackaged ? PRODUCTION_SERVER_HOST : DEFAULT_SERVER_HOST);
 
 const roomStore = new JsonStore<string | null>(
   inteligirPath("dispatch-room.json"),
@@ -49,7 +55,7 @@ function connectToRoom(roomCode: string): void {
   }
 
   partySocket = new PartySocket({
-    host: PARTY_HOST,
+    host: SERVER_HOST,
     party: PARTY_NAME,
     room: roomCode,
   });

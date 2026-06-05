@@ -1,18 +1,24 @@
 import Constants from "expo-constants";
-import { DEFAULT_PARTY_HOST } from "@repo/dispatch";
+import { PRODUCTION_SERVER_HOST, SERVER_PORT } from "@repo/dispatch";
 
-export const getPartyHost = () => {
-  if (process.env.EXPO_PUBLIC_PARTY_HOST) {
-    return process.env.EXPO_PUBLIC_PARTY_HOST;
+export const getServerHost = () => {
+  if (process.env.EXPO_PUBLIC_SERVER_HOST) {
+    return process.env.EXPO_PUBLIC_SERVER_HOST;
   }
 
+  // Production builds connect to the deployed Worker.
+  if (!__DEV__) {
+    return PRODUCTION_SERVER_HOST;
+  }
+
+  // Dev: reach the local `wrangler dev` server via the Metro debugger host.
   const debuggerHost = Constants.expoConfig?.hostUri;
   const localhost = debuggerHost?.split(":")[0];
 
   if (!localhost) {
     throw new Error(
-      "Failed to get localhost. Set EXPO_PUBLIC_PARTY_HOST or start the Expo dev server.",
+      "Failed to get localhost. Set EXPO_PUBLIC_SERVER_HOST or start the Expo dev server.",
     );
   }
-  return `${localhost}:${DEFAULT_PARTY_HOST.split(":")[1]}`;
+  return `${localhost}:${SERVER_PORT}`;
 };
