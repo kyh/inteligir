@@ -39,7 +39,7 @@ import {
   refreshRoomCode,
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
-import { handleChatMessage } from "@/main/dispatch/chat-bridge";
+import { handleChatMessage, isChatTurnActive } from "@/main/dispatch/chat-bridge";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { CHAT_MESSAGE_TYPE, parseChatMessage } from "@repo/dispatch";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
@@ -467,11 +467,16 @@ app
       if (!agent) return;
       switch (msg.type) {
         case "user_message": {
+          // An external chat turn owns the shared session — injecting here would
+          // queue as a follow-up and bleed into the reply we relay back to the
+          // messaging platform. Drop rather than corrupt the in-flight turn.
+          if (isChatTurnActive()) break;
           const text = (msg.payload as { text?: string }).text ?? "";
           if (text) void agent.sendMessage(text);
           break;
         }
         case "steer": {
+          if (isChatTurnActive()) break;
           const text = (msg.payload as { text?: string }).text ?? "";
           if (text) void agent.steer(text);
           break;

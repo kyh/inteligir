@@ -31,6 +31,14 @@ const DRAIN_TIMEOUT_MS = 5_000;
 
 let active = false;
 
+/** Whether an external chat turn currently owns the shared agent session.
+ * The mobile relay path consults this so its fire-and-forget `user_message` /
+ * `steer` injections don't queue as follow-ups mid-turn and blend into (or
+ * overwrite) the assistant text we're about to relay back to the platform. */
+export function isChatTurnActive(): boolean {
+  return active;
+}
+
 /** Handle an inbound chat message. Always replies exactly once (via
  * `sendChatReply`) so the gateway request resolves promptly. */
 export function handleChatMessage(payload: ChatMessagePayload): void {
