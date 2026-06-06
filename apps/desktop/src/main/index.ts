@@ -172,7 +172,10 @@ function registerIpcHandlers(): void {
   // All interactive agent commands funnel through the gateway, which defers
   // them while an external chat turn owns the session (see agent-gateway.ts).
   handle("sendAgentCommand", (command) => {
-    void dispatchAgentCommand(command);
+    // Fire-and-forget: the renderer doesn't await the result, and submission
+    // errors surface in the chat panel via agent events, so swallow rejections
+    // to avoid an unhandled promise.
+    void dispatchAgentCommand(command).catch(() => {});
   });
 
   handle("getAgentHistory", () => readSessionHistory());
@@ -444,16 +447,16 @@ app
       switch (msg.type) {
         case "user_message": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void dispatchAgentCommand({ type: "user_message", text });
+          if (text) void dispatchAgentCommand({ type: "user_message", text }).catch(() => {});
           break;
         }
         case "steer": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void dispatchAgentCommand({ type: "steer", text });
+          if (text) void dispatchAgentCommand({ type: "steer", text }).catch(() => {});
           break;
         }
         case "interrupt":
-          void dispatchAgentCommand({ type: "interrupt" });
+          void dispatchAgentCommand({ type: "interrupt" }).catch(() => {});
           break;
       }
     });

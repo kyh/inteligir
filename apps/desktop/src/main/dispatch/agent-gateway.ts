@@ -34,7 +34,17 @@ export function toImageContent(images: ImageAttachment[] | undefined): ImageCont
 }
 
 let exclusiveTurnActive = false;
-const queued: TextChatMessage[] = [];
+let draining = false;
+
+/** A deferred interactive command: the promise handed back to the caller is
+ * settled when the command is actually applied, so awaiters (e.g. widget
+ * prompts) observe real submission status rather than a premature success. */
+type QueuedCommand = {
+  command: TextChatMessage;
+  resolve: () => void;
+  reject: (err: unknown) => void;
+};
+const queued: QueuedCommand[] = [];
 
 /** Whether an exclusive turn (external chat relay or scheduled task) currently
  * owns the agent session. Would-be exclusive-turn owners must check this — and
@@ -50,26 +60,51 @@ export function beginExclusiveTurn(): void {
   exclusiveTurnActive = true;
 }
 
-/** Release the exclusive-turn lock and flush interactive commands that queued
- * while it was held, in arrival order. */
+/** Release the exclusive-turn lock and drain any interactive commands that
+ * queued while it was held. */
 export function endExclusiveTurn(): void {
   exclusiveTurnActive = false;
-  while (queued.length > 0) {
-    void apply(queued.shift()!).catch(() => {});
-  }
+  void drainQueue();
 }
 
 /** Route an interactive command (desktop UI / mobile relay) to the agent.
- * Deferred to the queue while an exclusive turn owns the session; otherwise
- * applied immediately. The returned promise resolves once the command has been
- * accepted (or immediately, if queued) so callers that care about agent-side
- * submission errors — e.g. widget prompts surfacing a toast — can await it. */
+ * Deferred to the queue while an exclusive turn owns the session, or while a
+ * previous batch is still draining, so commands apply one at a time in arrival
+ * order. The returned promise settles when the command is actually applied (or
+ * fails) — callers that care about agent-side submission errors, e.g. widget
+ * prompts surfacing a toast, can await it; fire-and-forget callers ignore it. */
 export function dispatchAgentCommand(command: TextChatMessage): Promise<void> {
-  if (exclusiveTurnActive) {
-    queued.push(command);
-    return Promise.resolve();
+  if (exclusiveTurnActive || draining) {
+    return new Promise<void>((resolve, reject) => {
+      queued.push({ command, resolve, reject });
+    });
   }
   return apply(command);
+}
+
+/** Drain the deferred queue sequentially: apply one command, await its
+ * acceptance, then the next. Commands that arrive mid-drain are enqueued (see
+ * `dispatchAgentCommand`) and picked up here, so FIFO order holds and no two
+ * commands hit the agent concurrently. */
+async function drainQueue(): Promise<void> {
+  if (draining) return;
+  draining = true;
+  try {
+    while (queued.length > 0) {
+      // A new exclusive turn may have begun mid-drain (e.g. a scheduled task
+      // fired). Let it run; the remaining queue drains when it ends.
+      if (exclusiveTurnActive) break;
+      const entry = queued.shift()!;
+      try {
+        await apply(entry.command);
+        entry.resolve();
+      } catch (err) {
+        entry.reject(err);
+      }
+    }
+  } finally {
+    draining = false;
+  }
 }
 
 async function apply(command: TextChatMessage): Promise<void> {
