@@ -16,6 +16,11 @@ import {
   type CreateTaskParams,
 } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
+import {
+  beginExclusiveTurn,
+  endExclusiveTurn,
+  isExclusiveTurnActive,
+} from "@/main/dispatch/agent-gateway";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
@@ -129,6 +134,9 @@ export class TaskManager {
 
     const state = agent.getState();
     if (state.status === "busy") return;
+    // An exclusive turn (chat relay, or another task that hasn't flipped the
+    // agent to "busy" yet) owns the session — don't fire into it.
+    if (isExclusiveTurnActive()) return;
 
     const now = Date.now();
     const tasks = this.getTasks();
@@ -143,6 +151,12 @@ export class TaskManager {
 
   private async fireTask(agent: Agent, task: Task, now: number): Promise<void> {
     this.firing = true;
+    // Own the session for the run: chat relays defer (they check the lock), and
+    // interactive desktop/mobile input queues in the gateway and flushes after,
+    // rather than merging into this task's turn and skewing its result summary.
+    // Set synchronously before the first await so a chat message that arrives
+    // mid-tick sees it.
+    beginExclusiveTurn();
 
     // Mark the run in tasks file
     this.tasks.update((tasks) =>
@@ -190,6 +204,7 @@ export class TaskManager {
       this.completeRun(run.id, "failed", toErrorMessage(err));
     } finally {
       this.firing = false;
+      endExclusiveTurn();
     }
   }
 

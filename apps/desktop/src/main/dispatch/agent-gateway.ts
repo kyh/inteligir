@@ -2,19 +2,26 @@
 // Agent gateway — the single writer to the shared pi agent session.
 //
 // The agent has several would-be writers: the desktop UI (via the
-// `sendAgentCommand` IPC), the mobile remote (via the dispatch relay), and
-// external chat turns relayed from messaging platforms (Slack/Telegram/…).
-// They cannot all poke the agent freely: an external chat turn needs the
-// session *exclusively* so the chat-bridge can read back exactly its own
-// assistant text to relay to the platform. Any interactive command that lands
-// mid-turn would otherwise queue inside pi as a follow-up/steer/interrupt and
-// blend into — or abort — that turn.
+// `sendAgentCommand` IPC), the mobile remote (via the dispatch relay), widget
+// prompts, scheduled tasks, and external chat turns relayed from messaging
+// platforms (Slack/Telegram/…). They cannot all poke the agent freely.
 //
-// So all access funnels through here. An external chat turn takes an exclusive
-// lock for its duration; interactive commands that arrive while the lock is
-// held are queued and flushed, in arrival order, when it releases. (An
-// external turn only starts if the agent isn't already busy with interactive
-// work — the chat-bridge checks that — so the lock never preempts the user.)
+// Two kinds of access funnel through here:
+//
+//   1. Exclusive turns — an external chat relay or a scheduled task that needs
+//      the session to itself: it sends a prompt and reads back exactly its own
+//      assistant text (to relay to the platform, or to summarize the run). It
+//      takes the exclusive lock (`beginExclusiveTurn`/`endExclusiveTurn`) for
+//      its full duration. Only one runs at a time, and it never starts while
+//      another exclusive turn holds the lock (callers check
+//      `isExclusiveTurnActive`) or while the user is mid-turn (callers also
+//      check the agent isn't already busy).
+//
+//   2. Interactive commands — desktop UI and mobile relay traffic, routed
+//      through `dispatchAgentCommand`. While an exclusive turn owns the lock
+//      these queue and flush, in arrival order, when it releases — rather than
+//      queuing inside pi as follow-ups/steers/interrupts that would blend into
+//      (or abort) the exclusive turn.
 // ---------------------------------------------------------------------------
 
 import { getAgent } from "@/main/app-machine";
@@ -26,54 +33,60 @@ export function toImageContent(images: ImageAttachment[] | undefined): ImageCont
   return images?.map((i) => ({ type: "image", data: i.data, mimeType: i.mimeType }));
 }
 
-let chatTurnActive = false;
+let exclusiveTurnActive = false;
 const queued: TextChatMessage[] = [];
 
-/** Whether an external chat turn currently owns the agent session. */
-export function isChatTurnActive(): boolean {
-  return chatTurnActive;
+/** Whether an exclusive turn (external chat relay or scheduled task) currently
+ * owns the agent session. Would-be exclusive-turn owners must check this — and
+ * that the agent isn't already busy — before starting one. */
+export function isExclusiveTurnActive(): boolean {
+  return exclusiveTurnActive;
 }
 
-/** Take the exclusive chat-turn lock. The caller (chat-bridge) must have
- * already confirmed the agent isn't busy with an interactive turn. */
-export function beginChatTurn(): void {
-  chatTurnActive = true;
+/** Take the exclusive-turn lock. The caller must have already confirmed no
+ * other exclusive turn is active and the agent isn't busy with an interactive
+ * turn. Synchronous so it's set before the caller yields. */
+export function beginExclusiveTurn(): void {
+  exclusiveTurnActive = true;
 }
 
-/** Release the chat-turn lock and flush interactive commands that queued while
- * it was held, in arrival order. */
-export function endChatTurn(): void {
-  chatTurnActive = false;
+/** Release the exclusive-turn lock and flush interactive commands that queued
+ * while it was held, in arrival order. */
+export function endExclusiveTurn(): void {
+  exclusiveTurnActive = false;
   while (queued.length > 0) {
-    apply(queued.shift()!);
+    void apply(queued.shift()!).catch(() => {});
   }
 }
 
 /** Route an interactive command (desktop UI / mobile relay) to the agent.
- * Deferred to the queue while an external chat turn owns the session. */
-export function dispatchAgentCommand(command: TextChatMessage): void {
-  if (chatTurnActive) {
+ * Deferred to the queue while an exclusive turn owns the session; otherwise
+ * applied immediately. The returned promise resolves once the command has been
+ * accepted (or immediately, if queued) so callers that care about agent-side
+ * submission errors — e.g. widget prompts surfacing a toast — can await it. */
+export function dispatchAgentCommand(command: TextChatMessage): Promise<void> {
+  if (exclusiveTurnActive) {
     queued.push(command);
-    return;
+    return Promise.resolve();
   }
-  apply(command);
+  return apply(command);
 }
 
-function apply(command: TextChatMessage): void {
+async function apply(command: TextChatMessage): Promise<void> {
   const agent = getAgent();
   if (!agent) return;
   switch (command.type) {
     case "user_message":
-      void agent.sendMessage(command.text, toImageContent(command.images));
+      await agent.sendMessage(command.text, toImageContent(command.images));
       break;
     case "steer":
-      void agent.steer(command.text, toImageContent(command.images));
+      await agent.steer(command.text, toImageContent(command.images));
       break;
     case "follow_up":
-      void agent.followUp(command.text, toImageContent(command.images));
+      await agent.followUp(command.text, toImageContent(command.images));
       break;
     case "interrupt":
-      void agent.interrupt();
+      await agent.interrupt();
       break;
   }
 }

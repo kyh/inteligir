@@ -2,6 +2,7 @@ import { shell } from "electron";
 
 import { completeOnce } from "@/agent/auth";
 import { getAgent } from "@/main/app-machine";
+import { dispatchAgentCommand } from "@/main/dispatch/agent-gateway";
 import { execute } from "@/main/executor/executor-client";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { handle } from "@/main/lib/ipc-handler";
@@ -22,12 +23,14 @@ type OpenExternal = (url: string) => Promise<unknown>;
 
 export function registerWidgetActionIpcHandlers(): void {
   handle("widgetSendPrompt", async ({ prompt }) => {
-    const agent = getAgent();
-    if (!agent) throw new Error("Agent unavailable");
-    // Await so an agent-side error rejects the IPC and the renderer's
-    // sendPrompt catch can surface a toast — `void`'ing the promise made
-    // the invoke resolve immediately and swallowed failures.
-    await agent.sendMessage(prompt);
+    if (!getAgent()) throw new Error("Agent unavailable");
+    // Route through the gateway so the prompt queues behind an in-flight
+    // exclusive turn (chat relay / scheduled task) instead of merging into it.
+    // On the common unlocked path this still awaits sendMessage, so an
+    // agent-side error rejects the IPC and the renderer's sendPrompt catch can
+    // surface a toast — `void`'ing the promise made the invoke resolve
+    // immediately and swallowed failures.
+    await dispatchAgentCommand({ type: "user_message", text: prompt });
   });
 
   handle("widgetComplete", ({ prompt, system }) => completeOnce(prompt, system));

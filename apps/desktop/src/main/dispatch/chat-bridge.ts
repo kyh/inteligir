@@ -19,7 +19,11 @@
 // ---------------------------------------------------------------------------
 
 import { getAgent } from "@/main/app-machine";
-import { beginChatTurn, endChatTurn, isChatTurnActive } from "@/main/dispatch/agent-gateway";
+import {
+  beginExclusiveTurn,
+  endExclusiveTurn,
+  isExclusiveTurnActive,
+} from "@/main/dispatch/agent-gateway";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { ChatMessagePayload } from "@repo/dispatch";
@@ -42,10 +46,12 @@ export function handleChatMessage(payload: ChatMessagePayload): void {
     return;
   }
 
-  if (isChatTurnActive()) {
+  // An exclusive turn (another chat relay, or a scheduled task) owns the
+  // session — reply busy rather than starting a turn that would blend into it.
+  if (isExclusiveTurnActive()) {
     sendChatReply(
       correlationId,
-      "I'm still working on your previous message — I'll be free in a moment, then resend.",
+      "I'm busy finishing something up — I'll be free in a moment, then resend.",
     );
     return;
   }
@@ -56,9 +62,9 @@ export function handleChatMessage(payload: ChatMessagePayload): void {
   // Take the exclusive agent lock for this turn; interactive commands (desktop
   // UI / mobile) that arrive meanwhile queue in the gateway and flush on
   // release, so they can't blend into the reply we relay back.
-  beginChatTurn();
+  beginExclusiveTurn();
   void runTurn(correlationId, text).finally(() => {
-    endChatTurn();
+    endExclusiveTurn();
   });
 }
 

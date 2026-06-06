@@ -172,7 +172,7 @@ function registerIpcHandlers(): void {
   // All interactive agent commands funnel through the gateway, which defers
   // them while an external chat turn owns the session (see agent-gateway.ts).
   handle("sendAgentCommand", (command) => {
-    dispatchAgentCommand(command);
+    void dispatchAgentCommand(command);
   });
 
   handle("getAgentHistory", () => readSessionHistory());
@@ -444,16 +444,16 @@ app
       switch (msg.type) {
         case "user_message": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) dispatchAgentCommand({ type: "user_message", text });
+          if (text) void dispatchAgentCommand({ type: "user_message", text });
           break;
         }
         case "steer": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) dispatchAgentCommand({ type: "steer", text });
+          if (text) void dispatchAgentCommand({ type: "steer", text });
           break;
         }
         case "interrupt":
-          dispatchAgentCommand({ type: "interrupt" });
+          void dispatchAgentCommand({ type: "interrupt" });
           break;
       }
     });
