@@ -5,6 +5,7 @@
 import { Agent } from "@/agent/agent";
 import { isLoggedIn, login } from "@/agent/auth";
 import { isSetupComplete, seedResources, teardownResources } from "@/agent/setup";
+import { dispatchAgentCommand } from "@/main/dispatch/agent-gateway";
 import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
@@ -12,6 +13,11 @@ import { runEffect, type EffectDeps } from "@/main/app-effects";
 import { broadcast } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
 import { getTaskManager } from "@/main/tasks/task-manager";
+import {
+  getBackgroundAgent,
+  startBackgroundAgent,
+  stopBackgroundAgent,
+} from "@/main/tasks/background-agent";
 import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
@@ -149,10 +155,9 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
       const event = parseAgentEvent(raw);
       if (event) handleAgentEvent(event);
     });
-    // Capture `next` in the closure rather than the module ref so the
-    // scheduler's first tick can't observe a still-null `agent` during
-    // the microtask between startScheduler and `agent = next`.
-    getTaskManager().startScheduler(() => next);
+    // The scheduler drives the background agent (not this user agent), so it
+    // reads it live via getBackgroundAgent() — no closure over `next` needed.
+    getTaskManager().startScheduler(() => getBackgroundAgent());
   } catch (err) {
     // Don't leave a half-constructed Agent in the singleton — a retry's
     // `if (agent) return` would skip the rest of setup and the machine
@@ -162,6 +167,14 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
     throw err;
   }
   agent = next;
+  // Start the dedicated background task agent alongside the user agent.
+  // Non-fatal: if it fails, the scheduler simply finds no agent and skips
+  // ticks — the user session is unaffected.
+  try {
+    await startBackgroundAgent();
+  } catch (err) {
+    console.error("[machine] background task agent failed to start:", err);
+  }
 }
 
 async function stopAgent(): Promise<void> {
@@ -170,8 +183,9 @@ async function stopAgent(): Promise<void> {
     await agent.stop();
     agent = null;
   }
-  // The executor daemon is started lazily by the executor extension at agent
-  // start; tear it down here so it doesn't outlive the agent.
+  // Stop both agents before the shared executor daemon: the daemon is a process
+  // singleton both sessions use, so it must outlive each agent's teardown.
+  await stopBackgroundAgent();
   await getExecutorDaemon().stop();
   turn = null;
 }
@@ -192,6 +206,37 @@ export function getAgent(): Agent | null {
  * startAgent. Used by the "Re-authenticate" Settings affordance and the
  * empty-turn modal.
  */
+/**
+ * Refresh the user-facing session for a new day and open it with a greeting.
+ * Starts a fresh user session (yesterday's thread stays in session history)
+ * and injects `buildGreeting()` as the first user turn — the assistant's reply
+ * is the "good morning" message, rendered in the chat panel via the normal
+ * broadcast path. Routed through the AppMachine queue (like reauthenticate) so
+ * it can't race LOGIN/LOGOUT, and through the gateway so the greeting turn
+ * serializes with any mobile/chat-relay traffic.
+ *
+ * Skips (without starting a new session) when there's no live agent or a turn
+ * is already in flight — the caller retries on the next app-open.
+ */
+export async function dailyRefresh(
+  buildGreeting: () => string,
+): Promise<{ ok: boolean; skipped?: string }> {
+  if (!machine) return { ok: false, skipped: "no-machine" };
+  return machine.enqueueAsync(async () => {
+    if (!agent) return { ok: false, skipped: "no-agent" };
+    // Never interrupt a turn the user (or a relay) is mid-way through.
+    if (agent.getState().status === "busy") return { ok: false, skipped: "busy" };
+    try {
+      await newSession();
+      await dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
+      return { ok: true };
+    } catch (err) {
+      console.error("[machine] dailyRefresh failed:", err);
+      return { ok: false, skipped: "error" };
+    }
+  });
+}
+
 export async function reauthenticate(): Promise<{ ok: boolean; error?: string }> {
   if (!machine) return { ok: false, error: "Machine not initialized" };
   return machine.enqueueAsync(async () => {
@@ -290,6 +335,13 @@ let machine: AppMachine | null = null;
 
 function broadcastAppState(state: AppState): void {
   broadcast("onAppState", state);
+  // Cold-launch trigger for the daily refresh: the window's first focus fires
+  // before login finishes, so also attempt once the session is ready. Imported
+  // lazily to avoid a load-time cycle (daily-refresh imports this module);
+  // maybeDailyRefresh is a no-op when not due / already done.
+  if (state.phase === "ready") {
+    void import("@/main/daily-refresh").then((m) => m.maybeDailyRefresh());
+  }
 }
 
 async function downloadVoiceModel(): Promise<void> {

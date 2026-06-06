@@ -40,6 +40,7 @@ import {
 } from "@/main/dispatch/dispatch-client";
 import { handleChatMessage } from "@/main/dispatch/chat-bridge";
 import { dispatchAgentCommand } from "@/main/dispatch/agent-gateway";
+import { maybeDailyRefresh } from "@/main/daily-refresh";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { CHAT_MESSAGE_TYPE, parseChatMessage } from "@repo/dispatch";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
@@ -420,6 +421,10 @@ app
 
     mainWindow = createWindow();
     getNotifications().setTargetWindow(mainWindow);
+    // Re-opening the app (window regains focus) is the primary "good morning"
+    // trigger; maybeDailyRefresh no-ops unless a new local day is due and the
+    // session is ready. (Cold launch is covered by the ready-state hook.)
+    mainWindow.on("focus", () => void maybeDailyRefresh());
 
     initMachine();
 

@@ -19,21 +19,25 @@ import { AGENT_DIR, AUTH_PROVIDER, MODEL_ID, SESSION_DIR, WORKSPACE_DIR } from "
 import { EXTENSION_BUNDLES, buildRegisterContext } from "@/agent/setup";
 import type { SessionStatus } from "@/shared/agent";
 
-function resolveSessionManager(): SessionManager {
+function resolveSessionManager(sessionDir: string): SessionManager {
   const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
   if (sessionFile) {
     try {
-      return SessionManager.open(sessionFile, SESSION_DIR);
+      return SessionManager.open(sessionFile, sessionDir);
     } catch (err) {
       console.warn("[agent] failed to open session file, falling back to continueRecent:", err);
     }
   }
-  return SessionManager.continueRecent(WORKSPACE_DIR, SESSION_DIR);
+  return SessionManager.continueRecent(WORKSPACE_DIR, sessionDir);
 }
 
 export type AgentOptions = {
   /** If true, start a fresh session instead of resuming the most recent one. */
   newSession?: boolean;
+  /** Session directory to read/write. Defaults to SESSION_DIR (the user-facing
+   * thread). The background task agent passes BACKGROUND_SESSION_DIR so its runs
+   * never land in the user's continueRecent pool. */
+  sessionDir?: string;
 };
 
 export class Agent {
@@ -45,9 +49,10 @@ export class Agent {
 
   async start(): Promise<void> {
     if (!this.pi) {
+      const sessionDir = this.opts.sessionDir ?? SESSION_DIR;
       const sessionManager = this.opts.newSession
-        ? SessionManager.create(WORKSPACE_DIR, SESSION_DIR)
-        : resolveSessionManager();
+        ? SessionManager.create(WORKSPACE_DIR, sessionDir)
+        : resolveSessionManager(sessionDir);
       this.pi = new PiAgent({
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,
