@@ -6,6 +6,46 @@
 
 Turborepo monorepo with Next.js marketing site + shared packages.
 
+## Product Context
+
+The name **inteligir** is Spanish for "to understand" (in-tel-ee-HEER).
+
+**What it is:** A consumer desktop AI operating system. The product is the
+Electron desktop app (`@repo/desktop`); the web app is just a marketing landing
+page. Pre-launch.
+
+**Who it's for:** General consumers — not developers. The agent does real work
+on the user's own machine, so the UX has to hide the engineering.
+
+**What people do with it (flagship use cases):**
+
+- **Personal admin / inbox** — email, calendar, and docs via connected Google
+  Workspace; the agent reads, drafts, and schedules on the user's behalf.
+- **Voice assistant / Q&A** — voice-driven conversation as a primary loop, not
+  a bolt-on.
+- **Generative UI / widgets** — the agent builds custom widgets and dashboards
+  on the fly (see the JSON-UI widget system below).
+- **Computer automation** — touches the real filesystem/shell to organize files
+  and run tasks on the actual machine.
+
+**Core, deliberate value props** (these are positioning, not implementation
+accidents — preserve them when making changes):
+
+- **Local-first / privacy** — the agent and voice run on-device. No server, no
+  database, no audio or user data leaves the machine. (`@repo/server` is only a
+  thin WebSocket relay for mobile↔desktop pairing; it stores nothing.)
+- **Voice-first** — streaming local STT (NVIDIA Parakeet) + TTS (ElevenLabs).
+- **Mobile↔desktop remote** — pair a phone to drive the desktop agent remotely.
+- **Agentic OS shell** — the agent can build and arrange its own UI; the shell
+  is an OS over installed/placed widgets, not a fixed chat window.
+
+**Business model:** Bring-your-own OpenAI auth (handled on-device by pi); the app
+itself is free. We run no inference and carry no per-user model cost.
+
+**Provider note:** OpenAI is the *starting* provider, not a permanent
+commitment — multi-provider support is anticipated. Don't hard-code
+OpenAI-only assumptions into new abstractions where it's cheap to stay generic.
+
 ## Tech Stack
 
 - **Monorepo**: Turborepo + pnpm workspaces

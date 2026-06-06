@@ -1,22 +1,34 @@
 # Inteligir
 
-> An artificially intelligent operating system.
+> An artificially intelligent operating system. (_inteligir_ — Spanish, "to understand")
 
-Turborepo monorepo. Desktop app (Electron + pi-coding-agent) plus a marketing/docs site.
+A consumer desktop AI OS. The **product is the Electron desktop app**: a
+local-first, voice-first agent that does real work on your machine — personal
+admin over connected apps (Google Workspace), Q&A, on-the-fly generative
+widgets, and filesystem/shell automation. The agent and voice run on-device;
+nothing leaves the machine. Bring your own OpenAI auth; the app is free.
+Pre-launch.
+
+Turborepo monorepo. Desktop app (Electron + pi-coding-agent) is the product;
+the web app is a marketing landing page.
 
 ## Layout
 
 ```
 apps/
-  desktop/         Electron app — see apps/desktop/README.md
-  web/             Next.js marketing + docs site
+  desktop/         Electron app — the product — see apps/desktop/README.md
+  web/             Next.js marketing landing page (static, no backend)
+  mobile/          Expo app — remote surface, pairs to desktop
+  server/          partyserver Worker — WS relay for mobile↔desktop (Cloudflare)
 packages/
   agent-runtime/   Filesystem + install primitives for the agent — see packages/agent-runtime/README.md
   pi-driver/       Wrapper around pi-coding-agent — stable surface for app code
-  api/             tRPC routers + auth (web)
-  db/              Drizzle schema + Supabase (web)
+  dispatch/        Shared mobile↔desktop message types
   ui/              Shared UI components (shadcn/ui base)
 ```
+
+There is **no server-side API or database** — auth is provider OAuth (OpenAI),
+handled on-device by pi.
 
 Architecture-level docs live next to the code:
 
@@ -33,14 +45,12 @@ Architecture-level docs live next to the code:
 pnpm dev              # All workspaces
 pnpm dev:web          # Web only
 pnpm dev:desktop      # Desktop only
+pnpm dev:server       # WS relay only
 pnpm build
 pnpm typecheck
 pnpm lint             # oxlint
 pnpm format           # oxfmt
 pnpm test
-
-# Database (web)
-pnpm db:start | db:stop | db:push | db:push-remote | db:reset
 ```
 
 ## Quality gates
