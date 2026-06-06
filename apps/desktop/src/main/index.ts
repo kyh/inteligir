@@ -26,7 +26,6 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-proxy";
 
 import {
-  getAgent,
   getAppState,
   initMachine,
   reauthenticate,
@@ -39,7 +38,8 @@ import {
   refreshRoomCode,
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
-import { handleChatMessage, isChatTurnActive } from "@/main/dispatch/chat-bridge";
+import { handleChatMessage } from "@/main/dispatch/chat-bridge";
+import { dispatchAgentCommand } from "@/main/dispatch/agent-gateway";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { CHAT_MESSAGE_TYPE, parseChatMessage } from "@repo/dispatch";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
@@ -53,21 +53,10 @@ import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
-import type { ImageAttachment } from "@/shared/voice";
 import { isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { UpdateState } from "@/shared/ipc";
-import type { ImageContent } from "@repo/pi-driver/pi-types";
 
 const { autoUpdater } = electronUpdater;
-
-/** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
-function toImageContent(images: ImageAttachment[] | undefined): ImageContent[] | undefined {
-  return images?.map((i) => ({
-    type: "image",
-    data: i.data,
-    mimeType: i.mimeType,
-  }));
-}
 
 const isDevelopment = !app.isPackaged;
 const STARTUP_UPDATE_DELAY_MS = 15_000;
@@ -180,23 +169,10 @@ function registerIpcHandlers(): void {
 
   // ---- Agent ----------------------------------------------------------------
 
+  // All interactive agent commands funnel through the gateway, which defers
+  // them while an external chat turn owns the session (see agent-gateway.ts).
   handle("sendAgentCommand", (command) => {
-    const agent = getAgent();
-    if (!agent) return;
-    switch (command.type) {
-      case "user_message":
-        void agent.sendMessage(command.text, toImageContent(command.images));
-        break;
-      case "steer":
-        void agent.steer(command.text, toImageContent(command.images));
-        break;
-      case "follow_up":
-        void agent.followUp(command.text, toImageContent(command.images));
-        break;
-      case "interrupt":
-        void agent.interrupt();
-        break;
-    }
+    dispatchAgentCommand(command);
   });
 
   handle("getAgentHistory", () => readSessionHistory());
@@ -463,30 +439,21 @@ app
         return;
       }
 
-      const agent = getAgent();
-      if (!agent) return;
+      // Mobile relay commands funnel through the same gateway as the desktop
+      // UI, so they queue (rather than corrupt) an in-flight external chat turn.
       switch (msg.type) {
         case "user_message": {
-          // An external chat turn owns the shared session — injecting here would
-          // queue as a follow-up and bleed into the reply we relay back to the
-          // messaging platform. Drop rather than corrupt the in-flight turn.
-          if (isChatTurnActive()) break;
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void agent.sendMessage(text);
+          if (text) dispatchAgentCommand({ type: "user_message", text });
           break;
         }
         case "steer": {
-          if (isChatTurnActive()) break;
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void agent.steer(text);
+          if (text) dispatchAgentCommand({ type: "steer", text });
           break;
         }
         case "interrupt":
-          // An external chat turn owns the session and self-aborts at its own
-          // timeout; a mobile interrupt mid-turn would abort it early and post a
-          // partial/empty reply to the platform. Defer like the other controls.
-          if (isChatTurnActive()) break;
-          void agent.interrupt();
+          dispatchAgentCommand({ type: "interrupt" });
           break;
       }
     });

@@ -37,3 +37,5 @@ export const TextChatMessageSchema = Type.Union([
   Type.Object({ type: Type.Literal("interrupt") }, { additionalProperties: false }),
 ]);
 
+export type TextChatMessage = Static<typeof TextChatMessageSchema>;
+

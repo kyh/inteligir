@@ -19,6 +19,7 @@
 // ---------------------------------------------------------------------------
 
 import { getAgent } from "@/main/app-machine";
+import { beginChatTurn, endChatTurn, isChatTurnActive } from "@/main/dispatch/agent-gateway";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { ChatMessagePayload } from "@repo/dispatch";
@@ -28,16 +29,6 @@ import type { ChatMessagePayload } from "@repo/dispatch";
 const TURN_TIMEOUT_MS = 120_000;
 /** Grace period for the session to settle after an interrupt. */
 const DRAIN_TIMEOUT_MS = 5_000;
-
-let active = false;
-
-/** Whether an external chat turn currently owns the shared agent session.
- * The mobile relay path consults this so its fire-and-forget `user_message` /
- * `steer` injections don't queue as follow-ups mid-turn and blend into (or
- * overwrite) the assistant text we're about to relay back to the platform. */
-export function isChatTurnActive(): boolean {
-  return active;
-}
 
 /** Handle an inbound chat message. Always replies exactly once (via
  * `sendChatReply`) so the gateway request resolves promptly. */
@@ -51,7 +42,7 @@ export function handleChatMessage(payload: ChatMessagePayload): void {
     return;
   }
 
-  if (active) {
+  if (isChatTurnActive()) {
     sendChatReply(
       correlationId,
       "I'm still working on your previous message — I'll be free in a moment, then resend.",
@@ -62,9 +53,12 @@ export function handleChatMessage(payload: ChatMessagePayload): void {
   const label = payload.conversation?.platform ?? "chat";
   console.log(`[chat-bridge] inbound (${label}) len=${text.length}`);
 
-  active = true;
+  // Take the exclusive agent lock for this turn; interactive commands (desktop
+  // UI / mobile) that arrive meanwhile queue in the gateway and flush on
+  // release, so they can't blend into the reply we relay back.
+  beginChatTurn();
   void runTurn(correlationId, text).finally(() => {
-    active = false;
+    endChatTurn();
   });
 }
 
