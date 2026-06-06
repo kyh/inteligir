@@ -92,10 +92,15 @@ export function dispatchAgentCommand(command: TextChatMessage): Promise<void> {
   return apply(command);
 }
 
-/** Drain the deferred queue sequentially: apply one command, await its
- * acceptance, then the next. Commands that arrive mid-drain are enqueued (see
- * `dispatchAgentCommand`) and picked up here, so FIFO order holds and no two
- * commands hit the agent concurrently. */
+/** Drain the deferred queue in arrival order: apply one command, await its
+ * submission, then the next (commands arriving mid-drain are enqueued and
+ * picked up here, so order is preserved). Note `apply` awaits *submission*, not
+ * turn completion — `PiAgent.sendMessage` kicks the prompt and returns, routing
+ * to `followUp` if a turn is already running. So rapid queued user messages
+ * coalesce into one turn, exactly as fast-typed interactive input does; the
+ * queue's job is only to keep input out of the preceding exclusive turn, not to
+ * force each into its own turn. (Awaiting waitForIdle between commands would
+ * serialize turns but could wedge the drain on a hung turn.) */
 async function drainQueue(): Promise<void> {
   if (draining) return;
   draining = true;
