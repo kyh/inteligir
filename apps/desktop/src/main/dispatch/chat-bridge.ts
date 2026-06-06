@@ -22,7 +22,7 @@ import { getAgent } from "@/main/app-machine";
 import {
   beginExclusiveTurn,
   endExclusiveTurn,
-  isExclusiveTurnActive,
+  isAgentReserved,
 } from "@/main/dispatch/agent-gateway";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
@@ -46,9 +46,10 @@ export function handleChatMessage(payload: ChatMessagePayload): void {
     return;
   }
 
-  // An exclusive turn (another chat relay, or a scheduled task) owns the
-  // session — reply busy rather than starting a turn that would blend into it.
-  if (isExclusiveTurnActive()) {
+  // The agent is reserved — another exclusive turn (chat relay / scheduled
+  // task) holds it, or the gateway is still draining queued interactive
+  // commands. Reply busy rather than starting a turn that would interleave.
+  if (isAgentReserved()) {
     sendChatReply(
       correlationId,
       "I'm busy finishing something up — I'll be free in a moment, then resend.",

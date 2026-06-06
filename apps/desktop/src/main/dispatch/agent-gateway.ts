@@ -53,6 +53,16 @@ export function isExclusiveTurnActive(): boolean {
   return exclusiveTurnActive;
 }
 
+/** Whether the agent is reserved by gateway work: an exclusive turn holds the
+ * lock, OR the queue is still draining. Callers that want to START a new
+ * exclusive turn (chat relay, scheduled task) must gate on this, not just
+ * `isExclusiveTurnActive` — `endExclusiveTurn` clears the lock before the drain
+ * finishes, so a turn started in that window would interleave with a queued
+ * command still being applied and break the single-writer guarantee. */
+export function isAgentReserved(): boolean {
+  return exclusiveTurnActive || draining;
+}
+
 /** Take the exclusive-turn lock. The caller must have already confirmed no
  * other exclusive turn is active and the agent isn't busy with an interactive
  * turn. Synchronous so it's set before the caller yields. */

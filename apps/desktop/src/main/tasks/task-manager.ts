@@ -16,7 +16,7 @@ import {
   type CreateTaskParams,
 } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
-import { isExclusiveTurnActive } from "@/main/dispatch/agent-gateway";
+import { isAgentReserved } from "@/main/dispatch/agent-gateway";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
@@ -130,9 +130,10 @@ export class TaskManager {
 
     const state = agent.getState();
     if (state.status === "busy") return;
-    // A chat relay owns the session (its lock can be set a microtask before the
-    // agent flips to "busy") — don't fire a task turn into the relayed reply.
-    if (isExclusiveTurnActive()) return;
+    // The agent is reserved by the gateway — a chat relay holds the lock (it can
+    // be set a microtask before the agent flips to "busy"), or queued
+    // interactive commands are still draining. Don't fire a task turn into it.
+    if (isAgentReserved()) return;
 
     const now = Date.now();
     const tasks = this.getTasks();

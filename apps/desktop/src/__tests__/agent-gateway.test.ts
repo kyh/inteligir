@@ -105,6 +105,31 @@ describe("agent-gateway", () => {
     expect(agent.started).toEqual(["a", "c"]);
   });
 
+  it("reports the agent as reserved while the queue is still draining", async () => {
+    const agent = makeAgent();
+    getAgent.mockReturnValue(agent);
+
+    let releaseFirst!: () => void;
+    agent.sendMessage.mockImplementation(async (text: string) => {
+      agent.started.push(text);
+      if (text === "a") await new Promise<void>((r) => (releaseFirst = r));
+    });
+
+    gw.beginExclusiveTurn();
+    const p1 = gw.dispatchAgentCommand({ type: "user_message", text: "a" });
+    gw.endExclusiveTurn();
+    await flush(); // draining "a" (in flight)
+
+    // The exclusive lock is cleared, but the drain is in progress — a new
+    // exclusive turn must still see the agent as reserved.
+    expect(gw.isExclusiveTurnActive()).toBe(false);
+    expect(gw.isAgentReserved()).toBe(true);
+
+    releaseFirst();
+    await p1;
+    expect(gw.isAgentReserved()).toBe(false);
+  });
+
   it("rejects the caller's promise when a queued command fails to apply", async () => {
     const agent = makeAgent();
     getAgent.mockReturnValue(agent);
