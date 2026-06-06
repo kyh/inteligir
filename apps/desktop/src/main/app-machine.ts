@@ -232,12 +232,22 @@ export async function dailyRefresh(
     if (isAgentReserved()) return { ok: false, skipped: "reserved" };
     try {
       await newSession();
-      await dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
-      return { ok: true };
     } catch (err) {
-      console.error("[machine] dailyRefresh failed:", err);
+      // The session didn't roll — leave the day unspent so the next open retries.
+      console.error("[machine] dailyRefresh newSession failed:", err);
       return { ok: false, skipped: "error" };
     }
+    // The session has now rolled — that IS the daily refresh, so the day is
+    // spent regardless of the greeting's outcome. Re-running on the next focus
+    // would discard this fresh thread, so the greeting is best-effort: a
+    // submission failure is logged, and any turn-level error surfaces in-session
+    // via the normal agent-event path.
+    try {
+      await dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
+    } catch (err) {
+      console.error("[machine] daily greeting failed to submit:", err);
+    }
+    return { ok: true };
   });
 }
 
