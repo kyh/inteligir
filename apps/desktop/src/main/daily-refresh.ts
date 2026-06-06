@@ -95,18 +95,28 @@ export function buildGreetingPrompt(runs: TaskRunLog[], tasksById: Map<string, s
   );
 }
 
-let inFlight = false;
+let refreshInFlight: Promise<void> | null = null;
 
 /**
  * If a refresh is due and the app is ready, start a fresh session and greet the
- * user with the overnight summary. Safe to call on every window focus — it's a
- * no-op when not due, disabled, not ready, or already running. `lastRefreshDay`
- * is only advanced on a successful refresh, so a deferral (busy/not-ready)
- * retries on the next focus.
+ * user with the overnight summary. Safe to call on every window focus AND the
+ * ready-state hook — single-flighted via `refreshInFlight` so the two triggers
+ * can't roll the session twice, and a no-op when not due, disabled, or not
+ * ready. `lastRefreshDay` is only advanced on a successful refresh, so a
+ * deferral (busy/not-ready) retries on the next trigger.
  */
-export async function maybeDailyRefresh(): Promise<void> {
-  if (inFlight) return;
+export function maybeDailyRefresh(): Promise<void> {
+  // Collapse concurrent callers onto one run. The body's due-checks are
+  // synchronous (so the very next caller already sees this promise), and this
+  // also stays correct if an await is ever introduced before the work begins.
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = runRefresh().finally(() => {
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
+}
 
+async function runRefresh(): Promise<void> {
   const state = getStore().read();
   if (!state.enabled) return;
 
@@ -116,25 +126,20 @@ export async function maybeDailyRefresh(): Promise<void> {
   // Need a live, set-up user agent to refresh into.
   if (getAppState().phase !== "ready") return;
 
-  inFlight = true;
-  try {
-    const since = refreshSince(state.lastRefreshAt, now);
-    const tm = getTaskManager();
-    const runs = tm.getRunsSince(since);
-    const tasksById = new Map<string, string>(tm.getTasks().map((t: Task) => [t.id, t.label]));
+  const since = refreshSince(state.lastRefreshAt, now);
+  const tm = getTaskManager();
+  const runs = tm.getRunsSince(since);
+  const tasksById = new Map<string, string>(tm.getTasks().map((t: Task) => [t.id, t.label]));
 
-    const result = await dailyRefresh(() => buildGreetingPrompt(runs, tasksById, new Date()));
-    if (result.ok) {
-      const done = new Date();
-      getStore().update(() => ({
-        lastRefreshDay: dayKey(done),
-        lastRefreshAt: done.getTime(),
-        enabled: state.enabled,
-      }));
-    } else {
-      console.log(`[daily-refresh] skipped: ${result.skipped ?? "unknown"}`);
-    }
-  } finally {
-    inFlight = false;
+  const result = await dailyRefresh(() => buildGreetingPrompt(runs, tasksById, new Date()));
+  if (result.ok) {
+    const done = new Date();
+    getStore().update(() => ({
+      lastRefreshDay: dayKey(done),
+      lastRefreshAt: done.getTime(),
+      enabled: state.enabled,
+    }));
+  } else {
+    console.log(`[daily-refresh] skipped: ${result.skipped ?? "unknown"}`);
   }
 }
