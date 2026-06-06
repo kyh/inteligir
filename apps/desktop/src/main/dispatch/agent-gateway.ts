@@ -119,7 +119,10 @@ async function drainQueue(): Promise<void> {
 
 async function apply(command: TextChatMessage): Promise<void> {
   const agent = getAgent();
-  if (!agent) return;
+  // Reject rather than silently resolve: a queued command draining while the
+  // agent is briefly null (e.g. mid newSession/stopAgent) didn't reach the
+  // agent, so awaiters must not treat it as submitted.
+  if (!agent) throw new Error("Agent unavailable");
   switch (command.type) {
     case "user_message":
       await agent.sendMessage(command.text, toImageContent(command.images));

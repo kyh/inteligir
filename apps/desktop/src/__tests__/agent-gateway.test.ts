@@ -142,6 +142,16 @@ describe("agent-gateway", () => {
     await expect(p).rejects.toThrow("boom");
   });
 
+  it("rejects a queued command when the agent is gone at drain time", async () => {
+    getAgent.mockReturnValue(null);
+
+    gw.beginExclusiveTurn();
+    const p = gw.dispatchAgentCommand({ type: "user_message", text: "x" });
+    gw.endExclusiveTurn();
+
+    await expect(p).rejects.toThrow("Agent unavailable");
+  });
+
   it("clears the lock so later commands apply immediately again", async () => {
     const agent = makeAgent();
     getAgent.mockReturnValue(agent);

@@ -5,7 +5,7 @@
 import { Agent } from "@/agent/agent";
 import { isLoggedIn, login } from "@/agent/auth";
 import { isSetupComplete, seedResources, teardownResources } from "@/agent/setup";
-import { dispatchAgentCommand } from "@/main/dispatch/agent-gateway";
+import { dispatchAgentCommand, isAgentReserved } from "@/main/dispatch/agent-gateway";
 import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
@@ -226,6 +226,10 @@ export async function dailyRefresh(
     if (!agent) return { ok: false, skipped: "no-agent" };
     // Never interrupt a turn the user (or a relay) is mid-way through.
     if (agent.getState().status === "busy") return { ok: false, skipped: "busy" };
+    // Nor tear the session down mid-drain: after a chat relay ends the exclusive
+    // lock clears while queued UI/mobile commands are still flushing. newSession
+    // here would stop the agent and drop them. Defer; retry on the next open.
+    if (isAgentReserved()) return { ok: false, skipped: "reserved" };
     try {
       await newSession();
       await dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
