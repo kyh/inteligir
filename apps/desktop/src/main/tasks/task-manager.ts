@@ -16,11 +16,7 @@ import {
   type CreateTaskParams,
 } from "@/shared/task";
 import { toErrorMessage } from "@/shared/ipc";
-import {
-  beginExclusiveTurn,
-  endExclusiveTurn,
-  isExclusiveTurnActive,
-} from "@/main/dispatch/agent-gateway";
+import { isExclusiveTurnActive } from "@/main/dispatch/agent-gateway";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
@@ -134,8 +130,8 @@ export class TaskManager {
 
     const state = agent.getState();
     if (state.status === "busy") return;
-    // An exclusive turn (chat relay, or another task that hasn't flipped the
-    // agent to "busy" yet) owns the session — don't fire into it.
+    // A chat relay owns the session (its lock can be set a microtask before the
+    // agent flips to "busy") — don't fire a task turn into the relayed reply.
     if (isExclusiveTurnActive()) return;
 
     const now = Date.now();
@@ -151,12 +147,12 @@ export class TaskManager {
 
   private async fireTask(agent: Agent, task: Task, now: number): Promise<void> {
     this.firing = true;
-    // Own the session for the run: chat relays defer (they check the lock), and
-    // interactive desktop/mobile input queues in the gateway and flushes after,
-    // rather than merging into this task's turn and skewing its result summary.
-    // Set synchronously before the first await so a chat message that arrives
-    // mid-tick sees it.
-    beginExclusiveTurn();
+    // NB: tasks deliberately do NOT take the exclusive lock — they must not
+    // block the user-facing session. A chat relay defers to a running task
+    // (the agent is busy), and `tick` skips firing while a relay holds the
+    // lock, so the two don't interleave; but interactive input is never made
+    // to queue behind a task. (Background-isolated task sessions are the
+    // intended longer-term model — see the chat panel's single shared thread.)
 
     // Mark the run in tasks file
     this.tasks.update((tasks) =>
@@ -204,7 +200,6 @@ export class TaskManager {
       this.completeRun(run.id, "failed", toErrorMessage(err));
     } finally {
       this.firing = false;
-      endExclusiveTurn();
     }
   }
 
