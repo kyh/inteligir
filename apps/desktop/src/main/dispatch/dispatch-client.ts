@@ -19,10 +19,15 @@ import { DISPATCH_INITIAL_STATE } from "@/shared/dispatch";
 import type { AppAgentEvent } from "@/shared/agent-events";
 
 // Packaged builds hit the deployed Worker; dev hits local `wrangler dev`.
-// DISPATCH_SERVER_HOST overrides either (e.g. staging).
-const SERVER_HOST =
-  process.env["DISPATCH_SERVER_HOST"] ??
-  (app.isPackaged ? PRODUCTION_SERVER_HOST : DEFAULT_SERVER_HOST);
+// DISPATCH_SERVER_HOST overrides either (e.g. staging). Resolved lazily so
+// `app.isPackaged` isn't read at module load (it throws outside an Electron
+// runtime, e.g. under vitest).
+function serverHost(): string {
+  return (
+    process.env["DISPATCH_SERVER_HOST"] ??
+    (app.isPackaged ? PRODUCTION_SERVER_HOST : DEFAULT_SERVER_HOST)
+  );
+}
 // Shared secret proving this client is the authorized agent host. Must match
 // the server room's CHAT_RELAY_SECRET (and the gateway's). Fail closed: unset
 // here ⇒ no device registers ⇒ inbound chat returns no_device.
@@ -61,7 +66,7 @@ function connectToRoom(roomCode: string): void {
   }
 
   partySocket = new PartySocket({
-    host: SERVER_HOST,
+    host: serverHost(),
     party: PARTY_NAME,
     room: roomCode,
   });
