@@ -149,6 +149,14 @@ function handleAgentEvent(event: AppAgentEvent): void {
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
   const next = new Agent(opts);
+  // Start the dedicated background task agent concurrently with the user agent
+  // — they share no session state (separate dirs/instances) and the executor
+  // daemon's start() is idempotent under concurrency, so there's no reason to
+  // serialize their I/O. Non-fatal: a background failure must not block the
+  // user agent, and the scheduler reads getBackgroundAgent() live.
+  const bgStarted = startBackgroundAgent().catch((err) => {
+    console.error("[machine] background task agent failed to start:", err);
+  });
   try {
     await next.start();
     next.subscribe((raw) => {
@@ -161,20 +169,20 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   } catch (err) {
     // Don't leave a half-constructed Agent in the singleton — a retry's
     // `if (agent) return` would skip the rest of setup and the machine
-    // would transition to ready with a non-functional agent.
+    // would transition to ready with a non-functional agent. Tear down the
+    // (possibly started) background agent too, so a failed user start doesn't
+    // leave it running.
     getTaskManager().stopScheduler();
     await next.stop().catch(() => {});
+    await bgStarted;
+    await stopBackgroundAgent();
     throw err;
   }
   agent = next;
-  // Start the dedicated background task agent alongside the user agent.
-  // Non-fatal: if it fails, the scheduler simply finds no agent and skips
-  // ticks — the user session is unaffected.
-  try {
-    await startBackgroundAgent();
-  } catch (err) {
-    console.error("[machine] background task agent failed to start:", err);
-  }
+  // Settle the background start before the effect returns so a subsequent,
+  // queue-serialized stopAgent can't run before bgAgent is assigned and then
+  // leak a late-starting background agent.
+  await bgStarted;
 }
 
 async function stopAgent(): Promise<void> {

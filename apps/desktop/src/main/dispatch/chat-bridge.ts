@@ -26,6 +26,7 @@ import {
 } from "@/main/dispatch/agent-gateway";
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
+import { toErrorMessage } from "@/shared/ipc";
 import type { ChatMessagePayload } from "@repo/dispatch";
 
 /** Upper bound on a single chat turn before we abort it. Kept below the party
@@ -152,8 +153,7 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
     }
     sendChatReply(correlationId, "(no response)");
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    sendChatReply(correlationId, `Something went wrong: ${message}`);
+    sendChatReply(correlationId, `Something went wrong: ${toErrorMessage(err)}`);
   } finally {
     unsubscribe();
   }
