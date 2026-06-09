@@ -43,5 +43,9 @@ export const EXTENSIONS_DIR = PATHS.extensionsDir;
  * (which read os.homedir() at import); they mutate nothing.
  */
 export function configurePaths(): void {
-  configureHostPaths();
+  // Pin to the same home AGENT_DIR/SESSION_DIR/auth were derived from at import,
+  // rather than letting the host re-resolve resolveAgentHome() independently.
+  // Guarantees PI_CODING_AGENT_DIR can never desync from the path constants the
+  // Agent uses, even if the environment changed after this module loaded.
+  configureHostPaths(AGENT_DIR);
 }
