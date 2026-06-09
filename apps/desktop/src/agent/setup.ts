@@ -21,6 +21,7 @@ import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "@/agent/paths
 import { getExecutorDaemon, resetExecutorDaemon } from "@/main/executor/executor-daemon";
 import { resetShellCache } from "@/main/shell";
 import { resetNotifications } from "@/main/notifications";
+import { resetDailyRefresh } from "@/main/daily-refresh";
 import { resetTaskManager } from "@/main/tasks/task-manager";
 import type { IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 
@@ -130,6 +131,7 @@ export function teardownResources(): void {
   resetNotifications();
   resetShellCache();
   resetTaskManager();
+  resetDailyRefresh();
   resetExecutorDaemon();
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
 }

@@ -26,7 +26,6 @@ import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-proxy";
 
 import {
-  getAgent,
   getAppState,
   initMachine,
   reauthenticate,
@@ -39,6 +38,11 @@ import {
   refreshRoomCode,
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
+import { handleChatMessage } from "@/main/dispatch/chat-bridge";
+import { dispatchAgentCommand } from "@/main/dispatch/agent-gateway";
+import { maybeDailyRefresh } from "@/main/daily-refresh";
+import { sendChatReply } from "@/main/dispatch/dispatch-client";
+import { CHAT_MESSAGE_TYPE, parseChatMessage } from "@repo/dispatch";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { initAgentLog } from "@/main/lib/agent-log";
 import { broadcast } from "@/main/lib/broadcast";
@@ -50,21 +54,10 @@ import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
-import type { ImageAttachment } from "@/shared/voice";
 import { isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { UpdateState } from "@/shared/ipc";
-import type { ImageContent } from "@repo/pi-driver/pi-types";
 
 const { autoUpdater } = electronUpdater;
-
-/** Project IPC ImageAttachment payloads to pi-ai's ImageContent block shape. */
-function toImageContent(images: ImageAttachment[] | undefined): ImageContent[] | undefined {
-  return images?.map((i) => ({
-    type: "image",
-    data: i.data,
-    mimeType: i.mimeType,
-  }));
-}
 
 const isDevelopment = !app.isPackaged;
 const STARTUP_UPDATE_DELAY_MS = 15_000;
@@ -177,23 +170,13 @@ function registerIpcHandlers(): void {
 
   // ---- Agent ----------------------------------------------------------------
 
+  // All interactive agent commands funnel through the gateway, which defers
+  // them while an external chat turn owns the session (see agent-gateway.ts).
   handle("sendAgentCommand", (command) => {
-    const agent = getAgent();
-    if (!agent) return;
-    switch (command.type) {
-      case "user_message":
-        void agent.sendMessage(command.text, toImageContent(command.images));
-        break;
-      case "steer":
-        void agent.steer(command.text, toImageContent(command.images));
-        break;
-      case "follow_up":
-        void agent.followUp(command.text, toImageContent(command.images));
-        break;
-      case "interrupt":
-        void agent.interrupt();
-        break;
-    }
+    // Fire-and-forget: the renderer doesn't await the result, and submission
+    // errors surface in the chat panel via agent events, so swallow rejections
+    // to avoid an unhandled promise.
+    void dispatchAgentCommand(command).catch(() => {});
   });
 
   handle("getAgentHistory", () => readSessionHistory());
@@ -438,25 +421,47 @@ app
 
     mainWindow = createWindow();
     getNotifications().setTargetWindow(mainWindow);
+    // Re-opening the app (window regains focus) is the primary "good morning"
+    // trigger; maybeDailyRefresh no-ops unless a new local day is due and the
+    // session is ready. (Cold launch is covered by the ready-state hook.)
+    mainWindow.on("focus", () => void maybeDailyRefresh());
 
     initMachine();
 
     initDispatch((msg) => {
-      const agent = getAgent();
-      if (!agent) return;
+      // Chat-bridge messages from external interfaces run a full agent turn and
+      // reply out of band — handle them before the mobile-relay switch, which
+      // requires a live agent and only does fire-and-forget.
+      if (msg.type === CHAT_MESSAGE_TYPE) {
+        const payload = parseChatMessage(msg.payload);
+        if (payload) {
+          handleChatMessage(payload);
+        } else {
+          // Reply with an error if we can still recover the correlationId, so
+          // the gateway request resolves instead of waiting out its timeout.
+          const cid = (msg.payload as { correlationId?: unknown }).correlationId;
+          if (typeof cid === "string") {
+            sendChatReply(cid, "Sorry, that message couldn't be processed.");
+          }
+        }
+        return;
+      }
+
+      // Mobile relay commands funnel through the same gateway as the desktop
+      // UI, so they queue (rather than corrupt) an in-flight external chat turn.
       switch (msg.type) {
         case "user_message": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void agent.sendMessage(text);
+          if (text) void dispatchAgentCommand({ type: "user_message", text }).catch(() => {});
           break;
         }
         case "steer": {
           const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void agent.steer(text);
+          if (text) void dispatchAgentCommand({ type: "steer", text }).catch(() => {});
           break;
         }
         case "interrupt":
-          void agent.interrupt();
+          void dispatchAgentCommand({ type: "interrupt" }).catch(() => {});
           break;
       }
     });
