@@ -49,10 +49,12 @@ export class TaskManager {
   private readonly tasks: JsonStore<Task[]>;
   private readonly runs: JsonStore<TaskRunLog[]>;
 
-  // Scheduler state
+  // Scheduler state. The accessor returns the BACKGROUND agent (see
+  // background-agent.ts), never the user-facing one — tasks run off the user
+  // thread.
   private timer: ReturnType<typeof setInterval> | null = null;
   private firing = false;
-  private getAgent: (() => Agent | null) | null = null;
+  private getBackgroundAgent: (() => Agent | null) | null = null;
 
   constructor(opts?: TaskManagerOptions) {
     this.tasks = new JsonStore<Task[]>(
@@ -73,6 +75,12 @@ export class TaskManager {
 
   getTasks(): Task[] {
     return this.tasks.read();
+  }
+
+  /** Run-log entries that started at or after `sinceMs`, oldest first. Used by
+   * the daily refresh to summarize what ran overnight. */
+  getRunsSince(sinceMs: number): TaskRunLog[] {
+    return this.runs.read().filter((r) => r.startedAt >= sinceMs);
   }
 
   createTask(params: CreateTaskParams): Task {
@@ -108,9 +116,9 @@ export class TaskManager {
 
   // ---- Scheduler ------------------------------------------------------------
 
-  startScheduler(getAgent: () => Agent | null): void {
+  startScheduler(getBackgroundAgent: () => Agent | null): void {
     if (this.timer) return;
-    this.getAgent = getAgent;
+    this.getBackgroundAgent = getBackgroundAgent;
     this.timer = setInterval(() => this.tick(), POLL_INTERVAL_MS);
   }
 
@@ -119,14 +127,18 @@ export class TaskManager {
       clearInterval(this.timer);
       this.timer = null;
     }
-    this.getAgent = null;
+    this.getBackgroundAgent = null;
   }
 
   private tick(): void {
     if (this.firing) return;
-    const agent = this.getAgent?.();
+    const agent = this.getBackgroundAgent?.();
     if (!agent) return;
 
+    // Serialize the background agent against itself (one task turn at a time);
+    // combined with `firing` this is the only mutual exclusion needed, since
+    // the background agent is dedicated to tasks and shares nothing with the
+    // user session.
     const state = agent.getState();
     if (state.status === "busy") return;
 
@@ -143,6 +155,10 @@ export class TaskManager {
 
   private async fireTask(agent: Agent, task: Task, now: number): Promise<void> {
     this.firing = true;
+    // `agent` here is the dedicated background agent, isolated from the user
+    // session — so this turn neither blocks the user nor interleaves with chat
+    // relays. Its assistant text is captured below for the run log (and later
+    // the daily summary), not relayed anywhere live.
 
     // Mark the run in tasks file
     this.tasks.update((tasks) =>

@@ -18,6 +18,10 @@ import { EXTENSION_BUNDLES, buildRegisterContext } from "@/agent/setup";
 export type AgentOptions = {
   /** If true, start a fresh session instead of resuming the most recent one. */
   newSession?: boolean;
+  /** Session directory to read/write. Defaults to SESSION_DIR (the user-facing
+   * thread). The background task agent passes BACKGROUND_SESSION_DIR so its runs
+   * never land in the user's continueRecent pool. */
+  sessionDir?: string;
 };
 
 export class Agent extends AgentHost {
@@ -25,7 +29,7 @@ export class Agent extends AgentHost {
     super({
       cwd: WORKSPACE_DIR,
       agentDir: AGENT_DIR,
-      sessionDir: SESSION_DIR,
+      sessionDir: opts.sessionDir ?? SESSION_DIR,
       authStorage: () => getAuthStorage(),
       model: () => resolveModel(AUTH_PROVIDER, MODEL_ID),
       bundles: EXTENSION_BUNDLES,

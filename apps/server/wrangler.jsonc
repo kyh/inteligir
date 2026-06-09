@@ -1,8 +1,16 @@
 {
   "name": "inteligir-server",
   "main": "src/server.ts",
-  "compatibility_date": "2024-07-25",
+  "compatibility_date": "2024-09-23",
   "compatibility_flags": ["nodejs_compat"],
+  // Optional native modules the Discord adapter's Gateway client probes for;
+  // they can't run on Workers (the Gateway path is unsupported here anyway), so
+  // alias them to an empty stub to keep the bundle resolvable.
+  "alias": {
+    "zlib-sync": "./src/native-stub.js",
+    "bufferutil": "./src/native-stub.js",
+    "utf-8-validate": "./src/native-stub.js"
+  },
   "durable_objects": {
     "bindings": [
       {

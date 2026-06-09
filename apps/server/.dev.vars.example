@@ -1,0 +1,34 @@
+# Party relay + chat gateway secrets for `wrangler dev` (copy to .dev.vars;
+# never commit). In production set each with `wrangler secret put <NAME>`.
+
+# --- Bridge ---
+# Shared secret authenticating the desktop as the agent host. REQUIRED to enable
+# chat (fail closed): set a non-empty value that matches the desktop's
+# DISPATCH_CHAT_SECRET. If empty, no device registers and inbound chat returns
+# no_device — true in local dev too.
+CHAT_RELAY_SECRET=""
+# The desktop's dispatch room code (shown in the Inteligir desktop app).
+CHAT_RELAY_ROOM=""
+# Bot display name across platforms (optional).
+CHAT_BOT_USERNAME="inteligir"
+
+# --- Slack (Events API webhook) ---
+SLACK_BOT_TOKEN=""
+SLACK_SIGNING_SECRET=""
+
+# --- Telegram (Bot API webhook) ---
+TELEGRAM_BOT_TOKEN=""
+TELEGRAM_WEBHOOK_SECRET_TOKEN=""
+
+# --- WhatsApp (Meta Cloud API) ---
+WHATSAPP_ACCESS_TOKEN=""
+WHATSAPP_APP_SECRET=""
+WHATSAPP_PHONE_NUMBER_ID=""
+WHATSAPP_VERIFY_TOKEN=""
+
+# --- Discord (Interactions endpoint; messages need the Gateway — see docs) ---
+DISCORD_BOT_TOKEN=""
+DISCORD_PUBLIC_KEY=""
+DISCORD_APPLICATION_ID=""
+# Bearer secret guarding the /api/discord/gateway listener route.
+CRON_SECRET=""

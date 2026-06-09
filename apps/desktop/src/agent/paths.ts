@@ -23,6 +23,11 @@ export const MODEL_ID = HOST_MODEL_ID;
 export const AGENT_DIR = PATHS.agentDir;
 export const AUTH_PATH = PATHS.authPath;
 export const SESSION_DIR = PATHS.sessionDir;
+/** Session dir for the background task agent. MUST be separate from
+ * SESSION_DIR: the user agent resumes the most-recently-modified session in
+ * SESSION_DIR via continueRecent(), so an overnight task run there would be
+ * resumed as the user's thread on the next launch. */
+export const BACKGROUND_SESSION_DIR = PATHS.backgroundSessionDir;
 export const WORKSPACE_DIR = PATHS.workspaceDir;
 export const BIN_DIR = PATHS.binDir;
 export const EXTENSIONS_DIR = PATHS.extensionsDir;

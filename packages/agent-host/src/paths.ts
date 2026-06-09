@@ -32,6 +32,13 @@ export type AgentPaths = {
   authPath: string;
   /** Persisted session transcripts. */
   sessionDir: string;
+  /**
+   * Session dir for the background task agent. Kept separate from sessionDir:
+   * the user agent resumes the most-recently-modified session in sessionDir via
+   * continueRecent(), so an overnight background run there would be resumed as
+   * the user's thread on the next launch.
+   */
+  backgroundSessionDir: string;
   /** Agent working directory (cwd for shell/file tools). */
   workspaceDir: string;
   /** Installed-CLI bin dir, prepended to PATH so agent tools resolve. */
@@ -46,6 +53,7 @@ export function resolveAgentPaths(home: string = resolveAgentHome()): AgentPaths
     agentDir: home,
     authPath: path.join(home, "auth.json"),
     sessionDir: path.join(home, "sessions"),
+    backgroundSessionDir: path.join(home, "sessions", "background"),
     workspaceDir: path.join(home, "workspace"),
     binDir: path.join(home, "bin"),
     extensionsDir: path.join(home, "extensions"),

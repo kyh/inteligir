@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ImageIcon, ListPlusIcon, SendIcon, SquareIcon, ZapIcon } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { ListPlusIcon, PlusIcon, SendIcon, SquareIcon, ZapIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 import {
   Attachment,
@@ -9,12 +9,9 @@ import {
 } from "@repo/ui/components/ai-elements/attachments";
 import {
   PromptInput,
-  PromptInputBody,
   PromptInputButton,
   PromptInputSubmit,
   PromptInputTextarea,
-  PromptInputToolbar,
-  PromptInputTools,
   usePromptInputAttachments,
   type PromptInputMessage,
 } from "@repo/ui/components/ai-elements/prompt-input";
@@ -71,7 +68,16 @@ function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
   });
 }
 
-export function Composer({ className }: { className?: string }) {
+export function Composer({
+  className,
+  trailing,
+}: {
+  className?: string;
+  // Extra controls (e.g. the voice mic) rendered inside the pill, to the left
+  // of the submit button. The dock injects these so everything lives in one
+  // single-line bar instead of a sibling button outside the frosted pill.
+  trailing?: ReactNode;
+}) {
   const [hasInput, setHasInput] = useState(false);
   // UI-local signal that the user clicked the Zap button. Consumed once on
   // the next submit; cleared on agent_end so an unsubmitted Zap doesn't
@@ -159,9 +165,9 @@ export function Composer({ className }: { className?: string }) {
   }, []);
 
   return (
-    <div ref={wrapperRef} className={cn("bg-foreground/8 px-3 py-2 backdrop-blur-sm", className)}>
+    <div ref={wrapperRef} className={cn("flex flex-col gap-2", className)}>
       {queueCount > 0 && (
-        <Queue className="mb-2 rounded-md bg-foreground/5 px-1.5 pb-1 pt-1 shadow-none">
+        <Queue className="rounded-2xl border border-foreground/10 bg-foreground/[0.06] px-1.5 pb-1 pt-1 shadow-lg backdrop-blur-xl">
           <QueueList className="-mb-1 mt-0">
             {steeringQueue.map((msg) => (
               <QueueItem key={msg.key} className="px-2 py-1" title={msg.text}>
@@ -190,31 +196,22 @@ export function Composer({ className }: { className?: string }) {
         maxFileSize={MAX_ATTACHMENT_BYTES}
         onError={onAttachError}
         onSubmit={handleSubmit}
-        // The visible bubble is the inner InputGroup (which PromptInput
-        // renders); rewrite its default dark `border-input` + shadow + radius
-        // to match the floating-panel aesthetic. Targeted via data-slot
-        // selector so we don't re-style the form wrapper.
-        className="[&_[data-slot=input-group]]:rounded-2xl [&_[data-slot=input-group]]:border-foreground/10 [&_[data-slot=input-group]]:bg-foreground/5 [&_[data-slot=input-group]]:shadow-none [&_[data-slot=input-group]]:backdrop-blur-sm"
+        // Frosted-glass pill. We override the inner InputGroup (rendered by
+        // PromptInput) to a single-line stadium bar: `+` on the left, the
+        // textarea in the middle (grows only as text wraps via
+        // field-sizing-content), and the trailing controls + submit on the
+        // right. flex-col/items-stretch lets the optional attachment row stack
+        // above the input row while keeping that input row a clean single line.
+        className="[&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-1 [&_[data-slot=input-group]]:rounded-[1.75rem] [&_[data-slot=input-group]]:border-foreground/10 [&_[data-slot=input-group]]:bg-foreground/[0.07] [&_[data-slot=input-group]]:px-2 [&_[data-slot=input-group]]:py-2 [&_[data-slot=input-group]]:shadow-2xl [&_[data-slot=input-group]]:backdrop-blur-xl"
       >
-        {/*
-          Match the canonical ai-elements layout: attachments + toolbar are
-          direct children of PromptInput, only the textarea sits inside
-          PromptInputBody. The toolbar's `data-align=block-end` is what flips
-          InputGroup to flex-col via `:has(> [data-align=block-end])`, and
-          that selector only sees direct DOM children — so wrapping the
-          toolbar in PromptInputBody (display:contents) breaks the stack.
-        */}
         <ComposerAttachments />
-        <PromptInputBody>
+        <div className="flex items-center gap-1">
+          <AttachButton />
           <ComposerTextarea busy={busy} onInterrupt={interrupt} onHasInputChange={setHasInput} />
-        </PromptInputBody>
-        <PromptInputToolbar>
-          <PromptInputTools>
-            <AttachButton />
-            <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
-          </PromptInputTools>
+          {trailing}
+          <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
           <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
-        </PromptInputToolbar>
+        </div>
       </PromptInput>
     </div>
   );
@@ -223,8 +220,12 @@ export function Composer({ className }: { className?: string }) {
 function AttachButton() {
   const { openFileDialog } = usePromptInputAttachments();
   return (
-    <PromptInputButton tooltip="Attach image" onClick={openFileDialog}>
-      <ImageIcon className="size-3.5" />
+    <PromptInputButton
+      tooltip="Attach image"
+      onClick={openFileDialog}
+      className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+    >
+      <PlusIcon className="size-4" />
     </PromptInputButton>
   );
 }
@@ -263,9 +264,10 @@ function ComposerTextarea({
 
   return (
     <PromptInputTextarea
-      // Focus on mount so users can start typing immediately.
+      // Focus on mount so users can start typing immediately. Starts as a
+      // single line (min-h-6) and grows up to max-h-40 as text wraps.
       autoFocus
-      className="min-h-10 text-xs"
+      className="max-h-40 min-h-6 flex-1 self-center px-1 py-0 text-xs leading-6"
       placeholder={busy ? "Queue message..." : "Message..."}
       onChange={(e) => onHasInputChange(e.currentTarget.value.trim().length > 0)}
       onKeyDown={handleKeyDown}
@@ -302,8 +304,9 @@ function SteerButton({
         onSteer();
         e.currentTarget.form?.requestSubmit();
       }}
+      className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
     >
-      <ZapIcon className="size-3.5" />
+      <ZapIcon className="size-4" />
     </PromptInputButton>
   );
 }
@@ -321,8 +324,12 @@ function SubmitOrStop({
 
   if (busy && !hasContent) {
     return (
-      <PromptInputButton tooltip="Stop" onClick={onInterrupt}>
-        <SquareIcon className="size-3.5" />
+      <PromptInputButton
+        tooltip="Stop"
+        onClick={onInterrupt}
+        className="size-9 shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90"
+      >
+        <SquareIcon className="size-4" />
       </PromptInputButton>
     );
   }
@@ -330,10 +337,10 @@ function SubmitOrStop({
   return (
     <PromptInputSubmit
       disabled={!hasContent}
-      variant="ghost"
       aria-label={busy ? "Queue for next turn" : "Send"}
+      className="size-9 shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90 disabled:bg-foreground/30 disabled:text-background/70"
     >
-      {busy ? <ListPlusIcon className="size-3.5" /> : <SendIcon className="size-3.5" />}
+      {busy ? <ListPlusIcon className="size-4" /> : <SendIcon className="size-4" />}
     </PromptInputSubmit>
   );
 }
@@ -342,13 +349,13 @@ function ComposerAttachments() {
   const { files, remove } = usePromptInputAttachments();
   if (files.length === 0) return null;
   return (
-    <Attachments variant="grid" className="px-2 pt-2">
+    <Attachments variant="grid" className="px-2 pb-1 pt-1">
       {files.map((file) => (
         <Attachment
           key={file.id}
           data={file}
           onRemove={() => remove(file.id)}
-          className="size-12 rounded border border-border"
+          className="size-12 rounded-lg border border-foreground/10"
         >
           <AttachmentPreview />
           <AttachmentRemove className="size-4 top-0 right-0 rounded-none rounded-bl bg-background/80 [&>svg]:size-2.5" />

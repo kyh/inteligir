@@ -5,6 +5,7 @@
 import { Agent } from "@/agent/agent";
 import { isLoggedIn, login } from "@/agent/auth";
 import { isSetupComplete, seedResources, teardownResources } from "@/agent/setup";
+import { dispatchAgentCommand, isAgentReserved } from "@/main/dispatch/agent-gateway";
 import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
@@ -12,6 +13,11 @@ import { runEffect, type EffectDeps } from "@/main/app-effects";
 import { broadcast } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
 import { getTaskManager } from "@/main/tasks/task-manager";
+import {
+  getBackgroundAgent,
+  startBackgroundAgent,
+  stopBackgroundAgent,
+} from "@/main/tasks/background-agent";
 import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
@@ -143,25 +149,40 @@ function handleAgentEvent(event: AppAgentEvent): void {
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
   const next = new Agent(opts);
+  // Start the dedicated background task agent concurrently with the user agent
+  // — they share no session state (separate dirs/instances) and the executor
+  // daemon's start() is idempotent under concurrency, so there's no reason to
+  // serialize their I/O. Non-fatal: a background failure must not block the
+  // user agent, and the scheduler reads getBackgroundAgent() live.
+  const bgStarted = startBackgroundAgent().catch((err) => {
+    console.error("[machine] background task agent failed to start:", err);
+  });
   try {
     await next.start();
     next.subscribe((raw) => {
       const event = parseAgentEvent(raw);
       if (event) handleAgentEvent(event);
     });
-    // Capture `next` in the closure rather than the module ref so the
-    // scheduler's first tick can't observe a still-null `agent` during
-    // the microtask between startScheduler and `agent = next`.
-    getTaskManager().startScheduler(() => next);
+    // The scheduler drives the background agent (not this user agent), so it
+    // reads it live via getBackgroundAgent() — no closure over `next` needed.
+    getTaskManager().startScheduler(() => getBackgroundAgent());
   } catch (err) {
     // Don't leave a half-constructed Agent in the singleton — a retry's
     // `if (agent) return` would skip the rest of setup and the machine
-    // would transition to ready with a non-functional agent.
+    // would transition to ready with a non-functional agent. Tear down the
+    // (possibly started) background agent too, so a failed user start doesn't
+    // leave it running.
     getTaskManager().stopScheduler();
     await next.stop().catch(() => {});
+    await bgStarted;
+    await stopBackgroundAgent();
     throw err;
   }
   agent = next;
+  // Settle the background start before the effect returns so a subsequent,
+  // queue-serialized stopAgent can't run before bgAgent is assigned and then
+  // leak a late-starting background agent.
+  await bgStarted;
 }
 
 async function stopAgent(): Promise<void> {
@@ -170,8 +191,9 @@ async function stopAgent(): Promise<void> {
     await agent.stop();
     agent = null;
   }
-  // The executor daemon is started lazily by the executor extension at agent
-  // start; tear it down here so it doesn't outlive the agent.
+  // Stop both agents before the shared executor daemon: the daemon is a process
+  // singleton both sessions use, so it must outlive each agent's teardown.
+  await stopBackgroundAgent();
   await getExecutorDaemon().stop();
   turn = null;
 }
@@ -192,6 +214,51 @@ export function getAgent(): Agent | null {
  * startAgent. Used by the "Re-authenticate" Settings affordance and the
  * empty-turn modal.
  */
+/**
+ * Refresh the user-facing session for a new day and open it with a greeting.
+ * Starts a fresh user session (yesterday's thread stays in session history)
+ * and injects `buildGreeting()` as the first user turn — the assistant's reply
+ * is the "good morning" message, rendered in the chat panel via the normal
+ * broadcast path. Routed through the AppMachine queue (like reauthenticate) so
+ * it can't race LOGIN/LOGOUT, and through the gateway so the greeting turn
+ * serializes with any mobile/chat-relay traffic.
+ *
+ * Skips (without starting a new session) when there's no live agent or a turn
+ * is already in flight — the caller retries on the next app-open.
+ */
+export async function dailyRefresh(
+  buildGreeting: () => string,
+): Promise<{ ok: boolean; skipped?: string }> {
+  if (!machine) return { ok: false, skipped: "no-machine" };
+  return machine.enqueueAsync(async () => {
+    if (!agent) return { ok: false, skipped: "no-agent" };
+    // Never interrupt a turn the user (or a relay) is mid-way through.
+    if (agent.getState().status === "busy") return { ok: false, skipped: "busy" };
+    // Nor tear the session down mid-drain: after a chat relay ends the exclusive
+    // lock clears while queued UI/mobile commands are still flushing. newSession
+    // here would stop the agent and drop them. Defer; retry on the next open.
+    if (isAgentReserved()) return { ok: false, skipped: "reserved" };
+    try {
+      await newSession();
+    } catch (err) {
+      // The session didn't roll — leave the day unspent so the next open retries.
+      console.error("[machine] dailyRefresh newSession failed:", err);
+      return { ok: false, skipped: "error" };
+    }
+    // The session has now rolled — that IS the daily refresh, so the day is
+    // spent regardless of the greeting's outcome. Re-running on the next focus
+    // would discard this fresh thread, so the greeting is best-effort: a
+    // submission failure is logged, and any turn-level error surfaces in-session
+    // via the normal agent-event path.
+    try {
+      await dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
+    } catch (err) {
+      console.error("[machine] daily greeting failed to submit:", err);
+    }
+    return { ok: true };
+  });
+}
+
 export async function reauthenticate(): Promise<{ ok: boolean; error?: string }> {
   if (!machine) return { ok: false, error: "Machine not initialized" };
   return machine.enqueueAsync(async () => {
@@ -290,6 +357,13 @@ let machine: AppMachine | null = null;
 
 function broadcastAppState(state: AppState): void {
   broadcast("onAppState", state);
+  // Cold-launch trigger for the daily refresh: the window's first focus fires
+  // before login finishes, so also attempt once the session is ready. Imported
+  // lazily to avoid a load-time cycle (daily-refresh imports this module);
+  // maybeDailyRefresh is a no-op when not due / already done.
+  if (state.phase === "ready") {
+    void import("@/main/daily-refresh").then((m) => m.maybeDailyRefresh());
+  }
 }
 
 async function downloadVoiceModel(): Promise<void> {
