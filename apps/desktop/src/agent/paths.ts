@@ -35,6 +35,12 @@ export const EXTENSIONS_DIR = PATHS.extensionsDir;
 /**
  * Override pi-coding-agent's default getAgentDir() (~/.pi/agent). Must be
  * called once at process startup, before any pi-coding-agent module loads.
+ *
+ * Kept a function (not an import-time statement) so the only side effect that
+ * matters — mutating process.env["PI_CODING_AGENT_DIR"] — happens on demand,
+ * which keeps tests and reload flows easy to reason about. The path constants
+ * above are plain module-load computations, same as the original module
+ * (which read os.homedir() at import); they mutate nothing.
  */
 export function configurePaths(): void {
   configureHostPaths();

@@ -21,7 +21,10 @@ export const MODEL_ID = "gpt-5.5";
  */
 export function resolveAgentHome(): string {
   const override = process.env["INTELIGIR_HOME"];
-  if (override && override.trim() !== "") return override;
+  // path.resolve so a relative override (e.g. "./data") still yields an
+  // absolute path, matching the always-absolute homedir default — downstream
+  // path comparisons/logging assume absolute.
+  if (override && override.trim() !== "") return path.resolve(override);
   return path.join(os.homedir(), ".inteligir");
 }
 
