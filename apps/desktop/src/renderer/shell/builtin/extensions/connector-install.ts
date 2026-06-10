@@ -27,13 +27,20 @@ type AuthSpec =
   // Dynamic-DCR OAuth against the source endpoint (MCP only).
   | { kind: "oauth" }
   // A user-supplied secret sent as a request header.
-  | { kind: "apiKey"; headerName: string; prefix?: string; secretId: string; secretName: string; secretValue: string };
+  | {
+      kind: "apiKey";
+      headerName: string;
+      prefix?: string;
+      secretId: string;
+      secretName: string;
+      secretValue: string;
+    };
 
 export type InstallRequest = {
   source: SourceSpec;
   auth: AuthSpec;
   /** Extra freeform headers (from the custom dialog), merged with any apiKey header. */
-  headers?: Record<string, string>;
+  headers?: Record<string, string> | undefined;
 };
 
 /**
@@ -81,9 +88,12 @@ async function applyAuth(
       provider: req.source.namespace,
     });
     applied.createdSecretId = req.auth.secretId;
-    headers[req.auth.headerName] = { secretId: req.auth.secretId, prefix: req.auth.prefix };
+    headers[req.auth.headerName] = {
+      secretId: req.auth.secretId,
+      ...(req.auth.prefix === undefined ? {} : { prefix: req.auth.prefix }),
+    };
   }
-  applied.headers = Object.keys(headers).length > 0 ? headers : undefined;
+  if (Object.keys(headers).length > 0) applied.headers = headers;
 }
 
 /** Best-effort undo of applyAuth's side-effects when source registration fails. */
@@ -112,7 +122,7 @@ async function registerSource(
         endpoint: s.endpoint,
         remoteTransport: "auto",
         namespace: s.namespace,
-        headers,
+        ...(headers === undefined ? {} : { headers }),
       });
       return;
     case "openapi":
@@ -121,7 +131,7 @@ async function registerSource(
         name: s.name,
         baseUrl: s.baseUrl,
         namespace: s.namespace,
-        headers,
+        ...(headers === undefined ? {} : { headers }),
       });
       return;
     case "graphql":
@@ -129,7 +139,7 @@ async function registerSource(
         endpoint: s.endpoint,
         name: s.name,
         namespace: s.namespace,
-        headers,
+        ...(headers === undefined ? {} : { headers }),
       });
       return;
     case "google":
@@ -198,9 +208,9 @@ async function namespaceHasSource(bridge: DesktopBridge, namespace: string): Pro
 export async function uninstallConnector(
   bridge: DesktopBridge,
   opts: {
-    sourceId?: string;
+    sourceId?: string | undefined;
     namespace: string;
-    secretId?: string;
+    secretId?: string | undefined;
   },
 ): Promise<void> {
   const errors: unknown[] = [];
@@ -282,7 +292,7 @@ export function catalogInstallRequest(
       auth: {
         kind: "apiKey",
         headerName: auth.headerName,
-        prefix: auth.prefix,
+        ...(auth.prefix === undefined ? {} : { prefix: auth.prefix }),
         secretId: apiKeySecretId(connector.id),
         secretName: auth.secretLabel,
         secretValue,

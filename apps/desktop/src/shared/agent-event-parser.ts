@@ -93,8 +93,12 @@ export function parseAgentEvent(raw: unknown): AppAgentEvent | null {
         type: "message_end",
         role: raw.message.role,
         text: extractText(raw.message),
-        stopReason: raw.message.stopReason,
-        errorMessage: raw.message.errorMessage,
+        // Conditional spreads keep optional fields absent (not undefined) so
+        // AppAgentEvent stays structurally a wire AgentEvent projection.
+        ...(raw.message.stopReason === undefined ? {} : { stopReason: raw.message.stopReason }),
+        ...(raw.message.errorMessage === undefined
+          ? {}
+          : { errorMessage: raw.message.errorMessage }),
       };
     }
 

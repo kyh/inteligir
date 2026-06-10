@@ -73,9 +73,7 @@ export function IntegrationsSection() {
                 <span className="text-xs text-foreground">{it.name}</span>
                 <span
                   className={
-                    upToDate
-                      ? "text-[10px] text-muted-foreground"
-                      : "text-[10px] text-foreground"
+                    upToDate ? "text-[10px] text-muted-foreground" : "text-[10px] text-foreground"
                   }
                 >
                   {label}

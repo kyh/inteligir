@@ -14,13 +14,50 @@
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "nextjs", "oxc", "node", "promise"],
   "categories": {
-    "correctness": "warn",
-    "suspicious": "warn",
-    "perf": "warn"
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
   },
   "rules": {
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    // No `as` casts (`as const` stays allowed). The few legitimate
+    // third-party/type-system bridges carry a one-line justification plus an
+    // inline disable; everything else gets a real type, guard, or generic.
+    "typescript/consistent-type-assertions": ["error", { "assertionStyle": "never" }],
     "react/react-in-jsx-scope": "off",
     "eslint/no-shadow": "off",
-    "eslint/no-await-in-loop": "off"
-  }
+    "eslint/no-await-in-loop": "off",
+    // expo-status-bar's StatusBar takes `style` as a string variant, not CSS.
+    "react/style-prop-object": ["error", { "allow": ["StatusBar"] }],
+    // Render props (React Navigation headerRight, FlatList renderItem) are legit.
+    "react/no-unstable-nested-components": ["error", { "allowAsProps": true }]
+  },
+  "overrides": [
+    {
+      // Tests may cast at mock seams (partial doubles of wide interfaces).
+      "files": ["**/__tests__/**", "**/*.test.ts", "**/*.test.tsx"],
+      "rules": {
+        "typescript/consistent-type-assertions": "off"
+      }
+    },
+    {
+      // Dependency boundary: agent/ must stay main-free. Capabilities are
+      // injected as AgentPorts from main/lib/agent-lifecycle.ts.
+      "files": ["apps/desktop/src/agent/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@/main", "@/main/**", "**/main/**"],
+                "message": "agent/ must not import from main/ — inject via AgentPorts (main/lib/agent-lifecycle.ts)"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
 }

@@ -6,7 +6,7 @@ export type RunCliOptions = {
   /** Bytes; cap on combined stdout buffering. */
   maxBuffer: number;
   /** Optional stdin payload — piped to the child and closed. */
-  stdin?: string;
+  stdin?: string | undefined;
   /**
    * Message thrown when the binary is missing (ENOENT). Defaults to a
    * generic "<binPath> not installed". Tool wrappers usually want a

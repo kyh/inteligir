@@ -31,9 +31,11 @@ function mockBridge(overrides: Partial<DesktopBridge> = {}): DesktopBridge {
     removeExecutorSecret: vi.fn().mockResolvedValue({ removed: true }),
     listExecutorConnections: vi.fn().mockResolvedValue([]),
     // runOAuthFlow returns immediately when start reports a completed connection.
-    executorOAuthStart: vi
-      .fn()
-      .mockResolvedValue({ sessionId: "sess", authorizationUrl: null, completedConnection: { connectionId: "c" } }),
+    executorOAuthStart: vi.fn().mockResolvedValue({
+      sessionId: "sess",
+      authorizationUrl: null,
+      completedConnection: { connectionId: "c" },
+    }),
     executorOpenExternal: vi.fn().mockResolvedValue(undefined),
     executorOAuthAwait: vi.fn(),
     ...overrides,
@@ -119,12 +121,21 @@ describe("installConnector", () => {
   it("registers an OpenAPI source from a custom request", async () => {
     const bridge = mockBridge();
     const req: InstallRequest = {
-      source: { type: "openapi", name: "Petstore", namespace: "petstore", specUrl: "https://x/spec", baseUrl: "https://x" },
+      source: {
+        type: "openapi",
+        name: "Petstore",
+        namespace: "petstore",
+        specUrl: "https://x/spec",
+        baseUrl: "https://x",
+      },
       auth: { kind: "none" },
     };
     await installConnector(bridge, req);
     expect(bridge.addOpenApiSource).toHaveBeenCalledWith(
-      expect.objectContaining({ baseUrl: "https://x", spec: { kind: "url", url: "https://x/spec" } }),
+      expect.objectContaining({
+        baseUrl: "https://x",
+        spec: { kind: "url", url: "https://x/spec" },
+      }),
     );
   });
 
@@ -141,7 +152,9 @@ describe("installConnector", () => {
   it("rolls back the OAuth connection when source registration fails", async () => {
     const bridge = mockBridge({
       addMcpSource: vi.fn().mockRejectedValue(new Error("boom")),
-      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-x", provider: "x" })]),
+      listExecutorConnections: vi
+        .fn()
+        .mockResolvedValue([conn({ id: "mcp-oauth2-x", provider: "x" })]),
     });
     const req: InstallRequest = {
       source: { type: "mcp", name: "X", namespace: "x", endpoint: "https://e" },
@@ -200,11 +213,15 @@ describe("installConnector", () => {
     const bridge = mockBridge({
       // Flow proceeds to the browser + poll, then the callback reports failure —
       // by which point executor may already have created the connection.
-      executorOAuthStart: vi
-        .fn()
-        .mockResolvedValue({ sessionId: "s", authorizationUrl: "https://auth", completedConnection: null }),
+      executorOAuthStart: vi.fn().mockResolvedValue({
+        sessionId: "s",
+        authorizationUrl: "https://auth",
+        completedConnection: null,
+      }),
       executorOAuthAwait: vi.fn().mockResolvedValue({ ok: false, sessionId: "s", error: "denied" }),
-      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-x", provider: "x" })]),
+      listExecutorConnections: vi
+        .fn()
+        .mockResolvedValue([conn({ id: "mcp-oauth2-x", provider: "x" })]),
     });
     const req: InstallRequest = {
       source: { type: "mcp", name: "X", namespace: "x", endpoint: "https://e" },
@@ -235,7 +252,9 @@ describe("uninstallConnector", () => {
     const bridge = mockBridge({
       // Same provider label, but a different connector's connection id — must
       // not be removed.
-      listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-other", provider: "linear" })]),
+      listExecutorConnections: vi
+        .fn()
+        .mockResolvedValue([conn({ id: "mcp-oauth2-other", provider: "linear" })]),
     });
     await uninstallConnector(bridge, { sourceId: "src-1", namespace: "linear" });
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
@@ -247,7 +266,11 @@ describe("uninstallConnector", () => {
       listExecutorConnections: vi.fn().mockResolvedValue([conn({ id: "mcp-oauth2-x" })]),
     });
     await expect(
-      uninstallConnector(bridge, { sourceId: "src-1", namespace: "x", secretId: apiKeySecretId("x") }),
+      uninstallConnector(bridge, {
+        sourceId: "src-1",
+        namespace: "x",
+        secretId: apiKeySecretId("x"),
+      }),
     ).rejects.toThrow("source boom");
     expect(bridge.removeExecutorConnection).not.toHaveBeenCalled();
     expect(bridge.removeExecutorSecret).not.toHaveBeenCalled();
