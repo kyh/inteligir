@@ -9,7 +9,7 @@
 //   y=4  Meeting Prep(6)   Up Next(6)
 //   y=8  People(5)         To Do(7)
 
-import type { JsonUiWidgetDef, WidgetInstance } from "@/shared/shell";
+import type { JsonUiWidgetDef, WidgetGeometry, WidgetInstance } from "@/shared/shell";
 import { parseWidgetSpec, type WidgetSpec } from "@/shared/widget-spec";
 
 // Stable timestamp for seed defs — Date.now() at seed time would mark every
@@ -21,7 +21,7 @@ type SeedDef = {
   id: string;
   title: string;
   description: string;
-  defaultGeometry: { x: number; y: number; w: number; h: number; minW?: number; minH?: number };
+  defaultGeometry: WidgetGeometry;
   spec: WidgetSpec;
 };
 
@@ -198,8 +198,7 @@ const MEETING_PREP_WIDGET: SeedDef = {
         action: "generateText",
         skipIf: "/summary",
         params: {
-          system:
-            "Concise chief-of-staff voice. 2-3 sentences. No headers. Speak directly.",
+          system: "Concise chief-of-staff voice. 2-3 sentences. No headers. Speak directly.",
           prompt:
             "The user has no upcoming meeting connected yet. Suggest one concrete thing they could prepare for the day's first conversation, even without specifics.",
           into: "/summary",

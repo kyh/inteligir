@@ -32,6 +32,7 @@ const entries = Object.entries(IPC).map(([method, def]) => {
   }
 });
 
+// oxlint-disable-next-line typescript/consistent-type-assertions -- runtime fold over the registry; shape proven by derivation above
 const desktopBridge = Object.fromEntries(entries) as unknown as DesktopBridge;
 
 contextBridge.exposeInMainWorld("desktopBridge", desktopBridge);
