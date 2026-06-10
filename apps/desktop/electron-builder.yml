@@ -22,6 +22,12 @@ asarUnpack:
   # sherpa-onnx-* tree (main package + the platform binary package).
   - node_modules/sherpa-onnx-*/**/*
 mac:
+  # electron-updater's MacUpdater can only install from a zip (Squirrel.Mac
+  # format) listed in latest-mac.yml — the dmg is first-install only. Dropping
+  # zip here strands every shipped install on its version.
+  target:
+    - dmg
+    - zip
   artifactName: Inteligir-${version}-${arch}-mac.${ext}
   category: public.app-category.productivity
   icon: resources/icon.icns

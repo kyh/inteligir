@@ -32,8 +32,13 @@ packages/
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
-  dispatch/      # Shared mobile↔desktop message types (@repo/dispatch)
+  dispatch/      # Shared mobile↔desktop wire protocol (@repo/dispatch)
 ```
+
+The relay ("Remote Access") is opt-in and OFF by default — the desktop never
+connects until the user enables it. Wire contract is dispatch protocol v1:
+typed discriminated-union messages, CSPRNG pairing credentials, parsed with
+`parseMessage` at every boundary. See `packages/dispatch/PROTOCOL.md`.
 
 ## Common Commands
 
@@ -64,7 +69,7 @@ change works without driving it; type/test passing isn't feature-correct.
 Before committing:
 
 ```bash
-pnpm typecheck && pnpm lint && pnpm build
+pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build
 ```
 
 ## Runtime UI architecture (@repo/desktop)
@@ -85,20 +90,23 @@ the shell is one of several surfaces over that model.
    read-only skills list. The Widgets panel manages custom JSON-UI defs.
 3. **JSON-UI widgets** (`renderer/shell/widget-viewer.tsx` rendering a `WidgetSpec`)
    — agent-authored or user-added. `WidgetDef.source.kind === "json-ui"`. Constrained
-   to a fixed catalog (`shared/widget-spec.ts`: 12 components, 9 actions). The only
+   to a fixed catalog (`shared/widget-spec.ts`: 38 components, 12 actions). The only
    path the agent can use to extend the UI.
 
 ### Kernel
 
 `main/shell.ts` (`ShellManager`) is the single writer. It persists
 `Shell = { version, customDefs, instances, archivedStates }` at
-`~/.inteligir/runtime-ui.json` through a Zod-validated `JsonStore`. Reads on
+`~/.inteligir/runtime-ui.json` through a TypeBox-validated `JsonStore`
+(`main/lib/json-store.ts`) — every store declares `versioning` (current
+version + migration chain); corrupt or newer-versioned files are quarantined
+to a backup, never silently overwritten. Reads on
 the renderer side go through `getShellSnapshot()` (always live); writes go
 through `getWritableShell()`, which returns `null` while shell writes are
 suspended (post-logout, between `resetShellCache()` and `resumeShellWrites()`).
 
 - `WidgetInstance.placement` is a discriminated union: `{ surface: "pinned",
-  geometry }` (grid) or `{ surface: "floating", rect, z }` (window).
+geometry }` (grid) or `{ surface: "floating", rect, z }` (window).
 - `Shell.archivedStates` is the per-widgetId state we last saw before an
   unplace — re-placing the same widget restores it. Cleared on `deleteWidget`
   and on empty-state unplace.
@@ -108,15 +116,15 @@ suspended (post-logout, between `resetShellCache()` and `resumeShellWrites()`).
 ### Flush protocol (main ↔ renderer)
 
 Renderer-owned widget state (json-render store) is debounced (400ms) and
-persisted via `SHELL_SET_STATE`. Before any main-side action that would
-remount or destroy a viewer (unplace, delete, surface switch), main asks
-each window to flush:
+persisted via the `setInstanceState` IPC method. Before any main-side action
+that would remount or destroy a viewer (unplace, delete, surface switch),
+main asks each window to flush:
 
-1. Main broadcasts `SHELL_FLUSH_REQUEST { instanceId, requestId }` to every
+1. Main broadcasts `onWidgetFlushRequest { instanceId, requestId }` to every
    live `BrowserWindow` and tracks pending `webContents.id`s.
 2. Each renderer's `initFlushBridge` (wired at startup in `main.tsx`) calls
    the registered `flushPersist` (returns `boolean`: persisted vs failed)
-   and replies with `SHELL_FLUSH_ACK { requestId, persisted }`.
+   and replies with `ackWidgetFlush { requestId, persisted }`.
 3. Main resolves true only when every window has acked with `persisted=true`;
    any false or a 2000ms timeout resolves false. Wrappers in
    `main/lib/shell-actions.ts` (`unplaceWithFlush`/`placeWithFlush`/
@@ -125,13 +133,21 @@ each window to flush:
 
 ### Agent surface
 
+`agent/` never imports `main/` — the boundary is lint-enforced (oxlint
+`no-restricted-imports` override in `.oxlintrc.json`). Everything an extension
+needs from main is injected as `AgentPorts` (shell/tasks/executor), composed
+in `main/lib/agent-lifecycle.ts`.
+
 `agent/ui/extension.ts` registers a single `manage_ui` tool with actions:
 `list`, `catalog`, `read`, `install` (installs **and** pins the new def in
 one call — the common "make me a widget" path), `update`, `patch` (RFC 6902
 against a custom def's spec, with prototype-pollution guards in
 `shared/json-pointer.ts`), `delete`, `place` (additional instance of an
 already-installed def), `unplace`. All write actions short-circuit when the
-shell is suspended.
+shell is suspended. `install`/`update`/`patch` validate specs with
+`parseWidgetSpec`, including per-component props — the prop schemas, the
+renderer catalog, and the `catalog` action's docs all derive from the one
+TypeBox component table in `shared/widget-spec.ts`.
 
 The tool's `parameters` schema is intentionally a flat `Type.Object` with
 `action` as a discriminator and the union of all per-action fields as
@@ -139,4 +155,3 @@ optional. `Type.Union([...Type.Object])` compiles to JSON Schema `anyOf`
 without a top-level `type` field, which OpenAI silently rejects on every
 turn — `agent/extension.ts::validateToolParametersSchema` runs at extension
 registration to catch that class of bug at startup rather than runtime.
-

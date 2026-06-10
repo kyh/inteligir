@@ -8,8 +8,8 @@
   "main": "./.output/app/main/index.js",
   "scripts": {
     "build": "electron-vite build",
-    "release": "pnpm verify:release && pnpm with-env electron-vite build && pnpm with-env electron-builder --mac dmg --publish never && pnpm verify:packaged",
-    "release:publish": "pnpm verify:release && GH_TOKEN=$(gh auth token) pnpm with-env electron-vite build && GH_TOKEN=$(gh auth token) pnpm with-env electron-builder --mac dmg --publish always && pnpm verify:packaged",
+    "release": "pnpm verify:release && pnpm with-env electron-vite build && pnpm with-env electron-builder --mac --publish never && pnpm verify:packaged",
+    "release:publish": "pnpm verify:release && GH_TOKEN=$(gh auth token) pnpm with-env electron-vite build && GH_TOKEN=$(gh auth token) pnpm with-env electron-builder --mac --publish always && pnpm verify:packaged",
     "with-env": "dotenv -e .env --",
     "clean": "rm -rf .cache .output",
     "dev": "electron-vite dev --remoteDebuggingPort 9222",
@@ -45,16 +45,7 @@
     "zod": "^4.4.3",
     "zustand": "^5.0.13"
   },
-  "optionalDependencies": {
-    "sherpa-onnx-darwin-arm64": "^1.13.2",
-    "sherpa-onnx-darwin-x64": "^1.13.2",
-    "sherpa-onnx-linux-arm64": "^1.13.2",
-    "sherpa-onnx-linux-x64": "^1.13.2",
-    "sherpa-onnx-win-ia32": "^1.13.2",
-    "sherpa-onnx-win-x64": "^1.13.2"
-  },
   "devDependencies": {
-    "@electron-toolkit/tsconfig": "^2.0.0",
     "@mariozechner/pi-ai": "^0.73.1",
     "@tailwindcss/vite": "catalog:",
     "@types/node": "catalog:",
@@ -68,5 +59,13 @@
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "^4.1.7"
+  },
+  "optionalDependencies": {
+    "sherpa-onnx-darwin-arm64": "^1.13.2",
+    "sherpa-onnx-darwin-x64": "^1.13.2",
+    "sherpa-onnx-linux-arm64": "^1.13.2",
+    "sherpa-onnx-linux-x64": "^1.13.2",
+    "sherpa-onnx-win-ia32": "^1.13.2",
+    "sherpa-onnx-win-x64": "^1.13.2"
   }
 }

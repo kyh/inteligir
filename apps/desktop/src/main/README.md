@@ -1,6 +1,6 @@
 # `main/` — Electron main process
 
-Owns the app lifecycle, the agent singleton, IPC handlers, and the auto-updater. Everything here runs in the privileged Node process; renderer code talks to it only via IPC channels declared in `shared/ipc.ts`.
+Owns the app lifecycle, the agent singleton, IPC handlers, and the auto-updater. Everything here runs in the privileged Node process; renderer code talks to it only via IPC methods declared in the registry (`shared/ipc-registry.ts`).
 
 ## State machine — three-part split
 
@@ -28,11 +28,13 @@ The reducer returns an `EffectTag` (a string), not the effect itself. The runner
 2. Add a `case` in `app-reducer.ts` returning `{ next, effect }` — guard with the source phase.
 3. If it triggers an effect, add the tag to `EffectTag` and a case in `runEffect`.
 
+Internal events (`LOGIN_OK`/`LOGIN_FAIL`, `SETUP_OK`/`SETUP_FAIL`, `LOGOUT_OK`/`LOGOUT_FAIL`, `NEW_SESSION_OK`/`NEW_SESSION_FAIL`, `AGENT_START`/`AGENT_END`) are emitted only by the effect runner, never by the renderer. Each `*_FAIL` carries a `message`; the reducer routes it into the `error` phase, which records `prev` so `RETRY` knows where to resume.
+
 **New phase**:
 
 1. Add to `AppStateSchema` in `shared/app-state.ts`.
 2. Update reducer guards (`state.phase !== "..."` checks) to include the new phase wherever it should accept events.
-3. Add tests in `__tests__/app-machine.test.ts` for the new transitions.
+3. Add tests in `src/__tests__/app-machine.test.ts` for the new transitions.
 
 **New side effect**:
 
@@ -46,9 +48,14 @@ If the effect is part of `SETUP` (binary install, config seed), prefer adding it
 
 `app-machine.ts` holds the single `Agent` instance. `getAgent()` is the only way the IPC layer reaches it. Lifecycle:
 
-- `startAgent()` — constructs `new Agent(opts)`, awaits `start()`, subscribes to events. On failure, fully tears down so a retry doesn't see a half-initialized singleton.
-- `stopAgent()` — awaits `agent.stop()`, nulls the ref, stops the task scheduler.
+- `startAgent()` — constructs `new Agent({ ...opts, ports: getAgentPorts() })`, awaits `start()`, subscribes to events. On failure, fully tears down so a retry doesn't see a half-initialized singleton.
+- `stopAgent()` — awaits `agent.stop()`, nulls the ref, stops the task scheduler and the background agent.
 - `newSession()` — `stop` + `start({ newSession: true })`. Opens a fresh pi session.
+
+Two composition seams keep the module graph acyclic:
+
+- **Lifecycle module** (`lib/agent-lifecycle.ts`) — builds the `AgentPorts` capability object (shell, tasks, executor) handed to agent extension bundles, and owns seed/login/teardown orchestration. `agent/` must never import `@/main/*` — the boundary is lint-enforced (oxlint `no-restricted-imports` override); anything an extension needs from main flows through the ports.
+- **Injected gateway port** — `app-machine.ts` doesn't import `dispatch/agent-gateway` (the gateway imports `getAgent` from here, so a static import back would close a runtime cycle). `index.ts` composes the two by passing an `AgentGatewayPort` (`dispatchAgentCommand`, `isAgentReserved`) to `initMachine()`.
 
 ## Per-turn instrumentation
 
@@ -63,16 +70,12 @@ Domain-grouped across a few files:
 - `executor-ipc.ts::registerExecutorIpcHandlers()` — executor daemon pass-throughs (sources/connections/secrets/OAuth).
 - `widget-actions.ts::registerWidgetActionIpcHandlers()` — live actions JSON-UI widgets can fire (prompt/complete/fetch/openUrl).
 
-Two helpers wrap `ipcMain.handle`:
-
-- `createIpcHandler(channel, schema, handler)` — Zod-validated input.
-- `createVoidIpcHandler(channel, handler)` — no input.
-
-All channel constants live in `shared/ipc.ts`. Renderer + preload share the same `IPC_CHANNELS` source of truth.
+All registration goes through `lib/ipc-handler.ts::handle(method, fn)`: the channel, TypeBox payload schema, and result type are looked up from the shared registry (`shared/ipc-registry.ts`), and payloads are `Value.Check`-validated before the handler runs. Main → renderer events use `lib/broadcast.ts` (`broadcast`/`sendToWindow`), keyed by the same registry — a renamed channel or changed payload shape is a compile error on both sides, and the preload bridge is derived from the registry too.
 
 ## Other modules
 
+- `dispatch/` — Remote Access relay: `dispatch-client.ts` (opt-in WebSocket to the relay Worker, pairing-token auth), `agent-gateway.ts` (single writer to the shared agent session — exclusive turns vs. queued interactive commands), `chat-bridge.ts` (answers external `chat_message` turns).
 - `notifications.ts` — desktop notification settings + delivery.
 - `session-history.ts` — reads recent pi messages from disk for renderer history rehydration (one-shot per renderer mount; no cache).
 - `tasks/` — scheduled task manager (cron/interval/once); the tasks pi extension wraps it.
-- `lib/` — shared helpers (broadcast, IPC handler factory, JSON store, agent-log tee, widget flush).
+- `lib/` — shared helpers (agent lifecycle/ports, broadcast, registry-keyed IPC handler, TypeBox-validated JSON store with versioning/migrations, shell actions, agent-log tee, widget flush).
