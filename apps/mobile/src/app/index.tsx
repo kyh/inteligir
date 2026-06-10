@@ -2,30 +2,28 @@ import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Link, Redirect, Stack } from "expo-router";
 
-import { getRoomCode } from "@/utils/session-store";
+import { getCredential } from "@/utils/session-store";
 
 export default function Index() {
-  const roomCode = getRoomCode();
+  const credential = getCredential();
 
-  if (roomCode) {
-    return <Redirect href={{ pathname: "/dispatch", params: { roomCode } }} />;
+  if (credential) {
+    return <Redirect href="/dispatch" />;
   }
 
   return (
     <SafeAreaView className="bg-background flex-1">
       <Stack.Screen options={{ title: "Inteligir" }} />
       <View className="flex-1 items-center justify-center px-6">
-        <Text className="text-primary mb-2 text-center text-4xl font-bold">
-          Inteligir
-        </Text>
+        <Text className="text-primary mb-2 text-center text-4xl font-bold">Inteligir</Text>
         <Text className="text-muted-foreground mb-10 text-center text-base">
-          Connect to your desktop agent
+          Remote control for your desktop agent
         </Text>
 
         <Link href="/pair" asChild>
           <Pressable className="bg-primary w-full items-center rounded-xl p-4">
             <Text className="text-primary-foreground text-base font-semibold">
-              Connect
+              Pair with desktop
             </Text>
           </Pressable>
         </Link>

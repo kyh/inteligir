@@ -12,7 +12,3 @@ export function createConnectionAttemptRegistry() {
     },
   };
 }
-
-export type ConnectionAttempt = ReturnType<
-  ReturnType<typeof createConnectionAttemptRegistry>["begin"]
->;

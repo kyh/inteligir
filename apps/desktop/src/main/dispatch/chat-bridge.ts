@@ -1,6 +1,6 @@
 // ---------------------------------------------------------------------------
 // Chat bridge — answers `chat_message` envelopes relayed from external
-// messaging interfaces (Slack/Telegram/WhatsApp/Discord) via the party room.
+// messaging interfaces (Slack/Telegram/WhatsApp/Discord) via the relay room.
 //
 // One turn at a time. The agent session is shared with the desktop UI, so we
 // run a single chat turn at a time and reject (with an immediate "busy" reply)
@@ -16,6 +16,13 @@
 //
 // Every inbound message with a correlationId is always answered with exactly
 // one `chat_reply`, so the gateway never blocks for the full timeout.
+//
+// Auth: `chat_message` frames only arrive over the desktop's already-
+// authenticated relay socket (pairing-token auth at connect time, see
+// dispatch-client.ts), and the external gateway authenticates to the relay
+// DO server-side via its x-relay-secret header. No desktop-side secret or
+// env var is involved anymore — the legacy DISPATCH_CHAT_SECRET /
+// chat_device_register registration flow is dead.
 // ---------------------------------------------------------------------------
 
 import { getAgent } from "@/main/app-machine";
@@ -27,7 +34,7 @@ import {
 import { sendChatReply } from "@/main/dispatch/dispatch-client";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import { toErrorMessage } from "@/shared/ipc";
-import type { ChatMessagePayload } from "@repo/dispatch";
+import type { ChatMessage } from "@repo/dispatch/protocol";
 
 /** Upper bound on a single chat turn before we abort it. Kept below the party
  * room's reply timeout so the gateway is still listening when we answer. */
@@ -37,7 +44,7 @@ const DRAIN_TIMEOUT_MS = 5_000;
 
 /** Handle an inbound chat message. Always replies exactly once (via
  * `sendChatReply`) so the gateway request resolves promptly. */
-export function handleChatMessage(payload: ChatMessagePayload): void {
+export function handleChatMessage(payload: ChatMessage): void {
   const { correlationId, text } = payload;
   // No correlationId means nothing can consume the reply — drop it.
   if (!correlationId) return;
@@ -82,7 +89,10 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
   // Don't attach to a turn the desktop user already started — its assistant
   // text isn't ours to relay. Ask the sender to retry shortly.
   if (agent.getState().status === "busy") {
-    sendChatReply(correlationId, "Inteligir is busy with another task right now — try again shortly.");
+    sendChatReply(
+      correlationId,
+      "Inteligir is busy with another task right now — try again shortly.",
+    );
     return;
   }
 
@@ -129,7 +139,10 @@ async function runTurn(correlationId: string, text: string): Promise<void> {
       // message's sendMessage would land mid-turn as a follow-up.
       await agent.interrupt().catch(() => {});
       await Promise.race([ended, delay(DRAIN_TIMEOUT_MS)]);
-      sendChatReply(correlationId, "That's taking longer than expected — I've stopped it. Try again.");
+      sendChatReply(
+        correlationId,
+        "That's taking longer than expected — I've stopped it. Try again.",
+      );
       return;
     }
 
