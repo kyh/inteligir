@@ -94,10 +94,7 @@ function Stack({ props, children }: BaseProps<{ gap?: "sm" | "md" | "lg" }>) {
   return <div className={cn("flex flex-col", gapClass(props.gap))}>{children}</div>;
 }
 
-function Grid({
-  props,
-  children,
-}: BaseProps<{ columns?: number; gap?: "sm" | "md" | "lg" }>) {
+function Grid({ props, children }: BaseProps<{ columns?: number; gap?: "sm" | "md" | "lg" }>) {
   const columns = props.columns && props.columns > 0 ? Math.floor(props.columns) : 2;
   return (
     <div
@@ -339,10 +336,7 @@ const ACCENT_BAR_CLASS = {
 
 type AccentColor = keyof typeof ACCENT_BAR_CLASS;
 
-function CatalogAccent({
-  props,
-  children,
-}: BaseProps<{ color: AccentColor }>) {
+function CatalogAccent({ props, children }: BaseProps<{ color: AccentColor }>) {
   return (
     <div className="flex items-stretch gap-3">
       <span
@@ -592,9 +586,7 @@ function CatalogChart({
   );
 }
 
-function CatalogImage({
-  props,
-}: BaseProps<{ src: string; alt?: string; rounded?: boolean }>) {
+function CatalogImage({ props }: BaseProps<{ src: string; alt?: string; rounded?: boolean }>) {
   return (
     // Electron renderer — next/image does not apply here.
     // oxlint-disable-next-line next/no-img-element

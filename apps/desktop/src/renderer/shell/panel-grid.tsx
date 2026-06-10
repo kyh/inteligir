@@ -66,7 +66,7 @@ function Panel({
 }: {
   title: React.ReactNode;
   children: React.ReactNode;
-  bodyClassName?: string;
+  bodyClassName?: string | undefined;
   onPopOut?: () => void;
   onRemove?: () => void;
 }) {

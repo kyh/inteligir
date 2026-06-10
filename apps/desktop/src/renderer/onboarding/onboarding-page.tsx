@@ -64,9 +64,7 @@ export function OnboardingPage() {
   const modelLabel = modelStatusLabel(modelState);
   const modelDownloading = modelState?.status === "downloading";
   const label = modelLabel ?? setupProgress?.step ?? "Setting up...";
-  const percent = modelDownloading
-    ? modelState.percent
-    : (setupProgress?.percent ?? null);
+  const percent = modelDownloading ? modelState.percent : (setupProgress?.percent ?? null);
   const isIndeterminate = percent === null;
 
   return (

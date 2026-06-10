@@ -17,10 +17,7 @@ let bridgeSubscribed = false;
  * most-recently-registered flush wins — exactly one viewer is mounted per
  * instanceId at a time. The fn resolves true on success (or "nothing pending")
  * and false when state was pending but couldn't be persisted. */
-export function registerInstanceFlush(
-  instanceId: string,
-  fn: () => Promise<boolean>,
-): () => void {
+export function registerInstanceFlush(instanceId: string, fn: () => Promise<boolean>): () => void {
   flushers.set(instanceId, fn);
   return () => {
     if (flushers.get(instanceId) === fn) flushers.delete(instanceId);
