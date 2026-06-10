@@ -69,7 +69,11 @@ type RequestOptions = {
   body?: unknown;
 };
 
-async function readJsonResponse(method: string, fullPath: string, resp: Response): Promise<unknown> {
+async function readJsonResponse(
+  method: string,
+  fullPath: string,
+  resp: Response,
+): Promise<unknown> {
   const text = await resp.text();
   if (!text) {
     throw new ExecutorClientError(`${method} ${fullPath}: empty JSON response`, resp.status);
@@ -98,7 +102,7 @@ async function request<S extends TSchema>(
       authorization: `Bearer ${conn.token}`,
       ...(opts.body !== undefined ? { "content-type": "application/json" } : {}),
     },
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+    ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
     signal: AbortSignal.timeout(opts.timeoutMs ?? REQUEST_TIMEOUT_MS),
   });
   if (!resp.ok) {
@@ -207,43 +211,54 @@ export function execute(code: string): Promise<ExecutorExecuteResult> {
   });
 }
 
-export function resumeExecution(
+function resumeExecution(
   executionId: string,
   action: "accept" | "decline" | "cancel",
   content?: unknown,
 ): Promise<ExecutorExecuteResult> {
-  return request(
-    "POST",
-    `/executions/${enc(executionId)}/resume`,
-    ExecutorExecuteResultSchema,
-    {
-      body: { action, content },
-      timeoutMs: EXECUTION_TIMEOUT_MS,
-    },
-  );
+  return request("POST", `/executions/${enc(executionId)}/resume`, ExecutorExecuteResultSchema, {
+    body: { action, content },
+    timeoutMs: EXECUTION_TIMEOUT_MS,
+  });
+}
+
+// Variants for the agent's long-lived execute/resume tools: a daemon crash
+// mid-session drops the connection (the exit handler clears it), and without
+// a restart attempt every later tool call fails with "daemon is not running"
+// for the rest of the session. Mirror the widget path (widget-actions.ts),
+// which awaits the idempotent start() before every call — it re-spawns after
+// a crash and is a cheap no-op while the daemon is healthy.
+
+export async function executeEnsuringDaemon(code: string): Promise<ExecutorExecuteResult> {
+  await getExecutorDaemon().start();
+  return execute(code);
+}
+
+export async function resumeEnsuringDaemon(
+  executionId: string,
+  action: "accept" | "decline" | "cancel",
+  content?: unknown,
+): Promise<ExecutorExecuteResult> {
+  await getExecutorDaemon().start();
+  return resumeExecution(executionId, action, content);
 }
 
 // ---- oauth ----------------------------------------------------------------
 
 export function oauthStart(input: OAuthStartInput): Promise<OAuthStartResult> {
   const conn = connection();
-  return request(
-    "POST",
-    "/oauth/start",
-    OAuthStartResultSchema,
-    {
-      scoped: true,
-      body: {
-        endpoint: input.endpoint,
-        redirectUrl: `${conn.baseUrl}/oauth/callback`,
-        connectionId: input.connectionId,
-        tokenScope: conn.scopeId,
-        strategy: { kind: "dynamic-dcr" },
-        pluginId: input.pluginId,
-        ...(input.identityLabel ? { identityLabel: input.identityLabel } : {}),
-      },
+  return request("POST", "/oauth/start", OAuthStartResultSchema, {
+    scoped: true,
+    body: {
+      endpoint: input.endpoint,
+      redirectUrl: `${conn.baseUrl}/oauth/callback`,
+      connectionId: input.connectionId,
+      tokenScope: conn.scopeId,
+      strategy: { kind: "dynamic-dcr" },
+      pluginId: input.pluginId,
+      ...(input.identityLabel ? { identityLabel: input.identityLabel } : {}),
     },
-  );
+  });
 }
 
 /**

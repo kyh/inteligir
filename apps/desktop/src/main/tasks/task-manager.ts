@@ -5,9 +5,11 @@
 
 import crypto from "node:crypto";
 import { Type } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 import { Cron } from "croner";
 
 import type { Agent } from "@/agent/agent";
+import { parseAgentEvent } from "@/shared/agent-event-parser";
 import {
   TaskSchema,
   TaskRunLogSchema,
@@ -27,11 +29,37 @@ const TASK_TIMEOUT_MS = 5 * 60 * 1000;
 const MAX_RUNS = 500;
 
 // ---------------------------------------------------------------------------
-// Store schemas
+// Store schemas — versioned wire format. The stores expose bare arrays in
+// memory; on disk they are wrapped in `{ version, ... }` so schema changes
+// can migrate instead of wiping (legacy files were bare arrays).
 // ---------------------------------------------------------------------------
 
-const TasksSchema = Type.Array(TaskSchema);
-const RunsSchema = Type.Array(TaskRunLogSchema);
+const TASKS_VERSION = 1;
+
+const TasksFileSchema = Type.Object(
+  { version: Type.Literal(TASKS_VERSION), tasks: Type.Array(TaskSchema) },
+  { additionalProperties: false },
+);
+const RunsFileSchema = Type.Object(
+  { version: Type.Literal(TASKS_VERSION), runs: Type.Array(TaskRunLogSchema) },
+  { additionalProperties: false },
+);
+
+// ---------------------------------------------------------------------------
+// Change notification — push channel for the Tasks panel.
+//
+// Registered from Electron-side composition (app-machine.initMachine wires it
+// to broadcast("onTasksUpdated", …)) instead of imported, so this module stays
+// electron-free and unit-testable — same seam as json-store's recovery
+// notifier. Every task mutation (IPC, agent tool, or the scheduler marking a
+// run) fans the fresh snapshot out to subscribed renderers.
+// ---------------------------------------------------------------------------
+
+let tasksChangedNotifier: ((tasks: Task[]) => void) | null = null;
+
+export function setTasksChangedNotifier(notifier: ((tasks: Task[]) => void) | null): void {
+  tasksChangedNotifier = notifier;
+}
 
 // ---------------------------------------------------------------------------
 // TaskManager
@@ -59,15 +87,41 @@ export class TaskManager {
   constructor(opts?: TaskManagerOptions) {
     this.tasks = new JsonStore<Task[]>(
       opts?.tasksPath ?? inteligirPath("tasks.json"),
-      TasksSchema,
+      TasksFileSchema,
       [],
-      opts?.fs,
+      {
+        fs: opts?.fs,
+        versioning: {
+          current: TASKS_VERSION,
+          // tasks.json began life as a bare Task[] — wrap it.
+          fromLegacy: (raw) => ({ version: TASKS_VERSION, tasks: raw }),
+        },
+        // Re-check against the concrete schema purely to narrow the type —
+        // JsonStore already validated before calling decode.
+        decode: (raw) => {
+          if (!Value.Check(TasksFileSchema, raw)) throw new Error("tasks file shape rejected");
+          return raw.tasks;
+        },
+        encode: (tasks) => ({ version: TASKS_VERSION, tasks }),
+      },
     );
     this.runs = new JsonStore<TaskRunLog[]>(
       opts?.runsPath ?? inteligirPath("task-runs.json"),
-      RunsSchema,
+      RunsFileSchema,
       [],
-      opts?.fs,
+      {
+        fs: opts?.fs,
+        versioning: {
+          current: TASKS_VERSION,
+          // task-runs.json began life as a bare TaskRunLog[] — wrap it.
+          fromLegacy: (raw) => ({ version: TASKS_VERSION, runs: raw }),
+        },
+        decode: (raw) => {
+          if (!Value.Check(RunsFileSchema, raw)) throw new Error("runs file shape rejected");
+          return raw.runs;
+        },
+        encode: (runs) => ({ version: TASKS_VERSION, runs }),
+      },
     );
   }
 
@@ -94,11 +148,13 @@ export class TaskManager {
       createdAt: Date.now(),
     };
     this.tasks.update((tasks) => [...tasks, task]);
+    this.notifyTasksChanged();
     return task;
   }
 
   deleteTask(id: string): void {
     this.tasks.update((tasks) => tasks.filter((t) => t.id !== id));
+    this.notifyTasksChanged();
   }
 
   toggleTask(id: string): Task {
@@ -111,7 +167,18 @@ export class TaskManager {
       }),
     );
     if (!toggled) throw new Error(`Task not found: ${id}`);
+    this.notifyTasksChanged();
     return toggled;
+  }
+
+  /** Push the fresh snapshot to whoever registered (renderer broadcast). */
+  private notifyTasksChanged(): void {
+    try {
+      tasksChangedNotifier?.(this.getTasks());
+    } catch (err) {
+      // Non-fatal: the panel falls back to its mount-time fetch.
+      console.warn("[tasks] change notification failed:", err);
+    }
   }
 
   // ---- Scheduler ------------------------------------------------------------
@@ -171,6 +238,7 @@ export class TaskManager {
         };
       }),
     );
+    this.notifyTasksChanged();
 
     // Start a run log entry
     const run: TaskRunLog = {
@@ -187,6 +255,19 @@ export class TaskManager {
       return updated.length > MAX_RUNS ? updated.slice(-MAX_RUNS) : updated;
     });
 
+    // Capture THIS run's assistant text from the event stream rather than
+    // getLastAssistantText() afterwards — that accessor returns the previous
+    // turn's text after an early abort, which would log a stale result as
+    // this run's summary. (Holder object: TS doesn't see closure assignments
+    // to a plain `let` from the outer read.)
+    const captured: { text: string | null } = { text: null };
+    const unsubscribe = agent.subscribe((raw) => {
+      const event = parseAgentEvent(raw);
+      if (event?.type === "message_end" && event.role === "assistant" && event.text) {
+        captured.text = event.text;
+      }
+    });
+
     try {
       // No inline `[Scheduled task: ...]` prefix — the task system already
       // tracks which run produced what via TaskRunLog, and prepending a
@@ -196,15 +277,21 @@ export class TaskManager {
       const finished = await agent.waitForIdle(TASK_TIMEOUT_MS);
 
       if (!finished) {
+        // Abort the runaway turn — without this the background agent stays
+        // busy forever and the scheduler (which gates on busy) never fires
+        // another task.
+        await agent.interrupt().catch((err: unknown) => {
+          console.warn(`[scheduler] failed to interrupt timed-out task ${task.id}:`, err);
+        });
         this.completeRun(run.id, "failed", "Agent timed out");
         return;
       }
 
-      const lastText = agent.getLastAssistantText();
-      this.completeRun(run.id, "completed", null, lastText?.slice(0, 500) ?? "(no output)");
+      this.completeRun(run.id, "completed", null, captured.text?.slice(0, 500) ?? "(no output)");
     } catch (err) {
       this.completeRun(run.id, "failed", toErrorMessage(err));
     } finally {
+      unsubscribe();
       this.firing = false;
     }
   }

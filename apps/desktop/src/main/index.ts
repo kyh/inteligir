@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from "electron";
@@ -28,6 +29,7 @@ import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-
 import {
   getAppState,
   initMachine,
+  maybeRunDailyRefresh,
   reauthenticate,
   shutdown,
   transition,
@@ -35,19 +37,19 @@ import {
 import {
   getDispatchState,
   initDispatch,
-  refreshRoomCode,
+  rotateDispatchCredential,
+  setRemoteAccessEnabled,
   shutdownDispatch,
 } from "@/main/dispatch/dispatch-client";
 import { handleChatMessage } from "@/main/dispatch/chat-bridge";
-import { dispatchAgentCommand } from "@/main/dispatch/agent-gateway";
-import { maybeDailyRefresh } from "@/main/daily-refresh";
-import { sendChatReply } from "@/main/dispatch/dispatch-client";
-import { CHAT_MESSAGE_TYPE, parseChatMessage } from "@repo/dispatch";
+import { dispatchAgentCommand, isAgentReserved } from "@/main/dispatch/agent-gateway";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
+import { getAgentPorts } from "@/main/lib/agent-lifecycle";
 import { initAgentLog } from "@/main/lib/agent-log";
 import { broadcast } from "@/main/lib/broadcast";
 import { handle } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
+import { getWritableShell } from "@/main/shell";
 import { getUiState } from "@/main/ui-state";
 import { getTaskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
@@ -64,7 +66,76 @@ const STARTUP_UPDATE_DELAY_MS = 15_000;
 const APP_DISPLAY_NAME = isDevelopment ? "Inteligir (Dev)" : "Inteligir";
 
 let mainWindow: BrowserWindow | null = null;
-let isQuitting = false;
+
+// ---------------------------------------------------------------------------
+// Crash visibility — wire the log mirror and global error hooks before
+// anything else can fail, so even startup crashes land in agent.log.
+// ---------------------------------------------------------------------------
+
+initAgentLog();
+
+process.on("uncaughtException", (error) => {
+  // appendFileSync inside the log mirror means this line is on disk before we
+  // continue — an owner debugging a dead install gets the stack.
+  console.error("[desktop] uncaught exception:", error);
+  // Preserve Electron's default behavior (which our listener suppresses):
+  // surface the error dialog and keep the app alive.
+  dialog.showErrorBox(
+    "A JavaScript error occurred in the main process",
+    error instanceof Error ? (error.stack ?? error.message) : String(error),
+  );
+});
+
+process.on("unhandledRejection", (reason) => {
+  console.error("[desktop] unhandled rejection:", reason);
+});
+
+// ---------------------------------------------------------------------------
+// Graceful shutdown — the single path every quit trigger funnels through:
+// cmd+Q / window close (before-quit), SIGINT/SIGTERM, and the auto-update
+// install. Stops the agent + executor daemon (app-machine shutdown) and
+// disconnects the dispatch relay, with a hard timeout so a hung teardown
+// can't wedge quit. Idempotent: concurrent triggers share one promise.
+// ---------------------------------------------------------------------------
+
+const SHUTDOWN_TIMEOUT_MS = 5_000;
+let shutdownPromise: Promise<void> | null = null;
+let shutdownFinished = false;
+
+function runGracefulShutdown(): Promise<void> {
+  if (shutdownPromise) return shutdownPromise;
+  shutdownPromise = (async () => {
+    shutdownDispatch();
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<void>((resolve) => {
+      timer = setTimeout(() => {
+        console.error(
+          `[desktop] graceful shutdown timed out after ${SHUTDOWN_TIMEOUT_MS}ms — quitting anyway`,
+        );
+        resolve();
+      }, SHUTDOWN_TIMEOUT_MS);
+    });
+    try {
+      await Promise.race([
+        Promise.all([
+          shutdown().catch((error: unknown) => {
+            console.error("[desktop] shutdown failed:", error);
+          }),
+          // Drain any pending coalesced runtime-ui.json write so a quit within
+          // milliseconds of a drag/state tick can't lose the trailing write.
+          (getWritableShell()?.flushStore() ?? Promise.resolve()).catch((error: unknown) => {
+            console.error("[desktop] shell flush on shutdown failed:", error);
+          }),
+        ]),
+        timeout,
+      ]);
+    } finally {
+      clearTimeout(timer);
+      shutdownFinished = true;
+    }
+  })();
+  return shutdownPromise;
+}
 
 // ---------------------------------------------------------------------------
 // Auto-updater state
@@ -156,15 +227,19 @@ function registerIpcHandlers(): void {
     if (updateState.status !== "downloaded") {
       return { accepted: false, state: updateState };
     }
-    setImmediate(() => {
-      isQuitting = true;
+    // Graceful shutdown FIRST: quitAndInstall's internal quit must not be
+    // intercepted (preventDefault breaks the install on some platforms), and
+    // the executor daemon must not outlive the app across an update. After
+    // the shutdown resolves, shutdownFinished lets before-quit pass through.
+    const shutdownThenInstall = async (): Promise<void> => {
+      await runGracefulShutdown();
       try {
         autoUpdater.quitAndInstall();
       } catch (error: unknown) {
-        isQuitting = false;
         setUpdateState({ status: "error", message: toErrorMessage(error) });
       }
-    });
+    };
+    setImmediate(() => void shutdownThenInstall());
     return { accepted: true, state: updateState };
   });
 
@@ -172,20 +247,19 @@ function registerIpcHandlers(): void {
 
   // All interactive agent commands funnel through the gateway, which defers
   // them while an external chat turn owns the session (see agent-gateway.ts).
-  handle("sendAgentCommand", (command) => {
-    // Fire-and-forget: the renderer doesn't await the result, and submission
-    // errors surface in the chat panel via agent events, so swallow rejections
-    // to avoid an unhandled promise.
-    void dispatchAgentCommand(command).catch(() => {});
-  });
+  // Return the submission promise so renderer-side failure surfacing
+  // (agent-store's sendCommandSurfacingFailure) sees rejections — e.g.
+  // "Agent unavailable" mid-newSession — instead of a silently dropped send.
+  handle("sendAgentCommand", (command) => dispatchAgentCommand(command));
 
   handle("getAgentHistory", () => readSessionHistory());
   handle("reauthenticate", () => reauthenticate());
 
-  // ---- Dispatch (mobile ↔ desktop relay) -----------------------------------
+  // ---- Dispatch (Remote Access relay) ---------------------------------------
 
   handle("getDispatchState", () => getDispatchState());
-  handle("refreshDispatchCode", () => refreshRoomCode());
+  handle("setRemoteAccess", ({ enabled }) => setRemoteAccessEnabled(enabled));
+  handle("rotateDispatchCredential", () => rotateDispatchCredential());
 
   // ---- App lifecycle --------------------------------------------------------
 
@@ -267,9 +341,9 @@ function registerIpcHandlers(): void {
 
   // ---- Integrations (CLI binaries) ------------------------------------------
 
-  handle("listIntegrations", () => listIntegrations());
+  handle("listIntegrations", () => listIntegrations(getAgentPorts()));
   handle("repairIntegrations", () =>
-    repairIntegrations((p) => broadcast("onSetupProgress", p)),
+    repairIntegrations(getAgentPorts(), (p) => broadcast("onSetupProgress", p)),
   );
 }
 
@@ -367,6 +441,23 @@ function createWindow(): BrowserWindow {
     window.setTitle(APP_DISPLAY_NAME);
   });
 
+  // Renderer crash recovery: log the reason (it lands in agent.log) and
+  // reload. Deliberate teardowns aren't crashes; the reload cap stops a
+  // crash-on-boot loop from spinning forever.
+  let crashReloads = 0;
+  window.webContents.on("render-process-gone", (_event, details) => {
+    console.error(
+      `[desktop] renderer process gone: reason=${details.reason} exitCode=${details.exitCode}`,
+    );
+    if (details.reason === "clean-exit" || details.reason === "killed") return;
+    if (crashReloads >= 3) {
+      console.error("[desktop] renderer crashed repeatedly — not reloading again (View > Reload)");
+      return;
+    }
+    crashReloads += 1;
+    window.webContents.reload();
+  });
+
   window.once("ready-to-show", () => {
     window.show();
   });
@@ -398,85 +489,109 @@ function createWindow(): BrowserWindow {
 // App lifecycle
 // ---------------------------------------------------------------------------
 
+// Re-drives quit after a graceful shutdown, with an external watchdog.
+// Chromium intercepts SIGTERM/SIGINT on its shutdown-detector thread (the
+// Node-level signal handlers never fire) and starts its own quit; our
+// before-quit preventDefault wedges that signal-initiated quit sequence, and
+// the follow-up app.quit() then BLOCKS the main thread indefinitely inside
+// Chromium (observed via `sample`: main thread parked in mach_msg deep in
+// the quit call, windows and helpers already gone). A blocked JS thread can
+// never run a setTimeout fallback, so the watchdog must live outside the
+// process: a detached shell that re-signals us. A second SIGTERM is known to
+// complete the wedged quit immediately; SIGKILL is the last resort. On a
+// normal quit (cmd+Q, auto-update) the process exits in milliseconds and the
+// watchdog's signals hit a dead pid — a no-op.
+function quitNow(): void {
+  console.log("[desktop] graceful shutdown complete — quitting");
+  if (process.platform !== "win32") {
+    try {
+      const watchdog = spawn(
+        "/bin/sh",
+        [
+          "-c",
+          `sleep 3; kill -TERM ${process.pid} 2>/dev/null; sleep 5; kill -KILL ${process.pid} 2>/dev/null`,
+        ],
+        { detached: true, stdio: "ignore" },
+      );
+      watchdog.unref();
+    } catch (error) {
+      console.error("[desktop] failed to start quit watchdog:", error);
+    }
+  }
+  app.quit();
+}
+
 app.on("before-quit", (event) => {
-  if (isQuitting) return;
-  isQuitting = true;
+  if (shutdownFinished) return;
   event.preventDefault();
-  shutdownDispatch();
-  void shutdown().finally(() => {
-    app.quit();
-  });
+  void runGracefulShutdown().then(() => quitNow());
 });
+
+function onAppReady(): void {
+  // Must run before any pi-coding-agent call that consults getAgentDir().
+  configurePaths();
+  configureAppIdentity();
+  configureApplicationMenu();
+  configureAutoUpdater();
+  registerIpcHandlers();
+
+  mainWindow = createWindow();
+  getNotifications().setTargetWindow(mainWindow);
+  // Re-opening the app (window regains focus) is the primary "good morning"
+  // trigger; maybeRunDailyRefresh no-ops unless a new local day is due and the
+  // session is ready. (Cold launch is covered by the ready-state hook.)
+  mainWindow.on("focus", () => void maybeRunDailyRefresh());
+
+  // app-machine can't import the gateway (the gateway imports getAgent from
+  // it); index.ts composes the two here.
+  initMachine({ dispatchAgentCommand, isAgentReserved });
+
+  // Inbound relay traffic arrives fully parsed (TypeBox-validated in
+  // dispatch-client via parseMessage) and only from authenticated peers — the
+  // Worker refuses unauthenticated sockets at connect time. No casts here.
+  initDispatch((message) => {
+    switch (message.type) {
+      // Chat-bridge messages from external interfaces run a full agent turn
+      // and reply out of band via chat_reply.
+      case "chat_message":
+        handleChatMessage(message);
+        break;
+      // Mobile commands funnel through the same gateway as the desktop UI,
+      // so they queue (rather than corrupt) an in-flight external chat turn.
+      case "user_message":
+        if (message.text) {
+          void dispatchAgentCommand({ type: "user_message", text: message.text }).catch(() => {});
+        }
+        break;
+      case "steer":
+        if (message.text) {
+          void dispatchAgentCommand({ type: "steer", text: message.text }).catch(() => {});
+        }
+        break;
+      case "interrupt":
+        void dispatchAgentCommand({ type: "interrupt" }).catch(() => {});
+        break;
+    }
+  });
+}
 
 app
   .whenReady()
-  .then(() => {
-    // Must run before any pi-coding-agent call that consults getAgentDir().
-    configurePaths();
-    initAgentLog();
-    configureAppIdentity();
-    configureApplicationMenu();
-    configureAutoUpdater();
-    registerIpcHandlers();
-
-    mainWindow = createWindow();
-    getNotifications().setTargetWindow(mainWindow);
-    // Re-opening the app (window regains focus) is the primary "good morning"
-    // trigger; maybeDailyRefresh no-ops unless a new local day is due and the
-    // session is ready. (Cold launch is covered by the ready-state hook.)
-    mainWindow.on("focus", () => void maybeDailyRefresh());
-
-    initMachine();
-
-    initDispatch((msg) => {
-      // Chat-bridge messages from external interfaces run a full agent turn and
-      // reply out of band — handle them before the mobile-relay switch, which
-      // requires a live agent and only does fire-and-forget.
-      if (msg.type === CHAT_MESSAGE_TYPE) {
-        const payload = parseChatMessage(msg.payload);
-        if (payload) {
-          handleChatMessage(payload);
-        } else {
-          // Reply with an error if we can still recover the correlationId, so
-          // the gateway request resolves instead of waiting out its timeout.
-          const cid = (msg.payload as { correlationId?: unknown }).correlationId;
-          if (typeof cid === "string") {
-            sendChatReply(cid, "Sorry, that message couldn't be processed.");
-          }
-        }
-        return;
-      }
-
-      // Mobile relay commands funnel through the same gateway as the desktop
-      // UI, so they queue (rather than corrupt) an in-flight external chat turn.
-      switch (msg.type) {
-        case "user_message": {
-          const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void dispatchAgentCommand({ type: "user_message", text }).catch(() => {});
-          break;
-        }
-        case "steer": {
-          const text = (msg.payload as { text?: string }).text ?? "";
-          if (text) void dispatchAgentCommand({ type: "steer", text }).catch(() => {});
-          break;
-        }
-        case "interrupt":
-          void dispatchAgentCommand({ type: "interrupt" }).catch(() => {});
-          break;
-      }
-    });
-  })
+  .then(onAppReady)
   .catch((error) => {
     console.error("[desktop] fatal startup error", error);
     dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
     app.quit();
   });
 
-// Handle POSIX signals for clean shutdown
-const handleSignal = () => {
-  if (isQuitting) return;
-  isQuitting = true;
-  app.quit();
+// POSIX signals must take the same graceful path as before-quit. In practice
+// Chromium's shutdown-detector thread usually catches SIGTERM/SIGINT before
+// Node does (so these handlers rarely fire and quit arrives via before-quit
+// above); they remain as a belt-and-braces path for environments where
+// Chromium does not install its detectors.
+const handleSignal = (signal: NodeJS.Signals) => {
+  console.log(`[desktop] received ${signal} — shutting down`);
+  void runGracefulShutdown().then(() => quitNow());
 };
 process.on("SIGINT", handleSignal);
 process.on("SIGTERM", handleSignal);
