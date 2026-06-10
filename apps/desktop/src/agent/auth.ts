@@ -11,7 +11,6 @@ import { resolveModel } from "@repo/pi-driver/model";
 import type { AuthStorage } from "@repo/pi-driver/pi-types";
 
 import { AUTH_PATH, AUTH_PROVIDER, MODEL_ID } from "@/agent/paths";
-import { resumeShellWrites } from "@/main/shell";
 
 let authStorage: AuthStorage | null = null;
 
@@ -31,16 +30,15 @@ export function isLoggedIn(): boolean {
   return hasAuth(getAuthStorage(), AUTH_PROVIDER);
 }
 
+// NOTE: after a successful login the shell write-suspension must be lifted
+// (resumeShellWrites). That is main's concern — main/lib/agent-lifecycle.ts
+// wraps this in loginAgent(); call that, not this, from app lifecycle code.
 export async function login(): Promise<void> {
   await loginWithProvider(getAuthStorage(), AUTH_PROVIDER, {
     onAuth: (info) => {
       void open(info.url);
     },
   });
-  // resetShellCache (on a previous logout) suspended shell writes to keep an
-  // in-flight setInstanceState from recreating ~/.inteligir. After successful
-  // re-auth, the workspace is allowed to materialize again on the next write.
-  resumeShellWrites();
 }
 
 /**

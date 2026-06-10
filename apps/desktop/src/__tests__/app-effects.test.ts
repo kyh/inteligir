@@ -4,9 +4,7 @@ import { runEffect, type EffectDeps } from "@/main/app-effects";
 function makeDeps(overrides?: Partial<EffectDeps>): EffectDeps {
   return {
     login: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
-    seedResources: vi
-      .fn<EffectDeps["seedResources"]>()
-      .mockResolvedValue(undefined),
+    seedResources: vi.fn<EffectDeps["seedResources"]>().mockResolvedValue(undefined),
     downloadVoiceModel: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     startAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     stopAgent: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
@@ -62,5 +60,40 @@ describe("runEffect", () => {
     const result = await runEffect("LOGOUT", deps);
     expect(deps.teardownResources).toHaveBeenCalledOnce();
     expect(result).toEqual({ type: "LOGOUT_OK" });
+  });
+
+  it("LOGOUT returns LOGOUT_FAIL when stopAgent rejects (no throw out of the effect)", async () => {
+    const deps = makeDeps({
+      stopAgent: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("stop broke")),
+    });
+    const result = await runEffect("LOGOUT", deps);
+    expect(result).toEqual({ type: "LOGOUT_FAIL", message: "stop broke" });
+  });
+
+  it("LOGOUT returns LOGOUT_FAIL when teardownResources throws", async () => {
+    const deps = makeDeps({
+      teardownResources: vi.fn(() => {
+        throw new Error("rm failed");
+      }),
+    });
+    const result = await runEffect("LOGOUT", deps);
+    expect(result).toEqual({ type: "LOGOUT_FAIL", message: "rm failed" });
+  });
+
+  // ---- NEW_SESSION ------------------------------------------------------------
+
+  it("NEW_SESSION calls deps.newSession and returns NEW_SESSION_OK", async () => {
+    const deps = makeDeps();
+    const result = await runEffect("NEW_SESSION", deps);
+    expect(deps.newSession).toHaveBeenCalledOnce();
+    expect(result).toEqual({ type: "NEW_SESSION_OK" });
+  });
+
+  it("NEW_SESSION returns NEW_SESSION_FAIL when newSession rejects", async () => {
+    const deps = makeDeps({
+      newSession: vi.fn<() => Promise<void>>().mockRejectedValue(new Error("restart broke")),
+    });
+    const result = await runEffect("NEW_SESSION", deps);
+    expect(result).toEqual({ type: "NEW_SESSION_FAIL", message: "restart broke" });
   });
 });

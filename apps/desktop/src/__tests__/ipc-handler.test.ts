@@ -37,7 +37,7 @@ describe("handle (invoke)", () => {
     expect(result).toBe("result");
   });
 
-  it("throws ZodError on invalid input", () => {
+  it("throws on invalid input", () => {
     handle("deleteTask", vi.fn());
     expect(() => invokeRegistered(42)).toThrow();
   });

@@ -1,3 +1,5 @@
+import { lookup as dnsLookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import { shell } from "electron";
 
 import { completeOnce } from "@/agent/auth";
@@ -12,11 +14,16 @@ const FETCH_TIMEOUT_MS = 30_000;
 const FETCH_TEXT_CAP = 100_000;
 const FETCH_MAX_REDIRECTS = 5;
 
+type LookupFn = (hostname: string) => Promise<readonly { address: string }[]>;
+
+const defaultLookup: LookupFn = (hostname) => dnsLookup(hostname, { all: true });
+
 type FetchHttpTextDeps = {
   fetchImpl?: typeof fetch;
   timeoutMs?: number;
   textCap?: number;
   maxRedirects?: number;
+  lookup?: LookupFn;
 };
 
 type OpenExternal = (url: string) => Promise<unknown>;
@@ -115,16 +122,142 @@ export async function widgetCallTool(tool: string, input: unknown): Promise<unkn
   return result.structured;
 }
 
+// ---------------------------------------------------------------------------
+// SSRF guard for widgetFetch. Main-process fetch runs outside renderer
+// CSP/CORS and inside the LAN, so an agent-authored widget spec could
+// otherwise read link-local metadata services, the loopback executor daemon,
+// or anything on the local network. Every hop (initial URL + each manual
+// redirect) must be http(s) AND resolve only to public addresses.
+//
+// Known residual: the classification resolves the hostname once while the
+// actual fetch re-resolves it (Node's global fetch doesn't take a pinned
+// address), leaving a DNS-rebinding TOCTOU window. Closing it needs an
+// undici Agent with a custom lookup; out of scope here.
+// ---------------------------------------------------------------------------
+
+function ipv4Bytes(address: string): [number, number, number, number] | null {
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(address);
+  if (!match) return null;
+  const a = Number(match[1]);
+  const b = Number(match[2]);
+  const c = Number(match[3]);
+  const d = Number(match[4]);
+  if (a > 255 || b > 255 || c > 255 || d > 255) return null;
+  return [a, b, c, d];
+}
+
+function isReservedIpv4(bytes: readonly [number, number, number, number]): boolean {
+  const [a, b] = bytes;
+  return (
+    a === 0 || // 0.0.0.0/8 — "this network" (0.0.0.0 routes to loopback)
+    a === 10 || // 10/8 private
+    a === 127 || // 127/8 loopback
+    (a === 169 && b === 254) || // 169.254/16 link-local (cloud metadata)
+    (a === 172 && b >= 16 && b <= 31) || // 172.16/12 private
+    (a === 192 && b === 168) // 192.168/16 private
+  );
+}
+
+/** Parse an IPv6 literal into its eight 16-bit groups (zone id stripped,
+ * `::` expanded, trailing embedded IPv4 folded in). Null when malformed. */
+function ipv6Groups(address: string): number[] | null {
+  const zoneIdx = address.indexOf("%");
+  const addr = zoneIdx === -1 ? address : address.slice(0, zoneIdx);
+  const halves = addr.split("::");
+  if (halves.length > 2) return null;
+  const parse = (part: string, isTail: boolean): number[] | null => {
+    if (part === "") return [];
+    const groups: number[] = [];
+    const segments = part.split(":");
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i] ?? "";
+      if (segment.includes(".")) {
+        // Embedded IPv4 (e.g. ::ffff:127.0.0.1) — only valid as the last group.
+        if (!isTail || i !== segments.length - 1) return null;
+        const v4 = ipv4Bytes(segment);
+        if (!v4) return null;
+        groups.push((v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]);
+        continue;
+      }
+      if (!/^[0-9a-fA-F]{1,4}$/.test(segment)) return null;
+      groups.push(Number.parseInt(segment, 16));
+    }
+    return groups;
+  };
+  const head = parse(halves[0] ?? "", halves.length === 1);
+  if (!head) return null;
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  const tail = parse(halves[1] ?? "", true);
+  if (!tail) return null;
+  const fill = 8 - head.length - tail.length;
+  if (fill < 1) return null; // "::" must compress at least one zero group
+  return [...head, ...Array.from({ length: fill }, () => 0), ...tail];
+}
+
+function isReservedIpv6(groups: readonly number[]): boolean {
+  const g0 = groups[0] ?? 0;
+  // :: (unspecified) and ::1 (loopback)
+  if (groups.slice(0, 7).every((g) => g === 0)) {
+    const last = groups[7] ?? 0;
+    if (last === 0 || last === 1) return true;
+  }
+  // IPv4-mapped ::ffff:a.b.c.d — classify the embedded IPv4.
+  if (groups.slice(0, 5).every((g) => g === 0) && groups[5] === 0xffff) {
+    const g6 = groups[6] ?? 0;
+    const g7 = groups[7] ?? 0;
+    return isReservedIpv4([g6 >> 8, g6 & 0xff, g7 >> 8, g7 & 0xff]);
+  }
+  if ((g0 & 0xfe00) === 0xfc00) return true; // fc00::/7 unique-local
+  if ((g0 & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  return false;
+}
+
+/** Whether a resolved address sits in a private/reserved range. Anything we
+ * cannot positively classify as a public IP is treated as reserved. */
+function isReservedAddress(address: string): boolean {
+  const family = isIP(address);
+  if (family === 4) {
+    const bytes = ipv4Bytes(address);
+    return bytes ? isReservedIpv4(bytes) : true;
+  }
+  if (family === 6) {
+    const groups = ipv6Groups(address);
+    return groups ? isReservedIpv6(groups) : true;
+  }
+  return true;
+}
+
+/** Reject non-http(s) URLs and hosts that are (or resolve to) private or
+ * reserved addresses. WHATWG URL parsing canonicalizes obfuscated literals
+ * (e.g. `http://2130706433` → hostname `127.0.0.1`) before we classify. */
+async function assertPublicHttpTarget(url: string, lookupFn: LookupFn): Promise<void> {
+  if (!isHttpUrl(url)) throw new Error("Only http(s) URLs can be fetched");
+  const { hostname } = new URL(url);
+  const bare =
+    hostname.startsWith("[") && hostname.endsWith("]") ? hostname.slice(1, -1) : hostname;
+  const addresses =
+    isIP(bare) !== 0 ? [bare] : (await lookupFn(bare)).map((entry) => entry.address);
+  if (addresses.length === 0) throw new Error(`Could not resolve host '${bare}'`);
+  for (const address of addresses) {
+    // ANY private record fails the whole host — a half-private DNS answer is
+    // exactly what a rebinding attack looks like.
+    if (isReservedAddress(address)) {
+      throw new Error(`Refusing to fetch private or reserved address (${bare} → ${address})`);
+    }
+  }
+}
+
 export async function fetchHttpText(url: string, deps: FetchHttpTextDeps = {}): Promise<string> {
   // Main-process fetch bypasses renderer CSP/CORS. Keep the trusted widget API
   // web-only and validate every redirect hop, not just the initial URL.
   const fetchImpl = deps.fetchImpl ?? fetch;
+  const lookupFn = deps.lookup ?? defaultLookup;
   const maxRedirects = deps.maxRedirects ?? FETCH_MAX_REDIRECTS;
   const signal = AbortSignal.timeout(deps.timeoutMs ?? FETCH_TIMEOUT_MS);
   let currentUrl = url;
   let response: Response | null = null;
   for (let hop = 0; hop <= maxRedirects; hop++) {
-    if (!isHttpUrl(currentUrl)) throw new Error("Only http(s) URLs can be fetched");
+    await assertPublicHttpTarget(currentUrl, lookupFn);
     const next = await fetchImpl(currentUrl, { redirect: "manual", signal });
     if (next.status >= 300 && next.status < 400) {
       const location = next.headers.get("location");

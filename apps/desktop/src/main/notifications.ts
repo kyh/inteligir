@@ -3,11 +3,19 @@
 // unfocused. Uses Electron's built-in Notification API — no extra binary.
 // ---------------------------------------------------------------------------
 
+import path from "node:path";
 import { type Static, Type } from "@sinclair/typebox";
 import { BrowserWindow, Notification } from "electron";
 
-import { JsonStore, inteligirPath } from "@/main/lib/json-store";
+import {
+  JsonStore,
+  inteligirPath,
+  setStoreRecoveryNotifier,
+  type StoreRecoveryEvent,
+} from "@/main/lib/json-store";
 
+// Deliberately unversioned store: a single boolean preference whose
+// reset-to-default on mismatch is harmless (defaults to enabled).
 const NotificationSettingsSchema = Type.Object(
   { enabled: Type.Boolean() },
   { additionalProperties: false },
@@ -58,7 +66,7 @@ export class NotificationsManager {
   }
 
   updateSettings(patch: Partial<NotificationSettings>): NotificationSettings {
-    // Don't blindly spread the patch — Zod input allows `enabled: undefined`,
+    // Don't blindly spread the patch — the IPC input type allows `enabled: undefined`,
     // which would overwrite the live setting and round-trip through the
     // schema's default on next read, silently resetting the user's choice.
     return this.store.update((current) => ({
@@ -86,15 +94,40 @@ export class NotificationsManager {
       silent: false,
     });
 
-    notification.on("click", () => {
-      const win = this.targetWindow;
-      if (!win || win.isDestroyed()) return;
-      if (win.isMinimized()) win.restore();
-      win.show();
-      win.focus();
-    });
-
+    notification.on("click", () => this.focusTargetWindow());
     notification.show();
+  }
+
+  /**
+   * Tell the user a JsonStore quarantined a data file. Deliberately bypasses
+   * the `enabled` preference and the focus check that gate agent-idle
+   * notifications — this event is rare, means data was set aside, and the
+   * backup path shown here is the user's only pointer to recover it.
+   */
+  notifyStoreRecovered(event: StoreRecoveryEvent): void {
+    // `typeof` guard: in non-Electron environments (vitest) the mocked
+    // electron module may not export Notification at all.
+    if (typeof Notification !== "function" || !Notification.isSupported()) return;
+    const file = path.basename(event.filePath);
+    const body =
+      event.kind === "newer-version"
+        ? `${file} was written by a newer version of Inteligir and was set aside. Backup: ${event.backupPath}`
+        : `${file} could not be read and was reset. Backup: ${event.backupPath}`;
+    const notification = new Notification({
+      title: "Inteligir — settings file recovered",
+      body,
+      silent: false,
+    });
+    notification.on("click", () => this.focusTargetWindow());
+    notification.show();
+  }
+
+  private focusTargetWindow(): void {
+    const win = this.targetWindow;
+    if (!win || win.isDestroyed()) return;
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
   }
 
   private anyWindowFocused(): boolean {
@@ -125,3 +158,9 @@ export function getNotifications(): NotificationsManager {
 export function resetNotifications(): void {
   instance?.invalidate();
 }
+
+// Default surfacing for JsonStore recovery events (stores without their own
+// onRecovery). Registered at module load — main/index.ts imports this module
+// before any store is read, and store reads are lazy, so every store in the
+// main process gets user-visible quarantine notices without importing us.
+setStoreRecoveryNotifier((event) => getNotifications().notifyStoreRecovered(event));

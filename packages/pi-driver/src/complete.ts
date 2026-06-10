@@ -36,10 +36,13 @@ export async function completeText(
   const result = await complete(
     model,
     {
-      systemPrompt: system,
+      ...(system === undefined ? {} : { systemPrompt: system }),
       messages: [{ role: "user", content: prompt, timestamp: Date.now() }],
     },
-    { apiKey: auth.apiKey, headers: auth.headers },
+    {
+      ...(auth.apiKey === undefined ? {} : { apiKey: auth.apiKey }),
+      ...(auth.headers === undefined ? {} : { headers: auth.headers }),
+    },
   );
   return result.content
     .filter((block): block is { type: "text"; text: string } => block.type === "text")

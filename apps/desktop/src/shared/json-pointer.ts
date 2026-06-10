@@ -103,6 +103,11 @@ export function applyJsonPatchOp(root: unknown, op: JsonPatchOp): void {
     }
   } else if (isObjectRecord(parent)) {
     assertSafeKey(last, op.path, op.op);
+    // RFC 6902 §4.3: the replace target MUST exist. Silently adding here
+    // would let a typo'd path grow a new key instead of surfacing the bug.
+    if (op.op === "replace" && !Object.hasOwn(parent, last)) {
+      throw new Error(`Cannot replace missing key '${last}' in ${op.path} — use add to create it`);
+    }
     if (op.op === "add" || op.op === "replace") parent[last] = op.value;
     else delete parent[last];
   } else {

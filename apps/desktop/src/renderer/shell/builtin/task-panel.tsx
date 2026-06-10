@@ -198,14 +198,14 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
 
 export function TaskPanel() {
   const tasks = useTaskStore((s) => s.tasks);
-  const fetchTasks = useTaskStore((s) => s.fetchTasks);
+  const init = useTaskStore((s) => s.init);
   const toggleTask = useTaskStore((s) => s.toggleTask);
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+  // init fetches the snapshot and subscribes to the onTasksUpdated push, so
+  // tasks the agent creates/toggles/deletes appear without a remount.
+  useEffect(() => init(), [init]);
 
   return (
     <div className="p-3">

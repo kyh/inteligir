@@ -1,13 +1,14 @@
 {
-  "extends": ["@kyh/tsconfig/base.json"],
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "jsx": "react-native",
-    "checkJs": false,
     "moduleSuffixes": [".ios", ".android", ".native", ""],
     "paths": {
       "@/*": ["./src/*"]
     }
   },
-  "include": ["src", "*.ts", "*.js", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"],
-  "exclude": ["node_modules"]
+  // *.js (metro.config.js) stays out: it's a CommonJS Node build script, and
+  // nativewind's metro types (built against bare metro-resolver) conflict
+  // with @expo/metro's vendored copy under exactOptionalPropertyTypes.
+  "include": ["src", "*.ts", ".expo/types/**/*.ts", "expo-env.d.ts", "nativewind-env.d.ts"]
 }

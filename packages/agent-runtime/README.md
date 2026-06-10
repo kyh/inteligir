@@ -33,8 +33,7 @@ await installCliFromGithubRelease({
   binName: "peekaboo",
   binDir: "/Users/me/.inteligir/bin",
   archiveBinPath: "peekaboo-macos-universal/peekaboo",
-  artifactName: () =>
-    process.platform === "darwin" ? "peekaboo-macos-universal.tar.gz" : null,
+  artifactName: () => (process.platform === "darwin" ? "peekaboo-macos-universal.tar.gz" : null),
 });
 
 // Plain binary — release ships the binary itself, version-check verifies it

@@ -3,15 +3,142 @@
 //   - TypeScript types are derived via Static<typeof ...>
 //   - The agent tool's JSON Schema is the TypeBox object literal itself
 //   - Boundary validation (IPC + agent calls) goes through parseWidgetSpec()
-//     which checks against the TypeBox schema + runs the structural-cycle pass
+//     which checks the structural schema, validates every element's props
+//     against its component's prop schema, and runs the structural-cycle pass
+//   - The component vocabulary lives in ONE table (WIDGET_COMPONENTS): a
+//     TypeBox prop schema plus agent-facing prose per component. The `Props:`
+//     signatures in the prose are DERIVED from the schemas, and the renderer
+//     catalog (renderer/shell/widget-catalog.ts) adapts the same schemas for
+//     json-render — the prop contract is never hand-written twice.
 // ---------------------------------------------------------------------------
 
-import { type Static, Type } from "@sinclair/typebox";
+import { type Static, type TObject, type TProperties, type TSchema, Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 import type { Spec } from "@json-render/core";
 
 // ---------------------------------------------------------------------------
-// Component vocabulary
+// Schema helpers
+// ---------------------------------------------------------------------------
+
+function literalUnion<const T extends readonly string[]>(values: T) {
+  return Type.Union(values.map((value) => Type.Literal(value)));
+}
+
+// Props that display or bind data routinely carry a dynamic-value object —
+// e.g. `{ $bindState: "/temp" }` — instead of a literal. json-render resolves
+// these at render time, so the runtime schema must accept the literal AND any
+// documented dynamic expression object, while the *static* type stays the
+// resolved primitive (what the component implementation actually receives).
+const DYNAMIC_VALUE_KEYS = [
+  "$state",
+  "$bindState",
+  "$template",
+  "$item",
+  "$bindItem",
+  "$index",
+  "$cond",
+  "$computed",
+] as const;
+
+// "An object carrying at least one documented dynamic-value key."
+const DynamicValueParam = Type.Union(
+  DYNAMIC_VALUE_KEYS.map((key) => Type.Object({ [key]: Type.Unknown() })),
+);
+
+// Marker so the signature printer and the error formatter can recognize a
+// dynamic wrapper and describe it as its base type.
+const DYNAMIC_OPTION = "x-dynamic";
+
+function Dynamic<T extends TSchema>(base: T) {
+  return Type.Unsafe<Static<T>>(Type.Union([base, DynamicValueParam], { [DYNAMIC_OPTION]: true }));
+}
+
+const DynString = Dynamic(Type.String());
+const DynNumber = Dynamic(Type.Number());
+const DynBoolean = Dynamic(Type.Boolean());
+
+/** Strict props object — unknown keys are rejected. Props are not a place for
+ * layout or styling overrides (no className/style). */
+function propsObject<T extends TProperties>(properties: T) {
+  return Type.Object(properties, { additionalProperties: false });
+}
+
+// Enum props are spelled as explicit literal tuples (not via literalUnion):
+// calling .map on a generic readonly-string[] receiver resolves the callback
+// param through the constraint, so literalUnion's Static widens to `string`.
+// These statics feed WidgetComponentProps, which defineRegistry uses to
+// compile-check the component implementations — they must stay precise.
+const GapParam = Type.Union([Type.Literal("sm"), Type.Literal("md"), Type.Literal("lg")]);
+const TextSizeParam = Type.Union([Type.Literal("xs"), Type.Literal("sm"), Type.Literal("base")]);
+const HeadingLevelParam = Type.Union([Type.Literal("1"), Type.Literal("2"), Type.Literal("3")]);
+const ButtonVariantParam = Type.Union([
+  Type.Literal("default"),
+  Type.Literal("outline"),
+  Type.Literal("ghost"),
+  Type.Literal("secondary"),
+  Type.Literal("destructive"),
+]);
+const ButtonSizeParam = Type.Union([
+  Type.Literal("xs"),
+  Type.Literal("sm"),
+  Type.Literal("default"),
+  Type.Literal("lg"),
+]);
+const BadgeVariantParam = Type.Union([
+  Type.Literal("default"),
+  Type.Literal("secondary"),
+  Type.Literal("destructive"),
+  Type.Literal("outline"),
+  Type.Literal("ghost"),
+]);
+const ControlSizeParam = Type.Union([
+  Type.Literal("sm"),
+  Type.Literal("default"),
+  Type.Literal("lg"),
+]);
+const AccentColorParam = Type.Union([
+  Type.Literal("yellow"),
+  Type.Literal("blue"),
+  Type.Literal("purple"),
+  Type.Literal("green"),
+  Type.Literal("orange"),
+  Type.Literal("red"),
+]);
+const ChartTypeParam = Type.Union([
+  Type.Literal("line"),
+  Type.Literal("bar"),
+  Type.Literal("area"),
+  Type.Literal("pie"),
+]);
+const DrawerSideParam = Type.Union([
+  Type.Literal("top"),
+  Type.Literal("bottom"),
+  Type.Literal("left"),
+  Type.Literal("right"),
+]);
+const MenuItemVariantParam = Type.Union([Type.Literal("default"), Type.Literal("destructive")]);
+
+const OptionItemParam = propsObject({ label: Type.String(), value: Type.String() });
+const RadioOptionItemParam = propsObject({
+  label: Type.String(),
+  value: Type.String(),
+  description: Type.Optional(Type.String()),
+});
+const ChartSeriesParam = propsObject({
+  key: Type.String(),
+  label: Type.Optional(Type.String()),
+  color: Type.Optional(Type.String()),
+});
+
+const textFieldProps = {
+  label: Type.Optional(DynString),
+  placeholder: Type.Optional(DynString),
+  value: Type.Optional(DynString),
+  disabled: Type.Optional(DynBoolean),
+};
+
+// ---------------------------------------------------------------------------
+// Component vocabulary — the single source of truth
 // ---------------------------------------------------------------------------
 
 const JSON_WIDGET_COMPONENT_TYPES = [
@@ -57,74 +184,354 @@ const JSON_WIDGET_COMPONENT_TYPES = [
 
 export type JsonWidgetComponentType = (typeof JSON_WIDGET_COMPONENT_TYPES)[number];
 
-export const WIDGET_COMPONENT_DESCRIPTIONS: Record<JsonWidgetComponentType, string> = {
-  Stack:
-    "Vertical stack container. Props: { gap?: 'sm'|'md'|'lg' }. Use as the top-level wrapper or nested groups.",
-  Section:
-    "Labeled group of rows. Props: { title?: string }. Renders a small uppercase title when set.",
-  Row: "Horizontal row with space-between layout. Props: { bordered?: boolean }. Bordered by default.",
-  Grid: "Multi-column grid container. Props: { columns?: number (default 2), gap?: 'sm'|'md'|'lg' }. Lays children out in equal columns.",
-  Heading: "Heading text. Props: { text: string, level?: '1'|'2'|'3' }. Defaults to level 3.",
-  Text: "Text node. Props: { text: string, muted?: boolean, size?: 'xs'|'sm'|'base' }.",
-  TextBlock:
-    "Two-line text. Props: { title: string, description?: string }. Use for label/value summaries.",
-  Markdown:
-    "Rendered markdown block. Props: { content?: string }. Bind `content` via { $bindState: '/path' } to show generated/fetched text.",
-  Badge:
-    "Inline status badge. Props: { text: string, variant?: 'default'|'secondary'|'destructive'|'outline'|'ghost' }.",
-  Button:
-    "Clickable button. Props: { label: string, variant?: 'default'|'outline'|'ghost'|'secondary'|'destructive', size?: 'xs'|'sm'|'default'|'lg', disabled?: boolean }. Wire `on.press` to actions.",
-  Checkbox:
-    "Checkbox. Props: { label: string, description?: string, checked?: boolean, disabled?: boolean }. Two-way bind `checked` via { $bindState: '/path' }.",
-  Switch:
-    "Toggle switch. Props: { label: string, description?: string, checked?: boolean, disabled?: boolean }. Two-way bind `checked` via { $bindState: '/path' }.",
-  Input:
-    "Text input. Props: { label?: string, placeholder?: string, value?: string, disabled?: boolean }. Two-way bind `value` via { $bindState: '/path' }.",
-  Textarea:
-    "Multi-line input. Props: { label?: string, placeholder?: string, value?: string, rows?: number, disabled?: boolean }. Two-way bind `value`.",
-  Select:
-    "Dropdown select. Props: { label?: string, placeholder?: string, value?: string, options: { label: string, value: string }[], disabled?: boolean }. Two-way bind `value`.",
-  RadioGroup:
-    "Single-choice radio group. Props: { label?: string, value?: string, options: { label: string, value: string, description?: string }[], disabled?: boolean }. Two-way bind `value`.",
-  Slider:
-    "Numeric slider. Props: { label?: string, value?: number, min?: number, max?: number, step?: number, disabled?: boolean }. Two-way bind `value` (number).",
-  Avatar:
-    "User avatar. Props: { src?: string, fallback?: string, size?: 'sm'|'default'|'lg' }. Shows `fallback` initials when no image.",
-  Spinner:
-    "Loading spinner. Props: { size?: 'sm'|'default'|'lg' }. Pair with generateText/fetchUrl and a `visible` condition.",
-  Image: "Image. Props: { src: string, alt?: string, rounded?: boolean }. Square by default; set rounded: true for rounded corners.",
-  Chart:
-    "Chart (Recharts). Props: { type?: 'line'|'bar'|'area'|'pie' (default 'bar'), data?: object[], series: { key: string, label?: string, color?: string }[], categoryKey?: string (x-axis / slice-name field, default 'name'), height?: number (default 220), stacked?: boolean, showLegend?: boolean, showGrid?: boolean }. Bind `data` to a state array via { $bindState: '/path' } (e.g. from fetchUrl); each series plots one numeric field. For pie, the first series is the value field and slices come from `categoryKey`.",
-  Card: "Bordered container. Props: {}. Use to group arbitrary children.",
-  Accent:
-    "Colored left-stripe container. Props: { color: 'yellow'|'blue'|'purple'|'green'|'orange'|'red' }. Renders a 3px vertical bar in the chosen color with the children stacked to its right. Use for timeline rows or meeting prep where a small color tag identifies a category.",
-  Collapsible:
-    "Collapsible disclosure. Props: { title: string, defaultOpen?: boolean }. Children show when expanded.",
-  Tabs: "Tabbed container. Props: { tabs: { label: string, value: string }[] }. Provide exactly one child per tab — child N is the panel for tab N, paired by position. Don't put a `visible` condition on a tab's direct child; the Tabs controls which panel is shown.",
-  Table:
-    "Data table. Props: { caption?: string }. Children are a TableHeader and/or a TableBody section.",
-  TableHeader:
-    "Table header section (thead). Props: {}. Children are TableRow elements containing TableHead cells.",
-  TableBody:
-    "Table body section (tbody). Props: {}. Children are TableRow elements. Add `repeat: { statePath, key }` on a row to render one per item.",
-  TableRow:
-    "Table row. Props: {}. Children are TableHead cells (in a TableHeader) or TableCell cells (in a TableBody). On a body row, add `repeat: { statePath, key }` and bind cell text with { $item: 'field' } for a data-driven table.",
-  TableHead: "Table header cell. Props: { text: string }.",
-  TableCell:
-    "Table body cell. Props: { text?: string }. Set `text`, or omit it and add children (e.g. a Badge or Button) for a rich cell.",
-  Dialog:
-    "Modal dialog. Props: { trigger: string, title?: string, description?: string }. `trigger` renders a button; children are the dialog body. Closes via the ✕, Escape, or an outside click.",
-  Drawer:
-    "Slide-out drawer. Props: { trigger: string, title?: string, description?: string, side?: 'top'|'bottom'|'left'|'right' (default 'right') }. `trigger` renders a button; children are the drawer body.",
-  Popover:
-    "Popover anchored to a trigger button. Props: { trigger: string }. Children are the popover content.",
-  Tooltip: "Hover tooltip. Props: { text: string }. Wraps its single child as the hover target.",
-  DropdownMenu:
-    "Dropdown menu. Props: { trigger: string }. Children are MenuItem elements.",
-  MenuItem:
-    "Dropdown menu item (use inside DropdownMenu). Props: { label: string, variant?: 'default'|'destructive', disabled?: boolean }. Wire `on.press` to actions.",
-  Separator: "Horizontal hairline divider. Props: {}.",
+type WidgetComponentEntry = {
+  /** Runtime prop contract. Enforced at the write boundary (parseWidgetSpec,
+   * so manage_ui install/update/patch fail into the tool result) and re-run
+   * by the renderer as defense-in-depth. */
+  props: TObject;
+  /** Agent-facing one-liner. The `Props:` signature shown to the agent is
+   * derived from `props`, so prose and schema cannot drift. */
+  summary: string;
+  /** Usage guidance appended after the derived `Props:` signature. */
+  note?: string;
 };
+
+// `satisfies` keeps each entry's precise TObject type (for per-component
+// Static prop types) while enforcing exhaustiveness against the type union —
+// adding a component without a schema or prose is a compile error.
+const WIDGET_COMPONENTS = {
+  Stack: {
+    props: propsObject({ gap: Type.Optional(GapParam) }),
+    summary: "Vertical stack container.",
+    note: "Use as the top-level wrapper or nested groups.",
+  },
+  Section: {
+    props: propsObject({ title: Type.Optional(DynString) }),
+    summary: "Labeled group of rows.",
+    note: "Renders a small uppercase title when set.",
+  },
+  Row: {
+    props: propsObject({ bordered: Type.Optional(Type.Boolean()) }),
+    summary: "Horizontal row with space-between layout.",
+    note: "Bordered by default.",
+  },
+  Grid: {
+    props: propsObject({ columns: Type.Optional(Type.Number()), gap: Type.Optional(GapParam) }),
+    summary: "Multi-column grid container.",
+    note: "Lays children out in equal columns; columns defaults to 2.",
+  },
+  Heading: {
+    props: propsObject({ text: DynString, level: Type.Optional(HeadingLevelParam) }),
+    summary: "Heading text.",
+    note: "Defaults to level 3.",
+  },
+  Text: {
+    props: propsObject({
+      text: DynString,
+      muted: Type.Optional(Type.Boolean()),
+      size: Type.Optional(TextSizeParam),
+    }),
+    summary: "Text node.",
+  },
+  TextBlock: {
+    props: propsObject({ title: DynString, description: Type.Optional(DynString) }),
+    summary: "Two-line text.",
+    note: "Use for label/value summaries.",
+  },
+  Markdown: {
+    props: propsObject({ content: Type.Optional(DynString) }),
+    summary: "Rendered markdown block.",
+    note: "Bind `content` via { $bindState: '/path' } to show generated/fetched text.",
+  },
+  Badge: {
+    props: propsObject({ text: DynString, variant: Type.Optional(BadgeVariantParam) }),
+    summary: "Inline status badge.",
+  },
+  Button: {
+    props: propsObject({
+      label: DynString,
+      variant: Type.Optional(ButtonVariantParam),
+      size: Type.Optional(ButtonSizeParam),
+      disabled: Type.Optional(DynBoolean),
+    }),
+    summary: "Clickable button.",
+    note: "Wire `on.press` to actions.",
+  },
+  Checkbox: {
+    props: propsObject({
+      label: DynString,
+      description: Type.Optional(DynString),
+      checked: Type.Optional(DynBoolean),
+      disabled: Type.Optional(DynBoolean),
+    }),
+    summary: "Checkbox.",
+    note: "Two-way bind `checked` via { $bindState: '/path' }.",
+  },
+  Switch: {
+    props: propsObject({
+      label: DynString,
+      description: Type.Optional(DynString),
+      checked: Type.Optional(DynBoolean),
+      disabled: Type.Optional(DynBoolean),
+    }),
+    summary: "Toggle switch.",
+    note: "Two-way bind `checked` via { $bindState: '/path' }.",
+  },
+  Input: {
+    props: propsObject(textFieldProps),
+    summary: "Text input.",
+    note: "Two-way bind `value` via { $bindState: '/path' }.",
+  },
+  Textarea: {
+    props: propsObject({ ...textFieldProps, rows: Type.Optional(Type.Number()) }),
+    summary: "Multi-line input.",
+    note: "Two-way bind `value`.",
+  },
+  Select: {
+    props: propsObject({
+      label: Type.Optional(DynString),
+      placeholder: Type.Optional(DynString),
+      value: Type.Optional(DynString),
+      options: Type.Array(OptionItemParam),
+      disabled: Type.Optional(DynBoolean),
+    }),
+    summary: "Dropdown select.",
+    note: "Two-way bind `value`.",
+  },
+  RadioGroup: {
+    props: propsObject({
+      label: Type.Optional(DynString),
+      value: Type.Optional(DynString),
+      options: Type.Array(RadioOptionItemParam),
+      disabled: Type.Optional(DynBoolean),
+    }),
+    summary: "Single-choice radio group.",
+    note: "Two-way bind `value`.",
+  },
+  Slider: {
+    props: propsObject({
+      label: Type.Optional(DynString),
+      value: Type.Optional(DynNumber),
+      min: Type.Optional(Type.Number()),
+      max: Type.Optional(Type.Number()),
+      step: Type.Optional(Type.Number()),
+      disabled: Type.Optional(DynBoolean),
+    }),
+    summary: "Numeric slider.",
+    note: "Two-way bind `value` (number).",
+  },
+  Avatar: {
+    props: propsObject({
+      src: Type.Optional(DynString),
+      fallback: Type.Optional(DynString),
+      size: Type.Optional(ControlSizeParam),
+    }),
+    summary: "User avatar.",
+    note: "Shows `fallback` initials when no image.",
+  },
+  Spinner: {
+    props: propsObject({ size: Type.Optional(ControlSizeParam) }),
+    summary: "Loading spinner.",
+    note: "Pair with generateText/fetchUrl and a `visible` condition.",
+  },
+  Image: {
+    props: propsObject({
+      src: DynString,
+      alt: Type.Optional(DynString),
+      rounded: Type.Optional(Type.Boolean()),
+    }),
+    summary: "Image.",
+    note: "Square by default; set rounded: true for rounded corners.",
+  },
+  Chart: {
+    props: propsObject({
+      type: Type.Optional(ChartTypeParam),
+      data: Type.Optional(Dynamic(Type.Array(Type.Record(Type.String(), Type.Unknown())))),
+      series: Type.Array(ChartSeriesParam),
+      categoryKey: Type.Optional(Type.String()),
+      height: Type.Optional(Type.Number()),
+      stacked: Type.Optional(Type.Boolean()),
+      showLegend: Type.Optional(Type.Boolean()),
+      showGrid: Type.Optional(Type.Boolean()),
+    }),
+    summary: "Chart (Recharts).",
+    note:
+      "Defaults: type 'bar', categoryKey 'name' (x-axis / slice-name field), height 220. " +
+      "Bind `data` to a state array via { $bindState: '/path' } (e.g. from fetchUrl); each " +
+      "series plots one numeric field. For pie, the first series is the value field and " +
+      "slices come from `categoryKey`.",
+  },
+  Card: {
+    props: propsObject({}),
+    summary: "Bordered container.",
+    note: "Use to group arbitrary children.",
+  },
+  Accent: {
+    props: propsObject({ color: AccentColorParam }),
+    summary: "Colored left-stripe container.",
+    note:
+      "Renders a 3px vertical bar in the chosen color with the children stacked to its " +
+      "right. Use for timeline rows or meeting prep where a small color tag identifies a " +
+      "category.",
+  },
+  Collapsible: {
+    props: propsObject({ title: DynString, defaultOpen: Type.Optional(Type.Boolean()) }),
+    summary: "Collapsible disclosure.",
+    note: "Children show when expanded.",
+  },
+  Tabs: {
+    props: propsObject({ tabs: Type.Array(OptionItemParam) }),
+    summary: "Tabbed container.",
+    note:
+      "Provide exactly one child per tab — child N is the panel for tab N, paired by " +
+      "position. Don't put a `visible` condition on a tab's direct child; the Tabs " +
+      "controls which panel is shown.",
+  },
+  Table: {
+    props: propsObject({ caption: Type.Optional(DynString) }),
+    summary: "Data table.",
+    note: "Children are a TableHeader and/or a TableBody section.",
+  },
+  TableHeader: {
+    props: propsObject({}),
+    summary: "Table header section (thead).",
+    note: "Children are TableRow elements containing TableHead cells.",
+  },
+  TableBody: {
+    props: propsObject({}),
+    summary: "Table body section (tbody).",
+    note: "Children are TableRow elements. Add `repeat: { statePath, key }` on a row to render one per item.",
+  },
+  TableRow: {
+    props: propsObject({}),
+    summary: "Table row.",
+    note:
+      "Children are TableHead cells (in a TableHeader) or TableCell cells (in a TableBody). " +
+      "On a body row, add `repeat: { statePath, key }` and bind cell text with " +
+      "{ $item: 'field' } for a data-driven table.",
+  },
+  TableHead: {
+    props: propsObject({ text: DynString }),
+    summary: "Table header cell.",
+  },
+  TableCell: {
+    props: propsObject({ text: Type.Optional(DynString) }),
+    summary: "Table body cell.",
+    note: "Set `text`, or omit it and add children (e.g. a Badge or Button) for a rich cell.",
+  },
+  Dialog: {
+    props: propsObject({
+      trigger: DynString,
+      title: Type.Optional(DynString),
+      description: Type.Optional(DynString),
+    }),
+    summary: "Modal dialog.",
+    note:
+      "`trigger` renders a button; children are the dialog body. Closes via the ✕, Escape, " +
+      "or an outside click.",
+  },
+  Drawer: {
+    props: propsObject({
+      trigger: DynString,
+      title: Type.Optional(DynString),
+      description: Type.Optional(DynString),
+      side: Type.Optional(DrawerSideParam),
+    }),
+    summary: "Slide-out drawer.",
+    note: "`trigger` renders a button; children are the drawer body. `side` defaults to 'right'.",
+  },
+  Popover: {
+    props: propsObject({ trigger: DynString }),
+    summary: "Popover anchored to a trigger button.",
+    note: "Children are the popover content.",
+  },
+  Tooltip: {
+    props: propsObject({ text: DynString }),
+    summary: "Hover tooltip.",
+    note: "Wraps its single child as the hover target.",
+  },
+  DropdownMenu: {
+    props: propsObject({ trigger: DynString }),
+    summary: "Dropdown menu.",
+    note: "Children are MenuItem elements.",
+  },
+  MenuItem: {
+    props: propsObject({
+      label: DynString,
+      variant: Type.Optional(MenuItemVariantParam),
+      disabled: Type.Optional(DynBoolean),
+    }),
+    summary: "Dropdown menu item (use inside DropdownMenu).",
+    note: "Wire `on.press` to actions.",
+  },
+  Separator: {
+    props: propsObject({}),
+    summary: "Horizontal hairline divider.",
+  },
+} satisfies Record<JsonWidgetComponentType, WidgetComponentEntry>;
+
+/** Static props type for one component, derived from its TypeBox schema.
+ * Dynamic-capable props type as the resolved primitive (string/number/...),
+ * matching what json-render hands the implementation after resolution. */
+export type WidgetComponentProps<K extends JsonWidgetComponentType> = Static<
+  (typeof WIDGET_COMPONENTS)[K]["props"]
+>;
+
+export function componentPropsSchema(type: JsonWidgetComponentType): TObject {
+  return WIDGET_COMPONENTS[type].props;
+}
+
+/** Compact TS-ish signature derived from the component's prop schema, e.g.
+ * `{ gap?: 'sm'|'md'|'lg' }`. This is the only prop list the agent ever
+ * sees — it cannot drift from the validated contract. */
+export function componentPropsSignature(type: JsonWidgetComponentType): string {
+  return printPropType(WIDGET_COMPONENTS[type].props);
+}
+
+/** Agent-facing description: summary + derived `Props:` signature + note. */
+export function componentDescription(type: JsonWidgetComponentType): string {
+  // Widen through the entry type — not every table entry declares `note`.
+  const entry: WidgetComponentEntry = WIDGET_COMPONENTS[type];
+  const suffix = entry.note === undefined ? "" : ` ${entry.note}`;
+  return `${entry.summary} Props: ${componentPropsSignature(type)}.${suffix}`;
+}
+
+function printPropType(schema: unknown): string {
+  if (!isRecord(schema)) return "unknown";
+  const anyOf = schema["anyOf"];
+  if (Array.isArray(anyOf)) {
+    // Dynamic wrapper: describe as the base (resolved) type.
+    if (schema[DYNAMIC_OPTION] === true) return printPropType(anyOf[0]);
+    return anyOf.map(printPropType).join("|");
+  }
+  if ("const" in schema) {
+    const value = schema["const"];
+    return typeof value === "string" ? `'${value}'` : String(value);
+  }
+  switch (schema["type"]) {
+    case "string":
+      return "string";
+    case "number":
+    case "integer":
+      return "number";
+    case "boolean":
+      return "boolean";
+    case "array":
+      return `${printPropType(schema["items"])}[]`;
+    case "object": {
+      // Type.Record (open map) — print as plain object.
+      if (isRecord(schema["patternProperties"])) return "object";
+      const properties = isRecord(schema["properties"]) ? schema["properties"] : {};
+      const required = Array.isArray(schema["required"]) ? schema["required"] : [];
+      const entries = Object.entries(properties).map(
+        ([name, prop]) => `${name}${required.includes(name) ? "" : "?"}: ${printPropType(prop)}`,
+      );
+      return entries.length === 0 ? "{}" : `{ ${entries.join(", ")} }`;
+    }
+    default:
+      return "unknown";
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Action vocabulary
@@ -169,13 +576,9 @@ export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
 };
 
 // ---------------------------------------------------------------------------
-// TypeBox schemas — the single source of truth for the agent tool's JSON
-// Schema, IPC payload validation, and TypeScript types.
+// TypeBox structural schemas — the agent tool's JSON Schema, IPC payload
+// validation, and TypeScript types.
 // ---------------------------------------------------------------------------
-
-function literalUnion<const T extends readonly string[]>(values: T) {
-  return Type.Union(values.map((value) => Type.Literal(value)));
-}
 
 const ComponentTypeParam = literalUnion(JSON_WIDGET_COMPONENT_TYPES);
 const ActionNameParam = literalUnion(WIDGET_ACTION_NAMES);
@@ -206,7 +609,9 @@ const RepeatParam = Type.Object(
 // Element shape exposed in the agent tool's JSON Schema. `props` is required
 // here so the generated TypeScript type matches json-render's UIElement (which
 // requires `props`), but parseWidgetSpec accepts inputs that omit props and
-// fills in {} during canonicalization.
+// fills in {} during canonicalization. Props stay an open record at this
+// level so the tool's JSON Schema stays flat and OpenAI-friendly; the
+// per-component contract is enforced by parseWidgetSpec's props walk.
 const ElementParam = Type.Object(
   {
     type: ComponentTypeParam,
@@ -251,6 +656,7 @@ export type WidgetSpec = Static<typeof WidgetSpecParam>;
  * Spec naturally without per-call-site casts.
  */
 export function toRendererSpec(spec: WidgetSpec): Spec {
+  // oxlint-disable-next-line typescript/consistent-type-assertions -- json-render Spec bridge, see doc above
   return spec as unknown as Spec;
 }
 
@@ -258,21 +664,134 @@ export function toRendererSpec(spec: WidgetSpec): Spec {
 // Validation
 // ---------------------------------------------------------------------------
 
+export type ParseWidgetSpecOptions = {
+  /**
+   * Skip the per-component prop validation. ONLY for the trusted read/decode
+   * path (ShellManager's store decode): a legacy def written before props
+   * were validated at the write boundary must not brick the whole store via
+   * JsonStore's corrupt-recovery. The renderer's validateWidgetProps still
+   * flags it at render time, and the next update/patch must fix it.
+   */
+  skipComponentProps?: boolean;
+};
+
 /**
- * Parse + structurally validate a widget spec. Accepts inputs that omit the
- * per-element `props` object (the model often does so for prop-less components
- * like Stack/Card/Separator) and canonicalizes them to `{}`. Throws on TypeBox
- * mismatch or on a child cycle.
+ * Parse + validate a widget spec. Accepts inputs that omit the per-element
+ * `props` object (the model often does so for prop-less components like
+ * Stack/Card/Separator) and canonicalizes them to `{}`. Throws on TypeBox
+ * mismatch, on invalid component props, or on a child cycle — write callers
+ * (manage_ui install/update/patch, IPC) surface the message to the agent so
+ * it can self-correct in the same turn.
  */
-export function parseWidgetSpec(input: unknown): WidgetSpec {
+export function parseWidgetSpec(input: unknown, options: ParseWidgetSpecOptions = {}): WidgetSpec {
   const canonical = canonicalizeProps(input);
   if (!Value.Check(WidgetSpecParam, canonical)) {
     const first = Value.Errors(WidgetSpecParam, canonical).First();
     const detail = first ? `${first.path}: ${first.message}` : "shape mismatch";
     throw new Error(`Invalid widget spec — ${detail}`);
   }
+  if (options.skipComponentProps !== true) {
+    const validation = validateWidgetProps(canonical);
+    if (!validation.success) throw new Error(formatWidgetPropsError(validation.issues));
+  }
   validateStructure(canonical);
   return canonical;
+}
+
+type WidgetPropsIssue = {
+  elementKey: string;
+  component: string;
+  /** Dot path into the element's props; "<root>" for the props object itself. */
+  path: string;
+  message: string;
+};
+
+export type WidgetPropsValidation =
+  | { success: true; issues: [] }
+  | { success: false; issues: WidgetPropsIssue[] };
+
+// String-keyed view of the component table for walking specs whose element
+// types are not statically narrowed (renderer defense-in-depth on IPC data).
+const COMPONENT_PROP_SCHEMAS: ReadonlyMap<string, TObject> = new Map(
+  JSON_WIDGET_COMPONENT_TYPES.map((type) => [type, WIDGET_COMPONENTS[type].props]),
+);
+
+/**
+ * Validate every element's props against its component's shared TypeBox
+ * schema. Runs inside parseWidgetSpec (the write boundary) and again in the
+ * renderer before mounting a viewer (defense-in-depth for legacy defs that
+ * predate write-boundary validation).
+ */
+export function validateWidgetProps(spec: {
+  elements: Record<string, { type: string; props?: Record<string, unknown> }>;
+}): WidgetPropsValidation {
+  const issues: WidgetPropsIssue[] = [];
+  for (const [elementKey, element] of Object.entries(spec.elements)) {
+    const schema = COMPONENT_PROP_SCHEMAS.get(element.type);
+    if (!schema) {
+      issues.push({
+        elementKey,
+        component: element.type,
+        path: "<root>",
+        message: `Unknown component type '${element.type}'`,
+      });
+      continue;
+    }
+    const props = element.props ?? {};
+    if (Value.Check(schema, props)) continue;
+    // One issue per prop path. TypeBox reports a missing required prop twice
+    // (required + type mismatch) — the first message is the useful one.
+    const seen = new Set<string>();
+    for (const error of Value.Errors(schema, props)) {
+      if (seen.has(error.path)) continue;
+      seen.add(error.path);
+      issues.push({
+        elementKey,
+        component: element.type,
+        path: error.path === "" ? "<root>" : error.path.slice(1).replaceAll("/", "."),
+        message: describePropError(error.schema, error.message),
+      });
+    }
+  }
+  return issues.length === 0 ? { success: true, issues: [] } : { success: false, issues };
+}
+
+/** Rewrite TypeBox's generic "Expected union value" into something the agent
+ * can act on: the resolved base type for dynamic wrappers, the literal list
+ * for enums. */
+function describePropError(schema: unknown, message: string): string {
+  if (!message.startsWith("Expected union")) return message;
+  if (isRecord(schema)) {
+    if (schema[DYNAMIC_OPTION] === true) {
+      return `Expected ${printPropType(schema)} or a dynamic-value object (e.g. { $bindState: '/path' })`;
+    }
+    const anyOf = schema["anyOf"];
+    if (Array.isArray(anyOf) && anyOf.every((v) => isRecord(v) && "const" in v)) {
+      return `Expected one of ${anyOf.map(printPropType).join(" | ")}`;
+    }
+  }
+  return message;
+}
+
+const MAX_PROP_ISSUES = 8;
+
+function formatWidgetPropsError(issues: WidgetPropsIssue[]): string {
+  const shown = issues.slice(0, MAX_PROP_ISSUES);
+  const lines = shown.map(
+    (i) =>
+      `  - element '${i.elementKey}' (${i.component}) props${i.path === "<root>" ? "" : `.${i.path}`}: ${i.message}`,
+  );
+  const more = issues.length - shown.length;
+  if (more > 0) lines.push(`  - … and ${more} more`);
+  const involved = new Set<string>(shown.map((i) => i.component));
+  const contracts = JSON_WIDGET_COMPONENT_TYPES.filter((t) => involved.has(t)).map(
+    (t) => `  - ${t}: ${componentPropsSignature(t)}`,
+  );
+  return [
+    "Invalid widget spec — component props failed validation:",
+    ...lines,
+    ...(contracts.length > 0 ? ["Expected prop contracts:", ...contracts] : []),
+  ].join("\n");
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -362,9 +881,7 @@ export function describeWidgetSpecLanguage(): string {
     "  - children as a string instead of an array of element keys.",
     "",
     "Components:",
-    ...JSON_WIDGET_COMPONENT_TYPES.map(
-      (name) => `  - ${name}: ${WIDGET_COMPONENT_DESCRIPTIONS[name]}`,
-    ),
+    ...JSON_WIDGET_COMPONENT_TYPES.map((name) => `  - ${name}: ${componentDescription(name)}`),
     "Actions:",
     ...WIDGET_ACTION_NAMES.map((name) => `  - ${name}: ${WIDGET_ACTION_DESCRIPTIONS[name]}`),
   ].join("\n");

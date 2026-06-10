@@ -9,7 +9,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { springs } from "@repo/ui/lib/springs";
 import { getShape } from "@repo/ui/lib/shape";
-import { stripMotionConflicts } from "@repo/ui/lib/motion-bridge";
+import { stripMotionConflicts, toMotionStyle } from "@repo/ui/lib/motion-bridge";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
 
@@ -28,10 +28,6 @@ function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
-function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
-}
-
 // Spring-animated scrim. Motion is information — the backdrop eases in on the
 // slow spring and out on the moderate one, matching the popup's tempo.
 function DialogOverlay({ className }: { className?: string }) {
@@ -40,9 +36,7 @@ function DialogOverlay({ className }: { className?: string }) {
       data-slot="dialog-overlay"
       render={(backdropProps, state) => {
         const exiting = state.transitionStatus === "ending";
-        const { rest } = stripMotionConflicts(
-          backdropProps as React.HTMLAttributes<HTMLDivElement>,
-        );
+        const { rest } = stripMotionConflicts<HTMLDivElement>(backdropProps);
         return (
           <motion.div
             {...rest}
@@ -89,9 +83,9 @@ function DialogContent({
         {...props}
         render={(popupProps, state) => {
           const exiting = state.transitionStatus === "ending";
-          const { style: baseStyle, rest } = stripMotionConflicts(
-            popupProps as React.HTMLAttributes<HTMLDivElement>,
-          );
+          const { style: baseStyle, rest } = stripMotionConflicts<HTMLDivElement>(popupProps);
+          // Base UI's `style` prop can be a state-resolving function.
+          const userStyle = typeof style === "function" ? style(state) : style;
           return (
             <motion.div
               // Base UI's resolved props (data attrs, refs, role, plus the
@@ -113,7 +107,7 @@ function DialogContent({
                 shape.container,
                 className,
               )}
-              style={{ ...baseStyle, ...(style as React.CSSProperties | undefined) }}
+              style={toMotionStyle({ ...baseStyle, ...userStyle })}
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{
                 opacity: exiting ? 0 : 1,
@@ -201,13 +195,10 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
 
 export {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
   DialogTrigger,
 };

@@ -5,10 +5,9 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
-import { validateWidgetProps } from "@/renderer/shell/widget-catalog";
 import { widgetRegistry } from "@/renderer/shell/widget-registry";
 import { type JsonUiWidgetDef, type WidgetInstance } from "@/shared/shell";
-import { toRendererSpec, type WidgetSpec } from "@/shared/widget-spec";
+import { toRendererSpec, validateWidgetProps, type WidgetSpec } from "@/shared/widget-spec";
 
 // Tradeoff: frequent enough to feel live, coarse enough that a single
 // keystroke doesn't hit IPC.
@@ -142,7 +141,10 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         const system = typeof params["system"] === "string" ? params["system"] : undefined;
         if (!prompt || !into) return;
         try {
-          const text = await getBridge()?.widgetComplete({ prompt, system });
+          const text = await getBridge()?.widgetComplete({
+            prompt,
+            ...(system === undefined ? {} : { system }),
+          });
           if (typeof text === "string") getStore().set(into, text);
         } catch (err) {
           toast.error(err instanceof Error ? err.message : "Generation failed");
@@ -193,9 +195,8 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         if (!paths) return;
         const parts = formatNow();
         for (const [dest, field] of Object.entries(paths)) {
-          if (typeof field !== "string") continue;
-          const value = parts[field as keyof NowParts];
-          if (value !== undefined) getStore().set(dest, value);
+          if (typeof field !== "string" || !isNowField(field)) continue;
+          getStore().set(dest, parts[field]);
         }
       },
       // Calls a configured integration tool and writes its data into `into`.
@@ -269,16 +270,13 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
     };
   }, []);
 
-  // Per-element prop validation. The catalog's own `validate()` falls back to
-  // a permissive `z.record(string, unknown)` for multi-component catalogs and
-  // so silently accepts unknown element props — see widget-catalog.ts for the
-  // full story. validateWidgetProps walks elements and calls each component's
-  // `.props.safeParse` directly, which catches the "Card with className /
-  // children-as-prop" class of bugs and rejects bad types.
-  const validation = useMemo(
-    () => validateWidgetProps(def.source.spec),
-    [def.source.spec],
-  );
+  // Per-element prop validation, defense-in-depth. The authoritative check
+  // runs at the write boundary (parseWidgetSpec in main rejects bad props
+  // into the manage_ui tool result); this re-run of the same shared TypeBox
+  // walker catches legacy defs written before that gate existed. It cannot
+  // be replaced by json-render's catalog.validate(), which falls back to a
+  // permissive any-record for multi-component catalogs.
+  const validation = useMemo(() => validateWidgetProps(def.source.spec), [def.source.spec]);
 
   if (!validation.success) {
     const message = validation.issues
@@ -291,8 +289,8 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           {message}
         </pre>
         <p className="text-[10px] text-muted-foreground">
-          Ask the agent to fix the spec — likely an unknown prop, or text passed
-          via <code>props.children</code> instead of a separate Text element.
+          Ask the agent to fix the spec — likely an unknown prop, or text passed via{" "}
+          <code>props.children</code> instead of a separate Text element.
         </p>
       </div>
     );
@@ -323,13 +321,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
  * Keyed off the spec object identity: an in-place spec edit re-fires (so the
  * agent can re-load), a sibling write doesn't.
  */
-function OnMountRunner({
-  spec,
-  store,
-}: {
-  spec: WidgetSpec;
-  store: StateStore;
-}): null {
+function OnMountRunner({ spec, store }: { spec: WidgetSpec; store: StateStore }): null {
   const { execute } = useActions();
   const lastSpecRef = useRef<WidgetSpec | null>(null);
   useEffect(() => {
@@ -417,16 +409,22 @@ function readJsonPointer(value: unknown, pointer: string): unknown {
   return cur;
 }
 
-type NowParts = {
-  dayShort: string;
-  dayLong: string;
-  dayNum: string;
-  monthShort: string;
-  monthLong: string;
-  year: string;
-  iso: string;
-  hourMinute12: string;
-};
+const NOW_FIELDS = [
+  "dayShort",
+  "dayLong",
+  "dayNum",
+  "monthShort",
+  "monthLong",
+  "year",
+  "iso",
+  "hourMinute12",
+] as const;
+type NowField = (typeof NOW_FIELDS)[number];
+type NowParts = Record<NowField, string>;
+
+function isNowField(field: string): field is NowField {
+  return NOW_FIELDS.some((f) => f === field);
+}
 
 const DAYS_LONG = [
   "Sunday",

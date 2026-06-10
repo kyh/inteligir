@@ -7,32 +7,17 @@
 // directly from their owning modules.
 // ---------------------------------------------------------------------------
 
-import type { PiAgentSkill } from "@repo/pi-driver/skills";
-
 export type {
   ChatHistoryEntry,
   DesktopBridge,
   ExecutorStatus,
+  IntegrationInfo,
   NotificationSettings,
   SetupProgress,
+  SkillInfo,
   UpdateState,
   VoiceModelStateEvent,
 } from "./ipc-registry";
-
-/** Installed-vs-pinned version of a CLI binary an extension installs. */
-export type IntegrationInfo = {
-  name: string;
-  /** Version the app pins / ships. */
-  expected: string;
-  /** Version currently installed on disk, or null if missing/unreadable. */
-  installed: string | null;
-};
-
-export type SkillInfo = PiAgentSkill;
-
-export type SkillsList = {
-  skills: SkillInfo[];
-};
 
 // ---------------------------------------------------------------------------
 // Helpers

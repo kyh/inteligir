@@ -19,6 +19,7 @@
 
 import { Agent } from "@/agent/agent";
 import { BACKGROUND_SESSION_DIR } from "@/agent/paths";
+import { getAgentPorts } from "@/main/lib/agent-lifecycle";
 
 let bgAgent: Agent | null = null;
 
@@ -27,7 +28,11 @@ let bgAgent: Agent | null = null;
  * thread needs no continuity and a clean thread avoids unbounded growth. */
 export async function startBackgroundAgent(): Promise<void> {
   if (bgAgent) return;
-  const next = new Agent({ newSession: true, sessionDir: BACKGROUND_SESSION_DIR });
+  const next = new Agent({
+    newSession: true,
+    sessionDir: BACKGROUND_SESSION_DIR,
+    ports: getAgentPorts(),
+  });
   await next.start();
   bgAgent = next;
 }

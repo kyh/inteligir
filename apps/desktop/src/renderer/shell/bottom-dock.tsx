@@ -17,12 +17,22 @@ import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 export function BottomDock() {
   const voiceState = useVoiceStore((s) => s.state);
+  const ttsConfigured = useVoiceStore((s) => s.ttsConfigured);
   const toggleVoice = useVoiceStore((s) => s.toggleVoice);
   const voiceActive = voiceState.kind === "listening" || voiceState.kind === "connecting";
   const voiceBusy = voiceState.kind === "downloading_model" || voiceState.kind === "connecting";
+  // Probe finished and found no TTS key: toggleVoice would silently no-op
+  // (no pipeline exists), so render the mic visibly unavailable and point at
+  // Settings instead. aria-disabled (not `disabled`) keeps hover events so
+  // the explanatory tooltip still shows.
+  const voiceUnavailable = ttsConfigured === false;
 
   const MicGlyph = voiceActive ? PhoneIcon : MicIcon;
-  const voiceLabel = voiceActive ? "End call" : "Start call";
+  const voiceLabel = voiceUnavailable
+    ? "Voice is unavailable — add an ElevenLabs API key in Settings"
+    : voiceActive
+      ? "End call"
+      : "Start call";
 
   return (
     <div className="pointer-events-auto fixed bottom-4 left-1/2 z-30 w-full max-w-xl -translate-x-1/2 px-4">
@@ -31,12 +41,13 @@ export function BottomDock() {
           trailing={
             <Tooltip>
               <TooltipTrigger
-                onClick={toggleVoice}
+                onClick={voiceUnavailable ? undefined : toggleVoice}
                 disabled={voiceBusy}
+                aria-disabled={voiceUnavailable || voiceBusy}
                 aria-label={voiceLabel}
                 className={cn(
                   "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
-                  voiceBusy
+                  voiceUnavailable || voiceBusy
                     ? "cursor-not-allowed text-muted-foreground/40"
                     : voiceActive
                       ? "bg-foreground/15 text-foreground"

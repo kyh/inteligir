@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return { error };
   }
 
-  render() {
+  override render() {
     if (!this.state.error) return this.props.children;
 
     return (

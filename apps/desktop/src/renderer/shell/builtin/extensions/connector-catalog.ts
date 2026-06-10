@@ -29,12 +29,7 @@ type ConnectorInstall =
   // in code mode (the agent's execute call pauses, then resume completes it).
   | { type: "google"; discoveryUrl: string };
 
-export type ConnectorCategory =
-  | "Development"
-  | "Productivity"
-  | "Support"
-  | "Payments"
-  | "AI";
+export type ConnectorCategory = "Development" | "Productivity" | "Support" | "Payments" | "AI";
 
 export type CatalogConnector = {
   /** Stable slug — used as the executor namespace and to derive connection ids. */
@@ -54,7 +49,11 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
     description: "Repos, issues, pull requests, and Actions.",
     category: "Development",
     accent: "#24292f",
-    install: { type: "mcp", endpoint: "https://api.githubcopilot.com/mcp/", auth: { kind: "oauth" } },
+    install: {
+      type: "mcp",
+      endpoint: "https://api.githubcopilot.com/mcp/",
+      auth: { kind: "oauth" },
+    },
   },
   {
     id: "linear",

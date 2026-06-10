@@ -11,7 +11,7 @@ import type {
   AuthStorage,
   ExtensionFactory,
 } from "@mariozechner/pi-coding-agent";
-import type { Api, ImageContent, Model } from "@mariozechner/pi-ai";
+import type { Api, AssistantMessage, ImageContent, Model } from "@mariozechner/pi-ai";
 
 export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
@@ -44,6 +44,21 @@ export type PiAgentConfig = {
   extensionFactories: ExtensionFactory[] | (() => ExtensionFactory[] | Promise<ExtensionFactory[]>);
   /** Optional thinking level. Defaults to "off". */
   thinkingLevel?: "off" | "low" | "medium" | "high" | "xhigh";
+  /**
+   * Built-in pi tool names active at session start (pi's
+   * `initialActiveToolNames`; pi's default when omitted is
+   * ["read", "bash", "edit", "write"]). Extension-registered tools still
+   * activate as they register. Pass an explicit list so the coding-tool
+   * surface is a deliberate choice, not a framework default.
+   */
+  initialActiveToolNames?: string[];
+  /**
+   * Hard allowlist (pi's `allowedToolNames`): when set, ONLY these tool names
+   * exist — extension tools not listed are dropped from the registry, and
+   * every listed tool starts active. Takes precedence over
+   * `initialActiveToolNames`. Leave unset to keep extension tools available.
+   */
+  allowedToolNames?: string[];
 };
 
 /** Lifecycle wrapper around pi-coding-agent's AgentSession. */
@@ -85,7 +100,27 @@ export class PiAgent {
       thinkingLevel: this.config.thinkingLevel ?? "off",
       sessionManager: this.config.sessionManager,
       settingsManager: SettingsManager.create(this.config.cwd, this.config.agentDir),
+      // createAgentSession's only public knob is `tools`, which sets BOTH of
+      // pi's allowedToolNames (hard registry filter) and initialActiveToolNames.
+      // For a bare initialActiveToolNames request we instead pass
+      // noTools: "builtin" — zero built-in actives, extension tools still
+      // auto-activate as they register — and re-activate the requested
+      // built-ins right after creation (below).
+      ...(this.config.allowedToolNames !== undefined
+        ? { tools: this.config.allowedToolNames }
+        : this.config.initialActiveToolNames !== undefined
+          ? { noTools: "builtin" as const }
+          : {}),
     });
+
+    if (this.config.allowedToolNames === undefined && this.config.initialActiveToolNames) {
+      // Extensions registered during createAgentSession are active now; add
+      // the explicit built-in set on top. Order matches pi's default
+      // (built-ins first, extension tools in registration order).
+      session.setActiveToolsByName([
+        ...new Set([...this.config.initialActiveToolNames, ...session.getActiveToolNames()]),
+      ]);
+    }
 
     this.unsubscribe = session.subscribe((event: AgentSessionEvent) => {
       this.handleEvent(event);
@@ -158,9 +193,17 @@ export class PiAgent {
     this.status = "busy";
 
     void session.prompt(message, imgs ? { images: imgs } : undefined).catch((err: unknown) => {
-      this.status = "error";
       this.error = err instanceof Error ? err.message : String(err);
       console.error("[pi-driver] prompt error:", this.error);
+      // Surface the rejection to subscribers — without this the user's
+      // message renders as sent while the turn silently never happens (pi
+      // only emits events for turns that actually ran). The synthetic
+      // agent_end flips status to idle via handleEvent, so set the terminal
+      // error status afterwards.
+      for (const event of buildPromptFailureEvents(this.config.model, this.error)) {
+        this.handleEvent(event);
+      }
+      this.status = "error";
     });
   }
 
@@ -245,4 +288,39 @@ export class PiAgent {
 /** Empty array → undefined so prompt/steer/followUp behave identically. */
 function nonEmpty(images: ImageContent[] | undefined): ImageContent[] | undefined {
   return images && images.length > 0 ? images : undefined;
+}
+
+/**
+ * Synthetic event sequence emitted to subscribers when `session.prompt()`
+ * rejects (the loop never ran or crashed, so pi emitted nothing for the
+ * turn). Mirrors pi's own error shape — message_start opens a bubble,
+ * message_end with stopReason "error" carries the reason, and agent_end
+ * releases any busy-state derived from agent events so the UI can't wedge.
+ * Exported for testing the contract with the desktop event parser.
+ */
+export function buildPromptFailureEvents(model: Model<Api>, reason: string): AgentSessionEvent[] {
+  const zeroUsage: AssistantMessage["usage"] = {
+    input: 0,
+    output: 0,
+    cacheRead: 0,
+    cacheWrite: 0,
+    totalTokens: 0,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+  };
+  const message: AssistantMessage = {
+    role: "assistant",
+    content: [],
+    api: model.api,
+    provider: model.provider,
+    model: model.id,
+    usage: zeroUsage,
+    stopReason: "error",
+    errorMessage: reason,
+    timestamp: Date.now(),
+  };
+  return [
+    { type: "message_start", message },
+    { type: "message_end", message },
+    { type: "agent_end", messages: [message] },
+  ];
 }

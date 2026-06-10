@@ -116,7 +116,13 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
       const ns = `custom_${slug(trimmedName)}_${crypto.randomUUID().slice(0, 8)}`;
       const source: SourceSpec =
         kind === "openapi"
-          ? { type: "openapi", name: trimmedName, namespace: ns, specUrl: trimmedEndpoint, baseUrl: trimmedBase }
+          ? {
+              type: "openapi",
+              name: trimmedName,
+              namespace: ns,
+              specUrl: trimmedEndpoint,
+              baseUrl: trimmedBase,
+            }
           : kind === "graphql"
             ? { type: "graphql", name: trimmedName, namespace: ns, endpoint: trimmedEndpoint }
             : kind === "google"

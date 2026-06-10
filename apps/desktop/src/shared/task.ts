@@ -19,11 +19,13 @@ const OnceScheduleSchema = Type.Object(
   { additionalProperties: false },
 );
 
-export const TaskScheduleSchema = Type.Union([
-  CronScheduleSchema,
-  IntervalScheduleSchema,
-  OnceScheduleSchema,
-]);
+export const TaskScheduleSchema = Type.Union(
+  [CronScheduleSchema, IntervalScheduleSchema, OnceScheduleSchema],
+  {
+    description:
+      "Schedule: {type:'cron',cron:string} | {type:'interval',intervalMs:number} | {type:'once',runAt:number}",
+  },
+);
 
 export type TaskSchedule = Static<typeof TaskScheduleSchema>;
 

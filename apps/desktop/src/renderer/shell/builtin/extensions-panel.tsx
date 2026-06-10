@@ -8,6 +8,7 @@ import { useState } from "react";
 import { useDiskState } from "@/renderer/lib/use-disk-state";
 import { ExecutorSections } from "@/renderer/shell/builtin/extensions/executor-sections";
 import { IntegrationsSection } from "@/renderer/shell/builtin/integrations-section";
+import { RemoteAccessSection } from "@/renderer/shell/builtin/extensions/remote-access-section";
 import { SkillsSection } from "@/renderer/shell/builtin/extensions/skills-section";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 
@@ -16,10 +17,8 @@ const DEVTOOLS_KEY = "extensions.showDevTools";
 export function ExtensionsPanel() {
   const appState = useAgentStore((s) => s.appState);
   const [error, setError] = useState<string | null>(null);
-  const [showDevTools, setShowDevTools] = useDiskState<boolean>(
-    DEVTOOLS_KEY,
-    false,
-    (v) => (typeof v === "boolean" ? v : undefined),
+  const [showDevTools, setShowDevTools] = useDiskState<boolean>(DEVTOOLS_KEY, false, (v) =>
+    typeof v === "boolean" ? v : undefined,
   );
 
   if (appState.phase !== "ready") {
@@ -35,6 +34,7 @@ export function ExtensionsPanel() {
       {error && <div className="text-[10px] text-destructive">{error}</div>}
       <IntegrationsSection />
       <SkillsSection />
+      <RemoteAccessSection onError={setError} />
       {showDevTools && <ExecutorSections onError={setError} />}
       <button
         type="button"

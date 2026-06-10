@@ -49,14 +49,27 @@ export async function runEffect(tag: EffectTag, deps: EffectDeps): Promise<Machi
     }
 
     case "LOGOUT": {
-      await deps.stopAgent();
-      deps.teardownResources();
-      return { type: "LOGOUT_OK" };
+      // Like LOGIN/SETUP, this must always produce a completion event — a
+      // throw here would otherwise wedge the machine in "logging_out".
+      try {
+        await deps.stopAgent();
+        deps.teardownResources();
+        return { type: "LOGOUT_OK" };
+      } catch (err) {
+        return { type: "LOGOUT_FAIL", message: toErrorMessage(err) };
+      }
     }
 
     case "NEW_SESSION": {
-      await deps.newSession();
-      return { type: "NEW_SESSION_OK" };
+      // newSession = stop + start: a throw leaves no agent behind, so it must
+      // surface as a failure event instead of leaving "ready" with a null
+      // agent (every subsequent send would silently hit "Agent unavailable").
+      try {
+        await deps.newSession();
+        return { type: "NEW_SESSION_OK" };
+      } catch (err) {
+        return { type: "NEW_SESSION_FAIL", message: toErrorMessage(err) };
+      }
     }
   }
 }

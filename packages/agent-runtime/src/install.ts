@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { once } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -74,7 +75,7 @@ export type InstallCliFromGithubReleaseOptions = {
    * Used by an explicit "repair / reinstall" action to recover a corrupt or
    * partially-installed binary.
    */
-  force?: boolean;
+  force?: boolean | undefined;
 };
 
 /**
@@ -273,7 +274,7 @@ async function downloadVerified(url: string, dest: string, expectedSha: string):
         yield chunk;
       }
     },
-    fs.createWriteStream(dest),
+    await openWriteStream(dest),
   );
 
   const actualSha = hash.digest("hex");
@@ -291,7 +292,21 @@ async function downloadFile(url: string, dest: string): Promise<void> {
   if (!resp.ok || !resp.body) {
     throw new Error(`fetch failed: ${resp.status} ${resp.statusText}`);
   }
-  await pipeline(resp.body, fs.createWriteStream(dest));
+  await pipeline(resp.body, await openWriteStream(dest));
+}
+
+/**
+ * Create the destination write stream and wait for its fd to open before
+ * piping into it. createWriteStream opens lazily; if the download stream dies
+ * before the open completes, the staging cleanup in runInstall races the
+ * in-flight open — the open re-creates the partial file inside the directory
+ * being removed, rmdir fails ENOTEMPTY, and a stale staging dir leaks. With
+ * the fd open up front, cleanup after a failed download is deterministic.
+ */
+async function openWriteStream(dest: string): Promise<fs.WriteStream> {
+  const out = fs.createWriteStream(dest);
+  await once(out, "open");
+  return out;
 }
 
 /**

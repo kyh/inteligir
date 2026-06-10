@@ -115,8 +115,7 @@ function Button({
               pathLength="100"
               style={{
                 strokeDasharray: "15 85",
-                animation:
-                  "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
+                animation: "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
               }}
             />
           </svg>
@@ -127,4 +126,3 @@ function Button({
 }
 
 export { Button, buttonVariants };
-export type { ButtonProps };

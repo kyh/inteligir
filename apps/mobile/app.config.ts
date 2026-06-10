@@ -8,6 +8,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   version: "0.1.0",
   orientation: "portrait",
   userInterfaceStyle: "automatic",
+  // No OTA updates configured; expo-updates is intentionally not installed.
+  updates: { enabled: false },
   ios: {
     bundleIdentifier: "com.inteligir.mobile",
     supportsTablet: true,

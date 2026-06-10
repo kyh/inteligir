@@ -5,13 +5,15 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
+import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
+
+// A dialog floats four elevation steps above whatever surface it opens over
+// (mirrors DIALOG_OFFSET in dialog.tsx).
+const DIALOG_OFFSET = 4;
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
-}
-
-function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
-  return <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />;
 }
 
 function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
@@ -34,10 +36,13 @@ function AlertDialogOverlay({ className, ...props }: AlertDialogPrimitive.Backdr
 function AlertDialogContent({
   className,
   size = "default",
+  children,
   ...props
 }: AlertDialogPrimitive.Popup.Props & {
   size?: "default" | "sm";
 }) {
+  const substrate = useSurface();
+  const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
   return (
     <AlertDialogPortal>
       <AlertDialogOverlay />
@@ -45,11 +50,14 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-6 rounded-3xl bg-surface-5 p-6 text-popover-foreground shadow-surface-5 duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          "group/alert-dialog-content fixed top-1/2 left-1/2 z-50 grid w-full -translate-x-1/2 -translate-y-1/2 gap-6 rounded-3xl p-6 text-popover-foreground duration-100 outline-none data-[size=default]:max-w-xs data-[size=sm]:max-w-xs data-[size=default]:sm:max-w-lg data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          surfaceClasses(dialogLevel),
           className,
         )}
         {...props}
-      />
+      >
+        <SurfaceProvider value={dialogLevel}>{children}</SurfaceProvider>
+      </AlertDialogPrimitive.Popup>
     </AlertDialogPortal>
   );
 }
@@ -73,19 +81,6 @@ function AlertDialogFooter({ className, ...props }: React.ComponentProps<"div">)
       data-slot="alert-dialog-footer"
       className={cn(
         "flex flex-col-reverse gap-2 group-data-[size=sm]/alert-dialog-content:grid group-data-[size=sm]/alert-dialog-content:grid-cols-2 sm:flex-row sm:justify-end",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function AlertDialogMedia({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="alert-dialog-media"
-      className={cn(
-        "mb-2 inline-flex size-16 items-center justify-center rounded-md bg-muted sm:group-data-[size=default]/alert-dialog-content:row-span-2 *:[svg:not([class*='size-'])]:size-8",
         className,
       )}
       {...props}
@@ -125,42 +120,11 @@ function AlertDialogDescription({
   );
 }
 
-function AlertDialogCancel({
-  className,
-  variant = "outline",
-  size = "default",
-  ...props
-}: AlertDialogPrimitive.Close.Props &
-  Pick<React.ComponentProps<typeof Button>, "variant" | "size">) {
-  return (
-    <AlertDialogPrimitive.Close
-      data-slot="alert-dialog-cancel"
-      className={cn(className)}
-      render={<Button variant={variant} size={size} />}
-      {...props}
-    />
-  );
-}
-
-export {
-  AlertDialog,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogMedia,
-  AlertDialogOverlay,
-  AlertDialogPortal,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-};
-
 /**
  * Imperative global alert dialog. Call `alertDialog.open(title, options)` from
  * anywhere; render <GlobalAlertDialog /> once at the root.
  */
-export type AlertState = {
+type AlertState = {
   open: boolean;
   title: React.ReactNode;
   description?: React.ReactNode;
@@ -178,9 +142,17 @@ export type AlertState = {
 
 type Listener = () => void;
 
-const alertDialogStore = {
-  state: { open: false, title: "" } as AlertState,
-  listeners: [] as Listener[],
+type AlertDialogStore = {
+  state: AlertState;
+  listeners: Listener[];
+  subscribe: (listener: Listener) => () => void;
+  getSnapshot: () => AlertState;
+  emitChange: () => void;
+};
+
+const alertDialogStore: AlertDialogStore = {
+  state: { open: false, title: "" },
+  listeners: [],
   subscribe: (listener: Listener) => {
     alertDialogStore.listeners.push(listener);
     return () => {
@@ -193,7 +165,7 @@ const alertDialogStore = {
   },
 };
 
-export const alertDialog = {
+const alertDialog = {
   open: (title: React.ReactNode, options: Omit<AlertState, "open" | "title">) => {
     alertDialogStore.state = { open: true, title, ...options };
     alertDialogStore.emitChange();

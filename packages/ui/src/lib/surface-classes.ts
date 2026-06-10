@@ -20,7 +20,7 @@ export const SURFACE_BG: Record<number, string> = {
   8: "bg-surface-8",
 };
 
-export const SURFACE_SHADOW: Record<number, string> = {
+const SURFACE_SHADOW: Record<number, string> = {
   1: "shadow-surface-1",
   2: "shadow-surface-2",
   3: "shadow-surface-3",
@@ -31,10 +31,7 @@ export const SURFACE_SHADOW: Record<number, string> = {
   8: "shadow-surface-8",
 };
 
-export function surfaceClasses(
-  bgLevel: number,
-  shadowLevel: number = bgLevel,
-): string {
+export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
   const bg = Math.max(1, Math.min(8, bgLevel));
   const shadow = Math.max(1, Math.min(8, shadowLevel));
   return `${SURFACE_BG[bg]} ${SURFACE_SHADOW[shadow]}`;

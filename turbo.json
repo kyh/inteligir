@@ -15,11 +15,11 @@
       "persistent": false
     },
     "typecheck": {
-      "dependsOn": ["^topo", "^build"],
+      "dependsOn": ["^topo"],
       "outputs": []
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^topo"],
       "cache": false
     },
     "clean": {
@@ -29,9 +29,7 @@
       "cache": false
     }
   },
-  "globalEnv": [
-    "PORT"
-  ],
+  "globalEnv": ["PORT"],
   "globalPassThroughEnv": [
     "NODE_ENV",
     "CI",

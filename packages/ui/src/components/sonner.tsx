@@ -1,6 +1,8 @@
 "use client";
 
 import { Toaster as Sonner, toast, type ToasterProps } from "sonner";
+
+import { cssVars } from "@repo/ui/lib/css-vars";
 import {
   CircleCheckIcon,
   InfoIcon,
@@ -23,14 +25,12 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme="light"
       className="toaster group"
       icons={toasterIcons}
-      style={
-        {
-          "--normal-bg": "var(--surface-3)",
-          "--normal-text": "var(--popover-foreground)",
-          "--normal-border": "var(--border)",
-          "--border-radius": "1rem",
-        } as React.CSSProperties
-      }
+      style={cssVars({
+        "--normal-bg": "var(--surface-3)",
+        "--normal-text": "var(--popover-foreground)",
+        "--normal-border": "var(--border)",
+        "--border-radius": "1rem",
+      })}
       toastOptions={{
         classNames: {
           toast: "cn-toast",

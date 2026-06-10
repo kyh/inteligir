@@ -1,3 +1,29 @@
+// inteligir-server — WebSocket relay (mobile↔desktop) + external chat gateway.
+// Protocol contract: packages/dispatch/PROTOCOL.md.
+//
+// Secrets / vars (none are committed here — set with `wrangler secret put
+// <NAME>` in production, `.dev.vars` locally; see .dev.vars.example):
+//
+//   The WebSocket relay needs NO configuration: rooms are claimed at connect
+//   time by the desktop's pairing credential (the DO stores only the SHA-256
+//   token hash). Everything below powers the optional chat gateway, which is
+//   SINGLE-TENANT by design in v1 (one desktop per deployed Worker).
+//
+//   CHAT_RELAY_SECRET   Authenticates the gateway's POST to the relay DO
+//                       (x-relay-secret header). Unset ⇒ inbound chat is off
+//                       (fail closed).
+//   CHAT_RELAY_ROOM     roomId of the desktop's current pairing credential.
+//                       Rotating the credential changes the roomId — update
+//                       this var or the chat bridge goes dark.
+//   CHAT_BOT_USERNAME   Bot display name across adapters (default "inteligir").
+//
+//   SLACK_BOT_TOKEN, SLACK_SIGNING_SECRET          Slack Events API webhook.
+//   TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET_TOKEN  Telegram Bot API webhook.
+//   WHATSAPP_ACCESS_TOKEN, WHATSAPP_APP_SECRET,
+//   WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_VERIFY_TOKEN    Meta Cloud API webhook.
+//   DISCORD_BOT_TOKEN, DISCORD_PUBLIC_KEY,
+//   DISCORD_APPLICATION_ID                         Discord interactions/gateway.
+//   CRON_SECRET         Bearer secret guarding /api/discord/gateway.
 {
   "name": "inteligir-server",
   "main": "src/server.ts",
@@ -9,20 +35,20 @@
   "alias": {
     "zlib-sync": "./src/native-stub.js",
     "bufferutil": "./src/native-stub.js",
-    "utf-8-validate": "./src/native-stub.js"
+    "utf-8-validate": "./src/native-stub.js",
   },
   "durable_objects": {
     "bindings": [
       {
         "name": "DispatchServer",
-        "class_name": "DispatchServer"
-      }
-    ]
+        "class_name": "DispatchServer",
+      },
+    ],
   },
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["DispatchServer"]
-    }
-  ]
+      "new_sqlite_classes": ["DispatchServer"],
+    },
+  ],
 }

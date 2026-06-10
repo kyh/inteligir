@@ -73,22 +73,22 @@ export function ConnectorCard({
             {isGoogle ? "Added" : "Connected"}
           </span>
           {canDisconnect && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDisconnect}
-            disabled={disconnecting}
-            className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
-          >
-            {disconnecting ? (
-              <span className="flex items-center gap-1.5">
-                <Loader2Icon className="size-3 animate-spin" />
-                Disconnecting…
-              </span>
-            ) : (
-              "Disconnect"
-            )}
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDisconnect}
+              disabled={disconnecting}
+              className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+            >
+              {disconnecting ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2Icon className="size-3 animate-spin" />
+                  Disconnecting…
+                </span>
+              ) : (
+                "Disconnect"
+              )}
+            </Button>
           )}
         </div>
       ) : (

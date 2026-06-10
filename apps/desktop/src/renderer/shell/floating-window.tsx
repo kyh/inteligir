@@ -42,7 +42,7 @@ export function FloatingWindow({
   title: React.ReactNode;
   rect: FloatRect;
   z: number;
-  bodyClassName?: string;
+  bodyClassName?: string | undefined;
   onRect: (rect: FloatRect) => void;
   onClose?: () => void;
   onDock: () => void;
@@ -107,7 +107,13 @@ export function FloatingWindow({
   return (
     <div
       className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-xl border border-border bg-card/80 shadow-2xl backdrop-blur-md"
-      style={{ left: local.x, top: local.y, width: local.width, height: local.height, zIndex: 10 + z }}
+      style={{
+        left: local.x,
+        top: local.y,
+        width: local.width,
+        height: local.height,
+        zIndex: 10 + z,
+      }}
       onPointerDown={onFocus}
     >
       <div

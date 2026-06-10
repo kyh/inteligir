@@ -35,11 +35,7 @@ export type ExecutorSource = Static<typeof ExecutorSourceSchema>;
 export const ExecutorDetectResultSchema = Type.Object(
   {
     kind: Type.String(),
-    confidence: Type.Union([
-      Type.Literal("high"),
-      Type.Literal("medium"),
-      Type.Literal("low"),
-    ]),
+    confidence: Type.Union([Type.Literal("high"), Type.Literal("medium"), Type.Literal("low")]),
     endpoint: Type.String(),
     name: Type.String(),
     namespace: Type.String(),
@@ -132,11 +128,7 @@ const AddMcpRemoteSourceInputSchema = Type.Object(
     name: Type.String({ minLength: 1 }),
     endpoint: Type.String({ minLength: 1 }),
     remoteTransport: Type.Optional(
-      Type.Union([
-        Type.Literal("streamable-http"),
-        Type.Literal("sse"),
-        Type.Literal("auto"),
-      ]),
+      Type.Union([Type.Literal("streamable-http"), Type.Literal("sse"), Type.Literal("auto")]),
     ),
     namespace: Type.Optional(Type.String({ minLength: 1 })),
     headers: Type.Optional(ExecutorConfiguredMapSchema),

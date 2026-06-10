@@ -22,11 +22,7 @@ const WORKSPACE_DIR = inteligirPath("workspace");
 // ---------------------------------------------------------------------------
 
 function isTextContent(block: unknown): block is TextContent {
-  return (
-    isRecord(block) &&
-    block.type === "text" &&
-    typeof block.text === "string"
-  );
+  return isRecord(block) && block.type === "text" && typeof block.text === "string";
 }
 
 function isToolCall(block: unknown): block is ToolCall {
@@ -39,11 +35,7 @@ function isToolCall(block: unknown): block is ToolCall {
 }
 
 function isToolResult(msg: unknown): msg is ToolResultMessage {
-  return (
-    isRecord(msg) &&
-    msg.role === "toolResult" &&
-    typeof msg.toolCallId === "string"
-  );
+  return isRecord(msg) && msg.role === "toolResult" && typeof msg.toolCallId === "string";
 }
 
 function isSessionMessageEntry(entry: unknown): entry is SessionMessageEntry {

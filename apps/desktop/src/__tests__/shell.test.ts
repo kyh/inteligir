@@ -93,7 +93,10 @@ describe("ShellManager seeding", () => {
     // NOT pre-placed on the grid. Only the seven seed json-ui dashboard
     // widgets get pinned by default.
     expect(defs.some((d) => d.id === CHAT_WIDGET_ID)).toBe(true);
-    const jsonUiIds = defs.filter((d) => d.source.kind === "json-ui").map((d) => d.id).toSorted();
+    const jsonUiIds = defs
+      .filter((d) => d.source.kind === "json-ui")
+      .map((d) => d.id)
+      .toSorted();
     expect(jsonUiIds).toEqual([
       "date",
       "meeting-prep",
@@ -150,10 +153,10 @@ describe("ShellManager.installWidget", () => {
     expect(source(stored).spec.elements["r"]?.props?.["text"]).toBe("before");
   });
 
-  it("copies spec.state on seed so live mutations don't leak into the def template", () => {
+  it("copies spec.state on seed so live mutations don't leak into the def template", async () => {
     const def = mgr.installWidget({ title: "S", spec: { ...SPEC, state: { a: 1 } } });
     const instance = place(def.id);
-    mgr.setInstanceState(instance.instanceId, { a: 99 });
+    await mgr.setInstanceState(instance.instanceId, { a: 99 });
     const stored = must(mgr.getDef(def.id), "missing stored def");
     expect(source(stored).spec.state).toEqual({ a: 1 });
   });
@@ -205,6 +208,116 @@ describe("ShellManager.installWidget", () => {
     expect(stored.elements["row"]?.watch?.["/items"]).toMatchObject({
       action: "validateForm",
     });
+  });
+
+  it("rejects bad component props at the write boundary with an element-precise error", () => {
+    // The agent's manage_ui catch block forwards this message as the tool
+    // result — it must name the element, component, and prop.
+    expect(() =>
+      mgr.installWidget({
+        title: "Broken",
+        spec: { root: "r", elements: { r: { type: "Card", props: { children: "hi" } } } },
+      }),
+    ).toThrow(/element 'r' \(Card\) props\.children/);
+    expect(mgr.snapshot().defs.some((d) => d.title === "Broken")).toBe(false);
+  });
+
+  it("tolerates a legacy on-disk def with since-invalidated props (no store wipe)", () => {
+    const legacyPath = storePath.replace(".json", "-legacy.json");
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify({
+        version: 2,
+        customDefs: [
+          {
+            id: "legacy",
+            title: "Legacy",
+            revision: 1,
+            singleton: false,
+            defaultGeometry: { x: 0, y: 0, w: 4, h: 4 },
+            source: {
+              kind: "json-ui",
+              // Bad props that the write boundary now rejects — written by an
+              // older build. Decode must keep the def (renderer flags it).
+              spec: { root: "r", elements: { r: { type: "Card", props: { className: "x" } } } },
+              createdAt: 0,
+              updatedAt: 0,
+            },
+          },
+        ],
+        instances: [],
+        archivedStates: {},
+      }),
+    );
+    try {
+      const legacyMgr = new ShellManager(legacyPath);
+      const def = must(legacyMgr.getDef("legacy"), "legacy def must survive decode");
+      expect(source(def).spec.elements["r"]?.props).toEqual({ className: "x" });
+      // But re-writing the same bad spec through the boundary still fails.
+      expect(() =>
+        legacyMgr.updateWidget({
+          id: "legacy",
+          expectedRevision: 1,
+          spec: { root: "r", elements: { r: { type: "Card", props: { className: "x" } } } },
+        }),
+      ).toThrow(/Unexpected property/);
+    } finally {
+      fs.rmSync(legacyPath, { force: true });
+    }
+  });
+});
+
+function backupsFor(filePath: string, marker: string): string[] {
+  const dir = path.dirname(filePath);
+  const base = path.basename(filePath);
+  return fs
+    .readdirSync(dir)
+    .filter((f) => f.startsWith(`${base}.${marker}`))
+    .map((f) => path.join(dir, f));
+}
+
+describe("ShellManager store versioning", () => {
+  it("quarantines a runtime-ui.json written by a newer build instead of wiping it", () => {
+    const newerPath = storePath.replace(".json", "-newer.json");
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const original = { version: 3, futureShape: true };
+    fs.writeFileSync(newerPath, JSON.stringify(original));
+    try {
+      const newer = new ShellManager(newerPath);
+      // Read succeeds with defaults — no throw, no silent loss.
+      expect(newer.snapshot().instances.length).toBeGreaterThan(0);
+      // Original moved aside under a name recording the file's version.
+      expect(fs.existsSync(newerPath)).toBe(false);
+      const backups = backupsFor(newerPath, "newer-v3-");
+      expect(backups).toHaveLength(1);
+      const backup = must(backups[0], "missing backup");
+      expect(JSON.parse(fs.readFileSync(backup, "utf8"))).toEqual(original);
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("newer than supported"));
+    } finally {
+      errSpy.mockRestore();
+      for (const f of backupsFor(newerPath, "")) fs.rmSync(f, { force: true });
+      fs.rmSync(newerPath, { force: true });
+    }
+  });
+
+  it("treats an unversioned runtime-ui.json as corruption: backed up, logged, reset", () => {
+    const legacyPath = storePath.replace(".json", "-unversioned.json");
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify({ customDefs: [], instances: [], archivedStates: {} }),
+    );
+    try {
+      const legacy = new ShellManager(legacyPath);
+      expect(legacy.snapshot().instances.length).toBeGreaterThan(0);
+      expect(fs.existsSync(legacyPath)).toBe(false);
+      expect(backupsFor(legacyPath, "corrupt-")).toHaveLength(1);
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("legacy migration failed"));
+    } finally {
+      errSpy.mockRestore();
+      for (const f of backupsFor(legacyPath, "")) fs.rmSync(f, { force: true });
+      fs.rmSync(legacyPath, { force: true });
+    }
   });
 });
 
@@ -328,26 +441,26 @@ describe("ShellManager.deleteWidget", () => {
     expect(() => mgr.deleteWidget(def.id, def.revision + 1)).toThrow(/revision mismatch/);
   });
 
-  it("archives state on unplace and restores it on next placement", () => {
+  it("archives state on unplace and restores it on next placement", async () => {
     const placed = place("tasks");
-    mgr.setInstanceState(placed.instanceId, { count: 7, note: "hi" });
+    await mgr.setInstanceState(placed.instanceId, { count: 7, note: "hi" });
     expect(mgr.unplaceWidget(placed.instanceId)).toBe(true);
     const replaced = place("tasks");
     expect(replaced.state).toEqual({ count: 7, note: "hi" });
   });
 
-  it("clears the archive when an instance is unplaced with empty state", () => {
+  it("clears the archive when an instance is unplaced with empty state", async () => {
     const def = mgr.installWidget({
       title: "Note",
       spec: { ...SPEC, state: { text: "default" } },
     });
     const instance = place(def.id);
-    mgr.setInstanceState(instance.instanceId, { text: "edited" });
+    await mgr.setInstanceState(instance.instanceId, { text: "edited" });
     mgr.unplaceWidget(instance.instanceId);
     // Confirm archive captured the edit, then place + clear-to-empty + unplace.
     const re = place(def.id);
     expect(re.state).toEqual({ text: "edited" });
-    mgr.setInstanceState(re.instanceId, {});
+    await mgr.setInstanceState(re.instanceId, {});
     mgr.unplaceWidget(re.instanceId);
     // Next placement must fall back to the spec's default, not the stale
     // 'edited' archive that the empty unplace should have invalidated.
@@ -355,17 +468,17 @@ describe("ShellManager.deleteWidget", () => {
     expect(fresh.state).toEqual({ text: "default" });
   });
 
-  it("does not seed a sibling instance from the archive when one is still live", () => {
+  it("does not seed a sibling instance from the archive when one is still live", async () => {
     const def = mgr.installWidget({
       title: "Note",
       spec: { ...SPEC, state: { text: "" } },
     });
     const instance = place(def.id);
-    mgr.setInstanceState(instance.instanceId, { text: "first" });
+    await mgr.setInstanceState(instance.instanceId, { text: "first" });
     mgr.unplaceWidget(instance.instanceId);
     const re = place(def.id);
     expect(re.state).toEqual({ text: "first" }); // restored from archive
-    mgr.setInstanceState(re.instanceId, { text: "live" });
+    await mgr.setInstanceState(re.instanceId, { text: "live" });
     // Adding a second multi-instance placement while `re` is still placed —
     // it must start from the spec default, not the (now stale) archive.
     const sibling = place(def.id);
@@ -373,7 +486,7 @@ describe("ShellManager.deleteWidget", () => {
     expect(sibling.state).toEqual({ text: "" });
   });
 
-  it("rehydrates a fresh object so editing the restored instance doesn't poison the archive", () => {
+  it("rehydrates a fresh object so editing the restored instance doesn't poison the archive", async () => {
     const def = mgr.installWidget({
       title: "Note",
       spec: { ...SPEC, state: { text: "first" } },
@@ -381,7 +494,7 @@ describe("ShellManager.deleteWidget", () => {
     const instance = place(def.id);
     mgr.unplaceWidget(instance.instanceId);
     const re = place(def.id);
-    mgr.setInstanceState(re.instanceId, { text: "edited" });
+    await mgr.setInstanceState(re.instanceId, { text: "edited" });
     mgr.unplaceWidget(re.instanceId);
     // The unplace just above overwrites the archive with 'edited'; if the
     // first restore had aliased the archive object instead of copying it,
@@ -393,13 +506,13 @@ describe("ShellManager.deleteWidget", () => {
     expect(next.state).toEqual({ text: "edited" });
   });
 
-  it("clears archived state when the generated def is deleted", () => {
+  it("clears archived state when the generated def is deleted", async () => {
     const def = mgr.installWidget({
       title: "Note",
       spec: { ...SPEC, state: { body: "draft" } },
     });
     const instance = place(def.id);
-    mgr.setInstanceState(instance.instanceId, { body: "edited" });
+    await mgr.setInstanceState(instance.instanceId, { body: "edited" });
     mgr.unplaceWidget(instance.instanceId);
     mgr.deleteWidget(def.id, def.revision);
     // A new generated widget recreated with the same id starts from its own
@@ -413,13 +526,13 @@ describe("ShellManager.deleteWidget", () => {
     expect(recreatedInstance.state).toEqual({ body: "fresh" });
   });
 
-  it("clears archived state when the generated def is deleted without revision check", () => {
+  it("clears archived state when the generated def is deleted without revision check", async () => {
     const def = mgr.installWidget({
       title: "Another Note",
       spec: { ...SPEC, state: { body: "draft" } },
     });
     const instance = place(def.id);
-    mgr.setInstanceState(instance.instanceId, { body: "edited" });
+    await mgr.setInstanceState(instance.instanceId, { body: "edited" });
     mgr.unplaceWidget(instance.instanceId);
     mgr.deleteWidget(def.id);
     // A same-id generated widget recreated later starts from its own state.
@@ -433,12 +546,25 @@ describe("ShellManager.deleteWidget", () => {
 });
 
 describe("ShellManager state and patching", () => {
-  it("replaces an instance's state wholesale", () => {
+  it("replaces an instance's state wholesale", async () => {
     const def = mgr.installWidget({ title: "S", spec: { ...SPEC, state: { a: 1, b: 2 } } });
     const instance = place(def.id);
-    const next = mgr.setInstanceState(instance.instanceId, { a: 9 });
+    const next = await mgr.setInstanceState(instance.instanceId, { a: 9 });
     expect(next?.state).toEqual({ a: 9 });
     expect(next?.state).not.toHaveProperty("b");
+  });
+
+  it("setInstanceState resolution implies the state is durably on disk", async () => {
+    // Store writes are coalesced+async; the flush protocol acks persisted=true
+    // when the setInstanceState IPC resolves, so resolution must mean "on
+    // disk", not "in the cache". A fresh manager reading the same file is the
+    // proof.
+    const def = mgr.installWidget({ title: "S", spec: { ...SPEC, state: {} } });
+    const instance = place(def.id);
+    await mgr.setInstanceState(instance.instanceId, { draft: "typed text" });
+
+    const reopened = new ShellManager(storePath);
+    expect(reopened.getInstance(instance.instanceId)?.state).toEqual({ draft: "typed text" });
   });
 
   it("applies a revision-checked RFC 6902 replace", () => {

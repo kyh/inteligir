@@ -40,16 +40,11 @@ const BINARY_PATH = path.join(BIN_DIR, BIN_NAME);
 // bumping the version, recompute by downloading each platform's asset and
 // running `shasum -a 256 <file>`.
 const EXECUTOR_SHA256: Record<string, string> = {
-  "executor-darwin-arm64.zip":
-    "96e692798838df4e95c65c2bc2fa1095dbf82cd324212408a2663bb28dfe8d92",
-  "executor-darwin-x64.zip":
-    "64e87aab68a6d6b9df7c9f1cc12aa14e2e0ab7895d3e51329d1a92232026267a",
-  "executor-linux-arm64.tar.gz":
-    "3fbf6dca16bfb486e7191bcdb805a6c4ee41fa87a6c14ccb01815a21f6fb3132",
-  "executor-linux-x64.tar.gz":
-    "a808981489f5e5eeee63b4b607f799e6118616be522e993908b578fe6ba40c4d",
-  "executor-windows-x64.zip":
-    "5074887ed7932f490d3b8e0e79c038c437e6db9486e65e143b27f511004af448",
+  "executor-darwin-arm64.zip": "96e692798838df4e95c65c2bc2fa1095dbf82cd324212408a2663bb28dfe8d92",
+  "executor-darwin-x64.zip": "64e87aab68a6d6b9df7c9f1cc12aa14e2e0ab7895d3e51329d1a92232026267a",
+  "executor-linux-arm64.tar.gz": "3fbf6dca16bfb486e7191bcdb805a6c4ee41fa87a6c14ccb01815a21f6fb3132",
+  "executor-linux-x64.tar.gz": "a808981489f5e5eeee63b4b607f799e6118616be522e993908b578fe6ba40c4d",
+  "executor-windows-x64.zip": "5074887ed7932f490d3b8e0e79c038c437e6db9486e65e143b27f511004af448",
 };
 
 const READY_TIMEOUT_MS = 30_000;
@@ -95,7 +90,12 @@ export async function installExecutor(force = false): Promise<void> {
 export const EXECUTOR_CLI = { name: "executor", version: EXECUTOR_VERSION, binPath: BINARY_PATH };
 
 function executorArtifactName(): string | null {
-  const os = { darwin: "darwin", linux: "linux", win32: "windows" }[process.platform];
+  const platformNames: Partial<Record<NodeJS.Platform, string>> = {
+    darwin: "darwin",
+    linux: "linux",
+    win32: "windows",
+  };
+  const os = platformNames[process.platform];
   const arch = process.arch === "x64" ? "x64" : process.arch === "arm64" ? "arm64" : null;
   if (!os || !arch) return null;
   const ext = process.platform === "linux" ? "tar.gz" : "zip";

@@ -8,9 +8,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "build": "tsc",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev": "tsc",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
@@ -18,7 +16,6 @@
     "@mariozechner/pi-coding-agent": "^0.73.1"
   },
   "devDependencies": {
-    "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

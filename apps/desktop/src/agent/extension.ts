@@ -11,14 +11,81 @@
 import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver/pi-types";
 
 import { isRecord, type SetupProgress } from "@/shared/ipc";
+import type { ExecutorExecuteResult } from "@/shared/executor";
+import type {
+  InstallWidgetInput,
+  JsonUiWidgetDef,
+  ShellSnapshot,
+  UpdateWidgetInput,
+  WidgetDef,
+  WidgetInstance,
+  WidgetPatchInput,
+  WidgetSurface,
+} from "@/shared/shell";
+import type { CreateTaskParams, Task } from "@/shared/task";
+
+// ---------------------------------------------------------------------------
+// Ports — main-owned capabilities handed to extensions at register/setup time.
+// agent/ never imports @/main/*; main/lib/agent-lifecycle.ts builds these
+// (structural subsets of the main singletons) and passes them down. The
+// dependency direction stays one-way: main composes, agent receives.
+// ---------------------------------------------------------------------------
+
+/** Writable widget-shell surface (subset of main/shell.ts ShellManager). */
+type ShellWriterPort = {
+  snapshot(): ShellSnapshot;
+  getDef(id: string): WidgetDef | null;
+  installWidget(input: InstallWidgetInput): JsonUiWidgetDef;
+  updateWidget(input: UpdateWidgetInput): JsonUiWidgetDef;
+  patchWidgetSpec(input: WidgetPatchInput): JsonUiWidgetDef;
+};
+
+type ShellPort = {
+  /** Null while shell writes are suspended (post-logout). */
+  getWritableShell(): ShellWriterPort | null;
+  placeWithFlush(widgetId: string, surface?: WidgetSurface): Promise<WidgetInstance | null>;
+  unplaceWithFlush(instanceId: string): Promise<boolean>;
+  deleteWithFlush(widgetId: string, expectedRevision?: number): Promise<boolean>;
+};
+
+/** Scheduled-task store handle (subset of main/tasks/task-manager.ts). */
+export type TasksPort = {
+  getTasks(): Task[];
+  createTask(params: CreateTaskParams): Task;
+  toggleTask(id: string): Task;
+  deleteTask(id: string): void;
+};
+
+/** Executor daemon access (main/executor/*): install, lifecycle, code mode. */
+export type ExecutorPort = {
+  /** Pinned CLI metadata for the integrations UI. */
+  cli: ExtensionCliInfo;
+  install(force?: boolean): Promise<void>;
+  /** Ensure the daemon is up. Resolves false when it's unavailable. */
+  start(): Promise<boolean>;
+  execute(code: string): Promise<ExecutorExecuteResult>;
+  resume(
+    executionId: string,
+    action: "accept" | "decline" | "cancel",
+    content?: unknown,
+  ): Promise<ExecutorExecuteResult>;
+};
+
+export type AgentPorts = {
+  shell: ShellPort;
+  tasks: TasksPort;
+  executor: ExecutorPort;
+};
 
 /**
  * Available at agent-start time, every time register() is called. Long-lived
- * paths the running tool may need (e.g. an installed binary location).
+ * paths the running tool may need (e.g. an installed binary location) plus
+ * the main-owned ports extensions act through.
  */
 export type ExtensionRegisterContext = {
   /** Shared bin dir on PATH for installed CLIs (~/.inteligir/bin). */
   binDir: string;
+  ports: AgentPorts;
 };
 
 /**
@@ -45,7 +112,7 @@ export type ExtensionSetupContext = ExtensionRegisterContext & {
 
 /** Metadata for a CLI binary a bundle installs, so the UI can show installed-
  *  vs-pinned versions and offer a repair/reinstall. */
-type ExtensionCliInfo = {
+export type ExtensionCliInfo = {
   /** Display name. */
   name: string;
   /** Pinned version the app ships. */
@@ -57,8 +124,12 @@ type ExtensionCliInfo = {
 export type PiExtensionBundle = {
   /** Used for log prefixes and stable sort order. Should match the registered tool name. */
   name: string;
-  /** If the bundle installs a CLI binary, declare it here for the integrations UI. */
-  cli?: ExtensionCliInfo;
+  /**
+   * If the bundle installs a CLI binary, declare it here for the integrations
+   * UI. The function form is for bundles whose CLI is main-owned (executor) —
+   * the pinned metadata arrives through ports instead of a static import.
+   */
+  cli?: ExtensionCliInfo | ((ports: AgentPorts) => ExtensionCliInfo);
   /**
    * If true, a thrown setup() aborts onboarding (SETUP_FAIL). Default false:
    * setup is best-effort and the tool surfaces its own failure later (e.g.
@@ -78,6 +149,14 @@ export type PiExtensionBundle = {
    */
   register: (ctx: ExtensionRegisterContext) => ExtensionFactory;
 };
+
+/** Resolve a bundle's CLI metadata, evaluating the port-derived form. */
+export function resolveBundleCli(
+  bundle: PiExtensionBundle,
+  ports: AgentPorts,
+): ExtensionCliInfo | undefined {
+  return typeof bundle.cli === "function" ? bundle.cli(ports) : bundle.cli;
+}
 
 /**
  * Run each bundle's setup() in parallel. Non-critical failures log and
@@ -112,7 +191,10 @@ export async function runBundleSetups(
   // successfully or whose non-critical errors were swallowed above don't
   // produce a "rejected" result, so any rejection here is a critical throw.
   const firstFailure = results.find((r): r is PromiseRejectedResult => r.status === "rejected");
-  if (firstFailure) throw firstFailure.reason as Error;
+  if (firstFailure) {
+    const reason: unknown = firstFailure.reason;
+    throw reason instanceof Error ? reason : new Error(String(reason));
+  }
 }
 
 /**

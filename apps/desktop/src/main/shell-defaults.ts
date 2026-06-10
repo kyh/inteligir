@@ -1,9 +1,5 @@
 import { SEED_WIDGET_DEFS, SEED_WIDGET_INSTANCES } from "@/main/seed-widgets";
-import {
-  BUILTIN_DEFS,
-  type Shell,
-  type ShellSnapshot,
-} from "@/shared/shell";
+import { BUILTIN_DEFS, type Shell, type ShellSnapshot } from "@/shared/shell";
 
 // Only the seven patina-style dashboard widgets are pinned on first run.
 // Every built-in (chat / widgets / tasks / extensions / settings) is
