@@ -30,8 +30,8 @@
       "ignoreDependencies": ["nativewind", "tailwindcss"]
     },
     "apps/server": {
-      // native-stub.js is referenced only via wrangler.jsonc module aliases.
-      "entry": ["src/native-stub.js"],
+      // The *-stub.js files are referenced only via wrangler.jsonc module aliases.
+      "entry": ["src/native-stub.js", "src/async-event-emitter-stub.js"],
       "project": ["src/**/*.{ts,js}"]
     },
     "packages/agent-runtime": {
