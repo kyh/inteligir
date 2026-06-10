@@ -3,16 +3,22 @@
 // ---------------------------------------------------------------------------
 
 import { Agent } from "@/agent/agent";
-import { isLoggedIn, login } from "@/agent/auth";
-import { isSetupComplete, seedResources, teardownResources } from "@/agent/setup";
-import { dispatchAgentCommand, isAgentReserved } from "@/main/dispatch/agent-gateway";
+import { isLoggedIn } from "@/agent/auth";
+import { isSetupComplete } from "@/agent/setup";
 import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
+import { maybeDailyRefresh, type DailyRefreshDeps } from "@/main/daily-refresh";
+import {
+  getAgentPorts,
+  loginAgent,
+  seedAgentResources,
+  teardownAgentResources,
+} from "@/main/lib/agent-lifecycle";
 import { broadcast } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
-import { getTaskManager } from "@/main/tasks/task-manager";
+import { getTaskManager, setTasksChangedNotifier } from "@/main/tasks/task-manager";
 import {
   getBackgroundAgent,
   startBackgroundAgent,
@@ -22,6 +28,19 @@ import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import type { AppState, MachineEvent } from "@/shared/app-state";
+import type { TextChatMessage } from "@/shared/voice";
+
+/**
+ * Gateway access injected at initMachine(). app-machine must not import
+ * dispatch/agent-gateway — the gateway imports getAgent from this module, and
+ * a static import back would close a runtime cycle. index.ts composes the two.
+ */
+export type AgentGatewayPort = {
+  dispatchAgentCommand: (command: TextChatMessage) => Promise<void>;
+  isAgentReserved: () => boolean;
+};
+
+let gateway: AgentGatewayPort | null = null;
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process
@@ -40,6 +59,15 @@ type Turn = {
   sawError: boolean;
 };
 let turn: Turn | null = null;
+
+// Most recent user-facing agent activity (turn start or end), epoch ms.
+// Feeds the daily-refresh recency gate: `busy` only protects mid-turn, this
+// protects mid-conversation (e.g. a thread straddling midnight).
+let lastUserActivityAt: number | null = null;
+
+function getLastUserActivityAt(): number | null {
+  return lastUserActivityAt;
+}
 
 function startTurn(): void {
   turn = {
@@ -100,6 +128,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
   switch (event.type) {
     case "agent_start":
       startTurn();
+      lastUserActivityAt = Date.now();
       machine?.ingest({ type: "AGENT_START" });
       break;
     case "tool_execution_start":
@@ -133,8 +162,9 @@ function handleAgentEvent(event: AppAgentEvent): void {
           reason,
         } satisfies AppAgentEvent;
         broadcast("onAgentEvent", errorEvent);
-        void sendDispatchResponse(errorEvent);
+        sendDispatchResponse(errorEvent);
       }
+      lastUserActivityAt = Date.now();
       machine?.ingest({ type: "AGENT_END" });
       getNotifications().notifyAgentIdle(turn?.assistantText ?? undefined);
       turn = null;
@@ -142,13 +172,16 @@ function handleAgentEvent(event: AppAgentEvent): void {
     }
   }
 
+  // Mirrors every event to the Remote Access relay; a no-op unless the user
+  // enabled Remote Access AND an authenticated mobile peer is in the room
+  // (presence-gated inside dispatch-client).
   broadcast("onAgentEvent", event);
-  void sendDispatchResponse(event);
+  sendDispatchResponse(event);
 }
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
-  const next = new Agent(opts);
+  const next = new Agent({ ...opts, ports: getAgentPorts() });
   // Start the dedicated background task agent concurrently with the user agent
   // — they share no session state (separate dirs/instances) and the executor
   // daemon's start() is idempotent under concurrency, so there's no reason to
@@ -226,10 +259,12 @@ export function getAgent(): Agent | null {
  * Skips (without starting a new session) when there's no live agent or a turn
  * is already in flight — the caller retries on the next app-open.
  */
-export async function dailyRefresh(
+async function dailyRefresh(
   buildGreeting: () => string,
 ): Promise<{ ok: boolean; skipped?: string }> {
   if (!machine) return { ok: false, skipped: "no-machine" };
+  const gw = gateway;
+  if (!gw) return { ok: false, skipped: "no-gateway" };
   return machine.enqueueAsync(async () => {
     if (!agent) return { ok: false, skipped: "no-agent" };
     // Never interrupt a turn the user (or a relay) is mid-way through.
@@ -237,7 +272,7 @@ export async function dailyRefresh(
     // Nor tear the session down mid-drain: after a chat relay ends the exclusive
     // lock clears while queued UI/mobile commands are still flushing. newSession
     // here would stop the agent and drop them. Defer; retry on the next open.
-    if (isAgentReserved()) return { ok: false, skipped: "reserved" };
+    if (gw.isAgentReserved()) return { ok: false, skipped: "reserved" };
     try {
       await newSession();
     } catch (err) {
@@ -251,7 +286,7 @@ export async function dailyRefresh(
     // submission failure is logged, and any turn-level error surfaces in-session
     // via the normal agent-event path.
     try {
-      await dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
+      await gw.dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
     } catch (err) {
       console.error("[machine] daily greeting failed to submit:", err);
     }
@@ -263,7 +298,7 @@ export async function reauthenticate(): Promise<{ ok: boolean; error?: string }>
   if (!machine) return { ok: false, error: "Machine not initialized" };
   return machine.enqueueAsync(async () => {
     try {
-      await login();
+      await loginAgent();
       await newSession();
       return { ok: true };
     } catch (err) {
@@ -355,14 +390,24 @@ export class AppMachine {
 
 let machine: AppMachine | null = null;
 
+const dailyRefreshDeps: DailyRefreshDeps = {
+  getAppState,
+  dailyRefresh,
+  getLastUserActivityAt,
+};
+
+/** Run the daily refresh if due. Wired to the window-focus trigger in
+ * index.ts and the ready-phase hook below; no-op when not due/already done. */
+export function maybeRunDailyRefresh(): Promise<void> {
+  return maybeDailyRefresh(dailyRefreshDeps);
+}
+
 function broadcastAppState(state: AppState): void {
   broadcast("onAppState", state);
   // Cold-launch trigger for the daily refresh: the window's first focus fires
-  // before login finishes, so also attempt once the session is ready. Imported
-  // lazily to avoid a load-time cycle (daily-refresh imports this module);
-  // maybeDailyRefresh is a no-op when not due / already done.
+  // before login finishes, so also attempt once the session is ready.
   if (state.phase === "ready") {
-    void import("@/main/daily-refresh").then((m) => m.maybeDailyRefresh());
+    void maybeRunDailyRefresh();
   }
 }
 
@@ -374,12 +419,12 @@ async function downloadVoiceModel(): Promise<void> {
 }
 
 const realDeps: EffectDeps = {
-  login,
-  seedResources,
+  login: loginAgent,
+  seedResources: seedAgentResources,
   downloadVoiceModel,
   startAgent,
   stopAgent,
-  teardownResources,
+  teardownResources: teardownAgentResources,
   newSession,
   reportSetupProgress: (progress) => broadcast("onSetupProgress", progress),
 };
@@ -392,8 +437,14 @@ export function transition(event: MachineEvent): void {
   machine?.ingest(event);
 }
 
-/** Determine initial state from persisted auth/setup and auto-start if ready. */
-export function initMachine(): void {
+/** Determine initial state from persisted auth/setup and auto-start if ready.
+ * The gateway port is injected here (by index.ts) instead of imported — see
+ * AgentGatewayPort. */
+export function initMachine(gatewayPort: AgentGatewayPort): void {
+  gateway = gatewayPort;
+  // Tasks push channel: TaskManager is electron-free, so the broadcast hookup
+  // happens here (composition root for the machine's main-side singletons).
+  setTasksChangedNotifier((tasks) => broadcast("onTasksUpdated", { tasks }));
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);
@@ -406,7 +457,6 @@ export function initMachine(): void {
     broadcastAppState(machine.getState());
   }
 }
-
 
 export async function shutdown(): Promise<void> {
   console.log("[machine] shutdown");

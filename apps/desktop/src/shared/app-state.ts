@@ -28,9 +28,11 @@ type InternalEvent =
   | { type: "SETUP_OK" }
   | { type: "SETUP_FAIL"; message: string }
   | { type: "LOGOUT_OK" }
+  | { type: "LOGOUT_FAIL"; message: string }
   | { type: "AGENT_START" }
   | { type: "AGENT_END" }
-  | { type: "NEW_SESSION_OK" };
+  | { type: "NEW_SESSION_OK" }
+  | { type: "NEW_SESSION_FAIL"; message: string };
 
 /** All events the machine can process — external + internal */
 export type MachineEvent = AppEvent | InternalEvent;
@@ -59,6 +61,7 @@ export const AppStateSchema = Type.Union([
         Type.Literal("logging_in"),
         Type.Literal("setting_up"),
         Type.Literal("ready"),
+        Type.Literal("logging_out"),
       ]),
       message: Type.String(),
     },

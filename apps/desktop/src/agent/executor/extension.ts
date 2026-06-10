@@ -16,9 +16,7 @@
 import { Type } from "@sinclair/typebox";
 import type { ExtensionAPI } from "@repo/pi-driver/pi-types";
 
-import { execute, resumeExecution } from "@/main/executor/executor-client";
-import { EXECUTOR_CLI, installExecutor, getExecutorDaemon } from "@/main/executor/executor-daemon";
-import type { PiExtensionBundle } from "@/agent/extension";
+import type { ExecutorPort, PiExtensionBundle } from "@/agent/extension";
 import { textResult } from "@/agent/extension-helpers";
 
 const EXECUTE_DESCRIPTION = `Execute TypeScript in a sandboxed runtime with access to configured API tools.
@@ -54,25 +52,29 @@ const ResumeSchema = Type.Object({
 
 const executorExtension: PiExtensionBundle = {
   name: "executor",
-  cli: EXECUTOR_CLI,
-  setup: async ({ onProgress, force }) => {
+  // The executor binary is a main-owned resource (daemon child process); its
+  // pinned CLI metadata arrives through ports rather than a static import.
+  cli: ({ executor }) => executor.cli,
+  setup: async ({ onProgress, force, ports }) => {
     onProgress({ step: "Downloading executor runtime", percent: null });
-    await installExecutor(force);
+    await ports.executor.install(force);
   },
-  register: () => async (pi) => {
-    const conn = await getExecutorDaemon().start();
-    if (!conn) {
-      console.warn("[executor] daemon unavailable — code-mode tools will not be registered");
-      return;
-    }
-    registerExecute(pi);
-    registerResume(pi);
-  },
+  register:
+    ({ ports }) =>
+    async (pi) => {
+      const up = await ports.executor.start();
+      if (!up) {
+        console.warn("[executor] daemon unavailable — code-mode tools will not be registered");
+        return;
+      }
+      registerExecute(pi, ports.executor);
+      registerResume(pi, ports.executor);
+    },
 };
 
 export default executorExtension;
 
-function registerExecute(pi: ExtensionAPI): void {
+function registerExecute(pi: ExtensionAPI, executor: ExecutorPort): void {
   pi.registerTool({
     name: "execute",
     label: "execute",
@@ -80,7 +82,7 @@ function registerExecute(pi: ExtensionAPI): void {
     parameters: ExecuteSchema,
     execute: async (_id, params) => {
       try {
-        const result = await execute(params.code);
+        const result = await executor.execute(params.code);
         return textResult(result.text);
       } catch (err) {
         return textResult(`execute failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -89,7 +91,7 @@ function registerExecute(pi: ExtensionAPI): void {
   });
 }
 
-function registerResume(pi: ExtensionAPI): void {
+function registerResume(pi: ExtensionAPI, executor: ExecutorPort): void {
   pi.registerTool({
     name: "resume",
     label: "resume",
@@ -99,7 +101,7 @@ function registerResume(pi: ExtensionAPI): void {
     parameters: ResumeSchema,
     execute: async (_id, params) => {
       try {
-        const result = await resumeExecution(params.executionId, params.action, params.content);
+        const result = await executor.resume(params.executionId, params.action, params.content);
         return textResult(result.text);
       } catch (err) {
         return textResult(`resume failed: ${err instanceof Error ? err.message : String(err)}`);

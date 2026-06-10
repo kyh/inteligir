@@ -18,11 +18,7 @@ export function textResult(value: string): ToolTextResult {
  * expects. Returns "(no output)" for fully silent runs so the agent has
  * something to anchor on.
  */
-export function formatCliOutput(result: {
-  stdout: string;
-  stderr: string;
-  code: number;
-}): string {
+export function formatCliOutput(result: { stdout: string; stderr: string; code: number }): string {
   const parts: string[] = [];
   if (result.stdout) parts.push(result.stdout);
   if (result.stderr) parts.push(`[stderr]\n${result.stderr}`);

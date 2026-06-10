@@ -75,11 +75,47 @@ describe("reduce", () => {
     expect(reduce({ phase: "logged_in" }, { type: "LOGOUT" })).toBeNull();
   });
 
-  // ---- LOGOUT_OK ------------------------------------------------------------
+  // ---- LOGOUT_OK / LOGOUT_FAIL ------------------------------------------------
 
   it("LOGOUT_OK from logging_out → logged_out", () => {
     const result = reduce({ phase: "logging_out" }, { type: "LOGOUT_OK" });
     expect(result).toEqual({ next: { phase: "logged_out" }, effect: null });
+  });
+
+  it("LOGOUT_FAIL from logging_out → error(logging_out), not a wedged logging_out", () => {
+    const result = reduce({ phase: "logging_out" }, { type: "LOGOUT_FAIL", message: "rm failed" });
+    expect(result).toEqual({
+      next: { phase: "error", prev: "logging_out", message: "rm failed" },
+      effect: null,
+    });
+  });
+
+  it("LOGOUT_FAIL from wrong phase → null", () => {
+    expect(
+      reduce({ phase: "ready", agent: "idle" }, { type: "LOGOUT_FAIL", message: "x" }),
+    ).toBeNull();
+  });
+
+  // ---- NEW_SESSION_OK / NEW_SESSION_FAIL --------------------------------------
+
+  it("NEW_SESSION from ready/idle → NEW_SESSION effect, state unchanged", () => {
+    const result = reduce({ phase: "ready", agent: "idle" }, { type: "NEW_SESSION" });
+    expect(result).toEqual({ next: { phase: "ready", agent: "idle" }, effect: "NEW_SESSION" });
+  });
+
+  it("NEW_SESSION_FAIL from ready → error(ready) so RETRY can restart the agent", () => {
+    const result = reduce(
+      { phase: "ready", agent: "idle" },
+      { type: "NEW_SESSION_FAIL", message: "start broke" },
+    );
+    expect(result).toEqual({
+      next: { phase: "error", prev: "ready", message: "start broke" },
+      effect: null,
+    });
+  });
+
+  it("NEW_SESSION_FAIL from wrong phase → null", () => {
+    expect(reduce({ phase: "logged_in" }, { type: "NEW_SESSION_FAIL", message: "x" })).toBeNull();
   });
 
   // ---- RETRY ----------------------------------------------------------------
@@ -103,6 +139,14 @@ describe("reduce", () => {
   it("RETRY from error(ready) → setting_up + SETUP", () => {
     const result = reduce({ phase: "error", prev: "ready", message: "fail" }, { type: "RETRY" });
     expect(result).toEqual({ next: { phase: "setting_up" }, effect: "SETUP" });
+  });
+
+  it("RETRY from error(logging_out) → logging_out + LOGOUT", () => {
+    const result = reduce(
+      { phase: "error", prev: "logging_out", message: "fail" },
+      { type: "RETRY" },
+    );
+    expect(result).toEqual({ next: { phase: "logging_out" }, effect: "LOGOUT" });
   });
 
   it("RETRY from non-error → null", () => {

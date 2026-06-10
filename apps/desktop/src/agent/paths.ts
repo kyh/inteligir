@@ -2,7 +2,17 @@
 // auth.ts, agent.ts; isolating keeps every other agent/* module from
 // reaching across each other for path constants.
 
-import { inteligirPath } from "@/main/lib/json-store";
+import os from "node:os";
+import path from "node:path";
+
+// Mirrors inteligirPath in main/lib/json-store.ts. Deliberately duplicated
+// (it's three lines) so agent/ keeps zero @/main imports — the dependency
+// direction is one-way: main composes, agent receives.
+const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
+
+export function inteligirPath(...segments: string[]): string {
+  return path.join(INTELIGIR_DIR, ...segments);
+}
 
 /** Provider in pi-ai's model registry. */
 export const AUTH_PROVIDER = "openai-codex";

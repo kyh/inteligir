@@ -14,10 +14,16 @@ import { SessionManager } from "@repo/pi-driver/pi-types";
 import type { AgentSessionEvent, ImageContent } from "@repo/pi-driver/pi-types";
 
 import { getAuthStorage } from "@/agent/auth";
-import { buildValidatedFactories } from "@/agent/extension";
+import { buildValidatedFactories, type AgentPorts } from "@/agent/extension";
 import { AGENT_DIR, AUTH_PROVIDER, MODEL_ID, SESSION_DIR, WORKSPACE_DIR } from "@/agent/paths";
 import { EXTENSION_BUNDLES, buildRegisterContext } from "@/agent/setup";
 import type { SessionStatus } from "@/shared/agent";
+
+/** Pi built-in coding tools the session starts with. Mirrors pi's own default
+ * — declared explicitly so the raw system-access surface is a deliberate,
+ * auditable choice (see resources/agent/AGENTS.md "System access"). Extension
+ * tools (manage_ui, execute, browser, …) activate as they register. */
+const INITIAL_ACTIVE_TOOLS = ["read", "bash", "edit", "write"];
 
 function resolveSessionManager(sessionDir: string): SessionManager {
   const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
@@ -32,6 +38,9 @@ function resolveSessionManager(sessionDir: string): SessionManager {
 }
 
 export type AgentOptions = {
+  /** Main-owned capabilities (shell, tasks, executor) handed to extension
+   * bundles at register time. Built main-side by agent-lifecycle.ts. */
+  ports: AgentPorts;
   /** If true, start a fresh session instead of resuming the most recent one. */
   newSession?: boolean;
   /** Session directory to read/write. Defaults to SESSION_DIR (the user-facing
@@ -45,7 +54,7 @@ export class Agent {
   // through the async start() path rather than out of `new Agent()`.
   private pi: PiAgent | null = null;
 
-  constructor(private readonly opts: AgentOptions = {}) {}
+  constructor(private readonly opts: AgentOptions) {}
 
   async start(): Promise<void> {
     if (!this.pi) {
@@ -59,7 +68,9 @@ export class Agent {
         authStorage: getAuthStorage(),
         model: resolveModel(AUTH_PROVIDER, MODEL_ID),
         sessionManager,
-        extensionFactories: () => buildValidatedFactories(EXTENSION_BUNDLES, buildRegisterContext()),
+        initialActiveToolNames: INITIAL_ACTIVE_TOOLS,
+        extensionFactories: () =>
+          buildValidatedFactories(EXTENSION_BUNDLES, buildRegisterContext(this.opts.ports)),
       });
     }
     await this.pi.start();

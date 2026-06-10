@@ -12,10 +12,8 @@ export type {
 } from "@mariozechner/pi-coding-agent";
 
 export type {
-  Api,
   ImageContent,
   Message,
-  Model,
   TextContent,
   ToolCall,
   ToolResultMessage,

@@ -10,12 +10,12 @@ vi.mock("electron", () => ({
 vi.mock("@/agent/setup", () => ({
   isSetupComplete: vi.fn().mockReturnValue(false),
   seedResources: vi.fn().mockResolvedValue(undefined),
-  teardownResources: vi.fn(),
 }));
 
 vi.mock("@/agent/auth", () => ({
   isLoggedIn: vi.fn().mockReturnValue(false),
   login: vi.fn().mockResolvedValue(undefined),
+  resetAuthStorage: vi.fn(),
 }));
 
 vi.mock("@/agent/agent", () => ({
@@ -93,6 +93,45 @@ describe("AppMachine", () => {
 
     expect(deps.teardownResources).toHaveBeenCalledOnce();
     expect(machine.getState()).toEqual({ phase: "logged_out" });
+  });
+
+  it("LOGOUT failure surfaces as error instead of wedging in logging_out", async () => {
+    // First attempt rejects, the retry succeeds.
+    const stopAgent = vi
+      .fn<() => Promise<void>>()
+      .mockRejectedValueOnce(new Error("stop broke"))
+      .mockResolvedValue(undefined);
+    const machine = new AppMachine(fakeDeps({ stopAgent }), vi.fn(), {
+      phase: "ready",
+      agent: "idle",
+    });
+
+    await machine.send({ type: "LOGOUT" });
+
+    expect(machine.getState()).toEqual({
+      phase: "error",
+      prev: "logging_out",
+      message: "stop broke",
+    });
+
+    // RETRY re-runs the logout; with a healthy stopAgent it now completes.
+    await machine.send({ type: "RETRY" });
+    expect(machine.getState()).toEqual({ phase: "logged_out" });
+  });
+
+  it("NEW_SESSION failure surfaces as error instead of ready-with-no-agent", async () => {
+    const deps = fakeDeps({
+      newSession: vi.fn().mockRejectedValue(new Error("restart broke")),
+    });
+    const machine = new AppMachine(deps, vi.fn(), { phase: "ready", agent: "idle" });
+
+    await machine.send({ type: "NEW_SESSION" });
+
+    expect(machine.getState()).toEqual({
+      phase: "error",
+      prev: "ready",
+      message: "restart broke",
+    });
   });
 
   it("AGENT_START/AGENT_END toggle busy/idle", async () => {
