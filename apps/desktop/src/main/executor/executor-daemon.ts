@@ -46,13 +46,18 @@ const BINARY_PATH = path.join(BIN_DIR, BIN_NAME);
 // running `shasum -a 256 <file>`.
 // (The release also ships linux musl tarballs; executorArtifactName can't
 // select those — no musl detection — so they're deliberately unpinned.)
+// NOTE: upstream re-uploaded every v1.5.4 asset in place on 2026-06-11
+// (~8h after publish; the new zips add libsql.node), which invalidated the
+// original pins and broke every fresh install — exactly the fail-closed
+// behavior intended. Re-pinned from the re-uploaded assets after verifying
+// the darwin-arm64 binary runs and reports v1.5.4.
 const EXECUTOR_SHA256: Record<string, string> = {
-  "executor-darwin-arm64.zip": "4057ab48134340e1827aac9ecf32a8496d3d7d5f17d5711af247c1fbe9a83daa",
-  "executor-darwin-x64.zip": "e5f06ce710b78db2232a7d17a70a18df3aa91ba34285374c707fdc3bdba6b79e",
-  "executor-linux-arm64.tar.gz": "22ef7e9ecd479b2b7b5af41ee229213de7a0f5f7028f1ffecb7ec0e9e7bdecc4",
-  "executor-linux-x64.tar.gz": "0de0c34fc1b4b4e663504df9dea1d096df40741727c5152ad6ac04eafcf06451",
-  "executor-windows-x64.zip": "cd7ebeaf273968234af7c9e08ba96fb6a2159dd233700c1463b35502fa212ef8",
-  "executor-windows-arm64.zip": "eca9be1130732c4d3434bd1955212d1aac2ff74fa3f391197e59a8b1698df2b6",
+  "executor-darwin-arm64.zip": "e6b863a65d0ed9a30c36dcce6024d5bec4c3b8949fc51c2458e1ecdd81a8e9e1",
+  "executor-darwin-x64.zip": "f58caf3f1f443819405a169e187c53b102d834e618d3880a0391528eaeb3d7f1",
+  "executor-linux-arm64.tar.gz": "6a5d5b680f0900a964964d60d35ffca581dbcd76c6f5f0ddd3e26023eb12613d",
+  "executor-linux-x64.tar.gz": "9830135f33141313b5b19b4d07a0282f609bcf6a2c8f46982f97137e3ac5d88d",
+  "executor-windows-x64.zip": "7ee683a3e95bd7e5a9f75ce8af2726e5ccf43ac509b29d9deb07fc5e32348621",
+  "executor-windows-arm64.zip": "3b290e765741f45b73294c35f153d628f6403e63ec00019e058124fdf5fbd4a2",
 };
 
 // Generous on purpose: the first boot after a version bump replays executor's
