@@ -129,20 +129,20 @@ describe("createProfileCache", () => {
     expect(await cache.get()).toBeNull();
   });
 
-  it("pays the cold-start wait only until the first attempt settles", async () => {
-    // First attempt fails fast (server down), every later attempt hangs —
-    // worst case for blocking. Reads after the first settled attempt must
-    // return immediately instead of racing firstLoadWaitMs again.
-    profile.mockRejectedValueOnce(
-      new MemoryUnavailableError("http://localhost:6767", new TypeError("fetch failed")),
-    );
-    const cache = createProfileCache({ profile }, 500);
-    expect(await cache.get()).toBeNull();
-
+  it("spends the cold-start wait once, even while the first request hangs", async () => {
+    // Every profile call hangs (slow/unreachable host) — worst case for
+    // blocking. Only the first read may pay firstLoadWaitMs; later reads
+    // must return immediately even though the first request never settled.
     profile.mockImplementation(() => new Promise<never>(() => {}));
-    const start = Date.now();
+    const cache = createProfileCache({ profile }, 500);
+
+    const first = Date.now();
     expect(await cache.get()).toBeNull();
-    expect(Date.now() - start).toBeLessThan(400);
+    expect(Date.now() - first).toBeGreaterThanOrEqual(450);
+
+    const second = Date.now();
+    expect(await cache.get()).toBeNull();
+    expect(Date.now() - second).toBeLessThan(400);
   });
 });
 
