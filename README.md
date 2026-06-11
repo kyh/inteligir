@@ -1,6 +1,6 @@
 # Inteligir
 
-> An artificially intelligent operating system. (_inteligir_ — Spanish, "to understand")
+> An artificially intelligent operating system.
 
 A consumer desktop AI OS. The **product is the Electron desktop app**: a
 local-first, voice-first agent that does real work on your machine — personal
