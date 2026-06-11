@@ -128,6 +128,22 @@ describe("createProfileCache", () => {
     const cache = createProfileCache({ profile }, 50);
     expect(await cache.get()).toBeNull();
   });
+
+  it("pays the cold-start wait only until the first attempt settles", async () => {
+    // First attempt fails fast (server down), every later attempt hangs —
+    // worst case for blocking. Reads after the first settled attempt must
+    // return immediately instead of racing firstLoadWaitMs again.
+    profile.mockRejectedValueOnce(
+      new MemoryUnavailableError("http://localhost:6767", new TypeError("fetch failed")),
+    );
+    const cache = createProfileCache({ profile }, 500);
+    expect(await cache.get()).toBeNull();
+
+    profile.mockImplementation(() => new Promise<never>(() => {}));
+    const start = Date.now();
+    expect(await cache.get()).toBeNull();
+    expect(Date.now() - start).toBeLessThan(400);
+  });
 });
 
 describe("resolveMemoryConfig", () => {

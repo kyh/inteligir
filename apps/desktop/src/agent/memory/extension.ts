@@ -163,11 +163,15 @@ export function buildMemoryTool(client: MemoryToolClient) {
 /**
  * Cached profile for recall priming. before_agent_start must not stall the
  * turn on a cold HTTP call, so reads come from the last completed refresh
- * and every read schedules the next one. First run (empty cache) waits
- * briefly so a brand-new session still gets primed when the server is warm.
+ * and every read schedules the next one. Only the very first read waits
+ * briefly (until the first refresh settles) so a brand-new session still
+ * gets primed when the server is warm; once that attempt fails — server
+ * down or not set up — later reads return immediately rather than paying
+ * the wait on every turn.
  */
 export function createProfileCache(client: Pick<MemoryClient, "profile">, firstLoadWaitMs = 1_500) {
   let cached: MemoryProfile | null = null;
+  let attempted = false;
   let inflight: Promise<void> | null = null;
 
   const refresh = (): Promise<void> => {
@@ -177,6 +181,7 @@ export function createProfileCache(client: Pick<MemoryClient, "profile">, firstL
       } catch {
         // Server down or not set up — recall priming just stays silent.
       } finally {
+        attempted = true;
         inflight = null;
       }
     })();
@@ -185,10 +190,11 @@ export function createProfileCache(client: Pick<MemoryClient, "profile">, firstL
 
   return {
     refresh,
-    /** Cached profile, waiting up to firstLoadWaitMs only when cold. */
+    /** Cached profile; waits up to firstLoadWaitMs only before the first
+     *  refresh has settled. */
     async get(): Promise<MemoryProfile | null> {
       const pending = refresh();
-      if (cached === null) {
+      if (!attempted) {
         await Promise.race([pending, new Promise((r) => setTimeout(r, firstLoadWaitMs))]);
       }
       return cached;
