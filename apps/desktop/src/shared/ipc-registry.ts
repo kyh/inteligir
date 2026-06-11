@@ -108,6 +108,14 @@ export type ExecutorStatus =
   // the Google client dialog can show the exact URI to whitelist in GCP.
   | { running: true; redirectUri: string };
 
+/** Result of ensureGoogleOAuthClient: "ready" means the shared "google"
+ * client exists in executor (pre-registered, or just seeded from the
+ * build's bundled credentials) and consent can start; "unavailable" means
+ * neither — the renderer falls back to the paste-your-own-GCP-app dialog. */
+export type EnsureGoogleClientResult =
+  | { status: "ready"; source: "existing" | "bundled" }
+  | { status: "unavailable" };
+
 export type NotificationSettings = {
   enabled: boolean;
 };
@@ -455,6 +463,9 @@ export const IPC = {
   createExecutorOAuthClient: invoke<typeof CreateOAuthClientInputSchema, { client: string }>(
     "executor:oauth:client:create",
     CreateOAuthClientInputSchema,
+  ),
+  ensureGoogleOAuthClient: invokeVoid<EnsureGoogleClientResult>(
+    "executor:oauth:google-client:ensure",
   ),
   registerExecutorOAuthClientDynamic: invoke<
     typeof RegisterDynamicOAuthClientInputSchema,

@@ -18,6 +18,15 @@
 
 import { type Static, Type } from "@sinclair/typebox";
 
+// Google has no dynamic client registration: one OAuth client (bundled at
+// build time, or the user's own GCP app) is stored in executor under this
+// fixed slug and reused by every Google connector. Shared because both the
+// renderer (connect flow, manual-client dialog) and main (bundled-client
+// auto-registration) register/reference the same client.
+export const GOOGLE_OAUTH_CLIENT_SLUG = "google";
+export const GOOGLE_AUTHORIZATION_URL = "https://accounts.google.com/o/oauth2/v2/auth";
+export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
+
 const NullableNumber = Type.Union([Type.Number(), Type.Null()]);
 const NullableString = Type.Union([Type.String(), Type.Null()]);
 const StringMapSchema = Type.Record(Type.String(), Type.String());

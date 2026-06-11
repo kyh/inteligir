@@ -9,6 +9,11 @@
       "dependsOn": ["^build"],
       "outputs": [".cache/tsbuildinfo.json", "dist/**", ".next/**", "!.next/cache/**", ".output/**"]
     },
+    "@repo/desktop#build": {
+      "dependsOn": ["^build"],
+      "outputs": [".cache/tsbuildinfo.json", ".output/**"],
+      "env": ["INTELIGIR_GOOGLE_OAUTH_CLIENT_ID", "INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET"]
+    },
     "dev": {
       "dependsOn": ["^dev"],
       "cache": false,

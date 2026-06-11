@@ -4,12 +4,15 @@ import { CONNECTOR_CATALOG } from "@/renderer/shell/builtin/extensions/connector
 import {
   catalogInstallRequest,
   DEFAULT_CONNECTION_NAME,
-  GOOGLE_OAUTH_CLIENT_SLUG,
   installConnector,
   uninstallConnector,
   type InstallRequest,
 } from "@/renderer/shell/builtin/extensions/connector-install";
-import type { ExecutorConnection, ExecutorIntegration } from "@/shared/executor";
+import {
+  GOOGLE_OAUTH_CLIENT_SLUG,
+  type ExecutorConnection,
+  type ExecutorIntegration,
+} from "@/shared/executor";
 import type { DesktopBridge } from "@/shared/ipc";
 
 function connector(id: string) {

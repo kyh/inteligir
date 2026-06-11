@@ -1,9 +1,12 @@
 // ---------------------------------------------------------------------------
-// One-time Google OAuth app registration. Google has no dynamic client
-// registration, so before the first Google connector can run its consent flow
-// the user must paste their own GCP OAuth client (id + secret) and whitelist
-// the daemon's redirect URI in that app. The client is stored in executor
-// under the shared "google" slug and reused by every Google connector.
+// Google OAuth app registration. Google has no dynamic client registration;
+// normally the build's bundled "Desktop app" client is auto-seeded by main
+// and this dialog never shows. It remains for two paths: the fallback when
+// a build carries no bundled client and none is registered yet (a Google
+// connect lands here), and the advanced "use your own Google OAuth client"
+// override for self-hosters/devs. Either way the pasted GCP client (id +
+// secret, redirect URI whitelisted in that app) is stored in executor under
+// the shared "google" slug and reused by every Google connector.
 // ---------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
@@ -18,12 +21,10 @@ import {
 } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
 
-import type { CatalogConnector } from "@/renderer/shell/builtin/extensions/connector-catalog";
 import { blockDismissWhileBusy } from "@/renderer/shell/builtin/extensions/lib";
 
 type Props = {
-  /** The Google connector being connected, or null when the dialog is closed. */
-  connector: CatalogConnector | null;
+  open: boolean;
   /** The daemon's OAuth callback to whitelist in the GCP app (null = daemon down). */
   redirectUri: string | null;
   busy: boolean;
@@ -33,23 +34,16 @@ type Props = {
   onSubmit: (clientId: string, clientSecret: string) => void;
 };
 
-export function GoogleClientDialog({
-  connector,
-  redirectUri,
-  busy,
-  error,
-  onCancel,
-  onSubmit,
-}: Props) {
+export function GoogleClientDialog({ open, redirectUri, busy, error, onCancel, onSubmit }: Props) {
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
 
   useEffect(() => {
-    if (connector) {
+    if (open) {
       setClientId("");
       setClientSecret("");
     }
-  }, [connector]);
+  }, [open]);
 
   const trimmedId = clientId.trim();
   const trimmedSecret = clientSecret.trim();
@@ -57,9 +51,9 @@ export function GoogleClientDialog({
 
   return (
     <Dialog
-      open={connector !== null}
-      onOpenChange={blockDismissWhileBusy(busy, (open) => {
-        if (!open) onCancel();
+      open={open}
+      onOpenChange={blockDismissWhileBusy(busy, (next) => {
+        if (!next) onCancel();
       })}
     >
       <DialogContent>

@@ -6,6 +6,10 @@ import { shell } from "electron";
 import { handle } from "@/main/lib/ipc-handler";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import * as executor from "@/main/executor/executor-client";
+import {
+  ensureGoogleOAuthClient,
+  getBundledGoogleClient,
+} from "@/main/executor/google-oauth-client";
 import { isHttpUrl, type ExecutorStatus } from "@/shared/ipc";
 
 export function registerExecutorIpcHandlers(): void {
@@ -23,6 +27,12 @@ export function registerExecutorIpcHandlers(): void {
 
   handle("listExecutorOAuthClients", executor.listOAuthClients);
   handle("createExecutorOAuthClient", executor.createOAuthClient);
+  // Seeds the build's bundled Google client into executor when no "google"
+  // client is registered yet (never overwrites one) so the renderer can go
+  // straight to consent instead of asking for a GCP app.
+  handle("ensureGoogleOAuthClient", () =>
+    ensureGoogleOAuthClient(executor, getBundledGoogleClient()),
+  );
   handle("registerExecutorOAuthClientDynamic", executor.registerOAuthClientDynamic);
   handle("executorOAuthProbe", executor.oauthProbe);
   handle("executorOAuthStart", executor.oauthStart);

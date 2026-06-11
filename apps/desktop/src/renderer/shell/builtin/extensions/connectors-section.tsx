@@ -14,9 +14,6 @@ import {
 import { ConnectorCard } from "@/renderer/shell/builtin/extensions/connector-card";
 import {
   catalogInstallRequest,
-  GOOGLE_AUTHORIZATION_URL,
-  GOOGLE_OAUTH_CLIENT_SLUG,
-  GOOGLE_TOKEN_URL,
   installConnector,
   uninstallConnector,
 } from "@/renderer/shell/builtin/extensions/connector-install";
@@ -27,7 +24,12 @@ import {
   type SectionProps,
 } from "@/renderer/shell/builtin/extensions/lib";
 import { SecretPromptDialog } from "@/renderer/shell/builtin/extensions/secret-prompt-dialog";
-import type { ExecutorIntegration } from "@/shared/executor";
+import {
+  GOOGLE_AUTHORIZATION_URL,
+  GOOGLE_OAUTH_CLIENT_SLUG,
+  GOOGLE_TOKEN_URL,
+  type ExecutorIntegration,
+} from "@/shared/executor";
 
 /** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
 function setMembership(
@@ -74,8 +76,12 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
   const [apiKeyBusy, setApiKeyBusy] = useState(false);
   // Shown inside the secret dialog — the panel-level error sits behind its overlay.
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
-  // Google OAuth-app registration dialog (first Google connect only).
+  // Google OAuth-app registration dialog. Two ways in: a Google connect with
+  // no registered client AND no bundled one (googleTarget set — submit also
+  // continues the install), or the advanced "use your own client" override
+  // (googleOverrideOpen — submit only registers/replaces the client).
   const [googleTarget, setGoogleTarget] = useState<CatalogConnector | null>(null);
+  const [googleOverrideOpen, setGoogleOverrideOpen] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
   const [googleRedirectUri, setGoogleRedirectUri] = useState<string | null>(null);
@@ -128,10 +134,12 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
       try {
         if (connector.install.type === "google") {
           // Google needs a registered OAuth client before consent can start.
-          // Missing → collect the user's GCP app via the dialog, which calls
-          // handleGoogleClientSubmit to register it and continue the install.
-          const clients = await bridge.listExecutorOAuthClients();
-          if (!clients.some((c) => c.slug === GOOGLE_OAUTH_CLIENT_SLUG)) {
+          // Main reuses a registered "google" client as-is, or seeds the
+          // build's bundled one (never overwriting) — only when neither
+          // exists do we collect the user's GCP app via the dialog, which
+          // calls handleGoogleClientSubmit to register it and continue.
+          const ensured = await bridge.ensureGoogleOAuthClient();
+          if (ensured.status === "unavailable") {
             const status = await bridge.executorStatus();
             setGoogleRedirectUri(status.running ? status.redirectUri : null);
             setGoogleError(null);
@@ -201,6 +209,45 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
       }
     },
     [googleTarget, onError, refreshAll],
+  );
+
+  // Advanced override: register (or swap) the shared "google" OAuth client
+  // without connecting anything — self-hosters/devs replacing the bundled
+  // client with their own GCP app.
+  const openGoogleOverride = useCallback(async () => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    const status = await bridge.executorStatus();
+    setGoogleRedirectUri(status.running ? status.redirectUri : null);
+    setGoogleError(null);
+    setGoogleOverrideOpen(true);
+  }, []);
+
+  const handleGoogleOverrideSubmit = useCallback(
+    async (clientId: string, clientSecret: string) => {
+      const bridge = getBridge();
+      if (!bridge) return;
+      setGoogleBusy(true);
+      setGoogleError(null);
+      try {
+        await bridge.createExecutorOAuthClient({
+          owner: "user",
+          slug: GOOGLE_OAUTH_CLIENT_SLUG,
+          authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+          tokenUrl: GOOGLE_TOKEN_URL,
+          grant: "authorization_code",
+          clientId,
+          clientSecret,
+        });
+        onError(null);
+        setGoogleOverrideOpen(false);
+      } catch (err) {
+        setGoogleError(errorMessage(err, "Couldn't save the Google OAuth client."));
+      } finally {
+        setGoogleBusy(false);
+      }
+    },
+    [onError],
   );
 
   const handleDisconnect = useCallback(
@@ -334,15 +381,25 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
 
       {showAdvanced && (
         <>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCustomOpen(true)}
-            className="h-7 self-start text-[10px]"
-          >
-            <PlusIcon className="size-3" />
-            Add custom connector
-          </Button>
+          <div className="flex flex-wrap gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCustomOpen(true)}
+              className="h-7 text-[10px]"
+            >
+              <PlusIcon className="size-3" />
+              Add custom connector
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void openGoogleOverride()}
+              className="h-7 text-[10px]"
+            >
+              Use your own Google OAuth client
+            </Button>
+          </div>
 
           <AddCustomConnectorDialog
             open={customOpen}
@@ -360,12 +417,19 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
         onSubmit={(v) => void handleApiKeySubmit(v)}
       />
       <GoogleClientDialog
-        connector={googleTarget}
+        open={googleTarget !== null || googleOverrideOpen}
         redirectUri={googleRedirectUri}
         busy={googleBusy}
         error={googleError}
-        onCancel={() => setGoogleTarget(null)}
-        onSubmit={(id, secret) => void handleGoogleClientSubmit(id, secret)}
+        onCancel={() => {
+          setGoogleTarget(null);
+          setGoogleOverrideOpen(false);
+        }}
+        onSubmit={(id, secret) =>
+          void (googleTarget
+            ? handleGoogleClientSubmit(id, secret)
+            : handleGoogleOverrideSubmit(id, secret))
+        }
       />
     </div>
   );

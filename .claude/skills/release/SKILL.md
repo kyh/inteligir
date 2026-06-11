@@ -41,6 +41,11 @@ Run in parallel:
 - `git status --porcelain` — if dirty in unrelated files, surface and ask whether to proceed.
 - `uname -s` — must be `Darwin`. If not, stop: notarized mac builds require macOS.
 - `test -f apps/desktop/.env` — notarization creds live here. If missing, stop and say so.
+- Bundled Google OAuth client — release builds bake `INTELIGIR_GOOGLE_OAUTH_CLIENT_ID` + `INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET` from `.env` into the main bundle (electron-vite `define`; see `apps/desktop/.env.example`):
+  ```
+  grep -E '^INTELIGIR_GOOGLE_OAUTH_CLIENT_(ID|SECRET)=.+' apps/desktop/.env | wc -l
+  ```
+  Must print `2`. If not, the artifact ships WITHOUT a bundled Google client — every user gets the paste-your-own-GCP-app dialog on Google connect. Surface this and ask whether to proceed before building.
 - `gh release view v<current-version>` — sanity check the current version isn't already released.
 - Last release + changes since:
   ```

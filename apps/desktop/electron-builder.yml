@@ -1,3 +1,8 @@
+# NOTE: package only via `release`/`release:publish` — they run
+# `electron-vite build` under `pnpm with-env` (dotenv -e .env) so the bundled
+# Google OAuth client (INTELIGIR_GOOGLE_OAUTH_CLIENT_ID/_SECRET, see
+# .env.example) bakes into .output/app/main. Building without those vars
+# ships an artifact whose Google connect falls back to the GCP dialog.
 appId: com.inteligir.desktop
 productName: Inteligir
 directories:

@@ -12,7 +12,11 @@
 // was a lie: it never consented and every call dialed unauthenticated).
 // ---------------------------------------------------------------------------
 
-import type { ExecutorConnection, ExecutorOwner } from "@/shared/executor";
+import {
+  GOOGLE_OAUTH_CLIENT_SLUG,
+  type ExecutorConnection,
+  type ExecutorOwner,
+} from "@/shared/executor";
 import type { DesktopBridge } from "@/shared/ipc";
 import type { CatalogConnector } from "@/renderer/shell/builtin/extensions/connector-catalog";
 import { runOAuthFlow } from "@/renderer/shell/builtin/extensions/lib";
@@ -25,13 +29,6 @@ import { runOAuthFlow } from "@/renderer/shell/builtin/extensions/lib";
  */
 export const DEFAULT_CONNECTION_NAME = "default";
 const OWNER: ExecutorOwner = "user";
-
-// Google has no dynamic client registration: the user registers their own GCP
-// OAuth app once (stored in executor under this fixed slug, reused by every
-// Google connector) and whitelists the daemon's redirect URI in GCP.
-export const GOOGLE_OAUTH_CLIENT_SLUG = "google";
-export const GOOGLE_AUTHORIZATION_URL = "https://accounts.google.com/o/oauth2/v2/auth";
-export const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 
 // Auth-method template slugs the daemon derives for the methods we register:
 // mcp `auth` shorthand `header` / `oauth2` keep their kind as slug; a Google
@@ -213,8 +210,9 @@ async function connectAuth(bridge: DesktopBridge, req: InstallRequest): Promise<
       if (req.source.type !== "google") {
         throw new Error("Google auth is only supported for Google connectors.");
       }
-      // Requires the shared "google" OAuth client to be registered (the
-      // ConnectorsSection collects the user's GCP client id/secret first).
+      // Requires the shared "google" OAuth client to be registered first —
+      // ConnectorsSection ensures it via main (bundled client auto-seeded
+      // when the build carries one, else the user pastes their GCP app).
       await runOAuthFlow(bridge, {
         client: GOOGLE_OAUTH_CLIENT_SLUG,
         clientOwner: OWNER,
