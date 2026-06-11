@@ -31,9 +31,12 @@ on the user's own machine, so the UX has to hide the engineering.
 **Core, deliberate value props** (these are positioning, not implementation
 accidents — preserve them when making changes):
 
-- **Local-first / privacy** — the agent and voice run on-device. No server, no
-  database, no audio or user data leaves the machine. (`@repo/server` is only a
-  thin WebSocket relay for mobile↔desktop pairing; it stores nothing.)
+- **Local-first / privacy** — *today* the agent and voice run on-device. No
+  server, no database, no audio or user data leaves the machine. (`@repo/server`
+  is only a thin WebSocket relay for mobile↔desktop pairing; it stores nothing.)
+  Remote cloud execution is anticipated *later* as an option — local-first is
+  the current default and a positioning pillar, not a permanent constraint, so
+  don't hard-code "on-device only, forever" assumptions into new abstractions.
 - **Voice-first** — streaming local STT (NVIDIA Parakeet) + TTS (ElevenLabs).
 - **Mobile↔desktop remote** — pair a phone to drive the desktop agent remotely.
 - **Agentic OS shell** — the agent can build and arrange its own UI; the shell
