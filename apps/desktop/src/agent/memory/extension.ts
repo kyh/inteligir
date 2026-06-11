@@ -183,10 +183,12 @@ export function createProfileCache(client: Pick<MemoryClient, "profile">, firstL
     inflight ??= (async () => {
       try {
         cached = await client.profile();
-      } catch {
-        // Server down or not set up — drop any previous snapshot so priming
-        // goes silent, consistent with the tool reporting unavailability.
-        cached = null;
+      } catch (err) {
+        // Server gone — drop any previous snapshot so priming goes silent,
+        // consistent with the tool reporting unavailability. A transient
+        // error from a reachable server keeps the last good profile;
+        // durable facts don't expire because one request failed.
+        if (err instanceof MemoryUnavailableError) cached = null;
       } finally {
         inflight = null;
       }

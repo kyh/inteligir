@@ -135,6 +135,18 @@ describe("createProfileCache", () => {
     expect(await cache.get()).toBeNull();
   });
 
+  it("keeps the last good profile through a transient server error", async () => {
+    profile.mockResolvedValue({ static: ["a"], dynamic: [] });
+    const cache = createProfileCache({ profile });
+    expect(await cache.get()).toEqual({ static: ["a"], dynamic: [] });
+
+    // Reachable server, failed request (e.g. HTTP 500) — durable facts
+    // don't expire because one request failed.
+    profile.mockRejectedValue(new Error("supermemory POST /v4/profile failed (500): boom"));
+    await cache.refresh();
+    expect(await cache.get()).toEqual({ static: ["a"], dynamic: [] });
+  });
+
   it("returns null without throwing when the server is down", async () => {
     profile.mockRejectedValue(
       new MemoryUnavailableError("http://localhost:6767", new TypeError("fetch failed")),
