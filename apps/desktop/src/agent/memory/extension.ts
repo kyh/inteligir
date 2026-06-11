@@ -167,6 +167,12 @@ export function buildMemoryTool(client: MemoryToolClient) {
  * spent exactly once, by the first read — a brand-new session still gets
  * primed when the server is warm, while a down, hung, or slow server costs
  * at most one firstLoadWaitMs ever, never one per turn.
+ *
+ * Deliberate tradeoff: because reads never wait after cold start, the
+ * snapshot can be one turn stale around server state changes (e.g. the
+ * turn where the server just died still primes from the last good
+ * profile). That's fine — the profile holds durable user facts, not
+ * availability state — and the alternative is blocking every turn on HTTP.
  */
 export function createProfileCache(client: Pick<MemoryClient, "profile">, firstLoadWaitMs = 1_500) {
   let cached: MemoryProfile | null = null;
