@@ -14,7 +14,7 @@
 
 import { isRecord } from "@/shared/ipc";
 
-const DEFAULT_BASE_URL = "http://localhost:6767";
+export const DEFAULT_MEMORY_BASE_URL = "http://localhost:6767";
 const REQUEST_TIMEOUT_MS = 15_000;
 
 /** All inteligir memories live under one container tag so a future hosted
@@ -31,7 +31,7 @@ export type MemoryClientConfig = {
 export function resolveMemoryConfig(env: NodeJS.ProcessEnv = process.env): MemoryClientConfig {
   const apiKey = env["SUPERMEMORY_API_KEY"];
   return {
-    baseUrl: (env["SUPERMEMORY_BASE_URL"] ?? DEFAULT_BASE_URL).replace(/\/+$/, ""),
+    baseUrl: (env["SUPERMEMORY_BASE_URL"] ?? DEFAULT_MEMORY_BASE_URL).replace(/\/+$/, ""),
     ...(apiKey !== undefined ? { apiKey } : {}),
   };
 }
@@ -39,7 +39,10 @@ export function resolveMemoryConfig(env: NodeJS.ProcessEnv = process.env): Memor
 /** The server isn't reachable (not installed / not running). Callers turn
  *  this into guidance rather than a stack trace. */
 export class MemoryUnavailableError extends Error {
-  constructor(baseUrl: string, cause: unknown) {
+  constructor(
+    readonly baseUrl: string,
+    cause: unknown,
+  ) {
     super(`supermemory server not reachable at ${baseUrl}`, { cause });
     this.name = "MemoryUnavailableError";
   }
@@ -105,8 +108,14 @@ export class MemoryClient {
       containerTag: MEMORY_CONTAINER_TAG,
       ...(metadata ? { metadata } : {}),
     });
+    const id = asString(raw["id"]);
+    if (id === undefined) {
+      // A 2xx without a document id means the write can't be confirmed —
+      // fail loudly instead of fabricating a success the agent would relay.
+      throw new Error("supermemory POST /v3/documents returned no document id");
+    }
     return {
-      id: asString(raw["id"]) ?? "(unknown)",
+      id,
       status: asString(raw["status"]) ?? "queued",
     };
   }

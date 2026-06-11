@@ -60,6 +60,19 @@ describe("memory tool execute", () => {
     expect(textOf(result)).toContain("[0.50] tea > coffee (c1)");
   });
 
+  it("clamps malformed limits before they reach the server", async () => {
+    search.mockResolvedValue({ results: [], total: 0 });
+    await memoryTool.execute("t1", { action: "search", query: "x", limit: 1e9 });
+    expect(search).toHaveBeenLastCalledWith("x", 100);
+    await memoryTool.execute("t1", { action: "search", query: "x", limit: -3 });
+    expect(search).toHaveBeenLastCalledWith("x", 1);
+    await memoryTool.execute("t1", { action: "search", query: "x", limit: 2.9 });
+    expect(search).toHaveBeenLastCalledWith("x", 2);
+    list.mockResolvedValue([]);
+    await memoryTool.execute("t1", { action: "list", limit: Number.NaN });
+    expect(list).toHaveBeenLastCalledWith(20);
+  });
+
   it("search with no hits says so", async () => {
     search.mockResolvedValue({ results: [], total: 0 });
     const result = await memoryTool.execute("t1", { action: "search", query: "nothing" });
@@ -98,6 +111,15 @@ describe("memory tool execute", () => {
     const result = await memoryTool.execute("t1", { action: "search", query: "x" });
     expect(textOf(result)).toContain("npx supermemory local");
     expect(textOf(result)).toContain("Continue without memory");
+  });
+
+  it("a custom-configured server gets check-the-URL guidance, not local setup", async () => {
+    search.mockRejectedValue(
+      new MemoryUnavailableError("http://10.0.0.5:6767", new TypeError("fetch failed")),
+    );
+    const result = await memoryTool.execute("t1", { action: "search", query: "x" });
+    expect(textOf(result)).toContain("SUPERMEMORY_BASE_URL");
+    expect(textOf(result)).not.toContain("npx supermemory local");
   });
 
   it("other server errors are reported as tool errors", async () => {
@@ -177,6 +199,14 @@ describe("MemoryClient error classification", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("add fails loudly when the server confirms no document id", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.resolve(new Response("{}", { status: 200 }))),
+    );
+    await expect(client.add("fact")).rejects.toThrow(/no document id/);
   });
 
   it("connection failure becomes MemoryUnavailableError", async () => {

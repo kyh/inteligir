@@ -25,6 +25,7 @@ import type { PiExtensionBundle } from "@/agent/extension";
 import { textResult } from "@/agent/extension-helpers";
 import { toErrorMessage } from "@/shared/ipc";
 import {
+  DEFAULT_MEMORY_BASE_URL,
   MemoryClient,
   MemoryUnavailableError,
   resolveMemoryConfig,
@@ -52,7 +53,9 @@ const memorySchema = Type.Object({
   query: Type.Optional(
     Type.String({ description: "Natural-language search query (required for search)" }),
   ),
-  limit: Type.Optional(Type.Number({ description: "Max results for search/list (default 10/20)" })),
+  limit: Type.Optional(
+    Type.Number({ description: "Max results for search/list (default 10/20, clamped to 1-100)" }),
+  ),
   memoryId: Type.Optional(
     Type.String({ description: "Memory id to forget (forget needs this or 'content')" }),
   ),
@@ -61,7 +64,20 @@ const memorySchema = Type.Object({
 
 type MemoryParams = Static<typeof memorySchema>;
 
+/** Providers can hand back any number — clamp to something the server
+ *  accepts instead of forwarding a 4xx-bound or expensive value. */
+function clampLimit(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.min(100, Math.max(1, Math.trunc(value)));
+}
+
 function unavailableGuidance(err: MemoryUnavailableError): string {
+  if (err.baseUrl !== DEFAULT_MEMORY_BASE_URL) {
+    return (
+      `${err.message}. That server was configured via SUPERMEMORY_BASE_URL — the user ` +
+      "should check that it's running and the URL is right. Continue without memory for now."
+    );
+  }
   return (
     `${err.message}. Long-term memory is unavailable until the local supermemory ` +
     "server is running. The user can set it up with `npx supermemory local` " +
@@ -110,7 +126,7 @@ export function buildMemoryTool(client: MemoryToolClient) {
           }
           case "search": {
             if (!params.query) return textResult("Error: 'query' is required for action 'search'.");
-            const found = await client.search(params.query, params.limit ?? 10);
+            const found = await client.search(params.query, clampLimit(params.limit, 10));
             if (found.results.length === 0) {
               return textResult(`No memories matched "${params.query}".`);
             }
@@ -126,7 +142,7 @@ export function buildMemoryTool(client: MemoryToolClient) {
             return textResult(text || "No profile yet — nothing has been remembered.");
           }
           case "list": {
-            const listed = await client.list(params.limit ?? 20);
+            const listed = await client.list(clampLimit(params.limit, 20));
             if (listed.length === 0) return textResult("No memories stored yet.");
             const lines = listed.map((doc) => {
               const label = doc.title ?? doc.summary ?? "(untitled)";
