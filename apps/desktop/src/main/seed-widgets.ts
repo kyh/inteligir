@@ -278,7 +278,11 @@ const UP_NEXT_WIDGET: SeedDef = {
         action: "callTool",
         skipIf: "/events",
         params: {
-          tool: "google_calendar.events.list",
+          // Connection-scoped executor v1.5 address: <integration>.<owner>.
+          // <connection>.<discovery method id>. The connectors flow binds
+          // Google credentials under owner "user", connection "default"
+          // (connector-install.ts DEFAULT_CONNECTION_NAME).
+          tool: "google_calendar.user.default.calendar.events.list",
           input: {
             calendarId: "primary",
             timeMin: { $state: "/timeMin" },
@@ -347,7 +351,9 @@ const PEOPLE_WIDGET: SeedDef = {
         action: "callTool",
         skipIf: "/contacts",
         params: {
-          tool: "google_contacts.people.connections.list",
+          // See UP_NEXT for the address shape. The Discovery method id for the
+          // People API is "people.people.connections.list" (api-name prefix).
+          tool: "google_contacts.user.default.people.people.connections.list",
           input: {
             resourceName: "people/me",
             personFields: "names,photos,emailAddresses",

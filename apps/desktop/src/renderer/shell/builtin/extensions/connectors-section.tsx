@@ -13,28 +13,21 @@ import {
 } from "@/renderer/shell/builtin/extensions/connector-catalog";
 import { ConnectorCard } from "@/renderer/shell/builtin/extensions/connector-card";
 import {
-  apiKeySecretId,
   catalogInstallRequest,
+  GOOGLE_AUTHORIZATION_URL,
+  GOOGLE_OAUTH_CLIENT_SLUG,
+  GOOGLE_TOKEN_URL,
   installConnector,
   uninstallConnector,
 } from "@/renderer/shell/builtin/extensions/connector-install";
+import { GoogleClientDialog } from "@/renderer/shell/builtin/extensions/google-client-dialog";
 import {
   errorMessage,
   useBridgeResource,
   type SectionProps,
 } from "@/renderer/shell/builtin/extensions/lib";
 import { SecretPromptDialog } from "@/renderer/shell/builtin/extensions/secret-prompt-dialog";
-import type { ExecutorSource } from "@/shared/executor";
-
-/**
- * Whether an installed executor source is this catalog connector. We register
- * every connector with `namespace: connector.id`, so we match on the namespace
- * the daemon reports — falling back to the source id, which older daemons set to
- * the namespace. Either way it's a single, unambiguous match (no name/URL guess).
- */
-function sourceMatches(source: ExecutorSource, connector: CatalogConnector): boolean {
-  return (source.namespace ?? source.id) === connector.id;
-}
+import type { ExecutorIntegration } from "@/shared/executor";
 
 /** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
 function setMembership(
@@ -50,15 +43,27 @@ function setMembership(
   });
 }
 
-export function ConnectorsSection({ onError }: SectionProps) {
+type ConnectorsSectionProps = SectionProps & {
+  /**
+   * Show the developer-only escape hatch (the "Add custom connector" button +
+   * dialog). The installed custom-integrations list stays visible regardless —
+   * users must always be able to see and remove what's connected, including
+   * anything the agent installed.
+   */
+  showAdvanced: boolean;
+};
+
+export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionProps) {
   const {
-    data: sources,
-    error: sourcesError,
-    refresh: refreshSources,
-  } = useBridgeResource((b) => b.listExecutorSources(), onError);
-  // We don't render connections directly — uninstall queries them live — but
-  // refreshing keeps the daemon's view current after connect/disconnect.
-  const { refresh: refreshConnections } = useBridgeResource(
+    data: integrations,
+    error: integrationsError,
+    refresh: refreshIntegrations,
+  } = useBridgeResource((b) => b.listExecutorIntegrations(), onError);
+  // Connections decide "connected": an integration with zero connections has
+  // no usable credential (and no addressable tools), so it must render as
+  // not-connected — installed-but-unauthenticated is exactly the lie the old
+  // sources model told for Google.
+  const { data: connections, refresh: refreshConnections } = useBridgeResource(
     (b) => b.listExecutorConnections(),
     onError,
   );
@@ -69,24 +74,39 @@ export function ConnectorsSection({ onError }: SectionProps) {
   const [apiKeyBusy, setApiKeyBusy] = useState(false);
   // Shown inside the secret dialog — the panel-level error sits behind its overlay.
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  // Google OAuth-app registration dialog (first Google connect only).
+  const [googleTarget, setGoogleTarget] = useState<CatalogConnector | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
+  const [googleRedirectUri, setGoogleRedirectUri] = useState<string | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
 
   const statusFor = useCallback(
     (connector: CatalogConnector) => {
       if (connecting.has(connector.id)) return "connecting" as const;
       if (disconnecting.has(connector.id)) return "disconnecting" as const;
-      const installed = (sources ?? []).some((s) => sourceMatches(s, connector));
-      return installed ? ("connected" as const) : ("idle" as const);
+      const installed = (integrations ?? []).some((i) => i.slug === connector.id);
+      const credentialed = (connections ?? []).some((c) => c.integration === connector.id);
+      // "Connected" only when a live connection (credential) exists — a bare
+      // integration (e.g. consent never finished, or a migrated v1 orphan)
+      // shows Connect so the user can finish the real auth flow.
+      return installed && credentialed ? ("connected" as const) : ("idle" as const);
     },
-    [connecting, disconnecting, sources],
+    [connecting, disconnecting, integrations, connections],
   );
 
-  // Sources and connections are independent; reconcile both at once. Awaited by
-  // the handlers so a card reads its updated status before the busy flag clears
-  // (otherwise it flickers between states for a frame).
+  const identityFor = useCallback(
+    (connector: CatalogConnector) =>
+      (connections ?? []).find((c) => c.integration === connector.id)?.identityLabel ?? null,
+    [connections],
+  );
+
+  // Integrations and connections are independent; reconcile both at once.
+  // Awaited by the handlers so a card reads its updated status before the busy
+  // flag clears (otherwise it flickers between states for a frame).
   const refreshAll = useCallback(async () => {
-    await Promise.all([refreshSources(), refreshConnections()]);
-  }, [refreshSources, refreshConnections]);
+    await Promise.all([refreshIntegrations(), refreshConnections()]);
+  }, [refreshIntegrations, refreshConnections]);
 
   const handleConnect = useCallback(
     async (connector: CatalogConnector) => {
@@ -106,6 +126,19 @@ export function ConnectorsSection({ onError }: SectionProps) {
       setMembership(setConnecting, connector.id, true);
       onError(null);
       try {
+        if (connector.install.type === "google") {
+          // Google needs a registered OAuth client before consent can start.
+          // Missing → collect the user's GCP app via the dialog, which calls
+          // handleGoogleClientSubmit to register it and continue the install.
+          const clients = await bridge.listExecutorOAuthClients();
+          if (!clients.some((c) => c.slug === GOOGLE_OAUTH_CLIENT_SLUG)) {
+            const status = await bridge.executorStatus();
+            setGoogleRedirectUri(status.running ? status.redirectUri : null);
+            setGoogleError(null);
+            setGoogleTarget(connector);
+            return;
+          }
+        }
         await installConnector(bridge, catalogInstallRequest(connector));
         await refreshAll();
       } catch (err) {
@@ -138,6 +171,38 @@ export function ConnectorsSection({ onError }: SectionProps) {
     [apiKeyTarget, onError, refreshAll],
   );
 
+  const handleGoogleClientSubmit = useCallback(
+    async (clientId: string, clientSecret: string) => {
+      const connector = googleTarget;
+      const bridge = getBridge();
+      if (!connector || !bridge) return;
+      setGoogleBusy(true);
+      setGoogleError(null);
+      setMembership(setConnecting, connector.id, true);
+      try {
+        await bridge.createExecutorOAuthClient({
+          owner: "user",
+          slug: GOOGLE_OAUTH_CLIENT_SLUG,
+          authorizationUrl: GOOGLE_AUTHORIZATION_URL,
+          tokenUrl: GOOGLE_TOKEN_URL,
+          grant: "authorization_code",
+          clientId,
+          clientSecret,
+        });
+        await installConnector(bridge, catalogInstallRequest(connector));
+        await refreshAll();
+        onError(null);
+        setGoogleTarget(null);
+      } catch (err) {
+        setGoogleError(errorMessage(err, `Couldn't connect ${connector.name}.`));
+      } finally {
+        setGoogleBusy(false);
+        setMembership(setConnecting, connector.id, false);
+      }
+    },
+    [googleTarget, onError, refreshAll],
+  );
+
   const handleDisconnect = useCallback(
     async (connector: CatalogConnector) => {
       const bridge = getBridge();
@@ -145,40 +210,26 @@ export function ConnectorsSection({ onError }: SectionProps) {
       setMembership(setDisconnecting, connector.id, true);
       onError(null);
       try {
-        const source = (sources ?? []).find((s) => sourceMatches(s, connector));
-        const secretId =
-          connector.install.type === "mcp" && connector.install.auth.kind === "apiKey"
-            ? apiKeySecretId(connector.id)
-            : undefined;
-        await uninstallConnector(bridge, {
-          sourceId: source?.id,
-          namespace: connector.id,
-          secretId,
-        });
+        await uninstallConnector(bridge, { slug: connector.id });
       } catch (err) {
         onError(errorMessage(err, `Couldn't disconnect ${connector.name}.`));
       } finally {
         // Always reconcile with server state — a partial failure (e.g. the
-        // source was removed but a later step threw) must not leave a stale
-        // "Connected" card.
+        // integration was removed but a later step threw) must not leave a
+        // stale "Connected" card.
         await refreshAll();
         setMembership(setDisconnecting, connector.id, false);
       }
     },
-    [onError, sources, refreshAll],
+    [onError, refreshAll],
   );
 
   const handleRemoveCustom = useCallback(
-    async (source: ExecutorSource) => {
+    async (integration: ExecutorIntegration) => {
       const bridge = getBridge();
       if (!bridge) return;
       try {
-        // Use the source's own namespace (not its id) to find the OAuth
-        // connection the custom dialog may have created.
-        await uninstallConnector(bridge, {
-          sourceId: source.id,
-          namespace: source.namespace ?? source.id,
-        });
+        await uninstallConnector(bridge, { slug: integration.slug });
       } catch (err) {
         onError(errorMessage(err, "Failed to remove connector."));
       } finally {
@@ -188,14 +239,14 @@ export function ConnectorsSection({ onError }: SectionProps) {
     [onError, refreshAll],
   );
 
-  // Installed sources that aren't part of the catalog — surfaced so users can
-  // see and remove anything added via the custom escape hatch (or the agent).
-  const customSources = useMemo(() => {
-    return (sources ?? []).filter((s) => {
-      if (s.canRemove === false || s.runtime) return false;
-      return !CONNECTOR_CATALOG.some((c) => sourceMatches(s, c));
+  // Installed integrations that aren't part of the catalog — surfaced so users
+  // can see and remove anything added via the custom escape hatch (or the agent).
+  const customIntegrations = useMemo(() => {
+    return (integrations ?? []).filter((i) => {
+      if (!i.canRemove || i.kind === "built-in") return false;
+      return !CONNECTOR_CATALOG.some((c) => c.id === i.slug);
     });
-  }, [sources]);
+  }, [integrations]);
 
   const apiKeyLabel =
     apiKeyTarget?.install.type === "mcp" && apiKeyTarget.install.auth.kind === "apiKey"
@@ -206,17 +257,17 @@ export function ConnectorsSection({ onError }: SectionProps) {
     <div className="flex flex-col gap-2.5">
       <Label className="text-xs font-medium text-muted-foreground">Connectors</Label>
 
-      {/* Wait for the first sources load before showing the grid — otherwise
-          every card reads "idle" and a click could re-install an already-
-          connected connector before we know its real state. */}
-      {sources === null ? (
-        sourcesError ? (
+      {/* Wait for the first integrations+connections load before showing the
+          grid — otherwise every card reads "idle" and a click could re-install
+          an already-connected connector before we know its real state. */}
+      {integrations === null || connections === null ? (
+        integrationsError ? (
           <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
             <span>Couldn&apos;t load connectors.</span>
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => void refreshSources()}
+              onClick={() => void refreshAll()}
               className="h-auto px-2 py-0.5 text-[10px]"
             >
               Retry
@@ -238,8 +289,9 @@ export function ConnectorsSection({ onError }: SectionProps) {
                     key={connector.id}
                     connector={connector}
                     status={statusFor(connector)}
+                    identityLabel={identityFor(connector)}
                     canDisconnect={
-                      (sources ?? []).find((s) => sourceMatches(s, connector))?.canRemove !== false
+                      integrations.find((i) => i.slug === connector.id)?.canRemove !== false
                     }
                     onConnect={() => void handleConnect(connector)}
                     onDisconnect={() => void handleDisconnect(connector)}
@@ -251,26 +303,26 @@ export function ConnectorsSection({ onError }: SectionProps) {
         </div>
       )}
 
-      {customSources.length > 0 && (
+      {customIntegrations.length > 0 && (
         <div className="flex flex-col gap-1.5">
           <span className="text-[10px] font-medium text-muted-foreground">Custom</span>
-          {customSources.map((s) => (
+          {customIntegrations.map((i) => (
             <div
-              key={s.id}
+              key={i.slug}
               className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
             >
               <div className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate text-xs text-foreground">
-                  {s.name} <span className="text-muted-foreground">({s.kind})</span>
+                  {i.slug} <span className="text-muted-foreground">({i.kind})</span>
                 </span>
-                {s.url && (
-                  <span className="truncate text-[10px] text-muted-foreground">{s.url}</span>
+                {i.displayUrl && (
+                  <span className="truncate text-[10px] text-muted-foreground">{i.displayUrl}</span>
                 )}
               </div>
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => void handleRemoveCustom(s)}
+                onClick={() => void handleRemoveCustom(i)}
                 className="h-auto px-2 py-0.5 text-[10px] text-muted-foreground hover:text-destructive"
               >
                 Remove
@@ -280,21 +332,25 @@ export function ConnectorsSection({ onError }: SectionProps) {
         </div>
       )}
 
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => setCustomOpen(true)}
-        className="h-7 self-start text-[10px]"
-      >
-        <PlusIcon className="size-3" />
-        Add custom connector
-      </Button>
+      {showAdvanced && (
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCustomOpen(true)}
+            className="h-7 self-start text-[10px]"
+          >
+            <PlusIcon className="size-3" />
+            Add custom connector
+          </Button>
 
-      <AddCustomConnectorDialog
-        open={customOpen}
-        onOpenChange={setCustomOpen}
-        onAdded={refreshAll}
-      />
+          <AddCustomConnectorDialog
+            open={customOpen}
+            onOpenChange={setCustomOpen}
+            onAdded={refreshAll}
+          />
+        </>
+      )}
       <SecretPromptDialog
         connector={apiKeyTarget}
         label={apiKeyLabel}
@@ -302,6 +358,14 @@ export function ConnectorsSection({ onError }: SectionProps) {
         error={apiKeyError}
         onCancel={() => setApiKeyTarget(null)}
         onSubmit={(v) => void handleApiKeySubmit(v)}
+      />
+      <GoogleClientDialog
+        connector={googleTarget}
+        redirectUri={googleRedirectUri}
+        busy={googleBusy}
+        error={googleError}
+        onCancel={() => setGoogleTarget(null)}
+        onSubmit={(id, secret) => void handleGoogleClientSubmit(id, secret)}
       />
     </div>
   );

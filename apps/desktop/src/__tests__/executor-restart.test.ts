@@ -9,10 +9,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Connection = {
+  origin: string;
   baseUrl: string;
   token: string;
-  scopeId: string;
-  scope: { id: string; name: string; dir: string };
+  redirectUri: string;
 };
 
 const daemon = vi.hoisted(() => {
@@ -21,10 +21,10 @@ const daemon = vi.hoisted(() => {
     startBehavior: "restore",
   };
   const healthyConnection: Connection = {
+    origin: "http://127.0.0.1:1",
     baseUrl: "http://127.0.0.1:1/api",
     token: "t",
-    scopeId: "scope:test",
-    scope: { id: "scope:test", name: "test", dir: "/tmp" },
+    redirectUri: "http://127.0.0.1:1/api/oauth/callback",
   };
   return {
     state,

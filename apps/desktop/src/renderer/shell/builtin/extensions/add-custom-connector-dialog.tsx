@@ -14,7 +14,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { getBridge } from "@/renderer/lib/bridge";
 import {
   installConnector,
-  type SourceSpec,
+  type IntegrationSpec,
 } from "@/renderer/shell/builtin/extensions/connector-install";
 import {
   blockDismissWhileBusy,
@@ -71,10 +71,10 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
     }
     setError(null);
     try {
-      const results = await getBridge()?.detectExecutorSource(trimmed);
+      const results = await getBridge()?.detectExecutorIntegration(trimmed);
       const best = results?.[0];
       if (!best) {
-        setError("Couldn't detect a source type for that URL.");
+        setError("Couldn't detect a connector type for that URL.");
         return;
       }
       const map: Record<string, CustomKind> = {
@@ -110,27 +110,40 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
     setBusy(true);
     setError(null);
     try {
-      // Prefix so custom namespaces can't collide with a catalog connector's id,
+      // Prefix so custom slugs can't collide with a catalog connector's id,
       // and add a random suffix so two custom connectors that slug to the same
-      // name still get distinct sources.
-      const ns = `custom_${slug(trimmedName)}_${crypto.randomUUID().slice(0, 8)}`;
-      const source: SourceSpec =
+      // name still get distinct integrations.
+      const customSlug = `custom_${slug(trimmedName)}_${crypto.randomUUID().slice(0, 8)}`;
+      const source: IntegrationSpec =
         kind === "openapi"
           ? {
               type: "openapi",
               name: trimmedName,
-              namespace: ns,
+              slug: customSlug,
               specUrl: trimmedEndpoint,
               baseUrl: trimmedBase,
             }
           : kind === "graphql"
-            ? { type: "graphql", name: trimmedName, namespace: ns, endpoint: trimmedEndpoint }
+            ? { type: "graphql", name: trimmedName, slug: customSlug, endpoint: trimmedEndpoint }
             : kind === "google"
-              ? { type: "google", name: trimmedName, namespace: ns, discoveryUrl: trimmedEndpoint }
-              : { type: "mcp", name: trimmedName, namespace: ns, endpoint: trimmedEndpoint };
+              ? {
+                  type: "google",
+                  name: trimmedName,
+                  slug: customSlug,
+                  discoveryUrl: trimmedEndpoint,
+                }
+              : { type: "mcp", name: trimmedName, slug: customSlug, endpoint: trimmedEndpoint };
+      // Google discovery integrations always authenticate through the shared
+      // "google" OAuth client (register it by connecting any catalog Google
+      // connector first); everything else is OAuth-by-choice or open.
       await installConnector(bridge, {
         source,
-        auth: kind === "mcp" && oauth ? { kind: "oauth" } : { kind: "none" },
+        auth:
+          kind === "google"
+            ? { kind: "google" }
+            : kind === "mcp" && oauth
+              ? { kind: "oauth" }
+              : { kind: "none" },
         headers: parseHeaders(headersText),
       });
       reset();

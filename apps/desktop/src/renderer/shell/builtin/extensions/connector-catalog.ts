@@ -2,9 +2,9 @@
 // Curated catalog of preconfigured connectors surfaced in the Extensions panel.
 //
 // Each entry is metadata + an install recipe that the ConnectorsSection turns
-// into executor calls (addMcpSource / oauthStart / addGoogleSource). This is the
-// "app store" of connectors; the "Add custom" escape hatch covers anything not
-// listed here.
+// into executor calls (connector-install.ts: register the integration, then
+// mint its credentialed connection). This is the "app store" of connectors;
+// the "Add custom" escape hatch covers anything not listed here.
 //
 // Remote MCP endpoints are hosted by the respective vendors and can drift —
 // they're easy to edit, and the custom flow is the fallback when one is stale.
@@ -15,24 +15,27 @@ type ConnectorAuth =
   // OAuth via executor's dynamic client registration (the "connect → browser
   // → done" flow). Works for MCP servers that advertise DCR.
   | { kind: "oauth" }
-  // No auth — register the source directly.
+  // No credential — a `none`-template connection is still created so the
+  // integration's tools are addressable.
   | { kind: "none" }
-  // Needs a user-supplied secret (API key / token) passed as a header before
-  // the source is registered.
+  // Needs a user-supplied secret (API key / token) rendered as a header by
+  // the connection's credential.
   | { kind: "apiKey"; headerName: string; secretLabel: string; prefix?: string };
 
-/** Install recipe — what executor source we register and how it authenticates. */
+/** Install recipe — what executor integration we register and how it authenticates. */
 type ConnectorInstall =
   | { type: "mcp"; endpoint: string; auth: ConnectorAuth }
-  // Google Workspace services — registered as executor google-discovery sources
-  // from a Google API discovery doc. Executor handles the OAuth consent lazily
-  // in code mode (the agent's execute call pauses, then resume completes it).
+  // Google Workspace services — registered as an openapi googleDiscoveryBundle
+  // integration from the service's Discovery doc. The OAuth consent runs in
+  // the browser at connect time, against the user's own GCP OAuth client
+  // (collected once, shared by every Google connector).
   | { type: "google"; discoveryUrl: string };
 
 export type ConnectorCategory = "Development" | "Productivity" | "Support" | "Payments" | "AI";
 
 export type CatalogConnector = {
-  /** Stable slug — used as the executor namespace and to derive connection ids. */
+  /** Stable slug — used as the executor integration slug (the first segment of
+   * every tool address, baked into the seed dashboard widgets). */
   id: string;
   name: string;
   description: string;

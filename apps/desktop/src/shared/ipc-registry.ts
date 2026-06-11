@@ -14,19 +14,24 @@ import type { PiAgentSkill } from "@repo/pi-driver/skills";
 import type { AppAgentEvent } from "./agent-events";
 import { AppEventSchema, type AppState } from "./app-state";
 import {
-  AddGoogleSourceInputSchema,
-  AddGraphqlSourceInputSchema,
-  AddMcpSourceInputSchema,
-  AddOpenApiSourceInputSchema,
-  ExecutorConnectionRefSchema,
+  AddGraphqlInputSchema,
+  AddMcpInputSchema,
+  AddOpenApiInputSchema,
+  ConnectionKeyInputSchema,
+  CreateConnectionInputSchema,
+  CreateOAuthClientInputSchema,
+  ExecutorConnectionSchema,
   ExecutorDetectResultSchema,
-  ExecutorSecretRefSchema,
-  ExecutorSourceSchema,
+  ExecutorIntegrationSchema,
+  ExecutorOAuthClientSchema,
   OAuthAwaitResultSchema,
+  OAuthProbeResultSchema,
   OAuthStartInputSchema,
   OAuthStartResultSchema,
-  SetSecretInputSchema,
-  type ExecutorAddSourceResult,
+  RegisterDynamicOAuthClientInputSchema,
+  type AddGraphqlResult,
+  type AddMcpResult,
+  type AddOpenApiResult,
 } from "./executor";
 import {
   FloatRectSchema,
@@ -99,7 +104,9 @@ export type ChatHistoryEntry = {
 
 export type ExecutorStatus =
   | { running: false }
-  | { running: true; scope: { id: string; name: string; dir: string } };
+  // redirectUri is the daemon's browser-facing OAuth callback — surfaced so
+  // the Google client dialog can show the exact URI to whitelist in GCP.
+  | { running: true; redirectUri: string };
 
 export type NotificationSettings = {
   enabled: boolean;
@@ -404,52 +411,57 @@ export const IPC = {
     WidgetOpenUrlSchema,
   ),
 
-  // Executor
+  // Executor (v1.5 model: integrations = catalog, connections = credentials).
+  // The v1 sources/secrets channels are gone — secrets are now connection
+  // credential values; Google goes through add-openapi (googleDiscoveryBundle).
   executorStatus: invokeVoid<ExecutorStatus>("executor:status"),
-  listExecutorSources: invokeVoid<Static<typeof ExecutorSourceSchema>[]>("executor:sources:list"),
-  detectExecutorSource: invoke<
+  listExecutorIntegrations: invokeVoid<Static<typeof ExecutorIntegrationSchema>[]>(
+    "executor:integrations:list",
+  ),
+  detectExecutorIntegration: invoke<
     ReturnType<typeof Type.String>,
     Static<typeof ExecutorDetectResultSchema>[]
-  >("executor:sources:detect", Type.String()),
-  addMcpSource: invoke<typeof AddMcpSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-mcp",
-    AddMcpSourceInputSchema,
+  >("executor:integrations:detect", Type.String()),
+  addMcpIntegration: invoke<typeof AddMcpInputSchema, AddMcpResult>(
+    "executor:integration:add-mcp",
+    AddMcpInputSchema,
   ),
-  addOpenApiSource: invoke<typeof AddOpenApiSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-openapi",
-    AddOpenApiSourceInputSchema,
+  addOpenApiIntegration: invoke<typeof AddOpenApiInputSchema, AddOpenApiResult>(
+    "executor:integration:add-openapi",
+    AddOpenApiInputSchema,
   ),
-  addGraphqlSource: invoke<typeof AddGraphqlSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-graphql",
-    AddGraphqlSourceInputSchema,
+  addGraphqlIntegration: invoke<typeof AddGraphqlInputSchema, AddGraphqlResult>(
+    "executor:integration:add-graphql",
+    AddGraphqlInputSchema,
   ),
-  addGoogleSource: invoke<typeof AddGoogleSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-google",
-    AddGoogleSourceInputSchema,
-  ),
-  removeExecutorSource: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
-    "executor:source:remove",
+  removeExecutorIntegration: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
+    "executor:integration:remove",
     Type.String(),
   ),
-  refreshExecutorSource: invoke<ReturnType<typeof Type.String>, { refreshed: boolean }>(
-    "executor:source:refresh",
-    Type.String(),
-  ),
-  listExecutorSecrets:
-    invokeVoid<Static<typeof ExecutorSecretRefSchema>[]>("executor:secrets:list"),
-  setExecutorSecret: invoke<typeof SetSecretInputSchema, Static<typeof ExecutorSecretRefSchema>>(
-    "executor:secret:set",
-    SetSecretInputSchema,
-  ),
-  removeExecutorSecret: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
-    "executor:secret:remove",
-    Type.String(),
-  ),
-  listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionRefSchema>[]>(
+  listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionSchema>[]>(
     "executor:connections:list",
   ),
-  removeExecutorConnection: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
+  createExecutorConnection: invoke<
+    typeof CreateConnectionInputSchema,
+    Static<typeof ExecutorConnectionSchema>
+  >("executor:connection:create", CreateConnectionInputSchema),
+  removeExecutorConnection: invoke<typeof ConnectionKeyInputSchema, { removed: boolean }>(
     "executor:connection:remove",
+    ConnectionKeyInputSchema,
+  ),
+  listExecutorOAuthClients: invokeVoid<Static<typeof ExecutorOAuthClientSchema>[]>(
+    "executor:oauth:clients:list",
+  ),
+  createExecutorOAuthClient: invoke<typeof CreateOAuthClientInputSchema, { client: string }>(
+    "executor:oauth:client:create",
+    CreateOAuthClientInputSchema,
+  ),
+  registerExecutorOAuthClientDynamic: invoke<
+    typeof RegisterDynamicOAuthClientInputSchema,
+    { client: string }
+  >("executor:oauth:client:register-dynamic", RegisterDynamicOAuthClientInputSchema),
+  executorOAuthProbe: invoke<ReturnType<typeof Type.String>, Static<typeof OAuthProbeResultSchema>>(
+    "executor:oauth:probe",
     Type.String(),
   ),
   executorOAuthStart: invoke<typeof OAuthStartInputSchema, Static<typeof OAuthStartResultSchema>>(

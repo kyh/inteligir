@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import type { OAuthStartInput } from "@/shared/executor";
 import type { DesktopBridge } from "@/shared/ipc";
 
 export function errorMessage(err: unknown, fallback: string): string {
@@ -16,11 +17,6 @@ export function slug(name: string): string {
       .replace(/[^a-z0-9]+/g, "_")
       .replace(/^_+|_+$/g, "") || "source"
   );
-}
-
-/** The executor connection id we use for a namespace's OAuth connection. */
-export function oauthConnectionId(namespace: string): string {
-  return `mcp-oauth2-${namespace}`;
 }
 
 /**
@@ -42,24 +38,21 @@ const OAUTH_POLL_MS = 1500;
 const OAUTH_TIMEOUT_MS = 5 * 60_000;
 
 /**
- * Run executor's dynamic-DCR OAuth flow against an endpoint: start the session,
- * open the authorization URL in the browser, then poll until the callback
- * fires. Resolves once connected; throws on failure or timeout.
+ * Run an executor OAuth flow to mint a connection: start the session with a
+ * registered client, open the authorization URL in the system browser, then
+ * poll the one-shot await endpoint (keyed by the OAuth `state`) until the
+ * callback fires. Resolves once connected; throws on failure or timeout.
  */
-export async function runOAuthFlow(
-  bridge: DesktopBridge,
-  endpoint: string,
-  connectionId: string,
-): Promise<void> {
-  const start = await bridge.executorOAuthStart({ endpoint, pluginId: "mcp", connectionId });
-  if (start.completedConnection) return;
-  if (!start.authorizationUrl) throw new Error("No authorization URL returned.");
+export async function runOAuthFlow(bridge: DesktopBridge, input: OAuthStartInput): Promise<void> {
+  const start = await bridge.executorOAuthStart(input);
+  // Inline completion (client_credentials grants) — nothing to wait for.
+  if (start.status === "connected") return;
   await bridge.executorOpenExternal(start.authorizationUrl);
   const deadline = Date.now() + OAUTH_TIMEOUT_MS;
   for (;;) {
     if (Date.now() > deadline) throw new Error("OAuth timed out.");
     await new Promise((r) => setTimeout(r, OAUTH_POLL_MS));
-    const result = await bridge.executorOAuthAwait(start.sessionId);
+    const result = await bridge.executorOAuthAwait(start.state);
     if (!result) continue;
     if (!result.ok) throw new Error(`OAuth failed: ${result.error}`);
     return;
