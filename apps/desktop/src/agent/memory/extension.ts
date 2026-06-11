@@ -178,7 +178,9 @@ export function createProfileCache(client: Pick<MemoryClient, "profile">, firstL
       try {
         cached = await client.profile();
       } catch {
-        // Server down or not set up — recall priming just stays silent.
+        // Server down or not set up — drop any previous snapshot so priming
+        // goes silent, consistent with the tool reporting unavailability.
+        cached = null;
       } finally {
         inflight = null;
       }

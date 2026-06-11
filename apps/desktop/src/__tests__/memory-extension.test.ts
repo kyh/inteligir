@@ -121,6 +121,20 @@ describe("createProfileCache", () => {
     expect(profile).toHaveBeenCalledTimes(2);
   });
 
+  it("drops the cached profile when the server goes down", async () => {
+    profile.mockResolvedValue({ static: ["a"], dynamic: [] });
+    const cache = createProfileCache({ profile });
+    expect(await cache.get()).toEqual({ static: ["a"], dynamic: [] });
+
+    // Server goes away — the next settled refresh must clear the snapshot
+    // so priming goes silent instead of replaying stale facts.
+    profile.mockRejectedValue(
+      new MemoryUnavailableError("http://localhost:6767", new TypeError("fetch failed")),
+    );
+    await cache.refresh();
+    expect(await cache.get()).toBeNull();
+  });
+
   it("returns null without throwing when the server is down", async () => {
     profile.mockRejectedValue(
       new MemoryUnavailableError("http://localhost:6767", new TypeError("fetch failed")),
