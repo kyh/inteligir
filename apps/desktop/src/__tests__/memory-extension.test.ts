@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildMemoryTool,
@@ -6,7 +6,7 @@ import {
   type MemoryToolClient,
 } from "@/agent/memory/extension";
 import { validateToolParametersSchema } from "@/agent/extension";
-import { MemoryUnavailableError, resolveMemoryConfig } from "@/agent/memory/client";
+import { MemoryClient, MemoryUnavailableError, resolveMemoryConfig } from "@/agent/memory/client";
 
 // The tool receives the client as a method surface (MemoryToolClient), so the
 // test injects fakes directly instead of intercepting fetch.
@@ -169,6 +169,38 @@ describe("createProfileCache", () => {
     const second = Date.now();
     expect(await cache.get()).toBeNull();
     expect(Date.now() - second).toBeLessThan(400);
+  });
+});
+
+describe("MemoryClient error classification", () => {
+  const client = new MemoryClient({ baseUrl: "http://localhost:6767" });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("connection failure becomes MemoryUnavailableError", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new TypeError("fetch failed"))),
+    );
+    await expect(client.profile()).rejects.toBeInstanceOf(MemoryUnavailableError);
+  });
+
+  it("timeout from a reachable-but-slow server is a plain error, not unavailability", async () => {
+    const timeout = new Error("The operation was aborted due to timeout");
+    timeout.name = "TimeoutError";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(timeout)),
+    );
+    const err: unknown = await client.profile().then(
+      () => null,
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(MemoryUnavailableError);
+    if (err instanceof Error) expect(err.message).toMatch(/timed out after/);
   });
 });
 

@@ -194,9 +194,16 @@ export class MemoryClient {
         signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch (err) {
-      // fetch rejects with TypeError on connection refusal and DOMException
-      // on timeout — both mean "no usable server", which callers translate
-      // into setup guidance.
+      // Only connection failures (fetch rejects with TypeError) mean "no
+      // usable server" — callers translate those into setup guidance and
+      // cleared recall priming. A timeout from a reachable-but-slow server
+      // is a plain error: the last good profile stays cached and the tool
+      // reports the timeout instead of telling the user to install it.
+      if (err instanceof Error && err.name === "TimeoutError") {
+        throw new Error(`supermemory ${method} ${path} timed out after ${REQUEST_TIMEOUT_MS}ms`, {
+          cause: err,
+        });
+      }
       throw new MemoryUnavailableError(this.config.baseUrl, err);
     }
     if (!response.ok) {
