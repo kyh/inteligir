@@ -227,7 +227,7 @@ describe("ShellManager.installWidget", () => {
     fs.writeFileSync(
       legacyPath,
       JSON.stringify({
-        version: 2,
+        version: 3,
         customDefs: [
           {
             id: "legacy",
@@ -280,7 +280,7 @@ describe("ShellManager store versioning", () => {
   it("quarantines a runtime-ui.json written by a newer build instead of wiping it", () => {
     const newerPath = storePath.replace(".json", "-newer.json");
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const original = { version: 3, futureShape: true };
+    const original = { version: 4, futureShape: true };
     fs.writeFileSync(newerPath, JSON.stringify(original));
     try {
       const newer = new ShellManager(newerPath);
@@ -288,7 +288,7 @@ describe("ShellManager store versioning", () => {
       expect(newer.snapshot().instances.length).toBeGreaterThan(0);
       // Original moved aside under a name recording the file's version.
       expect(fs.existsSync(newerPath)).toBe(false);
-      const backups = backupsFor(newerPath, "newer-v3-");
+      const backups = backupsFor(newerPath, "newer-v4-");
       expect(backups).toHaveLength(1);
       const backup = must(backups[0], "missing backup");
       expect(JSON.parse(fs.readFileSync(backup, "utf8"))).toEqual(original);
@@ -317,6 +317,211 @@ describe("ShellManager store versioning", () => {
       errSpy.mockRestore();
       for (const f of backupsFor(legacyPath, "")) fs.rmSync(f, { force: true });
       fs.rmSync(legacyPath, { force: true });
+    }
+  });
+});
+
+function v2Def(id: string, spec: unknown) {
+  return {
+    id,
+    title: id,
+    revision: 1,
+    singleton: false,
+    defaultGeometry: { x: 0, y: 0, w: 4, h: 4 },
+    source: { kind: "json-ui", spec, createdAt: 0, updatedAt: 0 },
+  };
+}
+
+function v2File(customDefs: unknown[], extra: Record<string, unknown> = {}) {
+  return JSON.stringify({
+    version: 2,
+    customDefs,
+    instances: [],
+    archivedStates: {},
+    ...extra,
+  });
+}
+
+function specOf(manager: ShellManager, id: string) {
+  return source(must(manager.getDef(id), `missing def ${id}`)).spec;
+}
+
+function callToolAddress(action: unknown): unknown {
+  if (typeof action !== "object" || action === null || Array.isArray(action)) {
+    throw new Error("expected action object");
+  }
+  const params = Reflect.get(action, "params");
+  return typeof params === "object" && params !== null ? Reflect.get(params, "tool") : undefined;
+}
+
+describe("ShellManager v2→v3 migration (executor 1.4 → 1.5 tool readdressing)", () => {
+  it("rewrites v1 callTool addresses in onMount, on, and watch to connection-scoped paths", () => {
+    const v2Path = storePath.replace(".json", "-v2.json");
+    fs.writeFileSync(
+      v2Path,
+      v2File([
+        v2Def("up-next", {
+          root: "r",
+          elements: {
+            r: {
+              type: "Button",
+              props: { label: "Reload" },
+              on: {
+                press: [
+                  {
+                    action: "callTool",
+                    params: { tool: "google_contacts.people.connections.list", into: "/c" },
+                  },
+                  { action: "notify", params: { message: "done" } },
+                ],
+              },
+              watch: {
+                "/c": { action: "callTool", params: { tool: "github.search_issues", into: "/i" } },
+              },
+            },
+          },
+          onMount: [
+            {
+              action: "callTool",
+              skipIf: "/events",
+              params: { tool: "google_calendar.events.list", into: "/events" },
+            },
+          ],
+        }),
+      ]),
+    );
+    try {
+      const migrated = new ShellManager(v2Path);
+      const spec = specOf(migrated, "up-next");
+      // Google addresses regain the Discovery api-name prefix v1 dropped.
+      expect(callToolAddress(spec.onMount?.[0])).toBe(
+        "google_calendar.user.default.calendar.events.list",
+      );
+      expect(spec.onMount?.[0]?.skipIf).toBe("/events");
+      const press = spec.elements["r"]?.on?.["press"];
+      if (!Array.isArray(press)) throw new Error("expected action array");
+      expect(callToolAddress(press[0])).toBe(
+        "google_contacts.user.default.people.people.connections.list",
+      );
+      expect(press[1]).toMatchObject({ action: "notify" });
+      // Non-Google integrations get the default connection segments inserted.
+      expect(callToolAddress(spec.elements["r"]?.watch?.["/c"])).toBe(
+        "github.user.default.search_issues",
+      );
+      // The migrated shape is persisted eagerly at version 3.
+      const onDisk = fs.readFileSync(v2Path, "utf8");
+      expect(onDisk).toContain('"version": 3');
+      expect(onDisk).toContain("google_calendar.user.default.calendar.events.list");
+      expect(onDisk).not.toContain('"google_calendar.events.list"');
+    } finally {
+      fs.rmSync(v2Path, { force: true });
+    }
+  });
+
+  it("leaves addresses it cannot confidently rewrite untouched", () => {
+    const v2Path = storePath.replace(".json", "-v2-untouched.json");
+    fs.writeFileSync(
+      v2Path,
+      v2File([
+        v2Def("mixed", {
+          root: "r",
+          elements: { r: { type: "Text", props: { text: "hi" } } },
+          onMount: [
+            // Already connection-scoped (a fresh seed installed on 1.5).
+            {
+              action: "callTool",
+              params: { tool: "google_calendar.user.default.calendar.events.list", into: "/e" },
+            },
+            // Executor core tools are not connection-scoped in 1.5.
+            { action: "callTool", params: { tool: "describe.tool", into: "/d" } },
+            // Second segment collides with an owner name — ambiguous.
+            { action: "callTool", params: { tool: "slack.user.list", into: "/u" } },
+            // Dynamic tool value — state is data, not an address.
+            { action: "callTool", params: { tool: { $state: "/toolPath" }, into: "/x" } },
+            // `tool` on a non-callTool action is not an address.
+            { action: "notify", params: { tool: "google_calendar.events.list" } },
+          ],
+        }),
+      ]),
+    );
+    try {
+      const migrated = new ShellManager(v2Path);
+      const onMount = specOf(migrated, "mixed").onMount;
+      expect(callToolAddress(onMount?.[0])).toBe(
+        "google_calendar.user.default.calendar.events.list",
+      );
+      expect(callToolAddress(onMount?.[1])).toBe("describe.tool");
+      expect(callToolAddress(onMount?.[2])).toBe("slack.user.list");
+      expect(callToolAddress(onMount?.[3])).toEqual({ $state: "/toolPath" });
+      expect(onMount?.[4]).toEqual({
+        action: "notify",
+        params: { tool: "google_calendar.events.list" },
+      });
+    } finally {
+      fs.rmSync(v2Path, { force: true });
+    }
+  });
+
+  it("passes instance state and archivedStates through unchanged (data, not addresses)", () => {
+    const v2Path = storePath.replace(".json", "-v2-state.json");
+    fs.writeFileSync(
+      v2Path,
+      v2File([], {
+        instances: [
+          {
+            instanceId: "i1",
+            widgetId: "up-next",
+            placement: { surface: "pinned", geometry: { x: 0, y: 0, w: 4, h: 4 } },
+            // An address-looking string in live state must NOT be rewritten —
+            // there is no way to tell it apart from user data.
+            state: { lastTool: "google_calendar.events.list" },
+          },
+        ],
+        archivedStates: { people: { note: "google_contacts.people.connections.list" } },
+      }),
+    );
+    try {
+      const migrated = new ShellManager(v2Path);
+      expect(migrated.getInstance("i1")?.state).toEqual({
+        lastTool: "google_calendar.events.list",
+      });
+      const onDisk = fs.readFileSync(v2Path, "utf8");
+      expect(onDisk).toContain('"version": 3');
+      expect(onDisk).toContain('"note": "google_contacts.people.connections.list"');
+    } finally {
+      fs.rmSync(v2Path, { force: true });
+    }
+  });
+
+  it("is a one-shot upgrade: reopening the migrated file changes nothing", () => {
+    const v2Path = storePath.replace(".json", "-v2-reopen.json");
+    fs.writeFileSync(
+      v2Path,
+      v2File([
+        v2Def("up-next", {
+          root: "r",
+          elements: { r: { type: "Text", props: { text: "hi" } } },
+          onMount: [
+            { action: "callTool", params: { tool: "google_calendar.events.list", into: "/e" } },
+          ],
+        }),
+      ]),
+    );
+    try {
+      const first = new ShellManager(v2Path);
+      first.snapshot();
+      const afterFirst = fs.readFileSync(v2Path, "utf8");
+      const reopened = new ShellManager(v2Path);
+      // Same addresses (no double user.default insertion), same bytes — a v3
+      // file skips the migration chain entirely.
+      expect(callToolAddress(specOf(reopened, "up-next").onMount?.[0])).toBe(
+        "google_calendar.user.default.calendar.events.list",
+      );
+      expect(fs.readFileSync(v2Path, "utf8")).toBe(afterFirst);
+      expect(backupsFor(v2Path, "corrupt-")).toHaveLength(0);
+    } finally {
+      for (const f of backupsFor(v2Path, "")) fs.rmSync(f, { force: true });
+      fs.rmSync(v2Path, { force: true });
     }
   });
 });
@@ -367,7 +572,7 @@ describe("ShellManager.placeWidget", () => {
     fs.writeFileSync(
       tiedPath,
       JSON.stringify({
-        version: 2,
+        version: 3,
         customDefs: [],
         instances: [
           {

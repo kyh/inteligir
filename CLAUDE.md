@@ -85,9 +85,11 @@ the shell is one of several surfaces over that model.
 2. **Built-in React widgets** (`renderer/shell/builtin-widgets.tsx` → `BUILTIN_WIDGET_UI`)
    — chat, widgets, tasks, extensions, settings. `WidgetDef.source.kind === "builtin-react"`.
    Trusted, privileged access to IPC and integrations; ship with the binary.
-   The Extensions panel is the consolidated surface for tool providers (MCP/
-   OpenAPI/GraphQL/Google sources), OAuth connections, secrets, and the
-   read-only skills list. The Widgets panel manages custom JSON-UI defs.
+   The Extensions panel is the consolidated surface for connecting tools:
+   the connectors grid (Google etc., always visible and first), connections,
+   the read-only skills list, and Remote Access; a "Developer tools" toggle
+   gates the custom add-connector escape hatch and the bundled CLI binaries
+   list. The Widgets panel manages custom JSON-UI defs.
 3. **JSON-UI widgets** (`renderer/shell/widget-viewer.tsx` rendering a `WidgetSpec`)
    — agent-authored or user-added. `WidgetDef.source.kind === "json-ui"`. Constrained
    to a fixed catalog (`shared/widget-spec.ts`: 38 components, 12 actions). The only

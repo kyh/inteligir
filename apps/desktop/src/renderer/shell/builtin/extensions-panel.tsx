@@ -1,7 +1,8 @@
-// Built-in Extensions panel. Chief-of-Staff default shows the CLI integrations
-// + skills list (the surfaces that are meaningful to a non-power-user); the
-// developer surface (connector add/manage, raw secrets) lives behind a
-// "Developer tools" toggle persisted in ui-state.
+// Built-in Extensions panel. Connectors lead — they're the only place to
+// connect Google etc., so they're always visible and first. Skills and Remote
+// Access follow. The developer surface (custom add-connector escape hatch,
+// bundled CLI binaries) lives behind a "Developer tools" toggle persisted in
+// ui-state.
 
 import { useState } from "react";
 
@@ -32,10 +33,10 @@ export function ExtensionsPanel() {
   return (
     <div className="flex flex-col gap-4 p-3">
       {error && <div className="text-[10px] text-destructive">{error}</div>}
-      <IntegrationsSection />
+      <ExecutorSections onError={setError} showAdvanced={showDevTools} />
       <SkillsSection />
       <RemoteAccessSection onError={setError} />
-      {showDevTools && <ExecutorSections onError={setError} />}
+      {showDevTools && <IntegrationsSection />}
       <button
         type="button"
         onClick={() => setShowDevTools(!showDevTools)}

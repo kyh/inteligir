@@ -6,7 +6,7 @@ import { BUILTIN_DEFS, type Shell, type ShellSnapshot } from "@/shared/shell";
 // launchable from the dock when the user wants it, but the grid starts as a
 // pure dashboard surface.
 export const DEFAULT_SHELL: Shell = {
-  version: 2,
+  version: 3,
   customDefs: [...SEED_WIDGET_DEFS],
   instances: [...SEED_WIDGET_INSTANCES],
   archivedStates: {},

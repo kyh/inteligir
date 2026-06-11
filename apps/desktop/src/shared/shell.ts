@@ -268,7 +268,7 @@ export function isFloating(i: WidgetInstance): i is FloatingInstance {
 export function shellSchema<S extends TSchema>(specSchema: S) {
   return Type.Object(
     {
-      version: Type.Literal(2),
+      version: Type.Literal(3),
       customDefs: Type.Array(jsonUiWidgetDefSchema(specSchema)),
       instances: Type.Array(WidgetInstanceSchema),
       archivedStates: Type.Record(Type.String(), Type.Record(Type.String(), Type.Unknown())),

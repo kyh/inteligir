@@ -59,13 +59,18 @@ export function getAgentPorts(): AgentPorts {
 export async function seedAgentResources(onProgress: (p: SetupProgress) => void): Promise<void> {
   // Eager-start the executor daemon: spawning + reading the "ready on …"
   // banner is the longest single setup step (~10–20s warm), and it doesn't
-  // depend on bundle setups or the agent factory. start() caches its
-  // in-flight promise, so the later executor extension register() (which
+  // depend on bundle setups or the agent factory. The start is gated on
+  // installExecutor() so a first boot doesn't spawn before the binary
+  // download finishes (installExecutor shares its in-flight promise with the
+  // executor bundle's setup(), so this adds no second download; on warm
+  // boots it resolves after a version check). Only the spawn waits on the
+  // install — seedResources below still runs concurrently. start() caches
+  // its in-flight promise, so the later executor extension register() (which
   // already calls start() before returning its tools) just awaits the same
   // promise — the daemon spawn overlaps with bundle CLI version checks
   // instead of stacking after them.
-  void getExecutorDaemon()
-    .start()
+  void installExecutor()
+    .then(() => getExecutorDaemon().start())
     .catch((err: unknown) => {
       // Swallow here; the executor extension register() awaits start() too
       // and will surface a real failure with the right error path.

@@ -8,7 +8,7 @@ import { Value } from "@sinclair/typebox/value";
 import { broadcast } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import { DEFAULT_SHELL, defaultShellSnapshot, shellSnapshot } from "@/main/shell-defaults";
-import { ShellSchema } from "@/main/shell-schema";
+import { migrateShellV2ToV3, ShellSchema } from "@/main/shell-schema";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
 import { parseWidgetSpec } from "@/shared/widget-spec";
 import {
@@ -72,13 +72,20 @@ export class ShellManager {
         return { ...v, customDefs };
       },
       versioning: {
-        current: 2,
-        // runtime-ui.json has carried `version: 2` since the file was
-        // introduced (v1 lived at the now-retired shell.json path), so an
-        // unversioned file was never a legitimate state — treat it as
-        // corruption: backed up + surfaced, not silently wiped.
+        current: 3,
+        // runtime-ui.json was introduced at `version: 2` (v1 lived at the
+        // now-retired shell.json path), so an unversioned file was never a
+        // legitimate state — treat it as corruption: backed up + surfaced,
+        // not silently wiped.
         fromLegacy: () => {
           throw new Error("runtime-ui.json was never written without a version field");
+        },
+        migrations: {
+          // v2 → v3: executor 1.4 → 1.5 moved tool addressing to
+          // connection-scoped paths; rewrite every widget spec's callTool
+          // addresses so pre-existing dashboard panels (Up Next, People, …)
+          // resume loading data once the user reconnects.
+          2: migrateShellV2ToV3,
         },
       },
       // Hot path: widget state ticks, drags, and geometry changes each
