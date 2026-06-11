@@ -49,13 +49,12 @@ export type AgentHostConfig = {
   bundles: Lazy<PiExtensionBundle[]>;
   /** Context passed to each bundle's register(). */
   registerContext: Lazy<ExtensionRegisterContext>;
-  /** Start a fresh session instead of resuming the most recent one. */
-  newSession?: boolean;
   /**
-   * Resume a specific session file (overrides continueRecent). Falls back to
-   * the INTELIGIR_SESSION_FILE env var when unset.
+   * Start a fresh session instead of resuming the most recent one. When
+   * resuming, the INTELIGIR_SESSION_FILE env var (read at start()) can pin a
+   * specific session file instead of continueRecent.
    */
-  sessionFile?: string;
+  newSession?: boolean;
   /** Optional thinking level. Defaults to "off". */
   thinkingLevel?: "off" | "low" | "medium" | "high" | "xhigh";
 };
@@ -128,7 +127,7 @@ export class AgentHost {
   }
 
   private resolveSessionManager(): SessionManager {
-    const sessionFile = this.config.sessionFile ?? process.env["INTELIGIR_SESSION_FILE"];
+    const sessionFile = process.env["INTELIGIR_SESSION_FILE"];
     if (sessionFile) {
       try {
         return SessionManager.open(sessionFile, this.config.sessionDir);

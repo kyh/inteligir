@@ -60,29 +60,39 @@ The agent runs in the **Electron main process** via `@repo/pi-driver` wrapping
 | Path | Purpose |
 |---|---|
 | `~/.inteligir/` | pi `agentDir` — skills, `AGENTS.md`, agent state |
-| `~/.inteligir/sessions/` | persisted session transcripts |
+| `~/.inteligir/sessions/` | persisted session transcripts (user thread) |
+| `~/.inteligir/sessions/background/` | background task agent's sessions — kept out of the user thread's `continueRecent` pool |
 | `~/.inteligir/workspace/` | agent cwd (shell/file tools run here) |
 | `~/.inteligir/bin/` | installed CLIs, prepended to `PATH` |
 | `~/.inteligir/auth.json` | OpenAI OAuth credentials (pi `AuthStorage`) |
 | `~/.inteligir/executor/` | executor daemon binary, data, scope (secrets/OAuth) |
-| `~/.inteligir/runtime-ui.json` | widget defs + state |
+| `~/.inteligir/runtime-ui.json` | widget defs + state (`ShellManager`) |
+| `~/.inteligir/*.json`, `logs/`, `screenshots/` | app state stores — `dispatch-room.json`, `tasks.json`, `task-runs.json`, `daily-refresh.json`, `notifications.json`, `ui-state.json`, agent logs, screenshots |
+
+The sync strategy (Slice 6) must decide per-path: portable agent context
+(skills, sessions, workspace) syncs; desktop app state (widgets, notifications,
+dispatch room) stays local.
 
 ### The two indirections that make remote tractable
 
 1. **The executor is already a standalone daemon.**
    `apps/desktop/src/main/executor/executor-daemon.ts` spawns a separate binary
    bound to `127.0.0.1` on a random port, auth'd with a bearer-token UUID. The
-   agent's `execute` tool just does `fetch POST 127.0.0.1:{port}/api/scopes/{id}/executions`.
-   It owns the API catalog (MCP/OpenAPI/GraphQL/Google), the secrets/OAuth scope,
-   the code sandbox, and policies. **The client only cares about a base URL +
-   token** — already relocatable.
+   agent's `execute` tool just does `fetch POST 127.0.0.1:{port}/api/executions`
+   (catalog/secrets/connection endpoints are scope-prefixed, `/api/scopes/{id}/…`;
+   see `executor-client.ts`). It owns the API catalog (MCP/OpenAPI/GraphQL/
+   Google), the secrets/OAuth scope, the code sandbox, and policies. **The
+   client only cares about a base URL + token** — already relocatable.
 
 2. **The dispatch protocol decouples surface from host.**
    `@repo/dispatch` defines a typed envelope (`to_device` / `to_mobile`).
    `apps/desktop/src/main/app-machine.ts` emits normalized events through
    `sendDispatchResponse()`; `apps/server` (Cloudflare Worker, partyserver)
-   relays them to the room; mobile renders. The agent host ↔ surface boundary is
-   a wire protocol.
+   relays them to the room; mobile renders. The same worker also bridges **chat
+   platforms** (Slack/Telegram/WhatsApp/Discord webhooks → correlated
+   request/response against the registered desktop) — a third surface that
+   already treats the agent host as "whatever answers on the room". The agent
+   host ↔ surface boundary is a wire protocol.
 
 ### What's local-only today
 - The agent process (Electron main).
@@ -91,11 +101,17 @@ The agent runs in the **Electron main process** via `@repo/pi-driver` wrapping
 - Machine-bound extensions: `peekaboo` (macOS automation), `browser` (local
   browser), `ui` (desktop shell widgets).
 
-### Known gap: the relay is unauthenticated
-`apps/server/src/server.ts` is a zero-auth relay — first client to join a room
-owns it; a 6-char room code is the only credential. Fine for LAN-style pairing,
-**not** acceptable as the channel for a cloud agent holding model creds +
-secrets + arbitrary code execution. This is a hard prerequisite (see [§7](#7-security-model)).
+### Known gap: relay auth is partial
+`apps/server/src/server.ts` has grown beyond a dumb relay: it now also bridges
+**chat platforms** (Slack/Telegram/WhatsApp/Discord webhooks) to the desktop
+agent via a correlated request/response path, and that path is fail-closed
+behind `CHAT_RELAY_SECRET` — device registration and gateway POSTs both require
+the secret. But the **WebSocket room relay itself is still room-code-only**:
+any peer that knows the 6-char code joins the room and receives relayed
+traffic. Fine for LAN-style pairing, **not** acceptable as the channel for a
+cloud agent holding model creds + secrets + arbitrary code execution. Slice 0
+extends the existing secret mechanism to per-user identity + signed tokens for
+*all* room participants (see [§7](#7-security-model)).
 
 ---
 
@@ -106,9 +122,10 @@ or `cloud` (an ephemeral container). Both run the **same headless agent host**
 and both speak the **same dispatch protocol** to whatever surface is watching.
 
 ```
-            ┌─────────── surfaces ───────────┐
-            │  desktop renderer    mobile     │   (thin clients; render events,
-            └───────────▲────────────▲────────┘    send user input)
+            ┌──────────────── surfaces ───────────────┐
+            │  desktop renderer   mobile   chat (web   │  (thin clients; render
+            │                              gateway)    │   events, send input)
+            └───────────▲────────────▲─────────▲───────┘
                         │ dispatch   │
                 ┌───────┴────────────┴───────┐
                 │   dispatch relay (authed)   │   apps/server — now per-user
@@ -143,6 +160,9 @@ pnpm build`. Ordering reflects dependencies and risk.
 - Add per-user identity + signed, scoped tokens to `apps/server`. Replace the
   bare room-code trust model: a token authorizes a connection to a specific
   room/role and expires.
+- A start exists: the chat gateway path is already fail-closed behind
+  `CHAT_RELAY_SECRET` (device registration + gateway POSTs). Slice 0 generalizes
+  that from one shared secret to per-user tokens covering all WS participants.
 - Keep the existing pairing UX on top (room code → exchanged for a token).
 - **Delivers:** the relay can safely carry a cloud agent's traffic.
 - **Risk:** medium. Touches every dispatch client (`dispatch-client.ts`, mobile
@@ -150,7 +170,8 @@ pnpm build`. Ordering reflects dependencies and risk.
 
 ### Slice 1 — Headless agent host ✅ *(done — PR #338)*
 - New `@repo/agent-host` package, Electron-free:
-  - `paths.ts` — relocatable layout (`INTELIGIR_HOME` override) + provider/model defaults.
+  - `paths.ts` — relocatable layout (`INTELIGIR_HOME` override). Provider/model
+    selection is deliberately consumer config, injected via `AgentHostConfig`.
   - `extension.ts` — the extension-bundle framework (types, parallel setup
     runner, schema validation, factory wrapping), self-contained.
   - `agent.ts` — `AgentHost`, the parameterized lifecycle over `PiAgent`;
@@ -168,6 +189,10 @@ pnpm build`. Ordering reflects dependencies and risk.
   the package), runs empty-turn detection, and emits to an injected **sink**.
 - Desktop's sink = broadcast to renderer + `sendDispatchResponse` + notify +
   `machine.ingest`. Cloud's sink = dispatch only.
+- The **background task agent** (`main/tasks/background-agent.ts`) is the proof
+  case already in-tree: a second `Agent` that deliberately does *not* fan out to
+  renderer/notifications. Today it gets that by simply not subscribing; with the
+  extracted tracker it becomes "same tracker, log-only sink".
 - **Delivers:** the headless event-handling primitive the cloud host needs.
 - **Risk:** medium — behavior-sensitive (empty-turn UX). Preserve exactly;
   cover with tests.

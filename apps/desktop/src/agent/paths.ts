@@ -1,12 +1,13 @@
-// Shared filesystem paths the desktop agent uses. The layout + provider/model
-// defaults now live in @repo/agent-host/paths (Electron-free, relocatable via
-// INTELIGIR_HOME) so a headless runner can reuse the exact same structure.
-// This module binds the host paths to the desktop's home (~/.inteligir) and
-// keeps the existing constant names so other agent/* modules don't change.
+// Shared filesystem paths the desktop agent uses. The layout now lives in
+// @repo/agent-host/paths (Electron-free, relocatable via INTELIGIR_HOME) so a
+// headless runner can reuse the exact same structure. This module binds the
+// host paths to the desktop's home (~/.inteligir) and keeps the existing
+// constant names so other agent/* modules don't change. Provider/model
+// selection is desktop config, owned here and injected into AgentHost.
+
+import path from "node:path";
 
 import {
-  AUTH_PROVIDER as HOST_AUTH_PROVIDER,
-  MODEL_ID as HOST_MODEL_ID,
   configurePaths as configureHostPaths,
   resolveAgentPaths,
 } from "@repo/agent-host/paths";
@@ -14,10 +15,10 @@ import {
 const PATHS = resolveAgentPaths();
 
 /** Provider in pi-ai's model registry. */
-export const AUTH_PROVIDER = HOST_AUTH_PROVIDER;
+export const AUTH_PROVIDER = "openai-codex";
 
 /** Default model id for new sessions. */
-export const MODEL_ID = HOST_MODEL_ID;
+export const MODEL_ID = "gpt-5.5";
 
 /** ~/.inteligir — used as pi's agentDir so all discovery looks here. */
 export const AGENT_DIR = PATHS.agentDir;
@@ -27,7 +28,7 @@ export const SESSION_DIR = PATHS.sessionDir;
  * SESSION_DIR: the user agent resumes the most-recently-modified session in
  * SESSION_DIR via continueRecent(), so an overnight task run there would be
  * resumed as the user's thread on the next launch. */
-export const BACKGROUND_SESSION_DIR = PATHS.backgroundSessionDir;
+export const BACKGROUND_SESSION_DIR = path.join(PATHS.sessionDir, "background");
 export const WORKSPACE_DIR = PATHS.workspaceDir;
 export const BIN_DIR = PATHS.binDir;
 export const EXTENSIONS_DIR = PATHS.extensionsDir;

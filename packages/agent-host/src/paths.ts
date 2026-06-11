@@ -1,19 +1,14 @@
-// Filesystem layout + provider/model defaults for the agent host. Electron-
-// free: the base dir resolves from os.homedir() by default, but INTELIGIR_HOME
-// lets a headless/cloud runner relocate all agent state without code changes.
+// Filesystem layout for the agent host. Electron-free: the base dir resolves
+// from os.homedir() by default, but INTELIGIR_HOME lets a headless/cloud
+// runner relocate all agent state without code changes.
 //
 // The desktop app binds these to ~/.inteligir (its existing layout); a cloud
 // container can point INTELIGIR_HOME at a per-session scratch dir and get the
-// exact same structure.
+// exact same structure. Provider/model selection is deliberately NOT here —
+// it's consumer config, injected through AgentHostConfig.
 
 import os from "node:os";
 import path from "node:path";
-
-/** Provider in pi-ai's model registry. */
-export const AUTH_PROVIDER = "openai-codex";
-
-/** Default model id for new sessions. */
-export const MODEL_ID = "gpt-5.5";
 
 /**
  * Root directory for all agent state. Defaults to `~/.inteligir`; override
@@ -35,13 +30,6 @@ export type AgentPaths = {
   authPath: string;
   /** Persisted session transcripts. */
   sessionDir: string;
-  /**
-   * Session dir for the background task agent. Kept separate from sessionDir:
-   * the user agent resumes the most-recently-modified session in sessionDir via
-   * continueRecent(), so an overnight background run there would be resumed as
-   * the user's thread on the next launch.
-   */
-  backgroundSessionDir: string;
   /** Agent working directory (cwd for shell/file tools). */
   workspaceDir: string;
   /** Installed-CLI bin dir, prepended to PATH so agent tools resolve. */
@@ -56,7 +44,6 @@ export function resolveAgentPaths(home: string = resolveAgentHome()): AgentPaths
     agentDir: home,
     authPath: path.join(home, "auth.json"),
     sessionDir: path.join(home, "sessions"),
-    backgroundSessionDir: path.join(home, "sessions", "background"),
     workspaceDir: path.join(home, "workspace"),
     binDir: path.join(home, "bin"),
     extensionsDir: path.join(home, "extensions"),
