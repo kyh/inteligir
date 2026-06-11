@@ -8,8 +8,6 @@ Turborepo monorepo with Next.js marketing site + shared packages.
 
 ## Product Context
 
-The name **inteligir** is Spanish for "to understand" (in-tel-ee-HEER).
-
 **What it is:** A consumer desktop AI operating system. The product is the
 Electron desktop app (`@repo/desktop`); the web app is just a marketing landing
 page. Pre-launch.
