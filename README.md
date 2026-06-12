@@ -21,16 +21,16 @@ packages/
 
 Every app and package has its own `README.md`:
 
-| Workspace | README |
-| --- | --- |
-| `apps/desktop` | [process boundary, IPC, lifecycle, voice](./apps/desktop/README.md) |
-| `apps/mobile` | [Expo remote — pairing flow, screens](./apps/mobile/README.md) |
-| `apps/server` | [relay Worker — WS relay + chat gateway, auth](./apps/server/README.md) |
-| `apps/web` | [static marketing site](./apps/web/README.md) |
-| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md) |
-| `packages/dispatch` | [protocol code map](./packages/dispatch/README.md) · [spec](./packages/dispatch/PROTOCOL.md) |
-| `packages/pi-driver` | [pi-coding-agent wrapper](./packages/pi-driver/README.md) |
-| `packages/ui` | [shared design system](./packages/ui/README.md) |
+| Workspace                | README                                                                                       |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| `apps/desktop`           | [process boundary, IPC, lifecycle, voice](./apps/desktop/README.md)                          |
+| `apps/mobile`            | [Expo remote — pairing flow, screens](./apps/mobile/README.md)                               |
+| `apps/server`            | [relay Worker — WS relay + chat gateway, auth](./apps/server/README.md)                      |
+| `apps/web`               | [static marketing site](./apps/web/README.md)                                                |
+| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md)                    |
+| `packages/dispatch`      | [protocol code map](./packages/dispatch/README.md) · [spec](./packages/dispatch/PROTOCOL.md) |
+| `packages/pi-driver`     | [pi-coding-agent wrapper](./packages/pi-driver/README.md)                                    |
+| `packages/ui`            | [shared design system](./packages/ui/README.md)                                              |
 
 Deeper architecture docs live next to the code:
 
