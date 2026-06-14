@@ -201,9 +201,26 @@ function configureApplicationMenu(): void {
 // IPC handlers
 // ---------------------------------------------------------------------------
 
+// IPC handlers, grouped by domain. registerIpcHandlers() wires them all; each
+// group is a small named function so a reader (or reviewer) sees the domain
+// boundaries instead of scanning one 150-line block. Handlers reference
+// module-level singletons, so the groups take no arguments.
 function registerIpcHandlers(): void {
-  // ---- Desktop / updates ----------------------------------------------------
+  registerUpdateHandlers();
+  registerAgentHandlers();
+  registerDispatchHandlers();
+  registerLifecycleHandlers();
+  registerTaskHandlers();
+  registerVoiceHandlers();
+  registerNotificationHandlers();
+  registerUiStateHandlers();
+  registerShellIpcHandlers();
+  registerWidgetActionIpcHandlers();
+  registerExecutorIpcHandlers();
+  registerSkillAndIntegrationHandlers();
+}
 
+function registerUpdateHandlers(): void {
   handle("checkForUpdates", async () => {
     await checkForUpdates();
     return updateState;
@@ -242,9 +259,9 @@ function registerIpcHandlers(): void {
     setImmediate(() => void shutdownThenInstall());
     return { accepted: true, state: updateState };
   });
+}
 
-  // ---- Agent ----------------------------------------------------------------
-
+function registerAgentHandlers(): void {
   // All interactive agent commands funnel through the gateway, which defers
   // them while an external chat turn owns the session (see agent-gateway.ts).
   // Return the submission promise so renderer-side failure surfacing
@@ -254,22 +271,22 @@ function registerIpcHandlers(): void {
 
   handle("getAgentHistory", () => readSessionHistory());
   handle("reauthenticate", () => reauthenticate());
+}
 
-  // ---- Dispatch (Remote Access relay) ---------------------------------------
-
+function registerDispatchHandlers(): void {
   handle("getDispatchState", () => getDispatchState());
   handle("setRemoteAccess", ({ enabled }) => setRemoteAccessEnabled(enabled));
   handle("rotateDispatchCredential", () => rotateDispatchCredential());
+}
 
-  // ---- App lifecycle --------------------------------------------------------
-
+function registerLifecycleHandlers(): void {
   handle("getAppState", () => getAppState());
   handle("transition", (event) => {
     transition(event);
   });
+}
 
-  // ---- Tasks ----------------------------------------------------------------
-
+function registerTaskHandlers(): void {
   handle("createTask", (params) => ({ task: getTaskManager().createTask(params) }));
   handle("listTasks", () => ({ tasks: getTaskManager().getTasks() }));
   handle("deleteTask", (id): { ok: true } => {
@@ -277,9 +294,9 @@ function registerIpcHandlers(): void {
     return { ok: true };
   });
   handle("toggleTask", (id) => ({ task: getTaskManager().toggleTask(id) }));
+}
 
-  // ---- Voice ----------------------------------------------------------------
-
+function registerVoiceHandlers(): void {
   handle("isTtsAvailable", () => ttsAvailable());
   handle("ttsSend", ({ text }) => ttsSend(text));
   handle("ttsFlush", () => ttsFlush());
@@ -318,29 +335,24 @@ function registerIpcHandlers(): void {
   handle("stopStt", () => stopSession());
   handle("getVoiceModelStatus", () => (isModelInstalled() ? "ready" : "missing"));
   handle("downloadVoiceModel", () => downloadModel());
+}
 
-  // ---- Notifications --------------------------------------------------------
-
+function registerNotificationHandlers(): void {
   handle("getNotificationSettings", () => getNotifications().getSettings());
   handle("updateNotificationSettings", (patch) => getNotifications().updateSettings(patch));
+}
 
-  // ---- UI state -------------------------------------------------------------
-
+function registerUiStateHandlers(): void {
   handle("getUiState", () => getUiState().getAll());
   handle("setUiState", ({ key, value }) => {
     getUiState().set(key, value);
   });
+}
 
-  registerShellIpcHandlers();
-  registerWidgetActionIpcHandlers();
-  registerExecutorIpcHandlers();
-
-  // ---- Skills ---------------------------------------------------------------
-
+function registerSkillAndIntegrationHandlers(): void {
   handle("listSkills", () => ({ skills: listSkills() }));
 
-  // ---- Integrations (CLI binaries) ------------------------------------------
-
+  // Integrations (CLI binaries).
   handle("listIntegrations", () => listIntegrations(getAgentPorts()));
   handle("repairIntegrations", () =>
     repairIntegrations(getAgentPorts(), (p) => broadcast("onSetupProgress", p)),

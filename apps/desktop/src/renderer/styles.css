@@ -135,7 +135,9 @@ textarea,
   border-radius: 16px;
 }
 
-.composer-shell [data-slot="input-group"] > *:not(.composer-collapsed-prompt):not(.composer-gradient) {
+.composer-shell
+  [data-slot="input-group"]
+  > *:not(.composer-collapsed-prompt):not(.composer-gradient) {
   position: relative;
   z-index: 1;
 }

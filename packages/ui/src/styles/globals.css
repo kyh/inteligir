@@ -96,8 +96,8 @@
 
 :root {
   --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro",
-    "Helvetica Neue", system-ui, sans-serif;
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue",
+    system-ui, sans-serif;
 
   /* Core palette — derived from the Ophelias neutral hex scale and
      the surface ladder, so idiomatic shadcn tokens and surface utilities share
@@ -245,8 +245,7 @@
     0 28px 80px 0 rgb(0 0 0 / 0.06), 0 11.7px 33.4px 0 rgb(0 0 0 / 0.04),
     0 6.3px 17.9px 0 rgb(0 0 0 / 0.04), 0 3.5px 10px 0 rgb(0 0 0 / 0.03),
     0 1.9px 5.3px 0 rgb(0 0 0 / 0.02), 0 0.8px 2.2px 0 rgb(0 0 0 / 0.02);
-  --glass-shadow-strong:
-    0 33px 139px rgb(0 0 0 / 0.15), 0 20.915px 84.273px rgb(0 0 0 / 0.11);
+  --glass-shadow-strong: 0 33px 139px rgb(0 0 0 / 0.15), 0 20.915px 84.273px rgb(0 0 0 / 0.11);
   --glass-blur: 5px;
   --glass-saturate: 120%;
 
@@ -274,7 +273,8 @@
   --object-row-hover: rgb(19 20 27 / 0.055);
   --object-row-border: rgb(19 20 27 / 0.035);
   --object-row-highlight: rgb(255 255 255 / 0.28);
-  --object-row-shadow: inset 0 1px 0 var(--object-row-highlight), 0 1px 2px rgb(19 20 27 / 0.025),
+  --object-row-shadow:
+    inset 0 1px 0 var(--object-row-highlight), 0 1px 2px rgb(19 20 27 / 0.025),
     0 10px 30px rgb(19 20 27 / 0.025);
 }
 

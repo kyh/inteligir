@@ -350,9 +350,12 @@ class ExecutorDaemon {
   private async reapWedgedDaemon(): Promise<void> {
     const manifest = readServerManifest();
     const pid = typeof manifest?.pid === "number" ? manifest.pid : null;
-    const origin = typeof manifest?.connection?.origin === "string" ? manifest.connection.origin : null;
+    const origin =
+      typeof manifest?.connection?.origin === "string" ? manifest.connection.origin : null;
     const token =
-      typeof manifest?.connection?.auth?.token === "string" ? manifest.connection.auth.token : undefined;
+      typeof manifest?.connection?.auth?.token === "string"
+        ? manifest.connection.auth.token
+        : undefined;
     // Only consider a manifest we positively own — never touch a foreign one.
     if (
       pid === null ||
