@@ -168,17 +168,18 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-4 gap-1">
+          {/* Raw buttons on the smoked-glass dialog — glass-row pill recipe. */}
+          <div className="grid grid-cols-4 gap-1 rounded-[10px] bg-glass-row p-1">
             {KINDS.map((k) => (
               <button
                 key={k.id}
                 type="button"
                 onClick={() => setKind(k.id)}
                 aria-pressed={kind === k.id}
-                className={`rounded-md px-2 py-1.5 text-[11px] ${
+                className={`rounded-[8px] px-2 py-1.5 text-[11px] transition-colors ${
                   kind === k.id
-                    ? "bg-foreground/15 text-foreground"
-                    : "text-muted-foreground hover:bg-foreground/10"
+                    ? "bg-glass-row-active text-glass-fg"
+                    : "text-glass-fg-muted hover:bg-glass-row-hover hover:text-glass-fg"
                 }`}
               >
                 {k.label}
@@ -208,7 +209,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
               variant="ghost"
               size="sm"
               onClick={() => void handleDetect()}
-              className="h-8 px-2 text-[11px] text-muted-foreground"
+              className="h-8 px-2 text-[11px]"
               title="Detect the source type from the URL"
             >
               Detect
@@ -232,17 +233,18 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
             />
           )}
           {kind === "mcp" && (
-            <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <label className="flex items-center gap-2 text-[11px] text-glass-fg-muted">
               <input
                 type="checkbox"
                 checked={oauth}
                 onChange={(e) => setOauth(e.target.checked)}
-                className="size-3.5 accent-foreground"
+                className="size-3.5 accent-white"
               />
               Authenticate with OAuth before adding
             </label>
           )}
-          {error && <div className="text-[10px] text-destructive">{error}</div>}
+          {/* Destructive token is tuned for opaque surfaces; #ffb4ab reads on glass. */}
+          {error && <div className="text-[10px] text-[#ffb4ab]">{error}</div>}
           <Button
             variant="default"
             size="sm"

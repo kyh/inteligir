@@ -6,6 +6,7 @@ import {
   moveInstance,
   WidgetBody,
   widgetBodyClassName,
+  widgetIcon,
   widgetTitle,
 } from "@/renderer/shell/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
@@ -29,6 +30,7 @@ export function FloatingLayer() {
         return (
           <FloatingWindow
             key={instance.instanceId}
+            icon={widgetIcon(def)}
             title={widgetTitle(def, instance)}
             rect={instance.placement.rect}
             z={instance.placement.z}

@@ -9,7 +9,7 @@
  *   <div className={surfaceClasses(level)} />
  */
 
-export const SURFACE_BG: Record<number, string> = {
+const SURFACE_BG: Record<number, string> = {
   1: "bg-surface-1",
   2: "bg-surface-2",
   3: "bg-surface-3",
@@ -30,6 +30,21 @@ const SURFACE_SHADOW: Record<number, string> = {
   7: "shadow-surface-7",
   8: "shadow-surface-8",
 };
+
+/**
+ * Glass tiers — literal class strings for the same scanner reason as above.
+ * Unlike opaque surfaces, glass is picked statically (never by elevation
+ * level): `smoke` for the composer bar and large sheets, `deep` for transient
+ * overlays (menus, popovers, dialogs, tooltips), `mist` for the left dock.
+ * Glass is theme-invariant smoked-dark except `mist`, which frosts light.
+ *
+ * @public consumed by the per-surface restyle (composer/docks/overlays).
+ */
+export const GLASS_TIER = {
+  smoke: "glass-smoke",
+  deep: "glass-smoke-deep",
+  mist: "glass-mist",
+} as const;
 
 export function surfaceClasses(bgLevel: number, shadowLevel: number = bgLevel): string {
   const bg = Math.max(1, Math.min(8, bgLevel));

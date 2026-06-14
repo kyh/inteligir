@@ -285,7 +285,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
     return (
       <div className="flex flex-col gap-2 p-3 text-xs">
         <p className="font-medium text-destructive">Widget spec is invalid</p>
-        <pre className="overflow-auto rounded border border-border bg-muted/40 p-2 text-[10px] text-muted-foreground">
+        <pre className="overflow-auto rounded-[10px] bg-muted p-2 text-[10px] text-muted-foreground">
           {message}
         </pre>
         <p className="text-[10px] text-muted-foreground">
@@ -297,7 +297,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   }
 
   return (
-    <div className="flex flex-col gap-4 p-3">
+    <div className="flex flex-col gap-3 p-2.5 text-[13px]">
       <JSONUIProvider registry={widgetRegistry} store={getStore()} handlers={handlers}>
         {/* ValidationProvider connects the framework's built-in `validateForm`
          * action — without it, the action dispatches but no-ops with a console

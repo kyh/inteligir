@@ -98,7 +98,7 @@ function VoiceSection() {
   return (
     <div className="flex flex-col gap-2">
       <Label className="text-xs font-medium text-muted-foreground">Voice</Label>
-      <div className="flex flex-col gap-1.5 rounded-md border border-border px-3 py-2">
+      <div className="flex flex-col gap-1.5 rounded-[12px] bg-muted px-3 py-2">
         <div className="flex items-center justify-between">
           <span className="flex flex-col">
             <span className="text-xs text-foreground">ElevenLabs API key</span>
@@ -189,7 +189,7 @@ export function SettingsPanel() {
       <div className="flex flex-col gap-2">
         <Label className="text-xs font-medium text-muted-foreground">OpenAI Account</Label>
         {isReady ? (
-          <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+          <div className="flex items-center justify-between rounded-[10px] bg-muted px-3 py-2">
             <span className="text-xs text-foreground">Connected</span>
             <div className="flex items-center gap-1">
               <Button
@@ -212,7 +212,7 @@ export function SettingsPanel() {
             </div>
           </div>
         ) : (
-          <div className="rounded-md border border-border px-3 py-2">
+          <div className="rounded-[10px] bg-muted px-3 py-2">
             <span className="text-xs text-muted-foreground">Not connected</span>
           </div>
         )}
@@ -220,7 +220,9 @@ export function SettingsPanel() {
 
       <div className="flex flex-col gap-2">
         <Label className="text-xs font-medium text-muted-foreground">Appearance</Label>
-        <div className="grid grid-cols-3 gap-1 rounded-md border border-border p-1">
+        {/* Segmented control on a sunken track — selected segment lifts to a
+            card-white pill (the refs' Objects/Prompts switcher). */}
+        <div className="grid grid-cols-3 gap-1 rounded-[12px] bg-muted p-1">
           {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
             <button
               key={value}
@@ -228,10 +230,10 @@ export function SettingsPanel() {
               onClick={() => setTheme(value)}
               aria-pressed={theme === value}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-sm px-2 py-1.5 text-[10px] transition-colors",
+                "flex flex-col items-center gap-1 rounded-[8px] px-2 py-1.5 text-[10px] transition-colors",
                 theme === value
-                  ? "bg-foreground/15 text-foreground"
-                  : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+                  ? "bg-card text-foreground shadow-surface-2"
+                  : "text-muted-foreground hover:bg-hover hover:text-foreground",
               )}
             >
               <Icon className="size-3.5" />
@@ -243,7 +245,7 @@ export function SettingsPanel() {
 
       <div className="flex flex-col gap-2">
         <Label className="text-xs font-medium text-muted-foreground">Session</Label>
-        <div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+        <div className="flex items-center justify-between rounded-[10px] bg-muted px-3 py-2">
           <span className="flex flex-col">
             <span className="text-xs text-foreground">Start new session</span>
             <span className="text-[10px] text-muted-foreground">
@@ -264,7 +266,7 @@ export function SettingsPanel() {
 
       <div className="flex flex-col gap-2">
         <Label className="text-xs font-medium text-muted-foreground">Notifications</Label>
-        <label className="flex cursor-pointer items-center justify-between rounded-md border border-border px-3 py-2">
+        <label className="flex cursor-pointer items-center justify-between rounded-[10px] bg-muted px-3 py-2">
           <span className="flex flex-col">
             <span className="text-xs text-foreground">Notify when idle</span>
             <span className="text-[10px] text-muted-foreground">

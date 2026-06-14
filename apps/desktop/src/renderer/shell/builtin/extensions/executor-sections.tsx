@@ -35,7 +35,7 @@ export function ExecutorSections({ onError, showAdvanced }: ExecutorSectionsProp
   if (!status.running) {
     return (
       <div className="flex flex-col gap-2">
-        <div className="rounded-md border border-border px-3 py-2 text-[10px] text-muted-foreground">
+        <div className="rounded-[10px] bg-muted px-3 py-2 text-[10px] text-muted-foreground">
           Executor isn&apos;t running yet. Connectors and connections appear once it&apos;s ready.
         </div>
         <Button

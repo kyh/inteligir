@@ -114,6 +114,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.16.0(react@19.2.6)
+      motion:
+        specifier: ^12.40.0
+        version: 12.40.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       open:
         specifier: ^11.0.0
         version: 11.0.0
@@ -11534,7 +11537,9 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
+      - bufferutil
       - supports-color
+      - utf-8-validate
 
   '@react-native/normalize-colors@0.85.3': {}
 

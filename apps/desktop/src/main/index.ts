@@ -399,13 +399,13 @@ function configureAutoUpdater(): void {
 /**
  * Pick the window chrome color from the persisted theme so the pre-paint
  * background matches what the renderer will render (no dark flash in light
- * mode). Mirrors the renderer's default-to-dark behaviour for unset/invalid.
+ * mode). Mirrors the renderer's default-to-light behaviour for unset/invalid.
  */
 function startupBackgroundColor(): string {
   const stored = getUiState().getAll()["theme"];
-  const theme = stored === "light" || stored === "system" ? stored : "dark";
+  const theme = stored === "dark" || stored === "system" ? stored : "light";
   const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
-  return dark ? "#09090b" : "#ffffff";
+  return dark ? "#141415" : "#f0f2f2";
 }
 
 function createWindow(): BrowserWindow {

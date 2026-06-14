@@ -35,9 +35,10 @@ export function BottomDock() {
       : "Start call";
 
   return (
-    <div className="pointer-events-auto fixed bottom-4 left-1/2 z-30 w-full max-w-xl -translate-x-1/2 px-4">
+    <div className="bottom-dock-shell pointer-events-none fixed bottom-6 left-1/2 z-30 w-full max-w-2xl -translate-x-1/2 px-4">
       <TooltipProvider>
         <Composer
+          className="pointer-events-auto"
           trailing={
             <Tooltip>
               <TooltipTrigger
@@ -45,16 +46,18 @@ export function BottomDock() {
                 disabled={voiceBusy}
                 aria-disabled={voiceUnavailable || voiceBusy}
                 aria-label={voiceLabel}
+                // Lives on the smoked-glass composer — white-on-glass control
+                // language in both themes (the glass is always dark).
                 className={cn(
-                  "flex size-9 shrink-0 items-center justify-center rounded-full transition-colors",
+                  "flex size-7 shrink-0 items-center justify-center rounded-full transition-[color,background-color,transform]",
                   voiceUnavailable || voiceBusy
-                    ? "cursor-not-allowed text-muted-foreground/40"
+                    ? "cursor-not-allowed text-white/30"
                     : voiceActive
-                      ? "bg-foreground/15 text-foreground"
-                      : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+                      ? "bg-glass-row-active text-glass-fg"
+                      : "text-glass-fg-muted hover:-translate-y-0.5 hover:bg-glass-row hover:text-glass-fg",
                 )}
               >
-                <MicGlyph className="size-4" />
+                <MicGlyph className="size-3.5" />
               </TooltipTrigger>
               <TooltipContent side="top">{voiceLabel}</TooltipContent>
             </Tooltip>

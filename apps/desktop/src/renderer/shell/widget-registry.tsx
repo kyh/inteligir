@@ -88,7 +88,7 @@ type BaseProps<P> = {
 };
 
 const gapClass = (gap?: "sm" | "md" | "lg") =>
-  gap === "sm" ? "gap-2" : gap === "md" ? "gap-3" : "gap-4";
+  gap === "sm" ? "gap-1.5" : gap === "md" ? "gap-2.5" : "gap-3.5";
 
 function Stack({ props, children }: BaseProps<{ gap?: "sm" | "md" | "lg" }>) {
   return <div className={cn("flex flex-col", gapClass(props.gap))}>{children}</div>;
@@ -108,9 +108,11 @@ function Grid({ props, children }: BaseProps<{ columns?: number; gap?: "sm" | "m
 
 function Section({ props, children }: BaseProps<{ title?: string }>) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       {props.title ? (
-        <Label className="text-xs font-medium text-muted-foreground">{props.title}</Label>
+        <Label className="text-[11px] leading-4 font-medium text-muted-foreground">
+          {props.title}
+        </Label>
       ) : null}
       {children}
     </div>
@@ -137,7 +139,8 @@ function Row({ props, emit, children }: BaseProps<{ bordered?: boolean }>) {
       onClick={onClick}
       className={cn(
         "flex items-center justify-between gap-2",
-        bordered && "rounded-md border border-border px-3 py-2",
+        // Borderless translucent well — the refs' in-card row language.
+        bordered && "object-row rounded-[12px] border border-[var(--object-row-border)] px-3 py-2",
       )}
     >
       {children}
@@ -146,9 +149,9 @@ function Row({ props, emit, children }: BaseProps<{ bordered?: boolean }>) {
 }
 
 const headingClass = {
-  "1": "text-base font-semibold",
-  "2": "text-sm font-semibold",
-  "3": "text-xs font-medium text-muted-foreground",
+  "1": "text-[18px] leading-6 font-semibold",
+  "2": "text-[15px] leading-5 font-medium",
+  "3": "text-[12px] leading-4 font-medium text-muted-foreground",
 };
 
 function Heading({ props }: BaseProps<{ text: string; level?: "1" | "2" | "3" }>) {
@@ -185,9 +188,9 @@ function Text({
 function TextBlock({ props }: BaseProps<{ title: string; description?: string }>) {
   return (
     <span className="flex flex-col">
-      <span className="text-xs text-foreground">{props.title}</span>
+      <span className="text-[13px] leading-4 text-foreground">{props.title}</span>
       {props.description ? (
-        <span className="text-[10px] text-muted-foreground">{props.description}</span>
+        <span className="text-[11px] leading-4 text-muted-foreground">{props.description}</span>
       ) : null}
     </span>
   );
@@ -232,7 +235,7 @@ function CatalogCheckbox({
     emit("change");
   };
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-2 rounded-md border border-border px-3 py-2">
+    <label className="object-row flex cursor-pointer items-center justify-between gap-2 rounded-[12px] border border-[var(--object-row-border)] px-3 py-2">
       <span className="flex flex-col">
         <span className="text-xs text-foreground">{props.label}</span>
         {props.description ? (
@@ -306,7 +309,7 @@ function CatalogTextarea({
         <span className="text-[10px] font-medium text-muted-foreground">{props.label}</span>
       ) : null}
       <textarea
-        className="min-h-20 w-full resize-y rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        className="object-row min-h-20 w-full resize-y rounded-[12px] border border-[var(--object-row-border)] px-2.5 py-1.5 text-xs outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-focus-ring"
         value={props.value ?? ""}
         placeholder={props.placeholder}
         rows={props.rows ?? 4}
@@ -318,7 +321,11 @@ function CatalogTextarea({
 }
 
 function CatalogCard({ children }: BaseProps<Record<string, never>>) {
-  return <div className="rounded-md border border-border p-3">{children}</div>;
+  return (
+    <div className="object-row rounded-[16px] border border-[var(--object-row-border)] p-3.5">
+      {children}
+    </div>
+  );
 }
 
 // Tailwind utilities aren't generated for dynamic class names, so list each
@@ -341,7 +348,7 @@ function CatalogAccent({ props, children }: BaseProps<{ color: AccentColor }>) {
     <div className="flex items-stretch gap-3">
       <span
         aria-hidden
-        className={cn("w-[3px] shrink-0 rounded-full", ACCENT_BAR_CLASS[props.color])}
+        className={cn("w-1 shrink-0 rounded-full opacity-80 shadow-[0_0_18px_currentColor]", ACCENT_BAR_CLASS[props.color])}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1">{children}</div>
     </div>
@@ -354,7 +361,7 @@ function CatalogSeparator() {
 
 function CatalogMarkdown({ props }: BaseProps<{ content?: string }>) {
   return (
-    <div className="text-xs leading-relaxed text-foreground">
+    <div className="text-[13px] leading-[1.55] text-foreground">
       <Response>{props.content ?? ""}</Response>
     </div>
   );
@@ -390,7 +397,7 @@ function CatalogSwitch({
     // Stop propagation so toggling the switch inside a Row doesn't also fire the
     // row's `press` action (Row's interactive-child guard doesn't cover this).
     <div
-      className="flex items-center justify-between gap-2 rounded-md border border-border py-1 pr-1 pl-3"
+      className="object-row flex items-center justify-between gap-2 rounded-[12px] border border-[var(--object-row-border)] py-1 pr-1 pl-3"
       onClick={(e) => e.stopPropagation()}
     >
       <span className="flex flex-col">
@@ -593,7 +600,7 @@ function CatalogImage({ props }: BaseProps<{ src: string; alt?: string; rounded?
     <img
       src={props.src}
       alt={props.alt ?? ""}
-      className={cn("max-w-full object-cover", props.rounded === true && "rounded-md")}
+      className={cn("max-w-full object-cover", props.rounded === true && "rounded-[12px]")}
     />
   );
 }
@@ -605,7 +612,7 @@ function CatalogCollapsible({
   return (
     <Collapsible
       defaultOpen={props.defaultOpen === true}
-      className="rounded-md border border-border"
+      className="object-row rounded-[14px] border border-[var(--object-row-border)]"
     >
       <CollapsibleTrigger className="group flex w-full cursor-pointer items-center justify-between gap-2 px-3 py-2 text-left text-xs font-medium text-foreground">
         {props.title}

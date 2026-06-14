@@ -7,26 +7,40 @@
 // ---------------------------------------------------------------------------
 
 import { EventEmitter } from "node:events";
+import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.hoisted(() => vi.fn());
+const execFileSyncMock = vi.hoisted(() => vi.fn());
+// Default: no server-control manifest on disk, so reapWedgedDaemon is a no-op
+// in every test that doesn't opt in. (Without this, the daemon reap would read
+// the dev's REAL ~/.inteligir manifest during unrelated tests.)
+const readFileSyncMock = vi.hoisted(() =>
+  vi.fn<() => string>(() => {
+    throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  }),
+);
 
-vi.mock("node:child_process", () => ({ spawn: spawnMock }));
+vi.mock("node:child_process", () => ({ spawn: spawnMock, execFileSync: execFileSyncMock }));
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
-  return {
-    ...actual,
-    default: {
-      ...actual,
-      existsSync: () => true,
-      mkdirSync: () => undefined,
-    },
+  const overrides = {
+    existsSync: () => true,
+    mkdirSync: () => undefined,
+    readFileSync: readFileSyncMock,
   };
+  return { ...actual, ...overrides, default: { ...actual, ...overrides } };
 });
 vi.mock("@repo/agent-runtime/install", () => ({ installCliFromGithubRelease: vi.fn() }));
 
-const { getExecutorDaemon, installExecutor, resetExecutorDaemon } =
+const { getExecutorDaemon, installExecutor, resetExecutorDaemon, EXECUTOR_CLI } =
   await import("@/main/executor/executor-daemon");
+
+// The reap guard only acts on a manifest it positively owns (matching binary +
+// data dir). Derive both from the exported bin path so the reap test's fixture
+// matches whatever ~/.inteligir resolves to on this machine.
+const BINARY_PATH = EXECUTOR_CLI.binPath;
+const DATA_DIR = path.join(path.dirname(path.dirname(BINARY_PATH)), "data");
 const { installCliFromGithubRelease } = await import("@repo/agent-runtime/install");
 const installMock = vi.mocked(installCliFromGithubRelease);
 
@@ -49,6 +63,27 @@ function spawnCall(index: number): SpawnCall {
   return { args, env: opts.env };
 }
 
+/** A server-control manifest fixture. Defaults match what the reap guard
+ * requires to treat the daemon as one we own (our data dir + binary). */
+function manifestFor(opts: {
+  pid: number;
+  token: string;
+  origin?: string;
+  dataDir?: string;
+  executablePath?: string;
+}): string {
+  const origin = opts.origin ?? "http://localhost:47888";
+  return JSON.stringify({
+    version: 1,
+    kind: "cli-daemon",
+    pid: opts.pid,
+    dataDir: opts.dataDir ?? DATA_DIR,
+    scopeDir: "/scope",
+    connection: { kind: "http", origin, auth: { kind: "bearer", token: opts.token } },
+    owner: { client: "cli", version: "1.5.4", executablePath: opts.executablePath ?? BINARY_PATH },
+  });
+}
+
 const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
@@ -56,6 +91,11 @@ beforeEach(() => {
   resetExecutorDaemon();
   // The fallback assertion below checks the spawn env does NOT carry this.
   delete process.env["EXECUTOR_WEB_BASE_URL"];
+  // Default to "no manifest" so reapWedgedDaemon is inert; the reap tests
+  // override per-case. (vi.clearAllMocks wipes the hoisted impl, so re-arm it.)
+  readFileSyncMock.mockImplementation(() => {
+    throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+  });
   vi.stubGlobal("fetch", fetchMock);
   fetchMock.mockResolvedValue(
     new Response(JSON.stringify([]), {
@@ -152,6 +192,126 @@ describe("executor daemon spawn", () => {
     expect(second.args).not.toContain("--port");
     // No pinned web base URL on the fallback attempt — it would be wrong.
     expect(second.env["EXECUTOR_WEB_BASE_URL"]).toBeUndefined();
+  });
+});
+
+describe("executor daemon failure reporting", () => {
+  it("surfaces the daemon's own output when it exits before becoming ready", async () => {
+    const refusal =
+      "A local Executor cli-daemon is registered at http://localhost:47888 (pid 28418) but is not reachable.\n" +
+      "Refusing to start another local server against the same data directory.\n";
+    const mkFailing = (): FakeProc => {
+      const proc = new FakeProc();
+      setImmediate(() => {
+        proc.stderr.emit("data", Buffer.from(refusal));
+        proc.emit("exit", 1);
+      });
+      return proc;
+    };
+    // Both the pinned and fallback attempts die the same way.
+    spawnMock.mockImplementationOnce(mkFailing).mockImplementationOnce(mkFailing);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const connection = await getExecutorDaemon().start();
+
+    expect(connection).toBeNull();
+    const logged = errSpy.mock.calls.map((c) => c.join(" ")).join("\n");
+    expect(logged).toContain(
+      "Refusing to start another local server against the same data directory",
+    );
+    errSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+});
+
+describe("executor daemon reap", () => {
+  it("SIGKILLs a wedged orphan daemon, then respawns", async () => {
+    readFileSyncMock.mockReturnValue(
+      manifestFor({ pid: 4242, origin: "http://localhost:47888", token: "wedged-token" }),
+    );
+    // The orphan never answers (wedged); the fresh daemon's probe does.
+    // Distinguish them by bearer token, since both sit on the pinned port.
+    fetchMock.mockImplementation(async (_url, init) => {
+      const auth = (init?.headers as Record<string, string> | undefined)?.authorization;
+      if (auth === "Bearer wedged-token") throw new Error("ECONNREFUSED");
+      return new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+    // ps confirms the live pid is our executor binary (identity guard).
+    execFileSyncMock.mockReturnValue(`${BINARY_PATH} daemon run --foreground\n`);
+    let killed = false;
+    const killSpy = vi.spyOn(process, "kill").mockImplementation((_pid, signal): true => {
+      if (signal === 0) {
+        if (killed) throw Object.assign(new Error("ESRCH"), { code: "ESRCH" });
+        return true;
+      }
+      if (signal === "SIGKILL") killed = true;
+      return true;
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
+    const healthy = new FakeProc();
+    spawnMock.mockImplementationOnce(() => {
+      setImmediate(() =>
+        healthy.stdout.emit("data", Buffer.from("Daemon ready on http://localhost:47888\n")),
+      );
+      return healthy;
+    });
+
+    const connection = await getExecutorDaemon().start();
+
+    expect(connection?.origin).toBe("http://localhost:47888");
+    expect(killSpy).toHaveBeenCalledWith(4242, "SIGKILL");
+    expect(execFileSyncMock).toHaveBeenCalled();
+    killSpy.mockRestore();
+    warnSpy.mockRestore();
+  });
+
+  it("leaves a responsive daemon untouched (never kills a working server)", async () => {
+    readFileSyncMock.mockReturnValue(
+      manifestFor({ pid: 5151, origin: "http://localhost:47888", token: "healthy-token" }),
+    );
+    // Default fetchMock answers 200 → the recorded daemon is healthy.
+    const killSpy = vi.spyOn(process, "kill").mockImplementation((): true => true);
+
+    const healthy = new FakeProc();
+    spawnMock.mockImplementationOnce(() => {
+      setImmediate(() =>
+        healthy.stdout.emit("data", Buffer.from("Daemon ready on http://localhost:47888\n")),
+      );
+      return healthy;
+    });
+
+    await getExecutorDaemon().start();
+
+    expect(killSpy).not.toHaveBeenCalledWith(5151, "SIGKILL");
+    // Health passed → we never reached the identity check or the kill.
+    expect(execFileSyncMock).not.toHaveBeenCalled();
+    killSpy.mockRestore();
+  });
+
+  it("ignores a manifest owned by a different binary", async () => {
+    readFileSyncMock.mockReturnValue(
+      manifestFor({ pid: 6262, token: "x", executablePath: "/some/other/executor" }),
+    );
+    const killSpy = vi.spyOn(process, "kill").mockImplementation((): true => true);
+
+    const healthy = new FakeProc();
+    spawnMock.mockImplementationOnce(() => {
+      setImmediate(() =>
+        healthy.stdout.emit("data", Buffer.from("Daemon ready on http://localhost:47888\n")),
+      );
+      return healthy;
+    });
+
+    await getExecutorDaemon().start();
+
+    // Foreign manifest → guard returns before any liveness/health/kill work.
+    expect(killSpy).not.toHaveBeenCalled();
+    killSpy.mockRestore();
   });
 });
 
