@@ -72,9 +72,7 @@ export function SiteHeader() {
         size="icon"
         className="rounded-full"
         nativeButton={false}
-        render={
-          <a href={TWITTER_URL} target="_blank" rel="noreferrer" aria-label="X (Twitter)" />
-        }
+        render={<a href={TWITTER_URL} target="_blank" rel="noreferrer" aria-label="X (Twitter)" />}
       >
         <XIcon />
       </Button>

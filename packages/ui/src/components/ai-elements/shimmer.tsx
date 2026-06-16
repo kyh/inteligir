@@ -1,11 +1,12 @@
 "use client";
 
-import type { CSSProperties, ElementType, JSX } from "react";
+import type { JSX } from "react";
 import { memo, useMemo } from "react";
 import type { MotionProps } from "motion/react";
 import { motion } from "motion/react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { toMotionStyle } from "@repo/ui/lib/motion-bridge";
 
 type MotionHTMLProps = MotionProps & Record<string, unknown>;
 
@@ -25,10 +26,11 @@ const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
 
 export interface TextShimmerProps {
   children: string;
-  as?: ElementType;
-  className?: string;
-  duration?: number;
-  spread?: number;
+  /** Intrinsic tag to render — the motion component cache is keyed by tag. */
+  as?: keyof JSX.IntrinsicElements | undefined;
+  className?: string | undefined;
+  duration?: number | undefined;
+  spread?: number | undefined;
 }
 
 const ShimmerComponent = ({
@@ -38,7 +40,7 @@ const ShimmerComponent = ({
   duration = 2,
   spread = 2,
 }: TextShimmerProps) => {
-  const MotionComponent = getMotionComponent(Component as keyof JSX.IntrinsicElements);
+  const MotionComponent = getMotionComponent(Component);
 
   const dynamicSpread = useMemo(() => (children?.length ?? 0) * spread, [children, spread]);
 
@@ -51,13 +53,11 @@ const ShimmerComponent = ({
         className,
       )}
       initial={{ backgroundPosition: "100% center" }}
-      style={
-        {
-          "--spread": `${dynamicSpread}px`,
-          backgroundImage:
-            "var(--bg), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
-        } as CSSProperties
-      }
+      style={toMotionStyle({
+        "--spread": `${dynamicSpread}px`,
+        backgroundImage:
+          "var(--bg), linear-gradient(var(--color-muted-foreground), var(--color-muted-foreground))",
+      })}
       transition={{
         duration,
         ease: "linear",

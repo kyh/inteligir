@@ -2,22 +2,20 @@
   "name": "@repo/agent-host",
   "version": "0.1.0",
   "private": true,
-  "description": "Electron-free agent host: paths/config, the extension-bundle framework, and a parameterized AgentHost lifecycle over @repo/pi-driver. Consumers (desktop, future cloud runner) inject their own extension bundles, auth, and model so the same core runs locally or headless in a container.",
+  "description": "Electron-free agent host: relocatable paths/config and a parameterized AgentHost lifecycle over @repo/pi-driver. Consumers (desktop, future cloud runner) inject their own extension factories, auth, and model so the same core runs locally or headless in a container.",
   "type": "module",
   "exports": {
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "build": "tsc",
     "clean": "git clean -xdf .cache .turbo dist node_modules",
-    "dev": "tsc",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
+    "@mariozechner/pi-ai": "^0.73.1",
     "@repo/pi-driver": "workspace:^"
   },
   "devDependencies": {
-    "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

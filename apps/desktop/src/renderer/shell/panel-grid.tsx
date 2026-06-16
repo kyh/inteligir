@@ -13,12 +13,14 @@ import {
   moveInstance,
   WidgetBody,
   widgetBodyClassName,
+  widgetIcon,
   widgetTitle,
 } from "@/renderer/shell/widget-render";
 import { getBridge } from "@/renderer/lib/bridge";
 import { initShell, useShellStore } from "@/renderer/stores/shell-store";
 import {
   isPinned,
+  isBuiltin,
   type PinnedInstance,
   type WidgetDef,
   type WidgetGeometry,
@@ -35,12 +37,14 @@ import {
 
 const GRID_CONFIG: Partial<GridConfig> = {
   cols: 12,
-  rowHeight: 46,
-  margin: [10, 10],
+  rowHeight: 40,
+  margin: [16, 16],
   containerPadding: [0, 0],
 };
 const DRAG_CONFIG = { enabled: true, bounded: false, handle: ".panel-drag-handle" };
 const RESIZE_CONFIG: Partial<ResizeConfig> = { enabled: true, handles: ["se", "e", "s"] };
+
+type PanelVariant = "artifact" | "panel";
 
 function instanceToLayoutItem(i: PinnedInstance): LayoutItem {
   return { i: i.instanceId, ...i.placement.geometry };
@@ -58,36 +62,83 @@ function geometryFromLayoutItem(item: LayoutItem): WidgetGeometry {
 // ---------------------------------------------------------------------------
 
 function Panel({
+  icon: Icon,
   title,
   children,
   bodyClassName,
+  variant,
   onPopOut,
   onRemove,
 }: {
+  icon: React.ComponentType<{ className?: string }>;
   title: React.ReactNode;
   children: React.ReactNode;
-  bodyClassName?: string;
+  bodyClassName?: string | undefined;
+  variant: PanelVariant;
   onPopOut?: () => void;
   onRemove?: () => void;
 }) {
-  return (
-    <div className="flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-card/40 shadow-lg backdrop-blur-md">
-      <div className="panel-drag-handle flex shrink-0 cursor-move items-center justify-between gap-2 border-b border-border/60 px-3 py-2">
-        <span className="truncate text-xs font-medium text-muted-foreground">{title}</span>
-        <div className="flex shrink-0 items-center gap-0.5">
-          {onPopOut ? (
-            <ChromeButton label="Pop out to window" onClick={onPopOut}>
-              <Maximize2Icon className="size-3.5" />
-            </ChromeButton>
-          ) : null}
-          {onRemove ? (
-            <ChromeButton label="Close panel" onClick={onRemove}>
-              <XIcon className="size-3.5" />
-            </ChromeButton>
-          ) : null}
+  // Custom widgets and floating windows now share the same simple anatomy:
+  // lifted object pane, integrated titlebar, direct body surface.
+  const actions = (
+    <>
+      {onPopOut ? (
+        <ChromeButton label="Pop out to window" onClick={onPopOut}>
+          <Maximize2Icon className="size-3.5" />
+        </ChromeButton>
+      ) : null}
+      {onRemove ? (
+        <ChromeButton label="Close panel" onClick={onRemove}>
+          <XIcon className="size-3.5" />
+        </ChromeButton>
+      ) : null}
+    </>
+  );
+
+  if (variant === "artifact") {
+    return (
+      <div className="group/panel artifact-frame flex h-full w-full min-w-0 flex-col overflow-hidden rounded-[var(--radius-card)]">
+        <div className="panel-drag-handle artifact-titlebar flex h-7 shrink-0 cursor-move items-center justify-between gap-2 px-2.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Icon className="size-3.5 shrink-0 text-[rgba(19,20,27,0.34)]" />
+            <span className="truncate text-[13px] leading-4 font-normal text-[rgba(19,20,27,0.48)]">
+              {title}
+            </span>
+          </div>
+          <div className="artifact-actions flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/panel:opacity-100 group-focus-within/panel:opacity-100">
+            {actions}
+          </div>
+        </div>
+        <div className={cn("artifact-body min-h-0 flex-1 overflow-auto", bodyClassName)}>
+          {children}
         </div>
       </div>
-      <div className={cn("min-h-0 flex-1 overflow-auto", bodyClassName)}>{children}</div>
+    );
+  }
+
+  return (
+    <div className="group/panel flex h-full w-full flex-col overflow-visible rounded-[var(--radius-card)]">
+      <div className="flex h-full w-full min-w-0 flex-col">
+        <div className="panel-drag-handle flex h-6 shrink-0 cursor-move items-center justify-between gap-2 px-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <Icon className="size-3.5 shrink-0 text-[rgba(19,20,27,0.34)]" />
+            <span className="truncate text-[13px] leading-4 font-normal text-[rgba(19,20,27,0.44)]">
+              {title}
+            </span>
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover/panel:opacity-100 group-focus-within/panel:opacity-100">
+            {actions}
+          </div>
+        </div>
+        <div
+          className={cn(
+            "min-h-0 flex-1 overflow-auto rounded-[var(--radius-card)] border object-pane",
+            bodyClassName,
+          )}
+        >
+          {children}
+        </div>
+      </div>
     </div>
   );
 }
@@ -101,10 +152,13 @@ const InstancePanel = memo(function InstancePanel({
   instance: WidgetInstance;
   def: WidgetDef | undefined;
 }) {
+  const variant: PanelVariant = def && !isBuiltin(def) ? "artifact" : "panel";
   return (
     <Panel
+      icon={widgetIcon(def)}
       title={widgetTitle(def, instance)}
       bodyClassName={widgetBodyClassName(def)}
+      variant={variant}
       onPopOut={() => void moveInstance(instance.instanceId, "floating")}
       onRemove={() => void closeInstance(instance)}
     >
@@ -153,11 +207,14 @@ export function PanelGrid() {
             dragConfig={DRAG_CONFIG}
             resizeConfig={RESIZE_CONFIG}
           >
-            {pinnedInstances.map((instance) => (
-              <div key={instance.instanceId}>
-                <InstancePanel instance={instance} def={defById.get(instance.widgetId)} />
-              </div>
-            ))}
+            {pinnedInstances.map((instance) => {
+              const def = defById.get(instance.widgetId);
+              return (
+                <div key={instance.instanceId}>
+                  <InstancePanel instance={instance} def={def} />
+                </div>
+              );
+            })}
           </GridLayout>
           <FloatingLayer />
         </>

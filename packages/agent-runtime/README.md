@@ -8,6 +8,7 @@ Filesystem + install primitives for the Inteligir desktop agent. Pure Node, **ze
 src/
   seed.ts     seedDirectory, seedFile (atomic via COPYFILE_EXCL), prependPath
   install.ts  installCliFromGithubRelease — fetch + verify + atomic rename
+  run-cli.ts  runCli — spawn an installed binary with our pi-extension conventions
 ```
 
 No `index.ts` barrel. Consumers import directly:
@@ -15,6 +16,7 @@ No `index.ts` barrel. Consumers import directly:
 ```ts
 import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
+import { runCli } from "@repo/agent-runtime/run-cli";
 ```
 
 ## `installCliFromGithubRelease`
@@ -33,8 +35,7 @@ await installCliFromGithubRelease({
   binName: "peekaboo",
   binDir: "/Users/me/.inteligir/bin",
   archiveBinPath: "peekaboo-macos-universal/peekaboo",
-  artifactName: () =>
-    process.platform === "darwin" ? "peekaboo-macos-universal.tar.gz" : null,
+  artifactName: () => (process.platform === "darwin" ? "peekaboo-macos-universal.tar.gz" : null),
 });
 
 // Plain binary — release ships the binary itself, version-check verifies it
@@ -73,6 +74,30 @@ Why `artifactName` is caller-supplied: every upstream uses a different filename 
 - `sha256-sidecar` mode: only guards download corruption — same origin as the artifact, no protection against compromised upstream.
 - `version-check` mode: weaker, but the only option when upstream doesn't publish checksums. Probes the staged binary before rename so a wrong-arch download doesn't get installed.
 - Swallows failures with a `console.error`. Onboarding must succeed offline; the calling tool surfaces "binary not installed" later.
+
+## `runCli`
+
+Spawns an installed binary (`execFile`, no shell) and captures
+`{ stdout, stderr, code }`, applying the conventions every pi-extension tool
+wrapper relies on:
+
+- **ENOENT → a tool-named error.** A missing binary rejects with
+  `notFoundMessage` (e.g. `"peekaboo binary not installed"`) instead of leaking
+  the raw spawn error, so the tool can surface an actionable string.
+- **Bounded.** `timeoutMs` (SIGTERM on overrun) and `maxBuffer` (cap on captured
+  output) are required — a runaway CLI can't hang or OOM the agent.
+- **Optional `stdin`** is piped to the child and the stream closed.
+
+```ts
+const { stdout, code } = await runCli(binPath, ["--json", "see"], {
+  timeoutMs: 30_000,
+  maxBuffer: 8 * 1024 * 1024,
+  notFoundMessage: "peekaboo binary not installed",
+});
+```
+
+Pairs with `installCliFromGithubRelease`: install puts the binary on disk and on
+PATH, `runCli` invokes it.
 
 ## When to add to this package
 

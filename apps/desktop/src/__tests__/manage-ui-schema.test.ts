@@ -27,8 +27,6 @@ describe("ManageUiSchema", () => {
   });
 
   it("rejects unknown top-level properties", () => {
-    expect(
-      Value.Check(ManageUiSchema, { action: "list", surprise: "boom" }),
-    ).toBe(false);
+    expect(Value.Check(ManageUiSchema, { action: "list", surprise: "boom" })).toBe(false);
   });
 });

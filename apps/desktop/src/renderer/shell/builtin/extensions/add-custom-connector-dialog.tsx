@@ -14,7 +14,7 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { getBridge } from "@/renderer/lib/bridge";
 import {
   installConnector,
-  type SourceSpec,
+  type IntegrationSpec,
 } from "@/renderer/shell/builtin/extensions/connector-install";
 import {
   blockDismissWhileBusy,
@@ -71,10 +71,10 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
     }
     setError(null);
     try {
-      const results = await getBridge()?.detectExecutorSource(trimmed);
+      const results = await getBridge()?.detectExecutorIntegration(trimmed);
       const best = results?.[0];
       if (!best) {
-        setError("Couldn't detect a source type for that URL.");
+        setError("Couldn't detect a connector type for that URL.");
         return;
       }
       const map: Record<string, CustomKind> = {
@@ -110,21 +110,40 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
     setBusy(true);
     setError(null);
     try {
-      // Prefix so custom namespaces can't collide with a catalog connector's id,
+      // Prefix so custom slugs can't collide with a catalog connector's id,
       // and add a random suffix so two custom connectors that slug to the same
-      // name still get distinct sources.
-      const ns = `custom_${slug(trimmedName)}_${crypto.randomUUID().slice(0, 8)}`;
-      const source: SourceSpec =
+      // name still get distinct integrations.
+      const customSlug = `custom_${slug(trimmedName)}_${crypto.randomUUID().slice(0, 8)}`;
+      const source: IntegrationSpec =
         kind === "openapi"
-          ? { type: "openapi", name: trimmedName, namespace: ns, specUrl: trimmedEndpoint, baseUrl: trimmedBase }
+          ? {
+              type: "openapi",
+              name: trimmedName,
+              slug: customSlug,
+              specUrl: trimmedEndpoint,
+              baseUrl: trimmedBase,
+            }
           : kind === "graphql"
-            ? { type: "graphql", name: trimmedName, namespace: ns, endpoint: trimmedEndpoint }
+            ? { type: "graphql", name: trimmedName, slug: customSlug, endpoint: trimmedEndpoint }
             : kind === "google"
-              ? { type: "google", name: trimmedName, namespace: ns, discoveryUrl: trimmedEndpoint }
-              : { type: "mcp", name: trimmedName, namespace: ns, endpoint: trimmedEndpoint };
+              ? {
+                  type: "google",
+                  name: trimmedName,
+                  slug: customSlug,
+                  discoveryUrl: trimmedEndpoint,
+                }
+              : { type: "mcp", name: trimmedName, slug: customSlug, endpoint: trimmedEndpoint };
+      // Google discovery integrations always authenticate through the shared
+      // "google" OAuth client (register it by connecting any catalog Google
+      // connector first); everything else is OAuth-by-choice or open.
       await installConnector(bridge, {
         source,
-        auth: kind === "mcp" && oauth ? { kind: "oauth" } : { kind: "none" },
+        auth:
+          kind === "google"
+            ? { kind: "google" }
+            : kind === "mcp" && oauth
+              ? { kind: "oauth" }
+              : { kind: "none" },
         headers: parseHeaders(headersText),
       });
       reset();
@@ -149,17 +168,18 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
-          <div className="grid grid-cols-4 gap-1">
+          {/* Raw buttons on the smoked-glass dialog — glass-row pill recipe. */}
+          <div className="grid grid-cols-4 gap-1 rounded-[10px] bg-glass-row p-1">
             {KINDS.map((k) => (
               <button
                 key={k.id}
                 type="button"
                 onClick={() => setKind(k.id)}
                 aria-pressed={kind === k.id}
-                className={`rounded-md px-2 py-1.5 text-[11px] ${
+                className={`rounded-[8px] px-2 py-1.5 text-[11px] transition-colors ${
                   kind === k.id
-                    ? "bg-foreground/15 text-foreground"
-                    : "text-muted-foreground hover:bg-foreground/10"
+                    ? "bg-glass-row-active text-glass-fg"
+                    : "text-glass-fg-muted hover:bg-glass-row-hover hover:text-glass-fg"
                 }`}
               >
                 {k.label}
@@ -189,7 +209,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
               variant="ghost"
               size="sm"
               onClick={() => void handleDetect()}
-              className="h-8 px-2 text-[11px] text-muted-foreground"
+              className="h-8 px-2 text-[11px]"
               title="Detect the source type from the URL"
             >
               Detect
@@ -213,17 +233,18 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
             />
           )}
           {kind === "mcp" && (
-            <label className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <label className="flex items-center gap-2 text-[11px] text-glass-fg-muted">
               <input
                 type="checkbox"
                 checked={oauth}
                 onChange={(e) => setOauth(e.target.checked)}
-                className="size-3.5 accent-foreground"
+                className="size-3.5 accent-white"
               />
               Authenticate with OAuth before adding
             </label>
           )}
-          {error && <div className="text-[10px] text-destructive">{error}</div>}
+          {/* Destructive token is tuned for opaque surfaces; #ffb4ab reads on glass. */}
+          {error && <div className="text-[10px] text-[#ffb4ab]">{error}</div>}
           <Button
             variant="default"
             size="sm"

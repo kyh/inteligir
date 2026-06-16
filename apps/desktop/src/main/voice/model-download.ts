@@ -179,9 +179,7 @@ async function fetchToFile(
   // user shouldn't run it until the maintainer audits + repins.
   const actualSha = hash.digest("hex");
   if (actualSha !== expectedSha256) {
-    throw new Error(
-      `SHA-256 mismatch for ${url}: expected ${expectedSha256}, got ${actualSha}`,
-    );
+    throw new Error(`SHA-256 mismatch for ${url}: expected ${expectedSha256}, got ${actualSha}`);
   }
 }
 

@@ -162,7 +162,7 @@ class HelixCurve extends THREE.Curve<THREE.Vector3> {
     super();
   }
 
-  getPoint(percent: number): THREE.Vector3 {
+  override getPoint(percent: number): THREE.Vector3 {
     const x = HELIX_LENGTH * Math.sin(PI2 * percent);
     const y = HELIX_AMPLITUDE * Math.cos(PI2 * 3 * percent);
 

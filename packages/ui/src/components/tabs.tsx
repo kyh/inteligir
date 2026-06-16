@@ -14,18 +14,29 @@ import {
   isValidElement,
   useMemo,
   type ComponentPropsWithoutRef,
+  type ComponentType,
 } from "react";
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
 import { motion, AnimatePresence } from "motion/react";
-import type { IconComponent } from "@repo/ui/lib/icon";
 import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { getShape } from "@repo/ui/lib/shape";
-import { useSurface } from "@repo/ui/lib/surface-context";
+import { useOnGlass, useSurface } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { useMergeRefs } from "@repo/ui/hooks/use-merge-refs";
+
+/**
+ * Icon component contract — matches the shape of a lucide-react icon (size +
+ * strokeWidth props), so consumers can pass any lucide icon or their own
+ * component with the same signature.
+ */
+type IconComponent = ComponentType<{
+  size?: number;
+  strokeWidth?: number;
+  className?: string;
+}>;
 
 /* ─────────────────────── Contexts ─────────────────────── */
 
@@ -58,11 +69,11 @@ interface TabsProps extends Omit<
   ComponentPropsWithoutRef<typeof TabsPrimitive.Root>,
   "onValueChange" | "value" | "defaultValue" | "onSelect"
 > {
-  value?: string;
-  onValueChange?: (value: string) => void;
-  selectedIndex?: number;
-  onSelect?: (index: number) => void;
-  defaultValue?: string;
+  value?: string | undefined;
+  onValueChange?: ((value: string) => void) | undefined;
+  selectedIndex?: number | undefined;
+  onSelect?: ((index: number) => void) | undefined;
+  defaultValue?: string | undefined;
 }
 
 const Tabs = forwardRef<HTMLDivElement, TabsProps>(
@@ -81,16 +92,16 @@ const Tabs = forwardRef<HTMLDivElement, TabsProps>(
     const resolvedValue =
       value ?? (selectedIndex != null ? valueOrder[selectedIndex] : uncontrolledValue);
 
-    // Base UI passes (value, eventDetails); we only need value.
+    // Base UI types tab values as `any`; this wrapper constrains them to
+    // strings (TabItemProps.value), so the param can be typed directly.
     const handleValueChange = useCallback(
-      (newValue: unknown) => {
-        const v = newValue as string;
+      (newValue: string) => {
         if (value === undefined && selectedIndex == null) {
-          setUncontrolledValue(v);
+          setUncontrolledValue(newValue);
         }
-        onValueChange?.(v);
+        onValueChange?.(newValue);
         if (onSelect) {
-          const idx = valueOrder.indexOf(v);
+          const idx = valueOrder.indexOf(newValue);
           if (idx !== -1) onSelect(idx);
         }
       },
@@ -134,6 +145,9 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
     const shape = getShape();
     const substrate = useSurface();
     const indicatorLevel = Math.min(substrate + 3, 8);
+    // On smoked glass the opaque ladder is invisible — track and indicators
+    // swap to the translucent white glass-row recipe.
+    const onGlass = useOnGlass();
     const valueOrderCtx = useContext(TabsValueOrderContext);
     const [optimisticIdx, setOptimisticIdx] = useState<number | null>(null);
 
@@ -141,7 +155,12 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
       () =>
         Children.toArray(children)
           .filter(isValidElement)
-          .map((child) => (child.props as { value?: string }).value)
+          .map((child) => {
+            const props: unknown = child.props;
+            return typeof props === "object" && props !== null && "value" in props
+              ? props.value
+              : undefined;
+          })
           .filter((v): v is string => typeof v === "string"),
       [children],
     );
@@ -210,8 +229,8 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
     const isHovering = hoveredIndex !== null && !isHoveringSelected;
 
     const indexedChildren = Children.map(children, (child, i) => {
-      if (isValidElement(child)) {
-        return cloneElement(child, { _index: i } as Record<string, unknown>);
+      if (isValidElement<{ _index?: number }>(child)) {
+        return cloneElement(child, { _index: i });
       }
       return child;
     });
@@ -234,23 +253,26 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onFocus={(e) => {
-            const trigger = (e.target as HTMLElement).closest('[role="tab"]');
+            if (!(e.target instanceof HTMLElement)) return;
+            const trigger = e.target.closest('[role="tab"]');
             if (!trigger) return;
             const indexAttr = trigger.getAttribute("data-proximity-index");
             if (indexAttr != null) {
               const idx = Number(indexAttr);
               setHoveredIndex(idx);
-              setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null);
+              setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
             }
           }}
           onBlur={(e) => {
-            if (containerRef.current?.contains(e.relatedTarget as Node)) return;
+            if (e.relatedTarget instanceof Node && containerRef.current?.contains(e.relatedTarget))
+              return;
             setFocusedIndex(null);
             if (isMouseInside.current) return;
             setHoveredIndex(null);
           }}
           className={cn(
-            "relative inline-flex items-center gap-0.5 p-1 select-none bg-muted",
+            "relative inline-flex items-center gap-0.5 p-1 select-none",
+            onGlass ? "bg-glass-row" : "bg-muted",
             shape.container,
             className,
           )}
@@ -261,7 +283,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
             <motion.div
               className={cn(
                 "absolute pointer-events-none",
-                surfaceClasses(indicatorLevel),
+                onGlass ? "bg-glass-row-active" : surfaceClasses(indicatorLevel),
                 shape.bg,
               )}
               initial={false}
@@ -283,7 +305,11 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
           <AnimatePresence>
             {hoverRect && !isHoveringSelected && selectedRect && (
               <motion.div
-                className={cn("absolute pointer-events-none bg-hover", shape.bg)}
+                className={cn(
+                  "absolute pointer-events-none",
+                  onGlass ? "bg-glass-row-hover" : "bg-hover",
+                  shape.bg,
+                )}
                 initial={{
                   left: selectedRect.left,
                   width: selectedRect.width,
@@ -326,7 +352,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
             {focusRect && (
               <motion.div
                 className={cn(
-                  "absolute pointer-events-none z-20 border border-[#6B97FF]",
+                  "absolute pointer-events-none z-20 border border-focus-ring",
                   shape.focusRing,
                 )}
                 initial={false}
@@ -368,6 +394,9 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
   ({ value, icon: Icon, label, _index = 0, className, ...props }, ref) => {
     const internalRef = useRef<HTMLButtonElement>(null);
     const { registerTab, hoveredIndex, selectedValue, setOptimisticIdx } = useTabsList();
+    const onGlass = useOnGlass();
+    const activeText = onGlass ? "text-glass-fg" : "text-foreground";
+    const mutedText = onGlass ? "text-glass-fg-muted" : "text-muted-foreground";
 
     useEffect(() => {
       registerTab(_index, value, internalRef.current);
@@ -396,7 +425,7 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
             strokeWidth={isActive ? 2 : 1.5}
             className={cn(
               "transition-[color,stroke-width] duration-80",
-              isActive ? "text-foreground" : "text-muted-foreground",
+              isActive ? activeText : mutedText,
             )}
           />
         )}
@@ -411,7 +440,7 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
           <span
             className={cn(
               "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80",
-              isActive ? "text-foreground" : "text-muted-foreground",
+              isActive ? activeText : mutedText,
             )}
             style={{
               fontVariationSettings: isSelected ? fontWeights.semibold : fontWeights.normal,
@@ -440,4 +469,3 @@ const TabPanel = forwardRef<HTMLDivElement, TabPanelProps>(({ className, ...prop
 TabPanel.displayName = "TabPanel";
 
 export { Tabs, TabsList, TabItem, TabPanel };
-export type { TabsProps, TabsListProps, TabItemProps, TabPanelProps };

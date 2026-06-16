@@ -1,6 +1,8 @@
-// Bundle orchestration: discovery, setup, teardown, integrations + skills
-// listings. Auth lives in agent/auth.ts, the Agent wrapper in agent/agent.ts,
-// shared paths in agent/paths.ts.
+// Bundle orchestration: discovery, setup, integrations + skills listings.
+// Auth lives in agent/auth.ts, the Agent wrapper in agent/agent.ts, shared
+// paths in agent/paths.ts. Lifecycle composition (seed/teardown wiring,
+// main-singleton resets, port construction) lives main-side in
+// main/lib/agent-lifecycle.ts — agent/ imports nothing from @/main.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,19 +12,16 @@ import { listSkills as listSkillsFromDisk } from "@repo/pi-driver/skills";
 import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
 import { readCliVersion } from "@repo/agent-runtime/install";
 
-import { resetAuthStorage } from "@/agent/auth";
 import {
+  resolveBundleCli,
   runBundleSetups,
+  type AgentPorts,
+  type ExtensionCliInfo,
   type ExtensionRegisterContext,
   type ExtensionSetupContext,
   type PiExtensionBundle,
 } from "@/agent/extension";
 import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "@/agent/paths";
-import { getExecutorDaemon, resetExecutorDaemon } from "@/main/executor/executor-daemon";
-import { resetShellCache } from "@/main/shell";
-import { resetNotifications } from "@/main/notifications";
-import { resetDailyRefresh } from "@/main/daily-refresh";
-import { resetTaskManager } from "@/main/tasks/task-manager";
 import type { IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
 
 // ---------------------------------------------------------------------------
@@ -54,18 +53,25 @@ function getBundledResourcesDir(): string {
 }
 
 function buildSetupContext(
+  ports: AgentPorts,
   onProgress: (p: SetupProgress) => void,
   force = false,
 ): ExtensionSetupContext {
-  return { binDir: BIN_DIR, bundledResourcesDir: getBundledResourcesDir(), onProgress, force };
+  return {
+    binDir: BIN_DIR,
+    ports,
+    bundledResourcesDir: getBundledResourcesDir(),
+    onProgress,
+    force,
+  };
 }
 
-export function buildRegisterContext(): ExtensionRegisterContext {
-  return { binDir: BIN_DIR };
+export function buildRegisterContext(ports: AgentPorts): ExtensionRegisterContext {
+  return { binDir: BIN_DIR, ports };
 }
 
 // ---------------------------------------------------------------------------
-// Lifecycle: setup / teardown
+// Lifecycle: setup
 // ---------------------------------------------------------------------------
 
 /**
@@ -76,7 +82,10 @@ export function buildRegisterContext(): ExtensionRegisterContext {
  * Non-critical bundle setup failures log and continue; a critical bundle's
  * failure throws and surfaces as SETUP_FAIL in the app state machine.
  */
-export async function seedResources(onProgress: (p: SetupProgress) => void): Promise<void> {
+export async function seedResources(
+  ports: AgentPorts,
+  onProgress: (p: SetupProgress) => void,
+): Promise<void> {
   fs.mkdirSync(AGENT_DIR, { recursive: true });
   fs.mkdirSync(WORKSPACE_DIR, { recursive: true });
   fs.mkdirSync(BIN_DIR, { recursive: true });
@@ -84,22 +93,7 @@ export async function seedResources(onProgress: (p: SetupProgress) => void): Pro
 
   prependPath(BIN_DIR);
 
-  // Eager-start the executor daemon: spawning + reading the "ready on …"
-  // banner is the longest single setup step (~10–20s warm), and it doesn't
-  // depend on bundle setups or the agent factory. start() caches its
-  // in-flight promise, so the later executor extension register() (which
-  // already calls start() before returning its tools) just awaits the same
-  // promise — the daemon spawn now overlaps with bundle CLI version checks
-  // instead of stacking after them.
-  void getExecutorDaemon()
-    .start()
-    .catch((err: unknown) => {
-      // Swallow here; the executor extension register() awaits start() too
-      // and will surface a real failure with the right error path.
-      console.warn("[agent] executor eager start failed (continuing):", err);
-    });
-
-  const ctx = buildSetupContext(onProgress);
+  const ctx = buildSetupContext(ports, onProgress);
   if (!fs.existsSync(ctx.bundledResourcesDir)) {
     // In packaged builds the resources/ dir is laid down by electron-builder;
     // missing it means the install is corrupt and setup must fail loudly.
@@ -120,30 +114,14 @@ export function isSetupComplete(): boolean {
   return fs.existsSync(WORKSPACE_DIR);
 }
 
-export function teardownResources(): void {
-  // Drop singletons that hold JsonStore caches BEFORE removing the directory.
-  // An in-flight debounced write (e.g. a WidgetViewer's unmount-time flush)
-  // running between the rm and the cache reset would otherwise resurrect
-  // runtime-ui.json from the warm in-memory shell. With this order, such a
-  // write either races against the singleton reset (its write lands before
-  // rm and gets wiped) or arrives after the cache is gone.
-  resetAuthStorage();
-  resetNotifications();
-  resetShellCache();
-  resetTaskManager();
-  resetDailyRefresh();
-  resetExecutorDaemon();
-  fs.rmSync(AGENT_DIR, { recursive: true, force: true });
-}
-
 // ---------------------------------------------------------------------------
 // Integrations (installed CLI binaries) — list + repair
 // ---------------------------------------------------------------------------
 
 /** Report installed-vs-pinned versions for every bundle that installs a CLI. */
-export async function listIntegrations(): Promise<IntegrationInfo[]> {
-  const clis = EXTENSION_BUNDLES.map((bundle) => bundle.cli).filter(
-    (cli): cli is NonNullable<PiExtensionBundle["cli"]> => cli !== undefined,
+export async function listIntegrations(ports: AgentPorts): Promise<IntegrationInfo[]> {
+  const clis = EXTENSION_BUNDLES.map((bundle) => resolveBundleCli(bundle, ports)).filter(
+    (cli): cli is ExtensionCliInfo => cli !== undefined,
   );
   return Promise.all(
     clis.map(async (cli) => ({
@@ -159,9 +137,12 @@ export async function listIntegrations(): Promise<IntegrationInfo[]> {
  * force=true so up-to-date-but-corrupt binaries are re-downloaded. Reports
  * progress over the same channel as onboarding.
  */
-export async function repairIntegrations(onProgress: (p: SetupProgress) => void): Promise<void> {
+export async function repairIntegrations(
+  ports: AgentPorts,
+  onProgress: (p: SetupProgress) => void,
+): Promise<void> {
   fs.mkdirSync(BIN_DIR, { recursive: true });
-  await runBundleSetups(EXTENSION_BUNDLES, buildSetupContext(onProgress, true));
+  await runBundleSetups(EXTENSION_BUNDLES, buildSetupContext(ports, onProgress, true));
   onProgress({ step: "done", percent: null });
 }
 

@@ -8,12 +8,13 @@ import { XIcon } from "lucide-react";
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
 import { springs } from "@repo/ui/lib/springs";
-import { getShape } from "@repo/ui/lib/shape";
-import { stripMotionConflicts } from "@repo/ui/lib/motion-bridge";
-import { surfaceClasses } from "@repo/ui/lib/surface-classes";
-import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
+import { stripMotionConflicts, toMotionStyle } from "@repo/ui/lib/motion-bridge";
+import { GLASS_TIER } from "@repo/ui/lib/surface-classes";
+import { GlassProvider, SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
 
 // A dialog floats four elevation steps above whatever surface it opens over.
+// (The panel itself renders as smoked glass — the level only seeds nested
+// opaque surfaces via SurfaceProvider.)
 const DIALOG_OFFSET = 4;
 
 function Dialog({ ...props }: DialogPrimitive.Root.Props) {
@@ -28,10 +29,6 @@ function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
 }
 
-function DialogClose({ ...props }: DialogPrimitive.Close.Props) {
-  return <DialogPrimitive.Close data-slot="dialog-close" {...props} />;
-}
-
 // Spring-animated scrim. Motion is information — the backdrop eases in on the
 // slow spring and out on the moderate one, matching the popup's tempo.
 function DialogOverlay({ className }: { className?: string }) {
@@ -40,13 +37,16 @@ function DialogOverlay({ className }: { className?: string }) {
       data-slot="dialog-overlay"
       render={(backdropProps, state) => {
         const exiting = state.transitionStatus === "ending";
-        const { rest } = stripMotionConflicts(
-          backdropProps as React.HTMLAttributes<HTMLDivElement>,
-        );
+        const { rest } = stripMotionConflicts<HTMLDivElement>(backdropProps);
         return (
           <motion.div
             {...rest}
-            className={cn("fixed inset-0 z-50 bg-black/40 dark:bg-black/80", className)}
+            className={cn(
+              // Dim only — no backdrop blur. The refs keep the canvas crisp
+              // outside the glass; the smoked popup supplies its own blur.
+              "fixed inset-0 z-50 bg-black/25 dark:bg-black/45",
+              className,
+            )}
             initial={{ opacity: 0 }}
             animate={{ opacity: exiting ? 0 : 1 }}
             transition={exiting ? springs.moderate : springs.slow}
@@ -68,7 +68,6 @@ function DialogContent({
   showCloseButton?: boolean;
   size?: "sm" | "lg";
 }) {
-  const shape = getShape();
   const substrate = useSurface();
   const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
 
@@ -89,9 +88,9 @@ function DialogContent({
         {...props}
         render={(popupProps, state) => {
           const exiting = state.transitionStatus === "ending";
-          const { style: baseStyle, rest } = stripMotionConflicts(
-            popupProps as React.HTMLAttributes<HTMLDivElement>,
-          );
+          const { style: baseStyle, rest } = stripMotionConflicts<HTMLDivElement>(popupProps);
+          // Base UI's `style` prop can be a state-resolving function.
+          const userStyle = typeof style === "function" ? style(state) : style;
           return (
             <motion.div
               // Base UI's resolved props (data attrs, refs, role, plus the
@@ -106,14 +105,15 @@ function DialogContent({
               // `translate` rather than clobbering it.
               className={cn(
                 "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
-                surfaceClasses(dialogLevel),
-                "p-6 text-sm text-popover-foreground outline-none",
+                // Smoked glass in BOTH themes — dark translucent fill, heavy
+                // blur, white text (the references' menus/sheets language).
+                GLASS_TIER.deep,
+                "rounded-[var(--radius-glass)] p-6 text-sm text-glass-fg outline-none",
                 size === "sm" && "max-w-[400px]",
                 size === "lg" && "max-w-[540px]",
-                shape.container,
                 className,
               )}
-              style={{ ...baseStyle, ...(style as React.CSSProperties | undefined) }}
+              style={toMotionStyle({ ...baseStyle, ...userStyle })}
               initial={{ opacity: 0, scale: 0.97 }}
               animate={{
                 opacity: exiting ? 0 : 1,
@@ -122,18 +122,20 @@ function DialogContent({
               transition={exiting ? springs.moderate : springs.slow}
             >
               <SurfaceProvider value={dialogLevel}>
-                {children}
-                {showCloseButton && (
-                  <DialogPrimitive.Close
-                    data-slot="dialog-close"
-                    render={
-                      <Button variant="ghost" size="icon-sm" className="absolute top-3 right-3" />
-                    }
-                  >
-                    <XIcon />
-                    <span className="sr-only">Close</span>
-                  </DialogPrimitive.Close>
-                )}
+                <GlassProvider value={true}>
+                  {children}
+                  {showCloseButton && (
+                    <DialogPrimitive.Close
+                      data-slot="dialog-close"
+                      render={
+                        <Button variant="ghost" size="icon-sm" className="absolute top-3 right-3" />
+                      }
+                    >
+                      <XIcon />
+                      <span className="sr-only">Close</span>
+                    </DialogPrimitive.Close>
+                  )}
+                </GlassProvider>
               </SurfaceProvider>
             </motion.div>
           );
@@ -179,7 +181,7 @@ function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-[16px] text-foreground leading-tight", className)}
+      className={cn("text-[16px] text-glass-fg leading-tight", className)}
       style={{ fontVariationSettings: "'wght' 700" }}
       {...props}
     />
@@ -191,7 +193,7 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
     <DialogPrimitive.Description
       data-slot="dialog-description"
       className={cn(
-        "text-[13px] text-muted-foreground *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-foreground",
+        "text-[13px] text-glass-fg-muted *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-glass-fg",
         className,
       )}
       {...props}
@@ -201,13 +203,10 @@ function DialogDescription({ className, ...props }: DialogPrimitive.Description.
 
 export {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogOverlay,
-  DialogPortal,
   DialogTitle,
   DialogTrigger,
 };

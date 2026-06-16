@@ -4,13 +4,44 @@ import {
   buildValidatedFactories,
   runBundleSetups,
   validateToolParametersSchema,
+  type AgentPorts,
   type ExtensionRegisterContext,
   type ExtensionSetupContext,
   type PiExtensionBundle,
 } from "@/agent/extension";
 
+const unused = (): never => {
+  throw new Error("port not used in this test");
+};
+
+/** Inert ports — the bundles under test never touch them. */
+function fakePorts(): AgentPorts {
+  return {
+    shell: {
+      getWritableShell: () => null,
+      placeWithFlush: async () => null,
+      unplaceWithFlush: async () => false,
+      deleteWithFlush: async () => false,
+    },
+    tasks: {
+      getTasks: () => [],
+      createTask: unused,
+      toggleTask: unused,
+      deleteTask: () => {},
+    },
+    executor: {
+      cli: { name: "executor", version: "0.0.0", binPath: "/fake/bin/executor" },
+      install: async () => {},
+      start: async () => false,
+      execute: unused,
+      resume: unused,
+    },
+  };
+}
+
 const ctx: ExtensionSetupContext = {
   binDir: "/fake/bin",
+  ports: fakePorts(),
   bundledResourcesDir: "/fake/resources",
   onProgress: () => {},
 };
@@ -23,6 +54,8 @@ function bundle(
     ...overrides,
   };
 }
+
+const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
 describe("runBundleSetups", () => {
   let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
@@ -58,7 +91,7 @@ describe("runBundleSetups", () => {
     expect(failing).toHaveBeenCalledOnce();
     expect(succeeding).toHaveBeenCalledOnce();
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      "[agent-host] broken setup failed (continuing):",
+      "[agent] broken setup failed (continuing):",
       expect.any(Error),
     );
   });
@@ -87,7 +120,6 @@ describe("runBundleSetups", () => {
     // all three resolve in the same microtask burst. We verify only that all
     // three ran (parallel does not promise ordering).
     const order: string[] = [];
-    const tick = () => new Promise<void>((r) => setTimeout(r, 0));
     const bundles = [
       bundle({
         name: "first",
@@ -150,11 +182,13 @@ describe("validateToolParametersSchema", () => {
 });
 
 describe("buildValidatedFactories", () => {
-  const ctx: ExtensionRegisterContext = { binDir: "/fake/bin" };
+  const ctx: ExtensionRegisterContext = { binDir: "/fake/bin", ports: fakePorts() };
 
   it("forwards valid registrations to the underlying pi", async () => {
     const registerTool = vi.fn();
-    const pi = { registerTool } as unknown as Parameters<ReturnType<PiExtensionBundle["register"]>>[0];
+    const pi = { registerTool } as unknown as Parameters<
+      ReturnType<PiExtensionBundle["register"]>
+    >[0];
     const bundles: PiExtensionBundle[] = [
       {
         name: "good",
@@ -170,13 +204,16 @@ describe("buildValidatedFactories", () => {
       },
     ];
     const [factory] = buildValidatedFactories(bundles, ctx);
-    await factory!(pi);
+    if (!factory) throw new Error("expected a factory");
+    await factory(pi);
     expect(registerTool).toHaveBeenCalledTimes(1);
   });
 
   it("throws when a bundle registers a tool with an invalid schema", async () => {
     const registerTool = vi.fn();
-    const pi = { registerTool } as unknown as Parameters<ReturnType<PiExtensionBundle["register"]>>[0];
+    const pi = { registerTool } as unknown as Parameters<
+      ReturnType<PiExtensionBundle["register"]>
+    >[0];
     const bundles: PiExtensionBundle[] = [
       {
         name: "broken",
@@ -195,7 +232,8 @@ describe("buildValidatedFactories", () => {
       },
     ];
     const [factory] = buildValidatedFactories(bundles, ctx);
-    await expect(factory!(pi)).rejects.toThrow(/broken.*'bad'/);
+    if (!factory) throw new Error("expected a factory");
+    await expect(factory(pi)).rejects.toThrow(/broken.*'bad'/);
     expect(registerTool).not.toHaveBeenCalled();
   });
 });

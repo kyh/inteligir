@@ -12,6 +12,23 @@ export default defineConfig(() => ({
     plugins: [],
     define: {
       PROJECT_ROOT: JSON.stringify(configDir),
+      // Bundled Google OAuth client, baked into the main bundle at build time
+      // (main/executor/google-oauth-client.ts). A Google "Desktop app" type
+      // client — its secret is non-confidential by Google's installed-app
+      // spec, so shipping it in the binary is expected. Release builds run
+      // under `pnpm with-env` (dotenv -e .env), which is what populates these;
+      // empty/absent vars → no bundled client → the GCP-dialog flow remains.
+      // Dev (`electron-vite dev` runs without with-env) falls back to reading
+      // process.env at runtime after main loads apps/desktop/.env.
+      // Root `pnpm build` goes through turbo: turbo.json's @repo/desktop#build
+      // entry lists both vars in `env` so strict mode passes them through and
+      // the cache invalidates when they change (else: stale clientless bundle).
+      BUNDLED_GOOGLE_OAUTH_CLIENT_ID: JSON.stringify(
+        process.env["INTELIGIR_GOOGLE_OAUTH_CLIENT_ID"] ?? "",
+      ),
+      BUNDLED_GOOGLE_OAUTH_CLIENT_SECRET: JSON.stringify(
+        process.env["INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET"] ?? "",
+      ),
     },
     resolve: {
       alias: { "@": resolve(configDir, "src") },

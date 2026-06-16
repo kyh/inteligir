@@ -1,12 +1,22 @@
 // ---------------------------------------------------------------------------
 // Main-process proxy for ElevenLabs streaming TTS. The renderer used to hold
 // the API key + open a direct WS to api.elevenlabs.io — both moved here so
-// the secret never crosses the IPC boundary and the renderer surfaces only
+// the key never sits in renderer memory and the renderer surfaces only
 // "play this PCM chunk" / "stop". One singleton WS per session is reused
 // across sendText calls.
+//
+// Key resolution: the encrypted SecretStore entry (written via the Settings
+// panel through UiStateManager's secret routing) wins; the
+// ELEVENLABS_API_KEY env var is a dev-only fallback (packaged builds
+// launched from Finder/Dock inherit no shell env). Resolved lazily on every
+// connection/availability check so a key saved mid-session takes effect
+// without a restart. Read through getUiState() — constructing the manager
+// runs the one-time legacy plaintext → SecretStore migration.
 // ---------------------------------------------------------------------------
 
 import { broadcast } from "@/main/lib/broadcast";
+import { getUiState } from "@/main/ui-state";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@/shared/voice";
 
 const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 const MODEL_ID = "eleven_flash_v2_5";
@@ -17,8 +27,7 @@ let pendingText: string[] = [];
 
 function isAudioPayload(value: unknown): value is { audio: string } {
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const audio = (value as Record<string, unknown>)["audio"];
-  return typeof audio === "string";
+  return "audio" in value && typeof value.audio === "string";
 }
 
 function endpoint(voiceId: string): string {
@@ -28,9 +37,16 @@ function endpoint(voiceId: string): string {
   );
 }
 
+function resolveApiKey(): string | null {
+  const stored = getUiState().readSecret(ELEVENLABS_API_KEY_UI_STATE);
+  if (stored && stored.trim().length > 0) return stored.trim();
+  const env = process.env["ELEVENLABS_API_KEY"];
+  return env && env.trim().length > 0 ? env.trim() : null;
+}
+
 function ensureConnection(): WebSocket | null {
   if (ws && ws.readyState <= WebSocket.OPEN) return ws;
-  const apiKey = process.env["ELEVENLABS_API_KEY"];
+  const apiKey = resolveApiKey();
   if (!apiKey) return null;
   const voiceId = process.env["ELEVENLABS_VOICE_ID"] ?? DEFAULT_VOICE_ID;
   const socket = new WebSocket(endpoint(voiceId));
@@ -102,7 +118,7 @@ export function ttsInterrupt(): void {
   }
 }
 
-/** Whether the main process has ElevenLabs credentials configured. */
+/** Whether ElevenLabs credentials are configured (settings store or env). */
 export function ttsAvailable(): boolean {
-  return Boolean(process.env["ELEVENLABS_API_KEY"]);
+  return resolveApiKey() !== null;
 }

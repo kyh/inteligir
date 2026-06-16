@@ -4,13 +4,14 @@
 // host paths to the desktop's home (~/.inteligir) and keeps the existing
 // constant names so other agent/* modules don't change. Provider/model
 // selection is desktop config, owned here and injected into AgentHost.
+//
+// agent/ keeps zero @/main imports: it reads its layout from the host, not from
+// main/lib/json-store.ts. The dependency direction stays one-way — main
+// composes, agent receives.
 
 import path from "node:path";
 
-import {
-  configurePaths as configureHostPaths,
-  resolveAgentPaths,
-} from "@repo/agent-host/paths";
+import { configurePaths as configureHostPaths, resolveAgentPaths } from "@repo/agent-host/paths";
 
 const PATHS = resolveAgentPaths();
 
@@ -32,6 +33,13 @@ export const BACKGROUND_SESSION_DIR = path.join(PATHS.sessionDir, "background");
 export const WORKSPACE_DIR = PATHS.workspaceDir;
 export const BIN_DIR = PATHS.binDir;
 export const EXTENSIONS_DIR = PATHS.extensionsDir;
+
+/** Resolve an arbitrary path under the agent home (~/.inteligir). For bundles
+ * (peekaboo, browser) that need a scratch subdir outside the fixed layout
+ * above. Derived from AGENT_DIR so it shares the host-resolved home. */
+export function inteligirPath(...segments: string[]): string {
+  return path.join(AGENT_DIR, ...segments);
+}
 
 /**
  * Override pi-coding-agent's default getAgentDir() (~/.pi/agent). Must be

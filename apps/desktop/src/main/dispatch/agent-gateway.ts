@@ -109,7 +109,8 @@ async function drainQueue(): Promise<void> {
       // A new exclusive turn may have begun mid-drain (e.g. a scheduled task
       // fired). Let it run; the remaining queue drains when it ends.
       if (exclusiveTurnActive) break;
-      const entry = queued.shift()!;
+      const entry = queued.shift();
+      if (!entry) break;
       try {
         await apply(entry.command);
         entry.resolve();

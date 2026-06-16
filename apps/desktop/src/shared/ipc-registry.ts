@@ -9,24 +9,37 @@
 
 import { type Static, type TSchema, Type } from "@sinclair/typebox";
 
+import type { PiAgentSkill } from "@repo/pi-driver/skills";
+
 import type { AppAgentEvent } from "./agent-events";
 import { AppEventSchema, type AppState } from "./app-state";
 import {
-  AddGoogleSourceInputSchema,
-  AddGraphqlSourceInputSchema,
-  AddMcpSourceInputSchema,
-  AddOpenApiSourceInputSchema,
-  ExecutorConnectionRefSchema,
+  AddGraphqlInputSchema,
+  AddMcpInputSchema,
+  AddOpenApiInputSchema,
+  ConnectionKeyInputSchema,
+  CreateConnectionInputSchema,
+  CreateOAuthClientInputSchema,
+  ExecutorConnectionSchema,
   ExecutorDetectResultSchema,
-  ExecutorSecretRefSchema,
-  ExecutorSourceSchema,
+  ExecutorIntegrationSchema,
+  ExecutorOAuthClientSchema,
   OAuthAwaitResultSchema,
+  OAuthProbeResultSchema,
   OAuthStartInputSchema,
   OAuthStartResultSchema,
-  SetSecretInputSchema,
-  type ExecutorAddSourceResult,
+  RegisterDynamicOAuthClientInputSchema,
+  type AddGraphqlResult,
+  type AddMcpResult,
+  type AddOpenApiResult,
 } from "./executor";
-import type { ShellSnapshot, WidgetDef, WidgetInstance } from "./shell";
+import {
+  FloatRectSchema,
+  WidgetGeometrySchema,
+  type ShellSnapshot,
+  type WidgetDef,
+  type WidgetInstance,
+} from "./shell";
 import {
   CreateTaskParamsSchema,
   type CreateTaskResult,
@@ -91,10 +104,35 @@ export type ChatHistoryEntry = {
 
 export type ExecutorStatus =
   | { running: false }
-  | { running: true; scope: { id: string; name: string; dir: string } };
+  // redirectUri is the daemon's browser-facing OAuth callback — surfaced so
+  // the Google client dialog can show the exact URI to whitelist in GCP.
+  | { running: true; redirectUri: string };
+
+/** Result of ensureGoogleOAuthClient: "ready" means the shared "google"
+ * client exists in executor (pre-registered, or just seeded from the
+ * build's bundled credentials) and consent can start; "unavailable" means
+ * neither — the renderer falls back to the paste-your-own-GCP-app dialog. */
+export type EnsureGoogleClientResult =
+  | { status: "ready"; source: "existing" | "bundled" }
+  | { status: "unavailable" };
 
 export type NotificationSettings = {
   enabled: boolean;
+};
+
+/** Installed-vs-pinned version of a CLI binary an extension installs. */
+export type IntegrationInfo = {
+  name: string;
+  /** Version the app pins / ships. */
+  expected: string;
+  /** Version currently installed on disk, or null if missing/unreadable. */
+  installed: string | null;
+};
+
+export type SkillInfo = PiAgentSkill;
+
+export type SkillsList = {
+  skills: SkillInfo[];
 };
 
 const NotificationsPatchSchema = Type.Object(
@@ -118,28 +156,7 @@ const DeleteWidgetSchema = Type.Object(
   { additionalProperties: false },
 );
 
-const GeometrySchema = Type.Object(
-  {
-    x: Type.Number(),
-    y: Type.Number(),
-    w: Type.Number(),
-    h: Type.Number(),
-    minW: Type.Optional(Type.Number()),
-    minH: Type.Optional(Type.Number()),
-  },
-  { additionalProperties: false },
-);
-const WidgetGeometriesSchema = Type.Record(Type.String(), GeometrySchema);
-
-const FloatRectSchema = Type.Object(
-  {
-    x: Type.Number(),
-    y: Type.Number(),
-    width: Type.Number(),
-    height: Type.Number(),
-  },
-  { additionalProperties: false },
-);
+const WidgetGeometriesSchema = Type.Record(Type.String(), WidgetGeometrySchema);
 
 const SetInstanceRectSchema = Type.Object(
   { instanceId: Type.String(), rect: FloatRectSchema },
@@ -183,9 +200,7 @@ const WidgetCallToolSchema = Type.Object(
 // "Error invoking remote method '…': <main-side stack>" string — which a widget
 // would otherwise render verbatim into its error state. `ok:false` carries a
 // short, already-cleaned message safe to show inline.
-export type WidgetCallToolResult =
-  | { ok: true; data: unknown }
-  | { ok: false; error: string };
+export type WidgetCallToolResult = { ok: true; data: unknown } | { ok: false; error: string };
 const WidgetOpenUrlSchema = Type.Object({ url: Type.String() }, { additionalProperties: false });
 
 // InstallWidgetInput carries a WidgetSpec — the deep validation lives in
@@ -207,65 +222,64 @@ const BinaryAudioSchema = Type.Any();
 
 const TtsSendSchema = Type.Object({ text: Type.String() }, { additionalProperties: false });
 
+const SetRemoteAccessSchema = Type.Object(
+  { enabled: Type.Boolean() },
+  { additionalProperties: false },
+);
+
 // ---------------------------------------------------------------------------
 // Entry helpers — phantom types carry result/event shapes through the registry
 // ---------------------------------------------------------------------------
 
+// The `_payload`/`_result`/`_event` fields are phantom: optional and never
+// set at runtime, they exist purely so `infer` can pull the wire types back
+// out of an entry (see DesktopBridge / IpcResult below).
 type Invoke<S extends TSchema, R> = {
   readonly kind: "invoke";
   readonly channel: string;
   readonly payload: S;
-  readonly _payload: Static<S>;
-  readonly _result: R;
+  readonly _payload?: Static<S>;
+  readonly _result?: R;
 };
 
 type InvokeVoid<R> = {
   readonly kind: "invoke-void";
   readonly channel: string;
-  readonly _result: R;
+  readonly _result?: R;
 };
 
 type Send<S extends TSchema> = {
   readonly kind: "send";
   readonly channel: string;
   readonly payload: S;
-  readonly _payload: Static<S>;
+  readonly _payload?: Static<S>;
 };
 
 type Event<E> = {
   readonly kind: "event";
   readonly channel: string;
-  readonly _event: E;
+  readonly _event?: E;
 };
 
-type IpcEntry =
-  | Invoke<TSchema, unknown>
-  | InvokeVoid<unknown>
-  | Send<TSchema>
-  | Event<unknown>;
+type IpcEntry = Invoke<TSchema, unknown> | InvokeVoid<unknown> | Send<TSchema> | Event<unknown>;
 
 const invoke = <S extends TSchema, R>(channel: string, payload: S): Invoke<S, R> => ({
   kind: "invoke",
   channel,
   payload,
-  _payload: undefined as never,
-  _result: undefined as never,
 });
 const invokeVoid = <R>(channel: string): InvokeVoid<R> => ({
   kind: "invoke-void",
   channel,
-  _result: undefined as never,
 });
 const send = <S extends TSchema>(channel: string, payload: S): Send<S> => ({
   kind: "send",
   channel,
   payload,
-  _payload: undefined as never,
 });
 const event = <E>(channel: string): Event<E> => ({
   kind: "event",
   channel,
-  _event: undefined as never,
 });
 
 // ---------------------------------------------------------------------------
@@ -308,6 +322,9 @@ export const IPC = {
     "task:toggle",
     Type.String({ minLength: 1 }),
   ),
+  /** Push channel: fired on every task mutation (IPC, agent tool, scheduler)
+   * so the Tasks panel stays live instead of only refreshing on mount. */
+  onTasksUpdated: event<ListTasksResult>("task:updated"),
 
   // Voice
   isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
@@ -324,9 +341,13 @@ export const IPC = {
   downloadVoiceModel: invokeVoid<{ ok: boolean; error?: string }>("voice:model:download"),
   onVoiceModelState: event<VoiceModelStateEvent>("voice:model:state"),
 
-  // Dispatch (mobile ↔ desktop relay)
+  // Dispatch (Remote Access relay — opt-in mobile ↔ desktop pairing)
   getDispatchState: invokeVoid<DispatchState>("dispatch:get-state"),
-  refreshDispatchCode: invokeVoid<void>("dispatch:refresh-code"),
+  setRemoteAccess: invoke<typeof SetRemoteAccessSchema, DispatchState>(
+    "dispatch:set-remote-access",
+    SetRemoteAccessSchema,
+  ),
+  rotateDispatchCredential: invokeVoid<DispatchState>("dispatch:rotate-credential"),
   onDispatchState: event<DispatchState>("dispatch:state"),
 
   // Notifications
@@ -398,73 +419,80 @@ export const IPC = {
     WidgetOpenUrlSchema,
   ),
 
-  // Executor
+  // Executor (v1.5 model: integrations = catalog, connections = credentials).
+  // The v1 sources/secrets channels are gone — secrets are now connection
+  // credential values; Google goes through add-openapi (googleDiscoveryBundle).
   executorStatus: invokeVoid<ExecutorStatus>("executor:status"),
-  listExecutorSources: invokeVoid<Static<typeof ExecutorSourceSchema>[]>("executor:sources:list"),
-  detectExecutorSource: invoke<ReturnType<typeof Type.String>, Static<typeof ExecutorDetectResultSchema>[]>(
-    "executor:sources:detect",
+  listExecutorIntegrations: invokeVoid<Static<typeof ExecutorIntegrationSchema>[]>(
+    "executor:integrations:list",
+  ),
+  detectExecutorIntegration: invoke<
+    ReturnType<typeof Type.String>,
+    Static<typeof ExecutorDetectResultSchema>[]
+  >("executor:integrations:detect", Type.String()),
+  addMcpIntegration: invoke<typeof AddMcpInputSchema, AddMcpResult>(
+    "executor:integration:add-mcp",
+    AddMcpInputSchema,
+  ),
+  addOpenApiIntegration: invoke<typeof AddOpenApiInputSchema, AddOpenApiResult>(
+    "executor:integration:add-openapi",
+    AddOpenApiInputSchema,
+  ),
+  addGraphqlIntegration: invoke<typeof AddGraphqlInputSchema, AddGraphqlResult>(
+    "executor:integration:add-graphql",
+    AddGraphqlInputSchema,
+  ),
+  removeExecutorIntegration: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
+    "executor:integration:remove",
     Type.String(),
   ),
-  addMcpSource: invoke<typeof AddMcpSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-mcp",
-    AddMcpSourceInputSchema,
-  ),
-  addOpenApiSource: invoke<typeof AddOpenApiSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-openapi",
-    AddOpenApiSourceInputSchema,
-  ),
-  addGraphqlSource: invoke<typeof AddGraphqlSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-graphql",
-    AddGraphqlSourceInputSchema,
-  ),
-  addGoogleSource: invoke<typeof AddGoogleSourceInputSchema, ExecutorAddSourceResult>(
-    "executor:source:add-google",
-    AddGoogleSourceInputSchema,
-  ),
-  removeExecutorSource: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
-    "executor:source:remove",
-    Type.String(),
-  ),
-  refreshExecutorSource: invoke<ReturnType<typeof Type.String>, { refreshed: boolean }>(
-    "executor:source:refresh",
-    Type.String(),
-  ),
-  listExecutorSecrets: invokeVoid<Static<typeof ExecutorSecretRefSchema>[]>(
-    "executor:secrets:list",
-  ),
-  setExecutorSecret: invoke<typeof SetSecretInputSchema, Static<typeof ExecutorSecretRefSchema>>(
-    "executor:secret:set",
-    SetSecretInputSchema,
-  ),
-  removeExecutorSecret: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
-    "executor:secret:remove",
-    Type.String(),
-  ),
-  listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionRefSchema>[]>(
+  listExecutorConnections: invokeVoid<Static<typeof ExecutorConnectionSchema>[]>(
     "executor:connections:list",
   ),
-  removeExecutorConnection: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
+  createExecutorConnection: invoke<
+    typeof CreateConnectionInputSchema,
+    Static<typeof ExecutorConnectionSchema>
+  >("executor:connection:create", CreateConnectionInputSchema),
+  removeExecutorConnection: invoke<typeof ConnectionKeyInputSchema, { removed: boolean }>(
     "executor:connection:remove",
+    ConnectionKeyInputSchema,
+  ),
+  listExecutorOAuthClients: invokeVoid<Static<typeof ExecutorOAuthClientSchema>[]>(
+    "executor:oauth:clients:list",
+  ),
+  createExecutorOAuthClient: invoke<typeof CreateOAuthClientInputSchema, { client: string }>(
+    "executor:oauth:client:create",
+    CreateOAuthClientInputSchema,
+  ),
+  ensureGoogleOAuthClient: invokeVoid<EnsureGoogleClientResult>(
+    "executor:oauth:google-client:ensure",
+  ),
+  registerExecutorOAuthClientDynamic: invoke<
+    typeof RegisterDynamicOAuthClientInputSchema,
+    { client: string }
+  >("executor:oauth:client:register-dynamic", RegisterDynamicOAuthClientInputSchema),
+  executorOAuthProbe: invoke<ReturnType<typeof Type.String>, Static<typeof OAuthProbeResultSchema>>(
+    "executor:oauth:probe",
     Type.String(),
   ),
   executorOAuthStart: invoke<typeof OAuthStartInputSchema, Static<typeof OAuthStartResultSchema>>(
     "executor:oauth:start",
     OAuthStartInputSchema,
   ),
-  executorOAuthAwait: invoke<ReturnType<typeof Type.String>, Static<typeof OAuthAwaitResultSchema> | null>(
-    "executor:oauth:await",
-    Type.String(),
-  ),
+  executorOAuthAwait: invoke<
+    ReturnType<typeof Type.String>,
+    Static<typeof OAuthAwaitResultSchema> | null
+  >("executor:oauth:await", Type.String()),
   executorOpenExternal: invoke<ReturnType<typeof Type.String>, void>(
     "executor:open-external",
     Type.String(),
   ),
 
   // Skills
-  listSkills: invokeVoid<import("./ipc").SkillsList>("skills:list"),
+  listSkills: invokeVoid<SkillsList>("skills:list"),
 
   // Integrations
-  listIntegrations: invokeVoid<import("./ipc").IntegrationInfo[]>("integrations:list"),
+  listIntegrations: invokeVoid<IntegrationInfo[]>("integrations:list"),
   repairIntegrations: invokeVoid<void>("integrations:repair"),
 } as const satisfies Record<string, IpcEntry>;
 
@@ -502,5 +530,4 @@ export type IpcHandler<K extends IpcMethod> =
         : never;
 
 /** Map a method name to its broadcast event payload. */
-export type IpcEvent<K extends IpcMethod> =
-  IpcRegistry[K] extends Event<infer V> ? V : never;
+export type IpcEvent<K extends IpcMethod> = IpcRegistry[K] extends Event<infer V> ? V : never;

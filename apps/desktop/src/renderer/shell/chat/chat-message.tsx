@@ -15,9 +15,16 @@ const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [
   "github-dark-dimmed",
 ];
 
-// MessageContent's text-sm is bigger than the pre-ai-elements bubbles used.
-// Drop to text-xs while keeping the (intentionally roomier) padding.
-const MESSAGE_TEXT = "text-xs";
+// MessageContent's text-sm is bigger than the pre-ai-elements bubbles used —
+// both constants drop to text-xs.
+// Chat lives on an opaque card now (reference card anatomy), so the bubbles
+// drop their backdrop-blur (a no-op cost over a solid fill). User prompts stay
+// a subtle pill; assistant answers read as plain text on the card, matching
+// the references' chat-history sheet.
+const USER_BUBBLE =
+  "text-xs group-[.is-user]:rounded-xl group-[.is-user]:bg-foreground/10 group-[.is-user]:px-3 group-[.is-user]:py-2 group-[.is-user]:backdrop-blur-none";
+const ASSISTANT_PLAIN =
+  "text-xs group-[.is-assistant]:bg-transparent group-[.is-assistant]:px-0 group-[.is-assistant]:py-1 group-[.is-assistant]:backdrop-blur-none";
 
 export function ChatMessageView({ message }: { message: ChatMessage }) {
   const first = message.parts[0];
@@ -107,7 +114,7 @@ export function ChatActivityRow({ messages, busy }: { messages: ChatMessage[]; b
 function UserMessage({ text, imageCount }: { text: string; imageCount: number }) {
   return (
     <Message from="user">
-      <MessageContent className={MESSAGE_TEXT}>
+      <MessageContent className={USER_BUBBLE}>
         {text && <span>{text}</span>}
         <ImageCount count={imageCount} withLabel />
       </MessageContent>
@@ -138,9 +145,11 @@ function AssistantMessage({ text }: { text: string }) {
   if (!text) return null;
   return (
     <Message from="assistant">
-      <MessageContent className={MESSAGE_TEXT}>
+      <MessageContent className={ASSISTANT_PLAIN}>
         <Response
-          className="prose prose-sm prose-invert max-w-none break-words text-xs [&_*]:text-xs"
+          // dark:prose-invert (not unconditional) — the card under the text is
+          // near-white in the light theme.
+          className="prose prose-sm max-w-none break-words text-xs dark:prose-invert [&_*]:text-xs"
           shikiTheme={ASSISTANT_SHIKI_THEME}
         >
           {text}

@@ -19,7 +19,6 @@
     "react-dom": "catalog:"
   },
   "devDependencies": {
-    "@kyh/tsconfig": "catalog:",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

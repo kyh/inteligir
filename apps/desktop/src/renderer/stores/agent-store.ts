@@ -42,9 +42,7 @@ type SendOptions = { intent?: SendIntent };
 // ---------------------------------------------------------------------------
 
 type SetFn = (
-  partial:
-    | Partial<AgentStore>
-    | ((state: AgentStore) => Partial<AgentStore> | AgentStore),
+  partial: Partial<AgentStore> | ((state: AgentStore) => Partial<AgentStore> | AgentStore),
 ) => void;
 type GetFn = () => AgentStore;
 
@@ -91,11 +89,7 @@ function textPart(text: string, state?: TextUIPart["state"]): TextUIPart {
   return state ? { type: "text", text, state } : { type: "text", text };
 }
 
-function toolPartRunning(
-  toolCallId: string,
-  toolName: string,
-  args: unknown,
-): DynamicToolUIPart {
+function toolPartRunning(toolCallId: string, toolName: string, args: unknown): DynamicToolUIPart {
   return {
     type: "dynamic-tool",
     toolCallId,
@@ -160,6 +154,27 @@ function assistantToolMessage(part: DynamicToolUIPart): ChatMessage {
     role: "assistant",
     parts: [part],
   };
+}
+
+/**
+ * Submit a command and surface a failure in the chat instead of swallowing
+ * it. The optimistic user bubble has already been appended by the caller —
+ * without this, a rejected submission (IPC validation, agent mid-restart)
+ * leaves the message rendered as sent while it never reached the agent.
+ */
+function sendCommandSurfacingFailure(
+  bridge: DesktopBridge,
+  set: SetFn,
+  command: Parameters<DesktopBridge["sendAgentCommand"]>[0],
+): void {
+  void bridge.sendAgentCommand(command).catch((err: unknown) => {
+    const reason = err instanceof Error ? err.message : "The message could not be submitted.";
+    const msg: ChatMessage = {
+      ...assistantTextMessage(`Your message wasn't delivered: ${reason}`),
+      metadata: { errorKind: "unknown" },
+    };
+    set((s) => ({ messages: [...s.messages, msg] }));
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -230,8 +245,7 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
         const sweepIds = new Set(toolMsgIds.values());
         toolMsgIds.clear();
         set((s) => ({
-          messages:
-            sweepIds.size > 0 ? s.messages.filter((m) => !sweepIds.has(m.id)) : s.messages,
+          messages: sweepIds.size > 0 ? s.messages.filter((m) => !sweepIds.has(m.id)) : s.messages,
           queuedFollowUp: [],
           queuedSteering: [],
         }));
@@ -289,8 +303,7 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
         // Cause is unknown from pi's perspective — don't claim it's auth.
         if (event.stopReason === "error") {
           const errText =
-            event.errorMessage ??
-            (text.length > 0 ? text : "The model returned no response.");
+            event.errorMessage ?? (text.length > 0 ? text : "The model returned no response.");
           set((s) => ({
             messages: s.messages.map((m) =>
               m.id === sid
@@ -424,8 +437,8 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     // get routed through the same path as a typed user message: send to the
     // agent + append to the local chat list.
     const unsubVoice = onUserTranscript((text) => {
-      void bridge.sendAgentCommand({ type: "user_message", text });
       set((s) => ({ messages: [...s.messages, userMessage(text)] }));
+      sendCommandSurfacingFailure(bridge, set, { type: "user_message", text });
     });
     void loadInitialHistory(bridge, set);
 
@@ -448,8 +461,6 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const cmdType: "user_message" | "follow_up" | "steer" =
       busy && wantsSteer ? "steer" : busy ? "follow_up" : "user_message";
 
-    void bridge.sendAgentCommand({ type: cmdType, text, images });
-
     const meta: ChatMessageMetadata = {};
     if (cmdType === "steer") meta.steer = true;
     if (images?.length) meta.imageCount = images.length;
@@ -458,10 +469,19 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     set((s) => ({
       messages: [...s.messages, userMessage(text, hasMeta ? meta : undefined)],
     }));
+    sendCommandSurfacingFailure(bridge, set, {
+      type: cmdType,
+      text,
+      ...(images === undefined ? {} : { images }),
+    });
   },
 
   interrupt: () => {
-    void getBridge()?.sendAgentCommand({ type: "interrupt" });
+    // Benign if it fails (nothing running to interrupt) — swallow the
+    // rejection now that main returns the real submission promise.
+    void getBridge()
+      ?.sendAgentCommand({ type: "interrupt" })
+      .catch(() => {});
   },
 
   newSession: async () => {

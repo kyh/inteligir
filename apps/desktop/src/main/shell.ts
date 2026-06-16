@@ -3,12 +3,12 @@
 // commands; this kernel validates specs, placement, and revisions.
 
 import { randomUUID } from "node:crypto";
-import type { Static } from "@sinclair/typebox";
+import { Value } from "@sinclair/typebox/value";
 
 import { broadcast } from "@/main/lib/broadcast";
 import { JsonStore, inteligirPath } from "@/main/lib/json-store";
 import { DEFAULT_SHELL, defaultShellSnapshot, shellSnapshot } from "@/main/shell-defaults";
-import { ShellSchema } from "@/main/shell-schema";
+import { migrateShellV2ToV3, ShellSchema } from "@/main/shell-schema";
 import { applyJsonPatchOp } from "@/shared/json-pointer";
 import { parseWidgetSpec } from "@/shared/widget-spec";
 import {
@@ -45,19 +45,55 @@ export class ShellManager {
     this.store = new JsonStore<Shell>(file, ShellSchema, DEFAULT_SHELL, {
       // On-disk WidgetSpec is Type.Unknown() in ShellSchema — narrow each
       // custom def's spec via parseWidgetSpec on read so callers see the
-      // tightened WidgetSpec type. A spec that fails the deep validation
-      // throws and triggers JsonStore's corrupt-recovery path.
+      // tightened WidgetSpec type. A spec that fails the structural validation
+      // throws and triggers JsonStore's corrupt-recovery path. Per-component
+      // prop validation is deliberately skipped on this read path: it runs at
+      // the write boundary (install/update/patch), and a legacy def written
+      // before that gate must not nuke the whole store — the renderer's
+      // validateWidgetProps still flags it, and the next update/patch fixes it.
       decode: (raw) => {
-        const v = raw as Static<typeof ShellSchema>;
+        // Re-check against the concrete schema purely to narrow the type —
+        // JsonStore already validated, but its TSchema-typed read can't prove
+        // it to the compiler. Runs once per process; cost is negligible.
+        if (!Value.Check(ShellSchema, raw)) {
+          throw new Error("shell decode received a non-conforming value");
+        }
+        const v = raw;
         const customDefs: JsonUiWidgetDef[] = [];
         for (const d of v.customDefs) {
           customDefs.push({
             ...d,
-            source: { ...d.source, spec: parseWidgetSpec(d.source.spec) },
+            source: {
+              ...d.source,
+              spec: parseWidgetSpec(d.source.spec, { skipComponentProps: true }),
+            },
           });
         }
         return { ...v, customDefs };
       },
+      versioning: {
+        current: 3,
+        // runtime-ui.json was introduced at `version: 2` (v1 lived at the
+        // now-retired shell.json path), so an unversioned file was never a
+        // legitimate state — treat it as corruption: backed up + surfaced,
+        // not silently wiped.
+        fromLegacy: () => {
+          throw new Error("runtime-ui.json was never written without a version field");
+        },
+        migrations: {
+          // v2 → v3: executor 1.4 → 1.5 moved tool addressing to
+          // connection-scoped paths; rewrite every widget spec's callTool
+          // addresses so pre-existing dashboard panels (Up Next, People, …)
+          // resume loading data once the user reconnects.
+          2: migrateShellV2ToV3,
+        },
+      },
+      // Hot path: widget state ticks, drags, and geometry changes each
+      // rewrite the whole file (which can embed entire API responses pulled
+      // into widget state). Coalesce instead of a synchronous write per
+      // mutation; setInstanceState awaits flush() to keep the renderer flush
+      // protocol's persisted=true honest.
+      coalesceWrites: true,
     });
   }
 
@@ -84,7 +120,7 @@ export class ShellManager {
       const def: JsonUiWidgetDef = {
         id,
         title: input.title,
-        description: input.description,
+        ...(input.description === undefined ? {} : { description: input.description }),
         revision: 1,
         singleton: false,
         defaultGeometry: { x: 5, y: 0, ...WIDGET_DEFAULT_SIZE },
@@ -109,7 +145,9 @@ export class ShellManager {
       return {
         ...def,
         title: input.title ?? def.title,
-        description: input.description ?? def.description,
+        // ...def already carries the existing description; only override when
+        // the caller supplied one (optional props stay absent, not undefined).
+        ...(input.description === undefined ? {} : { description: input.description }),
         revision: def.revision + 1,
         source: {
           ...def.source,
@@ -239,13 +277,15 @@ export class ShellManager {
     const instances = current.instances.map((i) => {
       const geo = geometries[i.instanceId];
       if (!geo || i.placement.surface !== "pinned") return i;
+      const minW = geo.minW ?? i.placement.geometry.minW;
+      const minH = geo.minH ?? i.placement.geometry.minH;
       const merged: WidgetGeometry = {
         x: geo.x,
         y: geo.y,
         w: geo.w,
         h: geo.h,
-        minW: geo.minW ?? i.placement.geometry.minW,
-        minH: geo.minH ?? i.placement.geometry.minH,
+        ...(minW === undefined ? {} : { minW }),
+        ...(minH === undefined ? {} : { minH }),
       };
       if (geometryEquals(i.placement.geometry, merged)) {
         return i;
@@ -277,8 +317,21 @@ export class ShellManager {
     this.updateInstance(instanceId, (i, shell) => this.focusedFloatingInstance(shell, i));
   }
 
-  setInstanceState(instanceId: string, state: Record<string, unknown>): WidgetInstance | null {
-    return this.updateInstance(instanceId, (i) => ({ ...i, state }));
+  /**
+   * Replace an instance's bound state and resolve only once the change is
+   * durably on disk. The renderer's flushPersist reports persisted=true when
+   * the IPC behind this resolves — with coalesced store writes, awaiting the
+   * store flush is what keeps that guarantee honest. Rejects if the disk
+   * write failed, so the flush bridge acks persisted=false instead of letting
+   * an unplace/delete proceed on state that never landed.
+   */
+  async setInstanceState(
+    instanceId: string,
+    state: Record<string, unknown>,
+  ): Promise<WidgetInstance | null> {
+    const updated = this.updateInstance(instanceId, (i) => ({ ...i, state }));
+    if (updated) await this.store.flush();
+    return updated;
   }
 
   invalidate(): void {
@@ -438,6 +491,16 @@ export class ShellManager {
 
   private broadcast(shell: Shell): void {
     broadcast("onShellUpdated", shellSnapshot(shell));
+  }
+
+  /**
+   * Await any pending coalesced store write. setInstanceState already flushes
+   * itself; this is for lifecycle hooks (e.g. a before-quit handler) that
+   * want the latest drag/geometry/install writes on disk before the process
+   * exits.
+   */
+  flushStore(): Promise<void> {
+    return this.store.flush();
   }
 
   /**

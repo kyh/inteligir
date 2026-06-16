@@ -10,7 +10,9 @@ type ConnectorStatus = "idle" | "connecting" | "connected" | "disconnecting";
 type ConnectorCardProps = {
   connector: CatalogConnector;
   status: ConnectorStatus;
-  /** Whether the connected source may be removed (executor's canRemove). */
+  /** Signed-in identity from the live connection (null when not provided). */
+  identityLabel: string | null;
+  /** Whether the connected integration may be removed (executor's canRemove). */
   canDisconnect: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -39,6 +41,7 @@ function BrandTile({ connector }: { connector: CatalogConnector }) {
 export function ConnectorCard({
   connector,
   status,
+  identityLabel,
   canDisconnect,
   onConnect,
   onDisconnect,
@@ -47,13 +50,12 @@ export function ConnectorCard({
   const disconnecting = status === "disconnecting";
   // The "connected" layout also covers an in-progress disconnect, so the card
   // doesn't fall back to a misleading "Connect" button mid-operation.
+  // "Connected" only ever renders when a live, credentialed connection exists
+  // (the section derives status from executor's connections, not integrations).
   const showConnected = status === "connected" || disconnecting;
-  // Google sources register immediately but consent is deferred to first use in
-  // code mode, so "Added" is more honest than claiming an authorized connection.
-  const isGoogle = connector.install.type === "google";
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-background/40 p-3">
+    <div className="flex flex-col gap-2 rounded-[12px] bg-muted p-3">
       <div className="flex items-start gap-2.5">
         <BrandTile connector={connector} />
         <div className="flex min-w-0 flex-1 flex-col">
@@ -64,31 +66,31 @@ export function ConnectorCard({
         </div>
       </div>
       {showConnected ? (
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <span
-            className="flex items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
-            title={isGoogle ? "Google sign-in happens the first time the agent uses it" : undefined}
+            className="flex min-w-0 items-center gap-1 text-[10px] font-medium text-emerald-600 dark:text-emerald-400"
+            title={identityLabel ?? undefined}
           >
-            <CheckIcon className="size-3" />
-            {isGoogle ? "Added" : "Connected"}
+            <CheckIcon className="size-3 shrink-0" />
+            <span className="truncate">{identityLabel ?? "Connected"}</span>
           </span>
           {canDisconnect && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={onDisconnect}
-            disabled={disconnecting}
-            className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
-          >
-            {disconnecting ? (
-              <span className="flex items-center gap-1.5">
-                <Loader2Icon className="size-3 animate-spin" />
-                Disconnecting…
-              </span>
-            ) : (
-              "Disconnect"
-            )}
-          </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDisconnect}
+              disabled={disconnecting}
+              className="h-6 px-2 text-[10px] text-muted-foreground hover:text-destructive"
+            >
+              {disconnecting ? (
+                <span className="flex items-center gap-1.5">
+                  <Loader2Icon className="size-3 animate-spin" />
+                  Disconnecting…
+                </span>
+              ) : (
+                "Disconnect"
+              )}
+            </Button>
           )}
         </div>
       ) : (

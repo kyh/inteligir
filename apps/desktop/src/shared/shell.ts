@@ -11,23 +11,33 @@
 //  - The dock is the gallery/launcher for placing defs; the workspace shows
 //    placed instances (pinned on the grid; floating in a layer above).
 //
-// Types stay loose here so main/preload don't pull renderer code in.
+// Persisted shapes are defined once as TypeBox schemas here, with the TS
+// types derived via Static — main/shell-schema.ts instantiates the same
+// schemas for the on-disk file, so the disk schema can't drift from these
+// types.
+
+import { type Static, type TSchema, Type } from "@sinclair/typebox";
 
 import type { JsonPatchOp } from "./json-pointer";
-import type { WidgetSpec } from "./widget-spec";
+import { WidgetSpecParam } from "./widget-spec";
 
 // ---------------------------------------------------------------------------
 // Geometry + rect
 // ---------------------------------------------------------------------------
 
-export type WidgetGeometry = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  minW?: number;
-  minH?: number;
-};
+export const WidgetGeometrySchema = Type.Object(
+  {
+    x: Type.Number(),
+    y: Type.Number(),
+    w: Type.Number(),
+    h: Type.Number(),
+    minW: Type.Optional(Type.Number()),
+    minH: Type.Optional(Type.Number()),
+  },
+  { additionalProperties: false },
+);
+
+export type WidgetGeometry = Static<typeof WidgetGeometrySchema>;
 
 export const WIDGET_DEFAULT_SIZE: Pick<WidgetGeometry, "w" | "h" | "minW" | "minH"> = {
   w: 7,
@@ -37,7 +47,12 @@ export const WIDGET_DEFAULT_SIZE: Pick<WidgetGeometry, "w" | "h" | "minW" | "min
 };
 
 /** Free-form pixel rect for a floating (window) placement. */
-export type FloatRect = { x: number; y: number; width: number; height: number };
+export const FloatRectSchema = Type.Object(
+  { x: Type.Number(), y: Type.Number(), width: Type.Number(), height: Type.Number() },
+  { additionalProperties: false },
+);
+
+export type FloatRect = Static<typeof FloatRectSchema>;
 
 export const WIDGET_DEFAULT_RECT: FloatRect = { x: 340, y: 96, width: 380, height: 440 };
 
@@ -60,29 +75,46 @@ export function rectEquals(a: FloatRect, b: FloatRect): boolean {
 // Widget definitions — "what's installed"
 // ---------------------------------------------------------------------------
 
-type WidgetSource =
-  | { kind: "builtin-react" }
-  | {
-      kind: "json-ui";
-      spec: WidgetSpec;
-      createdAt: number;
-      updatedAt: number;
-    };
+/** A custom widget definition. Built-ins live in code (BUILTIN_DEFS); customs
+ * are agent-/user-generated and persisted alongside instances.
+ *
+ * One field list, parameterised over the spec schema: the persisted shell
+ * (main/shell-schema.ts) keeps `spec` as Unknown so one malformed spec on
+ * disk routes through decode/corrupt-recovery instead of rejecting the whole
+ * shell, while the in-memory JsonUiWidgetDef binds the parsed WidgetSpec. */
+function jsonUiWidgetDefSchema<S extends TSchema>(specSchema: S) {
+  return Type.Object(
+    {
+      id: Type.String(),
+      title: Type.String(),
+      description: Type.Optional(Type.String()),
+      // Monotonic def revision. Agent writes can target the version they read.
+      revision: Type.Number(),
+      // Custom defs are always multi-instance; only built-ins are singletons.
+      singleton: Type.Literal(false),
+      // Initial grid placement for new instances.
+      defaultGeometry: WidgetGeometrySchema,
+      source: Type.Object(
+        {
+          kind: Type.Literal("json-ui"),
+          spec: specSchema,
+          createdAt: Type.Number(),
+          updatedAt: Type.Number(),
+        },
+        { additionalProperties: false },
+      ),
+    },
+    { additionalProperties: false },
+  );
+}
 
-/** A widget definition. Built-ins live in code (BUILTIN_DEFS); customs are
- * agent-/user-generated and persisted alongside instances. */
-type BaseWidgetDef = {
-  id: string;
-  title: string;
-  description?: string;
-  /** Monotonic def revision. Agent writes can target the version they read. */
-  revision: number;
-  /** At most one instance can be placed at a time. */
-  singleton: boolean;
-  /** Initial grid placement for new instances. */
-  defaultGeometry: WidgetGeometry;
-  source: WidgetSource;
-};
+const JsonUiWidgetDefSchema = jsonUiWidgetDefSchema(WidgetSpecParam);
+
+export type JsonUiWidgetDef = Static<typeof JsonUiWidgetDefSchema>;
+
+/** Def fields shared with built-ins — the canonical field list lives in
+ * jsonUiWidgetDefSchema; built-ins only override what differs. */
+type BaseWidgetDef = Omit<JsonUiWidgetDef, "singleton" | "source">;
 
 function tuple<const T extends readonly string[]>(...values: T): T {
   return values;
@@ -94,13 +126,9 @@ export type BuiltinWidgetId = (typeof BUILTIN_WIDGET_IDS)[number];
 
 export type BuiltinWidgetDef = BaseWidgetDef & {
   id: BuiltinWidgetId;
+  /** At most one instance can be placed at a time. */
   singleton: true;
   source: { kind: "builtin-react" };
-};
-
-export type JsonUiWidgetDef = BaseWidgetDef & {
-  singleton: false;
-  source: Extract<WidgetSource, { kind: "json-ui" }>;
 };
 
 export type WidgetDef = BuiltinWidgetDef | JsonUiWidgetDef;
@@ -183,18 +211,32 @@ export type WidgetSurface = (typeof WIDGET_SURFACES)[number];
 /** Placement is a discriminated union — pinned instances carry grid
  * coordinates only; floating instances carry a free-form rect and z-order
  * only. Toggling surfaces drops to the target surface's defaults. */
-export type Placement =
-  | { surface: "pinned"; geometry: WidgetGeometry }
-  | { surface: "floating"; rect: FloatRect; z: number };
+const PlacementSchema = Type.Union([
+  Type.Object(
+    { surface: Type.Literal("pinned"), geometry: WidgetGeometrySchema },
+    { additionalProperties: false },
+  ),
+  Type.Object(
+    { surface: Type.Literal("floating"), rect: FloatRectSchema, z: Type.Number() },
+    { additionalProperties: false },
+  ),
+]);
 
-export type WidgetInstance = {
-  instanceId: string;
-  /** Matches a BUILTIN_DEFS id or a persisted custom WidgetDef id. */
-  widgetId: string;
-  placement: Placement;
-  /** Per-instance bound state (custom widgets; built-ins manage their own). */
-  state: Record<string, unknown>;
-};
+export type Placement = Static<typeof PlacementSchema>;
+
+const WidgetInstanceSchema = Type.Object(
+  {
+    instanceId: Type.String(),
+    // Matches a BUILTIN_DEFS id or a persisted custom WidgetDef id.
+    widgetId: Type.String(),
+    placement: PlacementSchema,
+    // Per-instance bound state (custom widgets; built-ins manage their own).
+    state: Type.Record(Type.String(), Type.Unknown()),
+  },
+  { additionalProperties: false },
+);
+
+export type WidgetInstance = Static<typeof WidgetInstanceSchema>;
 
 export type PinnedInstance = WidgetInstance & {
   placement: Extract<Placement, { surface: "pinned" }>;
@@ -218,13 +260,26 @@ export function isFloating(i: WidgetInstance): i is FloatingInstance {
 
 /** Persisted: only the custom defs (built-ins live in code) + every instance,
  * plus a per-widgetId archive of state we last saw before an instance was
- * unplaced — so toggling a widget off and on doesn't wipe what the user typed. */
-export type Shell = {
-  version: 2;
-  customDefs: JsonUiWidgetDef[];
-  instances: WidgetInstance[];
-  archivedStates: Record<string, Record<string, unknown>>;
-};
+ * unplaced — so toggling a widget off and on doesn't wipe what the user typed.
+ *
+ * Parameterised over the custom-def spec schema for the same disk/memory
+ * split as jsonUiWidgetDefSchema: main/shell-schema.ts instantiates this with
+ * Unknown for the on-disk file; the Shell type binds the parsed WidgetSpec. */
+export function shellSchema<S extends TSchema>(specSchema: S) {
+  return Type.Object(
+    {
+      version: Type.Literal(3),
+      customDefs: Type.Array(jsonUiWidgetDefSchema(specSchema)),
+      instances: Type.Array(WidgetInstanceSchema),
+      archivedStates: Type.Record(Type.String(), Type.Record(Type.String(), Type.Unknown())),
+    },
+    { additionalProperties: false },
+  );
+}
+
+const MemoryShellSchema = shellSchema(WidgetSpecParam);
+
+export type Shell = Static<typeof MemoryShellSchema>;
 
 /** Broadcast to the renderer + returned from listShell: every def the agent or
  * UI can act on (built-in + custom) and every placed instance. */
@@ -240,17 +295,17 @@ export type ShellSnapshot = {
 // Inputs cross the IPC boundary, so `spec` arrives as `unknown` — the
 // receiver runs parseWidgetSpec to deep-validate before persisting.
 export type InstallWidgetInput = {
-  id?: string;
+  id?: string | undefined;
   title: string;
-  description?: string;
+  description?: string | undefined;
   spec: unknown;
 };
 
 export type UpdateWidgetInput = {
   id: string;
   expectedRevision: number;
-  title?: string;
-  description?: string;
+  title?: string | undefined;
+  description?: string | undefined;
   spec: unknown;
 };
 

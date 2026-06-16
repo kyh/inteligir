@@ -38,7 +38,7 @@ filesystem / shell / agent-browser CLI / executor daemon (connected APIs)
 - **Preload** is the narrow bridge. Validates inbound, types outbound.
 - **Main** is where everything real happens. Holds the agent singleton, manages auth, runs the state machine.
 
-IPC is typed end-to-end via `shared/ipc.ts` (channel constants) + Zod schemas (`shared/app-state.ts`, `shared/voice.ts`, `shared/task.ts`). Both processes import from `shared/`, so renaming a channel or changing a payload shape produces a typecheck error in both places.
+IPC is typed end-to-end via the registry in `shared/ipc-registry.ts`: each method pairs a channel name with a TypeBox payload schema (runtime-validated in main via `Value.Check`) and a result/event type. The preload bridge and the `DesktopBridge` type are both derived from the registry, so renaming a method or changing a payload shape produces a typecheck error in both processes.
 
 ## App lifecycle
 
@@ -91,12 +91,12 @@ Opens Electron with HMR (renderer) + tsc watch (main/preload). CDP exposed on po
 
 ## Adding things — quick map
 
-| Adding...                                 | Where                                                         | See                                |
-| ----------------------------------------- | ------------------------------------------------------------- | ---------------------------------- |
-| New IPC channel                           | `shared/ipc.ts` + handler in `main/{index,shell-ipc,executor-ipc,widget-actions}.ts` + preload bridge | `main/README.md`                   |
-| New app state phase                       | `shared/app-state.ts` + reducer + tests                       | `main/README.md`                   |
-| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring         | `main/README.md`                   |
-| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                | `agent/README.md`                  |
-| Reusable install primitive                | `packages/agent-runtime/`                                     | `packages/agent-runtime/README.md` |
-| New built-in widget panel                 | `renderer/shell/builtin/<name>-panel.tsx` + register in `builtin-widgets.tsx` + def in `shared/shell.ts` | (no README — standard React)       |
-| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`            | `agent/README.md`                  |
+| Adding...                                 | Where                                                                                                                                          | See                                |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| New IPC method                            | Registry entry in `shared/ipc-registry.ts` + `handle()` in `main/{index,shell-ipc,executor-ipc,widget-actions}.ts` (preload bridge is derived) | `main/README.md`                   |
+| New app state phase                       | `shared/app-state.ts` + reducer + tests                                                                                                        | `main/README.md`                   |
+| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring                                                                                          | `main/README.md`                   |
+| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                                                                                                 | `agent/README.md`                  |
+| Reusable install primitive                | `packages/agent-runtime/`                                                                                                                      | `packages/agent-runtime/README.md` |
+| New built-in widget panel                 | `renderer/shell/builtin/<name>-panel.tsx` + register in `builtin-widgets.tsx` + def in `shared/shell.ts`                                       | (no README — standard React)       |
+| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`                                                                                             | `agent/README.md`                  |

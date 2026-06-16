@@ -1,15 +1,18 @@
+"use client";
+
 import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@repo/ui/lib/utils";
+import { useOnGlass } from "@repo/ui/lib/surface-context";
 
-// Visual parity with Fluid Functionalism's button: the background lives on a
+// Visual parity with Ophelias' compact controls: the background lives on a
 // layered span that scales on press, text/border colors live on the root, and
 // icons morph stroke-width on hover. The shadcn variant names are kept so app
 // call sites don't change.
 const buttonVariants = cva(
   [
-    "group/button relative isolate inline-flex shrink-0 items-center justify-center rounded-full whitespace-nowrap font-medium outline-none cursor-pointer select-none",
+    "group/button relative isolate inline-flex shrink-0 items-center justify-center rounded-[10px] whitespace-nowrap font-medium outline-none cursor-pointer select-none",
     "text-box-trim-both text-box-edge-cap-alphabetic",
     "transition-[color,scale] duration-80 active:scale-[0.97] aria-expanded:scale-[0.97]",
     "disabled:pointer-events-none disabled:opacity-50",
@@ -20,12 +23,16 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "text-background",
-        secondary: "text-foreground",
+        default: "text-[#f8f8f8]",
+        secondary: "text-[rgb(19_20_27_/_0.8)]",
         outline: "border border-border text-foreground",
         ghost: "text-muted-foreground hover:text-foreground aria-expanded:text-foreground",
         destructive: "text-destructive",
         link: "text-primary underline-offset-4 hover:underline",
+        // Circular glass icon button ("puck") — gray translucent circle with a
+        // white icon in BOTH themes. Pair with an icon size (default `icon`,
+        // 36px) and stack vertically with `flex flex-col gap-2`.
+        glass: "rounded-full text-puck-fg",
       },
       size: {
         default: "h-8 gap-1.5 px-4 text-[13px]",
@@ -49,15 +56,43 @@ const buttonVariants = cva(
 // fill can scale independently of the (sharp) text.
 const bgVariants: Record<string, string> = {
   default:
-    "bg-foreground group-hover/button:bg-foreground/90 group-active/button:bg-foreground/80 group-aria-expanded/button:bg-foreground/80",
+    "bg-[rgb(65_65_65_/_0.45)] backdrop-blur-[10px] group-hover/button:bg-[rgb(65_65_65_/_0.56)] group-active/button:bg-[rgb(65_65_65_/_0.62)] group-aria-expanded/button:bg-[rgb(65_65_65_/_0.62)]",
   secondary:
-    "bg-accent group-hover/button:bg-accent/80 group-active/button:bg-accent group-aria-expanded/button:bg-accent",
+    "bg-[#e5e7e7] group-hover/button:bg-[#dfe2e2] group-active/button:bg-[#d8dddd] group-aria-expanded/button:bg-[#d8dddd]",
   outline:
     "bg-background shadow-xs group-hover/button:bg-hover group-active/button:bg-active group-aria-expanded/button:bg-active",
   ghost:
     "bg-transparent group-hover/button:bg-hover group-active/button:bg-active group-aria-expanded/button:bg-active",
   destructive:
     "bg-destructive/10 group-hover/button:bg-destructive/20 group-active/button:bg-destructive/20",
+  glass:
+    "glass-puck group-hover/button:bg-puck-hover group-active/button:bg-puck-hover group-aria-expanded/button:bg-puck-hover",
+};
+
+// On smoked glass (GlassProvider subtrees: dialogs, menus, popovers, the
+// composer) the opaque-ladder colors are unreadable — each variant swaps to
+// the glass-inner pill recipe: lighter translucent white fills, white text.
+// Same variant names, so call sites don't change. The `glass` (puck) variant
+// is already glass-native and keeps its base styling.
+const glassTextVariants: Record<string, string> = {
+  default: "text-white",
+  secondary: "text-glass-fg",
+  outline: "border-white/15 text-glass-fg",
+  ghost: "text-glass-fg-muted hover:text-glass-fg aria-expanded:text-glass-fg",
+  destructive: "text-[#ffb4ab]",
+  link: "text-glass-fg",
+};
+
+const glassBgVariants: Record<string, string> = {
+  default:
+    "bg-glass-row-active group-hover/button:bg-white/35 group-active/button:bg-white/30 group-aria-expanded/button:bg-white/30",
+  secondary:
+    "bg-glass-row group-hover/button:bg-glass-row-hover group-active/button:bg-glass-row-active group-aria-expanded/button:bg-glass-row-active",
+  outline:
+    "bg-transparent shadow-none group-hover/button:bg-glass-row group-active/button:bg-glass-row-hover group-aria-expanded/button:bg-glass-row-hover",
+  ghost:
+    "bg-transparent group-hover/button:bg-glass-row group-active/button:bg-glass-row-hover group-aria-expanded/button:bg-glass-row-hover",
+  destructive: "bg-white/10 group-hover/button:bg-white/15 group-active/button:bg-white/15",
 };
 
 type ButtonProps = ButtonPrimitive.Props &
@@ -78,12 +113,18 @@ function Button({
   ...props
 }: ButtonProps) {
   const v = variant ?? "default";
-  const bg = bgVariants[v];
+  const onGlass = useOnGlass();
+  const bg = (onGlass ? glassBgVariants[v] : undefined) ?? bgVariants[v];
 
   return (
     <ButtonPrimitive
       data-slot="button"
-      className={cn(buttonVariants({ variant, size }), active && "scale-[0.97]", className)}
+      className={cn(
+        buttonVariants({ variant, size }),
+        onGlass && glassTextVariants[v],
+        active && "scale-[0.97]",
+        className,
+      )}
       disabled={loading || disabled}
       {...props}
     >
@@ -115,8 +156,7 @@ function Button({
               pathLength="100"
               style={{
                 strokeDasharray: "15 85",
-                animation:
-                  "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
+                animation: "spinner-move 2s linear infinite, spinner-dash 4s ease-in-out infinite",
               }}
             />
           </svg>
@@ -127,4 +167,3 @@ function Button({
 }
 
 export { Button, buttonVariants };
-export type { ButtonProps };

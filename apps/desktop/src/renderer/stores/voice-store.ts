@@ -6,6 +6,13 @@ import { VoiceMachine, type VoiceState } from "@/renderer/voice/voice-machine";
 
 type VoiceStore = {
   state: VoiceState;
+  /**
+   * Whether TTS is configured (ElevenLabs key present), probed at init.
+   * null = probe still in flight. While false, no pipeline exists and
+   * toggleVoice is a no-op — the dock disables the mic and points at
+   * Settings instead of silently doing nothing.
+   */
+  ttsConfigured: boolean | null;
 
   init: () => () => void;
   reset: () => void;
@@ -144,6 +151,7 @@ async function runConnect(): Promise<void> {
 
 export const useVoiceStore = create<VoiceStore>((set, _get) => ({
   state: machine.state,
+  ttsConfigured: null,
 
   init: () => {
     const bridge = getBridge();
@@ -162,29 +170,34 @@ export const useVoiceStore = create<VoiceStore>((set, _get) => ({
       machine.dispatch({ type: "model_progress", progress: event });
     });
 
-    void bridge.isTtsAvailable().then((available) => {
-      if (cancelled || !available) return undefined;
-      pipeline = new VoicePipeline({
-        onTranscriptPartial: (text) => {
-          machine.dispatch({ type: "transcript_partial", text });
-        },
-        onTranscriptFinal: (text) => {
-          // Tail finals from the recognizer can arrive AFTER teardown — the
-          // worklet flush + stopStt promise chain resolves asynchronously
-          // and may deliver text post-disconnect. Snapshot the state BEFORE
-          // dispatch so a stale final on an already-idle machine can't reach
-          // the agent.
-          const wasListening = machine.state.kind === "listening";
-          machine.dispatch({ type: "transcript_final", text });
-          if (!wasListening) return;
-          for (const listener of finalListeners) listener(text);
-        },
-        onError: (message) => {
-          machine.dispatch({ type: "pipeline_error", message });
-        },
+    void bridge
+      .isTtsAvailable()
+      .catch(() => false)
+      .then((available) => {
+        if (cancelled) return undefined;
+        set({ ttsConfigured: available });
+        if (!available) return undefined;
+        pipeline = new VoicePipeline({
+          onTranscriptPartial: (text) => {
+            machine.dispatch({ type: "transcript_partial", text });
+          },
+          onTranscriptFinal: (text) => {
+            // Tail finals from the recognizer can arrive AFTER teardown — the
+            // worklet flush + stopStt promise chain resolves asynchronously
+            // and may deliver text post-disconnect. Snapshot the state BEFORE
+            // dispatch so a stale final on an already-idle machine can't reach
+            // the agent.
+            const wasListening = machine.state.kind === "listening";
+            machine.dispatch({ type: "transcript_final", text });
+            if (!wasListening) return;
+            for (const listener of finalListeners) listener(text);
+          },
+          onError: (message) => {
+            machine.dispatch({ type: "pipeline_error", message });
+          },
+        });
+        return undefined;
       });
-      return undefined;
-    });
 
     return () => {
       cancelled = true;

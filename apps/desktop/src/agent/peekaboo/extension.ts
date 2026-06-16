@@ -17,7 +17,7 @@ import { Type, type Static } from "@sinclair/typebox";
 import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 import { runCli } from "@repo/agent-runtime/run-cli";
 
-import { inteligirPath } from "@/main/lib/json-store";
+import { inteligirPath } from "@/agent/paths";
 import type { PiExtensionBundle } from "@/agent/extension";
 import { formatCliOutput, textResult } from "@/agent/extension-helpers";
 
@@ -33,7 +33,8 @@ const PEEKABOO_ARTIFACT = `${PEEKABOO_ASSET_DIR}.tar.gz`;
 
 const PeekabooRunSchema = Type.Object({
   args: Type.Array(Type.String(), {
-    description: "Arguments to pass to peekaboo, e.g. ['see'], ['click', '@e2'], ['type', 'hello'].",
+    description:
+      "Arguments to pass to peekaboo, e.g. ['see'], ['click', '@e2'], ['type', 'hello'].",
   }),
   stdin: Type.Optional(Type.String({ description: "Optional stdin to pipe to peekaboo." })),
 });

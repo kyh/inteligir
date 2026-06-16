@@ -1,33 +1,25 @@
 // AgentHost — the Electron-free lifecycle wrapper around @repo/pi-driver's
-// PiAgent. It owns session resolution, extension-factory validation, and the
-// public agent surface (sendMessage/steer/interrupt/subscribe/...), but takes
-// everything environment-specific (paths, auth, model, extension bundles) as
-// injected config. The desktop app subclasses this with its ~/.inteligir paths
-// and Electron-coupled bundles; a future cloud runner injects headless bundles
-// and a container-local home — same core, different deployment.
+// PiAgent. It owns session resolution and the public agent surface
+// (sendMessage/steer/interrupt/subscribe/...), but takes everything
+// environment-specific (paths, auth, model, extension factories) as injected
+// config. The desktop app subclasses this with its ~/.inteligir paths and its
+// ports-coupled extension factories; a future cloud runner injects a
+// container-local home and its own factories — same core, different deployment.
+//
+// The host treats extensionFactories as opaque (same shape PiAgent accepts), so
+// it stays decoupled from however a consumer builds/validates its bundles — the
+// desktop's main-owned "ports" framework lives entirely in apps/desktop/agent.
+
+import type { Api, Model } from "@mariozechner/pi-ai";
 
 import { PiAgent } from "@repo/pi-driver/agent";
 import { SessionManager } from "@repo/pi-driver/pi-types";
 import type {
   AgentSessionEvent,
-  Api,
   AuthStorage,
+  ExtensionFactory,
   ImageContent,
-  Model,
 } from "@repo/pi-driver/pi-types";
-
-import {
-  buildValidatedFactories,
-  type ExtensionRegisterContext,
-  type PiExtensionBundle,
-} from "@repo/agent-host/extension";
-
-/** A value, or a thunk producing it — lets callers defer construction to start(). */
-type Lazy<T> = T | (() => T);
-
-function resolveLazy<T>(value: Lazy<T>): T {
-  return typeof value === "function" ? (value as () => T)() : value;
-}
 
 export type AgentHostStatus = "starting" | "idle" | "busy" | "error";
 
@@ -39,16 +31,20 @@ export type AgentHostConfig = {
   /** Directory for persisted session transcripts. */
   sessionDir: string;
   /**
-   * AuthStorage for credential lookup. Lazy so a synchronous failure surfaces
-   * through start() rather than out of the constructor.
+   * AuthStorage for credential lookup. A thunk so a synchronous failure (or
+   * heavy construction) is deferred to start() rather than the constructor.
    */
-  authStorage: Lazy<AuthStorage>;
-  /** Default model for new sessions. Lazy for the same reason as authStorage. */
-  model: Lazy<Model<Api>>;
-  /** Extension bundles to register at session start. */
-  bundles: Lazy<PiExtensionBundle[]>;
-  /** Context passed to each bundle's register(). */
-  registerContext: Lazy<ExtensionRegisterContext>;
+  authStorage: () => AuthStorage;
+  /** Default model for new sessions. A thunk for the same reason as authStorage. */
+  model: () => Model<Api>;
+  /**
+   * Extensions to register at session start. May be a function so consumers can
+   * defer building factories (and any heavy imports they pull in) to start().
+   * Passed through to PiAgent unchanged — the host doesn't inspect them.
+   */
+  extensionFactories: ExtensionFactory[] | (() => ExtensionFactory[] | Promise<ExtensionFactory[]>);
+  /** Tool names active when the session starts (pi's default applies if unset). */
+  initialActiveToolNames?: string[];
   /**
    * Start a fresh session instead of resuming the most recent one. When
    * resuming, the INTELIGIR_SESSION_FILE env var (read at start()) can pin a
@@ -74,15 +70,18 @@ export class AgentHost {
       this.pi = new PiAgent({
         cwd: this.config.cwd,
         agentDir: this.config.agentDir,
-        authStorage: resolveLazy(this.config.authStorage),
-        model: resolveLazy(this.config.model),
+        authStorage: this.config.authStorage(),
+        model: this.config.model(),
         sessionManager,
-        extensionFactories: () =>
-          buildValidatedFactories(
-            resolveLazy(this.config.bundles),
-            resolveLazy(this.config.registerContext),
-          ),
-        thinkingLevel: this.config.thinkingLevel,
+        extensionFactories: this.config.extensionFactories,
+        // Spread optionals only when set — exactOptionalPropertyTypes rejects
+        // passing an explicit `undefined` to an optional PiAgent field.
+        ...(this.config.initialActiveToolNames !== undefined
+          ? { initialActiveToolNames: this.config.initialActiveToolNames }
+          : {}),
+        ...(this.config.thinkingLevel !== undefined
+          ? { thinkingLevel: this.config.thinkingLevel }
+          : {}),
       });
     }
     await this.pi.start();

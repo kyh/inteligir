@@ -6,7 +6,7 @@ allowed-tools: Bash(*), Read, Edit, Write
 
 # Release
 
-Cut a new version of the Inteligir desktop app and publish it to GitHub Releases. Users on the auto-updater (electron-updater) pull the new version from that release, so publishing the release **is** the distribution.
+Cut a new version of the Inteligir desktop app and publish it to GitHub Releases. Users on the auto-updater (electron-updater) pull the new version's **zip** from that release (MacUpdater installs only from the zip listed in `latest-mac.yml`; the dmg is first-install only), so publishing the release **is** the distribution — but only if the zip ships.
 
 ## Context
 
@@ -14,7 +14,7 @@ Cut a new version of the Inteligir desktop app and publish it to GitHub Releases
 - The only shipping artifact is the Electron app at `apps/desktop` (`@repo/desktop`). The whole monorepo (packages + app) bundles into it.
 - Version of record: `version` in `apps/desktop/package.json`. The repo root has no version field.
 - Tag scheme: `v<version>` (e.g. `v0.3.0`) — electron-builder creates this tag + GitHub release.
-- Build chain: `electron-vite build` → `electron-builder --mac dmg` → publishes to `github:kyh/inteligir` as a live release (see `apps/desktop/electron-builder.yml`).
+- Build chain: `electron-vite build` → `electron-builder --mac` (targets `dmg` + `zip` from `electron-builder.yml`; the zip is the auto-update artifact) → publishes to `github:kyh/inteligir` as a live release.
 - **macOS only.** electron-builder notarizes (`notarize: true`) — needs Apple creds from `apps/desktop/.env` (loaded via `with-env`/dotenv) and must run on a Mac. No Windows/Linux targets.
 - Existing scripts in `apps/desktop`:
   - `release` — build + package locally, `--publish never` (dry run, no upload)
@@ -25,6 +25,7 @@ Cut a new version of the Inteligir desktop app and publish it to GitHub Releases
 ## Arguments
 
 Parse from the user message:
+
 - Bump type: `patch`, `minor`, `major`. Default `patch`.
 - `--dry` to run `release` (package locally, no upload) instead of `release:publish`, for a smoke test.
 
@@ -35,10 +36,16 @@ If ambiguous, ask in one short sentence before proceeding.
 ### 1. Preflight
 
 Run in parallel:
+
 - `gh auth status` — must be authenticated (the publish step pulls `GH_TOKEN` from `gh auth token`). If not, stop and tell the user to `gh auth login`.
 - `git status --porcelain` — if dirty in unrelated files, surface and ask whether to proceed.
 - `uname -s` — must be `Darwin`. If not, stop: notarized mac builds require macOS.
 - `test -f apps/desktop/.env` — notarization creds live here. If missing, stop and say so.
+- Bundled Google OAuth client — release builds bake `INTELIGIR_GOOGLE_OAUTH_CLIENT_ID` + `INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET` from `.env` into the main bundle (electron-vite `define`; see `apps/desktop/.env.example`):
+  ```
+  grep -E '^INTELIGIR_GOOGLE_OAUTH_CLIENT_(ID|SECRET)=.+' apps/desktop/.env | wc -l
+  ```
+  Must print `2`. If not, the artifact ships WITHOUT a bundled Google client — every user gets the paste-your-own-GCP-app dialog on Google connect. Surface this and ask whether to proceed before building.
 - `gh release view v<current-version>` — sanity check the current version isn't already released.
 - Last release + changes since:
   ```
@@ -69,11 +76,13 @@ Terse bullets — sacrifice grammar for concision. If unsure, show the proposed 
 ### 4. Commit + push the bump FIRST
 
 This ordering matters and differs from the npm release skills. electron-builder creates the GitHub release + `v<version>` tag against the **remote** branch tip, so the bump commit must already be pushed:
+
 ```
 git add apps/desktop/package.json apps/desktop/CHANGELOG.md
 git commit -m "release: v<version>"
 git push origin <current-branch>
 ```
+
 Pushing to `main` may trigger other GitHub Actions — fine, releases are intentional. Mention it in the report.
 
 ### 5. Build + publish
@@ -82,13 +91,15 @@ Pushing to `main` may trigger other GitHub Actions — fine, releases are intent
 pnpm install            # defensive — native deps (sherpa-onnx) may be unlinked after a pull
 pnpm -F @repo/desktop release:publish
 ```
+
 This is the long pole: electron-vite build → electron-builder package → **notarize** (minutes) → upload to GitHub release `v<version>`. For a dry run use `pnpm -F @repo/desktop release` instead (packages to `apps/desktop/.output/bin`, no upload) and skip steps 4/6/7's push/tag — just report the local artifact path.
 
 If the build fails after the bump was pushed: the version bump sits on `main` with no release. That's recoverable — fix the cause and re-run; if the same version then publishes, fine. Do not roll back the bump commit.
 
 ### 6. Verify
 
-- `gh release view v<version>` — confirm the release exists and the `Inteligir-<version>-<arch>.dmg` asset is attached.
+- `gh release view v<version> --json assets -q '.assets[].name'` — confirm ALL of: `Inteligir-<version>-<arch>.dmg`, `Inteligir-<version>-<arch>-mac.zip`, the zip's `.blockmap`, and `latest-mac.yml`. A dmg-only release strands every install on its version.
+- `gh release download v<version> --pattern latest-mac.yml --output -` — confirm the `files:` list includes the `-mac.zip` entry. If the zip asset exists but isn't listed here, electron-updater still fails (`ZIP file not provided`).
 - `git fetch --tags` — pull the `v<version>` tag electron-builder created so local matches remote.
 
 ### 7. Report
@@ -96,16 +107,22 @@ If the build fails after the bump was pushed: the version bump sits on `main` wi
 ```
 Released: Inteligir v<version>
   GitHub release: <url>
-  dmg asset: Inteligir-<version>-<arch>.dmg
+  assets: dmg + zip (+ blockmap) + latest-mac.yml (zip listed: yes/no)
 Commit: <sha> (pushed to origin/<branch>)
 Tag: v<version> (created by electron-builder, fetched locally)
-Auto-update: electron-updater clients will pick this up
+Auto-update: zip is in latest-mac.yml — the precondition for electron-updater.
+  End-to-end update (installed older build → this one) is NOT yet verified;
+  don't claim clients will pick it up until that's been run once.
+  Note: installs of v0.3.0 and earlier shipped from dmg-only releases and
+  cannot self-update — they need a manual reinstall.
 ```
+
 If anything failed, lead with the failure and the exact state: bump pushed? release created? assets uploaded? tag present?
 
 ## Rules
 
 - macOS only — notarized builds can't run elsewhere. Don't try to add `--win`/`--linux` without signing config.
+- Never narrow the build to dmg-only (e.g. `--mac dmg`) — the zip target in `electron-builder.yml` is what electron-updater installs from.
 - Push the bump commit **before** `release:publish`, never after. The tag binds to the remote tip.
 - Never `--force` push or amend prior release commits.
 - If the upload fails with a version conflict (release already exists), bump again rather than overwrite an existing release.

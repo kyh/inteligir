@@ -131,10 +131,10 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
                 <button
                   key={p.id}
                   type="button"
-                  className={`rounded px-2 py-0.5 text-[10px] transition-colors ${
+                  className={`rounded-full px-2.5 py-1 text-[10px] transition-colors ${
                     presetId === p.id
-                      ? "bg-secondary text-foreground"
-                      : "text-muted-foreground hover:text-foreground"
+                      ? "bg-active text-foreground"
+                      : "text-muted-foreground hover:bg-hover hover:text-foreground"
                   }`}
                   onClick={() => setPresetId(p.id)}
                 >
@@ -198,14 +198,14 @@ function CreateTaskForm({ onDone }: { onDone: () => void }) {
 
 export function TaskPanel() {
   const tasks = useTaskStore((s) => s.tasks);
-  const fetchTasks = useTaskStore((s) => s.fetchTasks);
+  const init = useTaskStore((s) => s.init);
   const toggleTask = useTaskStore((s) => s.toggleTask);
   const deleteTask = useTaskStore((s) => s.deleteTask);
   const [creating, setCreating] = useState(false);
 
-  useEffect(() => {
-    fetchTasks();
-  }, [fetchTasks]);
+  // init fetches the snapshot and subscribes to the onTasksUpdated push, so
+  // tasks the agent creates/toggles/deletes appear without a remount.
+  useEffect(() => init(), [init]);
 
   return (
     <div className="p-3">
@@ -229,7 +229,7 @@ export function TaskPanel() {
           {tasks.map((task) => (
             <div
               key={task.id}
-              className="flex items-center gap-2 rounded px-2 py-1.5 text-xs hover:bg-secondary/50"
+              className="flex items-center gap-2 rounded-[10px] px-2.5 py-1.5 text-xs hover:bg-hover"
             >
               <button
                 type="button"

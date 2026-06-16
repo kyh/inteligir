@@ -61,7 +61,8 @@ export function SecretPromptDialog({ connector, label, busy, error, onCancel, on
               if (e.key === "Enter" && canSubmit) onSubmit(trimmed);
             }}
           />
-          {error && <div className="text-[10px] text-destructive">{error}</div>}
+          {/* Destructive token is tuned for opaque surfaces; #ffb4ab reads on glass. */}
+          {error && <div className="text-[10px] text-[#ffb4ab]">{error}</div>}
           <Button
             variant="default"
             size="sm"

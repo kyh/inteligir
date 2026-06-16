@@ -64,30 +64,26 @@ export function OnboardingPage() {
   const modelLabel = modelStatusLabel(modelState);
   const modelDownloading = modelState?.status === "downloading";
   const label = modelLabel ?? setupProgress?.step ?? "Setting up...";
-  const percent = modelDownloading
-    ? modelState.percent
-    : (setupProgress?.percent ?? null);
+  const percent = modelDownloading ? modelState.percent : (setupProgress?.percent ?? null);
   const isIndeterminate = percent === null;
 
   return (
-    <div className="flex flex-1 flex-col items-center justify-end px-6 pb-16">
+    <div className="shell-dots flex flex-1 flex-col items-center justify-end px-6 pb-16">
       <InitialOrb />
       <div className="flex w-full max-w-xs flex-col gap-3 text-center">
         {setupError ? (
           <>
             <p className="text-[10px] text-destructive">{setupError}</p>
-            <Button
-              variant="ghost"
-              onClick={handleRetry}
-              className="text-[10px] text-muted-foreground underline hover:text-foreground"
-            >
+            <Button variant="ghost" size="sm" onClick={handleRetry} className="self-center">
               Retry
             </Button>
           </>
         ) : (
           <>
             <p className="text-xs text-muted-foreground">{label}</p>
-            <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
+            {/* bg-muted ≈ canvas on the new ladder — use the overlay tint so
+                the track stays visible on the dotted floor. */}
+            <div className="h-1 w-full overflow-hidden rounded-full bg-foreground/10">
               <div
                 className={
                   isIndeterminate

@@ -40,13 +40,14 @@ export function AppLayout() {
   const needsRedirect = pathname !== target;
 
   return (
-    <div className="relative h-full w-full font-mono">
+    <div className="relative h-full w-full font-sans">
       <div className="flex h-full flex-col">
         {needsRedirect ? <Navigate to={target} replace /> : <Outlet />}
       </div>
 
       <ReauthDialog />
-      <Toaster />
+      {/* Desktop toasts join the smoked-glass overlay language. */}
+      <Toaster glass />
     </div>
   );
 }

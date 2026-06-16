@@ -68,14 +68,12 @@ export function IntegrationsSection() {
             return (
               <div
                 key={it.name}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                className="flex items-center justify-between rounded-[10px] bg-muted px-3 py-2"
               >
                 <span className="text-xs text-foreground">{it.name}</span>
                 <span
                   className={
-                    upToDate
-                      ? "text-[10px] text-muted-foreground"
-                      : "text-[10px] text-foreground"
+                    upToDate ? "text-[10px] text-muted-foreground" : "text-[10px] text-foreground"
                   }
                 >
                   {label}

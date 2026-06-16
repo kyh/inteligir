@@ -1,5 +1,5 @@
 import Constants from "expo-constants";
-import { PRODUCTION_SERVER_HOST, SERVER_PORT } from "@repo/dispatch";
+import { PRODUCTION_SERVER_HOST, SERVER_PORT } from "@repo/dispatch/room";
 
 export const getServerHost = () => {
   if (process.env.EXPO_PUBLIC_SERVER_HOST) {

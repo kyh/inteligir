@@ -9,7 +9,7 @@
 //   y=4  Meeting Prep(6)   Up Next(6)
 //   y=8  People(5)         To Do(7)
 
-import type { JsonUiWidgetDef, WidgetInstance } from "@/shared/shell";
+import type { JsonUiWidgetDef, WidgetGeometry, WidgetInstance } from "@/shared/shell";
 import { parseWidgetSpec, type WidgetSpec } from "@/shared/widget-spec";
 
 // Stable timestamp for seed defs — Date.now() at seed time would mark every
@@ -21,7 +21,7 @@ type SeedDef = {
   id: string;
   title: string;
   description: string;
-  defaultGeometry: { x: number; y: number; w: number; h: number; minW?: number; minH?: number };
+  defaultGeometry: WidgetGeometry;
   spec: WidgetSpec;
 };
 
@@ -198,8 +198,7 @@ const MEETING_PREP_WIDGET: SeedDef = {
         action: "generateText",
         skipIf: "/summary",
         params: {
-          system:
-            "Concise chief-of-staff voice. 2-3 sentences. No headers. Speak directly.",
+          system: "Concise chief-of-staff voice. 2-3 sentences. No headers. Speak directly.",
           prompt:
             "The user has no upcoming meeting connected yet. Suggest one concrete thing they could prepare for the day's first conversation, even without specifics.",
           into: "/summary",
@@ -279,7 +278,11 @@ const UP_NEXT_WIDGET: SeedDef = {
         action: "callTool",
         skipIf: "/events",
         params: {
-          tool: "google_calendar.events.list",
+          // Connection-scoped executor v1.5 address: <integration>.<owner>.
+          // <connection>.<discovery method id>. The connectors flow binds
+          // Google credentials under owner "user", connection "default"
+          // (connector-install.ts DEFAULT_CONNECTION_NAME).
+          tool: "google_calendar.user.default.calendar.events.list",
           input: {
             calendarId: "primary",
             timeMin: { $state: "/timeMin" },
@@ -348,7 +351,9 @@ const PEOPLE_WIDGET: SeedDef = {
         action: "callTool",
         skipIf: "/contacts",
         params: {
-          tool: "google_contacts.people.connections.list",
+          // See UP_NEXT for the address shape. The Discovery method id for the
+          // People API is "people.people.connections.list" (api-name prefix).
+          tool: "google_contacts.user.default.people.people.connections.list",
           input: {
             resourceName: "people/me",
             personFields: "names,photos,emailAddresses",

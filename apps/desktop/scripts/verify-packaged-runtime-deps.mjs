@@ -1,9 +1,9 @@
-// Verify that the post-electron-builder DMG actually contains the runtime
+// Verify that the post-electron-builder app actually contains the runtime
 // dependencies that Inteligir needs at boot. Catches "works in dev, broken
-// in DMG" — usually because a dep was added without listing it in
+// when packaged" — usually because a dep was added without listing it in
 // electron-builder.yml's `files`, or asarUnpack was misconfigured.
 //
-// Runs after `electron-builder --mac dmg`. Walks the unpacked .app bundle
+// Runs after `electron-builder --mac`. Walks the unpacked .app bundle
 // and asserts:
 //   - resources/agent/AGENTS.md and resources/agent/skills/ are asar-unpacked
 //   - app.asar exists at all
@@ -27,10 +27,10 @@ const MAIN_BUNDLE = join(APP_ROOT, ".output/app/main/index.js");
 // is the opposite — a native dep checked on-disk below, not bundled.)
 const BUNDLED_RUNTIME_DEPS = ["@mariozechner/pi-coding-agent", "@mariozechner/pi-ai"];
 
-// `electron-builder --mac dmg` produces a .app inside .output/bin/mac{,-arm64}/
+// `electron-builder --mac` produces a .app inside .output/bin/mac{,-arm64}/
 function findAppBundle() {
   if (!existsSync(BIN_DIR)) {
-    fail(`No build output at ${BIN_DIR}. Run 'pnpm build' and 'electron-builder --mac dmg' first.`);
+    fail(`No build output at ${BIN_DIR}. Run 'pnpm build' and 'electron-builder --mac' first.`);
   }
   for (const entry of readdirSync(BIN_DIR)) {
     if (!entry.startsWith("mac")) continue;

@@ -30,16 +30,16 @@ export type DataChartType = "line" | "bar" | "area" | "pie";
 export type DataChartSeries = { key: string; label?: string; color?: string };
 
 export interface DataChartProps {
-  type?: DataChartType;
-  data?: Array<Record<string, unknown>>;
-  series?: DataChartSeries[];
+  type?: DataChartType | undefined;
+  data?: Array<Record<string, unknown>> | undefined;
+  series?: DataChartSeries[] | undefined;
   /** Field used for the x-axis (cartesian charts) or slice name (pie). */
-  categoryKey?: string;
-  height?: number;
-  stacked?: boolean;
-  showLegend?: boolean;
-  showGrid?: boolean;
-  className?: string;
+  categoryKey?: string | undefined;
+  height?: number | undefined;
+  stacked?: boolean | undefined;
+  showLegend?: boolean | undefined;
+  showGrid?: boolean | undefined;
+  className?: string | undefined;
 }
 
 // Theme palette — falls back across these when a series has no explicit color.
@@ -49,7 +49,13 @@ const PALETTE = [
   "var(--chart-3)",
   "var(--chart-4)",
   "var(--chart-5)",
-];
+] as const;
+
+/** Cyclic palette lookup. The modulo keeps the index in range; the fallback
+ * only exists to satisfy noUncheckedIndexedAccess. */
+function paletteColor(i: number): string {
+  return PALETTE[i % PALETTE.length] ?? PALETTE[0];
+}
 
 // Stable empty defaults so an omitted prop doesn't break referential equality.
 const EMPTY_DATA: Array<Record<string, unknown>> = [];
@@ -79,11 +85,11 @@ export function DataChart({
       // would never match, leaving the legend as unlabeled dots.
       data.forEach((row, i) => {
         const name = String(row[categoryKey] ?? i);
-        next[name] = { label: name, color: PALETTE[i % PALETTE.length] };
+        next[name] = { label: name, color: paletteColor(i) };
       });
     } else {
       series.forEach((s, i) => {
-        next[s.key] = { label: s.label ?? s.key, color: s.color ?? PALETTE[i % PALETTE.length] };
+        next[s.key] = { label: s.label ?? s.key, color: s.color ?? paletteColor(i) };
       });
     }
     return next;
@@ -102,19 +108,36 @@ export function DataChart({
   );
 }
 
-type RenderArgs = Required<
-  Pick<DataChartProps, "type" | "data" | "series" | "categoryKey" | "stacked" | "showGrid" | "showLegend">
->;
+// Spelled out (not Required<Pick<DataChartProps, ...>>) because the public
+// props include `| undefined` for exactOptionalPropertyTypes callers, while
+// DataChart's destructuring defaults guarantee these are always present here.
+type RenderArgs = {
+  type: DataChartType;
+  data: Array<Record<string, unknown>>;
+  series: DataChartSeries[];
+  categoryKey: string;
+  stacked: boolean;
+  showGrid: boolean;
+  showLegend: boolean;
+};
 
-function renderChart({ type, data, series, categoryKey, stacked, showGrid, showLegend }: RenderArgs) {
+function renderChart({
+  type,
+  data,
+  series,
+  categoryKey,
+  stacked,
+  showGrid,
+  showLegend,
+}: RenderArgs) {
   const grid = showGrid ? <CartesianGrid vertical={false} /> : null;
-  const xAxis = (
-    <XAxis dataKey={categoryKey} tickLine={false} axisLine={false} tickMargin={8} />
-  );
+  const xAxis = <XAxis dataKey={categoryKey} tickLine={false} axisLine={false} tickMargin={8} />;
   const yAxis = <YAxis tickLine={false} axisLine={false} width={32} />;
   const tooltip = <ChartTooltip content={<ChartTooltipContent />} />;
   const legend = showLegend ? <ChartLegend content={<ChartLegendContent />} /> : null;
-  const stackId = stacked ? "a" : undefined;
+  // Spread (rather than stackId={...}) so an unstacked chart omits the prop
+  // entirely — recharts types stackId without `| undefined`.
+  const stackProps = stacked ? { stackId: "a" } : {};
 
   switch (type) {
     case "pie": {
@@ -124,10 +147,12 @@ function renderChart({ type, data, series, categoryKey, stacked, showGrid, showL
           <ChartTooltip content={<ChartTooltipContent nameKey={categoryKey} hideLabel />} />
           <Pie data={data} dataKey={valueKey} nameKey={categoryKey}>
             {data.map((row, i) => (
-              <Cell key={String(row[categoryKey] ?? i)} fill={PALETTE[i % PALETTE.length]} />
+              <Cell key={String(row[categoryKey] ?? i)} fill={paletteColor(i)} />
             ))}
           </Pie>
-          {showLegend ? <ChartLegend content={<ChartLegendContent nameKey={categoryKey} />} /> : null}
+          {showLegend ? (
+            <ChartLegend content={<ChartLegendContent nameKey={categoryKey} />} />
+          ) : null}
         </PieChart>
       );
     }
@@ -167,7 +192,7 @@ function renderChart({ type, data, series, categoryKey, stacked, showGrid, showL
               stroke={`var(--color-${s.key})`}
               fill={`var(--color-${s.key})`}
               fillOpacity={0.2}
-              stackId={stackId}
+              {...stackProps}
             />
           ))}
         </AreaChart>
@@ -182,7 +207,13 @@ function renderChart({ type, data, series, categoryKey, stacked, showGrid, showL
           {tooltip}
           {legend}
           {series.map((s) => (
-            <Bar key={s.key} dataKey={s.key} fill={`var(--color-${s.key})`} radius={4} stackId={stackId} />
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              fill={`var(--color-${s.key})`}
+              radius={4}
+              {...stackProps}
+            />
           ))}
         </BarChart>
       );

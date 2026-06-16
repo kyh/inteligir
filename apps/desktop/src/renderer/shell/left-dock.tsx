@@ -60,7 +60,7 @@ function StatusOrb() {
         <div className={cn("size-9 overflow-hidden rounded-full")}>
           <GeometricOrb
             status={SESSION_TO_ORB_STATUS[status]}
-            baseColor={resolved === "dark" ? "#eeeeee" : "#0a0a0a"}
+            baseColor={resolved === "dark" ? "#eeeeee" : "#f8f8f8"}
             // Hero uses 20 strands × 2px on a 176px canvas (≈23% coverage).
             // At 36px we cut both numbers proportionally so individual
             // strands stay visible instead of saturating into a white disc.
@@ -88,11 +88,13 @@ function DockButton({ icon: Icon, label, onClick, active }: DockButtonProps) {
       <TooltipTrigger
         onClick={onClick}
         aria-label={label}
+        // Circular slots in the mist-frosted bar: a solid white disc marks the
+        // active widget in light theme; dark frost gets a translucent lift.
         className={cn(
-          "flex size-9 items-center justify-center rounded-xl transition-colors",
+          "flex size-9 items-center justify-center rounded-[10px] transition-colors",
           active
-            ? "bg-foreground/15 text-foreground"
-            : "text-muted-foreground hover:bg-foreground/10 hover:text-foreground",
+            ? "bg-white/10 text-white/90"
+            : "text-white/35 hover:bg-white/5 hover:text-white/80",
         )}
       >
         <Icon className="size-4" />
@@ -124,12 +126,12 @@ export function LeftDock() {
   }, [instances]);
 
   return (
-    <div className="pointer-events-auto fixed top-1/2 left-4 z-30 -translate-y-1/2">
+    <div className="pointer-events-auto fixed top-1/2 left-6 z-30 -translate-y-1/2">
       <TooltipProvider>
-        <div className="flex flex-col items-center gap-1 rounded-2xl border border-border bg-card/70 px-1.5 py-2 shadow-xl backdrop-blur-md">
+        <div className="glass-mist flex flex-col items-center gap-1.5 rounded-[var(--radius-dock)] border border-[rgba(0,0,0,0.05)] px-1 py-2">
           <StatusOrb />
 
-          <span className="my-1 h-px w-5 bg-border" />
+          <span className="my-0.5 h-px w-5 bg-white/12" />
 
           {BUILTIN_DEFS.map((def) => (
             <DockButton

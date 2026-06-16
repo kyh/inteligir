@@ -2,54 +2,66 @@ import { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
+import { parsePairingString } from "@repo/dispatch/pairing";
 
-import { setRoomCode } from "@/utils/session-store";
+import { setCredential } from "@/utils/session-store";
 
 export default function PairScreen() {
   const router = useRouter();
-  const [code, setCode] = useState("");
+  const [value, setValue] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const handleConnect = () => {
-    const roomCode = code.toUpperCase().trim();
-    if (roomCode.length !== 6) return;
-    setRoomCode(roomCode);
-    router.replace({
-      pathname: "/dispatch",
-      params: { roomCode },
-    });
+    const credential = parsePairingString(value);
+    if (!credential) {
+      setError(
+        "That doesn't look like a pairing string. Copy the full string " +
+          "(XXXX-XXXX-XXXX-XXXX.token) from Remote Access on your desktop.",
+      );
+      return;
+    }
+    setCredential(credential);
+    router.replace("/dispatch");
   };
 
   return (
     <SafeAreaView className="bg-background flex-1">
-      <Stack.Screen options={{ title: "Connect" }} />
+      <Stack.Screen options={{ title: "Pair" }} />
       <View className="flex-1 justify-center px-6">
         <Text className="text-foreground mb-2 text-center text-2xl font-bold">
-          Connect to Desktop
+          Pair with your desktop
         </Text>
         <Text className="text-muted-foreground mb-10 text-center text-sm leading-5">
-          Enter the 6-character code displayed on your desktop app.
+          Enable Remote Access in the desktop app, then paste the pairing string it shows you.
         </Text>
 
         <TextInput
-          className="border-primary bg-muted text-foreground mb-6 rounded-xl border-2 p-5 text-center text-3xl font-bold tracking-widest"
-          value={code}
-          onChangeText={(text) => setCode(text.toUpperCase().slice(0, 6))}
-          placeholder="ABC123"
+          className="border-primary bg-muted text-foreground mb-3 rounded-xl border-2 p-4 text-center font-mono text-base"
+          value={value}
+          onChangeText={(text) => {
+            setValue(text);
+            setError(null);
+          }}
+          placeholder="XXXX-XXXX-XXXX-XXXX.token"
           placeholderTextColor="#444"
-          autoCapitalize="characters"
+          autoCapitalize="none"
           autoCorrect={false}
-          maxLength={6}
+          autoComplete="off"
           textAlign="center"
+          returnKeyType="go"
+          onSubmitEditing={handleConnect}
         />
+
+        {error !== null && (
+          <Text className="text-destructive mb-3 text-center text-xs leading-4">{error}</Text>
+        )}
 
         <Pressable
           className="bg-primary items-center rounded-xl p-4 disabled:opacity-50"
           onPress={handleConnect}
-          disabled={code.length !== 6}
+          disabled={!value.trim()}
         >
-          <Text className="text-primary-foreground text-base font-semibold">
-            Connect
-          </Text>
+          <Text className="text-primary-foreground text-base font-semibold">Pair</Text>
         </Pressable>
       </View>
     </SafeAreaView>

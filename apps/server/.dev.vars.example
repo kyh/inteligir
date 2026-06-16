@@ -1,13 +1,22 @@
-# Party relay + chat gateway secrets for `wrangler dev` (copy to .dev.vars;
-# never commit). In production set each with `wrangler secret put <NAME>`.
+# Relay + chat gateway secrets for `wrangler dev` (copy to .dev.vars; never
+# commit). In production set each with `wrangler secret put <NAME>`.
+#
+# The WebSocket relay itself needs NO configuration here: rooms are claimed at
+# connect time by the desktop's pairing credential (the DO stores only the
+# SHA-256 token hash — see packages/dispatch/PROTOCOL.md). Everything below
+# powers the optional external chat gateway, which is single-tenant by design
+# in v1 (one desktop per deployed Worker).
 
-# --- Bridge ---
-# Shared secret authenticating the desktop as the agent host. REQUIRED to enable
-# chat (fail closed): set a non-empty value that matches the desktop's
-# DISPATCH_CHAT_SECRET. If empty, no device registers and inbound chat returns
-# no_device — true in local dev too.
+# --- Chat gateway ---
+# Authenticates the gateway's POST to the relay Durable Object (x-relay-secret
+# header). Fail closed: unset ⇒ the DO refuses every relay POST ⇒ inbound chat
+# is disabled — true in local dev too.
 CHAT_RELAY_SECRET=""
-# The desktop's dispatch room code (shown in the Inteligir desktop app).
+# roomId of the desktop's current pairing credential: the part before the "."
+# in the pairing string shown by the Inteligir desktop app. Rotating the
+# credential changes the roomId — update this or the chat bridge goes dark.
+# The bridge only works while Remote Access is ENABLED on the desktop (the
+# desktop's token-authenticated socket is what receives chat_message frames).
 CHAT_RELAY_ROOM=""
 # Bot display name across platforms (optional).
 CHAT_BOT_USERNAME="inteligir"

@@ -1,10 +1,11 @@
 {
-  "extends": "@kyh/tsconfig/internal-package.json",
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
     "paths": {
       "@repo/agent-host/*": ["./src/*"]
     }
   },
-  "include": ["src"],
-  "exclude": ["node_modules"]
+  "include": ["src"]
 }

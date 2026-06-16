@@ -6,32 +6,43 @@ import { shell } from "electron";
 import { handle } from "@/main/lib/ipc-handler";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import * as executor from "@/main/executor/executor-client";
+import {
+  ensureGoogleOAuthClient,
+  getBundledGoogleClient,
+} from "@/main/executor/google-oauth-client";
 import { isHttpUrl, type ExecutorStatus } from "@/shared/ipc";
 
 export function registerExecutorIpcHandlers(): void {
-  handle("listExecutorSources", executor.listSources);
-  handle("listExecutorSecrets", executor.listSecrets);
-  handle("listExecutorConnections", executor.listConnections);
+  handle("listExecutorIntegrations", executor.listIntegrations);
+  handle("detectExecutorIntegration", executor.detectIntegration);
+  handle("removeExecutorIntegration", executor.removeIntegration);
 
-  handle("detectExecutorSource", executor.detectSource);
-  handle("removeExecutorSource", executor.removeSource);
-  handle("refreshExecutorSource", executor.refreshSource);
-  handle("removeExecutorSecret", executor.removeSecret);
+  handle("addMcpIntegration", executor.addMcpIntegration);
+  handle("addOpenApiIntegration", executor.addOpenApiIntegration);
+  handle("addGraphqlIntegration", executor.addGraphqlIntegration);
+
+  handle("listExecutorConnections", executor.listConnections);
+  handle("createExecutorConnection", executor.createConnection);
   handle("removeExecutorConnection", executor.removeConnection);
+
+  handle("listExecutorOAuthClients", executor.listOAuthClients);
+  handle("createExecutorOAuthClient", executor.createOAuthClient);
+  // Seeds the build's bundled Google client into executor when no "google"
+  // client is registered yet (never overwrites one) so the renderer can go
+  // straight to consent instead of asking for a GCP app.
+  handle("ensureGoogleOAuthClient", () =>
+    ensureGoogleOAuthClient(executor, getBundledGoogleClient()),
+  );
+  handle("registerExecutorOAuthClientDynamic", executor.registerOAuthClientDynamic);
+  handle("executorOAuthProbe", executor.oauthProbe);
+  handle("executorOAuthStart", executor.oauthStart);
   handle("executorOAuthAwait", executor.awaitOAuth);
 
-  handle("addMcpSource", executor.addMcpSource);
-  handle("addOpenApiSource", executor.addOpenApiSource);
-  handle("addGraphqlSource", executor.addGraphqlSource);
-  handle("addGoogleSource", executor.addGoogleSource);
-  handle("setExecutorSecret", executor.setSecret);
-  handle("executorOAuthStart", executor.oauthStart);
-
   handle("executorStatus", (): ExecutorStatus => {
-    // Scope is immutable for the daemon's life and cached on the connection,
-    // so there's no need for a live /scope round-trip here.
+    // The redirect URI is fixed for the daemon's life and cached on the
+    // connection, so there's no need for a live round-trip here.
     const conn = getExecutorDaemon().getConnection();
-    return conn ? { running: true, scope: conn.scope } : { running: false };
+    return conn ? { running: true, redirectUri: conn.redirectUri } : { running: false };
   });
 
   handle("executorOpenExternal", async (url) => {

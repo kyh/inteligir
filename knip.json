@@ -1,10 +1,8 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["gh"],
+  "ignoreBinaries": ["gh", "tar", "ps", "tasklist"],
   "workspaces": {
-    ".": {
-      "entry": ["vitest.workspace.ts"]
-    },
+    ".": {},
     "apps/desktop": {
       "entry": [
         "src/main/index.ts",
@@ -14,22 +12,41 @@
         "src/__tests__/**/*.test.ts",
         "scripts/**/*.mjs"
       ],
-      "project": [
-        "scripts/**/*.mjs",
-        "src/**/*.{ts,tsx,css}"
-      ],
-      "ignoreDependencies": [
-        "@tailwindcss/vite",
-        "@vitejs/plugin-react",
-        "electron-builder"
-      ]
+      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}"],
+      "ignoreDependencies": ["@tailwindcss/vite", "@vitejs/plugin-react", "electron-builder"]
     },
     "apps/web": {
-      "entry": [
-        "src/app/**/*.{ts,tsx}",
-        "src/components/**/*.{ts,tsx}"
-      ],
+      "entry": ["src/app/**/*.{ts,tsx}", "src/components/**/*.{ts,tsx}"],
       "project": ["*.config.{js,mjs}", "src/**/*.{ts,tsx}"]
+    },
+    "apps/mobile": {
+      "entry": ["src/app/**/*.tsx"],
+      "project": ["src/**/*.{ts,tsx}", "*.config.{js,ts}"],
+      // knip executes metro.config.js and trips on nativewind's CJS interop
+      // (withNativewind is not a function) — skip loading it. nativewind and
+      // tailwindcss are referenced only from that ignored config.
+      "metro": false,
+      "ignore": ["metro.config.js"],
+      "ignoreDependencies": ["nativewind", "tailwindcss"]
+    },
+    "apps/server": {
+      // The *-stub.js files are referenced only via wrangler.jsonc module aliases.
+      "entry": ["src/native-stub.js", "src/async-event-emitter-stub.js"],
+      "project": ["src/**/*.{ts,js}"]
+    },
+    "packages/agent-runtime": {
+      "includeEntryExports": true
+    },
+    "packages/dispatch": {
+      "includeEntryExports": true
+    },
+    "packages/pi-driver": {
+      "includeEntryExports": true
+    },
+    "packages/ui": {
+      // Wildcard exports make every source file an entry; without this, dead
+      // exports in the component library are invisible to knip.
+      "includeEntryExports": true
     }
   }
 }

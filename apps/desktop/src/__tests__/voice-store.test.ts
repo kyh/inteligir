@@ -247,6 +247,40 @@ describe("voice-store", () => {
     });
   });
 
+  describe("ttsConfigured", () => {
+    it("is true after init when TTS is available", async () => {
+      helpers.bridgeMock.isTtsAvailable.mockResolvedValue(true);
+      useVoiceStore.getState().init();
+      await flushMicrotasks();
+
+      expect(useVoiceStore.getState().ttsConfigured).toBe(true);
+      expect(helpers.pipelineInstances).toHaveLength(1);
+    });
+
+    it("is false when TTS is unconfigured, and the mic toggle stays a no-op", async () => {
+      helpers.bridgeMock.isTtsAvailable.mockResolvedValue(false);
+      useVoiceStore.getState().init();
+      await flushMicrotasks();
+
+      expect(useVoiceStore.getState().ttsConfigured).toBe(false);
+      // No pipeline was built, so toggling must not move the machine — the
+      // dock renders the mic disabled with a pointer to Settings instead.
+      useVoiceStore.getState().toggleVoice();
+      await flushMicrotasks();
+      expect(useVoiceStore.getState().state.kind).toBe("idle");
+      expect(helpers.pipelineInstances).toHaveLength(0);
+    });
+
+    it("is false when the availability probe rejects", async () => {
+      helpers.bridgeMock.isTtsAvailable.mockRejectedValue(new Error("ipc dropped"));
+      useVoiceStore.getState().init();
+      await flushMicrotasks();
+
+      expect(useVoiceStore.getState().ttsConfigured).toBe(false);
+      expect(helpers.pipelineInstances).toHaveLength(0);
+    });
+  });
+
   describe("model-state listener cleanup", () => {
     it("init cleanup unsubscribes the onVoiceModelState listener", async () => {
       const unsub = vi.fn();

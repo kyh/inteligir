@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ListPlusIcon, PlusIcon, SendIcon, SquareIcon, ZapIcon } from "lucide-react";
+import {
+  ArrowUpIcon,
+  ListPlusIcon,
+  PaperclipIcon,
+  SquareIcon,
+  SunriseIcon,
+  ZapIcon,
+} from "lucide-react";
+import { motion, type Transition, type Variants } from "motion/react";
 import { cn } from "@repo/ui/lib/utils";
 import {
   Attachment,
@@ -29,6 +37,67 @@ import { useAgentStore } from "@/renderer/stores/agent-store";
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
 const MAX_ATTACHMENT_COUNT = 8;
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024; // 8 MiB per image
+const COMPOSER_COLLAPSED_WIDTH = 270;
+const COMPOSER_EXPANDED_WIDTH = 608;
+
+type ComposerMotionState = "collapsed" | "expanded";
+
+const dockTransition: Transition = {
+  type: "spring",
+  stiffness: 380,
+  damping: 38,
+  mass: 0.8,
+};
+
+const quickFadeTransition: Transition = {
+  duration: 0.16,
+  ease: "easeOut",
+};
+
+const gradientDriftTransition: Transition = {
+  duration: 6.5,
+  repeat: Infinity,
+  repeatType: "mirror",
+  ease: "easeInOut",
+};
+
+const widthVariants: Variants = {
+  collapsed: { width: COMPOSER_COLLAPSED_WIDTH },
+  expanded: { width: COMPOSER_EXPANDED_WIDTH },
+};
+
+const promptVariants: Variants = {
+  collapsed: { opacity: 1, x: 0, transition: quickFadeTransition },
+  expanded: { opacity: 0, x: -8, transition: quickFadeTransition },
+};
+
+const rowVariants: Variants = {
+  collapsed: { opacity: 0, y: 0, transition: quickFadeTransition },
+  expanded: { opacity: 1, y: 0, transition: quickFadeTransition },
+};
+
+const gradientVariants: Variants = {
+  collapsed: {
+    opacity: 0.22,
+    width: 150,
+    x: [-18, -8, -18],
+    transition: {
+      opacity: quickFadeTransition,
+      width: dockTransition,
+      x: gradientDriftTransition,
+    },
+  },
+  expanded: {
+    opacity: 0.16,
+    width: 190,
+    x: 2,
+    transition: {
+      opacity: quickFadeTransition,
+      width: dockTransition,
+      x: dockTransition,
+    },
+  },
+};
 
 // Extract the base64 payload from a `data:<mime>;base64,<payload>` URL.
 // Returns null for any other URL shape — including blob: URLs that came
@@ -68,6 +137,10 @@ function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
   });
 }
 
+function relatedTargetIsInside(currentTarget: HTMLElement, relatedTarget: EventTarget | null) {
+  return relatedTarget instanceof Node && currentTarget.contains(relatedTarget);
+}
+
 export function Composer({
   className,
   trailing,
@@ -79,6 +152,9 @@ export function Composer({
   trailing?: ReactNode;
 }) {
   const [hasInput, setHasInput] = useState(false);
+  const [hasAttachments, setHasAttachments] = useState(false);
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
   // UI-local signal that the user clicked the Zap button. Consumed once on
   // the next submit; cleared on agent_end so an unsubmitted Zap doesn't
   // silently steer a future turn.
@@ -158,30 +234,62 @@ export function Composer({
   }, []);
 
   const queueCount = queuedFollowUp.length + queuedSteering.length;
+  const hasContent = hasInput || hasAttachments;
+  const expanded = hovered || focused || hasContent;
+  const motionState: ComposerMotionState = expanded ? "expanded" : "collapsed";
   const steeringQueue = useMemo(() => keyedMessages("steer", queuedSteering), [queuedSteering]);
   const followUpQueue = useMemo(() => keyedMessages("follow", queuedFollowUp), [queuedFollowUp]);
   const requestSteer = useCallback(() => {
     pendingSteerRef.current = true;
   }, []);
+  const handleBlurCapture = useCallback((e: React.FocusEvent<HTMLDivElement>) => {
+    if (relatedTargetIsInside(e.currentTarget, e.relatedTarget)) return;
+    setFocused(false);
+  }, []);
 
   return (
-    <div ref={wrapperRef} className={cn("flex flex-col gap-2", className)}>
+    <motion.div
+      ref={wrapperRef}
+      className={cn(
+        "composer-shell flex flex-col gap-2",
+        expanded && "composer-expanded",
+        hasContent && "composer-has-content",
+        className,
+      )}
+      initial={false}
+      animate={motionState}
+      onPointerEnter={() => setHovered(true)}
+      onPointerLeave={() => setHovered(false)}
+      onFocusCapture={() => setFocused(true)}
+      onBlurCapture={handleBlurCapture}
+    >
       {queueCount > 0 && (
-        <Queue className="rounded-2xl border border-foreground/10 bg-foreground/[0.06] px-1.5 pb-1 pt-1 shadow-lg backdrop-blur-xl">
+        // Smoked-glass chip above the bar (smaller radius than the composer).
+        // Composed from the glass tokens instead of the glass-smoke utility so
+        // twMerge deterministically replaces Queue's own bg/border/shadow.
+        <Queue className="rounded-[16px] border-transparent bg-glass-smoke px-1.5 pb-1 pt-1 text-glass-fg shadow-[var(--glass-shadow)] backdrop-blur-[var(--glass-blur)] backdrop-saturate-[var(--glass-saturate)]">
           <QueueList className="-mb-1 mt-0">
             {steeringQueue.map((msg) => (
-              <QueueItem key={msg.key} className="px-2 py-1" title={msg.text}>
-                <div className="flex items-center gap-1.5 text-[10px] text-foreground">
+              <QueueItem
+                key={msg.key}
+                className="rounded-[10px] px-2 py-1 hover:bg-glass-row"
+                title={msg.text}
+              >
+                <div className="flex items-center gap-1.5 text-[10px] text-glass-fg">
                   <ZapIcon className="size-2.5 shrink-0 text-yellow-500" />
-                  <QueueItemContent className="text-foreground">{msg.text}</QueueItemContent>
+                  <QueueItemContent className="text-glass-fg">{msg.text}</QueueItemContent>
                 </div>
               </QueueItem>
             ))}
             {followUpQueue.map((msg) => (
-              <QueueItem key={msg.key} className="px-2 py-1" title={msg.text}>
+              <QueueItem
+                key={msg.key}
+                className="rounded-[10px] px-2 py-1 hover:bg-glass-row"
+                title={msg.text}
+              >
                 <div className="flex items-center gap-1.5 text-[10px]">
                   <QueueItemIndicator className="size-1.5" />
-                  <QueueItemContent>{msg.text}</QueueItemContent>
+                  <QueueItemContent className="text-glass-fg">{msg.text}</QueueItemContent>
                 </div>
               </QueueItem>
             ))}
@@ -189,31 +297,58 @@ export function Composer({
         </Queue>
       )}
 
-      <PromptInput
-        accept={ACCEPTED_IMAGE_MIME}
-        multiple
-        maxFiles={MAX_ATTACHMENT_COUNT}
-        maxFileSize={MAX_ATTACHMENT_BYTES}
-        onError={onAttachError}
-        onSubmit={handleSubmit}
-        // Frosted-glass pill. We override the inner InputGroup (rendered by
-        // PromptInput) to a single-line stadium bar: `+` on the left, the
-        // textarea in the middle (grows only as text wraps via
-        // field-sizing-content), and the trailing controls + submit on the
-        // right. flex-col/items-stretch lets the optional attachment row stack
-        // above the input row while keeping that input row a clean single line.
-        className="[&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-1 [&_[data-slot=input-group]]:rounded-[1.75rem] [&_[data-slot=input-group]]:border-foreground/10 [&_[data-slot=input-group]]:bg-foreground/[0.07] [&_[data-slot=input-group]]:px-2 [&_[data-slot=input-group]]:py-2 [&_[data-slot=input-group]]:shadow-2xl [&_[data-slot=input-group]]:backdrop-blur-xl"
+      <motion.div
+        className="composer-motion-wrap"
+        initial={false}
+        animate={motionState}
+        variants={widthVariants}
+        transition={dockTransition}
       >
-        <ComposerAttachments />
-        <div className="flex items-center gap-1">
-          <AttachButton />
-          <ComposerTextarea busy={busy} onInterrupt={interrupt} onHasInputChange={setHasInput} />
-          {trailing}
-          <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
-          <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
-        </div>
-      </PromptInput>
-    </div>
+        <PromptInput
+          accept={ACCEPTED_IMAGE_MIME}
+          multiple
+          maxFiles={MAX_ATTACHMENT_COUNT}
+          maxFileSize={MAX_ATTACHMENT_BYTES}
+          onError={onAttachError}
+          onSubmit={handleSubmit}
+          className="composer-form [&_[data-slot=input-group]]:h-auto [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-0 [&_[data-slot=input-group]]:rounded-[var(--radius-glass)] [&_[data-slot=input-group]]:border-[rgba(0,0,0,0.05)] [&_[data-slot=input-group]]:glass-mist [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0 [&_[data-slot=input-group]]:[--focus-ring:transparent] [&_[data-slot=input-group]]:shadow-[var(--mist-shadow)] [&_[data-slot=input-group]]:transition-none"
+        >
+          <motion.div
+            className="composer-gradient"
+            aria-hidden="true"
+            initial={false}
+            animate={motionState}
+            variants={gradientVariants}
+          />
+          <motion.div
+            className="composer-collapsed-prompt"
+            aria-hidden="true"
+            initial={false}
+            animate={motionState}
+            variants={promptVariants}
+          >
+            <SunriseIcon className="size-5 shrink-0" strokeWidth={2.4} />
+            <span>What do you wanna create today?</span>
+          </motion.div>
+          <ComposerAttachments onHasAttachmentsChange={setHasAttachments} />
+          <motion.div
+            className={cn(
+              "composer-input-row flex min-h-8 items-center gap-2",
+              expanded ? "pointer-events-auto" : "pointer-events-none",
+            )}
+            initial={false}
+            animate={motionState}
+            variants={rowVariants}
+          >
+            <AttachButton />
+            <ComposerTextarea busy={busy} onInterrupt={interrupt} onHasInputChange={setHasInput} />
+            {trailing}
+            <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
+            <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
+          </motion.div>
+        </PromptInput>
+      </motion.div>
+    </motion.div>
   );
 }
 
@@ -223,9 +358,10 @@ function AttachButton() {
     <PromptInputButton
       tooltip="Attach image"
       onClick={openFileDialog}
-      className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+      className="h-7 shrink-0 gap-1 rounded-[18px] px-2 text-[13px] text-glass-fg-muted transition-[color,background-color,transform] hover:-translate-y-0.5 hover:bg-white/5 hover:text-glass-fg"
     >
-      <PlusIcon className="size-4" />
+      <PaperclipIcon className="size-3.5" />
+      Attach
     </PromptInputButton>
   );
 }
@@ -264,11 +400,10 @@ function ComposerTextarea({
 
   return (
     <PromptInputTextarea
-      // Focus on mount so users can start typing immediately. Starts as a
-      // single line (min-h-6) and grows up to max-h-40 as text wraps.
-      autoFocus
-      className="max-h-40 min-h-6 flex-1 self-center px-1 py-0 text-xs leading-6"
-      placeholder={busy ? "Queue message..." : "Message..."}
+      // Starts as a single line and grows as text wraps. White text + caret in
+      // BOTH themes — the glass underneath is always dark.
+      className="max-h-[120px] min-h-7 min-w-0 flex-1 px-1 py-1.5 text-[13px] leading-4 text-glass-fg caret-white placeholder:text-white/30"
+      placeholder={busy ? "Queue message..." : "What do you wanna create today?"}
       onChange={(e) => onHasInputChange(e.currentTarget.value.trim().length > 0)}
       onKeyDown={handleKeyDown}
     />
@@ -304,7 +439,7 @@ function SteerButton({
         onSteer();
         e.currentTarget.form?.requestSubmit();
       }}
-      className="size-9 shrink-0 rounded-full text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
+      className="size-7 shrink-0 rounded-full text-glass-fg-muted transition-[color,background-color,transform] hover:-translate-y-0.5 hover:bg-glass-row hover:text-glass-fg"
     >
       <ZapIcon className="size-4" />
     </PromptInputButton>
@@ -322,12 +457,15 @@ function SubmitOrStop({
 }) {
   const hasContent = useHasContent(hasInput);
 
+  // The send/stop circle is a lighter translucent pill on the glass (refs),
+  // not an inverted solid — variant="ghost" keeps the Button's own opaque
+  // background layer out of the way so the glass-row fill shows.
   if (busy && !hasContent) {
     return (
       <PromptInputButton
         tooltip="Stop"
         onClick={onInterrupt}
-        className="size-9 shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90"
+        className="size-7 shrink-0 rounded-full bg-glass-row-active text-white transition-[color,background-color,transform] hover:-translate-y-0.5 hover:bg-white/40 hover:text-white"
       >
         <SquareIcon className="size-4" />
       </PromptInputButton>
@@ -336,17 +474,26 @@ function SubmitOrStop({
 
   return (
     <PromptInputSubmit
+      variant="ghost"
       disabled={!hasContent}
       aria-label={busy ? "Queue for next turn" : "Send"}
-      className="size-9 shrink-0 rounded-full bg-foreground text-background hover:bg-foreground/90 disabled:bg-foreground/30 disabled:text-background/70"
+      className="size-7 shrink-0 rounded-full bg-glass-row-active text-white transition-[color,background-color,transform] hover:-translate-y-0.5 hover:bg-white/40 hover:text-white disabled:bg-glass-row disabled:text-white/40 disabled:hover:translate-y-0"
     >
-      {busy ? <ListPlusIcon className="size-4" /> : <SendIcon className="size-4" />}
+      {busy ? <ListPlusIcon className="size-4" /> : <ArrowUpIcon className="size-4" />}
     </PromptInputSubmit>
   );
 }
 
-function ComposerAttachments() {
+function ComposerAttachments({
+  onHasAttachmentsChange,
+}: {
+  onHasAttachmentsChange: (hasAttachments: boolean) => void;
+}) {
   const { files, remove } = usePromptInputAttachments();
+  useEffect(() => {
+    onHasAttachmentsChange(files.length > 0);
+  }, [files.length, onHasAttachmentsChange]);
+
   if (files.length === 0) return null;
   return (
     <Attachments variant="grid" className="px-2 pb-1 pt-1">
@@ -355,10 +502,10 @@ function ComposerAttachments() {
           key={file.id}
           data={file}
           onRemove={() => remove(file.id)}
-          className="size-12 rounded-lg border border-foreground/10"
+          className="size-9 rounded-lg border border-white/15"
         >
           <AttachmentPreview />
-          <AttachmentRemove className="size-4 top-0 right-0 rounded-none rounded-bl bg-background/80 [&>svg]:size-2.5" />
+          <AttachmentRemove className="size-4 top-0 right-0 rounded-none rounded-bl bg-black/60 text-white [&>svg]:size-2.5" />
         </Attachment>
       ))}
     </Attachments>
