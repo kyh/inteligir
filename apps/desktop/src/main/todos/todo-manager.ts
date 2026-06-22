@@ -8,7 +8,14 @@ import crypto from "node:crypto";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { TodoSchema, type Todo, type CreateTodoParams, type UpdateTodoParams } from "@/shared/todo";
+import {
+  TodoSchema,
+  TodoTombstoneSchema,
+  type Todo,
+  type TodoTombstone,
+  type CreateTodoParams,
+  type UpdateTodoParams,
+} from "@/shared/todo";
 import { isRecord } from "@/shared/ipc";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 
@@ -22,6 +29,13 @@ const TODOS_VERSION = 2;
 
 const TodosFileSchema = Type.Object(
   { version: Type.Literal(TODOS_VERSION), todos: Type.Array(TodoSchema) },
+  { additionalProperties: false },
+);
+
+const TOMBSTONES_VERSION = 1;
+
+const TombstonesFileSchema = Type.Object(
+  { version: Type.Literal(TOMBSTONES_VERSION), tombstones: Type.Array(TodoTombstoneSchema) },
   { additionalProperties: false },
 );
 
@@ -54,10 +68,13 @@ export type TodoManagerOptions = {
   fs?: FsAdapter;
   /** Override path for testing */
   todosPath?: string;
+  /** Override tombstones path for testing */
+  tombstonesPath?: string;
 };
 
 export class TodoManager {
   private readonly todos: JsonStore<Todo[]>;
+  private readonly tombstones: JsonStore<TodoTombstone[]>;
 
   constructor(opts?: TodoManagerOptions) {
     this.todos = new JsonStore<Todo[]>(
@@ -82,6 +99,27 @@ export class TodoManager {
           return raw.todos;
         },
         encode: (todos) => ({ version: TODOS_VERSION, todos }),
+      },
+    );
+    this.tombstones = new JsonStore<TodoTombstone[]>(
+      opts?.tombstonesPath ?? inteligirPath("todo-tombstones.json"),
+      TombstonesFileSchema,
+      [],
+      {
+        fs: opts?.fs,
+        versioning: {
+          current: TOMBSTONES_VERSION,
+          fromLegacy: () => {
+            throw new Error("todo-tombstones.json has no unversioned format");
+          },
+        },
+        decode: (raw) => {
+          if (!Value.Check(TombstonesFileSchema, raw)) {
+            throw new Error("tombstones file shape rejected");
+          }
+          return raw.tombstones;
+        },
+        encode: (tombstones) => ({ version: TOMBSTONES_VERSION, tombstones }),
       },
     );
   }
@@ -156,15 +194,44 @@ export class TodoManager {
   }
 
   deleteTodo(id: string): void {
+    // Record a tombstone for a linked todo so the next sync deletes the remote
+    // task instead of re-importing it. A user delete is intentional; the
+    // remote should follow.
+    const target = this.todos.read().find((t) => t.id === id);
+    if (target?.googleTaskId) this.addTombstone(target.googleTaskId);
     this.todos.update((todos) => todos.filter((t) => t.id !== id));
     this.notifyTodosChanged();
   }
 
   /** Drop every completed item; returns what remains. */
   clearCompleted(): Todo[] {
+    for (const t of this.todos.read()) {
+      if (t.done && t.googleTaskId) this.addTombstone(t.googleTaskId);
+    }
     this.todos.update((todos) => todos.filter((t) => !t.done));
     this.notifyTodosChanged();
     return this.getTodos();
+  }
+
+  // ---- Sync tombstones ------------------------------------------------------
+
+  getTombstones(): TodoTombstone[] {
+    return this.tombstones.read();
+  }
+
+  private addTombstone(googleTaskId: string): void {
+    this.tombstones.update((tombstones) =>
+      tombstones.some((t) => t.googleTaskId === googleTaskId)
+        ? tombstones
+        : [...tombstones, { googleTaskId, deletedAt: Date.now() }],
+    );
+  }
+
+  /** Drop tombstones once their remote task is confirmed deleted (or gone). */
+  clearTombstones(googleTaskIds: string[]): void {
+    if (googleTaskIds.length === 0) return;
+    const drop = new Set(googleTaskIds);
+    this.tombstones.update((tombstones) => tombstones.filter((t) => !drop.has(t.googleTaskId)));
   }
 
   /**

@@ -22,7 +22,11 @@ function memoryFs(seed: Record<string, unknown> = {}): FsAdapter & { files: Map<
 }
 
 function createManager(seed?: Record<string, unknown>): TodoManager {
-  return new TodoManager({ fs: memoryFs(seed), todosPath: "/todos.json" });
+  return new TodoManager({
+    fs: memoryFs(seed),
+    todosPath: "/todos.json",
+    tombstonesPath: "/todo-tombstones.json",
+  });
 }
 
 describe("TodoManager CRUD", () => {
@@ -193,6 +197,52 @@ describe("TodoManager CRUD", () => {
     expect(ids).toContain(keep.id);
     expect(ids).not.toContain(gone.id);
     expect(mgr.getTodos().find((t) => t.id === keep.id)?.googleTaskId).toBe("g2");
+  });
+});
+
+describe("TodoManager sync tombstones", () => {
+  it("records a tombstone when a linked todo is deleted, but not for unlinked", () => {
+    const mgr = createManager();
+    const linked = mgr.createTodo({ title: "linked" });
+    mgr.applySync([{ ...linked, googleTaskId: "g1" }], []);
+    const unlinked = mgr.createTodo({ title: "unlinked" });
+
+    mgr.deleteTodo(linked.id);
+    mgr.deleteTodo(unlinked.id);
+
+    expect(mgr.getTombstones().map((t) => t.googleTaskId)).toEqual(["g1"]);
+  });
+
+  it("tombstones linked completed todos on clearCompleted", () => {
+    const mgr = createManager();
+    const a = mgr.createTodo({ title: "a" });
+    mgr.applySync([{ ...a, googleTaskId: "ga", done: true, completedAt: 1 }], []);
+
+    mgr.clearCompleted();
+    expect(mgr.getTombstones().map((t) => t.googleTaskId)).toEqual(["ga"]);
+  });
+
+  it("clearTombstones drops the settled ids", () => {
+    const mgr = createManager();
+    const t = mgr.createTodo({ title: "t" });
+    mgr.applySync([{ ...t, googleTaskId: "g9" }], []);
+    mgr.deleteTodo(t.id);
+    expect(mgr.getTombstones()).toHaveLength(1);
+
+    mgr.clearTombstones(["g9"]);
+    expect(mgr.getTombstones()).toEqual([]);
+  });
+
+  it("does not double-record a tombstone for the same remote id", () => {
+    const mgr = createManager();
+    const t = mgr.createTodo({ title: "t" });
+    mgr.applySync([{ ...t, googleTaskId: "dup" }], []);
+    mgr.deleteTodo(t.id);
+    // Re-create + re-link the same remote id, then delete again.
+    const t2 = mgr.createTodo({ title: "t2" });
+    mgr.applySync([{ ...t2, googleTaskId: "dup" }], []);
+    mgr.deleteTodo(t2.id);
+    expect(mgr.getTombstones()).toHaveLength(1);
   });
 });
 

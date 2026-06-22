@@ -42,6 +42,17 @@ export const TodoSchema = Type.Object(
 
 export type Todo = Static<typeof TodoSchema>;
 
+// A locally-deleted todo that was linked to Google Tasks. Recorded so the next
+// sync can delete the remote task (propagating the local delete) and not
+// re-import it. Cleared once the remote delete lands (or the task is already
+// gone remotely).
+export const TodoTombstoneSchema = Type.Object(
+  { googleTaskId: Type.String(), deletedAt: Type.Number() },
+  { additionalProperties: false },
+);
+
+export type TodoTombstone = Static<typeof TodoTombstoneSchema>;
+
 // ---------------------------------------------------------------------------
 // Method params & results — mirror the task.ts shapes so the IPC registry,
 // agent port, and renderer store all read the same way.
