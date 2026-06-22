@@ -235,22 +235,44 @@ export class TodoManager {
   }
 
   /**
-   * Apply a sync reconciliation in one atomic write: `upserts` replace any
-   * todo with a matching id and append the rest (imports + remote-wins
-   * updates + export links), `deletes` remove by id. The upsert objects carry
-   * their own updatedAt/googleTaskId from the sync planner — this method does
-   * NOT bump updatedAt, so a remote-origin change keeps the remote timestamp
-   * and won't immediately look "locally newer" on the next sync.
+   * Apply a sync reconciliation in one atomic write, reconciling against the
+   * CURRENT store (not the snapshot the plan was computed from) so a todo the
+   * user deleted or edited while the sync was in flight isn't resurrected or
+   * clobbered:
+   *
+   * - `imports` (brand-new remote rows) are added only if their id is absent.
+   * - `updates`/links (existing-id, remote-origin) apply only to rows still
+   *   present — a row deleted mid-sync stays deleted. If the live row is newer
+   *   than the update (a concurrent local edit), its content is kept but the
+   *   update's googleTaskId link is still adopted, so the edit survives and the
+   *   item isn't re-exported next sync.
+   * - `deletes` remove by id.
+   *
+   * The objects carry their own updatedAt/googleTaskId from the planner; this
+   * method never bumps updatedAt, so a remote-origin change keeps the remote
+   * timestamp and won't look "locally newer" on the next sync.
    */
-  applySync(upserts: Todo[], deletes: string[]): void {
-    if (upserts.length === 0 && deletes.length === 0) return;
-    const byId = new Map(upserts.map((t) => [t.id, t]));
+  applySync(imports: Todo[], updates: Todo[], deletes: string[]): void {
+    if (imports.length === 0 && updates.length === 0 && deletes.length === 0) return;
+    const updateById = new Map(updates.map((t) => [t.id, t]));
     const deleted = new Set(deletes);
     this.todos.update((todos) => {
-      const merged = todos.filter((t) => !deleted.has(t.id)).map((t) => byId.get(t.id) ?? t);
-      const seen = new Set(merged.map((t) => t.id));
-      for (const t of upserts) if (!seen.has(t.id)) merged.push(t);
-      return merged;
+      const next: Todo[] = [];
+      for (const current of todos) {
+        if (deleted.has(current.id)) continue;
+        const update = updateById.get(current.id);
+        if (!update) {
+          next.push(current);
+        } else if (update.updatedAt >= current.updatedAt) {
+          next.push(update);
+        } else {
+          // Live row is newer (edited mid-sync): keep its content, adopt the link.
+          next.push({ ...current, googleTaskId: update.googleTaskId ?? current.googleTaskId });
+        }
+      }
+      const seen = new Set(next.map((t) => t.id));
+      for (const todo of imports) if (!seen.has(todo.id)) next.push(todo);
+      return next;
     });
     this.notifyTodosChanged();
   }

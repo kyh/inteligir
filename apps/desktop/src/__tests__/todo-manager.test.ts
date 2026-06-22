@@ -190,7 +190,7 @@ describe("TodoManager CRUD", () => {
     };
     const linked: Todo = { ...keep, googleTaskId: "g2" };
 
-    mgr.applySync([imported, linked], [gone.id]);
+    mgr.applySync([imported], [linked], [gone.id]);
 
     const ids = mgr.getTodos().map((t) => t.id);
     expect(ids).toContain("imported");
@@ -198,13 +198,59 @@ describe("TodoManager CRUD", () => {
     expect(ids).not.toContain(gone.id);
     expect(mgr.getTodos().find((t) => t.id === keep.id)?.googleTaskId).toBe("g2");
   });
+
+  it("does not resurrect a row deleted from the current store", () => {
+    const mgr = createManager();
+    mgr.createTodo({ title: "alive" });
+    // An update/link whose id is no longer present (deleted mid-sync) must not
+    // be re-added; a genuine import (new id) still lands.
+    const ghost: Todo = {
+      id: "ghost",
+      title: "deleted mid-sync",
+      notes: "",
+      done: false,
+      priority: "medium",
+      dueAt: null,
+      createdAt: 1,
+      updatedAt: 1,
+      completedAt: null,
+      googleTaskId: "gx",
+    };
+    const newImport: Todo = { ...ghost, id: "fresh", googleTaskId: "gy" };
+
+    mgr.applySync([newImport], [ghost], []);
+
+    const ids = mgr.getTodos().map((t) => t.id);
+    expect(ids).toContain("fresh");
+    expect(ids).not.toContain("ghost");
+  });
+
+  it("keeps a concurrently-edited newer row but adopts the link", () => {
+    const mgr = createManager();
+    const t = mgr.createTodo({ title: "original" });
+    // Simulate a local edit during the sync — bumps updatedAt past the plan's.
+    const edited = mgr.updateTodo({ id: t.id, title: "edited mid-sync" });
+    // A remote-wins update built from the OLD snapshot (older updatedAt).
+    const staleUpdate: Todo = {
+      ...t,
+      title: "stale remote",
+      updatedAt: edited.updatedAt - 1000,
+      googleTaskId: "gz",
+    };
+
+    mgr.applySync([], [staleUpdate], []);
+
+    const row = mgr.getTodos().find((x) => x.id === t.id);
+    expect(row?.title).toBe("edited mid-sync"); // local edit preserved
+    expect(row?.googleTaskId).toBe("gz"); // link still adopted
+  });
 });
 
 describe("TodoManager sync tombstones", () => {
   it("records a tombstone when a linked todo is deleted, but not for unlinked", () => {
     const mgr = createManager();
     const linked = mgr.createTodo({ title: "linked" });
-    mgr.applySync([{ ...linked, googleTaskId: "g1" }], []);
+    mgr.applySync([], [{ ...linked, googleTaskId: "g1" }], []);
     const unlinked = mgr.createTodo({ title: "unlinked" });
 
     mgr.deleteTodo(linked.id);
@@ -216,7 +262,7 @@ describe("TodoManager sync tombstones", () => {
   it("tombstones linked completed todos on clearCompleted", () => {
     const mgr = createManager();
     const a = mgr.createTodo({ title: "a" });
-    mgr.applySync([{ ...a, googleTaskId: "ga", done: true, completedAt: 1 }], []);
+    mgr.applySync([], [{ ...a, googleTaskId: "ga", done: true, completedAt: 1 }], []);
 
     mgr.clearCompleted();
     expect(mgr.getTombstones().map((t) => t.googleTaskId)).toEqual(["ga"]);
@@ -225,7 +271,7 @@ describe("TodoManager sync tombstones", () => {
   it("clearTombstones drops the settled ids", () => {
     const mgr = createManager();
     const t = mgr.createTodo({ title: "t" });
-    mgr.applySync([{ ...t, googleTaskId: "g9" }], []);
+    mgr.applySync([], [{ ...t, googleTaskId: "g9" }], []);
     mgr.deleteTodo(t.id);
     expect(mgr.getTombstones()).toHaveLength(1);
 
@@ -236,11 +282,11 @@ describe("TodoManager sync tombstones", () => {
   it("does not double-record a tombstone for the same remote id", () => {
     const mgr = createManager();
     const t = mgr.createTodo({ title: "t" });
-    mgr.applySync([{ ...t, googleTaskId: "dup" }], []);
+    mgr.applySync([], [{ ...t, googleTaskId: "dup" }], []);
     mgr.deleteTodo(t.id);
     // Re-create + re-link the same remote id, then delete again.
     const t2 = mgr.createTodo({ title: "t2" });
-    mgr.applySync([{ ...t2, googleTaskId: "dup" }], []);
+    mgr.applySync([], [{ ...t2, googleTaskId: "dup" }], []);
     mgr.deleteTodo(t2.id);
     expect(mgr.getTombstones()).toHaveLength(1);
   });

@@ -40,8 +40,12 @@ export type GoogleTaskWriteFields = {
 };
 
 export type SyncPlan = {
-  /** Full todos to write locally (imports + remote-wins updates). */
-  localUpserts: Todo[];
+  /** Brand-new local todos from remote tasks with no local match. applySync
+   * adds these (by a fresh id), so they're separated from updates. */
+  localImports: Todo[];
+  /** Remote-wins rewrites of EXISTING local rows (matched by id). applySync
+   * only applies these to rows still present, never resurrecting a deleted one. */
+  localUpdates: Todo[];
   /** Local todo ids to delete (remote removed them). */
   localDeletes: string[];
   /** Unlinked local todos to create remotely; link by `localId` afterward. */
@@ -149,7 +153,8 @@ export function planSync(
   newId: () => string,
 ): SyncPlan {
   const plan: SyncPlan = {
-    localUpserts: [],
+    localImports: [],
+    localUpdates: [],
     localDeletes: [],
     remoteCreates: [],
     remoteUpdates: [],
@@ -174,14 +179,14 @@ export function planSync(
     if (todo.updatedAt > remoteUpdated) {
       plan.remoteUpdates.push({ googleTaskId: task.id, fields: todoToWriteFields(todo) });
     } else {
-      plan.localUpserts.push(applyRemote(task, todo));
+      plan.localUpdates.push(applyRemote(task, todo));
     }
   }
 
   // Remote tasks with no local counterpart — import as new local todos.
   for (const task of remote) {
     if (matched.has(task.id)) continue;
-    plan.localUpserts.push(
+    plan.localImports.push(
       applyRemote(task, { id: newId(), priority: DEFAULT_PRIORITY, createdAt: now }),
     );
   }

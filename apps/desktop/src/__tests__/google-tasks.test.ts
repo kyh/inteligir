@@ -70,13 +70,15 @@ describe("planSync", () => {
     expect(plan.remoteCreates).toEqual([
       { localId: "local1", fields: { title: "New", notes: "", status: "needsAction" } },
     ]);
-    expect(plan.localUpserts).toEqual([]);
+    expect(plan.localImports).toEqual([]);
+    expect(plan.localUpdates).toEqual([]);
   });
 
   it("imports a remote task with no local match", () => {
     const plan = planSync([], [gtask({ id: "g1", title: "Remote" })], 5000, newId);
-    expect(plan.localUpserts).toHaveLength(1);
-    expect(plan.localUpserts[0]).toMatchObject({ title: "Remote", googleTaskId: "g1" });
+    expect(plan.localImports).toHaveLength(1);
+    expect(plan.localImports[0]).toMatchObject({ title: "Remote", googleTaskId: "g1" });
+    expect(plan.localUpdates).toEqual([]);
   });
 
   it("local wins when its edit is newer than the remote", () => {
@@ -91,7 +93,8 @@ describe("planSync", () => {
     expect(plan.remoteUpdates).toEqual([
       { googleTaskId: "g1", fields: { title: "Local edit", notes: "", status: "needsAction" } },
     ]);
-    expect(plan.localUpserts).toEqual([]);
+    expect(plan.localImports).toEqual([]);
+    expect(plan.localUpdates).toEqual([]);
   });
 
   it("remote wins when it is newer, preserving local-only priority", () => {
@@ -99,7 +102,7 @@ describe("planSync", () => {
     const remote = gtask({ id: "g1", title: "Remote edit", updated: "2999-01-01T00:00:00.000Z" });
     const plan = planSync([local], [remote], 5000, newId);
     expect(plan.remoteUpdates).toEqual([]);
-    expect(plan.localUpserts[0]).toMatchObject({
+    expect(plan.localUpdates[0]).toMatchObject({
       id: "l",
       title: "Remote edit",
       priority: "high",

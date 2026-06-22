@@ -178,10 +178,32 @@ async function runSync(): Promise<TodoSyncResult> {
     }
   }
 
-  // 6. Apply every local change in one atomic write, then drop settled
-  // tombstones.
-  mgr.applySync([...plan.localUpserts, ...links], plan.localDeletes);
+  // The export awaits above let the user delete a just-exported todo mid-sync.
+  // Re-read the live store: drop links whose local row is gone and delete the
+  // orphaned remote task we just created, so it isn't re-imported next sync.
+  const liveIds = new Set(mgr.getTodos().map((t) => t.id));
+  const settledLinks: Todo[] = [];
+  for (const link of links) {
+    if (liveIds.has(link.id)) {
+      settledLinks.push(link);
+      continue;
+    }
+    try {
+      await widgetCallTool(DELETE_TOOL, { tasklist: DEFAULT_LIST, task: link.googleTaskId });
+    } catch (err) {
+      console.warn(`[todos] failed to clean orphaned remote task ${link.googleTaskId}:`, err);
+    }
+  }
+
+  // 6. Apply every local change in one atomic write — reconciled against the
+  // current store inside applySync — then drop settled tombstones.
+  mgr.applySync(plan.localImports, [...plan.localUpdates, ...settledLinks], plan.localDeletes);
   mgr.clearTombstones(clearedTombstones);
 
-  return { ok: true, pulled: plan.localUpserts.length, pushed, deleted: deletedRemote };
+  return {
+    ok: true,
+    pulled: plan.localImports.length + plan.localUpdates.length,
+    pushed,
+    deleted: deletedRemote,
+  };
 }
