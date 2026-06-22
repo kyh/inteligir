@@ -191,6 +191,12 @@ export class VaultManager {
   /** Typed write for widgets: serialize `.json` blobs, coerce everything else
    * to text. A whole-file replace — last write wins (atomic). */
   writeAuto(rel: string, value: unknown): void {
+    // `undefined` (e.g. a missing widget state pointer) would otherwise stringify
+    // to the literal text "undefined" and corrupt the file — fail cleanly so the
+    // widget surfaces an error instead.
+    if (value === undefined) {
+      throw new Error(`Nothing to write to ${rel}: value is undefined`);
+    }
     if (classify(rel) === "blob") {
       this.writeText(rel, `${JSON.stringify(value, null, 2)}\n`);
       return;

@@ -59,6 +59,13 @@ describe("VaultManager", () => {
     expect(mgr.readAuto("note.md")).toBe("plain text");
   });
 
+  it("refuses to write undefined instead of corrupting the file", () => {
+    const mgr = newManager();
+    expect(() => mgr.writeAuto("data/x.json", undefined)).toThrow(/undefined/);
+    expect(() => mgr.writeAuto("note.md", undefined)).toThrow(/undefined/);
+    expect(fs.existsSync(path.join(root, "data/x.json"))).toBe(false);
+  });
+
   it("surfaces malformed JSON instead of resetting the file", () => {
     const mgr = newManager();
     mgr.writeText("broken.json", "{ not json");

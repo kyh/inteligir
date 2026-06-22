@@ -28,6 +28,10 @@ export function VaultPanel() {
   // Save coordination: the path/content we last persisted, plus the debounce
   // timer, so switching files or an external change never clobbers live edits.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The in-flight save promise (null when idle). Saves are serialized through
+  // it, and the live-reload below refuses to run while it's set so a disk read
+  // can't revert the editor under an unfinished write.
+  const savingRef = useRef<Promise<void> | null>(null);
   const selectedRef = useRef<string | null>(null);
   const contentRef = useRef("");
   const dirtyRef = useRef(false);
@@ -49,16 +53,32 @@ export function VaultPanel() {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+    // Serialize behind any in-flight write so two saves can't overlap and a
+    // trailing edit can't be written before an earlier one lands.
+    if (savingRef.current) await savingRef.current.catch(() => {});
     const path = selectedRef.current;
     if (!path || !dirtyRef.current) return;
     const bridge = getBridge();
     if (!bridge) return;
-    dirtyRef.current = false;
-    setDirty(false);
-    await bridge.writeVaultDoc({ path, content: contentRef.current }).catch(() => {
-      dirtyRef.current = true;
-      setDirty(true);
-    });
+    // Snapshot the bytes we're persisting. `dirty` is cleared only after the
+    // write succeeds AND the editor still holds exactly this snapshot — if the
+    // user typed during the write, dirty stays set so the newer text saves next.
+    const snapshot = contentRef.current;
+    const writing = bridge
+      .writeVaultDoc({ path, content: snapshot })
+      .then(() => {
+        if (contentRef.current === snapshot) {
+          dirtyRef.current = false;
+          setDirty(false);
+        }
+        return undefined;
+      })
+      .catch(() => {
+        // Leave dirty set so a later flush retries.
+      });
+    savingRef.current = writing;
+    await writing;
+    if (savingRef.current === writing) savingRef.current = null;
   }, []);
 
   const openFile = useCallback(
@@ -100,11 +120,15 @@ export function VaultPanel() {
       setRoot(nextRoot);
       refreshList();
       const path = selectedRef.current;
-      if (path && !dirtyRef.current) {
+      // Never reload while we have unsaved edits or a save is in flight — that's
+      // how a disk read could revert the editor or clobber newer text.
+      if (path && !dirtyRef.current && savingRef.current === null) {
         bridge
           .readVaultDoc({ path })
           .then((text) => {
-            if (selectedRef.current === path && !dirtyRef.current) setContent(text);
+            if (selectedRef.current === path && !dirtyRef.current && savingRef.current === null) {
+              setContent(text);
+            }
             return undefined;
           })
           .catch(() => {});
