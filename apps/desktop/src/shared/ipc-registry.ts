@@ -47,6 +47,16 @@ import {
   type ListTasksResult,
   type ToggleTaskResult,
 } from "./task";
+import {
+  CreateTodoParamsSchema,
+  UpdateTodoParamsSchema,
+  type ClearCompletedTodosResult,
+  type CreateTodoResult,
+  type DeleteTodoResult,
+  type ListTodosResult,
+  type ToggleTodoResult,
+  type UpdateTodoResult,
+} from "./todo";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
 import type { DispatchState } from "./dispatch";
@@ -325,6 +335,29 @@ export const IPC = {
   /** Push channel: fired on every task mutation (IPC, agent tool, scheduler)
    * so the Tasks panel stays live instead of only refreshing on mount. */
   onTasksUpdated: event<ListTasksResult>("task:updated"),
+
+  // To-dos
+  createTodo: invoke<typeof CreateTodoParamsSchema, CreateTodoResult>(
+    "todo:create",
+    CreateTodoParamsSchema,
+  ),
+  listTodos: invokeVoid<ListTodosResult>("todo:list"),
+  updateTodo: invoke<typeof UpdateTodoParamsSchema, UpdateTodoResult>(
+    "todo:update",
+    UpdateTodoParamsSchema,
+  ),
+  toggleTodo: invoke<ReturnType<typeof Type.String>, ToggleTodoResult>(
+    "todo:toggle",
+    Type.String({ minLength: 1 }),
+  ),
+  deleteTodo: invoke<ReturnType<typeof Type.String>, DeleteTodoResult>(
+    "todo:delete",
+    Type.String({ minLength: 1 }),
+  ),
+  clearCompletedTodos: invokeVoid<ClearCompletedTodosResult>("todo:clearCompleted"),
+  /** Push channel: fired on every todo mutation (IPC or agent tool) so the
+   * To-Do panel stays live without a remount. */
+  onTodosUpdated: event<ListTodosResult>("todo:updated"),
 
   // Voice
   isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),

@@ -67,6 +67,14 @@ const ports: AgentPorts = {
     toggleTask: unused,
     deleteTask: () => {},
   },
+  todos: {
+    getTodos: () => [],
+    createTodo: unused,
+    updateTodo: unused,
+    toggleTodo: unused,
+    deleteTodo: () => {},
+    clearCompleted: () => [],
+  },
   executor: {
     cli: { name: "executor", version: "0.0.0", binPath: "/fake/bin/executor" },
     install: async () => {},

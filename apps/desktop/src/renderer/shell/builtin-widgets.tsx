@@ -6,6 +6,7 @@
 
 import {
   LayoutGridIcon,
+  ListChecksIcon,
   ListTodoIcon,
   MessageSquareIcon,
   PlugIcon,
@@ -23,6 +24,7 @@ import { ChatActivityRow, ChatMessageView } from "@/renderer/shell/chat/chat-mes
 import { ExtensionsPanel } from "@/renderer/shell/builtin/extensions-panel";
 import { SettingsPanel } from "@/renderer/shell/builtin/settings-panel";
 import { TaskPanel } from "@/renderer/shell/builtin/task-panel";
+import { TodoPanel } from "@/renderer/shell/builtin/todo-panel";
 import { WidgetsPanel } from "@/renderer/shell/builtin/widgets-panel";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
@@ -80,6 +82,7 @@ export const BUILTIN_WIDGET_UI: Record<BuiltinWidgetId, BuiltinWidgetUI> = {
   chat: { component: ChatWidget, icon: MessageSquareIcon, bodyClassName: "flex flex-col" },
   widgets: { component: WidgetsPanel, icon: LayoutGridIcon },
   tasks: { component: TaskPanel, icon: ListTodoIcon },
+  todos: { component: TodoPanel, icon: ListChecksIcon },
   extensions: { component: ExtensionsPanel, icon: PlugIcon },
   settings: { component: SettingsPanel, icon: SettingsIcon },
 };

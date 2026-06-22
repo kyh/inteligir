@@ -23,6 +23,7 @@ import type {
   WidgetSurface,
 } from "@/shared/shell";
 import type { CreateTaskParams, Task } from "@/shared/task";
+import type { CreateTodoParams, Todo, UpdateTodoParams } from "@/shared/todo";
 
 // ---------------------------------------------------------------------------
 // Ports — main-owned capabilities handed to extensions at register/setup time.
@@ -56,6 +57,16 @@ export type TasksPort = {
   deleteTask(id: string): void;
 };
 
+/** To-do list store handle (subset of main/todos/todo-manager.ts). */
+export type TodosPort = {
+  getTodos(): Todo[];
+  createTodo(params: CreateTodoParams): Todo;
+  updateTodo(params: UpdateTodoParams): Todo;
+  toggleTodo(id: string): Todo;
+  deleteTodo(id: string): void;
+  clearCompleted(): Todo[];
+};
+
 /** Executor daemon access (main/executor/*): install, lifecycle, code mode. */
 export type ExecutorPort = {
   /** Pinned CLI metadata for the integrations UI. */
@@ -74,6 +85,7 @@ export type ExecutorPort = {
 export type AgentPorts = {
   shell: ShellPort;
   tasks: TasksPort;
+  todos: TodosPort;
   executor: ExecutorPort;
 };
 

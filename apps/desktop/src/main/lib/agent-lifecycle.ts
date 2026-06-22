@@ -25,6 +25,7 @@ import { getWritableShell, resetShellCache, resumeShellWrites } from "@/main/she
 import { resetNotifications } from "@/main/notifications";
 import { resetSecretStore } from "@/main/secrets";
 import { getTaskManager, resetTaskManager } from "@/main/tasks/task-manager";
+import { getTodoManager, resetTodoManager } from "@/main/todos/todo-manager";
 import { resetUiState } from "@/main/ui-state";
 import type { SetupProgress } from "@/shared/ipc";
 
@@ -41,6 +42,16 @@ export function getAgentPorts(): AgentPorts {
       deleteTask: (id) => {
         getTaskManager().deleteTask(id);
       },
+    },
+    todos: {
+      getTodos: () => getTodoManager().getTodos(),
+      createTodo: (params) => getTodoManager().createTodo(params),
+      updateTodo: (params) => getTodoManager().updateTodo(params),
+      toggleTodo: (id) => getTodoManager().toggleTodo(id),
+      deleteTodo: (id) => {
+        getTodoManager().deleteTodo(id);
+      },
+      clearCompleted: () => getTodoManager().clearCompleted(),
     },
     executor: {
       cli: EXECUTOR_CLI,
@@ -99,6 +110,7 @@ export function teardownAgentResources(): void {
   resetNotifications();
   resetShellCache();
   resetTaskManager();
+  resetTodoManager();
   resetDailyRefresh();
   resetExecutorDaemon();
   resetUiState();

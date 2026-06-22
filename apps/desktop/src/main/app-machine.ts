@@ -19,6 +19,7 @@ import {
 import { broadcast } from "@/main/lib/broadcast";
 import { getNotifications } from "@/main/notifications";
 import { getTaskManager, setTasksChangedNotifier } from "@/main/tasks/task-manager";
+import { setTodosChangedNotifier } from "@/main/todos/todo-manager";
 import {
   getBackgroundAgent,
   startBackgroundAgent,
@@ -445,6 +446,7 @@ export function initMachine(gatewayPort: AgentGatewayPort): void {
   // Tasks push channel: TaskManager is electron-free, so the broadcast hookup
   // happens here (composition root for the machine's main-side singletons).
   setTasksChangedNotifier((tasks) => broadcast("onTasksUpdated", { tasks }));
+  setTodosChangedNotifier((todos) => broadcast("onTodosUpdated", { todos }));
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);

@@ -52,6 +52,7 @@ import { getNotifications } from "@/main/notifications";
 import { getWritableShell } from "@/main/shell";
 import { getUiState } from "@/main/ui-state";
 import { getTaskManager } from "@/main/tasks/task-manager";
+import { getTodoManager } from "@/main/todos/todo-manager";
 import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
@@ -211,6 +212,7 @@ function registerIpcHandlers(): void {
   registerDispatchHandlers();
   registerLifecycleHandlers();
   registerTaskHandlers();
+  registerTodoHandlers();
   registerVoiceHandlers();
   registerNotificationHandlers();
   registerUiStateHandlers();
@@ -294,6 +296,18 @@ function registerTaskHandlers(): void {
     return { ok: true };
   });
   handle("toggleTask", (id) => ({ task: getTaskManager().toggleTask(id) }));
+}
+
+function registerTodoHandlers(): void {
+  handle("createTodo", (params) => ({ todo: getTodoManager().createTodo(params) }));
+  handle("listTodos", () => ({ todos: getTodoManager().getTodos() }));
+  handle("updateTodo", (params) => ({ todo: getTodoManager().updateTodo(params) }));
+  handle("toggleTodo", (id) => ({ todo: getTodoManager().toggleTodo(id) }));
+  handle("deleteTodo", (id): { ok: true } => {
+    getTodoManager().deleteTodo(id);
+    return { ok: true };
+  });
+  handle("clearCompletedTodos", () => ({ todos: getTodoManager().clearCompleted() }));
 }
 
 function registerVoiceHandlers(): void {
