@@ -187,7 +187,11 @@ export function VaultPanel() {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
+    // Drop the dirty flag (so no new save starts) and let any in-flight write
+    // finish before deleting, or it could recreate the file we just removed.
     dirtyRef.current = false;
+    setDirty(false);
+    if (savingRef.current) await savingRef.current.catch(() => {});
     await bridge.deleteVaultEntry({ path }).catch(() => {});
     setSelected(null);
     setContent("");
