@@ -55,6 +55,8 @@ import { getTaskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
+import { registerVaultIpcHandlers } from "@/main/vault-ipc";
+import { getVaultManager, setVaultChangeNotifier } from "@/main/vault";
 import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
 import { isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { UpdateState } from "@/shared/ipc";
@@ -334,6 +336,7 @@ function registerIpcHandlers(): void {
   registerShellIpcHandlers();
   registerWidgetActionIpcHandlers();
   registerExecutorIpcHandlers();
+  registerVaultIpcHandlers();
 
   // ---- Skills ---------------------------------------------------------------
 
@@ -534,6 +537,12 @@ function onAppReady(): void {
   configureApplicationMenu();
   configureAutoUpdater();
   registerIpcHandlers();
+
+  // Vault: ensure the folder + agent symlink exist and stream file changes to
+  // the renderer so the Vault panel and bound widgets stay live. The notifier
+  // is module-scoped, so it survives a logout/login reset.
+  getVaultManager().ensureReady();
+  setVaultChangeNotifier((root) => broadcast("onVaultChanged", { root }));
 
   mainWindow = createWindow();
   getNotifications().setTargetWindow(mainWindow);

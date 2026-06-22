@@ -203,6 +203,37 @@ const WidgetCallToolSchema = Type.Object(
 export type WidgetCallToolResult = { ok: true; data: unknown } | { ok: false; error: string };
 const WidgetOpenUrlSchema = Type.Object({ url: Type.String() }, { additionalProperties: false });
 
+// ---------------------------------------------------------------------------
+// Vault — the user's local knowledge folder (markdown + JSON). Paths are
+// vault-relative; main confines them under the vault root.
+// ---------------------------------------------------------------------------
+
+const VaultPathSchema = Type.Object({ path: Type.String() }, { additionalProperties: false });
+const VaultWriteDocSchema = Type.Object(
+  { path: Type.String(), content: Type.String() },
+  { additionalProperties: false },
+);
+const VaultWriteValueSchema = Type.Object(
+  { path: Type.String(), value: Type.Unknown() },
+  { additionalProperties: false },
+);
+
+/** One file in the vault, relative to the vault root. `kind` splits free-text
+ * docs (md/txt) from structured JSON blobs from everything else. */
+export type VaultEntry = {
+  path: string;
+  name: string;
+  kind: "doc" | "blob" | "other";
+};
+
+export type ChooseVaultResult = { root: string } | { canceled: true };
+
+// Result envelopes for the widget vault actions — same rationale as
+// WidgetCallToolResult: a failed read/write resolves with ok:false so the
+// renderer shows a clean inline message, never Electron's IPC stack string.
+export type WidgetVaultReadResult = { ok: true; value: unknown } | { ok: false; error: string };
+export type WidgetVaultWriteResult = { ok: true } | { ok: false; error: string };
+
 // InstallWidgetInput carries a WidgetSpec — the deep validation lives in
 // widget-spec.ts (TypeBox + cycle check). At the IPC boundary we only need
 // to confirm the wrapper shape so a malformed payload rejects cleanly.
@@ -418,6 +449,29 @@ export const IPC = {
     "widget:open-url",
     WidgetOpenUrlSchema,
   ),
+  // Widget vault access — typed read (parsed JSON for blobs) + whole-file write.
+  widgetVaultRead: invoke<typeof VaultPathSchema, WidgetVaultReadResult>(
+    "widget:vault-read",
+    VaultPathSchema,
+  ),
+  widgetVaultWrite: invoke<typeof VaultWriteValueSchema, WidgetVaultWriteResult>(
+    "widget:vault-write",
+    VaultWriteValueSchema,
+  ),
+
+  // Vault (knowledge folder) — trusted renderer surface for the Vault panel.
+  getVaultRoot: invokeVoid<string>("vault:get-root"),
+  chooseVaultRoot: invokeVoid<ChooseVaultResult>("vault:choose-root"),
+  listVault: invokeVoid<VaultEntry[]>("vault:list"),
+  readVaultDoc: invoke<typeof VaultPathSchema, string>("vault:read-doc", VaultPathSchema),
+  writeVaultDoc: invoke<typeof VaultWriteDocSchema, void>("vault:write-doc", VaultWriteDocSchema),
+  deleteVaultEntry: invoke<typeof VaultPathSchema, { removed: boolean }>(
+    "vault:delete",
+    VaultPathSchema,
+  ),
+  /** Fired on every vault change (file edit by anyone, or a root switch) so the
+   * Vault panel re-lists and bound widgets re-read. */
+  onVaultChanged: event<{ root: string }>("vault:changed"),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection

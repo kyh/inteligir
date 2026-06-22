@@ -26,6 +26,7 @@ import { resetNotifications } from "@/main/notifications";
 import { resetSecretStore } from "@/main/secrets";
 import { getTaskManager, resetTaskManager } from "@/main/tasks/task-manager";
 import { resetUiState } from "@/main/ui-state";
+import { getVaultManager, resetVaultManager } from "@/main/vault";
 import type { SetupProgress } from "@/shared/ipc";
 
 /** Build the main-owned capability ports handed to agent extension bundles.
@@ -78,6 +79,10 @@ export async function seedAgentResources(onProgress: (p: SetupProgress) => void)
     });
 
   await seedResources(getAgentPorts(), onProgress);
+
+  // Now that the workspace exists, (re)create the vault folder and the agent's
+  // `./vault` symlink into it so the agent's native file tools can find it.
+  getVaultManager().ensureReady();
 }
 
 /** Run the provider OAuth flow, then lift the shell write suspension that a
@@ -103,5 +108,6 @@ export function teardownAgentResources(): void {
   resetExecutorDaemon();
   resetUiState();
   resetSecretStore();
+  resetVaultManager();
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
 }

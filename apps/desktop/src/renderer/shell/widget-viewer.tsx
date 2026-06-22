@@ -103,6 +103,63 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   }, [flushPersist]);
 
   const handlers = useMemo(() => {
+    // Vault read/write closures, shared by the doc/blob action aliases below.
+    // Declared before the returned map so they're in scope without relying on
+    // hoisting past a `return`.
+    const vaultRead = (params: Record<string, unknown>): Promise<void> => {
+      const filePath = typeof params["path"] === "string" ? params["path"] : "";
+      const into = typeof params["into"] === "string" ? params["into"] : "";
+      const errorPath = typeof params["error"] === "string" ? params["error"] : "";
+      const reportError = (message: string): void => {
+        if (errorPath) getStore().set(errorPath, message);
+        else toast.error(message);
+      };
+      if (!filePath || !into) return Promise.resolve();
+      const bridge = getBridge();
+      if (!bridge) {
+        reportError("Vault unavailable");
+        return Promise.resolve();
+      }
+      return bridge
+        .widgetVaultRead({ path: filePath })
+        .then((res) => {
+          if (!res.ok) reportError(res.error);
+          else {
+            getStore().set(into, res.value);
+            if (errorPath) getStore().set(errorPath, null);
+          }
+          return undefined;
+        })
+        .catch((err: unknown) => {
+          reportError(err instanceof Error ? err.message : "Vault read failed");
+        });
+    };
+    const vaultWrite = (params: Record<string, unknown>): Promise<void> => {
+      const filePath = typeof params["path"] === "string" ? params["path"] : "";
+      const from = typeof params["from"] === "string" ? params["from"] : "";
+      const errorPath = typeof params["error"] === "string" ? params["error"] : "";
+      const reportError = (message: string): void => {
+        if (errorPath) getStore().set(errorPath, message);
+        else toast.error(message);
+      };
+      if (!filePath || !from) return Promise.resolve();
+      const bridge = getBridge();
+      if (!bridge) {
+        reportError("Vault unavailable");
+        return Promise.resolve();
+      }
+      const value = readJsonPointer(getStore().getSnapshot(), from);
+      return bridge
+        .widgetVaultWrite({ path: filePath, value })
+        .then((res) => {
+          if (!res.ok) reportError(res.error);
+          else if (errorPath) getStore().set(errorPath, null);
+          return undefined;
+        })
+        .catch((err: unknown) => {
+          reportError(err instanceof Error ? err.message : "Vault write failed");
+        });
+    };
     return {
       notify: (params: Record<string, unknown>) => {
         const message = typeof params["message"] === "string" ? params["message"] : "";
@@ -267,6 +324,17 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           writeError(err instanceof Error ? err.message : "Tool call failed");
         }
       },
+      // Vault read: pull a file from the user's knowledge folder into state.
+      // readDoc (markdown/text) and readBlob (parsed JSON) share one impl — main
+      // serializes by file extension; the renderer just routes the value into
+      // `into`. Re-fired automatically on vault changes (see OnMountRunner).
+      readDoc: vaultRead,
+      readBlob: vaultRead,
+      // Vault write: persist the value at state pointer `from` to a vault file.
+      // writeDoc (text) and writeBlob (JSON) share one impl — main serializes
+      // by extension. Whole-file replace.
+      writeDoc: vaultWrite,
+      writeBlob: vaultWrite,
     };
   }, []);
 
@@ -340,6 +408,27 @@ function OnMountRunner({ spec, store }: { spec: WidgetSpec; store: StateStore })
       }
     })();
   }, [spec, execute, store]);
+
+  // Live vault binding: when any vault file changes (the agent wrote a doc, the
+  // user edited it in their editor, a sibling widget saved a blob), re-run this
+  // widget's vault read loaders so what's on screen reflects the new data.
+  // skipIf is intentionally ignored here — that gate is for first-mount caching,
+  // and the whole point of a change event is to refresh past it.
+  useEffect(() => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    const reads = (spec.onMount ?? []).filter(
+      (a) => a.action === "readDoc" || a.action === "readBlob",
+    );
+    if (reads.length === 0) return;
+    return bridge.onVaultChanged(() => {
+      void (async () => {
+        for (const a of reads) {
+          await execute({ action: a.action, params: a.params ?? {} }).catch(() => undefined);
+        }
+      })();
+    });
+  }, [spec, execute]);
   return null;
 }
 

@@ -818,5 +818,9 @@ export const { registry: widgetRegistry } = defineRegistry(widgetCatalog, {
     fetchJson: async () => {},
     setNow: async () => {},
     callTool: async () => {},
+    readDoc: async () => {},
+    writeDoc: async () => {},
+    readBlob: async () => {},
+    writeBlob: async () => {},
   },
 });
