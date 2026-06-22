@@ -54,9 +54,19 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   // must not clobber a newer result written to the same path (latest-wins).
   const callSeqRef = useRef(new Map<string, number>());
 
-  // Stable getter so the vault live-refresh effect doesn't resubscribe each
-  // render; reads the same dirty flag the persistence debounce tracks.
-  const getDirty = useCallback(() => dirtyRef.current, []);
+  // Per-pointer baseline for vault live-refresh: the exact value the last
+  // readDoc/readBlob wrote into each `into` pointer. A change event re-reads a
+  // pointer only when its current state still equals this baseline — i.e. the
+  // user hasn't edited it since. Precise per-pointer, so an unrelated state
+  // change elsewhere in the widget never blocks (or triggers) a refresh.
+  const vaultReadBaseline = useRef(new Map<string, unknown>());
+  const canRefreshPointer = useCallback((into: string): boolean => {
+    const baseline = vaultReadBaseline.current;
+    // Never loaded yet → this is a first read, always allow.
+    if (!baseline.has(into)) return true;
+    const current = readJsonPointer(getStore().getSnapshot(), into);
+    return jsonEqual(current, baseline.get(into));
+  }, []);
 
   // Resolves with whether the latest pending state actually reached main, so
   // surface-change and unplace callers can tell a true success ("flushed" or
@@ -130,6 +140,9 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           if (!res.ok) reportError(res.error);
           else {
             getStore().set(into, res.value);
+            // Record what we wrote so the live-refresh can tell a later user
+            // edit of this pointer apart from our own value.
+            vaultReadBaseline.current.set(into, res.value);
             if (errorPath) getStore().set(errorPath, null);
           }
           return undefined;
@@ -376,7 +389,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
          * warning. setState/pushState/removeState are framework built-ins too
          * and work automatically with the store passed to JSONUIProvider. */}
         <ValidationProvider>
-          <OnMountRunner spec={def.source.spec} store={getStore()} isDirty={getDirty} />
+          <OnMountRunner spec={def.source.spec} store={getStore()} canRefresh={canRefreshPointer} />
           <Renderer spec={toRendererSpec(def.source.spec)} registry={widgetRegistry} />
         </ValidationProvider>
       </JSONUIProvider>
@@ -396,11 +409,13 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
 function OnMountRunner({
   spec,
   store,
-  isDirty,
+  canRefresh,
 }: {
   spec: WidgetSpec;
   store: StateStore;
-  isDirty: () => boolean;
+  /** Whether the read targeting this `into` pointer may refresh (false when the
+   * user has edited it since our last read). */
+  canRefresh: (into: string) => boolean;
 }): null {
   const { execute } = useActions();
   const lastSpecRef = useRef<WidgetSpec | null>(null);
@@ -434,17 +449,18 @@ function OnMountRunner({
     );
     if (reads.length === 0) return;
     return bridge.onVaultChanged(() => {
-      // Don't clobber unsaved in-widget edits (e.g. an input bound to the same
-      // pointer a readDoc writes into) — the pending state flush wins; the next
-      // change after it settles will refresh.
-      if (isDirty()) return;
       void (async () => {
         for (const a of reads) {
+          // Skip only the pointer the user is actively editing — a readDoc/
+          // readBlob whose `into` no longer matches what we last wrote there.
+          // Other reads in the same widget still refresh.
+          const into = typeof a.params?.["into"] === "string" ? a.params["into"] : "";
+          if (into && !canRefresh(into)) continue;
           await execute({ action: a.action, params: a.params ?? {} }).catch(() => undefined);
         }
       })();
     });
-  }, [spec, execute, isDirty]);
+  }, [spec, execute, canRefresh]);
   return null;
 }
 
@@ -468,6 +484,17 @@ function hasNonEmptyValue(state: Record<string, unknown>, pointer: string): bool
 
 function isPlainRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/** Structural equality for vault values (strings or JSON-parsed data). Both
+ * sides originate from JSON, so a serialized compare is sufficient and cheap. */
+function jsonEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
 
 /**
