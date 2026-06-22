@@ -91,7 +91,6 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   updateTodo: async (params) => {
     const bridge = getBridge();
     if (!bridge) return;
-    const before = get().todos;
     snapshotSeq++;
     set((s) => ({
       todos: s.todos.map((t) => (t.id === params.id ? { ...t, ...stripId(params) } : t)),
@@ -99,7 +98,9 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     try {
       await bridge.updateTodo(params);
     } catch (err) {
-      set({ todos: before });
+      // Reconcile from the authoritative main store rather than restoring a
+      // captured snapshot, which would discard any push that landed mid-request.
+      get().fetchTodos();
       toast.error(`Couldn't update to-do: ${errorMessage(err)}`);
     }
   },
@@ -107,7 +108,6 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   toggleTodo: async (id) => {
     const bridge = getBridge();
     if (!bridge) return;
-    const before = get().todos;
     snapshotSeq++;
     set((s) => ({
       todos: s.todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
@@ -115,7 +115,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     try {
       await bridge.toggleTodo(id);
     } catch (err) {
-      set({ todos: before });
+      get().fetchTodos();
       toast.error(`Couldn't toggle to-do: ${errorMessage(err)}`);
     }
   },
@@ -123,13 +123,12 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   deleteTodo: async (id) => {
     const bridge = getBridge();
     if (!bridge) return;
-    const before = get().todos;
     snapshotSeq++;
     set((s) => ({ todos: s.todos.filter((t) => t.id !== id) }));
     try {
       await bridge.deleteTodo(id);
     } catch (err) {
-      set({ todos: before });
+      get().fetchTodos();
       toast.error(`Couldn't delete to-do: ${errorMessage(err)}`);
     }
   },
@@ -137,13 +136,12 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   clearCompleted: async () => {
     const bridge = getBridge();
     if (!bridge) return;
-    const before = get().todos;
     snapshotSeq++;
     set((s) => ({ todos: s.todos.filter((t) => !t.done) }));
     try {
       await bridge.clearCompletedTodos();
     } catch (err) {
-      set({ todos: before });
+      get().fetchTodos();
       toast.error(`Couldn't clear completed: ${errorMessage(err)}`);
     }
   },

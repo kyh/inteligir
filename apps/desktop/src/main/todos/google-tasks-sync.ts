@@ -76,10 +76,25 @@ async function listAllRemoteTasks(): Promise<GoogleTask[]> {
   return all;
 }
 
+// Single-flight guard: a sync reads the whole todo snapshot, talks to Google,
+// then writes back. Two overlapping runs (double-click, or the UI button while
+// the agent's manage_todos sync runs) would each export the same unlinked
+// todos and apply conflicting writes. Coalesce concurrent callers onto the one
+// in-flight run so they all observe the same result.
+let inFlight: Promise<TodoSyncResult> | null = null;
+
+export function syncTodosWithGoogle(): Promise<TodoSyncResult> {
+  if (inFlight) return inFlight;
+  inFlight = runSync().finally(() => {
+    inFlight = null;
+  });
+  return inFlight;
+}
+
 /** Run a full two-way sync. Never throws — a disconnected connector or a failed
  * pull resolves to `{ ok:false, error }` so the caller can surface a clean
  * inline message. A pull failure aborts before any local mutation. */
-export async function syncTodosWithGoogle(): Promise<TodoSyncResult> {
+async function runSync(): Promise<TodoSyncResult> {
   const mgr = getTodoManager();
   const local = mgr.getTodos();
   const tombstones = mgr.getTombstones();
