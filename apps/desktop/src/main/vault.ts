@@ -122,8 +122,13 @@ export class VaultManager {
    * which would silently destroy the user's "persistent" data. */
   setRoot(root: string): void {
     const resolved = path.resolve(root);
-    const agentDir = path.resolve(AGENT_DIR);
-    if (resolved === agentDir || resolved.startsWith(agentDir + path.sep)) {
+    // Resolve symlinks before the guard: a folder that *links* into ~/.inteligir
+    // would otherwise pass a lexical check while its files live where logout
+    // wipes them. realPath falls back to the lexical path when it doesn't exist
+    // yet (a fresh folder can't be a symlink into anything).
+    const realResolved = realPath(resolved);
+    const agentDir = realPath(AGENT_DIR);
+    if (realResolved === agentDir || realResolved.startsWith(agentDir + path.sep)) {
       throw new Error(
         "Choose a folder outside the app data directory (~/.inteligir) — anything there is deleted on logout.",
       );
@@ -341,6 +346,16 @@ function atomicWrite(filePath: string, content: string): void {
   const tmp = `${filePath}.tmp`;
   fs.writeFileSync(tmp, content, "utf8");
   fs.renameSync(tmp, filePath);
+}
+
+/** Resolve symlinks to a canonical path; fall back to the lexical resolve when
+ * the path doesn't exist yet (nothing to dereference). */
+function realPath(p: string): string {
+  try {
+    return fs.realpathSync(p);
+  } catch {
+    return path.resolve(p);
+  }
 }
 
 // ---------------------------------------------------------------------------

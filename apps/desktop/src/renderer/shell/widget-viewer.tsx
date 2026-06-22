@@ -170,7 +170,13 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         .widgetVaultWrite({ path: filePath, value })
         .then((res) => {
           if (!res.ok) reportError(res.error);
-          else if (errorPath) getStore().set(errorPath, null);
+          else {
+            // The file now holds `value` and state[from] === value, so they're
+            // back in sync — refresh the baseline so live re-reads of this
+            // pointer don't stay stuck treating it as user-edited forever.
+            vaultReadBaseline.current.set(from, value);
+            if (errorPath) getStore().set(errorPath, null);
+          }
           return undefined;
         })
         .catch((err: unknown) => {
