@@ -115,8 +115,12 @@ function dayDelta(from: number, to: number): number {
   return Math.round((startOfDay(to) - startOfDay(from)) / MS_PER_DAY);
 }
 
+/** Calendar-day semantics, consistent with formatDue and the panel's
+ * date-only (local-noon) due dates: an item is overdue only once its due day
+ * has fully passed — not the instant its noon timestamp slips behind `now`,
+ * which would otherwise paint a "Today" item red all afternoon. */
 export function isOverdue(todo: Todo, now: number): boolean {
-  return !todo.done && todo.dueAt !== null && todo.dueAt < now;
+  return !todo.done && todo.dueAt !== null && startOfDay(todo.dueAt) < startOfDay(now);
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
