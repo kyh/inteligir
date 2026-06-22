@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { createStateStore, type StateStore } from "@json-render/core";
 import { JSONUIProvider, Renderer, useActions, ValidationProvider } from "@json-render/react";
 import { toast } from "@repo/ui/components/sonner";
@@ -53,6 +53,10 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   // Per-`into`-path invocation counter for callTool: a slower earlier call
   // must not clobber a newer result written to the same path (latest-wins).
   const callSeqRef = useRef(new Map<string, number>());
+
+  // Stable getter so the vault live-refresh effect doesn't resubscribe each
+  // render; reads the same dirty flag the persistence debounce tracks.
+  const getDirty = useCallback(() => dirtyRef.current, []);
 
   // Resolves with whether the latest pending state actually reached main, so
   // surface-change and unplace callers can tell a true success ("flushed" or
@@ -372,7 +376,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
          * warning. setState/pushState/removeState are framework built-ins too
          * and work automatically with the store passed to JSONUIProvider. */}
         <ValidationProvider>
-          <OnMountRunner spec={def.source.spec} store={getStore()} />
+          <OnMountRunner spec={def.source.spec} store={getStore()} isDirty={getDirty} />
           <Renderer spec={toRendererSpec(def.source.spec)} registry={widgetRegistry} />
         </ValidationProvider>
       </JSONUIProvider>
@@ -389,7 +393,15 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
  * Keyed off the spec object identity: an in-place spec edit re-fires (so the
  * agent can re-load), a sibling write doesn't.
  */
-function OnMountRunner({ spec, store }: { spec: WidgetSpec; store: StateStore }): null {
+function OnMountRunner({
+  spec,
+  store,
+  isDirty,
+}: {
+  spec: WidgetSpec;
+  store: StateStore;
+  isDirty: () => boolean;
+}): null {
   const { execute } = useActions();
   const lastSpecRef = useRef<WidgetSpec | null>(null);
   useEffect(() => {
@@ -422,13 +434,17 @@ function OnMountRunner({ spec, store }: { spec: WidgetSpec; store: StateStore })
     );
     if (reads.length === 0) return;
     return bridge.onVaultChanged(() => {
+      // Don't clobber unsaved in-widget edits (e.g. an input bound to the same
+      // pointer a readDoc writes into) — the pending state flush wins; the next
+      // change after it settles will refresh.
+      if (isDirty()) return;
       void (async () => {
         for (const a of reads) {
           await execute({ action: a.action, params: a.params ?? {} }).catch(() => undefined);
         }
       })();
     });
-  }, [spec, execute]);
+  }, [spec, execute, isDirty]);
   return null;
 }
 

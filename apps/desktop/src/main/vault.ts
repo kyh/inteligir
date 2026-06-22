@@ -24,7 +24,7 @@ import path from "node:path";
 import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { WORKSPACE_DIR } from "@/agent/paths";
+import { AGENT_DIR, WORKSPACE_DIR } from "@/agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 import { toErrorMessage } from "@/shared/ipc";
 import type { VaultEntry } from "@/shared/ipc-registry";
@@ -117,9 +117,17 @@ export class VaultManager {
   }
 
   /** Repoint the vault at a new folder, (re)create it, refresh the agent
-   * symlink + watcher, and notify subscribers so panels and widgets reload. */
+   * symlink + watcher, and notify subscribers so panels and widgets reload.
+   * Rejects a root inside ~/.inteligir — that directory is wiped on logout,
+   * which would silently destroy the user's "persistent" data. */
   setRoot(root: string): void {
     const resolved = path.resolve(root);
+    const agentDir = path.resolve(AGENT_DIR);
+    if (resolved === agentDir || resolved.startsWith(agentDir + path.sep)) {
+      throw new Error(
+        "Choose a folder outside the app data directory (~/.inteligir) — anything there is deleted on logout.",
+      );
+    }
     this.settings.update((s) => ({ ...s, vaultPath: resolved }));
     this.ensureRootDir(resolved);
     this.ensureAgentSymlink(resolved);

@@ -226,7 +226,7 @@ export type VaultEntry = {
   kind: "doc" | "blob" | "other";
 };
 
-export type ChooseVaultResult = { root: string } | { canceled: true };
+export type ChooseVaultResult = { root: string } | { canceled: true } | { error: string };
 
 // Result envelopes for the widget vault actions — same rationale as
 // WidgetCallToolResult: a failed read/write resolves with ok:false so the

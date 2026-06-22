@@ -3,13 +3,14 @@ import { BrowserWindow, dialog, type OpenDialogOptions } from "electron";
 import { handle } from "@/main/lib/ipc-handler";
 import { getVaultManager } from "@/main/vault";
 import { toErrorMessage } from "@/shared/ipc";
+import type { ChooseVaultResult } from "@/shared/ipc-registry";
 
 export function registerVaultIpcHandlers(): void {
   // ---- Trusted surface (Vault panel) ----------------------------------------
 
   handle("getVaultRoot", () => getVaultManager().getRoot());
 
-  handle("chooseVaultRoot", async () => {
+  handle("chooseVaultRoot", async (): Promise<ChooseVaultResult> => {
     const win = BrowserWindow.getFocusedWindow();
     const options: OpenDialogOptions = {
       title: "Choose vault folder",
@@ -21,7 +22,12 @@ export function registerVaultIpcHandlers(): void {
       : await dialog.showOpenDialog(options);
     const chosen = result.filePaths[0];
     if (result.canceled || chosen === undefined) return { canceled: true };
-    getVaultManager().setRoot(chosen);
+    try {
+      // setRoot rejects a folder inside ~/.inteligir (wiped on logout).
+      getVaultManager().setRoot(chosen);
+    } catch (err) {
+      return { error: toErrorMessage(err) };
+    }
     return { root: getVaultManager().getRoot() };
   });
 

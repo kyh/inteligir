@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { BracesIcon, FilePlusIcon, FileTextIcon, FolderIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
+import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@/renderer/lib/bridge";
@@ -146,7 +147,12 @@ export function VaultPanel() {
     const bridge = getBridge();
     if (!bridge) return;
     const result = await bridge.chooseVaultRoot().catch(() => null);
-    if (result && "root" in result) {
+    if (!result) return;
+    if ("error" in result) {
+      toast.error(result.error);
+      return;
+    }
+    if ("root" in result) {
       setRoot(result.root);
       setSelected(null);
       setContent("");

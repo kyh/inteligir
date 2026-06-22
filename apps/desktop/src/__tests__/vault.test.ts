@@ -90,6 +90,14 @@ describe("VaultManager", () => {
     expect(fs.existsSync(path.join(root, "temp.md"))).toBe(false);
   });
 
+  it("refuses a root inside the app data dir (wiped on logout)", () => {
+    const mgr = newManager();
+    const inside = path.join(os.homedir(), ".inteligir", "vault");
+    expect(() => mgr.setRoot(inside)).toThrow(/app data directory/);
+    // The root is unchanged.
+    expect(mgr.getRoot()).toBe(root);
+  });
+
   it("repoints the root and persists it across instances", () => {
     const mgr = newManager();
     mgr.writeText("a.md", "first");
