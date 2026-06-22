@@ -54,6 +54,7 @@ import {
   type CreateTodoResult,
   type DeleteTodoResult,
   type ListTodosResult,
+  type TodoSyncResult,
   type ToggleTodoResult,
   type UpdateTodoResult,
 } from "./todo";
@@ -355,8 +356,11 @@ export const IPC = {
     Type.String({ minLength: 1 }),
   ),
   clearCompletedTodos: invokeVoid<ClearCompletedTodosResult>("todo:clearCompleted"),
-  /** Push channel: fired on every todo mutation (IPC or agent tool) so the
-   * To-Do panel stays live without a remount. */
+  /** Two-way sync with Google Tasks. Resolves to a result envelope (never
+   * rejects for an unconnected connector) so the panel shows a clean message. */
+  syncTodos: invokeVoid<TodoSyncResult>("todo:sync"),
+  /** Push channel: fired on every todo mutation (IPC, agent tool, or sync) so
+   * the To-Do panel stays live without a remount. */
   onTodosUpdated: event<ListTodosResult>("todo:updated"),
 
   // Voice

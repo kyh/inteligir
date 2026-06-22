@@ -27,9 +27,15 @@ export const TodoSchema = Type.Object(
     // Epoch ms, or null for "no due date".
     dueAt: Type.Union([Type.Number(), Type.Null()]),
     createdAt: Type.Number(),
+    // Epoch ms of the last content change. Drives last-write-wins against the
+    // Google Tasks `updated` timestamp during sync.
+    updatedAt: Type.Number(),
     // Epoch ms the item was marked done; null while open. Lets us show
     // "completed" ordering and a future "completed today" view.
     completedAt: Type.Union([Type.Number(), Type.Null()]),
+    // Linked Google Tasks task id, or null when this todo only lives locally.
+    // Set after a successful export; matched on to reconcile future syncs.
+    googleTaskId: Type.Union([Type.String(), Type.Null()]),
   },
   { additionalProperties: false },
 );
@@ -76,6 +82,12 @@ export type UpdateTodoResult = { todo: Todo };
 export type ToggleTodoResult = { todo: Todo };
 export type DeleteTodoResult = { ok: true };
 export type ClearCompletedTodosResult = { todos: Todo[] };
+
+/** Outcome of a Google Tasks sync. `ok:false` carries a short, already-cleaned
+ * message (e.g. the connector isn't connected) safe to show inline. */
+export type TodoSyncResult =
+  | { ok: true; pulled: number; pushed: number; deleted: number }
+  | { ok: false; error: string };
 
 // ---------------------------------------------------------------------------
 // Display + ordering helpers (pure) — shared by the panel and the agent tool

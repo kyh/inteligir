@@ -23,7 +23,7 @@ import type {
   WidgetSurface,
 } from "@/shared/shell";
 import type { CreateTaskParams, Task } from "@/shared/task";
-import type { CreateTodoParams, Todo, UpdateTodoParams } from "@/shared/todo";
+import type { CreateTodoParams, Todo, TodoSyncResult, UpdateTodoParams } from "@/shared/todo";
 
 // ---------------------------------------------------------------------------
 // Ports — main-owned capabilities handed to extensions at register/setup time.
@@ -57,7 +57,8 @@ export type TasksPort = {
   deleteTask(id: string): void;
 };
 
-/** To-do list store handle (subset of main/todos/todo-manager.ts). */
+/** To-do list store handle (subset of main/todos/todo-manager.ts) plus the
+ * Google Tasks sync entry point (main/todos/google-tasks-sync.ts). */
 export type TodosPort = {
   getTodos(): Todo[];
   createTodo(params: CreateTodoParams): Todo;
@@ -65,6 +66,7 @@ export type TodosPort = {
   toggleTodo(id: string): Todo;
   deleteTodo(id: string): void;
   clearCompleted(): Todo[];
+  sync(): Promise<TodoSyncResult>;
 };
 
 /** Executor daemon access (main/executor/*): install, lifecycle, code mode. */

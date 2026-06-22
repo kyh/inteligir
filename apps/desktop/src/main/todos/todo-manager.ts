@@ -9,6 +9,7 @@ import { Type } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
 import { TodoSchema, type Todo, type CreateTodoParams, type UpdateTodoParams } from "@/shared/todo";
+import { isRecord } from "@/shared/ipc";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 
 // ---------------------------------------------------------------------------
@@ -17,12 +18,24 @@ import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store"
 // migrate instead of quarantining the file.
 // ---------------------------------------------------------------------------
 
-const TODOS_VERSION = 1;
+const TODOS_VERSION = 2;
 
 const TodosFileSchema = Type.Object(
   { version: Type.Literal(TODOS_VERSION), todos: Type.Array(TodoSchema) },
   { additionalProperties: false },
 );
+
+// v1 todos predate the sync fields (updatedAt, googleTaskId). Backfill them:
+// updatedAt seeds from createdAt (best available), googleTaskId starts unlinked.
+function migrateV1ToV2(raw: unknown): unknown {
+  const todos = isRecord(raw) && Array.isArray(raw["todos"]) ? raw["todos"] : [];
+  const upgraded = todos.map((t) => {
+    const src = isRecord(t) ? t : {};
+    const createdAt = typeof src["createdAt"] === "number" ? src["createdAt"] : Date.now();
+    return Object.assign({}, src, { updatedAt: createdAt, googleTaskId: null });
+  });
+  return { version: 2, todos: upgraded };
+}
 
 // ---------------------------------------------------------------------------
 // Change notification — push channel for the To-Do panel. Registered from the
@@ -60,6 +73,7 @@ export class TodoManager {
           fromLegacy: () => {
             throw new Error("todos.json has no unversioned format");
           },
+          migrations: { 1: migrateV1ToV2 },
         },
         // Re-check against the concrete schema purely to narrow the type —
         // JsonStore already validated before calling decode.
@@ -79,6 +93,7 @@ export class TodoManager {
   }
 
   createTodo(params: CreateTodoParams): Todo {
+    const now = Date.now();
     const todo: Todo = {
       id: crypto.randomUUID(),
       title: params.title,
@@ -86,8 +101,10 @@ export class TodoManager {
       done: false,
       priority: params.priority ?? "medium",
       dueAt: params.dueAt ?? null,
-      createdAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
       completedAt: null,
+      googleTaskId: null,
     };
     this.todos.update((todos) => [...todos, todo]);
     this.notifyTodosChanged();
@@ -107,10 +124,11 @@ export class TodoManager {
           ...(params.notes !== undefined ? { notes: params.notes } : {}),
           ...(params.priority !== undefined ? { priority: params.priority } : {}),
           ...("dueAt" in params ? { dueAt: params.dueAt ?? null } : {}),
+          updatedAt: Date.now(),
         };
         if (params.done !== undefined) {
           next.done = params.done;
-          next.completedAt = params.done ? (t.completedAt ?? Date.now()) : null;
+          next.completedAt = params.done ? (t.completedAt ?? next.updatedAt) : null;
         }
         updated = next;
         return next;
@@ -126,8 +144,9 @@ export class TodoManager {
     this.todos.update((todos) =>
       todos.map((t) => {
         if (t.id !== id) return t;
+        const now = Date.now();
         const done = !t.done;
-        toggled = { ...t, done, completedAt: done ? Date.now() : null };
+        toggled = { ...t, done, completedAt: done ? now : null, updatedAt: now };
         return toggled;
       }),
     );
@@ -146,6 +165,27 @@ export class TodoManager {
     this.todos.update((todos) => todos.filter((t) => !t.done));
     this.notifyTodosChanged();
     return this.getTodos();
+  }
+
+  /**
+   * Apply a sync reconciliation in one atomic write: `upserts` replace any
+   * todo with a matching id and append the rest (imports + remote-wins
+   * updates + export links), `deletes` remove by id. The upsert objects carry
+   * their own updatedAt/googleTaskId from the sync planner — this method does
+   * NOT bump updatedAt, so a remote-origin change keeps the remote timestamp
+   * and won't immediately look "locally newer" on the next sync.
+   */
+  applySync(upserts: Todo[], deletes: string[]): void {
+    if (upserts.length === 0 && deletes.length === 0) return;
+    const byId = new Map(upserts.map((t) => [t.id, t]));
+    const deleted = new Set(deletes);
+    this.todos.update((todos) => {
+      const merged = todos.filter((t) => !deleted.has(t.id)).map((t) => byId.get(t.id) ?? t);
+      const seen = new Set(merged.map((t) => t.id));
+      for (const t of upserts) if (!seen.has(t.id)) merged.push(t);
+      return merged;
+    });
+    this.notifyTodosChanged();
   }
 
   /** Push the fresh snapshot to whoever registered (renderer broadcast). */

@@ -26,6 +26,7 @@ import { resetNotifications } from "@/main/notifications";
 import { resetSecretStore } from "@/main/secrets";
 import { getTaskManager, resetTaskManager } from "@/main/tasks/task-manager";
 import { getTodoManager, resetTodoManager } from "@/main/todos/todo-manager";
+import { syncTodosWithGoogle } from "@/main/todos/google-tasks-sync";
 import { resetUiState } from "@/main/ui-state";
 import type { SetupProgress } from "@/shared/ipc";
 
@@ -52,6 +53,7 @@ export function getAgentPorts(): AgentPorts {
         getTodoManager().deleteTodo(id);
       },
       clearCompleted: () => getTodoManager().clearCompleted(),
+      sync: () => syncTodosWithGoogle(),
     },
     executor: {
       cli: EXECUTOR_CLI,

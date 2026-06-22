@@ -174,6 +174,17 @@ export const CONNECTOR_CATALOG: CatalogConnector[] = [
     },
   },
   {
+    id: "google_tasks",
+    name: "Google Tasks",
+    description: "Sync your to-do list with Google Tasks.",
+    category: "Productivity",
+    accent: "#4285f4",
+    install: {
+      type: "google",
+      discoveryUrl: "https://www.googleapis.com/discovery/v1/apis/tasks/v1/rest",
+    },
+  },
+  {
     id: "google_drive",
     name: "Google Drive",
     description: "Browse, search, and manage files.",

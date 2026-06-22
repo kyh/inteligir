@@ -13,6 +13,7 @@ const updateTodo = vi.fn<(params: UpdateTodoParams) => Todo>();
 const toggleTodo = vi.fn<(id: string) => Todo>();
 const deleteTodo = vi.fn<(id: string) => void>();
 const clearCompleted = vi.fn<() => Todo[]>(() => []);
+const sync = vi.fn(async () => ({ ok: true as const, pulled: 0, pushed: 0, deleted: 0 }));
 
 const tool = buildManageTodosTool({
   createTodo,
@@ -21,6 +22,7 @@ const tool = buildManageTodosTool({
   toggleTodo,
   deleteTodo,
   clearCompleted,
+  sync,
 });
 
 function todo(over: Partial<Todo> = {}): Todo {
@@ -32,7 +34,9 @@ function todo(over: Partial<Todo> = {}): Todo {
     priority: "medium",
     dueAt: null,
     createdAt: 0,
+    updatedAt: 0,
     completedAt: null,
+    googleTaskId: null,
     ...over,
   };
 }

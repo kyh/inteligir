@@ -1,17 +1,19 @@
 import { create } from "zustand";
 import { toast } from "@repo/ui/components/sonner";
 
-import type { CreateTodoParams, Todo, UpdateTodoParams } from "@/shared/todo";
+import type { CreateTodoParams, Todo, TodoSyncResult, UpdateTodoParams } from "@/shared/todo";
 import { getBridge } from "@/renderer/lib/bridge";
 
 type TodoStore = {
   todos: Todo[];
   loading: boolean;
   error: string | null;
+  syncing: boolean;
+  lastSync: TodoSyncResult | null;
 
   /**
    * Fetch the current snapshot AND subscribe to the main-side push channel
-   * (onTodosUpdated) so agent mutations show up live instead of only on
+   * (onTodosUpdated) so agent/sync mutations show up live instead of only on
    * remount. Returns an unsubscribe for the mount's cleanup.
    */
   init: () => () => void;
@@ -21,32 +23,47 @@ type TodoStore = {
   toggleTodo: (id: string) => Promise<void>;
   deleteTodo: (id: string) => Promise<void>;
   clearCompleted: () => Promise<void>;
+  syncTodos: () => Promise<void>;
 };
 
 const errorMessage = (err: unknown): string =>
   err instanceof Error ? err.message : "Unknown error";
 
+// Monotonic snapshot counter. Every push and every optimistic mutation bumps
+// it; an in-flight fetch captures the value at request time and only applies
+// its (potentially stale) result if nothing newer landed meanwhile — so a slow
+// listTodos can't clobber a fresher push/mutation. Module-level because the
+// zustand store is a singleton.
+let snapshotSeq = 0;
+
 export const useTodoStore = create<TodoStore>((set, get) => ({
   todos: [],
   loading: false,
   error: null,
+  syncing: false,
+  lastSync: null,
 
   init: () => {
     const bridge = getBridge();
     if (!bridge) return () => {};
     get().fetchTodos();
-    // Each event carries the full snapshot, so applying it is idempotent
-    // regardless of in-flight fetch ordering.
-    return bridge.onTodosUpdated(({ todos }) => set({ todos }));
+    // Each event carries the full snapshot; bumping the sequence invalidates
+    // any fetch still in flight so it can't overwrite this newer state.
+    return bridge.onTodosUpdated(({ todos }) => {
+      snapshotSeq++;
+      set({ todos });
+    });
   },
 
   fetchTodos: () => {
     const bridge = getBridge();
     if (!bridge) return;
+    const seq = snapshotSeq;
     set({ loading: true, error: null });
     void bridge
       .listTodos()
-      .then((result) => set({ todos: result.todos }))
+      // Drop the result if a push or mutation superseded this fetch.
+      .then((result) => (seq === snapshotSeq ? set({ todos: result.todos }) : undefined))
       .catch((err: unknown) => {
         set({ error: `Couldn't load to-dos: ${errorMessage(err)}` });
       })
@@ -60,6 +77,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
       const result = await bridge.createTodo(params);
       // The push event may have landed before the invoke resolved (it
       // broadcasts mid-handler) — don't append a duplicate.
+      snapshotSeq++;
       set((s) =>
         s.todos.some((t) => t.id === result.todo.id) ? s : { todos: [...s.todos, result.todo] },
       );
@@ -74,6 +92,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     const bridge = getBridge();
     if (!bridge) return;
     const before = get().todos;
+    snapshotSeq++;
     set((s) => ({
       todos: s.todos.map((t) => (t.id === params.id ? { ...t, ...stripId(params) } : t)),
     }));
@@ -89,6 +108,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     const bridge = getBridge();
     if (!bridge) return;
     const before = get().todos;
+    snapshotSeq++;
     set((s) => ({
       todos: s.todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
     }));
@@ -104,6 +124,7 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     const bridge = getBridge();
     if (!bridge) return;
     const before = get().todos;
+    snapshotSeq++;
     set((s) => ({ todos: s.todos.filter((t) => t.id !== id) }));
     try {
       await bridge.deleteTodo(id);
@@ -117,12 +138,32 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     const bridge = getBridge();
     if (!bridge) return;
     const before = get().todos;
+    snapshotSeq++;
     set((s) => ({ todos: s.todos.filter((t) => !t.done) }));
     try {
       await bridge.clearCompletedTodos();
     } catch (err) {
       set({ todos: before });
       toast.error(`Couldn't clear completed: ${errorMessage(err)}`);
+    }
+  },
+
+  syncTodos: async () => {
+    const bridge = getBridge();
+    if (!bridge) return;
+    set({ syncing: true });
+    try {
+      // The sync mutates the main store, which broadcasts onTodosUpdated — the
+      // live list updates through that push, so we only record the outcome.
+      const result = await bridge.syncTodos();
+      set({ lastSync: result });
+      if (!result.ok) toast.error(`Sync failed: ${result.error}`);
+    } catch (err) {
+      const message = errorMessage(err);
+      set({ lastSync: { ok: false, error: message } });
+      toast.error(`Sync failed: ${message}`);
+    } finally {
+      set({ syncing: false });
     }
   },
 }));

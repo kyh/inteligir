@@ -127,7 +127,7 @@ describe("TodoManager CRUD", () => {
     mgr.createTodo({ title: "x" });
 
     const onDisk: unknown = JSON.parse(fs.files.get("/todos.json") ?? "");
-    expect(onDisk).toMatchObject({ version: 1 });
+    expect(onDisk).toMatchObject({ version: 2 });
   });
 
   it("reads back a previously written file", () => {
@@ -139,10 +139,60 @@ describe("TodoManager CRUD", () => {
       priority: "medium",
       dueAt: null,
       createdAt: 1,
+      updatedAt: 1,
+      completedAt: null,
+      googleTaskId: null,
+    };
+    const mgr = createManager({ "/todos.json": { version: 2, todos: [seedTodo] } });
+    expect(mgr.getTodos()).toEqual([seedTodo]);
+  });
+
+  it("migrates a v1 file, backfilling updatedAt (from createdAt) and googleTaskId", () => {
+    const v1Todo = {
+      id: "t1",
+      title: "Old",
+      notes: "",
+      done: false,
+      priority: "medium",
+      dueAt: null,
+      createdAt: 42,
       completedAt: null,
     };
-    const mgr = createManager({ "/todos.json": { version: 1, todos: [seedTodo] } });
-    expect(mgr.getTodos()).toEqual([seedTodo]);
+    const fs = memoryFs({ "/todos.json": { version: 1, todos: [v1Todo] } });
+    const mgr = new TodoManager({ fs, todosPath: "/todos.json" });
+
+    const [migrated] = mgr.getTodos();
+    expect(migrated).toMatchObject({ id: "t1", updatedAt: 42, googleTaskId: null });
+    // The upgraded shape is rewritten so the chain doesn't re-run next launch.
+    expect(JSON.parse(fs.files.get("/todos.json") ?? "")).toMatchObject({ version: 2 });
+  });
+
+  it("applySync upserts, links, and deletes in one write", () => {
+    const mgr = createManager();
+    const keep = mgr.createTodo({ title: "keep" });
+    const gone = mgr.createTodo({ title: "gone" });
+
+    const imported: Todo = {
+      id: "imported",
+      title: "From Google",
+      notes: "",
+      done: false,
+      priority: "medium",
+      dueAt: null,
+      createdAt: 1,
+      updatedAt: 1,
+      completedAt: null,
+      googleTaskId: "g1",
+    };
+    const linked: Todo = { ...keep, googleTaskId: "g2" };
+
+    mgr.applySync([imported, linked], [gone.id]);
+
+    const ids = mgr.getTodos().map((t) => t.id);
+    expect(ids).toContain("imported");
+    expect(ids).toContain(keep.id);
+    expect(ids).not.toContain(gone.id);
+    expect(mgr.getTodos().find((t) => t.id === keep.id)?.googleTaskId).toBe("g2");
   });
 });
 

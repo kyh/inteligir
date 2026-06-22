@@ -53,6 +53,7 @@ import { getWritableShell } from "@/main/shell";
 import { getUiState } from "@/main/ui-state";
 import { getTaskManager } from "@/main/tasks/task-manager";
 import { getTodoManager } from "@/main/todos/todo-manager";
+import { syncTodosWithGoogle } from "@/main/todos/google-tasks-sync";
 import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerShellIpcHandlers } from "@/main/shell-ipc";
@@ -308,6 +309,7 @@ function registerTodoHandlers(): void {
     return { ok: true };
   });
   handle("clearCompletedTodos", () => ({ todos: getTodoManager().clearCompleted() }));
+  handle("syncTodos", () => syncTodosWithGoogle());
 }
 
 function registerVoiceHandlers(): void {

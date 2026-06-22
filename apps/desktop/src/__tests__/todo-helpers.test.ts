@@ -11,7 +11,9 @@ function todo(over: Partial<Todo> = {}): Todo {
     priority: "medium",
     dueAt: null,
     createdAt: 0,
+    updatedAt: 0,
     completedAt: null,
+    googleTaskId: null,
     ...over,
   };
 }

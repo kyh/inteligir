@@ -118,6 +118,9 @@ export function TodoPanel() {
   const toggleTodo = useTodoStore((s) => s.toggleTodo);
   const deleteTodo = useTodoStore((s) => s.deleteTodo);
   const clearCompleted = useTodoStore((s) => s.clearCompleted);
+  const syncTodos = useTodoStore((s) => s.syncTodos);
+  const syncing = useTodoStore((s) => s.syncing);
+  const lastSync = useTodoStore((s) => s.lastSync);
   const [creating, setCreating] = useState(false);
 
   // init fetches the snapshot and subscribes to onTodosUpdated, so items the
@@ -132,14 +135,31 @@ export function TodoPanel() {
     <div className="p-3">
       <div className="mb-2 flex items-center justify-between">
         <span className="text-xs font-medium">To Do</span>
-        <button
-          type="button"
-          className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
-          onClick={() => setCreating(!creating)}
-        >
-          {creating ? "cancel" : "+ new"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            className="text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+            onClick={() => void syncTodos()}
+            disabled={syncing}
+            title="Sync with Google Tasks"
+          >
+            {syncing ? "syncing…" : "sync"}
+          </button>
+          <button
+            type="button"
+            className="text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+            onClick={() => setCreating(!creating)}
+          >
+            {creating ? "cancel" : "+ new"}
+          </button>
+        </div>
       </div>
+
+      {lastSync && !lastSync.ok && (
+        <div className="mb-2 rounded-[10px] bg-hover px-2.5 py-2 text-[10px] text-muted-foreground">
+          Connect Google Tasks in Extensions to sync your list.
+        </div>
+      )}
 
       {sorted.length === 0 && !creating && (
         <div className="py-4 text-center text-[10px] text-muted-foreground">Nothing to do yet</div>

@@ -24,6 +24,7 @@ const manageTodosSchema = Type.Object({
       Type.Literal("toggle"),
       Type.Literal("delete"),
       Type.Literal("clear_completed"),
+      Type.Literal("sync"),
     ],
     { description: "Action to perform" },
   ),
@@ -52,8 +53,8 @@ export function buildManageTodosTool(todos: TodosPort) {
     label: "manage_todos",
     description:
       "Manage the user's to-do list: list, create, update, toggle (complete/reopen), " +
-      "delete, or clear completed items. Todos are the user's own checklist, separate " +
-      "from scheduled tasks.",
+      "delete, clear completed, or sync with Google Tasks. Todos are the user's own " +
+      "checklist, separate from scheduled tasks.",
     parameters: manageTodosSchema,
     execute: async (_toolCallId: string, params: Static<typeof manageTodosSchema>) => {
       const p = params;
@@ -116,6 +117,13 @@ export function buildManageTodosTool(todos: TodosPort) {
         case "clear_completed": {
           const remaining = todos.clearCompleted();
           return textResult(`Cleared completed items. ${remaining.length} remaining.`);
+        }
+        case "sync": {
+          const result = await todos.sync();
+          if (!result.ok) return textResult(`Sync failed: ${result.error}`);
+          return textResult(
+            `Synced with Google Tasks: pulled ${result.pulled}, pushed ${result.pushed}, removed ${result.deleted}.`,
+          );
         }
       }
     },

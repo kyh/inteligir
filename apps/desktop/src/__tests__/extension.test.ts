@@ -36,6 +36,7 @@ function fakePorts(): AgentPorts {
       toggleTodo: unused,
       deleteTodo: () => {},
       clearCompleted: () => [],
+      sync: async () => ({ ok: true, pulled: 0, pushed: 0, deleted: 0 }),
     },
     executor: {
       cli: { name: "executor", version: "0.0.0", binPath: "/fake/bin/executor" },
