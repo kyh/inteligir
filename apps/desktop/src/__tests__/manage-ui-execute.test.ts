@@ -153,10 +153,10 @@ describe("manage_ui list", () => {
   it("lists built-ins, generated defs, and placed instances", async () => {
     const text = await run({ action: "list" });
     expect(text).toContain('chat: "Conversation"');
-    // Seed widgets ship as generated json-ui defs, pre-placed.
-    expect(text).toContain("- todo:");
+    // Seed json-ui widgets ship as generated defs, pre-placed.
+    expect(text).toContain("- people:");
     expect(text).toContain("Placed instances:");
-    expect(text).toMatch(/-> todo/);
+    expect(text).toMatch(/-> people/);
   });
 });
 

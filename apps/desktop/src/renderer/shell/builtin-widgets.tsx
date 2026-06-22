@@ -5,6 +5,7 @@
 // in @/shared/shell so main agrees on what's available.)
 
 import {
+  CalendarDaysIcon,
   LayoutGridIcon,
   ListChecksIcon,
   ListTodoIcon,
@@ -23,6 +24,7 @@ import {
 import { ChatActivityRow, ChatMessageView } from "@/renderer/shell/chat/chat-message";
 import { ExtensionsPanel } from "@/renderer/shell/builtin/extensions-panel";
 import { SettingsPanel } from "@/renderer/shell/builtin/settings-panel";
+import { AgendaPanel } from "@/renderer/shell/builtin/agenda-panel";
 import { TaskPanel } from "@/renderer/shell/builtin/task-panel";
 import { TodoPanel } from "@/renderer/shell/builtin/todo-panel";
 import { WidgetsPanel } from "@/renderer/shell/builtin/widgets-panel";
@@ -82,6 +84,7 @@ export const BUILTIN_WIDGET_UI: Record<BuiltinWidgetId, BuiltinWidgetUI> = {
   chat: { component: ChatWidget, icon: MessageSquareIcon, bodyClassName: "flex flex-col" },
   widgets: { component: WidgetsPanel, icon: LayoutGridIcon },
   tasks: { component: TaskPanel, icon: ListTodoIcon },
+  agenda: { component: AgendaPanel, icon: CalendarDaysIcon },
   todos: { component: TodoPanel, icon: ListChecksIcon },
   extensions: { component: ExtensionsPanel, icon: PlugIcon },
   settings: { component: SettingsPanel, icon: SettingsIcon },

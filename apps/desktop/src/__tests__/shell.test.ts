@@ -87,26 +87,22 @@ afterEach(() => {
 });
 
 describe("ShellManager seeding", () => {
-  it("seeds the seven patina dashboard widgets on first run, no chat", () => {
+  it("seeds the dashboard widgets on first run, no chat", () => {
     const { defs, instances } = mgr.snapshot();
     // The chat widget def still exists (it's a launchable built-in) but is
-    // NOT pre-placed on the grid. Only the seven seed json-ui dashboard
-    // widgets get pinned by default.
+    // NOT pre-placed on the grid. The dashboard pins four json-ui cards plus
+    // the Agenda and To-Do built-ins (which replaced the old static Meeting
+    // Prep / Up Next / To Do cards).
     expect(defs.some((d) => d.id === CHAT_WIDGET_ID)).toBe(true);
     const jsonUiIds = defs
       .filter((d) => d.source.kind === "json-ui")
       .map((d) => d.id)
       .toSorted();
-    expect(jsonUiIds).toEqual([
-      "date",
-      "meeting-prep",
-      "people",
-      "today",
-      "todo",
-      "up-next",
-      "weather",
-    ]);
-    expect(instances.length).toBe(jsonUiIds.length);
+    expect(jsonUiIds).toEqual(["date", "people", "today", "weather"]);
+    // The two built-in dashboard widgets are seeded as instances, not defs
+    // (their defs live in BUILTIN_DEFS).
+    const placedIds = instances.map((i) => i.widgetId).toSorted();
+    expect(placedIds).toEqual(["agenda", "date", "people", "today", "todos", "weather"]);
     expect(instances.every((i) => i.placement.surface === "pinned")).toBe(true);
     expect(instances.some((i) => i.widgetId === CHAT_WIDGET_ID)).toBe(false);
   });

@@ -120,7 +120,15 @@ function tuple<const T extends readonly string[]>(...values: T): T {
   return values;
 }
 
-const BUILTIN_WIDGET_IDS = tuple("chat", "widgets", "tasks", "todos", "extensions", "settings");
+const BUILTIN_WIDGET_IDS = tuple(
+  "chat",
+  "widgets",
+  "tasks",
+  "agenda",
+  "todos",
+  "extensions",
+  "settings",
+);
 
 export type BuiltinWidgetId = (typeof BUILTIN_WIDGET_IDS)[number];
 
@@ -161,12 +169,20 @@ const BUILTIN_DEFS_BY_ID: Record<BuiltinWidgetId, BuiltinWidgetDef> = {
     defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 },
     source: { kind: "builtin-react" },
   },
+  agenda: {
+    id: "agenda",
+    title: "Agenda",
+    revision: 1,
+    singleton: true,
+    defaultGeometry: { x: 0, y: 4, w: 6, h: 8, minW: 3, minH: 4 },
+    source: { kind: "builtin-react" },
+  },
   todos: {
     id: "todos",
     title: "To Do",
     revision: 1,
     singleton: true,
-    defaultGeometry: { x: 9, y: 0, w: 3, h: 6, minW: 2, minH: 3 },
+    defaultGeometry: { x: 6, y: 8, w: 6, h: 4, minW: 2, minH: 3 },
     source: { kind: "builtin-react" },
   },
   extensions: {

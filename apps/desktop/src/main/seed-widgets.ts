@@ -1,15 +1,23 @@
-// Default dashboard widgets seeded on first run. Each widget is a json-ui
-// spec rendered through WidgetViewer; onMount actions populate their state
-// live (no user click required) from local time, open-meteo, the agent, or
-// the user's connected integrations.
+// Default dashboard widgets seeded on first run. Most are json-ui specs
+// rendered through WidgetViewer; onMount actions populate their state live
+// (no user click required) from local time, open-meteo, the agent, or the
+// user's connected integrations. The Agenda and To-Do cards are built-in
+// React widgets (BUILTIN_DEFS) seeded onto the grid as instances — the
+// unified Agenda replaces the old static Meeting Prep / Up Next cards, and
+// the interactive To-Do panel replaces the old static checklist.
 //
 // Layout occupies the full 12-column grid (chat is launched from the dock,
-// not pre-placed). Three rows modeled on patina.md's hero showcase:
+// not pre-placed):
 //   y=0  Date(3) Weather(3) Today(6)
-//   y=4  Meeting Prep(6)   Up Next(6)
-//   y=8  People(5)         To Do(7)
+//   y=4  Agenda(6, tall)    People(6)
+//   y=8                     To Do(6)
 
-import type { JsonUiWidgetDef, WidgetGeometry, WidgetInstance } from "@/shared/shell";
+import {
+  builtinDef,
+  type JsonUiWidgetDef,
+  type WidgetGeometry,
+  type WidgetInstance,
+} from "@/shared/shell";
 import { parseWidgetSpec, type WidgetSpec } from "@/shared/widget-spec";
 
 // Stable timestamp for seed defs — Date.now() at seed time would mark every
@@ -157,153 +165,11 @@ const TODAY_WIDGET: SeedDef = {
   },
 };
 
-const MEETING_PREP_WIDGET: SeedDef = {
-  id: "meeting-prep",
-  title: "Meeting Prep",
-  description: "Next meeting's title, time, and a brief prep summary.",
-  defaultGeometry: { x: 0, y: 4, w: 6, h: 4, minW: 3, minH: 3 },
-  spec: {
-    root: "card",
-    elements: {
-      card: { type: "Card", props: {}, children: ["stack"] },
-      stack: {
-        type: "Stack",
-        props: { gap: "sm" },
-        children: ["eyebrow", "accent", "summary"],
-      },
-      eyebrow: { type: "Text", props: { text: "📅 MEETING PREP", muted: true, size: "xs" } },
-      // Patina's yellow left-stripe identifies the next meeting card.
-      accent: {
-        type: "Accent",
-        props: { color: "yellow" },
-        children: ["title", "time"],
-      },
-      title: { type: "Heading", props: { text: { $bindState: "/title" }, level: "3" } },
-      time: { type: "Text", props: { text: { $bindState: "/time" }, size: "sm", muted: true } },
-      summary: {
-        type: "Markdown",
-        props: { content: { $bindState: "/summary" } },
-      },
-    },
-    state: {
-      title: "No upcoming meeting",
-      time: "Connect Google Calendar in Extensions to populate this card.",
-      summary: "",
-    },
-    onMount: [
-      // Best-effort: ask the agent for one piece of prep advice the first
-      // time the widget appears. Skips on subsequent launches so we don't
-      // pay an LLM call every cold start.
-      {
-        action: "generateText",
-        skipIf: "/summary",
-        params: {
-          system: "Concise chief-of-staff voice. 2-3 sentences. No headers. Speak directly.",
-          prompt:
-            "The user has no upcoming meeting connected yet. Suggest one concrete thing they could prepare for the day's first conversation, even without specifics.",
-          into: "/summary",
-        },
-      },
-    ],
-  },
-};
-
-const UP_NEXT_WIDGET: SeedDef = {
-  id: "up-next",
-  title: "Up Next",
-  description: "Timeline of upcoming events grouped by Today / Tomorrow.",
-  defaultGeometry: { x: 6, y: 4, w: 6, h: 4, minW: 3, minH: 3 },
-  spec: {
-    root: "card",
-    elements: {
-      card: { type: "Card", props: {}, children: ["stack"] },
-      stack: {
-        type: "Stack",
-        props: { gap: "md" },
-        children: ["eyebrow", "emptyState", "list"],
-      },
-      eyebrow: { type: "Text", props: { text: "▦ UP NEXT", muted: true, size: "xs" } },
-      // Static guidance shown whenever there are no events — i.e. before the
-      // Google Calendar source is connected, or when the call fails. Bound to
-      // the data's emptiness (`not: true`) rather than the error string so an
-      // expected "source not connected" failure never paints a raw message
-      // here; the callTool error still routes to /error (below), unrendered.
-      emptyState: {
-        type: "Text",
-        props: {
-          text: "Connect Google Calendar in Extensions to see your next events.",
-          size: "sm",
-          muted: true,
-        },
-        visible: { $state: "/events", not: true },
-      },
-      list: {
-        type: "Stack",
-        props: { gap: "sm" },
-        repeat: { statePath: "/events", key: "id" },
-        children: ["row"],
-      },
-      // The Calendar events.list API returns each event with `summary` and
-      // a `start.dateTime` (timed events) or `start.date` (all-day). We bind
-      // those raw paths into the list row; a future formatDate computed
-      // function can replace the raw ISO with a friendly "2:00 PM".
-      row: {
-        type: "Row",
-        props: {},
-        children: ["accent"],
-      },
-      accent: {
-        type: "Accent",
-        props: { color: "yellow" },
-        children: ["whatTitle", "whatTime"],
-      },
-      whatTitle: { type: "Text", props: { text: { $item: "summary" }, size: "sm" } },
-      whatTime: {
-        type: "Text",
-        props: { text: { $item: "start/dateTime" }, size: "xs", muted: true },
-      },
-    },
-    // No initial /events: an empty array is truthy (`Boolean([]) === true`), so
-    // the `not: true` guidance check would read it as "has data" and hide the
-    // prompt. Leaving it absent keeps /events falsy until a successful call
-    // writes rows; the repeat reads a missing path as []. /error captures a
-    // failed call (unrendered) so callTool doesn't toast on the cold-start miss.
-    state: {},
-    onMount: [
-      // Stamp current ISO into /timeMin so the callTool input below can
-      // reference it dynamically. Always re-fires (no skipIf) so the lookup
-      // window stays fresh between launches.
-      { action: "setNow", params: { paths: { "/timeMin": "iso" } } },
-      {
-        action: "callTool",
-        skipIf: "/events",
-        params: {
-          // Connection-scoped executor v1.5 address: <integration>.<owner>.
-          // <connection>.<discovery method id>. The connectors flow binds
-          // Google credentials under owner "user", connection "default"
-          // (connector-install.ts DEFAULT_CONNECTION_NAME).
-          tool: "google_calendar.user.default.calendar.events.list",
-          input: {
-            calendarId: "primary",
-            timeMin: { $state: "/timeMin" },
-            maxResults: 5,
-            singleEvents: true,
-            orderBy: "startTime",
-          },
-          select: "/items",
-          into: "/events",
-          error: "/error",
-        },
-      },
-    ],
-  },
-};
-
 const PEOPLE_WIDGET: SeedDef = {
   id: "people",
   title: "People",
   description: "Recent or important people to keep in touch with.",
-  defaultGeometry: { x: 0, y: 8, w: 5, h: 4, minW: 3, minH: 3 },
+  defaultGeometry: { x: 6, y: 4, w: 6, h: 4, minW: 3, minH: 3 },
   spec: {
     root: "card",
     elements: {
@@ -369,49 +235,15 @@ const PEOPLE_WIDGET: SeedDef = {
   },
 };
 
-const TODO_WIDGET: SeedDef = {
-  id: "todo",
-  title: "To Do",
-  description: "Local checklist — adds and persists across launches.",
-  defaultGeometry: { x: 5, y: 8, w: 7, h: 4, minW: 3, minH: 3 },
-  spec: {
-    root: "card",
-    elements: {
-      card: { type: "Card", props: {}, children: ["stack"] },
-      stack: { type: "Stack", props: { gap: "sm" }, children: ["eyebrow", "list"] },
-      eyebrow: { type: "Text", props: { text: "☐ TO DO", muted: true, size: "xs" } },
-      list: {
-        type: "Stack",
-        props: { gap: "sm" },
-        repeat: { statePath: "/items", key: "id" },
-        children: ["item"],
-      },
-      item: {
-        type: "Checkbox",
-        props: {
-          label: { $item: "title" },
-          checked: { $bindItem: "done" },
-        },
-      },
-    },
-    state: {
-      items: [
-        { id: "1", title: "Review the launch note before the afternoon sync", done: false },
-        { id: "2", title: "Reply to the customer thread Patina flagged", done: false },
-        { id: "3", title: "Confirm the follow-up owner for the metrics question", done: false },
-      ],
-    },
-  },
-};
+const SEEDS: SeedDef[] = [DATE_WIDGET, WEATHER_WIDGET, TODAY_WIDGET, PEOPLE_WIDGET];
 
-const SEEDS: SeedDef[] = [
-  DATE_WIDGET,
-  WEATHER_WIDGET,
-  TODAY_WIDGET,
-  MEETING_PREP_WIDGET,
-  UP_NEXT_WIDGET,
-  PEOPLE_WIDGET,
-  TODO_WIDGET,
+// Built-in React widgets pinned onto the dashboard by default. Their defs live
+// in BUILTIN_DEFS (shell.ts) and are already in every snapshot; here we only
+// place an instance on the grid. The geometry below overrides each def's
+// defaultGeometry for the seeded placement.
+const BUILTIN_SEED_PLACEMENTS: { widgetId: string; geometry: WidgetGeometry }[] = [
+  { widgetId: "agenda", geometry: { x: 0, y: 4, w: 6, h: 8, minW: 3, minH: 4 } },
+  { widgetId: "todos", geometry: { x: 6, y: 8, w: 6, h: 4, minW: 2, minH: 3 } },
 ];
 
 function toDef(seed: SeedDef): JsonUiWidgetDef {
@@ -448,5 +280,27 @@ function toInstance(seed: SeedDef): WidgetInstance {
   };
 }
 
+// A pinned grid instance of a built-in widget. Built-ins manage their own
+// state (not the json-render store), so the instance state is empty. Validates
+// the id against BUILTIN_DEFS so a typo fails loudly at module load rather than
+// rendering a blank slot.
+function toBuiltinInstance(placement: {
+  widgetId: string;
+  geometry: WidgetGeometry;
+}): WidgetInstance {
+  if (!builtinDef(placement.widgetId)) {
+    throw new Error(`Unknown built-in widget seeded onto the grid: ${placement.widgetId}`);
+  }
+  return {
+    instanceId: `seed-${placement.widgetId}`,
+    widgetId: placement.widgetId,
+    placement: { surface: "pinned", geometry: { ...placement.geometry } },
+    state: {},
+  };
+}
+
 export const SEED_WIDGET_DEFS: JsonUiWidgetDef[] = SEEDS.map(toDef);
-export const SEED_WIDGET_INSTANCES: WidgetInstance[] = SEEDS.map(toInstance);
+export const SEED_WIDGET_INSTANCES: WidgetInstance[] = [
+  ...SEEDS.map(toInstance),
+  ...BUILTIN_SEED_PLACEMENTS.map(toBuiltinInstance),
+];
