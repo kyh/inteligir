@@ -134,9 +134,17 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         reportError("Vault unavailable");
         return Promise.resolve();
       }
+      // Latest-wins per `into`: a slow earlier read (e.g. onMount) must not land
+      // after a newer refresh and write stale file content. Shares callTool's
+      // per-path sequence map so reads and tool calls to the same pointer order.
+      const seqMap = callSeqRef.current;
+      const seq = (seqMap.get(into) ?? 0) + 1;
+      seqMap.set(into, seq);
+      const isLatest = (): boolean => seqMap.get(into) === seq;
       return bridge
         .widgetVaultRead({ path: filePath })
         .then((res) => {
+          if (!isLatest()) return undefined;
           if (!res.ok) reportError(res.error);
           else {
             getStore().set(into, res.value);

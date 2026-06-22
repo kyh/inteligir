@@ -132,7 +132,14 @@ export function VaultPanel() {
             }
             return undefined;
           })
-          .catch(() => {});
+          .catch(() => {
+            // Read failed — the file was likely deleted elsewhere. Clear the now
+            // stale editor (it's already gone from the re-listed sidebar).
+            if (selectedRef.current === path && !dirtyRef.current) {
+              setSelected(null);
+              setContent("");
+            }
+          });
       }
     });
   }, [refreshList]);
