@@ -45,9 +45,14 @@ export function VaultPanel() {
   selectedRef.current = selected;
   contentRef.current = content;
   dirtyRef.current = dirty;
-  // Latest-wins for openFile: a slower read must not apply to a file the user
-  // has since switched away from.
-  const openSeq = useRef(0);
+  // Shared latest-wins token across ALL file reads (openFile + the live
+  // reload). A slower read must not apply after a newer one — whichever claimed
+  // the highest token last wins.
+  const readSeq = useRef(0);
+  // The vault root we've currently loaded against, so the change handler can
+  // tell a file edit from a root switch (where the open relative path is stale).
+  const rootRef = useRef("");
+  rootRef.current = root;
 
   const refreshList = useCallback(() => {
     const bridge = getBridge();
@@ -107,13 +112,13 @@ export function VaultPanel() {
       await flushSave();
       const bridge = getBridge();
       if (!bridge) return;
-      const seq = ++openSeq.current;
+      const seq = ++readSeq.current;
       try {
         const text = await bridge.readVaultDoc({ path });
-        if (openSeq.current !== seq) return; // a later openFile superseded this one
+        if (readSeq.current !== seq) return; // a later read (open or reload) won
         applyOpened(path, text);
       } catch {
-        if (openSeq.current !== seq) return;
+        if (readSeq.current !== seq) return;
         applyOpened(path, "");
       }
     },
@@ -137,15 +142,33 @@ export function VaultPanel() {
     const bridge = getBridge();
     if (!bridge) return;
     return bridge.onVaultChanged(({ root: nextRoot }) => {
+      const rootChanged = nextRoot !== rootRef.current;
+      rootRef.current = nextRoot;
       setRoot(nextRoot);
       refreshList();
+      // Root switch: the open relative path belongs to the old vault. Invalidate
+      // in-flight reads and clear selection rather than reloading the same path
+      // against a different root (handleChangeFolder also resets, but its IPC
+      // resolves after this broadcast).
+      if (rootChanged) {
+        readSeq.current++;
+        setSelected(null);
+        setContent("");
+        setDirty(false);
+        selectedRef.current = null;
+        contentRef.current = "";
+        dirtyRef.current = false;
+        return;
+      }
       const path = selectedRef.current;
       // Never reload while we have unsaved edits or a save is in flight — that's
       // how a disk read could revert the editor or clobber newer text.
       if (path && !dirtyRef.current && savingRef.current === null) {
+        const seq = ++readSeq.current;
         bridge
           .readVaultDoc({ path })
           .then((text) => {
+            if (readSeq.current !== seq) return undefined; // a newer read won
             if (selectedRef.current === path && !dirtyRef.current && savingRef.current === null) {
               contentRef.current = text;
               setContent(text);
@@ -153,6 +176,7 @@ export function VaultPanel() {
             return undefined;
           })
           .catch(() => {
+            if (readSeq.current !== seq) return;
             // Read failed — the file was likely deleted elsewhere. Clear the now
             // stale editor (it's already gone from the re-listed sidebar).
             if (selectedRef.current === path && !dirtyRef.current) {
