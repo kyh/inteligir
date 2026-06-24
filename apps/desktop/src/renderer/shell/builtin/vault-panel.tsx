@@ -131,10 +131,13 @@ export function VaultPanel() {
         applyOpened(path, text);
       } catch {
         if (readSeq.current !== seq) return;
-        applyOpened(path, "");
+        // Read failed — the file isn't there (e.g. deleted between the click and
+        // the read). Clear rather than selecting it as an empty buffer, which
+        // would revive a path that's gone from the sidebar.
+        clearSelection();
       }
     },
-    [flushSave, applyOpened],
+    [flushSave, applyOpened, clearSelection],
   );
 
   // Initial load: root + list.
