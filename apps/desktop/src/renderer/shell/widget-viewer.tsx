@@ -62,8 +62,11 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   const vaultReadBaseline = useRef(new Map<string, unknown>());
   const canRefreshPointer = useCallback((into: string): boolean => {
     const baseline = vaultReadBaseline.current;
-    // Never loaded yet → this is a first read, always allow.
-    if (!baseline.has(into)) return true;
+    // No baseline yet means the initial read hasn't completed — don't let a
+    // change event refresh over edits the user may have made in the meantime.
+    // The in-flight onMount read still applies on its own (and records the
+    // baseline), so this only defers the live refresh, never drops data.
+    if (!baseline.has(into)) return false;
     const current = readJsonPointer(getStore().getSnapshot(), into);
     return jsonEqual(current, baseline.get(into));
   }, []);

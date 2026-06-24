@@ -124,6 +124,12 @@ export function VaultPanel() {
   const handleChangeFolder = useCallback(async () => {
     cancelTimer();
     await controller.flush();
+    // If the save failed, the buffer is still dirty — don't switch folders and
+    // silently drop the unsaved text; surface it and let the user retry.
+    if (controller.getState().dirty) {
+      toast.error("Couldn't save the current file — resolve that before switching folders.");
+      return;
+    }
     const bridge = getBridge();
     if (!bridge) return;
     const result = await bridge.chooseVaultRoot().catch(() => null);
