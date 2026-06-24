@@ -104,19 +104,26 @@ export function MarkdownEditor({ value, onChange }: Props) {
     value: (e) => deserializeMd(e, value),
   });
 
-  // The last markdown this editor emitted, so we can distinguish our own edits
-  // from an external `value` change.
-  const lastEmitted = useRef(value);
+  // The last raw `value` prop we've reflected into the editor — dedupes the
+  // re-seed effect and our own emissions so neither re-seeds the editor.
+  const lastValueProp = useRef(value);
+  // The serialized markdown immediately after a (re)seed. Seeding the editor
+  // makes Plate emit onChange with this normalized text; recognizing it lets us
+  // drop that echo instead of treating it as a user edit (which would autosave
+  // a normalized rewrite over the agent's/file's content). Initialized to the
+  // mount value's normalized form so the first-render onChange is dropped too.
+  const seeded = useRef<string | null>(null);
+  if (seeded.current === null) seeded.current = serializeMd(editor);
 
   // Re-seed when `value` changes from the outside (e.g. the agent edited the
   // file and the panel reloaded it). Without this the Plate surface keeps the
   // stale document and the next edit would serialize it back over the newer
-  // file. Skipping when value matches what we last emitted avoids clobbering
-  // in-progress edits and feedback loops.
+  // file.
   useEffect(() => {
-    if (value === lastEmitted.current) return;
-    lastEmitted.current = value;
+    if (value === lastValueProp.current) return;
+    lastValueProp.current = value;
     editor.tf.setValue(deserializeMd(editor, value));
+    seeded.current = serializeMd(editor);
   }, [value, editor]);
 
   return (
@@ -124,7 +131,11 @@ export function MarkdownEditor({ value, onChange }: Props) {
       editor={editor}
       onChange={() => {
         const md = serializeMd(editor);
-        lastEmitted.current = md;
+        // Drop the echo a programmatic (re)seed produces — only real edits,
+        // which diverge from the seeded text, propagate.
+        if (md === seeded.current) return;
+        seeded.current = null;
+        lastValueProp.current = md;
         onChange(md);
       }}
     >
