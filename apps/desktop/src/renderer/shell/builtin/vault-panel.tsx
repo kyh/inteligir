@@ -45,6 +45,9 @@ export function VaultPanel() {
   selectedRef.current = selected;
   contentRef.current = content;
   dirtyRef.current = dirty;
+  // Latest-wins for openFile: a slower read must not apply to a file the user
+  // has since switched away from.
+  const openSeq = useRef(0);
 
   const refreshList = useCallback(() => {
     const bridge = getBridge();
@@ -88,23 +91,33 @@ export function VaultPanel() {
     if (savingRef.current === writing) savingRef.current = null;
   }, []);
 
+  // Apply a freshly opened file's text, syncing refs immediately (they're
+  // otherwise only updated on render, which flushSave / the reload path read).
+  const applyOpened = useCallback((path: string, text: string) => {
+    setSelected(path);
+    setContent(text);
+    setDirty(false);
+    selectedRef.current = path;
+    contentRef.current = text;
+    dirtyRef.current = false;
+  }, []);
+
   const openFile = useCallback(
     async (path: string) => {
       await flushSave();
       const bridge = getBridge();
       if (!bridge) return;
+      const seq = ++openSeq.current;
       try {
         const text = await bridge.readVaultDoc({ path });
-        setSelected(path);
-        setContent(text);
-        setDirty(false);
+        if (openSeq.current !== seq) return; // a later openFile superseded this one
+        applyOpened(path, text);
       } catch {
-        setSelected(path);
-        setContent("");
-        setDirty(false);
+        if (openSeq.current !== seq) return;
+        applyOpened(path, "");
       }
     },
-    [flushSave],
+    [flushSave, applyOpened],
   );
 
   // Initial load: root + list.
@@ -134,6 +147,7 @@ export function VaultPanel() {
           .readVaultDoc({ path })
           .then((text) => {
             if (selectedRef.current === path && !dirtyRef.current && savingRef.current === null) {
+              contentRef.current = text;
               setContent(text);
             }
             return undefined;
@@ -176,6 +190,11 @@ export function VaultPanel() {
 
   const handleEdit = useCallback(
     (next: string) => {
+      // Sync the refs now, not on the next render — flushSave and the vault
+      // reload path read these synchronously, so a broadcast landing before
+      // paint must already see the edit as dirty with the new text.
+      contentRef.current = next;
+      dirtyRef.current = true;
       setContent(next);
       setDirty(true);
       if (saveTimer.current) clearTimeout(saveTimer.current);
