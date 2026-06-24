@@ -10,6 +10,7 @@
 // markdown and isn't byte-perfect) is always opt-in and the plain-text view
 // stays the safe default.
 
+import { useEffect, useRef } from "react";
 import {
   Plate,
   PlateContent,
@@ -88,8 +89,8 @@ const EDITOR_COMPONENTS = {
 };
 
 type Props = {
-  /** Initial markdown to seed the editor (read once on mount; remount via a
-   * React `key` on the file path to load a different file). */
+  /** Markdown to render. Seeds the editor on mount and re-seeds it when the
+   * prop changes externally (a vault reload / file switch) — see the effect. */
   value: string;
   /** Called with serialized markdown on every change. */
   onChange: (markdown: string) => void;
@@ -103,8 +104,30 @@ export function MarkdownEditor({ value, onChange }: Props) {
     value: (e) => deserializeMd(e, value),
   });
 
+  // The last markdown this editor emitted, so we can distinguish our own edits
+  // from an external `value` change.
+  const lastEmitted = useRef(value);
+
+  // Re-seed when `value` changes from the outside (e.g. the agent edited the
+  // file and the panel reloaded it). Without this the Plate surface keeps the
+  // stale document and the next edit would serialize it back over the newer
+  // file. Skipping when value matches what we last emitted avoids clobbering
+  // in-progress edits and feedback loops.
+  useEffect(() => {
+    if (value === lastEmitted.current) return;
+    lastEmitted.current = value;
+    editor.tf.setValue(deserializeMd(editor, value));
+  }, [value, editor]);
+
   return (
-    <Plate editor={editor} onChange={() => onChange(serializeMd(editor))}>
+    <Plate
+      editor={editor}
+      onChange={() => {
+        const md = serializeMd(editor);
+        lastEmitted.current = md;
+        onChange(md);
+      }}
+    >
       <PlateContent
         className="min-h-full px-3 py-2 text-sm leading-relaxed outline-none [&_p]:my-1"
         placeholder="Write…"
