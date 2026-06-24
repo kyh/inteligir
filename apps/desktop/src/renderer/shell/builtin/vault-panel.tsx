@@ -154,7 +154,10 @@ export function VaultPanel() {
     const bridge = getBridge();
     if (!bridge) return;
     return bridge.onVaultChanged(({ root: nextRoot }) => {
-      const rootChanged = nextRoot !== rootRef.current;
+      // Only a real switch — not the first event before getVaultRoot has
+      // populated rootRef (empty sentinel), which would otherwise look like a
+      // switch and clear unsaved edits on the user's own autosave broadcast.
+      const rootChanged = rootRef.current !== "" && nextRoot !== rootRef.current;
       rootRef.current = nextRoot;
       setRoot(nextRoot);
       refreshList();
