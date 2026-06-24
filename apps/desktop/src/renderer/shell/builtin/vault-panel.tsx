@@ -107,6 +107,18 @@ export function VaultPanel() {
     dirtyRef.current = false;
   }, []);
 
+  // Clear the open file, syncing refs in lockstep so flushSave / the reload
+  // handler don't keep acting on a path we've just dropped before the next
+  // render. Used on delete, deleted-elsewhere, and folder/root switches.
+  const clearSelection = useCallback(() => {
+    setSelected(null);
+    setContent("");
+    setDirty(false);
+    selectedRef.current = null;
+    contentRef.current = "";
+    dirtyRef.current = false;
+  }, []);
+
   const openFile = useCallback(
     async (path: string) => {
       await flushSave();
@@ -152,12 +164,7 @@ export function VaultPanel() {
       // resolves after this broadcast).
       if (rootChanged) {
         readSeq.current++;
-        setSelected(null);
-        setContent("");
-        setDirty(false);
-        selectedRef.current = null;
-        contentRef.current = "";
-        dirtyRef.current = false;
+        clearSelection();
         return;
       }
       const path = selectedRef.current;
@@ -180,13 +187,12 @@ export function VaultPanel() {
             // Read failed — the file was likely deleted elsewhere. Clear the now
             // stale editor (it's already gone from the re-listed sidebar).
             if (selectedRef.current === path && !dirtyRef.current) {
-              setSelected(null);
-              setContent("");
+              clearSelection();
             }
           });
       }
     });
-  }, [refreshList]);
+  }, [refreshList, clearSelection]);
 
   // Persist on unmount so a panel close within the debounce window isn't lost.
   useEffect(() => {
@@ -204,13 +210,13 @@ export function VaultPanel() {
       return;
     }
     if ("root" in result) {
+      rootRef.current = result.root;
       setRoot(result.root);
-      setSelected(null);
-      setContent("");
-      setDirty(false);
+      readSeq.current++;
+      clearSelection();
       refreshList();
     }
-  }, [flushSave, refreshList]);
+  }, [flushSave, refreshList, clearSelection]);
 
   const handleEdit = useCallback(
     (next: string) => {
@@ -254,12 +260,12 @@ export function VaultPanel() {
     dirtyRef.current = false;
     setDirty(false);
     if (savingRef.current) await savingRef.current.catch(() => {});
+    // Invalidate any in-flight read for this path before clearing.
+    readSeq.current++;
     await bridge.deleteVaultEntry({ path }).catch(() => {});
-    setSelected(null);
-    setContent("");
-    setDirty(false);
+    clearSelection();
     refreshList();
-  }, [refreshList]);
+  }, [refreshList, clearSelection]);
 
   const folderName =
     root
