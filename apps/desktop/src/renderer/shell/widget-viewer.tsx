@@ -82,6 +82,25 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
     return jsonEqual(current, baseline.get(into));
   }, []);
 
+  // Track vault read pointers the agent adds via a spec update too — the
+  // first-render seed above only covers the initial spec, so without this a
+  // newly-bound readDoc/readBlob pointer would be untracked and a refresh could
+  // overwrite in-progress edits. Only seed pointers not already tracked, so
+  // baselines recorded by real reads are preserved.
+  useEffect(() => {
+    const snapshot = getStore().getSnapshot();
+    for (const action of def.source.spec.onMount ?? []) {
+      const into = typeof action.params?.["into"] === "string" ? action.params["into"] : "";
+      if (
+        (action.action === "readDoc" || action.action === "readBlob") &&
+        into &&
+        !vaultReadBaseline.current.has(into)
+      ) {
+        vaultReadBaseline.current.set(into, readJsonPointer(snapshot, into));
+      }
+    }
+  }, [def.source.spec]);
+
   // Resolves with whether the latest pending state actually reached main, so
   // surface-change and unplace callers can tell a true success ("flushed" or
   // "nothing to flush") from a quiet failure (bridge missing, IPC threw). A
