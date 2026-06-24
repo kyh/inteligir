@@ -54,19 +54,30 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   // must not clobber a newer result written to the same path (latest-wins).
   const callSeqRef = useRef(new Map<string, number>());
 
-  // Per-pointer baseline for vault live-refresh: the exact value the last
-  // readDoc/readBlob wrote into each `into` pointer. A change event re-reads a
-  // pointer only when its current state still equals this baseline — i.e. the
-  // user hasn't edited it since. Precise per-pointer, so an unrelated state
-  // change elsewhere in the widget never blocks (or triggers) a refresh.
+  // Per-pointer baseline for vault live-refresh: the value last synced into each
+  // readDoc/readBlob `into` pointer. A change event re-reads a pointer only when
+  // its current state still equals this baseline — i.e. the user hasn't edited
+  // it since. Seeded at mount from the widget's initial state for every vault
+  // read pointer, so the comparison is always available: that way a read that
+  // never recorded a value (skipIf-skipped, missing, or failed) is still
+  // refreshable when untouched, while a pointer the user edited before the first
+  // read landed is still protected. A successful read updates the baseline.
   const vaultReadBaseline = useRef(new Map<string, unknown>());
+  const baselineSeeded = useRef(false);
+  if (!baselineSeeded.current) {
+    baselineSeeded.current = true;
+    const snapshot = getStore().getSnapshot();
+    for (const action of def.source.spec.onMount ?? []) {
+      const into = typeof action.params?.["into"] === "string" ? action.params["into"] : "";
+      if ((action.action === "readDoc" || action.action === "readBlob") && into) {
+        vaultReadBaseline.current.set(into, readJsonPointer(snapshot, into));
+      }
+    }
+  }
   const canRefreshPointer = useCallback((into: string): boolean => {
     const baseline = vaultReadBaseline.current;
-    // No baseline yet means the initial read hasn't completed — don't let a
-    // change event refresh over edits the user may have made in the meantime.
-    // The in-flight onMount read still applies on its own (and records the
-    // baseline), so this only defers the live refresh, never drops data.
-    if (!baseline.has(into)) return false;
+    // Untracked pointer (not an onMount read target) → nothing to protect.
+    if (!baseline.has(into)) return true;
     const current = readJsonPointer(getStore().getSnapshot(), into);
     return jsonEqual(current, baseline.get(into));
   }, []);
