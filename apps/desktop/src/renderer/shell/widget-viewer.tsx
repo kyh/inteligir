@@ -155,18 +155,27 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
       const seq = (seqMap.get(into) ?? 0) + 1;
       seqMap.set(into, seq);
       const isLatest = (): boolean => seqMap.get(into) === seq;
+      // The pointer's value when the read started. If it changed by the time the
+      // read resolves, the user (or another action) edited `into` mid-read —
+      // don't clobber that with the file snapshot, and leave the baseline as-is
+      // so the edit stays protected from later refreshes.
+      const before = readJsonPointer(getStore().getSnapshot(), into);
       return bridge
         .widgetVaultRead({ path: filePath })
         .then((res) => {
           if (!isLatest()) return undefined;
-          if (!res.ok) reportError(res.error);
-          else {
-            getStore().set(into, res.value);
-            // Record what we wrote so the live-refresh can tell a later user
-            // edit of this pointer apart from our own value.
-            vaultReadBaseline.current.set(into, res.value);
-            if (errorPath) getStore().set(errorPath, null);
+          if (!res.ok) {
+            reportError(res.error);
+            return undefined;
           }
+          if (!jsonEqual(readJsonPointer(getStore().getSnapshot(), into), before)) {
+            return undefined; // edited during the read — the edit wins
+          }
+          getStore().set(into, res.value);
+          // Record what we wrote so the live-refresh can tell a later user
+          // edit of this pointer apart from our own value.
+          vaultReadBaseline.current.set(into, res.value);
+          if (errorPath) getStore().set(errorPath, null);
           return undefined;
         })
         .catch((err: unknown) => {
