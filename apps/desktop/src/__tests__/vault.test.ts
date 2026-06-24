@@ -53,6 +53,15 @@ describe("VaultManager", () => {
     });
   });
 
+  it("excludes sibling .tmp files from the listing", () => {
+    const mgr = newManager();
+    mgr.writeText("note.md", "hi");
+    fs.writeFileSync(path.join(root, "note.md.tmp"), "in-flight");
+    const names = mgr.list().map((e) => e.path);
+    expect(names).toContain("note.md");
+    expect(names).not.toContain("note.md.tmp");
+  });
+
   it("returns raw text from readAuto for non-JSON files", () => {
     const mgr = newManager();
     mgr.writeAuto("note.md", "plain text");

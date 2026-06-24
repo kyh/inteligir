@@ -164,6 +164,9 @@ export class VaultManager {
       }
       for (const entry of entries) {
         if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue;
+        // Skip the sibling temp files atomicWrite creates mid-save so they
+        // never show up as real vault files.
+        if (entry.isFile() && entry.name.endsWith(".tmp")) continue;
         const full = path.join(dir, entry.name);
         if (entry.isDirectory()) {
           walk(full);
