@@ -156,6 +156,10 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
           return undefined;
         })
         .catch((err: unknown) => {
+          // Only the latest read for this pointer may report — a superseded
+          // read rejecting (IPC/transport failure) must not toast or set the
+          // error pointer over a newer read that already owns `into`.
+          if (!isLatest()) return;
           reportError(err instanceof Error ? err.message : "Vault read failed");
         });
     };
