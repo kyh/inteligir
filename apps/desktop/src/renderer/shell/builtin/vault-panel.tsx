@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { BracesIcon, FilePlusIcon, FileTextIcon, FolderIcon, Trash2Icon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
 import { Input } from "@repo/ui/components/input";
@@ -7,11 +7,32 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { MarkdownEditor } from "@/renderer/shell/builtin/markdown-editor";
+import { VaultEditorController, type VaultIO } from "@/renderer/shell/builtin/vault-editor";
 import type { VaultEntry } from "@/shared/ipc-registry";
 
 const MARKDOWN_RE = /\.(md|markdown|mdx)$/i;
-
 const AUTOSAVE_DEBOUNCE_MS = 600;
+
+// IO the editor controller acts through — thin wrappers over the bridge so the
+// controller stays bridge-agnostic and unit-testable. A missing bridge throws,
+// which the controller treats like any read/write failure.
+const VAULT_IO: VaultIO = {
+  read: (path) => {
+    const bridge = getBridge();
+    if (!bridge) throw new Error("Vault unavailable");
+    return bridge.readVaultDoc({ path });
+  },
+  write: (path, content) => {
+    const bridge = getBridge();
+    if (!bridge) throw new Error("Vault unavailable");
+    return bridge.writeVaultDoc({ path, content });
+  },
+  remove: (path) => {
+    const bridge = getBridge();
+    if (!bridge) throw new Error("Vault unavailable");
+    return bridge.deleteVaultEntry({ path }).then(() => undefined);
+  },
+};
 
 /**
  * The Vault panel — a minimal Obsidian-style browser/editor over the user's
@@ -19,194 +40,90 @@ const AUTOSAVE_DEBOUNCE_MS = 600;
  * read/write the same files. This panel is the human surface: pick the folder,
  * browse files, edit them as raw text (JSON included), and watch them update
  * live when the agent or a widget changes something.
+ *
+ * The open-file editing session (open/edit/save/reload/delete and all their
+ * async ordering) lives in VaultEditorController; this component owns only the
+ * pure UI (file list, filter, raw/rich mode) and the autosave debounce.
  */
 export function VaultPanel() {
-  const [root, setRoot] = useState<string>("");
+  const controller = useMemo(() => new VaultEditorController(VAULT_IO), []);
+  const editor = useSyncExternalStore(controller.subscribe, controller.getState);
+
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState<string | null>(null);
-  const [content, setContent] = useState("");
-  const [dirty, setDirty] = useState(false);
   const [newName, setNewName] = useState("");
   // Rich (Plate) vs raw textarea. Defaults to raw — the rich editor round-trips
   // markdown (normalizing it), so it's always an explicit opt-in.
   const [mode, setMode] = useState<"raw" | "rich">("raw");
 
-  // Save coordination: the path/content we last persisted, plus the debounce
-  // timer, so switching files or an external change never clobbers live edits.
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // The in-flight save promise (null when idle). Saves are serialized through
-  // it, and the live-reload below refuses to run while it's set so a disk read
-  // can't revert the editor under an unfinished write.
-  const savingRef = useRef<Promise<void> | null>(null);
-  const selectedRef = useRef<string | null>(null);
-  const contentRef = useRef("");
-  const dirtyRef = useRef(false);
-  selectedRef.current = selected;
-  contentRef.current = content;
-  dirtyRef.current = dirty;
-  // Shared latest-wins token across ALL file reads (openFile + the live
-  // reload). A slower read must not apply after a newer one — whichever claimed
-  // the highest token last wins.
-  const readSeq = useRef(0);
-  // The vault root we've currently loaded against, so the change handler can
-  // tell a file edit from a root switch (where the open relative path is stale).
-  const rootRef = useRef("");
-  rootRef.current = root;
 
   const refreshList = useCallback(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    void bridge
-      .listVault()
+    getBridge()
+      ?.listVault()
       .then(setEntries)
       .catch(() => {});
   }, []);
 
-  const flushSave = useCallback(async () => {
+  const cancelTimer = useCallback(() => {
     if (saveTimer.current) {
       clearTimeout(saveTimer.current);
       saveTimer.current = null;
     }
-    // Serialize behind any in-flight write so two saves can't overlap and a
-    // trailing edit can't be written before an earlier one lands.
-    if (savingRef.current) await savingRef.current.catch(() => {});
-    const path = selectedRef.current;
-    if (!path || !dirtyRef.current) return;
-    const bridge = getBridge();
-    if (!bridge) return;
-    // Snapshot the bytes we're persisting. `dirty` is cleared only after the
-    // write succeeds AND the editor still holds exactly this snapshot — if the
-    // user typed during the write, dirty stays set so the newer text saves next.
-    const snapshot = contentRef.current;
-    const writing = bridge
-      .writeVaultDoc({ path, content: snapshot })
-      .then(() => {
-        if (contentRef.current === snapshot) {
-          dirtyRef.current = false;
-          setDirty(false);
-        }
-        return undefined;
-      })
-      .catch(() => {
-        // Leave dirty set so a later flush retries.
-      });
-    savingRef.current = writing;
-    await writing;
-    if (savingRef.current === writing) savingRef.current = null;
   }, []);
 
-  // Apply a freshly opened file's text, syncing refs immediately (they're
-  // otherwise only updated on render, which flushSave / the reload path read).
-  const applyOpened = useCallback((path: string, text: string) => {
-    setSelected(path);
-    setContent(text);
-    setDirty(false);
-    selectedRef.current = path;
-    contentRef.current = text;
-    dirtyRef.current = false;
-  }, []);
+  const scheduleFlush = useCallback(() => {
+    cancelTimer();
+    saveTimer.current = setTimeout(() => void controller.flush(), AUTOSAVE_DEBOUNCE_MS);
+  }, [cancelTimer, controller]);
 
-  // Clear the open file, syncing refs in lockstep so flushSave / the reload
-  // handler don't keep acting on a path we've just dropped before the next
-  // render. Used on delete, deleted-elsewhere, and folder/root switches.
-  const clearSelection = useCallback(() => {
-    setSelected(null);
-    setContent("");
-    setDirty(false);
-    selectedRef.current = null;
-    contentRef.current = "";
-    dirtyRef.current = false;
-  }, []);
-
-  const openFile = useCallback(
-    async (path: string) => {
-      await flushSave();
-      const bridge = getBridge();
-      if (!bridge) return;
-      const seq = ++readSeq.current;
-      try {
-        const text = await bridge.readVaultDoc({ path });
-        if (readSeq.current !== seq) return; // a later read (open or reload) won
-        applyOpened(path, text);
-      } catch {
-        if (readSeq.current !== seq) return;
-        // Read failed — the file isn't there (e.g. deleted between the click and
-        // the read). Clear rather than selecting it as an empty buffer, which
-        // would revive a path that's gone from the sidebar.
-        clearSelection();
-      }
+  const onEdit = useCallback(
+    (next: string) => {
+      controller.edit(next);
+      scheduleFlush();
     },
-    [flushSave, applyOpened, clearSelection],
+    [controller, scheduleFlush],
   );
 
-  // Initial load: root + list.
+  const openFile = useCallback(
+    (path: string) => {
+      cancelTimer();
+      void controller.open(path);
+    },
+    [cancelTimer, controller],
+  );
+
+  // Initial load: adopt the root and list files.
   useEffect(() => {
-    const bridge = getBridge();
-    if (!bridge) return;
-    void bridge
-      .getVaultRoot()
-      .then(setRoot)
+    getBridge()
+      ?.getVaultRoot()
+      .then((root) => {
+        controller.setRoot(root);
+        return undefined;
+      })
       .catch(() => {});
     refreshList();
-  }, [refreshList]);
+  }, [controller, refreshList]);
 
-  // Live updates: re-list on any vault change; reload the open file if it
-  // changed underneath us and we have no unsaved edits.
+  // Live updates: hand every vault-changed broadcast to the controller (which
+  // reloads or drops the open file as appropriate) and re-list.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
-    return bridge.onVaultChanged(({ root: nextRoot }) => {
-      // Only a real switch — not the first event before getVaultRoot has
-      // populated rootRef (empty sentinel), which would otherwise look like a
-      // switch and clear unsaved edits on the user's own autosave broadcast.
-      const rootChanged = rootRef.current !== "" && nextRoot !== rootRef.current;
-      rootRef.current = nextRoot;
-      setRoot(nextRoot);
+    return bridge.onVaultChanged(({ root }) => {
+      controller.externalChange(root);
       refreshList();
-      // Root switch: the open relative path belongs to the old vault. Invalidate
-      // in-flight reads and clear selection rather than reloading the same path
-      // against a different root (handleChangeFolder also resets, but its IPC
-      // resolves after this broadcast).
-      if (rootChanged) {
-        readSeq.current++;
-        clearSelection();
-        return;
-      }
-      const path = selectedRef.current;
-      // Never reload while we have unsaved edits or a save is in flight — that's
-      // how a disk read could revert the editor or clobber newer text.
-      if (path && !dirtyRef.current && savingRef.current === null) {
-        const seq = ++readSeq.current;
-        bridge
-          .readVaultDoc({ path })
-          .then((text) => {
-            if (readSeq.current !== seq) return undefined; // a newer read won
-            if (selectedRef.current === path && !dirtyRef.current && savingRef.current === null) {
-              contentRef.current = text;
-              setContent(text);
-            }
-            return undefined;
-          })
-          .catch(() => {
-            if (readSeq.current !== seq) return;
-            // Read failed — the file was likely deleted elsewhere. Clear the now
-            // stale editor (it's already gone from the re-listed sidebar).
-            if (selectedRef.current === path && !dirtyRef.current) {
-              clearSelection();
-            }
-          });
-      }
     });
-  }, [refreshList, clearSelection]);
+  }, [controller, refreshList]);
 
-  // Persist on unmount so a panel close within the debounce window isn't lost.
+  // Persist on unmount so a change within the debounce window isn't lost.
   useEffect(() => {
-    return () => void flushSave();
-  }, [flushSave]);
+    return () => void controller.flush();
+  }, [controller]);
 
   const handleChangeFolder = useCallback(async () => {
-    await flushSave();
+    cancelTimer();
+    await controller.flush();
     const bridge = getBridge();
     if (!bridge) return;
     const result = await bridge.chooseVaultRoot().catch(() => null);
@@ -216,28 +133,11 @@ export function VaultPanel() {
       return;
     }
     if ("root" in result) {
-      rootRef.current = result.root;
-      setRoot(result.root);
-      readSeq.current++;
-      clearSelection();
+      controller.setRoot(result.root);
+      controller.clear();
       refreshList();
     }
-  }, [flushSave, refreshList, clearSelection]);
-
-  const handleEdit = useCallback(
-    (next: string) => {
-      // Sync the refs now, not on the next render — flushSave and the vault
-      // reload path read these synchronously, so a broadcast landing before
-      // paint must already see the edit as dirty with the new text.
-      contentRef.current = next;
-      dirtyRef.current = true;
-      setContent(next);
-      setDirty(true);
-      if (saveTimer.current) clearTimeout(saveTimer.current);
-      saveTimer.current = setTimeout(() => void flushSave(), AUTOSAVE_DEBOUNCE_MS);
-    },
-    [flushSave],
-  );
+  }, [cancelTimer, controller, refreshList]);
 
   const handleCreate = useCallback(async () => {
     const raw = newName.trim();
@@ -245,39 +145,25 @@ export function VaultPanel() {
     const name = /\.[a-z0-9]+$/i.test(raw) ? raw : `${raw}.md`;
     const bridge = getBridge();
     if (!bridge) return;
-    await flushSave();
+    cancelTimer();
+    await controller.flush();
     await bridge.writeVaultDoc({ path: name, content: "" }).catch(() => {});
     setNewName("");
     refreshList();
-    void openFile(name);
-  }, [newName, flushSave, refreshList, openFile]);
+    openFile(name);
+  }, [newName, cancelTimer, controller, refreshList, openFile]);
 
-  const handleDelete = useCallback(async () => {
-    const path = selectedRef.current;
-    if (!path) return;
-    const bridge = getBridge();
-    if (!bridge) return;
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
-    // Drop the dirty flag (so no new save starts) and let any in-flight write
-    // finish before deleting, or it could recreate the file we just removed.
-    dirtyRef.current = false;
-    setDirty(false);
-    if (savingRef.current) await savingRef.current.catch(() => {});
-    // Invalidate any in-flight read for this path before clearing.
-    readSeq.current++;
-    await bridge.deleteVaultEntry({ path }).catch(() => {});
-    clearSelection();
-    refreshList();
-  }, [refreshList, clearSelection]);
+  const handleDelete = useCallback(() => {
+    cancelTimer();
+    void controller.remove().then(refreshList);
+  }, [cancelTimer, controller, refreshList]);
 
+  const selected = editor.path;
   const folderName =
-    root
+    editor.root
       .replace(/[/\\]+$/, "")
       .split(/[/\\]/)
-      .pop() ?? root;
+      .pop() ?? editor.root;
   const visible = filter
     ? entries.filter((e) => e.path.toLowerCase().includes(filter.toLowerCase()))
     : entries;
@@ -288,7 +174,7 @@ export function VaultPanel() {
         <button
           type="button"
           onClick={() => void handleChangeFolder()}
-          title={root}
+          title={editor.root}
           className="flex min-w-0 items-center gap-1.5 text-muted-foreground hover:text-foreground"
         >
           <FolderIcon className="size-3.5 shrink-0" />
@@ -343,7 +229,7 @@ export function VaultPanel() {
                 <button
                   key={entry.path}
                   type="button"
-                  onClick={() => void openFile(entry.path)}
+                  onClick={() => openFile(entry.path)}
                   className={cn(
                     "flex w-full items-center gap-1.5 rounded px-2 py-1 text-left text-[11px]",
                     selected === entry.path
@@ -394,12 +280,12 @@ export function VaultPanel() {
                     </div>
                   )}
                   <span className="text-[10px] text-muted-foreground">
-                    {dirty ? "Saving…" : "Saved"}
+                    {editor.dirty || editor.saving ? "Saving…" : "Saved"}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => void handleDelete()}
+                    onClick={handleDelete}
                     className="h-auto px-1.5 py-0.5 text-muted-foreground hover:text-destructive"
                     title="Delete file"
                   >
@@ -411,18 +297,18 @@ export function VaultPanel() {
                 <div className="min-h-0 flex-1 overflow-auto">
                   <MarkdownEditor
                     key={selected}
-                    value={content}
+                    value={editor.content}
                     onChange={(md) => {
                       // Plate normalizes on mount; only mark dirty on a real change
                       // so opening a file in rich mode doesn't trigger a rewrite.
-                      if (md !== contentRef.current) handleEdit(md);
+                      if (md !== controller.getState().content) onEdit(md);
                     }}
                   />
                 </div>
               ) : (
                 <textarea
-                  value={content}
-                  onChange={(e) => handleEdit(e.target.value)}
+                  value={editor.content}
+                  onChange={(e) => onEdit(e.target.value)}
                   spellCheck={false}
                   className="min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-[11px] leading-relaxed text-foreground outline-none"
                   placeholder="Empty file"
