@@ -6,7 +6,10 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { MarkdownEditor } from "@/renderer/shell/builtin/markdown-editor";
 import type { VaultEntry } from "@/shared/ipc-registry";
+
+const MARKDOWN_RE = /\.(md|markdown|mdx)$/i;
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
@@ -25,6 +28,9 @@ export function VaultPanel() {
   const [content, setContent] = useState("");
   const [dirty, setDirty] = useState(false);
   const [newName, setNewName] = useState("");
+  // Rich (Plate) vs raw textarea. Defaults to raw — the rich editor round-trips
+  // markdown (normalizing it), so it's always an explicit opt-in.
+  const [mode, setMode] = useState<"raw" | "rich">("raw");
 
   // Save coordination: the path/content we last persisted, plus the debounce
   // timer, so switching files or an external change never clobbers live edits.
@@ -312,6 +318,26 @@ export function VaultPanel() {
               <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-1.5">
                 <span className="truncate text-[11px] text-foreground">{selected}</span>
                 <span className="flex items-center gap-2">
+                  {MARKDOWN_RE.test(selected) && (
+                    <div className="flex items-center rounded border border-border text-[10px]">
+                      {(["raw", "rich"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setMode(m)}
+                          aria-pressed={mode === m}
+                          className={cn(
+                            "px-1.5 py-0.5 capitalize",
+                            mode === m
+                              ? "bg-foreground/15 text-foreground"
+                              : "text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <span className="text-[10px] text-muted-foreground">
                     {dirty ? "Saving…" : "Saved"}
                   </span>
@@ -326,13 +352,27 @@ export function VaultPanel() {
                   </Button>
                 </span>
               </div>
-              <textarea
-                value={content}
-                onChange={(e) => handleEdit(e.target.value)}
-                spellCheck={false}
-                className="min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-[11px] leading-relaxed text-foreground outline-none"
-                placeholder="Empty file"
-              />
+              {mode === "rich" && MARKDOWN_RE.test(selected) ? (
+                <div className="min-h-0 flex-1 overflow-auto">
+                  <MarkdownEditor
+                    key={selected}
+                    value={content}
+                    onChange={(md) => {
+                      // Plate normalizes on mount; only mark dirty on a real change
+                      // so opening a file in rich mode doesn't trigger a rewrite.
+                      if (md !== contentRef.current) handleEdit(md);
+                    }}
+                  />
+                </div>
+              ) : (
+                <textarea
+                  value={content}
+                  onChange={(e) => handleEdit(e.target.value)}
+                  spellCheck={false}
+                  className="min-h-0 flex-1 resize-none bg-transparent p-3 font-mono text-[11px] leading-relaxed text-foreground outline-none"
+                  placeholder="Empty file"
+                />
+              )}
             </>
           )}
         </div>
