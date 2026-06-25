@@ -181,11 +181,6 @@ export function planSync(
   const unlinkedRemoteByTitle = new Map<string, GoogleTask[]>();
   for (const task of remote) {
     if (linkedRemoteIds.has(task.id)) continue;
-    // Only dedup against ACTIVE remotes. A same-titled *completed* task is
-    // almost certainly a historical item, not the user's open todo — adopting
-    // it would silently complete an active local (or reopen the remote). It's
-    // imported normally as a done todo by the import loop instead.
-    if (task.status === "completed") continue;
     const key = normalizeTitle(task.title);
     const bucket = unlinkedRemoteByTitle.get(key);
     if (bucket) bucket.push(task);
@@ -194,11 +189,17 @@ export function planSync(
 
   for (const todo of local) {
     if (todo.googleTaskId === null) {
-      // Try to adopt an existing remote with the same title before creating a
-      // duplicate. Last-write-wins decides whose content survives.
+      // Try to adopt an existing remote with the same title AND the same
+      // done-state before creating a duplicate. Matching the state matters:
+      // adopting a *completed* remote for an *active* local (or vice versa)
+      // would silently flip one side's status, so we only dedup like-for-like.
+      // A completed↔completed match still collapses (no duplicate history),
+      // while an active local + completed remote of the same title stay
+      // distinct — the completed remote imports normally as a done todo.
+      // Last-write-wins then decides whose content survives.
       const candidate = unlinkedRemoteByTitle
         .get(normalizeTitle(todo.title))
-        ?.find((c) => !matched.has(c.id));
+        ?.find((c) => !matched.has(c.id) && (c.status === "completed") === todo.done);
       if (candidate) {
         matched.add(candidate.id);
         if (todo.updatedAt > (Date.parse(candidate.updated) || 0)) {

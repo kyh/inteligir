@@ -178,6 +178,42 @@ describe("planSync", () => {
     expect(plan.localUpdates).toEqual([]);
   });
 
+  it("first-sync dedup: adopts a completed remote for a completed same-title local", () => {
+    // Both sides already done the same work: they must collapse to one linked
+    // pair, not duplicate as a fresh remote task + a fresh imported todo.
+    const local = todo({ id: "l", title: "Buy milk", done: true, updatedAt: 1 });
+    const remote = gtask({
+      id: "g1",
+      title: "buy milk",
+      status: "completed",
+      completed: "2999-01-01T00:00:00.000Z",
+      updated: "2999-01-01T00:00:00.000Z",
+    });
+    const plan = planSync([local], [remote], 5000, newId);
+
+    // No duplicate export and no duplicate import — the local adopts g1.
+    expect(plan.remoteCreates).toEqual([]);
+    expect(plan.localImports).toEqual([]);
+    expect(plan.localUpdates).toHaveLength(1);
+    expect(plan.localUpdates[0]?.id).toBe("l");
+    expect(plan.localUpdates[0]?.googleTaskId).toBe("g1");
+    expect(plan.localUpdates[0]?.done).toBe(true);
+  });
+
+  it("does not adopt an active remote for a completed same-title local", () => {
+    // Mirror of the active-local/completed-remote guard: a done local must not
+    // silently reopen by adopting an active remote. They stay distinct.
+    const local = todo({ id: "l", title: "Buy milk", done: true, updatedAt: 1 });
+    const remote = gtask({ id: "g1", title: "buy milk", status: "needsAction" });
+    const plan = planSync([local], [remote], 5000, newId);
+
+    expect(plan.remoteCreates).toEqual([
+      { localId: "l", fields: { title: "Buy milk", notes: "", status: "completed" } },
+    ]);
+    expect(plan.localImports.map((t) => t.done)).toEqual([false]);
+    expect(plan.localUpdates).toEqual([]);
+  });
+
   it("does not steal an id-linked remote for a same-title unlinked local", () => {
     // g1 is already linked to another local; a same-title unlinked local must
     // export a new task, not hijack g1.

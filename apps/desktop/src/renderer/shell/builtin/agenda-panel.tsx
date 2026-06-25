@@ -97,6 +97,9 @@ export function AgendaPanel() {
   // meetings while the next fetch is in flight.
   const [events, setEvents] = useState<AgendaEventItem[]>([]);
   const [calError, setCalError] = useState<string | null>(null);
+  // True when pagination hit the safety cap with pages still remaining — the
+  // shown events are a prefix of the window, not the whole thing.
+  const [truncated, setTruncated] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   // Monotonic request id so a slow refresh can't overwrite a newer one.
@@ -125,8 +128,10 @@ export function AgendaPanel() {
     const timeMax = new Date(start.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
 
     // Page through the window so a busy 14 days isn't silently truncated.
+    // `truncated` flags hitting the page cap with a token still pending — the
+    // events we did fetch are kept (they're useful) but the UI flags the gap.
     const fetchAll = async (): Promise<
-      { ok: true; events: AgendaEventItem[] } | { ok: false; error: string }
+      { ok: true; events: AgendaEventItem[]; truncated: boolean } | { ok: false; error: string }
     > => {
       const all: AgendaEventItem[] = [];
       let pageToken: string | undefined;
@@ -148,15 +153,19 @@ export function AgendaPanel() {
         pageToken = extractNextPageToken(res.data);
         if (!pageToken) break;
       }
-      return { ok: true, events: all };
+      // Loop exhausted MAX_CALENDAR_PAGES but a token remains → partial read.
+      return { ok: true, events: all, truncated: pageToken !== undefined };
     };
 
     // Apply only if still the latest request; keep prior events on failure.
     const applyResult = (
-      res: { ok: true; events: AgendaEventItem[] } | { ok: false; error: string },
+      res:
+        | { ok: true; events: AgendaEventItem[]; truncated: boolean }
+        | { ok: false; error: string },
     ): void => {
       if (res.ok) {
         setEvents(res.events);
+        setTruncated(res.truncated);
         setCalError(null);
       } else {
         setCalError(res.error);
@@ -199,6 +208,12 @@ export function AgendaPanel() {
       {calError !== null && events.length === 0 && (
         <div className="mb-2 rounded-[10px] bg-hover px-2.5 py-2 text-[10px] text-muted-foreground">
           Connect Google Calendar in Extensions to see meetings alongside your to-dos.
+        </div>
+      )}
+
+      {truncated && (
+        <div className="mb-2 rounded-[10px] bg-hover px-2.5 py-2 text-[10px] text-amber-500">
+          Showing part of a very busy calendar — some later events may be hidden.
         </div>
       )}
 

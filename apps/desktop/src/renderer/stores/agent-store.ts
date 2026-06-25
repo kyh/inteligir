@@ -377,18 +377,38 @@ function subscribeAgentEvents(bridge: DesktopBridge, set: SetFn): () => void {
   });
 }
 
+// Lazy, memoized todo-store import. Dynamic so todo-store (and its UI deps like
+// sonner) stay out of agent-store's static graph; memoized + pre-warmed so the
+// logout reset resolves on a microtask rather than a fresh chunk load.
+let todoStoreModule: Promise<typeof import("@/renderer/stores/todo-store")> | null = null;
+const loadTodoStore = (): Promise<typeof import("@/renderer/stores/todo-store")> =>
+  (todoStoreModule ??= import("@/renderer/stores/todo-store"));
+
+// Latest auth phase, updated synchronously on every appState event. The logout
+// reset is async (awaits the dynamic import); by the time it resolves the user
+// may have logged back in. Guarding on this prevents a stale reset() from
+// bumping todo-store's seq/token after the new session's fetch started — which
+// would discard the legitimate result and strand the list empty.
+let latestPhase: string | null = null;
+
 function subscribeAppState(bridge: DesktopBridge, set: SetFn): () => void {
+  // Pre-warm so the common single-logout path resets near-instantly.
+  void loadTodoStore();
   return bridge.onAppState((appState: unknown) => {
     if (!Value.Check(AppStateSchema, appState)) return;
+    latestPhase = appState.phase;
     set({ appState });
 
     if (appState.phase === "logged_out") {
       set({ messages: [], queuedFollowUp: [], queuedSteering: [], setupProgress: null });
       useVoiceStore.getState().reset();
       // Drop the cached todo snapshot so the next user doesn't briefly see the
-      // previous user's items before their fetch resolves. Lazy import keeps
-      // todo-store (and its UI deps) out of agent-store's static graph.
-      void import("@/renderer/stores/todo-store").then((m) => m.useTodoStore.getState().reset());
+      // previous user's items before their fetch resolves — but only if still
+      // logged out when the import resolves (a fast re-login must win).
+      void loadTodoStore().then((m) => {
+        if (latestPhase === "logged_out") m.useTodoStore.getState().reset();
+        return undefined;
+      });
     }
   });
 }
