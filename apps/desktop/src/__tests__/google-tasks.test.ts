@@ -115,4 +115,43 @@ describe("planSync", () => {
     expect(plan.localDeletes).toEqual(["l"]);
     expect(plan.remoteCreates).toEqual([]);
   });
+
+  it("first-sync dedup: links an unlinked local to a same-title remote instead of duplicating", () => {
+    // Same work on both sides, neither linked: must adopt, not duplicate.
+    // Match is case/whitespace-insensitive; adopted content keeps remote's text.
+    const local = todo({ id: "l", title: "Buy Milk", updatedAt: 1 });
+    const remote = gtask({ id: "g1", title: "buy milk", updated: "2999-01-01T00:00:00.000Z" });
+    const plan = planSync([local], [remote], 5000, newId);
+
+    expect(plan.remoteCreates).toEqual([]); // not re-exported
+    expect(plan.localImports).toEqual([]); // not re-imported
+    // Remote is newer here, so local adopts remote content + the link.
+    expect(plan.localUpdates[0]).toMatchObject({ id: "l", title: "buy milk", googleTaskId: "g1" });
+  });
+
+  it("first-sync dedup: local-newer pushes content to the adopted remote and links it", () => {
+    const local = todo({ id: "l", title: "Ship it", updatedAt: 9_999_999_999_999 });
+    const remote = gtask({ id: "g1", title: "ship it", updated: "2026-06-22T00:00:00.000Z" });
+    const plan = planSync([local], [remote], 5000, newId);
+
+    expect(plan.remoteUpdates).toEqual([
+      { googleTaskId: "g1", fields: { title: "Ship it", notes: "", status: "needsAction" } },
+    ]);
+    expect(plan.localUpdates[0]).toMatchObject({ id: "l", googleTaskId: "g1" });
+    expect(plan.remoteCreates).toEqual([]);
+    expect(plan.localImports).toEqual([]);
+  });
+
+  it("does not steal an id-linked remote for a same-title unlinked local", () => {
+    // g1 is already linked to another local; a same-title unlinked local must
+    // export a new task, not hijack g1.
+    const linked = todo({ id: "a", title: "Report", googleTaskId: "g1", updatedAt: 1 });
+    const unlinked = todo({ id: "b", title: "Report", updatedAt: 1 });
+    const remote = gtask({ id: "g1", title: "Report", updated: "2999-01-01T00:00:00.000Z" });
+    const plan = planSync([linked, unlinked], [remote], 5000, newId);
+
+    expect(plan.remoteCreates).toEqual([
+      { localId: "b", fields: { title: "Report", notes: "", status: "needsAction" } },
+    ]);
+  });
 });

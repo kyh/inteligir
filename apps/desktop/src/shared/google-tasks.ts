@@ -148,6 +148,12 @@ function applyRemote(task: GoogleTask, base: Pick<Todo, "id" | "priority" | "cre
 
 const DEFAULT_PRIORITY: TodoPriority = "medium";
 
+/** Loose match key for first-sync dedup — trims and lowercases so "Buy milk"
+ * and "buy milk " adopt each other instead of duplicating. */
+function normalizeTitle(title: string): string {
+  return title.trim().toLowerCase();
+}
+
 export function planSync(
   local: Todo[],
   remote: GoogleTask[],
@@ -164,9 +170,43 @@ export function planSync(
   const remoteById = new Map(remote.map((t) => [t.id, t]));
   const matched = new Set<string>();
 
+  // First-contact dedup index: unlinked remote tasks keyed by normalized title.
+  // Without this, a user who already has Google Tasks AND local todos for the
+  // same work would, on the first sync, export every local as a new remote and
+  // import every remote as a new local — doubling everything. We instead adopt
+  // an existing remote with a matching title rather than creating a duplicate.
+  const linkedRemoteIds = new Set(
+    local.map((t) => t.googleTaskId).filter((id): id is string => id !== null),
+  );
+  const unlinkedRemoteByTitle = new Map<string, GoogleTask[]>();
+  for (const task of remote) {
+    if (linkedRemoteIds.has(task.id)) continue;
+    const key = normalizeTitle(task.title);
+    const bucket = unlinkedRemoteByTitle.get(key);
+    if (bucket) bucket.push(task);
+    else unlinkedRemoteByTitle.set(key, [task]);
+  }
+
   for (const todo of local) {
     if (todo.googleTaskId === null) {
-      // Never exported — create it remotely; the service links it afterward.
+      // Try to adopt an existing remote with the same title before creating a
+      // duplicate. Last-write-wins decides whose content survives.
+      const candidate = unlinkedRemoteByTitle
+        .get(normalizeTitle(todo.title))
+        ?.find((c) => !matched.has(c.id));
+      if (candidate) {
+        matched.add(candidate.id);
+        if (todo.updatedAt > (Date.parse(candidate.updated) || 0)) {
+          // Local newer: push local content to the adopted remote, link locally.
+          plan.remoteUpdates.push({ googleTaskId: candidate.id, fields: todoToWriteFields(todo) });
+          plan.localUpdates.push({ ...todo, googleTaskId: candidate.id });
+        } else {
+          // Remote newer-or-equal: take remote content, keep the local id.
+          plan.localUpdates.push(applyRemote(candidate, todo));
+        }
+        continue;
+      }
+      // Never exported and no match — create it remotely; the service links it.
       plan.remoteCreates.push({ localId: todo.id, fields: todoToWriteFields(todo) });
       continue;
     }
