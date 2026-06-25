@@ -35,6 +35,9 @@ const errorMessage = (err: unknown): string =>
 // listTodos can't clobber a fresher push/mutation. Module-level because the
 // zustand store is a singleton.
 let snapshotSeq = 0;
+// Separate fetch-ordering token so a superseded fetch's loading/error/result
+// can't overwrite a newer fetch's state.
+let fetchToken = 0;
 
 export const useTodoStore = create<TodoStore>((set, get) => ({
   todos: [],
@@ -46,28 +49,37 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   init: () => {
     const bridge = getBridge();
     if (!bridge) return () => {};
-    get().fetchTodos();
-    // Each event carries the full snapshot; bumping the sequence invalidates
-    // any fetch still in flight so it can't overwrite this newer state.
-    return bridge.onTodosUpdated(({ todos }) => {
+    // Subscribe BEFORE the initial fetch so a mutation landing in the window
+    // between them isn't missed. Each event carries the full snapshot; bumping
+    // the sequence invalidates any fetch still in flight so it can't overwrite
+    // this newer state.
+    const unsubscribe = bridge.onTodosUpdated(({ todos }) => {
       snapshotSeq++;
       set({ todos });
     });
+    get().fetchTodos();
+    return unsubscribe;
   },
 
   fetchTodos: () => {
     const bridge = getBridge();
     if (!bridge) return;
     const seq = snapshotSeq;
+    const token = ++fetchToken;
     set({ loading: true, error: null });
     void bridge
       .listTodos()
-      // Drop the result if a push or mutation superseded this fetch.
-      .then((result) => (seq === snapshotSeq ? set({ todos: result.todos }) : undefined))
+      // Apply only if this is still the latest fetch AND no push/mutation
+      // superseded it.
+      .then((result) =>
+        token === fetchToken && seq === snapshotSeq ? set({ todos: result.todos }) : undefined,
+      )
       .catch((err: unknown) => {
-        set({ error: `Couldn't load to-dos: ${errorMessage(err)}` });
+        if (token === fetchToken) set({ error: `Couldn't load to-dos: ${errorMessage(err)}` });
       })
-      .finally(() => set({ loading: false }));
+      .finally(() => {
+        if (token === fetchToken) set({ loading: false });
+      });
   },
 
   createTodo: async (params) => {

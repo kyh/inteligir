@@ -277,6 +277,14 @@ export class TodoManager {
     this.notifyTodosChanged();
   }
 
+  /** Permanently disable writes on both stores. Called before the singleton is
+   * dropped so an in-flight sync (or any stale reference) can't write todos
+   * after logout teardown and resurrect ~/.inteligir. */
+  close(): void {
+    this.todos.close();
+    this.tombstones.close();
+  }
+
   /** Push the fresh snapshot to whoever registered (renderer broadcast). */
   private notifyTodosChanged(): void {
     try {
@@ -301,5 +309,6 @@ export function getTodoManager(): TodoManager {
 /** Reset the cached TodoManager. Called from teardownResources() so the next
  * read goes back to disk after AGENT_DIR is wiped. */
 export function resetTodoManager(): void {
+  instance?.close();
   instance = null;
 }

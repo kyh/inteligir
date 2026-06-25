@@ -45,16 +45,21 @@ function CreateTodoForm({ onDone }: { onDone: () => void }) {
   const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = useCallback(async () => {
-    if (!title.trim()) return;
+    // Guard `submitting` so the Enter-key path can't fire a second create while
+    // one is already in flight (the button is disabled, but Enter bypasses it).
+    if (submitting || !title.trim()) return;
     setSubmitting(true);
-    const ok = await createTodo({
-      title: title.trim(),
-      priority,
-      dueAt: dateInputToEpoch(due),
-    });
-    setSubmitting(false);
-    if (ok) onDone();
-  }, [title, priority, due, createTodo, onDone]);
+    try {
+      const ok = await createTodo({
+        title: title.trim(),
+        priority,
+        dueAt: dateInputToEpoch(due),
+      });
+      if (ok) onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }, [submitting, title, priority, due, createTodo, onDone]);
 
   return (
     <div className="flex flex-col gap-3 border-t border-border pt-3">

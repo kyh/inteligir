@@ -71,9 +71,13 @@ async function listAllRemoteTasks(): Promise<GoogleTask[]> {
     });
     all.push(...parseGoogleTasks(extractItems(data)));
     pageToken = extractNextPageToken(data);
-    if (!pageToken) break;
+    if (!pageToken) return all;
   }
-  return all;
+  // Hit the cap with more pages remaining — abort rather than return a
+  // truncated list, which planSync would misread as mass remote deletions.
+  throw new Error(
+    `Google Tasks list exceeded ${MAX_PAGES} pages; aborting sync to avoid data loss`,
+  );
 }
 
 // Single-flight guard: a sync reads the whole todo snapshot, talks to Google,
@@ -85,9 +89,13 @@ let inFlight: Promise<TodoSyncResult> | null = null;
 
 export function syncTodosWithGoogle(): Promise<TodoSyncResult> {
   if (inFlight) return inFlight;
-  inFlight = runSync().finally(() => {
-    inFlight = null;
-  });
+  // Catch here so an unexpected throw (e.g. a store write failure in applySync)
+  // still honors the { ok, error } contract instead of rejecting the IPC.
+  inFlight = runSync()
+    .catch((err: unknown): TodoSyncResult => ({ ok: false, error: toErrorMessage(err) }))
+    .finally(() => {
+      inFlight = null;
+    });
   return inFlight;
 }
 

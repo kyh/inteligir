@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@repo/ui/lib/utils";
 
@@ -87,12 +87,18 @@ export function AgendaPanel() {
   const todos = useTodoStore((s) => s.todos);
   const initTodos = useTodoStore((s) => s.init);
   const [cal, setCal] = useState<CalState>({ status: "loading" });
+  // Monotonic request id so a slow refresh can't overwrite a newer one.
+  const reqRef = useRef(0);
 
   useEffect(() => initTodos(), [initTodos]);
 
   const loadCalendar = useCallback(() => {
     const bridge = getBridge();
-    if (!bridge) return;
+    if (!bridge) {
+      setCal({ status: "error", message: "Calendar bridge unavailable" });
+      return;
+    }
+    const req = ++reqRef.current;
     setCal({ status: "loading" });
     const now = new Date();
     const timeMax = new Date(now.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
@@ -109,14 +115,21 @@ export function AgendaPanel() {
         },
       })
       .then((res) =>
-        setCal(
-          res.ok
-            ? { status: "ready", events: parseCalendarEvents(extractItems(res.data)) }
-            : { status: "error", message: res.error },
-        ),
+        req !== reqRef.current
+          ? undefined
+          : setCal(
+              res.ok
+                ? { status: "ready", events: parseCalendarEvents(extractItems(res.data)) }
+                : { status: "error", message: res.error },
+            ),
       )
       .catch((err: unknown) => {
-        setCal({ status: "error", message: err instanceof Error ? err.message : "Unknown error" });
+        if (req === reqRef.current) {
+          setCal({
+            status: "error",
+            message: err instanceof Error ? err.message : "Unknown error",
+          });
+        }
       });
   }, []);
 

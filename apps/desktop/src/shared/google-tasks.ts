@@ -135,7 +135,9 @@ function applyRemote(task: GoogleTask, base: Pick<Todo, "id" | "priority" | "cre
     dueAt: dueToEpoch(task.due),
     createdAt: base.createdAt,
     updatedAt: Date.parse(task.updated) || Date.now(),
-    completedAt: done ? (task.completed ? Date.parse(task.completed) : Date.now()) : null,
+    // `|| Date.now()` also catches a malformed `completed` string (Date.parse →
+    // NaN, which is falsy) so completedAt is always a valid epoch.
+    completedAt: done ? Date.parse(task.completed ?? "") || Date.now() : null,
     googleTaskId: task.id,
   };
 }
