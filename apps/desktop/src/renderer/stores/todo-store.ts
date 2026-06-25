@@ -39,6 +39,12 @@ let snapshotSeq = 0;
 // can't overwrite a newer fetch's state.
 let fetchToken = 0;
 
+// One shared push subscription, ref-counted across mounts. Both seeded
+// dashboard panels (Agenda + To-Do) call init(); without this each would open
+// its own onTodosUpdated listener and run its own initial fetch.
+let subscriberCount = 0;
+let sharedUnsubscribe: (() => void) | null = null;
+
 export const useTodoStore = create<TodoStore>((set, get) => ({
   todos: [],
   loading: false,
@@ -49,16 +55,26 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   init: () => {
     const bridge = getBridge();
     if (!bridge) return () => {};
-    // Subscribe BEFORE the initial fetch so a mutation landing in the window
-    // between them isn't missed. Each event carries the full snapshot; bumping
-    // the sequence invalidates any fetch still in flight so it can't overwrite
-    // this newer state.
-    const unsubscribe = bridge.onTodosUpdated(({ todos }) => {
-      snapshotSeq++;
-      set({ todos });
-    });
-    get().fetchTodos();
-    return unsubscribe;
+    // Only the first mounter opens the listener and runs the initial fetch;
+    // later mounters share it. Subscribe BEFORE the fetch so a mutation landing
+    // in the window between them isn't missed. Each event carries the full
+    // snapshot; bumping the sequence invalidates any fetch still in flight so
+    // it can't overwrite this newer state.
+    subscriberCount++;
+    if (subscriberCount === 1) {
+      sharedUnsubscribe = bridge.onTodosUpdated(({ todos }) => {
+        snapshotSeq++;
+        set({ todos });
+      });
+      get().fetchTodos();
+    }
+    return () => {
+      subscriberCount--;
+      if (subscriberCount === 0) {
+        sharedUnsubscribe?.();
+        sharedUnsubscribe = null;
+      }
+    };
   },
 
   fetchTodos: () => {

@@ -160,9 +160,13 @@ export function TodoPanel() {
         </div>
       </div>
 
+      {/* Show the actual failure (network, quota, API error, …) rather than
+          assuming it's always a missing connection; nudge toward Extensions
+          since not-connected is the most common first-run cause. */}
       {lastSync && !lastSync.ok && (
         <div className="mb-2 rounded-[10px] bg-hover px-2.5 py-2 text-[10px] text-muted-foreground">
-          Connect Google Tasks in Extensions to sync your list.
+          Couldn&apos;t sync: {lastSync.error}. If Google Tasks isn&apos;t connected yet, add it in
+          Extensions.
         </div>
       )}
 
