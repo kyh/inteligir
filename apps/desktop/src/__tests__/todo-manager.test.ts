@@ -313,6 +313,38 @@ describe("TodoManager change notifications (push channel)", () => {
     expect(snapshots).toHaveLength(3);
   });
 
+  it("does not broadcast after close (no leaking todos across logout)", () => {
+    const snapshots: Todo[][] = [];
+    setTodosChangedNotifier((todos) => snapshots.push(todos));
+    const mgr = createManager();
+    mgr.createTodo({ title: "secret" });
+    expect(snapshots).toHaveLength(1);
+
+    mgr.close();
+    // An in-flight sync holding the closed instance would still call applySync.
+    mgr.applySync([], [], []);
+    mgr.applySync(
+      [
+        {
+          id: "leak",
+          title: "leak",
+          notes: "",
+          done: false,
+          priority: "medium",
+          dueAt: null,
+          createdAt: 1,
+          updatedAt: 1,
+          completedAt: null,
+          googleTaskId: null,
+        },
+      ],
+      [],
+      [],
+    );
+    // No further broadcasts — the renderer cleared state on logout.
+    expect(snapshots).toHaveLength(1);
+  });
+
   it("a throwing notifier does not break the mutation", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     try {

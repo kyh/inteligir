@@ -75,6 +75,12 @@ export type TodoManagerOptions = {
 export class TodoManager {
   private readonly todos: JsonStore<Todo[]>;
   private readonly tombstones: JsonStore<TodoTombstone[]>;
+  // One-way kill switch, mirroring JsonStore.close(). After teardown the
+  // underlying stores ignore writes, but an in-flight sync still holds this
+  // instance and would otherwise call notifyTodosChanged() — broadcasting the
+  // prior user's cached todos over onTodosUpdated after the renderer cleared
+  // its state on logout. Suppress every post-close notification.
+  private closed = false;
 
   constructor(opts?: TodoManagerOptions) {
     this.todos = new JsonStore<Todo[]>(
@@ -281,12 +287,16 @@ export class TodoManager {
    * dropped so an in-flight sync (or any stale reference) can't write todos
    * after logout teardown and resurrect ~/.inteligir. */
   close(): void {
+    this.closed = true;
     this.todos.close();
     this.tombstones.close();
   }
 
   /** Push the fresh snapshot to whoever registered (renderer broadcast). */
   private notifyTodosChanged(): void {
+    // Never broadcast after teardown — a late sync write would otherwise leak
+    // the prior user's todos to the next session's renderer.
+    if (this.closed) return;
     try {
       todosChangedNotifier?.(this.getTodos());
     } catch (err) {
