@@ -26,6 +26,10 @@ const DOT_BY_PRIORITY: Record<TodoPriority, string> = {
 // same address the old Up Next seed widget used.
 const CALENDAR_TOOL = "google_calendar.user.default.calendar.events.list";
 const LOOKAHEAD_DAYS = 14;
+const CALENDAR_PAGE_SIZE = 250;
+// Safety cap on pagination (250 × 20 = 5000 events in a 14-day window is far
+// beyond any realistic calendar) so a misbehaving token can't loop forever.
+const MAX_CALENDAR_PAGES = 20;
 // Re-derive day labels / overdue bucket on a coarse tick so they don't go
 // stale across midnight (or as a due item crosses into overdue) while idle.
 const CLOCK_TICK_MS = 60_000;
@@ -35,6 +39,11 @@ function extractItems(data: unknown): unknown {
   if (Array.isArray(data)) return data;
   if (isRecord(data) && "items" in data) return data["items"];
   return [];
+}
+
+function extractNextPageToken(data: unknown): string | undefined {
+  if (isRecord(data) && typeof data["nextPageToken"] === "string") return data["nextPageToken"];
+  return undefined;
 }
 
 // ---------------------------------------------------------------------------
@@ -114,30 +123,49 @@ export function AgendaPanel() {
     const start = new Date();
     start.setHours(0, 0, 0, 0);
     const timeMax = new Date(start.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
-    // Apply a settled response only if it's still the latest request. Keep the
-    // previously-loaded events on failure rather than dropping them.
-    const apply = (res: { ok: true; data: unknown } | { ok: false; error: string }): void => {
+
+    // Page through the window so a busy 14 days isn't silently truncated.
+    const fetchAll = async (): Promise<
+      { ok: true; events: AgendaEventItem[] } | { ok: false; error: string }
+    > => {
+      const all: AgendaEventItem[] = [];
+      let pageToken: string | undefined;
+      for (let page = 0; page < MAX_CALENDAR_PAGES; page++) {
+        const res = await bridge.widgetCallTool({
+          tool: CALENDAR_TOOL,
+          input: {
+            calendarId: "primary",
+            timeMin: start.toISOString(),
+            timeMax: timeMax.toISOString(),
+            singleEvents: true,
+            orderBy: "startTime",
+            maxResults: CALENDAR_PAGE_SIZE,
+            ...(pageToken ? { pageToken } : {}),
+          },
+        });
+        if (!res.ok) return res;
+        all.push(...parseCalendarEvents(extractItems(res.data)));
+        pageToken = extractNextPageToken(res.data);
+        if (!pageToken) break;
+      }
+      return { ok: true, events: all };
+    };
+
+    // Apply only if still the latest request; keep prior events on failure.
+    const applyResult = (
+      res: { ok: true; events: AgendaEventItem[] } | { ok: false; error: string },
+    ): void => {
       if (res.ok) {
-        setEvents(parseCalendarEvents(extractItems(res.data)));
+        setEvents(res.events);
         setCalError(null);
       } else {
         setCalError(res.error);
       }
       setLoaded(true);
     };
-    void bridge
-      .widgetCallTool({
-        tool: CALENDAR_TOOL,
-        input: {
-          calendarId: "primary",
-          timeMin: start.toISOString(),
-          timeMax: timeMax.toISOString(),
-          singleEvents: true,
-          orderBy: "startTime",
-          maxResults: 50,
-        },
-      })
-      .then((res) => (req === reqRef.current ? apply(res) : undefined))
+
+    void fetchAll()
+      .then((res) => (req === reqRef.current ? applyResult(res) : undefined))
       .catch((err: unknown) => {
         if (req === reqRef.current) {
           setCalError(err instanceof Error ? err.message : "Unknown error");

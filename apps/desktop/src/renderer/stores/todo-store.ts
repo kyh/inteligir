@@ -1,4 +1,4 @@
-import { create } from "zustand";
+import { create, type StoreApi } from "zustand";
 import { toast } from "@repo/ui/components/sonner";
 
 import type { CreateTodoParams, Todo, TodoSyncResult, UpdateTodoParams } from "@/shared/todo";
@@ -123,16 +123,15 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   updateTodo: async (params) => {
     const bridge = getBridge();
     if (!bridge) return;
-    snapshotSeq++;
+    const before = get().todos;
+    const seq = ++snapshotSeq;
     set((s) => ({
       todos: s.todos.map((t) => (t.id === params.id ? { ...t, ...stripId(params) } : t)),
     }));
     try {
       await bridge.updateTodo(params);
     } catch (err) {
-      // Reconcile from the authoritative main store rather than restoring a
-      // captured snapshot, which would discard any push that landed mid-request.
-      get().fetchTodos();
+      recoverFromFailedMutation(set, get, before, seq);
       toast.error(`Couldn't update to-do: ${errorMessage(err)}`);
     }
   },
@@ -140,14 +139,15 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   toggleTodo: async (id) => {
     const bridge = getBridge();
     if (!bridge) return;
-    snapshotSeq++;
+    const before = get().todos;
+    const seq = ++snapshotSeq;
     set((s) => ({
       todos: s.todos.map((t) => (t.id === id ? { ...t, done: !t.done } : t)),
     }));
     try {
       await bridge.toggleTodo(id);
     } catch (err) {
-      get().fetchTodos();
+      recoverFromFailedMutation(set, get, before, seq);
       toast.error(`Couldn't toggle to-do: ${errorMessage(err)}`);
     }
   },
@@ -155,12 +155,13 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   deleteTodo: async (id) => {
     const bridge = getBridge();
     if (!bridge) return;
-    snapshotSeq++;
+    const before = get().todos;
+    const seq = ++snapshotSeq;
     set((s) => ({ todos: s.todos.filter((t) => t.id !== id) }));
     try {
       await bridge.deleteTodo(id);
     } catch (err) {
-      get().fetchTodos();
+      recoverFromFailedMutation(set, get, before, seq);
       toast.error(`Couldn't delete to-do: ${errorMessage(err)}`);
     }
   },
@@ -168,12 +169,13 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
   clearCompleted: async () => {
     const bridge = getBridge();
     if (!bridge) return;
-    snapshotSeq++;
+    const before = get().todos;
+    const seq = ++snapshotSeq;
     set((s) => ({ todos: s.todos.filter((t) => !t.done) }));
     try {
       await bridge.clearCompletedTodos();
     } catch (err) {
-      get().fetchTodos();
+      recoverFromFailedMutation(set, get, before, seq);
       toast.error(`Couldn't clear completed: ${errorMessage(err)}`);
     }
   },
@@ -205,6 +207,21 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     set({ todos: [], loading: false, error: null, syncing: false, lastSync: null });
   },
 }));
+
+// Recover after a failed optimistic mutation. If no newer snapshot landed since
+// the optimistic change (snapshotSeq unchanged), roll back to the exact prior
+// list — correct and immediate. If a push superseded it (seq advanced), that
+// newer state is authoritative, so reconcile via fetch instead of clobbering it
+// with a stale rollback. Either way the UI never stays stuck on a failed edit.
+function recoverFromFailedMutation(
+  set: StoreApi<TodoStore>["setState"],
+  get: StoreApi<TodoStore>["getState"],
+  before: Todo[],
+  seq: number,
+): void {
+  if (snapshotSeq === seq) set({ todos: before });
+  else get().fetchTodos();
+}
 
 // Drop the `id` from a patch before merging it into the optimistic copy — the
 // id already matched, and spreading it back is a no-op we'd rather not imply.
