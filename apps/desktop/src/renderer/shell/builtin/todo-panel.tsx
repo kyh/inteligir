@@ -126,6 +126,7 @@ export function TodoPanel() {
   const syncTodos = useTodoStore((s) => s.syncTodos);
   const syncing = useTodoStore((s) => s.syncing);
   const lastSync = useTodoStore((s) => s.lastSync);
+  const loadError = useTodoStore((s) => s.error);
   const [creating, setCreating] = useState(false);
 
   // init fetches the snapshot and subscribes to onTodosUpdated, so items the
@@ -170,7 +171,12 @@ export function TodoPanel() {
         </div>
       )}
 
-      {sorted.length === 0 && !creating && (
+      {/* A failed load must not masquerade as an empty list. */}
+      {loadError !== null && sorted.length === 0 && (
+        <div className="py-4 text-center text-[10px] text-destructive-foreground">{loadError}</div>
+      )}
+
+      {loadError === null && sorted.length === 0 && !creating && (
         <div className="py-4 text-center text-[10px] text-muted-foreground">Nothing to do yet</div>
       )}
 
