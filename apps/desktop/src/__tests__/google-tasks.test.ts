@@ -157,6 +157,27 @@ describe("planSync", () => {
     expect(plan.localImports).toEqual([]);
   });
 
+  it("does not adopt a completed remote for an active same-title local", () => {
+    // The completed remote is history, not the user's open todo. The active
+    // local must export a fresh task, not silently become done.
+    const local = todo({ id: "l", title: "Buy milk", done: false, updatedAt: 1 });
+    const remote = gtask({
+      id: "g1",
+      title: "buy milk",
+      status: "completed",
+      completed: "2999-01-01T00:00:00.000Z",
+      updated: "2999-01-01T00:00:00.000Z",
+    });
+    const plan = planSync([local], [remote], 5000, newId);
+
+    expect(plan.remoteCreates).toEqual([
+      { localId: "l", fields: { title: "Buy milk", notes: "", status: "needsAction" } },
+    ]);
+    // The completed remote is imported as a separate done todo.
+    expect(plan.localImports.map((t) => t.done)).toEqual([true]);
+    expect(plan.localUpdates).toEqual([]);
+  });
+
   it("does not steal an id-linked remote for a same-title unlinked local", () => {
     // g1 is already linked to another local; a same-title unlinked local must
     // export a new task, not hijack g1.

@@ -181,6 +181,11 @@ export function planSync(
   const unlinkedRemoteByTitle = new Map<string, GoogleTask[]>();
   for (const task of remote) {
     if (linkedRemoteIds.has(task.id)) continue;
+    // Only dedup against ACTIVE remotes. A same-titled *completed* task is
+    // almost certainly a historical item, not the user's open todo — adopting
+    // it would silently complete an active local (or reopen the remote). It's
+    // imported normally as a done todo by the import loop instead.
+    if (task.status === "completed") continue;
     const key = normalizeTitle(task.title);
     const bucket = unlinkedRemoteByTitle.get(key);
     if (bucket) bucket.push(task);

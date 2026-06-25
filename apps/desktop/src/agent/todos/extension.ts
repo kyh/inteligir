@@ -10,7 +10,7 @@
 
 import { Type, type Static } from "@sinclair/typebox";
 
-import { TodoPrioritySchema, formatDue } from "@/shared/todo";
+import { TodoPrioritySchema, formatDue, sortTodos } from "@/shared/todo";
 import { toErrorMessage } from "@/shared/ipc";
 import type { PiExtensionBundle, TodosPort } from "@/agent/extension";
 import { textResult } from "@/agent/extension-helpers";
@@ -141,7 +141,10 @@ const todosExtension: PiExtensionBundle = {
       pi.registerTool(buildManageTodosTool(ports.todos));
 
       pi.on("before_agent_start", (_event, _ctx) => {
-        const open = ports.todos.getTodos().filter((t) => !t.done);
+        // Sort before capping so the most important items (overdue/soonest-due,
+        // then priority) are always in the primed window — getTodos() returns
+        // raw insertion order.
+        const open = sortTodos(ports.todos.getTodos()).filter((t) => !t.done);
         if (open.length === 0) return;
 
         const now = Date.now();
