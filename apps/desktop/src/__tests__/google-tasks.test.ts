@@ -142,6 +142,21 @@ describe("planSync", () => {
     expect(plan.localImports).toEqual([]);
   });
 
+  it("two same-title locals with one remote: one adopts, the other exports (by design)", () => {
+    // Distinct user items that happen to share a title — the extra is exported,
+    // not silently merged (which would lose a todo).
+    const a = todo({ id: "a", title: "Call dentist", updatedAt: 1 });
+    const b = todo({ id: "b", title: "Call dentist", updatedAt: 1 });
+    const remote = gtask({ id: "g1", title: "call dentist", updated: "2999-01-01T00:00:00.000Z" });
+    const plan = planSync([a, b], [remote], 5000, newId);
+
+    // Exactly one local adopts g1; the other is queued for export.
+    const linkedToG1 = plan.localUpdates.filter((t) => t.googleTaskId === "g1");
+    expect(linkedToG1).toHaveLength(1);
+    expect(plan.remoteCreates).toHaveLength(1);
+    expect(plan.localImports).toEqual([]);
+  });
+
   it("does not steal an id-linked remote for a same-title unlinked local", () => {
     // g1 is already linked to another local; a same-title unlinked local must
     // export a new task, not hijack g1.

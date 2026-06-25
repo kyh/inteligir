@@ -206,7 +206,12 @@ export function planSync(
         }
         continue;
       }
-      // Never exported and no match — create it remotely; the service links it.
+      // Never exported and no unclaimed same-title remote — create it. Note a
+      // second local with a title a sibling already claimed lands here on
+      // purpose: two same-title locals are two distinct user items, so each
+      // gets its own remote task (2 local ↔ 2 remote). This is deliberately NOT
+      // a local de-duplicator — collapsing them would silently merge the user's
+      // todos. It converges: next sync both are id-linked, so no further churn.
       plan.remoteCreates.push({ localId: todo.id, fields: todoToWriteFields(todo) });
       continue;
     }
