@@ -144,18 +144,15 @@ async function runSync(): Promise<TodoSyncResult> {
 
   // 4. Push updates to already-linked tasks. Per-task failures are tolerated:
   // the unsynced edit stays "newer" locally, so the next run retries it.
-  // Re-read the live store first: if the user deleted a linked todo while we
-  // were pulling, skip its PATCH — the delete is tombstoned and the next sync
-  // removes the remote task. (Mirrors the orphan re-check the export loop does.)
-  const liveLinkedIds = new Set(
-    mgr
-      .getTodos()
-      .map((t) => t.googleTaskId)
-      .filter((id): id is string => id !== null),
-  );
+  // Re-read tombstones first: if the user deleted a linked todo while we were
+  // pulling, its googleTaskId is freshly tombstoned — skip that PATCH (the next
+  // sync deletes the remote task). We key on tombstones, NOT link-presence, so
+  // a first-sync title-dedup PATCH (whose local row isn't linked until the
+  // applySync below) still goes through.
+  const tombstonedNow = new Set(mgr.getTombstones().map((t) => t.googleTaskId));
   let pushed = 0;
   for (const update of plan.remoteUpdates) {
-    if (!liveLinkedIds.has(update.googleTaskId)) continue;
+    if (tombstonedNow.has(update.googleTaskId)) continue;
     try {
       await widgetCallTool(PATCH_TOOL, {
         tasklist: DEFAULT_LIST,

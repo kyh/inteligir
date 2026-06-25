@@ -109,7 +109,10 @@ export function AgendaPanel() {
       return;
     }
     const req = ++reqRef.current;
+    // Fetch from the start of the local day, not the current instant, so the
+    // "Today" group includes meetings earlier today (not just upcoming ones).
     const start = new Date();
+    start.setHours(0, 0, 0, 0);
     const timeMax = new Date(start.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
     // Apply a settled response only if it's still the latest request. Keep the
     // previously-loaded events on failure rather than dropping them.
