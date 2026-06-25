@@ -385,6 +385,10 @@ function subscribeAppState(bridge: DesktopBridge, set: SetFn): () => void {
     if (appState.phase === "logged_out") {
       set({ messages: [], queuedFollowUp: [], queuedSteering: [], setupProgress: null });
       useVoiceStore.getState().reset();
+      // Drop the cached todo snapshot so the next user doesn't briefly see the
+      // previous user's items before their fetch resolves. Lazy import keeps
+      // todo-store (and its UI deps) out of agent-store's static graph.
+      void import("@/renderer/stores/todo-store").then((m) => m.useTodoStore.getState().reset());
     }
   });
 }

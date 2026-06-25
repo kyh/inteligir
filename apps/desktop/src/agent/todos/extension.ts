@@ -62,7 +62,9 @@ export function buildManageTodosTool(todos: TodosPort) {
 
       switch (p.action) {
         case "list": {
-          const all = todos.getTodos();
+          // Sorted to match the turn-priming order (most important first), so
+          // "list my todos" agrees with what priming emphasized.
+          const all = sortTodos(todos.getTodos());
           if (all.length === 0) return textResult("The to-do list is empty.");
           const lines = all.map((t) => {
             const box = t.done ? "[x]" : "[ ]";

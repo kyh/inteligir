@@ -24,6 +24,9 @@ type TodoStore = {
   deleteTodo: (id: string) => Promise<void>;
   clearCompleted: () => Promise<void>;
   syncTodos: () => Promise<void>;
+  /** Clear the cached snapshot — call on logout so the next user never sees the
+   * previous user's items before their fetch resolves. */
+  reset: () => void;
 };
 
 const errorMessage = (err: unknown): string =>
@@ -64,7 +67,8 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     if (subscriberCount === 1) {
       sharedUnsubscribe = bridge.onTodosUpdated(({ todos }) => {
         snapshotSeq++;
-        set({ todos });
+        // Clear any stale load error — a fresh push means the list is current.
+        set({ todos, error: null });
       });
       get().fetchTodos();
     }
@@ -191,6 +195,14 @@ export const useTodoStore = create<TodoStore>((set, get) => ({
     } finally {
       set({ syncing: false });
     }
+  },
+
+  reset: () => {
+    // Invalidate any in-flight fetch/push so a late response from the prior
+    // session can't repopulate the list.
+    snapshotSeq++;
+    fetchToken++;
+    set({ todos: [], loading: false, error: null, syncing: false, lastSync: null });
   },
 }));
 
