@@ -26,11 +26,9 @@ const DOT_BY_PRIORITY: Record<TodoPriority, string> = {
 // same address the old Up Next seed widget used.
 const CALENDAR_TOOL = "google_calendar.user.default.calendar.events.list";
 const LOOKAHEAD_DAYS = 14;
-
-type CalState =
-  | { status: "loading" }
-  | { status: "ready"; events: AgendaEventItem[] }
-  | { status: "error"; message: string };
+// Re-derive day labels / overdue bucket on a coarse tick so they don't go
+// stale across midnight (or as a due item crosses into overdue) while idle.
+const CLOCK_TICK_MS = 60_000;
 
 function extractItems(data: unknown): unknown {
   // events.list returns { items: [...] }; tolerate a bare array too.
@@ -86,59 +84,68 @@ function ItemRow({ item }: { item: AgendaItem }) {
 export function AgendaPanel() {
   const todos = useTodoStore((s) => s.todos);
   const initTodos = useTodoStore((s) => s.init);
-  const [cal, setCal] = useState<CalState>({ status: "loading" });
+  // Events persist across reloads so a refresh doesn't blank already-shown
+  // meetings while the next fetch is in flight.
+  const [events, setEvents] = useState<AgendaEventItem[]>([]);
+  const [calError, setCalError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
   // Monotonic request id so a slow refresh can't overwrite a newer one.
   const reqRef = useRef(0);
 
   useEffect(() => initTodos(), [initTodos]);
 
+  // Coarse clock so day labels / the overdue bucket stay correct over time.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
+    return () => clearInterval(id);
+  }, []);
+
   const loadCalendar = useCallback(() => {
     const bridge = getBridge();
     if (!bridge) {
-      setCal({ status: "error", message: "Calendar bridge unavailable" });
+      setCalError("Calendar bridge unavailable");
+      setLoaded(true);
       return;
     }
     const req = ++reqRef.current;
-    setCal({ status: "loading" });
-    const now = new Date();
-    const timeMax = new Date(now.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
+    const start = new Date();
+    const timeMax = new Date(start.getTime() + LOOKAHEAD_DAYS * 24 * 60 * 60 * 1000);
+    // Apply a settled response only if it's still the latest request. Keep the
+    // previously-loaded events on failure rather than dropping them.
+    const apply = (res: { ok: true; data: unknown } | { ok: false; error: string }): void => {
+      if (res.ok) {
+        setEvents(parseCalendarEvents(extractItems(res.data)));
+        setCalError(null);
+      } else {
+        setCalError(res.error);
+      }
+      setLoaded(true);
+    };
     void bridge
       .widgetCallTool({
         tool: CALENDAR_TOOL,
         input: {
           calendarId: "primary",
-          timeMin: now.toISOString(),
+          timeMin: start.toISOString(),
           timeMax: timeMax.toISOString(),
           singleEvents: true,
           orderBy: "startTime",
           maxResults: 50,
         },
       })
-      .then((res) =>
-        req !== reqRef.current
-          ? undefined
-          : setCal(
-              res.ok
-                ? { status: "ready", events: parseCalendarEvents(extractItems(res.data)) }
-                : { status: "error", message: res.error },
-            ),
-      )
+      .then((res) => (req === reqRef.current ? apply(res) : undefined))
       .catch((err: unknown) => {
         if (req === reqRef.current) {
-          setCal({
-            status: "error",
-            message: err instanceof Error ? err.message : "Unknown error",
-          });
+          setCalError(err instanceof Error ? err.message : "Unknown error");
+          setLoaded(true);
         }
       });
   }, []);
 
   useEffect(() => loadCalendar(), [loadCalendar]);
 
-  const agenda = useMemo(() => {
-    const events = cal.status === "ready" ? cal.events : [];
-    return buildAgenda(events, todos, Date.now());
-  }, [cal, todos]);
+  const agenda = useMemo(() => buildAgenda(events, todos, now), [events, todos, now]);
 
   const isEmpty = agenda.overdue.length === 0 && agenda.days.length === 0;
 
@@ -155,15 +162,16 @@ export function AgendaPanel() {
         </button>
       </div>
 
-      {/* The calendar source being unconnected is the expected first-run state,
-          not an error — surface a connect hint rather than the raw tool error. */}
-      {cal.status === "error" && (
+      {/* A calendar error with no events is the expected unconnected first-run
+          state — surface a connect hint rather than the raw tool error. (Once
+          events have loaded, a transient refresh error is left silent.) */}
+      {calError !== null && events.length === 0 && (
         <div className="mb-2 rounded-[10px] bg-hover px-2.5 py-2 text-[10px] text-muted-foreground">
           Connect Google Calendar in Extensions to see meetings alongside your to-dos.
         </div>
       )}
 
-      {isEmpty && cal.status !== "loading" && (
+      {isEmpty && loaded && (
         <div className="py-4 text-center text-[10px] text-muted-foreground">
           Nothing scheduled or due
         </div>
