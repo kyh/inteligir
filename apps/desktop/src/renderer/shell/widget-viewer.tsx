@@ -219,21 +219,34 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
         reportError("Vault unavailable");
         return Promise.resolve();
       }
+      // Latest-wins per target file: a slower write must not land after a newer
+      // one, and a superseded write must not update the refresh baseline as if
+      // state and disk still match. Keyed by file path (reads key by `into`, so
+      // they share the map without colliding).
+      const seqMap = callSeqRef.current;
+      const wseq = (seqMap.get(filePath) ?? 0) + 1;
+      seqMap.set(filePath, wseq);
+      const isLatest = (): boolean => seqMap.get(filePath) === wseq;
       const value = readJsonPointer(getStore().getSnapshot(), from);
       return bridge
         .widgetVaultWrite({ path: filePath, value })
         .then((res) => {
+          if (!isLatest()) return undefined; // a newer write to this file won
           if (!res.ok) reportError(res.error);
           else {
-            // The file now holds `value` and state[from] === value, so they're
-            // back in sync — refresh the baseline so live re-reads of this
-            // pointer don't stay stuck treating it as user-edited forever.
-            vaultReadBaseline.current.set(from, value);
+            // The file now holds `value`; if state[from] is still that value
+            // they're in sync, so refresh the baseline (keep it user-edited
+            // otherwise). Prevents the live re-read from treating it as edited
+            // forever, without masking edits made during the write.
+            if (jsonEqual(readJsonPointer(getStore().getSnapshot(), from), value)) {
+              vaultReadBaseline.current.set(from, value);
+            }
             if (errorPath) getStore().set(errorPath, null);
           }
           return undefined;
         })
         .catch((err: unknown) => {
+          if (!isLatest()) return;
           reportError(err instanceof Error ? err.message : "Vault write failed");
         });
     };
