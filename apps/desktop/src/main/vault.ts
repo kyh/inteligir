@@ -48,16 +48,12 @@ function defaultVaultRoot(): string {
   return path.join(os.homedir(), "Documents", "Inteligir");
 }
 
-// File-extension → entry kind. `doc` is free text we edit raw; `blob` is JSON
-// the widgets/agent treat as structured data.
+// File-extension → entry kind. `doc` is editable markdown/text; everything else
+// (images, pdfs, json, …) is `other` and shown but not opened in the editor.
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
-const BLOB_EXTENSIONS = new Set([".json"]);
 
 function classify(filePath: string): VaultEntry["kind"] {
-  const ext = path.extname(filePath).toLowerCase();
-  if (DOC_EXTENSIONS.has(ext)) return "doc";
-  if (BLOB_EXTENSIONS.has(ext)) return "blob";
-  return "other";
+  return DOC_EXTENSIONS.has(path.extname(filePath).toLowerCase()) ? "doc" : "other";
 }
 
 const MAX_LIST_ENTRIES = 2000;
@@ -204,6 +200,21 @@ export class VaultManager {
     if (!fs.existsSync(target)) return false;
     fs.rmSync(target, { force: true });
     return true;
+  }
+
+  /** Rename/move a file within the vault. Both paths are confined under the
+   * root; parent dirs of the destination are created. Refuses to overwrite an
+   * existing destination so a rename can't silently clobber another note. */
+  rename(from: string, to: string): { ok: true } | { ok: false; error: string } {
+    assertVaultWritable();
+    const src = this.resolve(from);
+    const dst = this.resolve(to);
+    if (!fs.existsSync(src)) return { ok: false, error: `Not found: ${from}` };
+    if (src === dst) return { ok: true };
+    if (fs.existsSync(dst)) return { ok: false, error: `${to} already exists` };
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.renameSync(src, dst);
+    return { ok: true };
   }
 
   // ---- Watcher / notifier ---------------------------------------------------

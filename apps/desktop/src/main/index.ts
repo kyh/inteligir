@@ -26,13 +26,7 @@ import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-proxy";
 
-import {
-  getAppState,
-  initMachine,
-  reauthenticate,
-  shutdown,
-  transition,
-} from "@/main/app-machine";
+import { getAppState, initMachine, reauthenticate, shutdown, transition } from "@/main/app-machine";
 import { dispatchAgentCommand } from "@/main/agent-gateway";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { getAgentPorts } from "@/main/lib/agent-lifecycle";

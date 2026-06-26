@@ -136,15 +136,20 @@ const VaultWriteDocSchema = Type.Object(
   { additionalProperties: false },
 );
 
-/** One file in the vault, relative to the vault root. `kind` splits free-text
- * docs (md/txt) from everything else. */
+/** One file in the vault, relative to the vault root. `kind` splits editable
+ * markdown docs (md/markdown/txt) from everything else (images, pdfs, …). */
 export type VaultEntry = {
   path: string;
   name: string;
-  kind: "doc" | "blob" | "other";
+  kind: "doc" | "other";
 };
 
 export type ChooseVaultResult = { root: string } | { canceled: true } | { error: string };
+
+const VaultRenameSchema = Type.Object(
+  { from: Type.String(), to: Type.String() },
+  { additionalProperties: false },
+);
 
 // Float32Array / ArrayBuffer / ArrayBufferView don't have a TypeBox primitive;
 // approximate with Type.Any plus a runtime instanceof guard at the handler.
@@ -269,8 +274,14 @@ export const IPC = {
     "vault:delete",
     VaultPathSchema,
   ),
+  /** Rename/move a file to a new vault-relative path (creating parent dirs).
+   * Refuses to clobber an existing file. */
+  renameVaultEntry: invoke<typeof VaultRenameSchema, { ok: true } | { ok: false; error: string }>(
+    "vault:rename",
+    VaultRenameSchema,
+  ),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
-   * Vault panel re-lists and bound widgets re-read. */
+   * sidebar re-lists and the editor reloads. */
   onVaultChanged: event<{ root: string }>("vault:changed"),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).

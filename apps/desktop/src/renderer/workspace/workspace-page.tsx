@@ -4,8 +4,10 @@ import { Button } from "@repo/ui/components/button";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { ChatPanel } from "@/renderer/chat/chat-panel";
+import { EditorPane } from "@/renderer/editor/editor-pane";
 import { SettingsDialog } from "@/renderer/settings/settings-dialog";
-import { VaultPanel } from "@/renderer/workspace/vault-panel";
+import { FileTree } from "@/renderer/sidebar/file-tree";
+import { VaultProvider } from "@/renderer/workspace/vault-context";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
@@ -57,14 +59,19 @@ export function WorkspacePage() {
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
-        <div className="min-w-0 flex-1">
-          <VaultPanel />
+      <VaultProvider>
+        <div className="flex min-h-0 flex-1">
+          <div className="w-56 shrink-0 border-r border-border">
+            <FileTree />
+          </div>
+          <div className="min-w-0 flex-1">
+            <EditorPane />
+          </div>
+          <div className="w-[360px] shrink-0 border-l border-border">
+            <ChatPanel />
+          </div>
         </div>
-        <div className="w-[380px] shrink-0 border-l border-border">
-          <ChatPanel />
-        </div>
-      </div>
+      </VaultProvider>
     </div>
   );
 }

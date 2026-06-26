@@ -37,4 +37,5 @@ export function registerVaultIpcHandlers(): void {
     getVaultManager().writeText(path, content);
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
+  handle("renameVaultEntry", ({ from, to }) => getVaultManager().rename(from, to));
 }
