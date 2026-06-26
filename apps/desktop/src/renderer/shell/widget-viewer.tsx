@@ -494,6 +494,10 @@ function OnMountRunner({
   const lastSpecRef = useRef<WidgetSpec | null>(null);
   useEffect(() => {
     if (lastSpecRef.current === spec) return;
+    // First mount must always load (populate the widget); only a later spec
+    // re-run (agent edited the spec) applies the edit guard, so a reload can't
+    // clobber a pointer the user is editing.
+    const isFirstRun = lastSpecRef.current === null;
     lastSpecRef.current = spec;
     const actions = spec.onMount ?? [];
     if (actions.length === 0) return;
@@ -504,10 +508,10 @@ function OnMountRunner({
     void (async () => {
       for (const a of actions) {
         if (a.skipIf !== undefined && hasNonEmptyValue(snapshot, a.skipIf)) continue;
-        // On a spec re-run (agent edited the spec), don't let a vault read
-        // overwrite a pointer the user has edited — same guard the live refresh
-        // uses. On first mount the pointer matches its baseline, so reads run.
-        if (a.action === "readDoc" || a.action === "readBlob") {
+        // On a spec re-run, don't let a vault read overwrite a pointer the user
+        // has edited — same guard the live refresh uses. The initial load is
+        // never gated, so an early keystroke can't suppress the first read.
+        if (!isFirstRun && (a.action === "readDoc" || a.action === "readBlob")) {
           const into = typeof a.params?.["into"] === "string" ? a.params["into"] : "";
           if (into && !canRefresh(into)) continue;
         }
