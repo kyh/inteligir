@@ -19,34 +19,20 @@
       "entry": ["src/app/**/*.{ts,tsx}", "src/components/**/*.{ts,tsx}"],
       "project": ["*.config.{js,mjs}", "src/**/*.{ts,tsx}"]
     },
-    "apps/mobile": {
-      "entry": ["src/app/**/*.tsx"],
-      "project": ["src/**/*.{ts,tsx}", "*.config.{js,ts}"],
-      // knip executes metro.config.js and trips on nativewind's CJS interop
-      // (withNativewind is not a function) — skip loading it. nativewind and
-      // tailwindcss are referenced only from that ignored config.
-      "metro": false,
-      "ignore": ["metro.config.js"],
-      "ignoreDependencies": ["nativewind", "tailwindcss"]
-    },
-    "apps/server": {
-      // The *-stub.js files are referenced only via wrangler.jsonc module aliases.
-      "entry": ["src/native-stub.js", "src/async-event-emitter-stub.js"],
-      "project": ["src/**/*.{ts,js}"]
-    },
     "packages/agent-runtime": {
-      "includeEntryExports": true
-    },
-    "packages/dispatch": {
       "includeEntryExports": true
     },
     "packages/pi-driver": {
       "includeEntryExports": true
     },
     "packages/ui": {
-      // Wildcard exports make every source file an entry; without this, dead
-      // exports in the component library are invisible to knip.
-      "includeEntryExports": true
+      // Library mode during the notes-app rebuild: @repo/ui is a shared
+      // component kit whose public API (the wildcard ./components/* exports) is
+      // validated by app usage, not by internal knip. The surface is actively
+      // growing back across milestones, so per-component dead-export churn isn't
+      // worth it. M6 prunes the kit to its final set and re-enables
+      // includeEntryExports.
+      "includeEntryExports": false
     }
   }
 }

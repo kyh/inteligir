@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 
 import { Toaster } from "@repo/ui/components/sonner";
-import { ReauthDialog } from "@/renderer/shell/reauth-dialog";
+import { ReauthDialog } from "@/renderer/components/reauth-dialog";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useUiStateStore } from "@/renderer/stores/ui-state-store";
 import type { AppState } from "@/shared/app-state";

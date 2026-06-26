@@ -169,7 +169,7 @@ export function removeConnection(key: ConnectionKeyInput): Promise<{ removed: bo
 
 // ---- executions (code mode) -------------------------------------------------
 
-export function execute(code: string): Promise<ExecutorExecuteResult> {
+function execute(code: string): Promise<ExecutorExecuteResult> {
   return request("POST", "/executions", ExecutorExecuteResultSchema, {
     body: { code },
     timeoutMs: EXECUTION_TIMEOUT_MS,

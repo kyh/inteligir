@@ -17,18 +17,6 @@ const unused = (): never => {
 /** Inert ports — the bundles under test never touch them. */
 function fakePorts(): AgentPorts {
   return {
-    shell: {
-      getWritableShell: () => null,
-      placeWithFlush: async () => null,
-      unplaceWithFlush: async () => false,
-      deleteWithFlush: async () => false,
-    },
-    tasks: {
-      getTasks: () => [],
-      createTask: unused,
-      toggleTask: unused,
-      deleteTask: () => {},
-    },
     executor: {
       cli: { name: "executor", version: "0.0.0", binPath: "/fake/bin/executor" },
       install: async () => {},

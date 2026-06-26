@@ -37,23 +37,4 @@ export function registerVaultIpcHandlers(): void {
     getVaultManager().writeText(path, content);
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
-
-  // ---- Widget surface (envelope results, never throws to the renderer) -------
-
-  handle("widgetVaultRead", ({ path }) => {
-    try {
-      return { ok: true as const, value: getVaultManager().readAuto(path) };
-    } catch (err) {
-      return { ok: false as const, error: toErrorMessage(err) };
-    }
-  });
-
-  handle("widgetVaultWrite", ({ path, value }) => {
-    try {
-      getVaultManager().writeAuto(path, value);
-      return { ok: true as const };
-    } catch (err) {
-      return { ok: false as const, error: toErrorMessage(err) };
-    }
-  });
 }

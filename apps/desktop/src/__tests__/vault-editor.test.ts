@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { VaultEditorController, type VaultIO } from "@/renderer/shell/builtin/vault-editor";
+import { VaultEditorController, type VaultIO } from "@/renderer/editor/vault-editor";
 
 // A controllable fake filesystem: reads/writes resolve only when the test
 // releases them, so we can interleave async operations deterministically and

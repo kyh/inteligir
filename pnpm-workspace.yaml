@@ -21,16 +21,6 @@ catalog:
 
 linkWorkspacePackages: true
 
-overrides:
-  # lightningcss >=1.30.2 has a JS-visitor serde regression ("expected an
-  # object-like struct named Specifier, found ()") that breaks react-native-css's
-  # compiler on `var()` inside function args (e.g. hsl(var(--x))) — which is all
-  # over the nativewind theme. react-native-css's loader prefers the copy
-  # resolved from @expo/metro-config, so pin both paths to the last good
-  # version. Scoped so tailwindcss keeps its own (working) copy.
-  "react-native-css>lightningcss": 1.30.1
-  "@expo/metro-config>lightningcss": 1.30.1
-
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"
   - electron

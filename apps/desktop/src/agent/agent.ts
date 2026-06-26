@@ -22,7 +22,7 @@ import type { SessionStatus } from "@/shared/agent";
 /** Pi built-in coding tools the session starts with. Mirrors pi's own default
  * — declared explicitly so the raw system-access surface is a deliberate,
  * auditable choice (see resources/agent/AGENTS.md "System access"). Extension
- * tools (manage_ui, execute, browser, …) activate as they register. */
+ * tools (execute, browser, …) activate as they register. */
 const INITIAL_ACTIVE_TOOLS = ["read", "bash", "edit", "write"];
 
 function resolveSessionManager(sessionDir: string): SessionManager {
@@ -38,14 +38,14 @@ function resolveSessionManager(sessionDir: string): SessionManager {
 }
 
 export type AgentOptions = {
-  /** Main-owned capabilities (shell, tasks, executor) handed to extension
-   * bundles at register time. Built main-side by agent-lifecycle.ts. */
+  /** Main-owned capabilities (executor) handed to extension bundles at register
+   * time. Built main-side by agent-lifecycle.ts. */
   ports: AgentPorts;
   /** If true, start a fresh session instead of resuming the most recent one. */
   newSession?: boolean;
   /** Session directory to read/write. Defaults to SESSION_DIR (the user-facing
-   * thread). The background task agent passes BACKGROUND_SESSION_DIR so its runs
-   * never land in the user's continueRecent pool. */
+   * thread). A separate session dir can be passed to keep a run out of the
+   * user's continueRecent pool. */
   sessionDir?: string;
 };
 

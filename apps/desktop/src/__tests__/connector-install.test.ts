@@ -1,13 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { CONNECTOR_CATALOG } from "@/renderer/shell/builtin/extensions/connector-catalog";
+import { CONNECTOR_CATALOG } from "@/renderer/settings/extensions/connector-catalog";
 import {
   catalogInstallRequest,
   DEFAULT_CONNECTION_NAME,
   installConnector,
   uninstallConnector,
   type InstallRequest,
-} from "@/renderer/shell/builtin/extensions/connector-install";
+} from "@/renderer/settings/extensions/connector-install";
 import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ExecutorConnection,

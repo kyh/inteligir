@@ -8,7 +8,6 @@
     "dev": "turbo watch dev --continue",
     "dev:web": "turbo watch dev -F @repo/web...",
     "dev:desktop": "turbo watch dev -F @repo/desktop...",
-    "dev:server": "pnpm -F @repo/server dev",
     "lint": "oxlint --report-unused-disable-directives",
     "lint:fix": "oxlint --fix",
     "format": "oxfmt --check",
@@ -38,8 +37,5 @@
       "sharp",
       "spawn-sync"
     ]
-  },
-  "engines": {
-    "node": ">=24"
   }
 }

@@ -26,30 +26,8 @@ textarea,
   -webkit-app-region: drag;
 }
 
-/* Ophelias-style dotted canvas: fixed 24px lattice over the soft gray floor. */
-.shell-dots {
-  background-image:
-    radial-gradient(circle, var(--dot) 1.2px, transparent 1.2px),
-    linear-gradient(180deg, var(--canvas-from) 0%, var(--canvas-to) 100%);
-  background-size:
-    24px 24px,
-    100% 100%;
-  background-origin: border-box, border-box;
-  background-clip: border-box, border-box;
-  background-repeat: repeat, no-repeat;
-}
-
-/* react-grid-layout — theme the placeholder + resize affordances. The
- * placeholder mirrors the card silhouette (same radius), kept faint. */
-.react-grid-item.react-grid-placeholder {
-  background: var(--foreground);
-  opacity: 0.08;
-  border-radius: var(--radius-card);
-}
-/* Panels stay resizable from their edges/corner, but we hide the default
- * diagonal-arrow affordance for a cleaner desktop look. */
-.react-grid-item > .react-resizable-handle::after {
-  display: none;
+.app-no-drag {
+  -webkit-app-region: no-drag;
 }
 
 .artifact-frame {
