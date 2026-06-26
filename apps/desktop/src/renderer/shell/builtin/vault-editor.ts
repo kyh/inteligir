@@ -83,20 +83,24 @@ export class VaultEditorController {
     void this.reloadOpen();
   }
 
-  /** Open a file, saving any pending edits to the current one first. */
-  async open(path: string): Promise<void> {
+  /** Open a file, saving any pending edits to the current one first. Returns
+   * false (without switching) when that save failed and the buffer is still
+   * dirty, so the caller can surface it rather than silently drop the edits. */
+  async open(path: string): Promise<boolean> {
     await this.flush();
+    if (this.st.dirty) return false; // save failed — keep the current file open
     const seq = ++this.readSeq;
     try {
       const text = await this.io.read(path);
-      if (this.readSeq !== seq) return; // a newer read (open or reload) won
+      if (this.readSeq !== seq) return true; // a newer read (open or reload) won
       this.emit({ path, content: text, dirty: false });
     } catch {
-      if (this.readSeq !== seq) return;
+      if (this.readSeq !== seq) return true;
       // Unreadable (e.g. deleted between click and read) — don't revive it as an
       // empty buffer; leave nothing selected.
       this.emit({ path: null, content: "", dirty: false });
     }
+    return true;
   }
 
   /** Record an edit to the open buffer. The component debounces flush(). */

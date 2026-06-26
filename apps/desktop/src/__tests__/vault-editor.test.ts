@@ -171,6 +171,20 @@ describe("VaultEditorController", () => {
     expect(io.files.has("a.md")).toBe(false);
   });
 
+  it("does not switch files when the pending save fails", async () => {
+    const io = new FakeVault();
+    io.files.set("a.md", "v0");
+    io.files.set("b.md", "B");
+    const c = new VaultEditorController(io);
+    await c.open("a.md");
+    c.edit("v1");
+    // Make the write reject so flush leaves the buffer dirty.
+    io.write = () => Promise.reject(new Error("disk full"));
+    const opened = await c.open("b.md");
+    expect(opened).toBe(false);
+    expect(c.getState()).toMatchObject({ path: "a.md", content: "v1", dirty: true });
+  });
+
   it("a failed open clears instead of reviving a deleted path", async () => {
     const io = new FakeVault();
     const c = new VaultEditorController(io);

@@ -91,7 +91,12 @@ export function VaultPanel() {
   const openFile = useCallback(
     (path: string) => {
       cancelTimer();
-      void controller.open(path);
+      void controller.open(path).then((opened) => {
+        if (!opened) {
+          toast.error("Couldn't save the current file — resolve that before switching.");
+        }
+        return undefined;
+      });
     },
     [cancelTimer, controller],
   );
@@ -156,6 +161,12 @@ export function VaultPanel() {
     if (!bridge) return;
     cancelTimer();
     await controller.flush();
+    // Don't switch away from a file whose save just failed (mirrors openFile /
+    // handleChangeFolder) — the unsaved buffer would be dropped.
+    if (controller.getState().dirty) {
+      toast.error("Couldn't save the current file — resolve that before creating another.");
+      return;
+    }
     // Don't truncate an existing file — a write with empty content would wipe
     // notes/JSON already there. A successful read means it exists, so open it
     // instead. (Disk-truth via the read IPC, not the possibly-stale listing.)
