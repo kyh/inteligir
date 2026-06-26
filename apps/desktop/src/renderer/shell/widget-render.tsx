@@ -1,6 +1,8 @@
 // Shared resolution of a placed instance + its def to rendered body + chrome
 // props, used by both the grid (Panel) and floating windows (FloatingWindow).
 
+import { BoxIcon } from "lucide-react";
+
 import { toast } from "@repo/ui/components/sonner";
 
 import { BUILTIN_WIDGET_UI } from "@/renderer/shell/builtin-widgets";
@@ -30,7 +32,7 @@ export function ChromeButton({
     <button
       type="button"
       aria-label={label}
-      className="rounded p-0.5 text-muted-foreground/60 hover:bg-muted hover:text-foreground"
+      className="flex size-6 items-center justify-center rounded-full text-[rgba(19,20,27,0.34)] transition-colors hover:bg-[rgba(19,20,27,0.05)] hover:text-[rgba(19,20,27,0.7)]"
       onMouseDown={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
       onClick={onClick}
@@ -42,6 +44,15 @@ export function ChromeButton({
 
 export function widgetTitle(def: WidgetDef | undefined, instance: WidgetInstance): string {
   return def?.title ?? instance.widgetId;
+}
+
+/** Small header-strip icon for a widget's panel/window chrome. Builtins carry
+ * their dock icon; JSON-UI (and unresolved) widgets fall back to a generic
+ * box glyph — the references pair every card title with a small leading icon. */
+export function widgetIcon(
+  def: WidgetDef | undefined,
+): React.ComponentType<{ className?: string }> {
+  return def && isBuiltin(def) ? BUILTIN_WIDGET_UI[def.id].icon : BoxIcon;
 }
 
 export function widgetBodyClassName(def: WidgetDef | undefined): string | undefined {

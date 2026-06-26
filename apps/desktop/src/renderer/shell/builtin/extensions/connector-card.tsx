@@ -55,7 +55,7 @@ export function ConnectorCard({
   const showConnected = status === "connected" || disconnecting;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-background/40 p-3">
+    <div className="flex flex-col gap-2 rounded-[12px] bg-muted p-3">
       <div className="flex items-start gap-2.5">
         <BrandTile connector={connector} />
         <div className="flex min-w-0 flex-1 flex-col">

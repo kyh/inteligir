@@ -108,7 +108,7 @@ export function RemoteAccessSection({ onError }: SectionProps) {
       </p>
 
       {enabled && (
-        <div className="flex flex-col gap-2 rounded-md border border-border px-3 py-2">
+        <div className="flex flex-col gap-2 rounded-[12px] bg-muted px-3 py-2">
           <div className="flex items-center gap-2">
             <span
               className={`size-1.5 shrink-0 rounded-full ${
@@ -132,14 +132,14 @@ export function RemoteAccessSection({ onError }: SectionProps) {
             <div className="flex flex-col gap-1.5">
               <span className="text-[10px] font-medium text-muted-foreground">Pairing string</span>
               {revealed ? (
-                <code className="rounded bg-muted px-2 py-1 font-mono text-[10px] break-all select-all">
+                <code className="rounded-[8px] bg-hover px-2 py-1 font-mono text-[10px] break-all select-all">
                   {pairing}
                 </code>
               ) : (
                 <button
                   type="button"
                   onClick={() => setRevealed(true)}
-                  className="rounded bg-muted px-2 py-1 text-left font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                  className="rounded-[8px] bg-hover px-2 py-1 text-left font-mono text-[10px] text-muted-foreground transition-colors hover:text-foreground"
                 >
                   ••••-••••-••••-••••.•••••• — click to reveal
                 </button>

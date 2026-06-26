@@ -44,10 +44,7 @@ export function WidgetsPanel() {
   return (
     <div className="flex flex-col gap-1.5 p-3">
       {customs.map((def) => (
-        <div
-          key={def.id}
-          className="flex items-center gap-2 rounded-md border border-border px-3 py-2"
-        >
+        <div key={def.id} className="flex items-center gap-2 rounded-[10px] bg-muted px-3 py-2">
           <div className="flex min-w-0 flex-1 flex-col">
             <span className="truncate text-xs text-foreground">{def.title}</span>
             {def.description && (
@@ -62,7 +59,7 @@ export function WidgetsPanel() {
             disabled={placed.has(def.id)}
             title={placed.has(def.id) ? "Already on the grid" : "Place on the grid"}
             aria-label="Place on the grid"
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-foreground/10 hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
+            className="flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
           >
             <PlayIcon className="size-3.5" />
           </button>
@@ -71,7 +68,7 @@ export function WidgetsPanel() {
             onClick={() => remove(def)}
             title="Delete widget"
             aria-label="Delete widget"
-            className="flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            className="flex size-7 items-center justify-center rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
           >
             <Trash2Icon className="size-3.5" />
           </button>

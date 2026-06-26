@@ -47,7 +47,7 @@ export function SkillsSection() {
       {skills === null || groups === null ? (
         <div className="text-[10px] text-muted-foreground">Loading…</div>
       ) : skills.length === 0 ? (
-        <div className="rounded-md border border-border px-3 py-2 text-[10px] text-muted-foreground">
+        <div className="rounded-[10px] bg-muted px-3 py-2 text-[10px] text-muted-foreground">
           No skills installed.
         </div>
       ) : (
@@ -60,7 +60,7 @@ export function SkillsSection() {
               {items.map((skill) => (
                 <div
                   key={skill.filePath}
-                  className="flex min-w-0 flex-col rounded-md border border-border px-3 py-2"
+                  className="flex min-w-0 flex-col rounded-[10px] bg-muted px-3 py-2"
                   title={skill.description}
                 >
                   <span className="truncate text-xs text-foreground">{skill.name}</span>

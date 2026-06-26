@@ -38,6 +38,7 @@
     "croner": "^10.0.1",
     "electron-updater": "^6.8.3",
     "lucide-react": "catalog:",
+    "motion": "^12.40.0",
     "open": "^11.0.0",
     "partysocket": "^1.1.19",
     "platejs": "^53.2.1",

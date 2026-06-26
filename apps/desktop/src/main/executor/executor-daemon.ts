@@ -22,7 +22,7 @@
 // (v1 sqlite → v2); migration log lines precede the ready banner.
 // ---------------------------------------------------------------------------
 
-import { spawn, type ChildProcess } from "node:child_process";
+import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
@@ -78,6 +78,80 @@ const PINNED_PORT = 47888;
 // verbatim and everything downstream (OAuth redirect URI shown to the user,
 // redirectUri passed on oauth start) stays consistent with it.
 const READY_RE = /Daemon ready on (https?:\/\/[^\s]+)/i;
+
+// Executor's server-control manifest: the single-server-per-data-dir lock it
+// consults to refuse a second daemon. We read it on startup to detect+reap a
+// wedged orphan (see reapWedgedDaemon).
+const SERVER_MANIFEST_PATH = path.join(DATA_DIR, "server-control", "server.json");
+// Short health probe used only to classify an already-registered daemon as
+// healthy (leave it) vs wedged (reap it) — not the generous first-boot window.
+const REAP_PROBE_TIMEOUT_MS = 2_000;
+
+// Shape we rely on from the manifest. Everything is treated as untrusted
+// (it's on disk and may be from an older executor) and narrowed at the use site.
+type ServerManifest = {
+  pid?: unknown;
+  dataDir?: unknown;
+  owner?: { executablePath?: unknown };
+  connection?: { origin?: unknown; auth?: { token?: unknown } };
+};
+
+function readServerManifest(): ServerManifest | null {
+  try {
+    // JSON.parse is `any`; the ServerManifest fields are all `unknown` and
+    // narrowed at the use site, so this assigns without an assertion.
+    const parsed: ServerManifest = JSON.parse(fs.readFileSync(SERVER_MANIFEST_PATH, "utf8"));
+    return parsed;
+  } catch {
+    return null; // absent / unreadable / not JSON → nothing to reap
+  }
+}
+
+function pidIsAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM = alive but not ours to signal; ESRCH = gone.
+    return typeof err === "object" && err !== null && "code" in err && err.code === "EPERM";
+  }
+}
+
+/**
+ * Confirm the live pid is actually OUR executor binary before we SIGKILL it,
+ * defeating the (improbable but catastrophic) case where the orphan died and
+ * its pid was recycled by an unrelated process. Best-effort: any failure or an
+ * inconclusive result returns false so the caller fails safe and does NOT kill.
+ */
+function pidIsOurExecutor(pid: number): boolean {
+  try {
+    if (process.platform === "win32") {
+      const out = execFileSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {
+        encoding: "utf8",
+      });
+      return out.toLowerCase().includes(BIN_NAME.toLowerCase());
+    }
+    const out = execFileSync("ps", ["-o", "command=", "-p", String(pid)], { encoding: "utf8" });
+    return out.includes(BINARY_PATH);
+  } catch {
+    return false;
+  }
+}
+
+/** True if the daemon answers its own API at all (any HTTP status, even 401
+ * — that still proves the server is bound and serving). A network error or
+ * timeout means it's wedged. */
+async function daemonResponds(origin: string, token: string | undefined): Promise<boolean> {
+  // Build init without an `undefined` headers key (exactOptionalPropertyTypes).
+  const init: RequestInit = { signal: AbortSignal.timeout(REAP_PROBE_TIMEOUT_MS) };
+  if (token) init.headers = { authorization: `Bearer ${token}` };
+  try {
+    await fetch(`${origin.replace(/\/$/, "")}/api/integrations`, init);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 type ExecutorConnection = {
   /** Daemon origin, e.g. http://localhost:47888 */
@@ -236,6 +310,11 @@ class ExecutorDaemon {
     fs.mkdirSync(DATA_DIR, { recursive: true });
     fs.mkdirSync(SCOPE_DIR, { recursive: true });
 
+    // A daemon orphaned by an abnormal Electron exit (crash / force-quit, where
+    // graceful stop() never ran) can be left wedged on the data dir; clear it
+    // first or both spawn attempts below die with the binary's refuse-to-start.
+    await this.reapWedgedDaemon();
+
     try {
       return await this.spawnAttempt({ pinnedPort: true });
     } catch (err) {
@@ -248,6 +327,59 @@ class ExecutorDaemon {
         err instanceof Error ? err.message : err,
       );
       return this.spawnAttempt({ pinnedPort: false });
+    }
+  }
+
+  /**
+   * Reap a wedged orphan daemon left by an abnormal Electron exit. A daemon
+   * SIGKILLed indirectly (crash / force-quit, where graceful stop() never ran)
+   * can survive: alive, still holding the pinned port and the data-dir
+   * server-control manifest, but hung and unresponsive. Executor then refuses
+   * to start a replacement against the same data dir, so every launch dies with
+   * "exited (code 1) before becoming ready". A wedged daemon also ignores
+   * SIGTERM, so stop()'s graceful path can't clear it.
+   *
+   * Best-effort and heavily guarded — it only ever SIGKILLs a process that is:
+   *   1. recorded in OUR manifest (matching data dir + executor binary),
+   *   2. still alive, AND still our executor binary at that pid (defeats the
+   *      recycled-pid hazard), and
+   *   3. not answering its own health endpoint (a responsive daemon is left
+   *      untouched — we never kill a working server).
+   * A dead daemon's manifest the binary reclaims on its own, so we skip those.
+   */
+  private async reapWedgedDaemon(): Promise<void> {
+    const manifest = readServerManifest();
+    const pid = typeof manifest?.pid === "number" ? manifest.pid : null;
+    const origin =
+      typeof manifest?.connection?.origin === "string" ? manifest.connection.origin : null;
+    const token =
+      typeof manifest?.connection?.auth?.token === "string"
+        ? manifest.connection.auth.token
+        : undefined;
+    // Only consider a manifest we positively own — never touch a foreign one.
+    if (
+      pid === null ||
+      origin === null ||
+      manifest?.dataDir !== DATA_DIR ||
+      manifest?.owner?.executablePath !== BINARY_PATH
+    ) {
+      return;
+    }
+    if (!pidIsAlive(pid)) return; // dead → executor self-reclaims the manifest
+    if (await daemonResponds(origin, token)) return; // healthy → leave it alone
+    if (!pidIsOurExecutor(pid)) return; // identity unconfirmed → fail safe
+
+    console.warn(
+      `[executor] reaping wedged daemon (pid ${pid}, ${origin}) — holding the data dir but not responding`,
+    );
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      return; // already gone
+    }
+    // Let the OS release the port + manifest lock before we respawn (~2s cap).
+    for (let i = 0; i < 20 && pidIsAlive(pid); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
 
@@ -321,9 +453,16 @@ class ExecutorDaemon {
     return new Promise<string>((resolve, reject) => {
       let settled = false;
       let buffer = "";
+      // Rolling tail of the daemon's own output (stdout+stderr) so a failure
+      // reports WHY it died (e.g. "Refusing to start another local server…")
+      // instead of a bare exit code. Capped so a long first-boot migration
+      // can't grow it unbounded.
+      let tail = "";
       const onData = (chunk: Buffer): void => {
         if (settled) return;
-        buffer += chunk.toString("utf8");
+        const text = chunk.toString("utf8");
+        tail = (tail + text).slice(-1000);
+        buffer += text;
         // Only match on complete lines — a streamed chunk can split the URL
         // mid-token, and a greedy match would capture a truncated origin.
         const newlineIdx = buffer.lastIndexOf("\n");
@@ -355,9 +494,22 @@ class ExecutorDaemon {
       proc.stdout?.on("data", onData);
       proc.stderr?.on("data", onData);
       proc.on("exit", (code) =>
-        settle(() =>
-          reject(new Error(`executor daemon exited (code ${code ?? "?"}) before becoming ready`)),
-        ),
+        settle(() => {
+          // Surface the last few non-empty lines the daemon printed — that's
+          // where its real complaint lives.
+          const reason = tail
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .slice(-3)
+            .join(" / ");
+          reject(
+            new Error(
+              `executor daemon exited (code ${code ?? "?"}) before becoming ready` +
+                (reason ? `: ${reason}` : ""),
+            ),
+          );
+        }),
       );
       proc.on("error", (err) => settle(() => reject(err)));
     });

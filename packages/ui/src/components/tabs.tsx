@@ -22,7 +22,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { springs } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
 import { getShape } from "@repo/ui/lib/shape";
-import { useSurface } from "@repo/ui/lib/surface-context";
+import { useOnGlass, useSurface } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
 import { useMergeRefs } from "@repo/ui/hooks/use-merge-refs";
@@ -145,6 +145,9 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
     const shape = getShape();
     const substrate = useSurface();
     const indicatorLevel = Math.min(substrate + 3, 8);
+    // On smoked glass the opaque ladder is invisible — track and indicators
+    // swap to the translucent white glass-row recipe.
+    const onGlass = useOnGlass();
     const valueOrderCtx = useContext(TabsValueOrderContext);
     const [optimisticIdx, setOptimisticIdx] = useState<number | null>(null);
 
@@ -268,7 +271,8 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
             setHoveredIndex(null);
           }}
           className={cn(
-            "relative inline-flex items-center gap-0.5 p-1 select-none bg-muted",
+            "relative inline-flex items-center gap-0.5 p-1 select-none",
+            onGlass ? "bg-glass-row" : "bg-muted",
             shape.container,
             className,
           )}
@@ -279,7 +283,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
             <motion.div
               className={cn(
                 "absolute pointer-events-none",
-                surfaceClasses(indicatorLevel),
+                onGlass ? "bg-glass-row-active" : surfaceClasses(indicatorLevel),
                 shape.bg,
               )}
               initial={false}
@@ -301,7 +305,11 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
           <AnimatePresence>
             {hoverRect && !isHoveringSelected && selectedRect && (
               <motion.div
-                className={cn("absolute pointer-events-none bg-hover", shape.bg)}
+                className={cn(
+                  "absolute pointer-events-none",
+                  onGlass ? "bg-glass-row-hover" : "bg-hover",
+                  shape.bg,
+                )}
                 initial={{
                   left: selectedRect.left,
                   width: selectedRect.width,
@@ -386,6 +394,9 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
   ({ value, icon: Icon, label, _index = 0, className, ...props }, ref) => {
     const internalRef = useRef<HTMLButtonElement>(null);
     const { registerTab, hoveredIndex, selectedValue, setOptimisticIdx } = useTabsList();
+    const onGlass = useOnGlass();
+    const activeText = onGlass ? "text-glass-fg" : "text-foreground";
+    const mutedText = onGlass ? "text-glass-fg-muted" : "text-muted-foreground";
 
     useEffect(() => {
       registerTab(_index, value, internalRef.current);
@@ -414,7 +425,7 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
             strokeWidth={isActive ? 2 : 1.5}
             className={cn(
               "transition-[color,stroke-width] duration-80",
-              isActive ? "text-foreground" : "text-muted-foreground",
+              isActive ? activeText : mutedText,
             )}
           />
         )}
@@ -429,7 +440,7 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
           <span
             className={cn(
               "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80",
-              isActive ? "text-foreground" : "text-muted-foreground",
+              isActive ? activeText : mutedText,
             )}
             style={{
               fontVariationSettings: isSelected ? fontWeights.semibold : fontWeights.normal,

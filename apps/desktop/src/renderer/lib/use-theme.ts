@@ -20,14 +20,14 @@ function systemPrefersDark(): boolean {
  * Theme state persisted to disk (~/.inteligir/ui-state.json), resolved against
  * the OS preference for "system". Applying the `.dark` class to the document
  * root is a side-effect of reading the resolved theme, so any caller keeps the
- * document in sync. Defaults to dark to match the app's primary look.
+ * document in sync. Defaults to light to match the Ophelias-style canvas.
  */
 export function useTheme(): {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   resolved: ResolvedTheme;
 } {
-  const [theme, setTheme] = useDiskState(THEME_KEY, "dark", parseTheme);
+  const [theme, setTheme] = useDiskState(THEME_KEY, "light", parseTheme);
   const [systemDark, setSystemDark] = useState(systemPrefersDark);
 
   useEffect(() => {

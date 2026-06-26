@@ -1,10 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { createStateStore, type StateStore } from "@json-render/core";
 import { JSONUIProvider, Renderer, useActions, ValidationProvider } from "@json-render/react";
-import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { registerInstanceFlush } from "@/renderer/shell/instance-state-flush";
+import {
+  createWidgetHandlers,
+  hasNonEmptyValue,
+  jsonEqual,
+  readJsonPointer,
+} from "@/renderer/shell/widget-actions";
 import { widgetRegistry } from "@/renderer/shell/widget-registry";
 import { type JsonUiWidgetDef, type WidgetInstance } from "@/shared/shell";
 import { toRendererSpec, validateWidgetProps, type WidgetSpec } from "@/shared/widget-spec";
@@ -50,18 +55,18 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   const idRef = useRef(instance.instanceId);
   idRef.current = instance.instanceId;
 
-  // Per-`into`-path invocation counter for callTool: a slower earlier call
-  // must not clobber a newer result written to the same path (latest-wins).
+  // Per-`into`-path invocation counter for callTool / vault reads/writes: a
+  // slower earlier call must not clobber a newer result at the same path.
   const callSeqRef = useRef(new Map<string, number>());
 
   // Per-pointer baseline for vault live-refresh: the value last synced into each
   // readDoc/readBlob `into` pointer. A change event re-reads a pointer only when
   // its current state still equals this baseline — i.e. the user hasn't edited
   // it since. Seeded at mount from the widget's initial state for every vault
-  // read pointer, so the comparison is always available: that way a read that
-  // never recorded a value (skipIf-skipped, missing, or failed) is still
-  // refreshable when untouched, while a pointer the user edited before the first
-  // read landed is still protected. A successful read updates the baseline.
+  // read pointer, so the comparison is always available: a read that never
+  // recorded a value (skipIf-skipped, missing, or failed) is still refreshable
+  // when untouched, while a pointer the user edited before the first read landed
+  // is protected. A successful read/write updates the baseline.
   const vaultReadBaseline = useRef(new Map<string, unknown>());
   const baselineSeeded = useRef(false);
   if (!baselineSeeded.current) {
@@ -83,7 +88,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   }, []);
 
   // Track vault read pointers the agent adds via a spec update too — the
-  // first-render seed above only covers the initial spec, so without this a
+  // first-render seed only covers the initial spec, so without this a
   // newly-bound readDoc/readBlob pointer would be untracked and a refresh could
   // overwrite in-progress edits. Only seed pointers not already tracked, so
   // baselines recorded by real reads are preserved.
@@ -149,284 +154,9 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
     };
   }, [flushPersist]);
 
-  const handlers = useMemo(() => {
-    // Vault read/write closures, shared by the doc/blob action aliases below.
-    // Declared before the returned map so they're in scope without relying on
-    // hoisting past a `return`.
-    const vaultRead = (params: Record<string, unknown>): Promise<void> => {
-      const filePath = typeof params["path"] === "string" ? params["path"] : "";
-      const into = typeof params["into"] === "string" ? params["into"] : "";
-      const errorPath = typeof params["error"] === "string" ? params["error"] : "";
-      const reportError = (message: string): void => {
-        if (errorPath) getStore().set(errorPath, message);
-        else toast.error(message);
-      };
-      if (!filePath || !into) return Promise.resolve();
-      const bridge = getBridge();
-      if (!bridge) {
-        reportError("Vault unavailable");
-        return Promise.resolve();
-      }
-      // Latest-wins per `into`: a slow earlier read (e.g. onMount) must not land
-      // after a newer refresh and write stale file content. Shares callTool's
-      // per-path sequence map so reads and tool calls to the same pointer order.
-      const seqMap = callSeqRef.current;
-      const seq = (seqMap.get(into) ?? 0) + 1;
-      seqMap.set(into, seq);
-      const isLatest = (): boolean => seqMap.get(into) === seq;
-      // The pointer's value when the read started. If it changed by the time the
-      // read resolves, the user (or another action) edited `into` mid-read —
-      // don't clobber that with the file snapshot, and leave the baseline as-is
-      // so the edit stays protected from later refreshes.
-      const before = readJsonPointer(getStore().getSnapshot(), into);
-      return bridge
-        .widgetVaultRead({ path: filePath })
-        .then((res) => {
-          if (!isLatest()) return undefined;
-          if (!res.ok) {
-            reportError(res.error);
-            return undefined;
-          }
-          if (!jsonEqual(readJsonPointer(getStore().getSnapshot(), into), before)) {
-            return undefined; // edited during the read — the edit wins
-          }
-          getStore().set(into, res.value);
-          // Record what we wrote so the live-refresh can tell a later user
-          // edit of this pointer apart from our own value.
-          vaultReadBaseline.current.set(into, res.value);
-          if (errorPath) getStore().set(errorPath, null);
-          return undefined;
-        })
-        .catch((err: unknown) => {
-          // Only the latest read for this pointer may report — a superseded
-          // read rejecting (IPC/transport failure) must not toast or set the
-          // error pointer over a newer read that already owns `into`.
-          if (!isLatest()) return;
-          reportError(err instanceof Error ? err.message : "Vault read failed");
-        });
-    };
-    const vaultWrite = (params: Record<string, unknown>): Promise<void> => {
-      const filePath = typeof params["path"] === "string" ? params["path"] : "";
-      const from = typeof params["from"] === "string" ? params["from"] : "";
-      const errorPath = typeof params["error"] === "string" ? params["error"] : "";
-      const reportError = (message: string): void => {
-        if (errorPath) getStore().set(errorPath, message);
-        else toast.error(message);
-      };
-      if (!filePath || !from) return Promise.resolve();
-      const bridge = getBridge();
-      if (!bridge) {
-        reportError("Vault unavailable");
-        return Promise.resolve();
-      }
-      // Latest-wins per target file: a slower write must not land after a newer
-      // one, and a superseded write must not update the refresh baseline as if
-      // state and disk still match. Keyed by file path (reads key by `into`, so
-      // they share the map without colliding).
-      const seqMap = callSeqRef.current;
-      const wseq = (seqMap.get(filePath) ?? 0) + 1;
-      seqMap.set(filePath, wseq);
-      const isLatest = (): boolean => seqMap.get(filePath) === wseq;
-      const value = readJsonPointer(getStore().getSnapshot(), from);
-      return bridge
-        .widgetVaultWrite({ path: filePath, value })
-        .then((res) => {
-          if (!isLatest()) return undefined; // a newer write to this file won
-          if (!res.ok) reportError(res.error);
-          else {
-            // The file now holds `value`; if state[from] is still that value
-            // they're in sync, so refresh the baseline (keep it user-edited
-            // otherwise). Prevents the live re-read from treating it as edited
-            // forever, without masking edits made during the write.
-            if (jsonEqual(readJsonPointer(getStore().getSnapshot(), from), value)) {
-              vaultReadBaseline.current.set(from, value);
-            }
-            if (errorPath) getStore().set(errorPath, null);
-          }
-          return undefined;
-        })
-        .catch((err: unknown) => {
-          if (!isLatest()) return;
-          reportError(err instanceof Error ? err.message : "Vault write failed");
-        });
-    };
-    return {
-      notify: (params: Record<string, unknown>) => {
-        const message = typeof params["message"] === "string" ? params["message"] : "";
-        if (!message) return;
-        const variant = params["variant"];
-        if (variant === "success") toast.success(message);
-        else if (variant === "error") toast.error(message);
-        else toast(message);
-      },
-      openUrl: async (params: Record<string, unknown>) => {
-        const url = typeof params["url"] === "string" ? params["url"] : "";
-        if (!url) return;
-        await getBridge()?.widgetOpenUrl({ url });
-      },
-      // Live actions. generateText/fetchUrl write their result into the store
-      // at `into`; the store subscriber persists it and bound components
-      // re-render. Errors surface as a toast.
-      // Fire-and-forget: the click handler shouldn't block on the IPC round-trip
-      // (the json-render handler runner awaits whatever we return). Surface
-      // bridge-missing immediately; surface IPC errors via the promise catch.
-      sendPrompt: (params: Record<string, unknown>) => {
-        const prompt = typeof params["prompt"] === "string" ? params["prompt"] : "";
-        if (!prompt) return;
-        const bridge = getBridge();
-        if (!bridge) {
-          toast.error("Agent unavailable");
-          return;
-        }
-        bridge.widgetSendPrompt({ prompt }).catch((err) => {
-          toast.error(err instanceof Error ? err.message : "Failed to send prompt");
-        });
-      },
-      generateText: async (params: Record<string, unknown>) => {
-        const prompt = typeof params["prompt"] === "string" ? params["prompt"] : "";
-        const into = typeof params["into"] === "string" ? params["into"] : "";
-        const system = typeof params["system"] === "string" ? params["system"] : undefined;
-        if (!prompt || !into) return;
-        try {
-          const text = await getBridge()?.widgetComplete({
-            prompt,
-            ...(system === undefined ? {} : { system }),
-          });
-          if (typeof text === "string") getStore().set(into, text);
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Generation failed");
-        }
-      },
-      fetchUrl: async (params: Record<string, unknown>) => {
-        const url = typeof params["url"] === "string" ? params["url"] : "";
-        const into = typeof params["into"] === "string" ? params["into"] : "";
-        if (!url || !into) return;
-        try {
-          const text = await getBridge()?.widgetFetch({ url });
-          if (typeof text === "string") getStore().set(into, text);
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : "Fetch failed");
-        }
-      },
-      // Fetch JSON and route specific fields into specific state pointers. Bind
-      // a Heading/Text to each path. We share widgetFetch's IPC (capped text +
-      // redirect-safe) and only diverge on parsing + multi-target routing —
-      // no new IPC channel, no widening of the trusted surface.
-      fetchJson: async (params: Record<string, unknown>) => {
-        const url = typeof params["url"] === "string" ? params["url"] : "";
-        const errorPath = typeof params["error"] === "string" ? params["error"] : "";
-        const paths = isPlainRecord(params["paths"]) ? params["paths"] : null;
-        if (!url || !paths) return;
-        const reportError = (message: string): void => {
-          if (errorPath) getStore().set(errorPath, message);
-          else toast.error(message);
-        };
-        try {
-          const text = await getBridge()?.widgetFetch({ url });
-          if (typeof text !== "string") return;
-          const parsed: unknown = JSON.parse(text);
-          for (const [dest, source] of Object.entries(paths)) {
-            if (typeof source !== "string") continue;
-            getStore().set(dest, readJsonPointer(parsed, source));
-          }
-          if (errorPath) getStore().set(errorPath, null);
-        } catch (err) {
-          reportError(err instanceof Error ? err.message : "Fetch failed");
-        }
-      },
-      // Pure-renderer date stamper for "today" widgets. Same params shape as
-      // fetchJson — destination pointer → field name — so the spec language
-      // stays uniform.
-      setNow: (params: Record<string, unknown>) => {
-        const paths = isPlainRecord(params["paths"]) ? params["paths"] : null;
-        if (!paths) return;
-        const parts = formatNow();
-        for (const [dest, field] of Object.entries(paths)) {
-          if (typeof field !== "string" || !isNowField(field)) continue;
-          getStore().set(dest, parts[field]);
-        }
-      },
-      // Calls a configured integration tool and writes its data into `into`.
-      // On failure, route the message into the `error` state path when given
-      // (so the widget can show it inline) and otherwise toast.
-      callTool: async (params: Record<string, unknown>) => {
-        const tool = typeof params["tool"] === "string" ? params["tool"] : "";
-        const into = typeof params["into"] === "string" ? params["into"] : "";
-        const errorPath = typeof params["error"] === "string" ? params["error"] : "";
-        // Optional sub-path into the response body to extract before writing
-        // to `into`. Useful for APIs that wrap results in an envelope (e.g.
-        // Google Calendar's `{ items: [...] }`). Pointer empty/absent → use
-        // the whole response.
-        const selectPath = typeof params["select"] === "string" ? params["select"] : "";
-        // resolveAction only walks the top-level params map and only handles
-        // `{$state}` at that layer (not $bindState, not recursion). Tool input
-        // objects routinely carry nested dynamic values — e.g. timeMin set by
-        // a setNow earlier in the same onMount sequence. Recursively resolve
-        // here so widgets can write `input: { timeMin: { $state: '/now' } }`
-        // and have the live state value reach the executor.
-        const input = resolveStateRefs(params["input"], getStore().getSnapshot());
-        if (!tool || !into) return;
-        // Resolve the bridge up front: a tool call returns arbitrary data
-        // (including a legitimate null), so a missing bridge can't be told
-        // apart from a real result downstream. Treat its absence as an error
-        // rather than silently writing null over bound data.
-        const bridge = getBridge();
-        if (!bridge) {
-          if (errorPath) getStore().set(errorPath, "Agent unavailable");
-          else toast.error("Agent unavailable");
-          return;
-        }
-        // Latest-wins per state path this call writes: claim a token for each
-        // pointer, then only write a pointer if no newer call has claimed it.
-        // Keying per pointer (not just `into`) means a success on one target
-        // can't null out an error a concurrent call wrote to a shared `error`
-        // pointer. When `error` coincides with `into` it's a single pointer —
-        // claiming once and never clearing it on success.
-        const seqMap = callSeqRef.current;
-        const claim = (path: string): (() => boolean) => {
-          const seq = (seqMap.get(path) ?? 0) + 1;
-          seqMap.set(path, seq);
-          return () => seqMap.get(path) === seq;
-        };
-        const intoLatest = claim(into);
-        const errorLatest = errorPath && errorPath !== into ? claim(errorPath) : null;
-        // widgetCallTool returns a {ok,data|error} envelope — a failed tool
-        // call resolves with ok:false rather than rejecting, so the message we
-        // surface is the clean one from main, not Electron's IPC stack string.
-        const writeError = (message: string): void => {
-          if (!errorPath) toast.error(message);
-          else if (errorPath === into ? intoLatest() : errorLatest?.())
-            getStore().set(errorPath, message);
-        };
-        try {
-          const res = await bridge.widgetCallTool({ tool, input });
-          if (!res.ok) {
-            writeError(res.error);
-          } else {
-            const value = selectPath ? readJsonPointer(res.data, selectPath) : res.data;
-            if (intoLatest()) getStore().set(into, value ?? null);
-            // Clear a stale error only if we still own the error pointer and it
-            // isn't the path we just wrote the result to.
-            if (errorLatest?.()) getStore().set(errorPath, null);
-          }
-        } catch (err) {
-          // Transport-level failure (bridge unavailable / IPC rejected).
-          writeError(err instanceof Error ? err.message : "Tool call failed");
-        }
-      },
-      // Vault read: pull a file from the user's knowledge folder into state.
-      // readDoc (markdown/text) and readBlob (parsed JSON) share one impl — main
-      // serializes by file extension; the renderer just routes the value into
-      // `into`. Re-fired automatically on vault changes (see OnMountRunner).
-      readDoc: vaultRead,
-      readBlob: vaultRead,
-      // Vault write: persist the value at state pointer `from` to a vault file.
-      // writeDoc (text) and writeBlob (JSON) share one impl — main serializes
-      // by extension. Whole-file replace.
-      writeDoc: vaultWrite,
-      writeBlob: vaultWrite,
-    };
-  }, []);
+  // Built once per mount over the stable store getter + call sequencer + vault
+  // baseline (the implementations live in widget-actions.ts).
+  const handlers = useMemo(() => createWidgetHandlers(getStore, callSeqRef, vaultReadBaseline), []);
 
   // Per-element prop validation, defense-in-depth. The authoritative check
   // runs at the write boundary (parseWidgetSpec in main rejects bad props
@@ -443,7 +173,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
     return (
       <div className="flex flex-col gap-2 p-3 text-xs">
         <p className="font-medium text-destructive">Widget spec is invalid</p>
-        <pre className="overflow-auto rounded border border-border bg-muted/40 p-2 text-[10px] text-muted-foreground">
+        <pre className="overflow-auto rounded-[10px] bg-muted p-2 text-[10px] text-muted-foreground">
           {message}
         </pre>
         <p className="text-[10px] text-muted-foreground">
@@ -455,7 +185,7 @@ export const WidgetViewer = memo(function WidgetViewer({ instance, def }: Props)
   }
 
   return (
-    <div className="flex flex-col gap-4 p-3">
+    <div className="flex flex-col gap-3 p-2.5 text-[13px]">
       <JSONUIProvider registry={widgetRegistry} store={getStore()} handlers={handlers}>
         {/* ValidationProvider connects the framework's built-in `validateForm`
          * action — without it, the action dispatches but no-ops with a console
@@ -486,8 +216,8 @@ function OnMountRunner({
 }: {
   spec: WidgetSpec;
   store: StateStore;
-  /** Whether the read targeting this `into` pointer may refresh (false when the
-   * user has edited it since our last read). */
+  /** Whether a readDoc/readBlob into this pointer may run on a spec re-run
+   * (false when the user has edited it since our last read). */
   canRefresh: (into: string) => boolean;
 }): null {
   const { execute } = useActions();
@@ -524,7 +254,8 @@ function OnMountRunner({
   // user edited it in their editor, a sibling widget saved a blob), re-run this
   // widget's vault read loaders so what's on screen reflects the new data.
   // skipIf is intentionally ignored here — that gate is for first-mount caching,
-  // and the whole point of a change event is to refresh past it.
+  // and the whole point of a change event is to refresh past it. Pointers the
+  // user has edited are skipped via canRefresh.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
@@ -535,9 +266,6 @@ function OnMountRunner({
     return bridge.onVaultChanged(() => {
       void (async () => {
         for (const a of reads) {
-          // Skip only the pointer the user is actively editing — a readDoc/
-          // readBlob whose `into` no longer matches what we last wrote there.
-          // Other reads in the same widget still refresh.
           const into = typeof a.params?.["into"] === "string" ? a.params["into"] : "";
           if (into && !canRefresh(into)) continue;
           await execute({ action: a.action, params: a.params ?? {} }).catch(() => undefined);
@@ -546,155 +274,4 @@ function OnMountRunner({
     });
   }, [spec, execute, canRefresh]);
   return null;
-}
-
-/**
- * "Non-empty" for `skipIf` caching: defined, not null, not "", not [], not {}.
- * Numbers (including 0) and booleans (including false) count as populated —
- * a temperature of 0°C is still real data the widget should not overwrite.
- */
-function hasNonEmptyValue(state: Record<string, unknown>, pointer: string): boolean {
-  const value = readJsonPointer(state, pointer);
-  if (value === undefined || value === null) return false;
-  if (typeof value === "string") return value.length > 0;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === "object") return Object.keys(value).length > 0;
-  return true;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers for setNow / fetchJson
-// ---------------------------------------------------------------------------
-
-function isPlainRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === "object" && v !== null && !Array.isArray(v);
-}
-
-/** Structural equality for vault values (strings or JSON-parsed data). Both
- * sides originate from JSON, so a serialized compare is sufficient and cheap. */
-function jsonEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
-  try {
-    return JSON.stringify(a) === JSON.stringify(b);
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Walk an unknown value, replacing every `{ $state: "/path" }` with the
- * resolved value at that path. Leaves everything else untouched. Used to
- * deep-resolve callTool's `input` object since json-render's built-in
- * resolveAction only walks the top-level params keys.
- */
-function resolveStateRefs(value: unknown, state: Record<string, unknown>): unknown {
-  if (Array.isArray(value)) return value.map((v) => resolveStateRefs(v, state));
-  if (!isPlainRecord(value)) return value;
-  if (typeof value["$state"] === "string") {
-    return readJsonPointer(state, value["$state"]);
-  }
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(value)) {
-    out[k] = resolveStateRefs(v, state);
-  }
-  return out;
-}
-
-/**
- * Resolve a JSON pointer ("/a/b/0") against a parsed JSON value. Returns
- * `undefined` for an unresolvable path so the caller can choose to skip the
- * write. Empty pointer ("") returns the whole document.
- */
-function readJsonPointer(value: unknown, pointer: string): unknown {
-  if (pointer === "") return value;
-  if (!pointer.startsWith("/")) return undefined;
-  let cur: unknown = value;
-  for (const raw of pointer.slice(1).split("/")) {
-    const segment = raw.replace(/~1/g, "/").replace(/~0/g, "~");
-    if (Array.isArray(cur)) {
-      const idx = Number(segment);
-      if (!Number.isInteger(idx) || idx < 0 || idx >= cur.length) return undefined;
-      cur = cur[idx];
-    } else if (isPlainRecord(cur)) {
-      if (!(segment in cur)) return undefined;
-      cur = cur[segment];
-    } else {
-      return undefined;
-    }
-  }
-  return cur;
-}
-
-const NOW_FIELDS = [
-  "dayShort",
-  "dayLong",
-  "dayNum",
-  "monthShort",
-  "monthLong",
-  "year",
-  "iso",
-  "hourMinute12",
-] as const;
-type NowField = (typeof NOW_FIELDS)[number];
-type NowParts = Record<NowField, string>;
-
-function isNowField(field: string): field is NowField {
-  return NOW_FIELDS.some((f) => f === field);
-}
-
-const DAYS_LONG = [
-  "Sunday",
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-] as const;
-const DAYS_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
-const MONTHS_LONG = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-] as const;
-const MONTHS_SHORT = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-] as const;
-
-function formatNow(now: Date = new Date()): NowParts {
-  const day = now.getDay();
-  const month = now.getMonth();
-  const hour24 = now.getHours();
-  const minute = now.getMinutes();
-  const hour12 = hour24 % 12 === 0 ? 12 : hour24 % 12;
-  return {
-    dayShort: DAYS_SHORT[day] ?? "",
-    dayLong: DAYS_LONG[day] ?? "",
-    dayNum: String(now.getDate()).padStart(2, "0"),
-    monthShort: MONTHS_SHORT[month] ?? "",
-    monthLong: MONTHS_LONG[month] ?? "",
-    year: String(now.getFullYear()),
-    iso: now.toISOString(),
-    hourMinute12: `${hour12}:${String(minute).padStart(2, "0")} ${hour24 < 12 ? "AM" : "PM"}`,
-  };
 }

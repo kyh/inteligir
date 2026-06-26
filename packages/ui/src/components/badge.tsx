@@ -16,6 +16,11 @@ const badgeVariants = cva(
         outline: "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost: "hover:bg-muted hover:text-muted-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // Smoked stadium chip (refs: the W/H dimension pills) — dark
+        // translucent fill, white text, both themes. Light blur is enough at
+        // chip scale; values go tabular for the dimension-readout use case.
+        glass:
+          "h-6 bg-glass-smoke-deep px-2.5 text-[11px] text-glass-fg tabular-nums shadow-chip backdrop-blur-[12px] backdrop-saturate-150",
       },
     },
     defaultVariants: {

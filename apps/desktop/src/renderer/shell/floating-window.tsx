@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { PinIcon, XIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
-import { ChromeButton } from "@/renderer/shell/widget-render";
+import { Button } from "@repo/ui/components/button";
 import type { FloatRect } from "@/shared/shell";
 
 const MIN_W = 240;
@@ -29,6 +29,7 @@ type Drag =
  * release; props.rect re-syncs it when no drag is in flight.
  */
 export function FloatingWindow({
+  icon: Icon,
   title,
   rect,
   z,
@@ -39,6 +40,7 @@ export function FloatingWindow({
   onFocus,
   children,
 }: {
+  icon: React.ComponentType<{ className?: string }>;
   title: React.ReactNode;
   rect: FloatRect;
   z: number;
@@ -104,9 +106,13 @@ export function FloatingWindow({
     dragRef.current = { mode: "resize", px: e.clientX, py: e.clientY, rect: local };
   };
 
+  // The positioned root carries geometry/focus only; the card itself is an
+  // inner div so the window actions can float OUTSIDE the card edge as a
+  // stack of circular glass pucks (reference language) without being clipped
+  // by the card's overflow-hidden rounding.
   return (
     <div
-      className="pointer-events-auto absolute flex flex-col overflow-hidden rounded-xl border border-border bg-card/80 shadow-2xl backdrop-blur-md"
+      className="pointer-events-auto absolute"
       style={{
         left: local.x,
         top: local.y,
@@ -116,23 +122,29 @@ export function FloatingWindow({
       }}
       onPointerDown={onFocus}
     >
-      <div
-        className="flex shrink-0 cursor-move items-center justify-between gap-2 border-b border-border/60 px-3 py-2"
-        onPointerDown={startMove}
-      >
-        <span className="truncate text-xs font-medium text-muted-foreground">{title}</span>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <ChromeButton label="Pin to desktop" onClick={onDock}>
-            <PinIcon className="size-3.5" />
-          </ChromeButton>
-          {onClose ? (
-            <ChromeButton label="Close window" onClick={onClose}>
-              <XIcon className="size-3.5" />
-            </ChromeButton>
-          ) : null}
+      <div className="object-pane flex h-full w-full flex-col overflow-hidden rounded-[var(--radius-window)] border">
+        <div
+          className="flex h-7 shrink-0 cursor-move items-center gap-1.5 px-2.5"
+          onPointerDown={startMove}
+        >
+          <Icon className="size-3.5 shrink-0 text-[rgba(19,20,27,0.34)]" />
+          <span className="truncate text-[13px] leading-4 font-normal text-[rgba(19,20,27,0.44)]">
+            {title}
+          </span>
         </div>
+        <div className={cn("min-h-0 flex-1 overflow-auto", bodyClassName)}>{children}</div>
       </div>
-      <div className={cn("min-h-0 flex-1 overflow-auto", bodyClassName)}>{children}</div>
+      {/* Stacked circular glass action pucks beside the card's top-right edge. */}
+      <div className="absolute top-0 -right-11 flex flex-col gap-2">
+        <Button variant="glass" size="icon" aria-label="Pin to desktop" onClick={onDock}>
+          <PinIcon className="size-4" />
+        </Button>
+        {onClose ? (
+          <Button variant="glass" size="icon" aria-label="Close window" onClick={onClose}>
+            <XIcon className="size-4" />
+          </Button>
+        ) : null}
+      </div>
       <div
         className="absolute bottom-0 right-0 size-3 cursor-se-resize"
         onPointerDown={startResize}
