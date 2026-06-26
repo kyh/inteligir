@@ -491,10 +491,17 @@ function OnMountRunner({
     void (async () => {
       for (const a of actions) {
         if (a.skipIf !== undefined && hasNonEmptyValue(snapshot, a.skipIf)) continue;
+        // On a spec re-run (agent edited the spec), don't let a vault read
+        // overwrite a pointer the user has edited — same guard the live refresh
+        // uses. On first mount the pointer matches its baseline, so reads run.
+        if (a.action === "readDoc" || a.action === "readBlob") {
+          const into = typeof a.params?.["into"] === "string" ? a.params["into"] : "";
+          if (into && !canRefresh(into)) continue;
+        }
         await execute({ action: a.action, params: a.params ?? {} }).catch(() => undefined);
       }
     })();
-  }, [spec, execute, store]);
+  }, [spec, execute, store, canRefresh]);
 
   // Live vault binding: when any vault file changes (the agent wrote a doc, the
   // user edited it in their editor, a sibling widget saved a blob), re-run this
