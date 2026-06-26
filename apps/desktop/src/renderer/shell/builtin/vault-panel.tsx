@@ -156,6 +156,19 @@ export function VaultPanel() {
     if (!bridge) return;
     cancelTimer();
     await controller.flush();
+    // Don't truncate an existing file — a write with empty content would wipe
+    // notes/JSON already there. A successful read means it exists, so open it
+    // instead. (Disk-truth via the read IPC, not the possibly-stale listing.)
+    const exists = await bridge
+      .readVaultDoc({ path: name })
+      .then(() => true)
+      .catch(() => false);
+    if (exists) {
+      toast.error(`${name} already exists.`);
+      setNewName("");
+      openFile(name);
+      return;
+    }
     const created = await bridge
       .writeVaultDoc({ path: name, content: "" })
       .then(() => true)
