@@ -10,7 +10,10 @@ import { MarkdownEditor } from "@/renderer/shell/builtin/markdown-editor";
 import { VaultEditorController, type VaultIO } from "@/renderer/shell/builtin/vault-editor";
 import type { VaultEntry } from "@/shared/ipc-registry";
 
-const MARKDOWN_RE = /\.(md|markdown|mdx)$/i;
+// Files eligible for the rich (Plate) editor. `.mdx` is intentionally excluded:
+// the Plate markdown pipeline doesn't parse/serialize MDX (JSX/expressions), so
+// rich-editing one would risk a destructive rewrite — it stays raw-only.
+const MARKDOWN_RE = /\.(md|markdown)$/i;
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
 // IO the editor controller acts through — thin wrappers over the bridge so the
@@ -153,7 +156,14 @@ export function VaultPanel() {
     if (!bridge) return;
     cancelTimer();
     await controller.flush();
-    await bridge.writeVaultDoc({ path: name, content: "" }).catch(() => {});
+    const created = await bridge
+      .writeVaultDoc({ path: name, content: "" })
+      .then(() => true)
+      .catch(() => false);
+    if (!created) {
+      toast.error(`Couldn't create ${name}.`);
+      return;
+    }
     setNewName("");
     refreshList();
     openFile(name);

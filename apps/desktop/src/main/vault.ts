@@ -133,8 +133,12 @@ export class VaultManager {
         "Choose a folder outside the app data directory (~/.inteligir) — anything there is deleted on logout.",
       );
     }
+    // Create the dir first and let failure propagate, so we don't persist a
+    // vault path we couldn't actually set up (the IPC caller surfaces the throw
+    // as an error to the user). The symlink stays best-effort — the agent's
+    // ./vault convenience link failing shouldn't block using the vault.
+    fs.mkdirSync(resolved, { recursive: true });
     this.settings.update((s) => ({ ...s, vaultPath: resolved }));
-    this.ensureRootDir(resolved);
     this.ensureAgentSymlink(resolved);
     this.restartWatcher();
     this.notify();
@@ -351,13 +355,25 @@ function atomicWrite(filePath: string, content: string): void {
   fs.renameSync(tmp, filePath);
 }
 
-/** Resolve symlinks to a canonical path; fall back to the lexical resolve when
- * the path doesn't exist yet (nothing to dereference). */
+/** Canonical path with symlinks resolved. For a path that doesn't exist yet,
+ * resolve the nearest existing ancestor (so a symlinked *parent* is still
+ * dereferenced) and rejoin the remaining segments — otherwise a not-yet-created
+ * folder under a symlink into ~/.inteligir would slip past the guard. */
 function realPath(p: string): string {
+  const resolved = path.resolve(p);
+  const tail: string[] = [];
+  let current = resolved;
+  while (!fs.existsSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) return resolved; // reached filesystem root, nothing exists
+    tail.unshift(path.basename(current));
+    current = parent;
+  }
   try {
-    return fs.realpathSync(p);
+    const realBase = fs.realpathSync(current);
+    return tail.length > 0 ? path.join(realBase, ...tail) : realBase;
   } catch {
-    return path.resolve(p);
+    return resolved;
   }
 }
 
