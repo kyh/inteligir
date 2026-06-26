@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { VaultManager } from "@/main/vault";
+import { VaultManager, resumeVaultWrites, suspendVaultWrites } from "@/main/vault";
 
 let tmp: string;
 let root: string;
@@ -105,6 +105,22 @@ describe("VaultManager", () => {
     expect(() => mgr.setRoot(inside)).toThrow(/app data directory/);
     // The root is unchanged.
     expect(mgr.getRoot()).toBe(root);
+  });
+
+  it("blocks writes while suspended (signed out) and resumes after", () => {
+    const mgr = newManager();
+    mgr.writeText("a.md", "before");
+    suspendVaultWrites();
+    try {
+      expect(() => mgr.writeText("a.md", "during")).toThrow(/signed out/);
+      expect(() => mgr.delete("a.md")).toThrow(/signed out/);
+      // The pre-suspension content is untouched.
+      expect(mgr.readText("a.md")).toBe("before");
+    } finally {
+      resumeVaultWrites();
+    }
+    mgr.writeText("a.md", "after");
+    expect(mgr.readText("a.md")).toBe("after");
   });
 
   it("repoints the root and persists it across instances", () => {

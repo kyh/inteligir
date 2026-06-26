@@ -121,6 +121,7 @@ export class VaultManager {
    * Rejects a root inside ~/.inteligir — that directory is wiped on logout,
    * which would silently destroy the user's "persistent" data. */
   setRoot(root: string): void {
+    assertVaultWritable();
     const resolved = path.resolve(root);
     // Resolve symlinks before the guard: a folder that *links* into ~/.inteligir
     // would otherwise pass a lexical check while its files live where logout
@@ -192,6 +193,7 @@ export class VaultManager {
   }
 
   writeText(rel: string, content: string): void {
+    assertVaultWritable();
     const target = this.resolve(rel);
     fs.mkdirSync(path.dirname(target), { recursive: true });
     atomicWrite(target, content);
@@ -225,6 +227,7 @@ export class VaultManager {
   }
 
   delete(rel: string): boolean {
+    assertVaultWritable();
     const target = this.resolve(rel);
     if (!fs.existsSync(target)) return false;
     fs.rmSync(target, { force: true });
@@ -387,6 +390,26 @@ let instance: VaultManager | null = null;
 // Module-scoped so it survives resetVaultManager() (logout): a fresh instance
 // built on the next login re-attaches the watcher instead of going silent.
 let sharedNotifier: ((root: string) => void) | null = null;
+// Mirrors the shell's write suspension: between logout (teardown wipes
+// ~/.inteligir, including settings.json) and the next login, a dirty autosave
+// firing from a still-mounted panel must not lazily build a fresh manager with
+// the DEFAULT root and write the user's edits to the wrong folder (recreating
+// app data). Writes throw while suspended; reads stay allowed.
+let writesSuspended = false;
+
+function assertVaultWritable(): void {
+  if (writesSuspended) throw new Error("Vault is signed out");
+}
+
+/** Suspend vault writes (logout). Called from teardownAgentResources. */
+export function suspendVaultWrites(): void {
+  writesSuspended = true;
+}
+
+/** Resume vault writes after a successful (re)login. */
+export function resumeVaultWrites(): void {
+  writesSuspended = false;
+}
 
 export function getVaultManager(): VaultManager {
   if (!instance) {
