@@ -26,6 +26,12 @@ import { resetNotifications } from "@/main/notifications";
 import { resetSecretStore } from "@/main/secrets";
 import { getTaskManager, resetTaskManager } from "@/main/tasks/task-manager";
 import { resetUiState } from "@/main/ui-state";
+import {
+  getVaultManager,
+  resetVaultManager,
+  resumeVaultWrites,
+  suspendVaultWrites,
+} from "@/main/vault";
 import type { SetupProgress } from "@/shared/ipc";
 
 /** Build the main-owned capability ports handed to agent extension bundles.
@@ -78,6 +84,10 @@ export async function seedAgentResources(onProgress: (p: SetupProgress) => void)
     });
 
   await seedResources(getAgentPorts(), onProgress);
+
+  // Now that the workspace exists, (re)create the vault folder and the agent's
+  // `./vault` symlink into it so the agent's native file tools can find it.
+  getVaultManager().ensureReady();
 }
 
 /** Run the provider OAuth flow, then lift the shell write suspension that a
@@ -86,6 +96,7 @@ export async function seedAgentResources(onProgress: (p: SetupProgress) => void)
 export async function loginAgent(): Promise<void> {
   await login();
   resumeShellWrites();
+  resumeVaultWrites();
 }
 
 export function teardownAgentResources(): void {
@@ -103,5 +114,10 @@ export function teardownAgentResources(): void {
   resetExecutorDaemon();
   resetUiState();
   resetSecretStore();
+  // Suspend vault writes BEFORE wiping ~/.inteligir, so a late autosave from a
+  // still-mounted panel can't rebuild a fresh manager at the default root and
+  // write the user's edits there (or recreate app data).
+  suspendVaultWrites();
+  resetVaultManager();
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
 }

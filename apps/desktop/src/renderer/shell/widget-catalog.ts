@@ -128,5 +128,21 @@ export const widgetCatalog = defineCatalog(schema, {
       }),
       description: WIDGET_ACTION_DESCRIPTIONS.callTool,
     },
+    readDoc: {
+      params: z.object({ path: z.string(), into: z.string(), error: z.string().optional() }),
+      description: WIDGET_ACTION_DESCRIPTIONS.readDoc,
+    },
+    writeDoc: {
+      params: z.object({ path: z.string(), from: z.string(), error: z.string().optional() }),
+      description: WIDGET_ACTION_DESCRIPTIONS.writeDoc,
+    },
+    readBlob: {
+      params: z.object({ path: z.string(), into: z.string(), error: z.string().optional() }),
+      description: WIDGET_ACTION_DESCRIPTIONS.readBlob,
+    },
+    writeBlob: {
+      params: z.object({ path: z.string(), from: z.string(), error: z.string().optional() }),
+      description: WIDGET_ACTION_DESCRIPTIONS.writeBlob,
+    },
   },
 });

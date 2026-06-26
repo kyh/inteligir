@@ -13,14 +13,112 @@ import { getBridge } from "@/renderer/lib/bridge";
 /** Build the live action handlers for one widget viewer instance.
  *
  * @param getStore   reads the viewer's live json-render store.
- * @param callSeqRef per-`into`-path invocation counter for callTool, so a
- *   slower earlier call can't clobber a newer result at the same path.
+ * @param callSeqRef per-path invocation counter for callTool + vault reads/
+ *   writes, so a slower earlier call can't clobber a newer one at the same path.
+ * @param vaultBaseline per-`into` baseline the live refresh compares against to
+ *   tell a user edit from our own value (see widget-viewer's canRefresh).
  */
 export function createWidgetHandlers(
   getStore: () => StateStore,
   callSeqRef: { current: Map<string, number> },
+  vaultBaseline: { current: Map<string, unknown> },
 ) {
+  // Vault read/write closures, shared by the doc/blob action aliases below.
+  // readDoc/readBlob and writeDoc/writeBlob differ only in intent — main
+  // serializes by file extension; the renderer just routes the value.
+  const vaultRead = (params: Record<string, unknown>): Promise<void> => {
+    const filePath = typeof params["path"] === "string" ? params["path"] : "";
+    const into = typeof params["into"] === "string" ? params["into"] : "";
+    const errorPath = typeof params["error"] === "string" ? params["error"] : "";
+    const reportError = (message: string): void => {
+      if (errorPath) getStore().set(errorPath, message);
+      else toast.error(message);
+    };
+    if (!filePath || !into) return Promise.resolve();
+    const bridge = getBridge();
+    if (!bridge) {
+      reportError("Vault unavailable");
+      return Promise.resolve();
+    }
+    // Latest-wins per `into`: a slow earlier read (e.g. onMount) must not land
+    // after a newer refresh. Shares the per-path sequence map with callTool.
+    const seqMap = callSeqRef.current;
+    const seq = (seqMap.get(into) ?? 0) + 1;
+    seqMap.set(into, seq);
+    const isLatest = (): boolean => seqMap.get(into) === seq;
+    // The pointer's value when the read started — if it changed by the time the
+    // read resolves, the user edited `into` mid-read, so don't clobber it.
+    const before = readJsonPointer(getStore().getSnapshot(), into);
+    return bridge
+      .widgetVaultRead({ path: filePath })
+      .then((res) => {
+        if (!isLatest()) return undefined;
+        if (!res.ok) {
+          reportError(res.error);
+          return undefined;
+        }
+        if (!jsonEqual(readJsonPointer(getStore().getSnapshot(), into), before)) {
+          return undefined; // edited during the read — the edit wins
+        }
+        getStore().set(into, res.value);
+        vaultBaseline.current.set(into, res.value);
+        if (errorPath) getStore().set(errorPath, null);
+        return undefined;
+      })
+      .catch((err: unknown) => {
+        if (!isLatest()) return;
+        reportError(err instanceof Error ? err.message : "Vault read failed");
+      });
+  };
+  const vaultWrite = (params: Record<string, unknown>): Promise<void> => {
+    const filePath = typeof params["path"] === "string" ? params["path"] : "";
+    const from = typeof params["from"] === "string" ? params["from"] : "";
+    const errorPath = typeof params["error"] === "string" ? params["error"] : "";
+    const reportError = (message: string): void => {
+      if (errorPath) getStore().set(errorPath, message);
+      else toast.error(message);
+    };
+    if (!filePath || !from) return Promise.resolve();
+    const bridge = getBridge();
+    if (!bridge) {
+      reportError("Vault unavailable");
+      return Promise.resolve();
+    }
+    // Latest-wins per target file (keyed by path; reads key by `into`, so they
+    // share the map without colliding).
+    const seqMap = callSeqRef.current;
+    const wseq = (seqMap.get(filePath) ?? 0) + 1;
+    seqMap.set(filePath, wseq);
+    const isLatest = (): boolean => seqMap.get(filePath) === wseq;
+    const value = readJsonPointer(getStore().getSnapshot(), from);
+    return bridge
+      .widgetVaultWrite({ path: filePath, value })
+      .then((res) => {
+        if (!isLatest()) return undefined;
+        if (!res.ok) reportError(res.error);
+        else {
+          // The file now holds `value`; if state[from] still equals it they're
+          // in sync, so refresh the baseline (keep it user-edited otherwise).
+          if (jsonEqual(readJsonPointer(getStore().getSnapshot(), from), value)) {
+            vaultBaseline.current.set(from, value);
+          }
+          if (errorPath) getStore().set(errorPath, null);
+        }
+        return undefined;
+      })
+      .catch((err: unknown) => {
+        if (!isLatest()) return;
+        reportError(err instanceof Error ? err.message : "Vault write failed");
+      });
+  };
+
   return {
+    // Vault: pull a file into state / persist state to a file. doc=markdown/
+    // text, blob=JSON — main serializes by extension; the renderer routes.
+    readDoc: vaultRead,
+    readBlob: vaultRead,
+    writeDoc: vaultWrite,
+    writeBlob: vaultWrite,
     notify: (params: Record<string, unknown>) => {
       const message = typeof params["message"] === "string" ? params["message"] : "";
       if (!message) return;
@@ -219,7 +317,7 @@ function resolveStateRefs(value: unknown, state: Record<string, unknown>): unkno
  * `undefined` for an unresolvable path so the caller can choose to skip the
  * write. Empty pointer ("") returns the whole document.
  */
-function readJsonPointer(value: unknown, pointer: string): unknown {
+export function readJsonPointer(value: unknown, pointer: string): unknown {
   if (pointer === "") return value;
   if (!pointer.startsWith("/")) return undefined;
   let cur: unknown = value;
@@ -237,6 +335,17 @@ function readJsonPointer(value: unknown, pointer: string): unknown {
     }
   }
   return cur;
+}
+
+/** Structural equality for vault values (strings or JSON-parsed data). Both
+ * sides originate from JSON, so a serialized compare is sufficient and cheap. */
+export function jsonEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
 }
 
 /**

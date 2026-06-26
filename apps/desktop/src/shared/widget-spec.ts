@@ -550,6 +550,10 @@ const WIDGET_ACTION_NAMES = [
   "pushState",
   "removeState",
   "validateForm",
+  "readDoc",
+  "writeDoc",
+  "readBlob",
+  "writeBlob",
 ] as const;
 
 export type WidgetActionName = (typeof WIDGET_ACTION_NAMES)[number];
@@ -573,6 +577,14 @@ export const WIDGET_ACTION_DESCRIPTIONS: Record<WidgetActionName, string> = {
   pushState: "Append an item to an array in widget state.",
   removeState: "Remove an item from an array in widget state.",
   validateForm: "Validate registered form fields and write the result into widget state.",
+  readDoc:
+    "Read a markdown/text file from the user's vault at vault-relative `path` and write its text into state at the JSON pointer `into`. The widget re-reads automatically when the file changes. Optional `error` JSON pointer receives the message on failure (otherwise a toast).",
+  writeDoc:
+    "Write a markdown/text file to the user's vault at vault-relative `path`, using the string value at the state JSON pointer `from`. Whole-file replace. Optional `error` JSON pointer receives the message on failure.",
+  readBlob:
+    "Read a JSON file from the user's vault at vault-relative `path` (e.g. 'data/habits.json') and write the parsed value into state at the JSON pointer `into`. Bind a Table/Chart/Text to `into`. Re-reads automatically on change. Optional `error` JSON pointer for failures.",
+  writeBlob:
+    "Write a JSON file to the user's vault at vault-relative `path`, serializing the value at the state JSON pointer `from`. Whole-file replace (read-modify-write to avoid clobbering). Optional `error` JSON pointer for failures.",
 };
 
 // ---------------------------------------------------------------------------

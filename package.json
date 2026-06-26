@@ -25,6 +25,9 @@
     "turbo": "^2.9.14",
     "typescript": "catalog:"
   },
+  "engines": {
+    "node": ">=24"
+  },
   "packageManager": "pnpm@10.33.2",
   "pnpm": {
     "onlyBuiltDependencies": [
@@ -35,8 +38,5 @@
       "sharp",
       "spawn-sync"
     ]
-  },
-  "engines": {
-    "node": ">=24"
   }
 }
