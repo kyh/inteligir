@@ -133,12 +133,14 @@ export class VaultEditorController {
     if (this.writing === writing) this.writing = null;
   }
 
-  /** Delete the open file. Drops dirty (so no save races the delete), waits for
-   * any in-flight write, then removes and clears the selection. */
+  /** Delete the open file. Waits for any in-flight write (so it can't recreate
+   * the file after the delete), then removes and clears the selection. The
+   * unsaved buffer is intentionally discarded — that's what deleting means — so
+   * dirty is cleared at the end rather than up front, leaving flush's own
+   * dirty-bookkeeping intact while it's still running. */
   async remove(): Promise<void> {
     const path = this.st.path;
     if (path === null) return;
-    this.emit({ dirty: false });
     if (this.writing) await this.writing.catch(() => {});
     this.readSeq++; // cancel any in-flight read of this path
     try {
