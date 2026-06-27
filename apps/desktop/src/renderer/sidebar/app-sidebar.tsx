@@ -1,11 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
+  ChevronsUpDownIcon,
   FileIcon,
   FilePlusIcon,
   FileTextIcon,
   FolderIcon,
   PencilIcon,
+  SearchIcon,
   Trash2Icon,
 } from "lucide-react";
 
@@ -21,6 +23,7 @@ import {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuAction,
@@ -54,6 +57,7 @@ export function AppSidebar() {
 
   const [filter, setFilter] = useState("");
   const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
 
   const tree = useMemo(() => buildVaultTree(entries), [entries]);
@@ -65,6 +69,7 @@ export function AppSidebar() {
   const handleCreate = useCallback(() => {
     const name = newName;
     setNewName("");
+    setAdding(false);
     void createFile(name);
   }, [newName, createFile]);
 
@@ -82,61 +87,67 @@ export function AppSidebar() {
   };
 
   return (
-    <Sidebar>
-      <SidebarHeader className="app-drag gap-2 pt-8">
-        <div className="app-no-drag flex items-center justify-between gap-2">
-          <button
-            type="button"
-            onClick={() => void changeFolder()}
-            title={folderName}
-            className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-sidebar-foreground hover:text-foreground"
-          >
-            <FolderIcon className="size-4 shrink-0" />
-            <span className="truncate">{folderName || "Choose folder…"}</span>
-          </button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => void changeFolder()}
-            className="h-6 shrink-0 px-1.5 text-[11px] text-muted-foreground"
-          >
-            Change
-          </Button>
-        </div>
-        <div className="app-no-drag flex items-center gap-1.5">
+    <Sidebar collapsible="offcanvas" className="border-r-0!">
+      {/* `pt-8` reserves a draggable strip for the macOS traffic lights, which
+       * sit at window (16,16) and would otherwise overlap the folder switcher. */}
+      <SidebarHeader className="app-drag gap-1.5 px-2 pt-9 pb-1">
+        <button
+          type="button"
+          onClick={() => void changeFolder()}
+          title={`${folderName || "Choose folder"} — click to switch vault`}
+          className="app-no-drag flex w-full min-w-0 items-center gap-2 rounded-lg p-1.5 text-left transition-colors hover:bg-sidebar-accent"
+        >
+          <FolderIcon className="size-4 shrink-0 text-muted-foreground" />
+          <span className="truncate text-sm font-semibold">{folderName || "Choose folder…"}</span>
+          <ChevronsUpDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
+        </button>
+        <div className="app-no-drag relative">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleCreate();
-            }}
-            placeholder="new-note.md"
-            className="h-7 text-xs"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Search notes…"
+            className="h-7 pl-7 text-xs"
           />
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleCreate}
-            disabled={newName.trim().length === 0}
-            className="size-7 shrink-0 px-0"
-            title="Create note"
-          >
-            <FilePlusIcon className="size-4" />
-          </Button>
         </div>
-        <Input
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter notes"
-          className="h-7 text-xs"
-        />
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup className="py-0">
+      <SidebarContent className="px-2">
+        <SidebarGroup className="gap-1 p-0">
+          <div className="flex items-center justify-between pr-1">
+            <SidebarGroupLabel>Notes</SidebarGroupLabel>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAdding((v) => !v)}
+              className="size-5 shrink-0 px-0 text-muted-foreground hover:text-foreground"
+              title="New note"
+            >
+              <FilePlusIcon className="size-3.5" />
+            </Button>
+          </div>
+          {adding && (
+            <Input
+              autoFocus
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && newName.trim().length > 0) handleCreate();
+                if (e.key === "Escape") {
+                  setNewName("");
+                  setAdding(false);
+                }
+              }}
+              onBlur={() => {
+                if (newName.trim().length === 0) setAdding(false);
+              }}
+              placeholder="note-name.md"
+              className="mb-1 h-7 text-xs"
+            />
+          )}
           {entries.length === 0 ? (
             <p className="px-2 py-1.5 text-xs text-muted-foreground">
-              No notes yet. Create one above.
+              No notes yet. Create one with the + button.
             </p>
           ) : filtered ? (
             <SidebarMenu>
@@ -156,7 +167,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="flex-row items-center justify-between border-t border-sidebar-border">
+      <SidebarFooter className="flex-row items-center justify-between border-t border-sidebar-border p-2">
         <ThemeToggle />
         <SettingsDialog />
       </SidebarFooter>

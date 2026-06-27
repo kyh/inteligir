@@ -22,7 +22,7 @@ export function EditorPane() {
   const showRich = mode === "rich" && isMarkdownOpen && canonical;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-2 pb-40">
+    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pt-10 pb-44 sm:px-10">
       {showRich ? (
         <MarkdownEditor
           key={selected}
@@ -36,7 +36,7 @@ export function EditorPane() {
           value={editor.content}
           onChange={(e) => onEdit(e.target.value)}
           spellCheck={false}
-          className="min-h-[60vh] flex-1 resize-none bg-transparent px-2 py-4 font-mono text-sm leading-relaxed text-foreground outline-none"
+          className="min-h-[60vh] flex-1 resize-none bg-transparent py-2 font-mono text-sm leading-relaxed text-foreground outline-none"
           placeholder="Empty note"
         />
       )}

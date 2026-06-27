@@ -176,16 +176,6 @@ function SidebarTrigger({ className, onClick, ...props }: React.ComponentProps<t
   );
 }
 
-function SidebarInset({ className, ...props }: React.ComponentProps<"main">) {
-  return (
-    <main
-      data-slot="sidebar-inset"
-      className={cn("relative flex min-h-0 w-full flex-1 flex-col bg-background", className)}
-      {...props}
-    />
-  );
-}
-
 function SidebarHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -228,6 +218,20 @@ function SidebarGroup({ className, ...props }: React.ComponentProps<"div">) {
       data-slot="sidebar-group"
       data-sidebar="group"
       className={cn("relative flex w-full min-w-0 flex-col p-2", className)}
+      {...props}
+    />
+  );
+}
+
+function SidebarGroupLabel({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="sidebar-group-label"
+      data-sidebar="group-label"
+      className={cn(
+        "flex h-6 shrink-0 items-center px-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/80 select-none",
+        className,
+      )}
       {...props}
     />
   );
@@ -350,8 +354,8 @@ export {
   SidebarContent,
   SidebarFooter,
   SidebarGroup,
+  SidebarGroupLabel,
   SidebarHeader,
-  SidebarInset,
   SidebarMenu,
   SidebarMenuAction,
   SidebarMenuButton,
@@ -359,4 +363,5 @@ export {
   SidebarMenuSub,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 };

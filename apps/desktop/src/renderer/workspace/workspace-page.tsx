@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 
 import { Button } from "@repo/ui/components/button";
-import { SidebarInset, SidebarProvider } from "@repo/ui/components/sidebar";
+import { SidebarProvider } from "@repo/ui/components/sidebar";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { BottomComposer } from "@/renderer/composer/bottom-composer";
@@ -49,31 +49,34 @@ export function WorkspacePage() {
 
   return (
     <VaultProvider>
-      <SidebarProvider>
+      <SidebarProvider className="bg-sidebar">
         <AppSidebar />
-        <SidebarInset>
-          <Header />
+        {/* Floating-card shell: the editor lives in a rounded, bordered card on
+         * the sidebar-colored backdrop. The card is the positioning context for
+         * the bottom composer and the error banner. */}
+        <div className="h-full w-full overflow-hidden p-2">
+          <div className="relative flex h-full w-full flex-col overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+            <Header />
 
-          {workspaceError !== null && (
-            <div className="absolute inset-x-0 top-14 z-30 flex justify-center px-8">
-              <div className="flex max-w-xl items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5">
-                <span className="truncate text-xs text-destructive" title={workspaceError}>
-                  {workspaceError}
-                </span>
-                <Button size="xs" variant="outline" className="shrink-0" onClick={handleRetry}>
-                  Retry
-                </Button>
+            {workspaceError !== null && (
+              <div className="absolute inset-x-0 top-14 z-30 flex justify-center px-8">
+                <div className="flex max-w-xl items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-1.5">
+                  <span className="truncate text-xs text-destructive" title={workspaceError}>
+                    {workspaceError}
+                  </span>
+                  <Button size="xs" variant="outline" className="shrink-0" onClick={handleRetry}>
+                    Retry
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          <div className="relative flex min-h-0 flex-1 flex-col">
-            <div className="min-h-0 flex-1 overflow-auto">
+            <main className="min-h-0 flex-1 overflow-auto">
               <EditorPane />
-            </div>
+            </main>
             <BottomComposer />
           </div>
-        </SidebarInset>
+        </div>
       </SidebarProvider>
     </VaultProvider>
   );

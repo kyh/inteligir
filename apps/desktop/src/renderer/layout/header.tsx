@@ -10,26 +10,33 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@repo/ui/components/breadcrumb";
-import { SidebarTrigger } from "@repo/ui/components/sidebar";
+import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
 import { useVault } from "@/renderer/workspace/vault-context";
 
 /**
- * The shell header — a single sticky toolbar over the editor inset. Left: the
+ * The shell header — a single sticky toolbar over the editor card. Left: the
  * sidebar toggle + a breadcrumb of the open note's vault path. Right: the
- * per-file controls (Format / raw-rich / save status / delete) + settings. Also
- * the window drag region.
+ * per-file controls (Format / raw-rich / save status / delete). Also the window
+ * drag region. When the sidebar is collapsed the card slides under the macOS
+ * traffic lights, so we pad the left to keep the toggle clear of them.
  */
 export function Header() {
   const { editor, folderName, isMarkdownOpen, canonical, mode, setMode, formatDoc, deleteEntry } =
     useVault();
+  const { state } = useSidebar();
   const path = editor.path;
   const segments = path ? path.split("/") : [];
 
   return (
-    <header className="app-drag sticky top-0 z-20 flex h-11 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-2.5 backdrop-blur-sm">
-      <SidebarTrigger className="app-no-drag" />
+    <header
+      className={cn(
+        "app-drag sticky top-0 z-20 flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-3",
+        state === "collapsed" && "pl-20",
+      )}
+    >
+      <SidebarTrigger className="app-no-drag -ml-1 text-muted-foreground" />
 
       <Breadcrumb className="min-w-0 flex-1">
         <BreadcrumbList className="flex-nowrap">
