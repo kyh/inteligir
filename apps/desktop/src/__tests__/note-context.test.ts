@@ -9,8 +9,12 @@ describe("note context prefix", () => {
     expect(out.endsWith("add a tasks section")).toBe(true);
   });
 
-  it("is a no-op when no note is open", () => {
-    expect(withNoteContext("hello", undefined)).toBe("hello");
+  it("still grounds the date when no note is open, with no note clause", () => {
+    const out = withNoteContext("hello", undefined);
+    expect(out).toContain("today is");
+    expect(out).not.toContain("./vault/");
+    expect(out.endsWith("hello")).toBe(true);
+    expect(stripNoteContext(out)).toBe("hello");
   });
 
   it("strips the prefix back off for display (round-trip)", () => {

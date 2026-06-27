@@ -23,8 +23,17 @@ import { useVault } from "@/renderer/workspace/vault-context";
  * traffic lights, so we pad the left to keep the toggle clear of them.
  */
 export function Header() {
-  const { editor, folderName, isMarkdownOpen, canonical, mode, setMode, formatDoc, deleteEntry } =
-    useVault();
+  const {
+    editor,
+    folderName,
+    isMarkdownOpen,
+    canonical,
+    richSafe,
+    mode,
+    setMode,
+    formatDoc,
+    deleteEntry,
+  } = useVault();
   const { state } = useSidebar();
   const path = editor.path;
   const segments = path ? path.split("/") : [];
@@ -60,19 +69,19 @@ export function Header() {
 
       {path !== null && (
         <div className="app-no-drag flex shrink-0 items-center gap-1.5">
-          {isMarkdownOpen && !canonical && (
+          {isMarkdownOpen && richSafe && !canonical && (
             <Button
               variant="outline"
               size="sm"
               onClick={formatDoc}
-              title="Reformat to canonical markdown so rich editing stays byte-stable"
+              title="Tidy formatting to canonical markdown so future edits stay byte-stable"
               className="h-7 gap-1 px-2 text-xs"
             >
               <WandSparklesIcon className="size-3.5" />
               Format
             </Button>
           )}
-          {isMarkdownOpen && canonical && (
+          {isMarkdownOpen && richSafe && (
             <div className="flex items-center rounded-md border border-border p-0.5 text-xs">
               {(["raw", "rich"] as const).map((m) => (
                 <button

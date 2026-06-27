@@ -46,11 +46,19 @@ type SendOptions = {
  * is note-aware without the user naming the file. Kept out of the displayed
  * bubble — only the text sent to the agent carries it. */
 export function withNoteContext(text: string, activeNote: string | undefined): string {
-  if (activeNote === undefined) return text;
-  return (
-    `[Context: the note open in front of me is ./vault/${activeNote}. ` +
-    `If I say "this note", "here", or don't name a file, I mean that one.]\n\n${text}`
-  );
+  // Ground the agent in the real date — it otherwise hallucinates one — and, if
+  // a note is open, in which file "this note" refers to.
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const note =
+    activeNote === undefined
+      ? ""
+      : ` The note open in front of me is ./vault/${activeNote}; if I say "this note", "here", or don't name a file, I mean that one.`;
+  return `[Context: today is ${today}.${note}]\n\n${text}`;
 }
 
 /** Remove the auto-attached note context so rehydrated history shows the user's

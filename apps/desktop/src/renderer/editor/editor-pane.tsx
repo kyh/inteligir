@@ -10,7 +10,7 @@ import { useVault } from "@/renderer/workspace/vault-context";
  * composer.
  */
 export function EditorPane() {
-  const { editor, onEdit, isMarkdownOpen, canonical, mode, renameEntry } = useVault();
+  const { editor, onEdit, isMarkdownOpen, richSafe, mode, renameEntry } = useVault();
   const selected = editor.path;
 
   const fileName = selected ? (selected.split("/").pop() ?? selected) : "";
@@ -34,7 +34,7 @@ export function EditorPane() {
     );
   }
 
-  const showRich = mode === "rich" && isMarkdownOpen && canonical;
+  const showRich = mode === "rich" && isMarkdownOpen && richSafe;
   const ext = dot > 0 ? fileName.slice(dot) : "";
   const slash = selected.lastIndexOf("/");
   const dir = slash === -1 ? "" : selected.slice(0, slash + 1);

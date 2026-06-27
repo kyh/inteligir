@@ -93,6 +93,25 @@ export function isCanonical(md: string): boolean {
   return roundTrip(md).trimEnd() === md.trimEnd();
 }
 
+/** Whether Rich editing is *lossless* — the round-trip may change formatting
+ * (bullet markers `*`→`-`, rule `***`→`---`, table cell padding, blank-line
+ * runs) but drops no actual content. Looser than `isCanonical` (byte-identical),
+ * so those formatting-only files open Rich instead of Raw. We compare the
+ * alphanumeric content of the source vs its round-trip: if Plate would DROP
+ * text (e.g. raw HTML it doesn't model), the words diverge and the file stays in
+ * the byte-exact Raw editor. */
+// The alphanumeric content of a string — markers, punctuation and whitespace
+// dropped — used to tell formatting changes from real content loss.
+function letters(s: string): string {
+  return s.replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
+}
+
+export function isRichSafe(md: string): boolean {
+  if (md.trim() === "") return true;
+  if (roundTrip(md).trimEnd() === md.trimEnd()) return true; // byte-canonical ⇒ safe
+  return letters(md) === letters(roundTrip(md));
+}
+
 /** Canonicalize `md` (the one-time Format action). Idempotent thereafter. */
 export function toCanonical(md: string): string {
   return roundTrip(md).trimEnd() + "\n";

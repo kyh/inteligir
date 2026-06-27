@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isCanonical, roundTrip, toCanonical } from "@/renderer/editor/markdown-doc";
+import { isCanonical, isRichSafe, roundTrip, toCanonical } from "@/renderer/editor/markdown-doc";
 
 // markdown-doc owns the editor's headless plugin set + round-trip helpers. This
 // is the fidelity guard: the editor round-trips the user's markdown, and a
@@ -78,6 +78,30 @@ describe("isCanonical", () => {
     // assert the contract: canonicalizing then re-checking is always stable.
     const canon = toCanonical(messy);
     expect(isCanonical(canon)).toBe(true);
+  });
+});
+
+describe("isRichSafe", () => {
+  it("treats empty docs as safe", () => {
+    expect(isRichSafe("")).toBe(true);
+  });
+
+  it("accepts any byte-canonical doc (superset of canonical)", () => {
+    const canon = toCanonical("# Hi\n\n- one\n- two\n");
+    expect(isCanonical(canon)).toBe(true);
+    expect(isRichSafe(canon)).toBe(true);
+  });
+
+  it("accepts formatting-only differences that are NOT byte-canonical", () => {
+    // `*` bullets reflow to `-` and `***` to `---`: not byte-identical, but no
+    // content is dropped, so Rich editing is lossless.
+    const md = "* one\n* two\n\n***\n\nbody\n";
+    expect(isCanonical(md)).toBe(false);
+    expect(isRichSafe(md)).toBe(true);
+  });
+
+  it("accepts a tightly-packed GFM table (only cell padding reflows)", () => {
+    expect(isRichSafe("|a|b|\n|-|-|\n|c|d|\n")).toBe(true);
   });
 });
 

@@ -13,7 +13,7 @@ import {
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { isCanonical, toCanonical } from "@/renderer/editor/markdown-doc";
+import { isCanonical, isRichSafe, toCanonical } from "@/renderer/editor/markdown-doc";
 import {
   VaultEditorController,
   type VaultEditorState,
@@ -73,9 +73,12 @@ type VaultContextValue = {
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
   isMarkdownOpen: boolean;
-  /** Whether the open file is canonical (rich editing is byte-stable). Computed
-   * once per file open + after Format, not per keystroke. */
+  /** Whether the open file is byte-canonical (rich editing leaves untouched
+   * blocks byte-identical). Drives the "Format" tidy affordance. */
   canonical: boolean;
+  /** Whether Rich editing is lossless (round-trip changes only formatting).
+   * Drives whether Rich is offered/default — looser than `canonical`. */
+  richSafe: boolean;
   /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
   mode: "raw" | "rich";
   setMode: (mode: "raw" | "rich") => void;
@@ -266,26 +269,32 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const isMarkdownOpen = editor.path !== null && MARKDOWN_RE.test(editor.path);
   const [mode, setMode] = useState<"raw" | "rich">("raw");
   const [canonical, setCanonical] = useState(false);
-  // Read the latest content without re-evaluating per keystroke — canonicality
-  // is decided when the *file* changes (and after Format), not while typing.
-  const contentRef = useRef(editor.content);
-  contentRef.current = editor.content;
+  const [richSafe, setRichSafe] = useState(false);
+  // Re-decide the editing surface whenever the file *content* changes from the
+  // outside — a file open or an external/agent reload (both land dirty=false).
+  // Skip while the user is typing (dirty), so we never recompute per keystroke
+  // or yank them mid-edit; the post-save flush leaves content unchanged, so it
+  // doesn't re-trigger this either.
   useEffect(() => {
     if (editor.path === null || !MARKDOWN_RE.test(editor.path)) {
       setMode("raw");
       setCanonical(false);
+      setRichSafe(false);
       return;
     }
-    const c = isCanonical(contentRef.current);
-    setCanonical(c);
-    setMode(c ? "rich" : "raw");
-  }, [editor.path]);
+    if (editor.dirty) return;
+    const safe = isRichSafe(editor.content);
+    setCanonical(isCanonical(editor.content));
+    setRichSafe(safe);
+    setMode(safe ? "rich" : "raw");
+  }, [editor.path, editor.content, editor.dirty]);
 
   const formatDoc = useCallback(() => {
-    onEdit(toCanonical(contentRef.current));
+    onEdit(toCanonical(editor.content));
     setCanonical(true);
+    setRichSafe(true);
     setMode("rich");
-  }, [onEdit]);
+  }, [onEdit, editor.content]);
 
   const value = useMemo<VaultContextValue>(
     () => ({
@@ -301,6 +310,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       isMarkdownOpen,
       canonical,
+      richSafe,
       mode,
       setMode,
       formatDoc,
@@ -318,6 +328,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       isMarkdownOpen,
       canonical,
+      richSafe,
       mode,
       formatDoc,
     ],
