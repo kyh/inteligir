@@ -27,6 +27,7 @@ import {
   H1Plugin,
   H2Plugin,
   H3Plugin,
+  HorizontalRulePlugin,
   ItalicPlugin,
   StrikethroughPlugin,
   UnderlinePlugin,
@@ -58,6 +59,19 @@ function element(as: keyof HTMLElementTagNameMap, className: string) {
   };
 }
 
+// Horizontal rule is a void node, so the visual <hr> lives in a non-editable
+// sibling and Plate's children (the void's empty text) still render for Slate.
+function HrElement(props: PlateElementProps) {
+  return (
+    <PlateElement {...props} className="mb-1 py-2">
+      <div contentEditable={false}>
+        <hr className="h-0.5 rounded-sm border-none bg-muted bg-clip-content" />
+      </div>
+      {props.children}
+    </PlateElement>
+  );
+}
+
 const EDITOR_PLUGINS = [
   BoldPlugin,
   ItalicPlugin,
@@ -68,6 +82,7 @@ const EDITOR_PLUGINS = [
   H2Plugin,
   H3Plugin,
   BlockquotePlugin,
+  HorizontalRulePlugin,
   CodeBlockPlugin,
   CodeLinePlugin,
   CodeSyntaxPlugin,
@@ -82,24 +97,40 @@ const EDITOR_PLUGINS = [
 ];
 
 const EDITOR_COMPONENTS = {
-  [BoldPlugin.key]: leaf("font-semibold"),
+  [BoldPlugin.key]: leaf("font-bold"),
   [ItalicPlugin.key]: leaf("italic"),
   [UnderlinePlugin.key]: leaf("underline"),
   [StrikethroughPlugin.key]: leaf("line-through"),
-  [CodePlugin.key]: leaf("rounded bg-muted px-1 py-0.5 font-mono text-[0.85em]"),
-  [H1Plugin.key]: element("h1", "mt-4 mb-2 text-2xl font-bold"),
-  [H2Plugin.key]: element("h2", "mt-3 mb-1.5 text-xl font-semibold"),
-  [H3Plugin.key]: element("h3", "mt-2 mb-1 text-lg font-semibold"),
+  [CodePlugin.key]: leaf(
+    "whitespace-pre-wrap rounded-md bg-muted px-[0.3em] py-[0.2em] font-mono text-sm",
+  ),
+  [KEYS.p]: element("p", "px-0.5 py-[3px]"),
+  [H1Plugin.key]: element(
+    "h1",
+    "relative mt-8 mb-1 px-0.5 py-[3px] text-[1.875em] font-semibold leading-[1.3] first:mt-0",
+  ),
+  [H2Plugin.key]: element(
+    "h2",
+    "relative mt-[1.4em] mb-1 px-0.5 py-[3px] text-[1.5em] font-semibold leading-[1.3] first:mt-0",
+  ),
+  [H3Plugin.key]: element(
+    "h3",
+    "relative mt-[1em] mb-1 px-0.5 py-[3px] text-[1.25em] font-semibold leading-[1.3] first:mt-0",
+  ),
   [BlockquotePlugin.key]: element(
     "blockquote",
-    "border-l-2 border-border pl-3 text-muted-foreground",
+    "my-1 border-l-[3px] border-foreground px-4 py-[3px]",
   ),
+  [HorizontalRulePlugin.key]: HrElement,
   [CodeBlockPlugin.key]: element(
     "pre",
-    "my-2 overflow-auto rounded bg-muted p-3 font-mono text-[0.85em]",
+    "my-1 overflow-x-auto rounded-md bg-muted px-4 py-3 font-mono text-sm leading-normal [tab-size:2]",
   ),
   [CodeLinePlugin.key]: element("div", ""),
-  [LinkPlugin.key]: element("a", "text-primary underline underline-offset-2"),
+  [LinkPlugin.key]: element(
+    "a",
+    "cursor-pointer border-b border-current font-medium text-foreground/70",
+  ),
 };
 
 type Props = {
@@ -155,7 +186,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
       }}
     >
       <PlateContent
-        className="min-h-full px-3 py-2 text-sm leading-relaxed outline-none [&_p]:my-1"
+        className="min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20"
         placeholder="Write…"
         spellCheck={false}
       />

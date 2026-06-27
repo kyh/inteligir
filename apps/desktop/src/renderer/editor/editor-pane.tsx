@@ -20,9 +20,17 @@ export function EditorPane() {
   }
 
   const showRich = mode === "rich" && isMarkdownOpen && canonical;
+  const fileName = selected.split("/").pop() ?? selected;
+  const displayName = fileName.replace(/\.md$/i, "");
 
+  // potion-style column: a centered 700px text column (symmetric padding, not
+  // max-w), the filename rendered as a large page title (chrome only — never
+  // serialized), then the body. Same column wraps the Raw textarea fallback.
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-6 pt-10 pb-44 sm:px-10">
+    <div className="flex w-full flex-1 cursor-text flex-col px-12 pt-10 pb-72 sm:px-[max(48px,calc(50%-350px))]">
+      <h1 className="mb-1 w-full break-words text-4xl font-bold leading-[1.2] text-foreground">
+        {displayName}
+      </h1>
       {showRich ? (
         <MarkdownEditor
           key={selected}
@@ -36,7 +44,7 @@ export function EditorPane() {
           value={editor.content}
           onChange={(e) => onEdit(e.target.value)}
           spellCheck={false}
-          className="min-h-[60vh] flex-1 resize-none bg-transparent py-2 font-mono text-sm leading-relaxed text-foreground outline-none"
+          className="min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-mono text-sm leading-relaxed text-foreground outline-none"
           placeholder="Empty note"
         />
       )}
