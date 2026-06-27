@@ -10,6 +10,7 @@
 // serialization reshapes nothing the user didn't edit.
 
 import { useEffect, useRef } from "react";
+import { PlusIcon } from "lucide-react";
 import { KEYS } from "platejs";
 import {
   Plate,
@@ -17,6 +18,7 @@ import {
   PlateElement,
   PlateLeaf,
   usePlateEditor,
+  useEditorRef,
   type PlateElementProps,
   type PlateLeafProps,
 } from "platejs/react";
@@ -36,6 +38,7 @@ import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code
 import { IndentPlugin } from "@platejs/indent/react";
 import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
+import { insertTableColumn, insertTableRow } from "@platejs/table";
 import {
   TableCellHeaderPlugin,
   TableCellPlugin,
@@ -82,11 +85,51 @@ function HrElement(props: PlateElementProps) {
 
 // Plate models a table as table > tr > (td|th); the rows need a <tbody> wrapper
 // for valid HTML (mirrors Potion's table renderer). GFM tables round-trip.
+// The non-editable hover affordances add a row at the bottom / column at the
+// right (Tab/Shift-Tab cell navigation is handled natively by the table plugin).
 function TableElement(props: PlateElementProps) {
+  const editor = useEditorRef();
+  const { element } = props;
+
+  const addRow = () => {
+    const at = editor.api.findPath(element);
+    if (at) insertTableRow(editor, { at });
+  };
+  const addColumn = () => {
+    const at = editor.api.findPath(element);
+    if (!at) return;
+    const firstRow = element.children[0];
+    const cols =
+      firstRow && "children" in firstRow && Array.isArray(firstRow.children)
+        ? firstRow.children.length
+        : 1;
+    insertTableColumn(editor, { fromCell: [...at, 0, cols - 1] });
+  };
+
   return (
-    <PlateElement {...props} as="table" className="my-3 w-auto border-collapse text-sm">
-      <tbody>{props.children}</tbody>
-    </PlateElement>
+    <div className="group/table relative my-3 w-fit">
+      <PlateElement {...props} as="table" className="w-auto border-collapse text-sm">
+        <tbody>{props.children}</tbody>
+      </PlateElement>
+      <button
+        type="button"
+        contentEditable={false}
+        onClick={addRow}
+        title="Add row"
+        className="absolute inset-x-0 -bottom-2.5 flex h-2 items-center justify-center rounded-sm bg-muted text-muted-foreground opacity-0 transition-opacity group-hover/table:opacity-100 hover:bg-accent hover:text-foreground"
+      >
+        <PlusIcon className="size-3" />
+      </button>
+      <button
+        type="button"
+        contentEditable={false}
+        onClick={addColumn}
+        title="Add column"
+        className="absolute inset-y-0 -right-2.5 flex w-2 items-center justify-center rounded-sm bg-muted text-muted-foreground opacity-0 transition-opacity group-hover/table:opacity-100 hover:bg-accent hover:text-foreground"
+      >
+        <PlusIcon className="size-3" />
+      </button>
+    </div>
   );
 }
 
