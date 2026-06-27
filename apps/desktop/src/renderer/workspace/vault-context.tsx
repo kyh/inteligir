@@ -62,6 +62,8 @@ type VaultContextValue = {
   deleteEntry: (path: string) => Promise<void>;
   /** Pick a different vault folder. */
   changeFolder: () => Promise<void>;
+  /** Persist any pending edits to disk now (e.g. before delegating a checkbox). */
+  flush: () => Promise<void>;
 };
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -206,6 +208,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }
   }, [cancelTimer, controller, refreshList]);
 
+  const flush = useCallback(async () => {
+    cancelTimer();
+    await controller.flush();
+  }, [cancelTimer, controller]);
+
   // Initial load: adopt the root + list files.
   useEffect(() => {
     getBridge()
@@ -248,6 +255,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       renameEntry,
       deleteEntry,
       changeFolder,
+      flush,
     }),
     [
       editor,
@@ -259,6 +267,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       renameEntry,
       deleteEntry,
       changeFolder,
+      flush,
     ],
   );
 

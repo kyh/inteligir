@@ -1,14 +1,28 @@
 import { isOrderedList } from "@platejs/list";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";
+import {
+  AlertCircleIcon,
+  CheckCircle2Icon,
+  Clock3Icon,
+  Loader2Icon,
+  SparklesIcon,
+  XIcon,
+} from "lucide-react";
+import type { Descendant, TElement } from "platejs";
 import { type PlateElementProps, type RenderNodeWrapper, useReadOnly } from "platejs/react";
 
 import { Checkbox } from "@repo/ui/components/checkbox";
+import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 
+import { findDelegation, useDelegationStore } from "@/renderer/stores/delegation-store";
+import { useVault } from "@/renderer/workspace/vault-context";
+import type { Delegation } from "@/shared/delegation";
+
 // Renders the list marker (bullet / number / checkbox) around a block that
-// carries `listStyleType`. Plate models lists as indented blocks rather than a
-// dedicated node, so this wrapper draws the affordance. Ported from Potion's
-// block-list, using the app's shared Checkbox.
+// carries `listStyleType`, plus — for todo items — the "Delegate" affordance and
+// live delegation status. Plate models lists as indented blocks rather than a
+// dedicated node, so this wrapper draws the affordance.
 
 const TODO_CONFIG: Record<
   string,
@@ -56,14 +70,113 @@ function TodoMarker(props: PlateElementProps) {
 }
 
 function TodoLi(props: PlateElementProps) {
+  const checked = props.element.checked === true;
   return (
-    <li
-      className={cn(
-        "list-none",
-        props.element.checked === true && "text-muted-foreground line-through",
-      )}
-    >
+    <li className={cn("group relative list-none", checked && "text-muted-foreground line-through")}>
       {props.children}
+      <DelegateControl element={props.element} checked={checked} />
     </li>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Delegation affordance + status — a contentEditable={false} sibling so Slate
+// keeps mapping the item's text children directly and never treats the control
+// as editable content.
+// ---------------------------------------------------------------------------
+
+function DelegateControl({ element, checked }: { element: TElement; checked: boolean }) {
+  const { editor: vaultEditor, flush } = useVault();
+  const delegations = useDelegationStore((s) => s.delegations);
+  const delegate = useDelegationStore((s) => s.delegate);
+  const cancel = useDelegationStore((s) => s.cancel);
+
+  const sourceFile = vaultEditor.path;
+  const text = elementText(element);
+  if (sourceFile === null || text.trim() === "") return null;
+
+  const delegation = findDelegation(delegations, sourceFile, text);
+
+  const handleDelegate = async () => {
+    // Persist the checkbox to disk first — the agent reads the file, not the
+    // in-memory buffer.
+    await flush();
+    const result = await delegate(sourceFile, text);
+    if (!result.ok) toast.error(result.error ?? "Couldn't delegate that task.");
+  };
+
+  return (
+    <span
+      contentEditable={false}
+      className="absolute top-0 right-0 flex items-center gap-1"
+      onMouseDown={(e) => e.preventDefault()}
+    >
+      {delegation ? (
+        <StatusBadge delegation={delegation} onCancel={() => cancel(delegation.id)} />
+      ) : (
+        !checked && (
+          <button
+            type="button"
+            onClick={() => void handleDelegate()}
+            title="Delegate this task to an agent"
+            className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-foreground/10 hover:text-foreground"
+          >
+            <SparklesIcon className="size-3" />
+            Delegate
+          </button>
+        )
+      )}
+    </span>
+  );
+}
+
+function StatusBadge({ delegation, onCancel }: { delegation: Delegation; onCancel: () => void }) {
+  switch (delegation.status) {
+    case "queued":
+      return (
+        <span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+          <Clock3Icon className="size-3" />
+          Queued
+          <button type="button" onClick={onCancel} title="Cancel" className="hover:text-foreground">
+            <XIcon className="size-3" />
+          </button>
+        </span>
+      );
+    case "running":
+      return (
+        <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">
+          <Loader2Icon className="size-3 animate-spin" />
+          Working…
+        </span>
+      );
+    case "done":
+      return (
+        <span
+          className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-emerald-600 dark:text-emerald-400"
+          title={delegation.resultSummary ?? "Done"}
+        >
+          <CheckCircle2Icon className="size-3" />
+          Done
+        </span>
+      );
+    case "failed":
+      return (
+        <span
+          className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] text-destructive"
+          title={delegation.error ?? "Failed"}
+        >
+          <AlertCircleIcon className="size-3" />
+          Failed
+        </span>
+      );
+  }
+}
+
+/** Concatenate an element's text content (recursing through inline children). */
+function elementText(node: Descendant): string {
+  if ("text" in node && typeof node.text === "string") return node.text;
+  if ("children" in node && Array.isArray(node.children)) {
+    return node.children.map(elementText).join("");
+  }
+  return "";
 }

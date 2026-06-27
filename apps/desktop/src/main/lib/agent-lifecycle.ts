@@ -12,6 +12,7 @@ import { login, resetAuthStorage } from "@/agent/auth";
 import type { AgentPorts } from "@/agent/extension";
 import { AGENT_DIR } from "@/agent/paths";
 import { seedResources } from "@/agent/setup";
+import { resetDelegationManager } from "@/main/delegation/delegation-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "@/main/executor/executor-client";
 import {
   EXECUTOR_CLI,
@@ -91,6 +92,7 @@ export function teardownAgentResources(): void {
   // in-memory cache after the rm.
   resetAuthStorage();
   resetNotifications();
+  resetDelegationManager();
   resetExecutorDaemon();
   resetUiState();
   resetSecretStore();

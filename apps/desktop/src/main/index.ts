@@ -28,6 +28,7 @@ import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-
 
 import { getAppState, initMachine, reauthenticate, shutdown, transition } from "@/main/app-machine";
 import { dispatchAgentCommand } from "@/main/agent-gateway";
+import { getDelegationManager } from "@/main/delegation/delegation-manager";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { getAgentPorts } from "@/main/lib/agent-lifecycle";
 import { initAgentLog } from "@/main/lib/agent-log";
@@ -189,7 +190,14 @@ function registerIpcHandlers(): void {
   registerUiStateHandlers();
   registerExecutorIpcHandlers();
   registerVaultIpcHandlers();
+  registerDelegationHandlers();
   registerSkillAndIntegrationHandlers();
+}
+
+function registerDelegationHandlers(): void {
+  handle("createDelegation", (params) => getDelegationManager().createDelegation(params));
+  handle("listDelegations", () => ({ delegations: getDelegationManager().getDelegations() }));
+  handle("cancelDelegation", (id) => getDelegationManager().cancelDelegation(id));
 }
 
 function registerUpdateHandlers(): void {

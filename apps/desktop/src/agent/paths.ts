@@ -24,6 +24,11 @@ export const MODEL_ID = "gpt-5.5";
 export const AGENT_DIR = inteligirPath();
 export const AUTH_PATH = inteligirPath("auth.json");
 export const SESSION_DIR = inteligirPath("sessions");
+/** Session dir for the background delegation agent. MUST be separate from
+ * SESSION_DIR: the user agent resumes the most-recently-modified session in
+ * SESSION_DIR via continueRecent(), so a delegation run there would be resumed
+ * as the user's thread on the next launch. */
+export const BACKGROUND_SESSION_DIR = inteligirPath("sessions", "background");
 export const WORKSPACE_DIR = inteligirPath("workspace");
 export const BIN_DIR = inteligirPath("bin");
 export const EXTENSIONS_DIR = inteligirPath("extensions");

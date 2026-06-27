@@ -15,6 +15,15 @@ import {
   teardownAgentResources,
 } from "@/main/lib/agent-lifecycle";
 import { broadcast } from "@/main/lib/broadcast";
+import {
+  getBackgroundAgent,
+  startBackgroundAgent,
+  stopBackgroundAgent,
+} from "@/main/delegation/background-agent";
+import {
+  getDelegationManager,
+  setDelegationsChangedNotifier,
+} from "@/main/delegation/delegation-manager";
 import { getNotifications } from "@/main/notifications";
 import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
@@ -145,6 +154,13 @@ function handleAgentEvent(event: AppAgentEvent): void {
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
   const next = new Agent({ ...opts, ports: getAgentPorts() });
+  // Start the dedicated background delegation agent concurrently — it shares no
+  // session state with the user agent and the executor daemon's start() is
+  // idempotent under concurrency. Non-fatal: a background failure must not block
+  // the user agent; delegations just stay queued until it's available.
+  const bgStarted = startBackgroundAgent().catch((err: unknown) => {
+    console.error("[machine] background delegation agent failed to start:", err);
+  });
   try {
     await next.start();
     next.subscribe((raw) => {
@@ -153,21 +169,30 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
     });
   } catch (err) {
     // Don't leave a half-constructed Agent in the singleton — a retry's
-    // `if (agent) return` would skip the rest of setup and the machine
-    // would transition to ready with a non-functional agent.
+    // `if (agent) return` would skip the rest of setup and the machine would
+    // transition to ready with a non-functional agent. Tear down the (possibly
+    // started) background agent too.
     await next.stop().catch(() => {});
+    await bgStarted;
+    await stopBackgroundAgent();
     throw err;
   }
   agent = next;
+  // Settle the background start before returning, then wire it to the delegation
+  // queue so any delegations queued before the agent was ready start draining.
+  await bgStarted;
+  getDelegationManager().setRunner(() => getBackgroundAgent());
 }
 
 async function stopAgent(): Promise<void> {
+  getDelegationManager().stop();
   if (agent) {
     await agent.stop();
     agent = null;
   }
-  // Stop the agent before the shared executor daemon: the daemon is a process
-  // singleton, so it must outlive the agent's teardown.
+  // Stop both agents before the shared executor daemon: the daemon is a process
+  // singleton both sessions use, so it must outlive each agent's teardown.
+  await stopBackgroundAgent();
   await getExecutorDaemon().stop();
   turn = null;
 }
@@ -316,6 +341,11 @@ export function transition(event: MachineEvent): void {
 
 /** Determine initial state from persisted auth/setup and auto-start if ready. */
 export function initMachine(): void {
+  // Delegation push channel: the manager is electron-free, so the broadcast
+  // hookup happens here (composition root for the machine's main singletons).
+  setDelegationsChangedNotifier((delegations) =>
+    broadcast("onDelegationsUpdated", { delegations }),
+  );
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);

@@ -9,6 +9,7 @@ import { SettingsDialog } from "@/renderer/settings/settings-dialog";
 import { FileTree } from "@/renderer/sidebar/file-tree";
 import { VaultProvider } from "@/renderer/workspace/vault-context";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import { useDelegationStore } from "@/renderer/stores/delegation-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
 
 /**
@@ -20,6 +21,9 @@ import { useVoiceStore } from "@/renderer/stores/voice-store";
 export function WorkspacePage() {
   const initVoice = useVoiceStore((s) => s.init);
   useEffect(() => initVoice(), [initVoice]);
+
+  const initDelegations = useDelegationStore((s) => s.init);
+  useEffect(() => initDelegations(), [initDelegations]);
 
   // The app machine routes recoverable error states (agent restart / logout)
   // back to this route; surface the message + a RETRY affordance here.

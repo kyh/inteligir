@@ -1,0 +1,77 @@
+// Locate an unchecked checkbox line in raw markdown by its item text, with the
+// heading it lives under and the surrounding section as context for the agent.
+// Pure + line-based so the delegated agent's "find and check off this task"
+// instruction is anchored to a concrete, testable locator.
+
+const TASK_LINE = /^(\s*)[-*]\s+\[ \]\s+(.*)$/;
+const HEADING = /^#{1,6}\s+(.*)$/;
+
+const MAX_SECTION_LINES = 60;
+
+export type TaskLineMatch = {
+  /** Zero-based index of the matched line. */
+  lineIndex: number;
+  /** The full original line text (e.g. "- [ ] book the flight"). */
+  lineText: string;
+  /** Nearest heading text above the line, or null. */
+  heading: string | null;
+  /** The markdown section the task lives in (heading → next heading / cap),
+   * for the agent's prompt context. */
+  section: string;
+};
+
+/** Find the first UNCHECKED `- [ ] <text>` line whose item text matches `text`
+ * (whitespace-trimmed). Returns null when no such line exists. */
+export function findTaskLine(raw: string, text: string): TaskLineMatch | null {
+  const target = text.trim();
+  const lines = raw.split("\n");
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (line === undefined) continue;
+    const m = TASK_LINE.exec(line);
+    if (!m) continue;
+    if ((m[2] ?? "").trim() !== target) continue;
+
+    return {
+      lineIndex: i,
+      lineText: line,
+      heading: nearestHeading(lines, i),
+      section: sectionAround(lines, i),
+    };
+  }
+  return null;
+}
+
+function nearestHeading(lines: string[], from: number): string | null {
+  for (let i = from - 1; i >= 0; i--) {
+    const line = lines[i];
+    if (line === undefined) continue;
+    const h = HEADING.exec(line);
+    if (h) return (h[1] ?? "").trim();
+  }
+  return null;
+}
+
+/** The lines from the nearest heading above (inclusive) to the next heading
+ * below (exclusive), capped so a giant section doesn't flood the prompt. */
+function sectionAround(lines: string[], from: number): string {
+  let start = 0;
+  for (let i = from; i >= 0; i--) {
+    const line = lines[i];
+    if (line !== undefined && HEADING.test(line)) {
+      start = i;
+      break;
+    }
+  }
+  let end = lines.length;
+  for (let i = from + 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (line !== undefined && HEADING.test(line)) {
+      end = i;
+      break;
+    }
+  }
+  if (end - start > MAX_SECTION_LINES) end = start + MAX_SECTION_LINES;
+  return lines.slice(start, end).join("\n").trim();
+}

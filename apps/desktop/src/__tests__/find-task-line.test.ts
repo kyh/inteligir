@@ -1,0 +1,60 @@
+import { describe, expect, it } from "vitest";
+
+import { findTaskLine } from "@/main/delegation/find-task-line";
+
+const DOC = [
+  "# Project",
+  "",
+  "## This week",
+  "",
+  "- [ ] book the flight",
+  "- [x] already done",
+  "- [ ] email the team",
+  "",
+  "## Backlog",
+  "",
+  "- [ ] book the flight", // duplicate text in another section
+].join("\n");
+
+describe("findTaskLine", () => {
+  it("finds an unchecked task by text", () => {
+    const m = findTaskLine(DOC, "email the team");
+    expect(m).not.toBeNull();
+    expect(m?.lineText).toBe("- [ ] email the team");
+    expect(m?.heading).toBe("This week");
+  });
+
+  it("returns the first unchecked match (not a checked one)", () => {
+    const m = findTaskLine(DOC, "book the flight");
+    expect(m?.lineIndex).toBe(4); // the one under "This week", not Backlog
+    expect(m?.heading).toBe("This week");
+  });
+
+  it("ignores already-checked tasks", () => {
+    expect(findTaskLine(DOC, "already done")).toBeNull();
+  });
+
+  it("returns null when the text is absent", () => {
+    expect(findTaskLine(DOC, "nonexistent task")).toBeNull();
+  });
+
+  it("captures the section the task lives in", () => {
+    const m = findTaskLine(DOC, "email the team");
+    expect(m?.section).toContain("## This week");
+    expect(m?.section).toContain("- [ ] book the flight");
+    expect(m?.section).not.toContain("## Backlog");
+  });
+
+  it("trims whitespace when matching", () => {
+    expect(findTaskLine("- [ ]   spaced  ", "spaced")).not.toBeNull();
+  });
+
+  it("handles a task with no heading above it", () => {
+    const m = findTaskLine("- [ ] lonely task\n", "lonely task");
+    expect(m?.heading).toBeNull();
+  });
+
+  it("matches asterisk bullets too", () => {
+    expect(findTaskLine("* [ ] star task", "star task")).not.toBeNull();
+  });
+});

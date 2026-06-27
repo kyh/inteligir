@@ -33,6 +33,11 @@ import {
   type AddMcpResult,
   type AddOpenApiResult,
 } from "./executor";
+import {
+  CreateDelegationParamsSchema,
+  type CreateDelegationResult,
+  type ListDelegationsResult,
+} from "./delegation";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
 
@@ -283,6 +288,20 @@ export const IPC = {
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
   onVaultChanged: event<{ root: string }>("vault:changed"),
+
+  // Delegation — a checkbox handed to a background agent.
+  createDelegation: invoke<typeof CreateDelegationParamsSchema, CreateDelegationResult>(
+    "delegation:create",
+    CreateDelegationParamsSchema,
+  ),
+  listDelegations: invokeVoid<ListDelegationsResult>("delegation:list"),
+  cancelDelegation: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
+    "delegation:cancel",
+    Type.String({ minLength: 1 }),
+  ),
+  /** Fired on every delegation status change so the editor's inline badges
+   * stay live. */
+  onDelegationsUpdated: event<ListDelegationsResult>("delegation:updated"),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection
