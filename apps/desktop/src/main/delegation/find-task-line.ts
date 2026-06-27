@@ -59,13 +59,17 @@ export function findTaskLine(
   return firstTextMatch;
 }
 
-// Strip inline markdown (emphasis/code markers, link syntax) so a heading like
-// `## **Q3**` reduces to the same plain text the renderer's elementText yields,
-// keeping the two delegation anchors in agreement. Empty → null.
+// Reduce a heading to the same plain text the renderer's elementText yields, so
+// the two delegation anchors agree. Only *paired* inline markdown is unwrapped
+// (what Plate actually parses) — a lone literal `*`/`_` in a title is kept, so
+// we don't over-strip. Empty → null.
 function plainHeading(raw: string): string | null {
   const t = raw
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // [text](url) → text
-    .replace(/[*_~`]/g, "") // emphasis / inline-code markers
+    .replace(/(\*\*|__)(.+?)\1/g, "$2") // bold
+    .replace(/(\*|_)(.+?)\1/g, "$2") // italic
+    .replace(/~~(.+?)~~/g, "$1") // strikethrough
+    .replace(/`([^`]+)`/g, "$1") // inline code
     .trim();
   return t === "" ? null : t;
 }
