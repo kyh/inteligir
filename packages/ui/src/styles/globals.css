@@ -28,6 +28,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-light: var(--destructive-light);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -99,28 +100,31 @@
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue",
     system-ui, sans-serif;
 
-  /* Core palette — derived from the Ophelias neutral hex scale and
-     the surface ladder, so idiomatic shadcn tokens and surface utilities share
-     one coherent set of colors. */
-  --background: var(--surface-1);
-  --foreground: #13141b;
-  --card: var(--surface-3);
-  --card-foreground: #13141b;
-  --popover: var(--surface-3);
-  --popover-foreground: #13141b;
-  --primary: #13141b;
-  --primary-foreground: #f8f8f8;
-  --secondary: #e5e7e7;
-  --secondary-foreground: #13141b;
-  --muted: rgb(19 20 27 / 0.03);
-  --muted-foreground: rgb(19 20 27 / 0.5);
-  --accent: #e5e7e7;
-  --accent-foreground: #13141b;
-  --destructive: #ef4444;
+  /* Core palette — the "Claude" warm theme (terracotta primary on warm paper),
+     adopted wholesale from the nexus reference so every shadcn token recolors
+     coherently. */
+  --background: oklch(0.9818 0.0054 95.0986);
+  --foreground: oklch(0.3438 0.0269 95.7226);
+  --card: oklch(0.9818 0.0054 95.0986);
+  --card-foreground: oklch(0.1908 0.002 106.5859);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2671 0.0196 98.939);
+  --primary: oklch(0.6171 0.1375 39.0427);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.9245 0.0138 92.9892);
+  --secondary-foreground: oklch(0.4334 0.0177 98.6048);
+  --muted: oklch(0.9341 0.0153 90.239);
+  --muted-foreground: oklch(0.6059 0.0075 97.4233);
+  --accent: oklch(0.9245 0.0138 92.9892);
+  --accent-foreground: oklch(0.2671 0.0196 98.939);
+  /* Claude's light destructive is near-black; use a real red so delete/error
+     affordances read correctly. */
+  --destructive: oklch(0.6368 0.2078 25.3313);
+  --destructive-foreground: oklch(1 0 0);
   --destructive-light: #fef2f2;
-  --border: rgb(19 20 27 / 0.1);
-  --input: rgb(19 20 27 / 0.06);
-  --ring: rgb(19 20 27 / 0.28);
+  --border: oklch(0.8847 0.0069 97.3627);
+  --input: oklch(0.7621 0.0156 98.3528);
+  --ring: oklch(0.6171 0.1375 39.0427);
 
   /* Neutral scale (for opacity variants that can't reference tokens directly). */
   --neutral-100: #f5f5f5;
@@ -141,8 +145,8 @@
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
-  /* 10px base radius — matches Ophelias' compact control shape. */
-  --radius: 0.625rem;
+  /* Claude theme base radius. */
+  --radius: 0.5rem;
 
   /* Component radius scale. Controls/buttons keep --radius;
      these are the generous container radii from the reference language.
@@ -152,14 +156,17 @@
   --radius-glass: 16px; /* composer bar, dialogs, large glass sheets */
   --radius-menu: 14px; /* dropdowns / popovers / tooltips */
   --radius-dock: 18px; /* left dock bar */
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  /* Sidebar layout (referenced by the sidebar component's w-(--sidebar-width)). */
+  --sidebar-width: 15rem;
+  --sidebar-width-icon: 3rem;
+  --sidebar: oklch(0.9663 0.008 98.8792);
+  --sidebar-foreground: oklch(0.359 0.0051 106.6524);
+  --sidebar-primary: oklch(0.6171 0.1375 39.0427);
+  --sidebar-primary-foreground: oklch(0.9881 0 0);
+  --sidebar-accent: oklch(0.9245 0.0138 92.9892);
+  --sidebar-accent-foreground: oklch(0.325 0 0);
+  --sidebar-border: oklch(0.9401 0 0);
+  --sidebar-ring: oklch(0.7731 0 0);
 
   /* ── Surface ladder (8 levels) ──
      Light: two color steps (floor, sunken) then flat white; shadow does the
@@ -279,27 +286,27 @@
 }
 
 .dark {
-  /* Core palette — additive dark neutral scale over the #171717 surface floor.
-     --border is left to inherit the :root foreground-mix so it stays
-     theme-aware (light translucent edge on dark surfaces). */
-  --background: var(--surface-1);
-  --foreground: #f4f4f6;
-  --card: var(--surface-3);
-  --card-foreground: #f4f4f6;
-  --popover: var(--surface-3);
-  --popover-foreground: #f4f4f6;
-  --primary: #f5f5f5;
-  --primary-foreground: #171717;
-  --secondary: #525252;
-  --secondary-foreground: #f5f5f5;
-  --muted: var(--surface-2);
-  --muted-foreground: #a2a2ab;
-  --accent: #525252;
-  --accent-foreground: #f5f5f5;
-  --destructive: #f87171;
+  /* Core palette — the "Claude" warm theme, dark. */
+  --background: oklch(0.2679 0.0036 106.6427);
+  --foreground: oklch(0.8074 0.0142 93.0137);
+  --card: oklch(0.2679 0.0036 106.6427);
+  --card-foreground: oklch(0.9818 0.0054 95.0986);
+  --popover: oklch(0.3085 0.0035 106.6039);
+  --popover-foreground: oklch(0.9211 0.004 106.4781);
+  --primary: oklch(0.6724 0.1308 38.7559);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.9818 0.0054 95.0986);
+  --secondary-foreground: oklch(0.3085 0.0035 106.6039);
+  --muted: oklch(0.2213 0.0038 106.707);
+  --muted-foreground: oklch(0.7713 0.0169 99.0657);
+  --accent: oklch(0.213 0.0078 95.4245);
+  --accent-foreground: oklch(0.9663 0.008 98.8792);
+  --destructive: oklch(0.6368 0.2078 25.3313);
+  --destructive-foreground: oklch(1 0 0);
   --destructive-light: #450a0a;
-  --input: #404040;
-  --ring: #404040;
+  --border: oklch(0.3618 0.0101 106.8928);
+  --input: oklch(0.4336 0.0113 100.2195);
+  --ring: oklch(0.6724 0.1308 38.7559);
 
   --neutral-100: #f5f5f5;
   --neutral-200: #e5e5e5;
@@ -318,12 +325,12 @@
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar: oklch(0.2357 0.0024 67.7077);
+  --sidebar-foreground: oklch(0.8074 0.0142 93.0137);
+  --sidebar-primary: oklch(0.325 0 0);
+  --sidebar-primary-foreground: oklch(0.9881 0 0);
+  --sidebar-accent: oklch(0.168 0.002 106.6177);
+  --sidebar-accent-foreground: oklch(0.8074 0.0142 93.0137);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.552 0.016 285.938);
 

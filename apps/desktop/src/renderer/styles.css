@@ -8,9 +8,9 @@ body,
   overflow: hidden;
 }
 
-/* Desktop-app feel: don't select text when dragging widgets, clicking buttons,
- * etc. Form fields and any element opted in via the `select-text` Tailwind
- * utility (e.g. the chat transcript) stay selectable. */
+/* Desktop-app feel: don't select text when dragging, clicking buttons, etc.
+ * Form fields and any element opted in via the `select-text` Tailwind utility
+ * (e.g. the chat transcript) stay selectable. */
 body {
   user-select: none;
   -webkit-user-select: none;
@@ -28,85 +28,4 @@ textarea,
 
 .app-no-drag {
   -webkit-app-region: no-drag;
-}
-
-.composer-shell {
-  align-items: center;
-}
-
-.composer-motion-wrap {
-  max-width: calc(100vw - 2rem);
-  will-change: width;
-}
-
-.composer-form {
-  width: 100%;
-  max-width: 100%;
-}
-
-.composer-shell [data-slot="input-group"] {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-height: 48px;
-  border-radius: 16px;
-}
-
-.composer-shell
-  [data-slot="input-group"]
-  > *:not(.composer-collapsed-prompt):not(.composer-gradient) {
-  position: relative;
-  z-index: 1;
-}
-
-.composer-gradient {
-  position: absolute;
-  inset: 2px auto 2px 2px;
-  z-index: 0;
-  border-radius: 15px;
-  background:
-    linear-gradient(90deg, rgb(122 238 255 / 0.5), rgb(109 255 182 / 0.18), transparent 84%),
-    radial-gradient(circle at 24% 54%, rgb(128 239 255 / 0.58), transparent 44%);
-  filter: blur(10px);
-  pointer-events: none;
-  will-change: opacity, transform, width;
-}
-
-.composer-shell [data-slot="input-group"] > .composer-collapsed-prompt {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 16px 20px;
-  color: #f8f8f8;
-  font-size: 13px;
-  line-height: 16px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.composer-input-row {
-  min-height: 46px;
-  padding: 8px 10px 8px 12px;
-}
-
-/* The dock pill is bottom-anchored, so any height growth shoves it upward.
- * The textarea uses field-sizing:content, which grows to fit its WRAPPING
- * placeholder while the pill is transiently narrow during the collapse→expand
- * width spring — spiking the dock up, then settling once the placeholder fits
- * on one line. Pin the empty (placeholder-shown) field to a single line so the
- * pill height is constant; real input clears :placeholder-shown and wraps and
- * grows as normal. */
-.composer-input-row textarea:placeholder-shown {
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.composer-shell:not(.composer-expanded) [data-slot="input-group"] > .composer-input-row {
-  position: absolute;
-  inset: 0;
 }

@@ -13,11 +13,16 @@ import {
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { isCanonical, toCanonical } from "@/renderer/editor/markdown-doc";
 import {
   VaultEditorController,
   type VaultEditorState,
   type VaultIO,
 } from "@/renderer/editor/vault-editor";
+
+// Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
+// markdown pipeline doesn't round-trip MDX.
+const MARKDOWN_RE = /\.(md|markdown)$/i;
 import type { VaultEntry } from "@/shared/ipc-registry";
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
@@ -64,6 +69,19 @@ type VaultContextValue = {
   changeFolder: () => Promise<void>;
   /** Persist any pending edits to disk now (e.g. before delegating a checkbox). */
   flush: () => Promise<void>;
+
+  // ---- Editor view (lifted so the header can own the controls) -------------
+  /** Whether the open file is a markdown doc the rich editor can render. */
+  isMarkdownOpen: boolean;
+  /** Whether the open file is canonical (rich editing is byte-stable). Computed
+   * once per file open + after Format, not per keystroke. */
+  canonical: boolean;
+  /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
+  mode: "raw" | "rich";
+  setMode: (mode: "raw" | "rich") => void;
+  /** Canonicalize the open doc so rich editing stays byte-stable, then switch
+   * to Rich. */
+  formatDoc: () => void;
 };
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -244,6 +262,31 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     return root.split(/[/\\]/).pop() ?? root;
   }, [editor.root]);
 
+  // ---- Editor view (mode + canonicality) ----------------------------------
+  const isMarkdownOpen = editor.path !== null && MARKDOWN_RE.test(editor.path);
+  const [mode, setMode] = useState<"raw" | "rich">("raw");
+  const [canonical, setCanonical] = useState(false);
+  // Read the latest content without re-evaluating per keystroke — canonicality
+  // is decided when the *file* changes (and after Format), not while typing.
+  const contentRef = useRef(editor.content);
+  contentRef.current = editor.content;
+  useEffect(() => {
+    if (editor.path === null || !MARKDOWN_RE.test(editor.path)) {
+      setMode("raw");
+      setCanonical(false);
+      return;
+    }
+    const c = isCanonical(contentRef.current);
+    setCanonical(c);
+    setMode(c ? "rich" : "raw");
+  }, [editor.path]);
+
+  const formatDoc = useCallback(() => {
+    onEdit(toCanonical(contentRef.current));
+    setCanonical(true);
+    setMode("rich");
+  }, [onEdit]);
+
   const value = useMemo<VaultContextValue>(
     () => ({
       editor,
@@ -256,6 +299,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       deleteEntry,
       changeFolder,
       flush,
+      isMarkdownOpen,
+      canonical,
+      mode,
+      setMode,
+      formatDoc,
     }),
     [
       editor,
@@ -268,6 +316,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       deleteEntry,
       changeFolder,
       flush,
+      isMarkdownOpen,
+      canonical,
+      mode,
+      formatDoc,
     ],
   );
 

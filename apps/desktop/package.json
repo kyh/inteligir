@@ -35,7 +35,6 @@
     "ai": "^6.0.191",
     "electron-updater": "^6.8.3",
     "lucide-react": "catalog:",
-    "motion": "^12.40.0",
     "open": "^11.0.0",
     "platejs": "^53.2.1",
     "react": "catalog:",
