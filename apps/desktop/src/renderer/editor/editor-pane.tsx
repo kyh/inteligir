@@ -1,5 +1,4 @@
 import { MarkdownEditor } from "@/renderer/editor/markdown-editor";
-import { LinksPanel } from "@/renderer/editor/links-panel";
 import { useVault } from "@/renderer/workspace/vault-context";
 
 /**
@@ -41,8 +40,6 @@ export function EditorPane() {
           placeholder="Empty note"
         />
       )}
-
-      {isMarkdownOpen && <LinksPanel />}
     </div>
   );
 }

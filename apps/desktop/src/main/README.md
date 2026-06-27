@@ -63,14 +63,14 @@ If the effect is part of `SETUP` (binary install, config seed), prefer adding it
 Domain-grouped across a few files:
 
 - `index.ts::registerIpcHandlers()` — desktop, agent, app lifecycle, voice, notifications, UI state, executor, vault, delegation, skills, integrations.
-- `vault-ipc.ts::registerVaultIpcHandlers()` — vault file ops (list/read/write/delete/rename) + the `[[link]]` graph.
+- `vault-ipc.ts::registerVaultIpcHandlers()` — vault file ops (list/read/write/delete/rename).
 - `executor-ipc.ts::registerExecutorIpcHandlers()` — executor daemon pass-throughs (integrations/connections/OAuth).
 
 All registration goes through `lib/ipc-handler.ts::handle(method, fn)`: the channel, TypeBox payload schema, and result type are looked up from the shared registry (`shared/ipc-registry.ts`), and payloads are `Value.Check`-validated before the handler runs. Main → renderer events use `lib/broadcast.ts::broadcast`, keyed by the same registry — a renamed channel or changed payload shape is a compile error on both sides, and the preload bridge is derived from the registry too.
 
 ## Other modules
 
-- `vault.ts` / `vault-links.ts` — the user's markdown vault (folder of files, watcher, `./vault` agent symlink) + its wiki-link graph.
+- `vault.ts` — the user's markdown vault (folder of files, watcher, `./vault` agent symlink).
 - `agent-gateway.ts` — the single entry point for interactive agent commands (a thin typed pass-through to the live agent).
 - `delegation/` — checkbox delegation: a versioned store + serialized queue (`delegation-manager.ts`) running tasks on a dedicated `background-agent.ts`; `find-task-line.ts` is the pure checkbox locator.
 - `notifications.ts` — desktop notification settings + delivery.

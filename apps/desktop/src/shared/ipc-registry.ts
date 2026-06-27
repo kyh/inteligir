@@ -40,7 +40,6 @@ import {
 } from "./delegation";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
-import type { NoteLinks } from "./wiki-links";
 
 // ---------------------------------------------------------------------------
 // Shared shapes referenced by registry entries
@@ -286,8 +285,6 @@ export const IPC = {
     "vault:rename",
     VaultRenameSchema,
   ),
-  /** Wiki-link graph for a note: outgoing [[links]] + backlinks. */
-  getNoteLinks: invoke<typeof VaultPathSchema, NoteLinks>("vault:links", VaultPathSchema),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
   onVaultChanged: event<{ root: string }>("vault:changed"),

@@ -83,8 +83,7 @@ files), writes atomically, watches for changes (broadcasts `onVaultChanged`), an
 maintains a `./vault` symlink in the agent workspace so the agent's file tools
 find it regardless of where the user put it. `~/.inteligir` holds only app state
 (auth, sessions, ui-state, delegations) via versioned `JsonStore`s — never note
-content. `main/vault-links.ts` computes a note's `[[wiki-link]]` graph (outgoing
-links and backlinks) on demand.
+content. Notes are plain GitHub-flavored markdown (no wiki-links).
 
 ### Renderer — one fixed workspace
 
