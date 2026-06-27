@@ -41,8 +41,17 @@ export function registerVaultIpcHandlers(): void {
   handle("renameVaultEntry", ({ from, to }) => {
     const result = getVaultManager().rename(from, to);
     // Repoint any delegations so badges keep matching and queued runs target the
-    // new path (rename preserves content, so their positional anchors hold).
-    if (result.ok) getDelegationManager().renameSource(from, to);
+    // new path (rename preserves content, so their positional anchors hold). The
+    // disk rename is the source of truth — if this best-effort metadata remap
+    // throws, log it but still report the rename that actually happened, rather
+    // than tell the renderer it failed and leave the two views inconsistent.
+    if (result.ok) {
+      try {
+        getDelegationManager().renameSource(from, to);
+      } catch (err) {
+        console.warn("[vault] delegation remap after rename failed:", err);
+      }
+    }
     return result;
   });
 }
