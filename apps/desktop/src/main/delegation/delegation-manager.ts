@@ -25,7 +25,8 @@ import {
 } from "@/shared/delegation";
 import { toErrorMessage } from "@/shared/ipc";
 
-const DELEGATIONS_VERSION = 1;
+// v2: anchor moved from text/heading matching to a positional `index`.
+const DELEGATIONS_VERSION = 2;
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_DELEGATIONS = 200;
 const SUMMARY_LEN = 200;
@@ -153,7 +154,7 @@ export class DelegationManager {
     } catch (err) {
       return { ok: false, error: `Couldn't read ${params.sourceFile}: ${toErrorMessage(err)}` };
     }
-    const match = findTaskLine(raw, params.text, params.heading);
+    const match = findTaskLine(raw, params.index);
     if (!match) {
       return {
         ok: false,
@@ -164,7 +165,7 @@ export class DelegationManager {
     const delegation: Delegation = {
       id: crypto.randomUUID(),
       sourceFile: params.sourceFile,
-      anchor: { text: params.text.trim(), heading: match.heading },
+      anchor: { index: params.index, text: match.text, heading: match.heading },
       lineText: match.lineText.trim(),
       status: "queued",
       createdAt: Date.now(),

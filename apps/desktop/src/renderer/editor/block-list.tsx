@@ -91,21 +91,19 @@ function TodoLi(props: PlateElementProps) {
 // as editable content.
 // ---------------------------------------------------------------------------
 
-// The nearest heading above a block, used to disambiguate duplicate task text
-// across sections. Mirrors find-task-line.ts on the main side (both read the
-// nearest heading), so the renderer's anchor agrees with the resolved one.
-function nearestHeading(editor: PlateEditor, element: TElement): string | null {
+// The checkbox's ordinal — its position among all todo items in the document.
+// main counts the same `- [ ]` / `- [x]` lines in the raw markdown, so the two
+// agree by position with no text matching and duplicate labels stay distinct.
+function todoIndex(editor: PlateEditor, element: TElement): number {
   const path = editor.api.findPath(element);
   const top = path?.[0];
-  if (top === undefined) return null;
-  for (let i = top - 1; i >= 0; i--) {
+  if (top === undefined) return -1;
+  let count = 0;
+  for (let i = 0; i < top; i++) {
     const node = editor.children[i];
-    if (node && "type" in node && typeof node.type === "string" && /^h[1-6]$/.test(node.type)) {
-      const t = elementText(node).trim();
-      return t === "" ? null : t;
-    }
+    if (node && "listStyleType" in node && node.listStyleType === "todo") count++;
   }
-  return null;
+  return count;
 }
 
 function DelegateControl({ element, checked }: { element: TElement; checked: boolean }) {
@@ -117,10 +115,10 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
 
   const sourceFile = vaultEditor.path;
   const text = elementText(element);
-  const heading = nearestHeading(plateEditor, element);
+  const index = todoIndex(plateEditor, element);
   if (sourceFile === null || text.trim() === "") return null;
 
-  const delegation = findDelegation(delegations, sourceFile, text, heading);
+  const delegation = findDelegation(delegations, sourceFile, index);
 
   const handleDelegate = async () => {
     // Persist the checkbox to disk first — the agent reads the file, not the
@@ -131,7 +129,7 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
       toast.error("Couldn't save your edits — try again before delegating.");
       return;
     }
-    const result = await delegate(sourceFile, text, heading);
+    const result = await delegate(sourceFile, index);
     if (!result.ok) toast.error(result.error ?? "Couldn't delegate that task.");
   };
 

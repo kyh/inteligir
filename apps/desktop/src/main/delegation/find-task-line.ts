@@ -1,86 +1,69 @@
-// Locate an unchecked checkbox line in raw markdown by its item text, with the
-// heading it lives under and the surrounding section as context for the agent.
-// Pure + line-based so the delegated agent's "find and check off this task"
-// instruction is anchored to a concrete, testable locator.
+// Locate a checkbox line in raw markdown by its ORDINAL — the index of the
+// checkbox among all `- [ ]` / `- [x]` task items in the file (document order).
+// The renderer counts the same items in its parsed tree, so the two agree
+// without any text/markdown normalization, and duplicate item labels are
+// distinguished by position. The heading + section are read at that line purely
+// as context for the delegated agent's prompt. Pure + line-based, so it's
+// testable in isolation.
 
-// GFM accepts `-`, `*`, and `+` as bullet markers.
-const TASK_LINE = /^(\s*)[-*+]\s+\[ \]\s+(.*)$/;
+// GFM accepts `-`, `*`, and `+` bullet markers; `[ ]` unchecked, `[x]` checked.
+const TASK_LINE = /^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)$/;
 const HEADING = /^#{1,6}\s+(.*)$/;
+const FENCE = /^\s*(```|~~~)/;
 
 const MAX_SECTION_LINES = 60;
 
 export type TaskLineMatch = {
-  /** Zero-based index of the matched line. */
+  /** Zero-based index of the matched line in the file. */
   lineIndex: number;
-  /** The full original line text (e.g. "- [ ] book the flight"). */
+  /** The full original line (e.g. "- [ ] book the flight"). */
   lineText: string;
-  /** Nearest heading text above the line, or null. */
+  /** The item text (after `- [ ] `), for the agent prompt. */
+  text: string;
+  /** Nearest heading above the line, or null. */
   heading: string | null;
   /** The markdown section the task lives in (heading → next heading / cap),
    * for the agent's prompt context. */
   section: string;
 };
 
-/** Find an UNCHECKED `- [ ] <text>` line whose item text matches `text`
- * (whitespace-trimmed). When `heading` is given (the nearest heading above the
- * checkbox the user clicked), the occurrence under that heading is preferred so
- * duplicate item text across sections resolves to the right checkbox; it falls
- * back to the first text match if none sits under that heading. Returns null
- * when no unchecked line matches the text at all. */
-export function findTaskLine(
-  raw: string,
-  text: string,
-  heading?: string | null,
-): TaskLineMatch | null {
-  const target = text.trim();
+/** Find the `index`-th UNCHECKED checkbox in `raw` (counting all checkboxes,
+ * checked or not, in document order; checkbox-like lines inside fenced code are
+ * skipped). Returns null if there's no such checkbox or it's already checked
+ * (stale) — the caller rejects rather than acting on the wrong/old line. */
+export function findTaskLine(raw: string, index: number): TaskLineMatch | null {
   // Normalize CRLF/CR so Windows-authored files match (the `$` line anchor
   // wouldn't otherwise sit before the lone `\r`).
   const lines = raw.split(/\r\n|\r|\n/);
 
-  let firstTextMatch: TaskLineMatch | null = null;
+  let count = 0;
+  let inFence = false;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line === undefined) continue;
+    if (FENCE.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+
     const m = TASK_LINE.exec(line);
     if (!m) continue;
-    // The renderer's `text` is Plate's plain item text; the raw line may still
-    // carry inline markdown (`- [ ] **buy** milk`), so normalize before compare.
-    if (stripInline((m[2] ?? "").trim()) !== target) continue;
-
-    const match: TaskLineMatch = {
+    if (count !== index) {
+      count++;
+      continue;
+    }
+    // The index-th checkbox. Reject if it's already checked (the doc drifted).
+    if ((m[2] ?? " ") !== " ") return null;
+    return {
       lineIndex: i,
       lineText: line,
+      text: (m[3] ?? "").trim(),
       heading: nearestHeading(lines, i),
       section: sectionAround(lines, i),
     };
-    if (firstTextMatch === null) firstTextMatch = match;
-    // No heading disambiguation requested → first text match. Otherwise return
-    // the occurrence under the requested heading.
-    if (heading === undefined || match.heading === heading) return match;
   }
-  return firstTextMatch;
-}
-
-// Reduce inline markdown to the plain text Plate's elementText yields, so the
-// renderer's anchors (plain item text + heading) match lines resolved from raw
-// markdown. Asterisk emphasis works intraword in GFM (`a*b*c`), but underscore
-// emphasis only at word boundaries — so `snake_case` and a lone `*` survive,
-// while `**bold**` / `_em_` / links / code unwrap.
-function stripInline(s: string): string {
-  return s
-    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // [text](url) → text
-    .replace(/\*\*(.+?)\*\*/g, "$1") // **bold**
-    .replace(/(?<![A-Za-z0-9])__(.+?)__(?![A-Za-z0-9])/g, "$1") // __bold__
-    .replace(/\*(.+?)\*/g, "$1") // *italic*
-    .replace(/(?<![A-Za-z0-9])_(.+?)_(?![A-Za-z0-9])/g, "$1") // _italic_
-    .replace(/~~(.+?)~~/g, "$1") // ~~strike~~
-    .replace(/`([^`]+)`/g, "$1") // `code`
-    .trim();
-}
-
-function plainHeading(raw: string): string | null {
-  const t = stripInline(raw);
-  return t === "" ? null : t;
+  return null;
 }
 
 function nearestHeading(lines: string[], from: number): string | null {
@@ -88,7 +71,7 @@ function nearestHeading(lines: string[], from: number): string | null {
     const line = lines[i];
     if (line === undefined) continue;
     const h = HEADING.exec(line);
-    if (h) return plainHeading(h[1] ?? "");
+    if (h) return (h[1] ?? "").trim() || null;
   }
   return null;
 }

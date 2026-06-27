@@ -8,11 +8,14 @@ import { type Static, Type } from "@sinclair/typebox";
 // the delegated line.
 // ---------------------------------------------------------------------------
 
-/** Content-addressed locator for the checkbox, computed main-side from the file.
- * `text` is the item text; `heading` is the nearest heading above it (or null),
- * which disambiguates duplicate item text across sections. */
+/** Positional locator for the checkbox. `index` is its ordinal among ALL todo
+ * checkboxes in the file (document order, checked or not) — identical in the
+ * editor's parsed tree and the raw markdown, so it needs no text matching and
+ * distinguishes duplicate labels. `text` + `heading` are resolved main-side from
+ * that line, purely as context for the agent's prompt. */
 const DelegationAnchorSchema = Type.Object(
   {
+    index: Type.Number(),
     text: Type.String(),
     heading: Type.Union([Type.String(), Type.Null()]),
   },
@@ -52,14 +55,12 @@ export type Delegation = Static<typeof DelegationSchema>;
 // IPC params/results
 // ---------------------------------------------------------------------------
 
-/** The renderer sends the file + the checkbox text + the nearest heading above
- * it (or null), which disambiguates duplicate item text across sections; main
- * resolves the line + section context. */
+/** The renderer sends the file + the checkbox's ordinal (its position among all
+ * todo checkboxes in the document); main resolves the line, text + section. */
 export const CreateDelegationParamsSchema = Type.Object(
   {
     sourceFile: Type.String({ minLength: 1 }),
-    text: Type.String({ minLength: 1 }),
-    heading: Type.Union([Type.String(), Type.Null()]),
+    index: Type.Number({ minimum: 0 }),
   },
   { additionalProperties: false },
 );
