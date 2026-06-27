@@ -61,14 +61,16 @@ type VaultContextValue = {
   onEdit: (content: string) => void;
   /** Create a file at `path` (e.g. "folder/note.md") and open it. */
   createFile: (path: string) => Promise<void>;
-  /** Rename/move the file at `from` to `to`. */
-  renameEntry: (from: string, to: string) => Promise<void>;
+  /** Rename/move the file at `from` to `to`. Resolves `false` if the rename
+   * failed (so callers like the title field can roll back their UI). */
+  renameEntry: (from: string, to: string) => Promise<boolean>;
   /** Delete a file (the open one, or any path). */
   deleteEntry: (path: string) => Promise<void>;
   /** Pick a different vault folder. */
   changeFolder: () => Promise<void>;
-  /** Persist any pending edits to disk now (e.g. before delegating a checkbox). */
-  flush: () => Promise<void>;
+  /** Persist any pending edits to disk now (e.g. before delegating a checkbox).
+   * Resolves `true` once the buffer is clean, `false` if the save didn't land. */
+  flush: () => Promise<boolean>;
 
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
@@ -172,22 +174,23 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   const renameEntry = useCallback(
-    async (from: string, to: string) => {
+    async (from: string, to: string): Promise<boolean> => {
       const dest = to.trim();
-      if (!dest || dest === from) return;
+      if (!dest || dest === from) return true; // nothing to do
       const bridge = getBridge();
-      if (!bridge) return;
+      if (!bridge) return false;
       // Flush first so an in-flight write of `from` can't recreate it post-move.
       cancelTimer();
       await controller.flush();
       const result = await bridge.renameVaultEntry({ from, to: dest }).catch(() => null);
       if (!result || !result.ok) {
         toast.error(result?.ok === false ? result.error : "Couldn't rename the file.");
-        return;
+        return false;
       }
       refreshList();
       // Re-open under the new path if the renamed file was the open one.
       if (controller.getState().path === from) openFile(dest);
+      return true;
     },
     [cancelTimer, controller, openFile, refreshList],
   );
@@ -229,9 +232,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }
   }, [cancelTimer, controller, refreshList]);
 
-  const flush = useCallback(async () => {
+  const flush = useCallback(async (): Promise<boolean> => {
     cancelTimer();
     await controller.flush();
+    return !controller.getState().dirty;
   }, [cancelTimer, controller]);
 
   // Initial load: adopt the root + list files.

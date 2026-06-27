@@ -3,7 +3,8 @@
 // Pure + line-based so the delegated agent's "find and check off this task"
 // instruction is anchored to a concrete, testable locator.
 
-const TASK_LINE = /^(\s*)[-*]\s+\[ \]\s+(.*)$/;
+// GFM accepts `-`, `*`, and `+` as bullet markers.
+const TASK_LINE = /^(\s*)[-*+]\s+\[ \]\s+(.*)$/;
 const HEADING = /^#{1,6}\s+(.*)$/;
 
 const MAX_SECTION_LINES = 60;
@@ -24,7 +25,9 @@ export type TaskLineMatch = {
  * (whitespace-trimmed). Returns null when no such line exists. */
 export function findTaskLine(raw: string, text: string): TaskLineMatch | null {
   const target = text.trim();
-  const lines = raw.split("\n");
+  // Normalize CRLF/CR so Windows-authored files match (the `$` line anchor
+  // wouldn't otherwise sit before the lone `\r`).
+  const lines = raw.split(/\r\n|\r|\n/);
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];

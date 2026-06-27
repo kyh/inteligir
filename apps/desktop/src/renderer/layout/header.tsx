@@ -102,7 +102,7 @@ export function Header() {
             </div>
           )}
           <Badge variant="ghost" className="text-muted-foreground">
-            {editor.dirty || editor.saving ? "Saving…" : "Saved"}
+            {editor.saving ? "Saving…" : editor.dirty ? "Unsaved" : "Saved"}
           </Badge>
           <Button
             variant="ghost"

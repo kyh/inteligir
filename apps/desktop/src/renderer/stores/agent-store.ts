@@ -65,7 +65,9 @@ export function withNoteContext(text: string, activeNote: string | undefined): s
  * actual words (the agent's stored message includes the prefix; the live
  * optimistic bubble never did). */
 export function stripNoteContext(text: string): string {
-  return text.replace(/^\[Context: [^\]]*\]\n\n/, "");
+  // Lazy up to the first `]` that closes the block (`]\n\n`), so a note path
+  // containing `]` doesn't truncate the strip and leak context into the bubble.
+  return text.replace(/^\[Context: [\s\S]*?\]\n\n/, "");
 }
 
 // ---------------------------------------------------------------------------

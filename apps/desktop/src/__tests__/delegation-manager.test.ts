@@ -96,6 +96,33 @@ describe("DelegationManager.createDelegation", () => {
   });
 });
 
+describe("DelegationManager.markUnavailable", () => {
+  it("fails queued delegations and rejects new ones with the reason", () => {
+    const mgr = makeManager();
+    mgr.createDelegation({ sourceFile: "n.md", text: "task one" });
+    expect(mgr.getDelegations()[0]?.status).toBe("queued");
+
+    mgr.markUnavailable("agent down");
+    const d = mgr.getDelegations()[0];
+    expect(d?.status).toBe("failed");
+    expect(d?.error).toBe("agent down");
+
+    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task two" })).toEqual({
+      ok: false,
+      error: "agent down",
+    });
+  });
+
+  it("clears unavailability once a runner is wired", () => {
+    const mgr = makeManager();
+    mgr.markUnavailable("agent down");
+    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task one" }).ok).toBe(false);
+
+    mgr.setRunner(() => fakeAgent().agent);
+    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task two" }).ok).toBe(true);
+  });
+});
+
 describe("DelegationManager run lifecycle", () => {
   it("runs queued → running → done, sending the task to the agent", async () => {
     const mgr = makeManager();

@@ -91,12 +91,12 @@ Opens Electron with HMR (renderer) + tsc watch (main/preload). CDP exposed on po
 
 ## Adding things — quick map
 
-| Adding...                                 | Where                                                                                                                               | See                                |
-| ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| New IPC method                            | Registry entry in `shared/ipc-registry.ts` + `handle()` in `main/{index,vault-ipc,executor-ipc}.ts` (preload bridge is derived)     | `main/README.md`                   |
-| New app state phase                       | `shared/app-state.ts` + reducer + tests                                                                                             | `main/README.md`                   |
-| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring                                                                               | `main/README.md`                   |
-| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                                                                                      | `agent/README.md`                  |
-| Reusable install primitive                | `packages/agent-runtime/`                                                                                                           | `packages/agent-runtime/README.md` |
-| New workspace feature (sidebar/editor)    | A component under `renderer/{sidebar,editor,chat,settings}/` wired into `workspace/workspace-page.tsx`; vault data via `useVault()` | (no README — standard React)       |
-| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`                                                                                  | `agent/README.md`                  |
+| Adding...                                 | Where                                                                                                                                   | See                                |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| New IPC method                            | Registry entry in `shared/ipc-registry.ts` + `handle()` in `main/{index,vault-ipc,executor-ipc}.ts` (preload bridge is derived)         | `main/README.md`                   |
+| New app state phase                       | `shared/app-state.ts` + reducer + tests                                                                                                 | `main/README.md`                   |
+| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring                                                                                   | `main/README.md`                   |
+| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                                                                                          | `agent/README.md`                  |
+| Reusable install primitive                | `packages/agent-runtime/`                                                                                                               | `packages/agent-runtime/README.md` |
+| New workspace feature (sidebar/editor)    | A component under `renderer/{sidebar,editor,composer,settings}/` wired into `workspace/workspace-page.tsx`; vault data via `useVault()` | (no README — standard React)       |
+| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`                                                                                      | `agent/README.md`                  |

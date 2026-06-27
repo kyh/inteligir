@@ -99,8 +99,13 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
 
   const handleDelegate = async () => {
     // Persist the checkbox to disk first — the agent reads the file, not the
-    // in-memory buffer.
-    await flush();
+    // in-memory buffer. If the save didn't land, abort: the agent would resolve
+    // the task against stale on-disk content (maybe the wrong/old checkbox).
+    const saved = await flush();
+    if (!saved) {
+      toast.error("Couldn't save your edits — try again before delegating.");
+      return;
+    }
     const result = await delegate(sourceFile, text);
     if (!result.ok) toast.error(result.error ?? "Couldn't delegate that task.");
   };

@@ -57,4 +57,13 @@ describe("findTaskLine", () => {
   it("matches asterisk bullets too", () => {
     expect(findTaskLine("* [ ] star task", "star task")).not.toBeNull();
   });
+
+  it("matches plus bullets (GFM allows -, *, +)", () => {
+    expect(findTaskLine("+ [ ] plus task", "plus task")).not.toBeNull();
+  });
+
+  it("matches across CRLF / CR line endings (Windows-authored files)", () => {
+    expect(findTaskLine("# H\r\n\r\n- [ ] crlf task\r\n", "crlf task")).not.toBeNull();
+    expect(findTaskLine("- [ ] cr task\r", "cr task")).not.toBeNull();
+  });
 });

@@ -180,8 +180,17 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   agent = next;
   // Settle the background start before returning, then wire it to the delegation
   // queue so any delegations queued before the agent was ready start draining.
+  // If it failed to start, mark delegation unavailable so queued/new tasks fail
+  // with feedback instead of sitting "Queued" forever behind a null runner.
   await bgStarted;
-  getDelegationManager().setRunner(() => getBackgroundAgent());
+  const delegations = getDelegationManager();
+  if (getBackgroundAgent()) {
+    delegations.setRunner(() => getBackgroundAgent());
+  } else {
+    delegations.markUnavailable(
+      "The background agent isn't available — restart the app to delegate tasks.",
+    );
+  }
 }
 
 async function stopAgent(): Promise<void> {

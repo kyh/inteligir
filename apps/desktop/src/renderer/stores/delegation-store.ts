@@ -18,11 +18,20 @@ export const useDelegationStore = create<DelegationStore>((set) => ({
   init: () => {
     const bridge = getBridge();
     if (!bridge) return () => {};
+    // A live update can land before the initial list resolves; once it has, the
+    // (now-stale) list response must not clobber the fresher state.
+    let sawUpdate = false;
     void bridge
       .listDelegations()
-      .then(({ delegations }) => set({ delegations }))
+      .then(({ delegations }) => {
+        if (!sawUpdate) set({ delegations });
+        return undefined;
+      })
       .catch(() => {});
-    return bridge.onDelegationsUpdated(({ delegations }) => set({ delegations }));
+    return bridge.onDelegationsUpdated(({ delegations }) => {
+      sawUpdate = true;
+      set({ delegations });
+    });
   },
 
   delegate: async (sourceFile, text) => {

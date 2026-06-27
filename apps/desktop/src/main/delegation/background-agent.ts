@@ -37,10 +37,12 @@ export async function startBackgroundAgent(): Promise<void> {
 /** Stop the background agent. Does NOT touch the executor daemon — that is a
  * shared singleton owned by the user-agent lifecycle (stopAgent). */
 export async function stopBackgroundAgent(): Promise<void> {
-  if (bgAgent) {
-    await bgAgent.stop();
-    bgAgent = null;
-  }
+  const agent = bgAgent;
+  if (!agent) return;
+  // Clear the singleton up front so a stop() that throws can't wedge it — a
+  // later startBackgroundAgent() would otherwise short-circuit on the stale ref.
+  bgAgent = null;
+  await agent.stop().catch(() => {});
 }
 
 export function getBackgroundAgent(): Agent | null {

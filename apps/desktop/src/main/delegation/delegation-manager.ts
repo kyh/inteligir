@@ -67,6 +67,10 @@ export class DelegationManager {
   private readonly readVault: (rel: string) => string;
   private getAgent: (() => DelegationAgent | null) | null = null;
   private running = false;
+  // Set when the background agent can't run delegations at all (e.g. it failed
+  // to start). New delegations are rejected with this reason instead of sitting
+  // "queued" forever; cleared once a working runner is wired.
+  private unavailableReason: string | null = null;
 
   constructor(opts?: DelegationManagerOptions) {
     this.readVault = opts?.readVault ?? ((rel) => getVaultManager().readText(rel));
@@ -98,6 +102,7 @@ export class DelegationManager {
    * been queued before the agent was ready). */
   setRunner(getAgent: () => DelegationAgent | null): void {
     this.getAgent = getAgent;
+    this.unavailableReason = null;
     void this.processNext();
   }
 
@@ -105,9 +110,27 @@ export class DelegationManager {
     this.getAgent = null;
   }
 
+  /** Mark delegation unavailable (the background agent failed to start). Fail
+   * every still-queued delegation so they don't sit "Queued" forever, and
+   * reject new ones until a runner is wired. */
+  markUnavailable(reason: string): void {
+    this.unavailableReason = reason;
+    this.getAgent = null;
+    let changed = false;
+    this.store.update((all) =>
+      all.map((d) => {
+        if (d.status !== "queued") return d;
+        changed = true;
+        return { ...d, status: "failed", finishedAt: Date.now(), error: reason };
+      }),
+    );
+    if (changed) this.notify();
+  }
+
   /** Create + enqueue a delegation. Resolves the checkbox line from the vault
    * file first so a stale/edited checkbox is rejected before it queues. */
   createDelegation(params: CreateDelegationParams): CreateDelegationResult {
+    if (this.unavailableReason) return { ok: false, error: this.unavailableReason };
     let raw: string;
     try {
       raw = this.readVault(params.sourceFile);

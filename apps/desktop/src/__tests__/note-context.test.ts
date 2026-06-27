@@ -22,6 +22,12 @@ describe("note context prefix", () => {
     expect(stripNoteContext(withNoteContext(original, "n.md"))).toBe(original);
   });
 
+  it("strips fully even when the note path contains a ]", () => {
+    const out = withNoteContext("hi", "weird]name.md");
+    expect(out).toContain("./vault/weird]name.md");
+    expect(stripNoteContext(out)).toBe("hi");
+  });
+
   it("leaves a plain message untouched", () => {
     expect(stripNoteContext("just a normal message")).toBe("just a normal message");
   });

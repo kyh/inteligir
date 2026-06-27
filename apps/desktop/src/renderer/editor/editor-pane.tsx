@@ -46,7 +46,13 @@ export function EditorPane() {
       if (titleRef.current) titleRef.current.textContent = displayName;
       return;
     }
-    void renameEntry(selected, `${dir}${next}${ext}`);
+    void renameEntry(selected, `${dir}${next}${ext}`).then((ok) => {
+      // On success the path changes and the effect resets the title to the new
+      // name; on failure roll the contentEditable back to the real filename so
+      // the header never shows a name that was never saved.
+      if (!ok && titleRef.current) titleRef.current.textContent = displayName;
+      return undefined;
+    });
   };
 
   // potion-style column: a centered 700px text column (symmetric padding, not
