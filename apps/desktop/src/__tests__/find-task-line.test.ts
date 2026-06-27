@@ -77,4 +77,19 @@ describe("findTaskLine", () => {
     const m = findTaskLine(DOC, "book the flight", "No Such Section");
     expect(m?.heading).toBe("This week");
   });
+
+  it("matches a task whose raw line carries inline markdown", () => {
+    expect(findTaskLine("- [ ] **buy** milk", "buy milk")).not.toBeNull();
+    expect(findTaskLine("- [ ] call `api`", "call api")).not.toBeNull();
+    expect(findTaskLine("- [ ] read [docs](https://x)", "read docs")).not.toBeNull();
+  });
+
+  it("unwraps paired emphasis in headings but keeps lone/intraword markers", () => {
+    expect(findTaskLine("## **Q3** plan\n\n- [ ] a", "a")?.heading).toBe("Q3 plan");
+    expect(findTaskLine("## C* notes\n\n- [ ] a", "a")?.heading).toBe("C* notes");
+    // snake_case underscores are not emphasis → preserved (no over-strip).
+    expect(findTaskLine("## update_user_record\n\n- [ ] a", "a")?.heading).toBe(
+      "update_user_record",
+    );
+  });
 });

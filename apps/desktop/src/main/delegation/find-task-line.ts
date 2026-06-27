@@ -43,7 +43,9 @@ export function findTaskLine(
     if (line === undefined) continue;
     const m = TASK_LINE.exec(line);
     if (!m) continue;
-    if ((m[2] ?? "").trim() !== target) continue;
+    // The renderer's `text` is Plate's plain item text; the raw line may still
+    // carry inline markdown (`- [ ] **buy** milk`), so normalize before compare.
+    if (stripInline((m[2] ?? "").trim()) !== target) continue;
 
     const match: TaskLineMatch = {
       lineIndex: i,
@@ -59,18 +61,25 @@ export function findTaskLine(
   return firstTextMatch;
 }
 
-// Reduce a heading to the same plain text the renderer's elementText yields, so
-// the two delegation anchors agree. Only *paired* inline markdown is unwrapped
-// (what Plate actually parses) — a lone literal `*`/`_` in a title is kept, so
-// we don't over-strip. Empty → null.
-function plainHeading(raw: string): string | null {
-  const t = raw
+// Reduce inline markdown to the plain text Plate's elementText yields, so the
+// renderer's anchors (plain item text + heading) match lines resolved from raw
+// markdown. Asterisk emphasis works intraword in GFM (`a*b*c`), but underscore
+// emphasis only at word boundaries — so `snake_case` and a lone `*` survive,
+// while `**bold**` / `_em_` / links / code unwrap.
+function stripInline(s: string): string {
+  return s
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // [text](url) → text
-    .replace(/(\*\*|__)(.+?)\1/g, "$2") // bold
-    .replace(/(\*|_)(.+?)\1/g, "$2") // italic
-    .replace(/~~(.+?)~~/g, "$1") // strikethrough
-    .replace(/`([^`]+)`/g, "$1") // inline code
+    .replace(/\*\*(.+?)\*\*/g, "$1") // **bold**
+    .replace(/(?<![A-Za-z0-9])__(.+?)__(?![A-Za-z0-9])/g, "$1") // __bold__
+    .replace(/\*(.+?)\*/g, "$1") // *italic*
+    .replace(/(?<![A-Za-z0-9])_(.+?)_(?![A-Za-z0-9])/g, "$1") // _italic_
+    .replace(/~~(.+?)~~/g, "$1") // ~~strike~~
+    .replace(/`([^`]+)`/g, "$1") // `code`
     .trim();
+}
+
+function plainHeading(raw: string): string | null {
+  const t = stripInline(raw);
   return t === "" ? null : t;
 }
 
