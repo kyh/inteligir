@@ -192,6 +192,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       // Flush first so an in-flight write of `from` can't recreate it post-move.
       cancelTimer();
       await controller.flush();
+      if (controller.getState().dirty) {
+        // Save failed — don't move a file out from under unsaved edits.
+        toast.error("Couldn't save the current file — resolve that before renaming.");
+        return false;
+      }
       const result = await bridge.renameVaultEntry({ from, to: dest }).catch(() => null);
       if (!result || !result.ok) {
         toast.error(result?.ok === false ? result.error : "Couldn't rename the file.");
