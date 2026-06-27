@@ -57,6 +57,25 @@ describe("findTaskLine", () => {
     expect(findTaskLine(md, 1)).toBeNull();
   });
 
+  it("only closes a fence on a matching marker (mixed ``` / ~~~ don't desync)", () => {
+    const md = [
+      "~~~",
+      "- [ ] fake one",
+      "```", //            a different fence marker inside — must NOT close the ~~~ block
+      "- [ ] fake two",
+      "~~~", //            closes the block
+      "",
+      "- [ ] real",
+    ].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+
+  it("ignores heading-like lines inside fenced code for context", () => {
+    const md = ["## Real heading", "", "```", "## fake heading", "```", "", "- [ ] task"].join("\n");
+    expect(findTaskLine(md, 0)?.heading).toBe("Real heading");
+  });
+
   it("handles a task with no heading above it", () => {
     expect(findTaskLine("- [ ] lonely", 0)?.heading).toBeNull();
   });

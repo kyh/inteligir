@@ -179,6 +179,27 @@ describe("DelegationManager run lifecycle", () => {
     expect(mgr.getDelegations().map((d) => d.status)).toEqual(["done", "running"]);
   });
 
+  it("fails an in-flight run on stop and doesn't wedge the queue", async () => {
+    const mgr = makeManager();
+    const fake = fakeAgent();
+    mgr.setRunner(() => fake.agent);
+
+    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    await flush();
+    expect(mgr.getDelegations()[0]?.status).toBe("running");
+
+    mgr.stop(); // agent torn down mid-run (Cmd+K / logout)
+    const d = mgr.getDelegations()[0];
+    expect(d?.status).toBe("failed");
+    expect(d?.error).toContain("Interrupted");
+
+    // The lock is released: a fresh runner drains new work.
+    mgr.setRunner(() => fakeAgent().agent);
+    mgr.createDelegation({ sourceFile: "n.md", index: 1 });
+    await flush();
+    expect(mgr.getDelegations()[1]?.status).toBe("running");
+  });
+
   it("cancels a queued delegation but not a running one", async () => {
     const mgr = makeManager();
     const fake = fakeAgent();

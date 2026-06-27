@@ -82,7 +82,8 @@ export function Composer({ className }: { className?: string }) {
   const interrupt = useAgentStore((s) => s.interrupt);
   const queuedFollowUp = useAgentStore((s) => s.queuedFollowUp);
   const queuedSteering = useAgentStore((s) => s.queuedSteering);
-  const openNote = useVault().editor.path;
+  const { editor: vaultEditor, flush: flushVault } = useVault();
+  const openNote = vaultEditor.path;
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
 
@@ -109,6 +110,10 @@ export function Composer({ className }: { className?: string }) {
         if (!text && images.length === 0) {
           throw new Error("composer: nothing to submit after attachment conversion");
         }
+        // Persist the open note first: the agent reads it from disk (./vault),
+        // and flushing keeps the buffer clean so an agent edit reloads instead
+        // of being overwritten by the next autosave.
+        await flushVault();
         send(text, images.length > 0 ? images : undefined, {
           ...(wantsSteer ? { intent: "steer" as const } : {}),
           ...(openNote === null ? {} : { activeNote: openNote }),
@@ -117,7 +122,7 @@ export function Composer({ className }: { className?: string }) {
         syncHasInputFromDOM();
       }
     },
-    [send, openNote],
+    [send, openNote, flushVault],
   );
 
   const onAttachError = useCallback((err: { code: string; message: string }) => {

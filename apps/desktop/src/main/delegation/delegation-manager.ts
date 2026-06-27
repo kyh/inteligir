@@ -113,10 +113,24 @@ export class DelegationManager {
 
   stop(): void {
     this.getAgent = null;
+    this.running = false;
     if (this.retryTimer !== null) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
     }
+    // The agent was torn down (Cmd+K / logout / shutdown) — fail any in-flight
+    // run so it doesn't sit "running" forever and wedge the queue behind a stuck
+    // lock. A later run()'s finally is harmless (resets the lock again, then
+    // processNext early-returns with no runner).
+    let changed = false;
+    this.store.update((all) =>
+      all.map((d) => {
+        if (d.status !== "running") return d;
+        changed = true;
+        return { ...d, status: "failed", finishedAt: Date.now(), error: "Interrupted — session ended" };
+      }),
+    );
+    if (changed) this.notify();
   }
 
   private scheduleRetry(): void {
