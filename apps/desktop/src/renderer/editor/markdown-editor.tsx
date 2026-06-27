@@ -46,7 +46,7 @@ import { MarkdownPlugin, deserializeMd, serializeMd } from "@platejs/markdown";
 import remarkGfm from "remark-gfm";
 
 import { BlockList } from "@/renderer/editor/block-list";
-import { DndKit } from "@/renderer/editor/block-draggable";
+import { DragKit } from "@/renderer/editor/block-draggable";
 import { MD_STRINGIFY } from "@/renderer/editor/markdown-doc";
 import { SlashKit } from "@/renderer/editor/slash-menu";
 
@@ -115,7 +115,7 @@ const EDITOR_PLUGINS = [
   }),
   LinkPlugin,
   ...SlashKit,
-  ...DndKit,
+  ...DragKit,
   // remark-gfm gives task-list checkboxes (- [ ] / - [x]) + strikethrough.
   MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
 ];

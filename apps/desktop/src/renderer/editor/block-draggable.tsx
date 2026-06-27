@@ -1,27 +1,93 @@
-// Block hover gutter — a slimmed adaptation of Potion's block-draggable.tsx.
-// Each top-level block gets a left gutter (revealed on hover) with a "+" to
-// insert a block below and open the slash menu, and a grip to drag-reorder.
-// Dropped from potion: multi-block selection, the block context menu, drag
-// previews, and column/table handling (features we don't have). Reordering
-// blocks just reorders markdown lines, so it stays round-trip safe.
+// Block hover gutter + drag-to-reorder, built on @dnd-kit.
+//
+// Plate ships a DnD plugin (@platejs/dnd) but it's built on react-dnd, whose
+// drag-source connectors silently no-op under React 19 (they never set
+// draggable="true"), so the handle can't be grabbed. @dnd-kit is React-19
+// native (it's what the sidebar uses), so we drive the reorder ourselves: each
+// top-level block becomes a sortable item, and on drop we move the Slate node.
+// Reordering top-level blocks just reorders markdown lines — round-trip safe.
 
-import { DndPlugin, useDraggable, useDropLine } from "@platejs/dnd";
+import {
+  closestCenter,
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { GripVerticalIcon, PlusIcon } from "lucide-react";
 import { PathApi } from "platejs";
 import {
-  MemoizedChildren,
+  createPlatePlugin,
   type PlateElementProps,
   type RenderNodeWrapper,
   useEditorRef,
 } from "platejs/react";
-import { DndProvider } from "react-dnd";
-import { HTML5Backend } from "react-dnd-html5-backend";
 
 import { cn } from "@repo/ui/lib/utils";
 
+// Stable per-block drag ids. Slate's moveNodes preserves node object identity,
+// so a WeakMap keyed by the element yields ids that survive a reorder. Both the
+// SortableContext list and each useSortable() re-derive from this map within the
+// same render, so they always agree.
+let idCounter = 0;
+const blockIds = new WeakMap<object, string>();
+function blockId(node: object): string {
+  const existing = blockIds.get(node);
+  if (existing) return existing;
+  idCounter += 1;
+  const id = `blk-${idCounter}`;
+  blockIds.set(node, id);
+  return id;
+}
+
+function DragProvider({ children }: { children: React.ReactNode }) {
+  const editor = useEditorRef();
+  // 4px activation distance so a plain click on the grip/"+" still works.
+  // Keyboard sensor makes the grip a real a11y handle (Space to lift, arrows to
+  // move, Space to drop).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+  const items = editor.children.map((n) => blockId(n));
+
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const ids = editor.children.map((n) => blockId(n));
+    const from = ids.indexOf(String(active.id));
+    const to = ids.indexOf(String(over.id));
+    if (from < 0 || to < 0) return;
+    editor.tf.moveNodes({ at: [from], to: [to] });
+  };
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      modifiers={[restrictToVerticalAxis]}
+      onDragEnd={onDragEnd}
+    >
+      <SortableContext items={items} strategy={verticalListSortingStrategy}>
+        {children}
+      </SortableContext>
+    </DndContext>
+  );
+}
+
 const BlockDraggable: RenderNodeWrapper = ({ editor, path }) => {
   if (editor.dom.readOnly) return undefined;
-  // Top-level blocks only — nested list/quote children drag with their parent.
+  // Top-level blocks only — nested list/quote/table children move with parents.
   if (path.length !== 1) return undefined;
   return (props) => <Draggable {...props} />;
 };
@@ -29,7 +95,15 @@ const BlockDraggable: RenderNodeWrapper = ({ editor, path }) => {
 function Draggable(props: PlateElementProps) {
   const { children, element } = props;
   const editor = useEditorRef();
-  const { isDragging, handleRef, nodeRef } = useDraggable({ element });
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: blockId(element) });
 
   const insertBelow = () => {
     const at = editor.api.findPath(element);
@@ -42,7 +116,11 @@ function Draggable(props: PlateElementProps) {
   };
 
   return (
-    <div className={cn("group/block relative", isDragging && "opacity-50")}>
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn("group/block relative", isDragging && "z-10 opacity-60")}
+    >
       <div
         contentEditable={false}
         className="absolute top-0 -left-11 z-40 flex h-[1.5em] items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100"
@@ -58,41 +136,27 @@ function Draggable(props: PlateElementProps) {
         </button>
         <button
           type="button"
-          tabIndex={-1}
-          ref={handleRef}
+          ref={setActivatorNodeRef}
           title="Drag to move"
-          className="flex size-5 cursor-grab items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
+          className="flex size-5 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
+          {...attributes}
+          {...listeners}
         >
           <GripVerticalIcon className="size-4" />
         </button>
       </div>
 
-      <div ref={nodeRef} className="flow-root">
-        <MemoizedChildren>{children}</MemoizedChildren>
-        <DropLine />
-      </div>
+      {children}
     </div>
   );
 }
 
-function DropLine() {
-  const { dropLine } = useDropLine();
-  if (!dropLine) return null;
-  return (
-    <div
-      className={cn(
-        "absolute inset-x-0 z-40 h-0.5 bg-primary/60",
-        dropLine === "top" ? "-top-px" : "-bottom-px",
-      )}
-    />
-  );
-}
-
-export const DndKit = [
-  DndPlugin.configure({
-    render: {
-      aboveNodes: BlockDraggable,
-      aboveSlate: ({ children }) => <DndProvider backend={HTML5Backend}>{children}</DndProvider>,
-    },
+export const DragKit = [
+  createPlatePlugin({
+    key: "block-drag",
+    // aboveEditable (not aboveSlate): DragProvider needs the editor context
+    // (useEditorRef) to build the sortable id list + handle the drop, and it
+    // must still wrap every node so each block's useSortable sees the context.
+    render: { aboveNodes: BlockDraggable, aboveEditable: DragProvider },
   }),
 ];
