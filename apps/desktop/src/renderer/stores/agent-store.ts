@@ -35,7 +35,23 @@ export type ChatMessageMetadata = {
 export type ChatMessage = UIMessage<ChatMessageMetadata>;
 
 type SendIntent = "steer";
-type SendOptions = { intent?: SendIntent };
+type SendOptions = {
+  intent?: SendIntent;
+  /** Vault path of the note open in front of the user, auto-attached as context
+   * so "edit this note" / "add a section here" resolve to the right file. */
+  activeNote?: string;
+};
+
+/** Prefix a fresh user turn with the open note so the single persistent thread
+ * is note-aware without the user naming the file. Kept out of the displayed
+ * bubble — only the text sent to the agent carries it. */
+function withNoteContext(text: string, activeNote: string | undefined): string {
+  if (activeNote === undefined) return text;
+  return (
+    `[Context: the note open in front of me is ./vault/${activeNote}. ` +
+    `If I say "this note", "here", or don't name a file, I mean that one.]\n\n${text}`
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Store
@@ -469,9 +485,13 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     set((s) => ({
       messages: [...s.messages, userMessage(text, hasMeta ? meta : undefined)],
     }));
+    // The displayed bubble stays the user's plain text; only a fresh user turn
+    // sent to the agent carries the open-note context (steer/follow-up nudges
+    // ride an already-established turn).
+    const sentText = cmdType === "user_message" ? withNoteContext(text, options?.activeNote) : text;
     sendCommandSurfacingFailure(bridge, set, {
       type: cmdType,
-      text,
+      text: sentText,
       ...(images === undefined ? {} : { images }),
     });
   },

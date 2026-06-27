@@ -25,6 +25,20 @@ export function WorkspacePage() {
   const initDelegations = useDelegationStore((s) => s.init);
   useEffect(() => initDelegations(), [initDelegations]);
 
+  // Cmd/Ctrl+K starts a fresh chat thread (the single persistent thread, rolled
+  // for a clean start — yesterday's thread stays in session history).
+  const newSession = useAgentStore((s) => s.newSession);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        void newSession();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [newSession]);
+
   // The app machine routes recoverable error states (agent restart / logout)
   // back to this route; surface the message + a RETRY affordance here.
   const appState = useAgentStore((s) => s.appState);

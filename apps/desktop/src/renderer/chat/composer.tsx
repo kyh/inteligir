@@ -33,6 +33,7 @@ import {
 
 import type { ImageAttachment } from "@/shared/voice";
 import { useAgentStore } from "@/renderer/stores/agent-store";
+import { useVault } from "@/renderer/workspace/vault-context";
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
 const MAX_ATTACHMENT_COUNT = 8;
@@ -169,6 +170,7 @@ export function Composer({
   const interrupt = useAgentStore((s) => s.interrupt);
   const queuedFollowUp = useAgentStore((s) => s.queuedFollowUp);
   const queuedSteering = useAgentStore((s) => s.queuedSteering);
+  const openNote = useVault().editor.path;
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
 
@@ -217,16 +219,15 @@ export function Composer({
           throw new Error("composer: nothing to submit after attachment conversion");
         }
 
-        send(
-          text,
-          images.length > 0 ? images : undefined,
-          wantsSteer ? { intent: "steer" } : undefined,
-        );
+        send(text, images.length > 0 ? images : undefined, {
+          ...(wantsSteer ? { intent: "steer" } : {}),
+          ...(openNote === null ? {} : { activeNote: openNote }),
+        });
       } finally {
         syncHasInputFromDOM();
       }
     },
-    [send],
+    [send, openNote],
   );
 
   const onAttachError = useCallback((err: { code: string; message: string }) => {
