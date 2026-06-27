@@ -200,6 +200,27 @@ describe("DelegationManager run lifecycle", () => {
     expect(mgr.getDelegations()[1]?.status).toBe("running");
   });
 
+  it("keeps an interrupted run failed even if it finishes after stop()", async () => {
+    const mgr = makeManager();
+    const fake = fakeAgent();
+    mgr.setRunner(() => fake.agent);
+
+    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    await flush();
+    expect(mgr.getDelegations()[0]?.status).toBe("running");
+
+    mgr.stop();
+    expect(mgr.getDelegations()[0]?.status).toBe("failed");
+
+    // The in-flight run finishes late — it must NOT resurrect the record to "done".
+    fake.emitAssistant("Booked it.");
+    fake.finish();
+    await flush();
+    const d = mgr.getDelegations()[0];
+    expect(d?.status).toBe("failed");
+    expect(d?.error).toContain("Interrupted");
+  });
+
   it("cancels a queued delegation but not a running one", async () => {
     const mgr = makeManager();
     const fake = fakeAgent();

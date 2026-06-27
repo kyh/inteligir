@@ -22,6 +22,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { cn } from "@repo/ui/lib/utils";
 
 import { findDelegation, useDelegationStore } from "@/renderer/stores/delegation-store";
+import { isTodoItem } from "@/renderer/editor/todo-item";
 import { useVault } from "@/renderer/workspace/vault-context";
 import type { Delegation } from "@/shared/delegation";
 
@@ -91,17 +92,17 @@ function TodoLi(props: PlateElementProps) {
 // as editable content.
 // ---------------------------------------------------------------------------
 
-// The checkbox's ordinal — its position among all todo items in the document.
-// main counts the same `- [ ]` / `- [x]` lines in the raw markdown, so the two
-// agree by position with no text matching and duplicate labels stay distinct.
+// The checkbox's ordinal — its position among all real todo items in the
+// document. main counts the same `- [ ]` / `- [x]` lines in the raw markdown, so
+// the two agree by position with no text matching and duplicate labels stay
+// distinct.
 function todoIndex(editor: PlateEditor, element: TElement): number {
   const path = editor.api.findPath(element);
   const top = path?.[0];
   if (top === undefined) return -1;
   let count = 0;
   for (let i = 0; i < top; i++) {
-    const node = editor.children[i];
-    if (node && "listStyleType" in node && node.listStyleType === "todo") count++;
+    if (isTodoItem(editor.children[i])) count++;
   }
   return count;
 }
@@ -116,7 +117,10 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
   const sourceFile = vaultEditor.path;
   const text = elementText(element);
   const index = todoIndex(plateEditor, element);
-  if (sourceFile === null || text.trim() === "") return null;
+  // A phantom checkbox (a plain bullet Plate tagged `todo` without `checked`)
+  // has no `- [ ]` on disk — never offer to delegate it, or the ordinal would
+  // resolve to a different real checkbox.
+  if (sourceFile === null || text.trim() === "" || !isTodoItem(element)) return null;
 
   const delegation = findDelegation(delegations, sourceFile, index);
 

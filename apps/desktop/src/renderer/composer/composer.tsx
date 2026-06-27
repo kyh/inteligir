@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowUpIcon, ListPlusIcon, PaperclipIcon, SquareIcon, ZapIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
+import { toast } from "@repo/ui/components/sonner";
 import {
   Attachment,
   AttachmentPreview,
@@ -112,11 +113,16 @@ export function Composer({ className }: { className?: string }) {
         }
         // Persist the open note first: the agent reads it from disk (./vault),
         // and flushing keeps the buffer clean so an agent edit reloads instead
-        // of being overwritten by the next autosave.
-        await flushVault();
+        // of being overwritten by the next autosave. If the save failed, don't
+        // point the agent at stale bytes — send without the note as context and
+        // tell the user — but never drop their message.
+        const saved = await flushVault();
+        if (!saved) {
+          toast.warning("Couldn't save your latest edits — the agent won't see them this turn.");
+        }
         send(text, images.length > 0 ? images : undefined, {
           ...(wantsSteer ? { intent: "steer" as const } : {}),
-          ...(openNote === null ? {} : { activeNote: openNote }),
+          ...(openNote === null || !saved ? {} : { activeNote: openNote }),
         });
       } finally {
         syncHasInputFromDOM();

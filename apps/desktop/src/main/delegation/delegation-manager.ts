@@ -223,6 +223,22 @@ export class DelegationManager {
     this.notify();
   }
 
+  /** Apply a terminal status, but only while the record is still `running`. A
+   * run can finish (done/timeout/error) after stop() already failed it as
+   * interrupted, or after a cancel — without this guard that late patch would
+   * resurrect the record (e.g. show "done" after the user was told it stopped). */
+  private finishRun(id: string, patch: Partial<Delegation>): void {
+    let changed = false;
+    this.store.update((all) =>
+      all.map((d) => {
+        if (d.id !== id || d.status !== "running") return d;
+        changed = true;
+        return { ...d, ...patch };
+      }),
+    );
+    if (changed) this.notify();
+  }
+
   private notify(): void {
     try {
       changedNotifier?.(this.getDelegations());
@@ -273,20 +289,20 @@ export class DelegationManager {
       const finished = await agent.waitForIdle(RUN_TIMEOUT_MS);
       if (!finished) {
         await agent.interrupt().catch(() => {});
-        this.patch(delegation.id, {
+        this.finishRun(delegation.id, {
           status: "failed",
           finishedAt: Date.now(),
           error: "Timed out",
         });
         return;
       }
-      this.patch(delegation.id, {
+      this.finishRun(delegation.id, {
         status: "done",
         finishedAt: Date.now(),
         resultSummary: captured.text?.trim().slice(0, SUMMARY_LEN) ?? "Done",
       });
     } catch (err) {
-      this.patch(delegation.id, {
+      this.finishRun(delegation.id, {
         status: "failed",
         finishedAt: Date.now(),
         error: toErrorMessage(err),

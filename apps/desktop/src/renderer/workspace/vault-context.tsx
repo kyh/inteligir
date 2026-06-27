@@ -13,6 +13,7 @@ import {
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
+import { registerOpenNoteFlush } from "@/renderer/workspace/open-note-flush";
 import { isCanonical, isRichSafe, toCanonical } from "@/renderer/editor/markdown-doc";
 import {
   VaultEditorController,
@@ -278,6 +279,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   // Persist on unmount so a change within the debounce window isn't lost.
   useEffect(() => () => void controller.flush(), [controller]);
+
+  // Expose the flush to non-React callers (the voice transcript path) so a
+  // dictated turn also persists the open note before the agent reads it.
+  useEffect(() => {
+    registerOpenNoteFlush(flush);
+    return () => registerOpenNoteFlush(null);
+  }, [flush]);
 
   const folderName = useMemo(() => {
     const root = editor.root.replace(/[/\\]+$/, "");

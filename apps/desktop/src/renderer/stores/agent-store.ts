@@ -8,6 +8,7 @@ import { AppStateSchema, type AppState } from "@/shared/app-state";
 import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
 import type { ImageAttachment } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
+import { flushOpenNote } from "@/renderer/workspace/open-note-flush";
 import { onUserTranscript, useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -471,12 +472,18 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     // agent + append to the local chat list.
     const unsubVoice = onUserTranscript((text) => {
       set((s) => ({ messages: [...s.messages, userMessage(text)] }));
-      // Like a typed turn: the bubble stays plain, but the sent text carries the
-      // date-grounding context (no open-note prefix — the store doesn't track
-      // the active note on this path).
-      sendCommandSurfacingFailure(bridge, set, {
-        type: "user_message",
-        text: withNoteContext(text, undefined),
+      // Persist the open note first (like the composer does for a typed send) so
+      // the agent reads the latest bytes from ./vault and an agent edit reloads
+      // instead of being clobbered by the next autosave. Send regardless of the
+      // flush result — never drop the dictation.
+      void flushOpenNote().finally(() => {
+        // Like a typed turn: the bubble stays plain, but the sent text carries
+        // the date-grounding context (no open-note prefix — the store doesn't
+        // track the active note on this path).
+        sendCommandSurfacingFailure(bridge, set, {
+          type: "user_message",
+          text: withNoteContext(text, undefined),
+        });
       });
     });
     void loadInitialHistory(bridge, set);
