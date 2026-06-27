@@ -2,6 +2,7 @@ import { BrowserWindow, dialog, type OpenDialogOptions } from "electron";
 
 import { handle } from "@/main/lib/ipc-handler";
 import { getVaultManager } from "@/main/vault";
+import { getNoteLinks } from "@/main/vault-links";
 import { toErrorMessage } from "@/shared/ipc";
 import type { ChooseVaultResult } from "@/shared/ipc-registry";
 
@@ -38,4 +39,5 @@ export function registerVaultIpcHandlers(): void {
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
   handle("renameVaultEntry", ({ from, to }) => getVaultManager().rename(from, to));
+  handle("getNoteLinks", ({ path }) => getNoteLinks(path));
 }

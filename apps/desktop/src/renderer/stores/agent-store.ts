@@ -45,12 +45,19 @@ type SendOptions = {
 /** Prefix a fresh user turn with the open note so the single persistent thread
  * is note-aware without the user naming the file. Kept out of the displayed
  * bubble — only the text sent to the agent carries it. */
-function withNoteContext(text: string, activeNote: string | undefined): string {
+export function withNoteContext(text: string, activeNote: string | undefined): string {
   if (activeNote === undefined) return text;
   return (
     `[Context: the note open in front of me is ./vault/${activeNote}. ` +
     `If I say "this note", "here", or don't name a file, I mean that one.]\n\n${text}`
   );
+}
+
+/** Remove the auto-attached note context so rehydrated history shows the user's
+ * actual words (the agent's stored message includes the prefix; the live
+ * optimistic bubble never did). */
+export function stripNoteContext(text: string): string {
+  return text.replace(/^\[Context: [^\]]*\]\n\n/, "");
 }
 
 // ---------------------------------------------------------------------------
@@ -204,7 +211,7 @@ function historyToChatMessages(
   for (const entry of history) {
     switch (entry.role) {
       case "user":
-        messages.push(userMessage(entry.text));
+        messages.push(userMessage(stripNoteContext(entry.text)));
         break;
       case "assistant":
         messages.push(assistantTextMessage(entry.text));

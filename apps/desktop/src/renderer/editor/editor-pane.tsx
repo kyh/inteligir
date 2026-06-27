@@ -6,6 +6,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { MarkdownEditor } from "@/renderer/editor/markdown-editor";
 import { isCanonical, toCanonical } from "@/renderer/editor/markdown-doc";
+import { LinksPanel } from "@/renderer/editor/links-panel";
 import { useVault } from "@/renderer/workspace/vault-context";
 
 // Files eligible for the rich (Plate) editor. `.mdx` is excluded — the Plate
@@ -133,6 +134,8 @@ export function EditorPane() {
           placeholder="Empty file"
         />
       )}
+
+      {isMarkdown && <LinksPanel />}
     </div>
   );
 }
