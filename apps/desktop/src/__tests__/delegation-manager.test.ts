@@ -145,6 +145,39 @@ describe("DelegationManager run lifecycle", () => {
     expect(d?.resultSummary).toBe("Booked it.");
   });
 
+  it("re-resolves the checkbox against current bytes before running", async () => {
+    let live = "## Today\n\n- [ ] task one\n- [ ] task two\n";
+    const mgr = new DelegationManager({ fs: memoryFs(), path: "/d.json", readVault: () => live });
+    mgr.createDelegation({ sourceFile: "n.md", index: 0 }); // queued (no runner yet)
+    expect(mgr.getDelegations()[0]?.anchor.text).toBe("task one");
+
+    // Edit that line while it sits queued, then wire the runner.
+    live = "## Today\n\n- [ ] task one EDITED\n- [ ] task two\n";
+    const fake = fakeAgent();
+    mgr.setRunner(() => fake.agent);
+    await flush();
+
+    // The prompt + record reflect the current line, not the create-time text.
+    expect(fake.prompts[0]).toContain("task one EDITED");
+    expect(mgr.getDelegations()[0]?.lineText).toBe("- [ ] task one EDITED");
+  });
+
+  it("fails (and never dispatches) a delegation whose checkbox vanished while queued", async () => {
+    let live = "## Today\n\n- [ ] task one\n";
+    const mgr = new DelegationManager({ fs: memoryFs(), path: "/d.json", readVault: () => live });
+    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+
+    live = "## Today\n\n(all tasks removed)\n";
+    const fake = fakeAgent();
+    mgr.setRunner(() => fake.agent);
+    await flush();
+
+    const d = mgr.getDelegations()[0];
+    expect(d?.status).toBe("failed");
+    expect(d?.error).toContain("no longer");
+    expect(fake.prompts.length).toBe(0);
+  });
+
   it("marks a timed-out run as failed", async () => {
     const mgr = makeManager();
     const fake = fakeAgent();

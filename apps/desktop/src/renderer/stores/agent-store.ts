@@ -470,21 +470,29 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     // Voice transcripts that completed while the user was actually listening
     // get routed through the same path as a typed user message: send to the
     // agent + append to the local chat list.
+    // Serialize the flush-then-send of voice turns: the flush is async, so two
+    // rapid transcripts could otherwise dispatch out of order relative to their
+    // (synchronously appended) chat bubbles. Chaining keeps sends in transcript
+    // order on the single thread.
+    let voiceChain = Promise.resolve();
     const unsubVoice = onUserTranscript((text) => {
       set((s) => ({ messages: [...s.messages, userMessage(text)] }));
-      // Persist the open note first (like the composer does for a typed send) so
-      // the agent reads the latest bytes from ./vault and an agent edit reloads
-      // instead of being clobbered by the next autosave. Send regardless of the
-      // flush result — never drop the dictation.
-      void flushOpenNote().finally(() => {
-        // Like a typed turn: the bubble stays plain, but the sent text carries
-        // the date-grounding context (no open-note prefix — the store doesn't
-        // track the active note on this path).
-        sendCommandSurfacingFailure(bridge, set, {
-          type: "user_message",
-          text: withNoteContext(text, undefined),
+      voiceChain = voiceChain
+        // Persist the open note first (like the composer does for a typed send)
+        // so the agent reads the latest bytes from ./vault and an agent edit
+        // reloads instead of being clobbered by the next autosave.
+        .then(() => flushOpenNote())
+        .catch(() => undefined) // never let one turn's flush stall the chain
+        .then(() => {
+          // Like a typed turn: the bubble stays plain, but the sent text carries
+          // the date-grounding context (no open-note prefix — the store doesn't
+          // track the active note on this path).
+          sendCommandSurfacingFailure(bridge, set, {
+            type: "user_message",
+            text: withNoteContext(text, undefined),
+          });
+          return undefined;
         });
-      });
     });
     void loadInitialHistory(bridge, set);
 

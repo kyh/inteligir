@@ -304,8 +304,50 @@ export class DelegationManager {
     }
   }
 
+  /** Re-resolve a delegation's checkbox against the file's current bytes and
+   * refresh its line/anchor so the prompt is never stale. Synchronous (no await
+   * before the first agent call), so stop() can't interleave here. */
+  private resolveForRun(
+    delegation: Delegation,
+  ): { ok: true; delegation: Delegation } | { ok: false; error: string } {
+    let raw: string;
+    try {
+      raw = this.readVault(delegation.sourceFile);
+    } catch (err) {
+      return { ok: false, error: `Couldn't read ${delegation.sourceFile}: ${toErrorMessage(err)}` };
+    }
+    const match = findTaskLine(raw, delegation.anchor.index);
+    if (!match) {
+      return { ok: false, error: "That checkbox is no longer in the file." };
+    }
+    const fresh: Delegation = {
+      ...delegation,
+      lineText: match.lineText.trim(),
+      anchor: { ...delegation.anchor, text: match.text, heading: match.heading },
+    };
+    // Persist the refreshed line so the inline badge tracks it too.
+    if (fresh.lineText !== delegation.lineText || fresh.anchor.text !== delegation.anchor.text) {
+      this.patch(delegation.id, { lineText: fresh.lineText, anchor: fresh.anchor });
+    }
+    return { ok: true, delegation: fresh };
+  }
+
   private async run(agent: DelegationAgent, delegation: Delegation): Promise<void> {
     this.patch(delegation.id, { status: "running", startedAt: Date.now() });
+
+    // Re-resolve the checkbox against CURRENT vault bytes — the file may have
+    // changed while this sat queued. Send the agent fresh line coordinates, or
+    // fail rather than point it at a stale, moved, or already-checked line.
+    const resolved = this.resolveForRun(delegation);
+    if (!resolved.ok) {
+      this.finishRun(delegation.id, {
+        status: "failed",
+        finishedAt: Date.now(),
+        error: resolved.error,
+      });
+      return;
+    }
+    const fresh = resolved.delegation;
 
     const captured: { text: string | null } = { text: null };
     const unsubscribe = agent.subscribe((raw) => {
@@ -316,7 +358,7 @@ export class DelegationManager {
     });
 
     try {
-      await agent.sendMessage(buildPrompt(delegation));
+      await agent.sendMessage(buildPrompt(fresh));
       const finished = await agent.waitForIdle(RUN_TIMEOUT_MS);
       if (!finished) {
         await agent.interrupt().catch(() => {});
