@@ -36,6 +36,12 @@ import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code
 import { IndentPlugin } from "@platejs/indent/react";
 import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
+import {
+  TableCellHeaderPlugin,
+  TableCellPlugin,
+  TablePlugin,
+  TableRowPlugin,
+} from "@platejs/table/react";
 import { MarkdownPlugin, deserializeMd, serializeMd } from "@platejs/markdown";
 import remarkGfm from "remark-gfm";
 
@@ -74,6 +80,16 @@ function HrElement(props: PlateElementProps) {
   );
 }
 
+// Plate models a table as table > tr > (td|th); the rows need a <tbody> wrapper
+// for valid HTML (mirrors Potion's table renderer). GFM tables round-trip.
+function TableElement(props: PlateElementProps) {
+  return (
+    <PlateElement {...props} as="table" className="my-3 w-auto border-collapse text-sm">
+      <tbody>{props.children}</tbody>
+    </PlateElement>
+  );
+}
+
 const EDITOR_PLUGINS = [
   BoldPlugin,
   ItalicPlugin,
@@ -88,6 +104,10 @@ const EDITOR_PLUGINS = [
   CodeBlockPlugin,
   CodeLinePlugin,
   CodeSyntaxPlugin,
+  TablePlugin,
+  TableRowPlugin,
+  TableCellPlugin,
+  TableCellHeaderPlugin,
   IndentPlugin.configure({ inject: { targetPlugins: INDENTABLE }, options: { offset: 24 } }),
   ListPlugin.configure({
     inject: { targetPlugins: INDENTABLE },
@@ -126,6 +146,16 @@ const EDITOR_COMPONENTS = {
     "my-1 border-l-[3px] border-foreground px-4 py-[3px]",
   ),
   [HorizontalRulePlugin.key]: HrElement,
+  [TablePlugin.key]: TableElement,
+  [TableRowPlugin.key]: element("tr", ""),
+  [TableCellPlugin.key]: element(
+    "td",
+    "min-w-24 border border-border px-3 py-1.5 align-top [&>*]:my-0",
+  ),
+  [TableCellHeaderPlugin.key]: element(
+    "th",
+    "min-w-24 border border-border bg-muted px-3 py-1.5 text-left align-top font-semibold [&>*]:my-0",
+  ),
   [CodeBlockPlugin.key]: element(
     "pre",
     "my-1 overflow-x-auto rounded-md bg-muted px-4 py-3 font-mono text-sm leading-normal [tab-size:2]",

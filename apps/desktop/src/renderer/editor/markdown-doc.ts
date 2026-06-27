@@ -41,9 +41,12 @@ import remarkGfm from "remark-gfm";
 // default is `*`), so typical note files are canonical without a Format pass.
 // Typed structurally (literal types) so it assigns to remark-stringify's Options
 // without taking a direct dependency on that transitive package.
-export const MD_STRINGIFY: { bullet: "-"; listItemIndent: "one" } = {
+export const MD_STRINGIFY: { bullet: "-"; listItemIndent: "one"; rule: "-" } = {
   bullet: "-",
   listItemIndent: "one",
+  // Emit `---` (not the remark default `***`) for thematic breaks / dividers,
+  // so a hand-written `---` round-trips unchanged and stays canonical.
+  rule: "-",
 };
 
 // Fresh editor per call — Slate editors carry mutable state, and these helpers

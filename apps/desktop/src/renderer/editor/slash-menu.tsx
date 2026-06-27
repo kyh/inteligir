@@ -8,6 +8,7 @@
 import { HorizontalRulePlugin } from "@platejs/basic-nodes/react";
 import { insertCodeBlock } from "@platejs/code-block";
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
+import { insertTable } from "@platejs/table";
 import {
   Code2Icon,
   Heading1Icon,
@@ -19,6 +20,7 @@ import {
   PilcrowIcon,
   QuoteIcon,
   SquareCheckIcon,
+  Table2Icon,
 } from "lucide-react";
 import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
@@ -155,6 +157,15 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         description: "Capture a code snippet.",
         keywords: ["```", "fenced"],
         onSelect: (editor) => insertCodeBlock(editor),
+      },
+      {
+        icon: <Table2Icon />,
+        label: "Table",
+        value: "table",
+        description: "Add a table with a header row.",
+        keywords: ["grid", "rows", "columns"],
+        onSelect: (editor) =>
+          insertTable(editor, { colCount: 3, rowCount: 3, header: true }, { select: true }),
       },
     ],
   },
