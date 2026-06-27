@@ -71,6 +71,10 @@ export class DelegationManager {
   private readonly readVault: (rel: string) => string;
   private getAgent: (() => DelegationAgent | null) | null = null;
   private running = false;
+  // Bumped on stop() to invalidate the in-flight run. A run only owns the queue
+  // lock while its captured epoch is still current, so a run abandoned by stop()
+  // can't reset the lock a fresh runner now holds (no overlapping execution).
+  private runEpoch = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   // Set when the background agent can't run delegations at all (e.g. it failed
   // to start). New delegations are rejected with this reason instead of sitting
@@ -113,15 +117,18 @@ export class DelegationManager {
 
   stop(): void {
     this.getAgent = null;
+    // Invalidate any in-flight run and release the lock. The abandoned run won't
+    // touch the lock when it settles (its epoch is now stale), so resetting here
+    // is safe and a fresh setRunner() can drain the queue without a second run
+    // racing the abandoned one.
+    this.runEpoch++;
     this.running = false;
     if (this.retryTimer !== null) {
       clearTimeout(this.retryTimer);
       this.retryTimer = null;
     }
     // The agent was torn down (Cmd+K / logout / shutdown) — fail any in-flight
-    // run so it doesn't sit "running" forever and wedge the queue behind a stuck
-    // lock. A later run()'s finally is harmless (resets the lock again, then
-    // processNext early-returns with no runner).
+    // run so it doesn't sit "running" forever and wedge the queue.
     let changed = false;
     this.store.update((all) =>
       all.map((d) => {
@@ -202,6 +209,24 @@ export class DelegationManager {
     return { ok: true, delegation };
   }
 
+  /** A vault file or folder was renamed/moved — repoint delegations from the old
+   * path so inline badges keep matching and queued runs target the new location.
+   * Rename doesn't change file content, so the positional anchor stays valid. (A
+   * rename mid-run can't be fully repaired — the in-flight prompt already has the
+   * old path — but the record is corrected for the badge and any retry.) */
+  renameSource(from: string, to: string): void {
+    let changed = false;
+    this.store.update((all) =>
+      all.map((d) => {
+        const next = remapPath(d.sourceFile, from, to);
+        if (next === d.sourceFile) return d;
+        changed = true;
+        return { ...d, sourceFile: next };
+      }),
+    );
+    if (changed) this.notify();
+  }
+
   /** Cancel a still-queued delegation. A running one can't be pulled back. */
   cancelDelegation(id: string): { ok: boolean } {
     let changed = false;
@@ -263,13 +288,19 @@ export class DelegationManager {
     if (!next) return;
 
     this.running = true;
+    const epoch = this.runEpoch;
     try {
       await this.run(agent, next);
     } catch (err) {
       console.error("[delegation] run failed:", err);
     } finally {
-      this.running = false;
-      void this.processNext();
+      // Only the current run owns the lock + pump. A run abandoned by stop()
+      // (epoch bumped) must not reset the lock a new runner now holds, nor
+      // re-enter the queue — that would start a second concurrent run.
+      if (epoch === this.runEpoch) {
+        this.running = false;
+        void this.processNext();
+      }
     }
   }
 
@@ -311,6 +342,15 @@ export class DelegationManager {
       unsubscribe();
     }
   }
+}
+
+/** Repoint a delegation's source path across a rename/move. Handles an exact
+ * file rename and a folder rename (every path under `from/`). Uses `/` — vault
+ * paths are POSIX-relative regardless of host OS. */
+function remapPath(path: string, from: string, to: string): string {
+  if (path === from) return to;
+  if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
+  return path;
 }
 
 /** The instruction the background agent runs. It edits the file directly. */

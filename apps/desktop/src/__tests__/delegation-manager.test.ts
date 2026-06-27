@@ -221,6 +221,50 @@ describe("DelegationManager run lifecycle", () => {
     expect(d?.error).toContain("Interrupted");
   });
 
+  it("a run abandoned by stop() doesn't disturb the lock a fresh runner holds", async () => {
+    const mgr = makeManager();
+    const a1 = fakeAgent();
+    mgr.setRunner(() => a1.agent);
+
+    mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    mgr.createDelegation({ sourceFile: "n.md", index: 1 });
+    await flush();
+    expect(mgr.getDelegations().map((d) => d.status)).toEqual(["running", "queued"]);
+
+    mgr.stop(); // a1 torn down mid-run; #0 fails, lock released, epoch bumped
+    const a2 = fakeAgent();
+    mgr.setRunner(() => a2.agent);
+    await flush();
+    // The fresh agent drains the queue: #1 now runs (exactly one dispatch).
+    expect(mgr.getDelegations().map((d) => d.status)).toEqual(["failed", "running"]);
+    expect(a2.prompts.length).toBe(1);
+
+    // The abandoned a1 run finishes late — it must NOT start a second run or
+    // clobber the lock a2 holds.
+    a1.finish();
+    await flush();
+    expect(mgr.getDelegations().map((d) => d.status)).toEqual(["failed", "running"]);
+    expect(a2.prompts.length).toBe(1);
+  });
+
+  it("repoints delegations across a file and a folder rename", async () => {
+    const mgr = makeManager();
+    mgr.setRunner(() => fakeAgent().agent);
+    mgr.createDelegation({ sourceFile: "notes/a.md", index: 0 });
+    await flush();
+    mgr.createDelegation({ sourceFile: "notes/b.md", index: 0 });
+
+    mgr.renameSource("notes/a.md", "notes/renamed.md"); // exact file
+    expect(mgr.getDelegations()[0]?.sourceFile).toBe("notes/renamed.md");
+    expect(mgr.getDelegations()[1]?.sourceFile).toBe("notes/b.md"); // untouched
+
+    mgr.renameSource("notes", "archive"); // folder move — prefix match
+    expect(mgr.getDelegations().map((d) => d.sourceFile)).toEqual([
+      "archive/renamed.md",
+      "archive/b.md",
+    ]);
+  });
+
   it("cancels a queued delegation but not a running one", async () => {
     const mgr = makeManager();
     const fake = fakeAgent();

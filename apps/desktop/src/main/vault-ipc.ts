@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, type OpenDialogOptions } from "electron";
 
+import { getDelegationManager } from "@/main/delegation/delegation-manager";
 import { handle } from "@/main/lib/ipc-handler";
 import { getVaultManager } from "@/main/vault";
 import { toErrorMessage } from "@/shared/ipc";
@@ -37,5 +38,11 @@ export function registerVaultIpcHandlers(): void {
     getVaultManager().writeText(path, content);
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
-  handle("renameVaultEntry", ({ from, to }) => getVaultManager().rename(from, to));
+  handle("renameVaultEntry", ({ from, to }) => {
+    const result = getVaultManager().rename(from, to);
+    // Repoint any delegations so badges keep matching and queued runs target the
+    // new path (rename preserves content, so their positional anchors hold).
+    if (result.ok) getDelegationManager().renameSource(from, to);
+    return result;
+  });
 }
