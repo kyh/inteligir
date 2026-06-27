@@ -77,10 +77,16 @@ importers:
 
   apps/desktop:
     dependencies:
+      '@ariakit/react':
+        specifier: ^0.4.30
+        version: 0.4.30(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@platejs/basic-nodes':
         specifier: ^53.0.0
         version: 53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@platejs/code-block':
+        specifier: ^53.0.0
+        version: 53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@platejs/combobox':
         specifier: ^53.0.0
         version: 53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@platejs/indent':
@@ -95,6 +101,9 @@ importers:
       '@platejs/markdown':
         specifier: ^53.2.2
         version: 53.2.2(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(typescript@6.0.3)
+      '@platejs/slash-command':
+        specifier: ^53.0.0
+        version: 53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@repo/agent-runtime':
         specifier: workspace:^
         version: link:../../packages/agent-runtime
@@ -389,6 +398,37 @@ packages:
     peerDependenciesMeta:
       zod:
         optional: true
+
+  '@ariakit/components@0.1.3':
+    resolution: {integrity: sha512-l22VB1g0Dz6zrKyDjykg8uXemUGolaeJjcLKf9XY5iSxzuU0PZTLSmRfJFq4pjTHsRroL4HM96f6J0Pivu2oOg==}
+
+  '@ariakit/react-components@0.2.0':
+    resolution: {integrity: sha512-hoAwGSh5xQ0va4oWSTOmoNIIDS+90eVzg6XceCC9WMyhRn1I1YVluxCqltZ9UY+6vzu7PpJDvC4g5N2rmCh6og==}
+    peerDependencies:
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@ariakit/react-store@0.1.3':
+    resolution: {integrity: sha512-x8kjHcDoEkTX5bu3qkSfnvRCZuqXtjQZ1seohIWq8NPAfB0qe6q3GlGwCVCXw62Tlcf44SwxpuRQYQyj0/eurw==}
+    peerDependencies:
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@ariakit/react-utils@0.1.3':
+    resolution: {integrity: sha512-eaqLU+7lknPWzcWK7CYQw9Mu52c6If3jc8wm08Fw/hobOCeeG97Z865PQeNYQMK7BYqb01ByVNaIPEWYwcPkfw==}
+    peerDependencies:
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@ariakit/react@0.4.30':
+    resolution: {integrity: sha512-7QAS4uAoSp1Avekp1ve8xLRPm4E7wLIQFfYM08cHfgMfBBGQGkxrXFqP3QmqEMTUa99H4ZHK9unL05+752cBhQ==}
+    peerDependencies:
+      react: ^17.0.0 || ^18.0.0 || ^19.0.0
+      react-dom: ^17.0.0 || ^18.0.0 || ^19.0.0
+
+  '@ariakit/store@0.1.3':
+    resolution: {integrity: sha512-EAKGIUbHGKH9Kx53ae17+5l/b/z1VUKqiyHcV675AKn1ed1qsLEHX2KovFf+eHLtGBgINSd0NXv11LIe3x/uFA==}
+
+  '@ariakit/utils@0.1.3':
+    resolution: {integrity: sha512-OMdM631rIiDLYr1nnd1vtGyLvlYt08APMa2TJACA8Myn80PF+XtH9ZLBXTVUuUnlrYVyY2duX+EOkg6z9/NeCA==}
 
   '@aws-crypto/crc32@5.2.0':
     resolution: {integrity: sha512-nLbCWqQNgUiwwtFsen1AdzAtvuLRsQS8rYgMuxCrdKf9kOssamGLuPwyTY9wyYblNr9+1XM8v6zoDTPPSIeANg==}
@@ -2504,6 +2544,13 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
+  '@platejs/combobox@53.0.0':
+    resolution: {integrity: sha512-uoVV0DN5jGJuNW2CS2EIEU8nn74zcpUIIudSoizLh9dF7RfLhftxpmbbcyU0qrGIb3ARhGDQS+xpYm29XsZckQ==}
+    peerDependencies:
+      platejs: '>=53.0.0'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+
   '@platejs/core@53.2.1':
     resolution: {integrity: sha512-AjRNHUCmcJ32IaRClEI2w65aW962fYa+nvCziKQf1jIsK1X5VmmlohT8dT1+coMR1C5amGR6li90JFVQ4ijNKw==}
     peerDependencies:
@@ -2547,6 +2594,13 @@ packages:
 
   '@platejs/markdown@53.2.2':
     resolution: {integrity: sha512-neDl7lHQN9iHMr8Hsx65HxgKnpT6HpiffaDTWtA1NPC9JeFlXLGQYOUIXIYRX94rr0g6rnfeKKjU7qx9fufTrA==}
+    peerDependencies:
+      platejs: '>=53.0.0'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+
+  '@platejs/slash-command@53.0.0':
+    resolution: {integrity: sha512-JXK/HykJcGOMhw8bM7NqrlubDkeyThokDqnZoIYDu9PykR8qUupcCjjdz23X2jabNSLPbnuQJKkFvep6H5sl+Q==}
     peerDependencies:
       platejs: '>=53.0.0'
       react: '>=18.0.0'
@@ -8252,6 +8306,48 @@ snapshots:
     optionalDependencies:
       zod: 4.4.3
 
+  '@ariakit/components@0.1.3':
+    dependencies:
+      '@ariakit/store': 0.1.3
+      '@ariakit/utils': 0.1.3
+
+  '@ariakit/react-components@0.2.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      '@ariakit/components': 0.1.3
+      '@ariakit/react-store': 0.1.3(react@19.2.6)
+      '@ariakit/react-utils': 0.1.3(react@19.2.6)
+      '@ariakit/store': 0.1.3
+      '@ariakit/utils': 0.1.3
+      '@floating-ui/dom': 1.7.6
+      react: 19.2.6
+      react-dom: 19.2.6(react@19.2.6)
+
+  '@ariakit/react-store@0.1.3(react@19.2.6)':
+    dependencies:
+      '@ariakit/react-utils': 0.1.3(react@19.2.6)
+      '@ariakit/store': 0.1.3
+      '@ariakit/utils': 0.1.3
+      react: 19.2.6
+      use-sync-external-store: 1.6.0(react@19.2.6)
+
+  '@ariakit/react-utils@0.1.3(react@19.2.6)':
+    dependencies:
+      '@ariakit/store': 0.1.3
+      '@ariakit/utils': 0.1.3
+      react: 19.2.6
+
+  '@ariakit/react@0.4.30(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      '@ariakit/react-components': 0.2.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      react: 19.2.6
+      react-dom: 19.2.6(react@19.2.6)
+
+  '@ariakit/store@0.1.3':
+    dependencies:
+      '@ariakit/utils': 0.1.3
+
+  '@ariakit/utils@0.1.3': {}
+
   '@aws-crypto/crc32@5.2.0':
     dependencies:
       '@aws-crypto/util': 5.2.0
@@ -10514,6 +10610,13 @@ snapshots:
       react-compiler-runtime: 1.0.0(react@19.2.6)
       react-dom: 19.2.6(react@19.2.6)
 
+  '@platejs/combobox@53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      platejs: 53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6))
+      react: 19.2.6
+      react-compiler-runtime: 1.0.0(react@19.2.6)
+      react-dom: 19.2.6(react@19.2.6)
+
   '@platejs/core@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6))':
     dependencies:
       '@platejs/slate': 53.0.7
@@ -10607,6 +10710,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
       - typescript
+
+  '@platejs/slash-command@53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      '@platejs/combobox': 53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      platejs: 53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6))
+      react: 19.2.6
+      react-compiler-runtime: 1.0.0(react@19.2.6)
+      react-dom: 19.2.6(react@19.2.6)
 
   '@platejs/slate@53.0.7':
     dependencies:

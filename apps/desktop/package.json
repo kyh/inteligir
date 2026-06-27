@@ -22,12 +22,15 @@
     "verify:packaged": "pnpm verify:packaged-runtime-deps"
   },
   "dependencies": {
+    "@ariakit/react": "^0.4.30",
     "@platejs/basic-nodes": "^53.0.0",
     "@platejs/code-block": "^53.0.0",
+    "@platejs/combobox": "^53.0.0",
     "@platejs/indent": "^53.0.0",
     "@platejs/link": "^53.0.3",
     "@platejs/list": "^53.1.3",
     "@platejs/markdown": "^53.2.2",
+    "@platejs/slash-command": "^53.0.0",
     "@repo/agent-runtime": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@repo/ui": "workspace:^",

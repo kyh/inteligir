@@ -41,6 +41,7 @@ import remarkGfm from "remark-gfm";
 
 import { BlockList } from "@/renderer/editor/block-list";
 import { MD_STRINGIFY } from "@/renderer/editor/markdown-doc";
+import { SlashKit } from "@/renderer/editor/slash-menu";
 
 // Block plugins lists/indentation attach to. Lists are modeled as indented
 // blocks (not a dedicated node), so the indent + list plugins inject into these.
@@ -92,6 +93,7 @@ const EDITOR_PLUGINS = [
     render: { belowNodes: BlockList },
   }),
   LinkPlugin,
+  ...SlashKit,
   // remark-gfm gives task-list checkboxes (- [ ] / - [x]) + strikethrough.
   MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
 ];
