@@ -72,7 +72,9 @@ describe("findTaskLine", () => {
   });
 
   it("ignores heading-like lines inside fenced code for context", () => {
-    const md = ["## Real heading", "", "```", "## fake heading", "```", "", "- [ ] task"].join("\n");
+    const md = ["## Real heading", "", "```", "## fake heading", "```", "", "- [ ] task"].join(
+      "\n",
+    );
     expect(findTaskLine(md, 0)?.heading).toBe("Real heading");
   });
 

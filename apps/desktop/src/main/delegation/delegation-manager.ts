@@ -127,7 +127,12 @@ export class DelegationManager {
       all.map((d) => {
         if (d.status !== "running") return d;
         changed = true;
-        return { ...d, status: "failed", finishedAt: Date.now(), error: "Interrupted — session ended" };
+        return {
+          ...d,
+          status: "failed",
+          finishedAt: Date.now(),
+          error: "Interrupted — session ended",
+        };
       }),
     );
     if (changed) this.notify();
