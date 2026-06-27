@@ -1,16 +1,16 @@
-// Notion-style rich markdown editor built on Plate (platejs), used by the Vault
-// panel for `.md` documents. Round-trips markdown: deserialize the file text to
+// Notion-style rich markdown editor built on Plate (platejs), used by the editor
+// pane for `.md` documents. Round-trips markdown: deserialize the file text to
 // Plate's value on mount, serialize back to markdown on every change so the
-// panel's existing autosave persists it.
+// editor's autosave persists it.
 //
-// Scope is deliberately a focused subset of Potion's editor — marks, headings,
-// blockquote, code blocks, links, lists — rendered with small Tailwind
-// components (Plate plugins ship headless). The Vault panel gates this behind a
-// Rich/Raw toggle that defaults to Raw, so the round-trip (which normalizes
-// markdown and isn't byte-perfect) is always opt-in and the plain-text view
-// stays the safe default.
+// Scope is a focused subset of Potion's editor — marks, headings, blockquote,
+// code blocks, links, and lists (incl. todo checkboxes) — rendered with small
+// Tailwind components (Plate plugins ship headless). The editor pane only mounts
+// this for documents that are already canonical (see markdown-doc.ts), so
+// serialization reshapes nothing the user didn't edit.
 
 import { useEffect, useRef } from "react";
+import { KEYS } from "platejs";
 import {
   Plate,
   PlateContent,
@@ -32,9 +32,18 @@ import {
   UnderlinePlugin,
 } from "@platejs/basic-nodes/react";
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code-block/react";
+import { IndentPlugin } from "@platejs/indent/react";
 import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
 import { MarkdownPlugin, deserializeMd, serializeMd } from "@platejs/markdown";
+import remarkGfm from "remark-gfm";
+
+import { BlockList } from "@/renderer/editor/block-list";
+import { MD_STRINGIFY } from "@/renderer/editor/markdown-doc";
+
+// Block plugins lists/indentation attach to. Lists are modeled as indented
+// blocks (not a dedicated node), so the indent + list plugins inject into these.
+const INDENTABLE = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock];
 
 // Small styled renderers — Plate plugins are headless, so each node/mark needs
 // a component. className-only keeps them trivial and on-theme.
@@ -62,9 +71,14 @@ const EDITOR_PLUGINS = [
   CodeBlockPlugin,
   CodeLinePlugin,
   CodeSyntaxPlugin,
-  ListPlugin,
+  IndentPlugin.configure({ inject: { targetPlugins: INDENTABLE }, options: { offset: 24 } }),
+  ListPlugin.configure({
+    inject: { targetPlugins: INDENTABLE },
+    render: { belowNodes: BlockList },
+  }),
   LinkPlugin,
-  MarkdownPlugin,
+  // remark-gfm gives task-list checkboxes (- [ ] / - [x]) + strikethrough.
+  MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
 ];
 
 const EDITOR_COMPONENTS = {
@@ -113,7 +127,8 @@ export function MarkdownEditor({ value, onChange }: Props) {
   // a normalized rewrite over the agent's/file's content). Initialized to the
   // mount value's normalized form so the first-render onChange is dropped too.
   const seeded = useRef<string | null>(null);
-  if (seeded.current === null) seeded.current = serializeMd(editor);
+  if (seeded.current === null)
+    seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
 
   // Re-seed when `value` changes from the outside (e.g. the agent edited the
   // file and the panel reloaded it). Without this the Plate surface keeps the
@@ -123,14 +138,14 @@ export function MarkdownEditor({ value, onChange }: Props) {
     if (value === lastValueProp.current) return;
     lastValueProp.current = value;
     editor.tf.setValue(deserializeMd(editor, value));
-    seeded.current = serializeMd(editor);
+    seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
   }, [value, editor]);
 
   return (
     <Plate
       editor={editor}
       onChange={() => {
-        const md = serializeMd(editor);
+        const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
         // Drop the echo a programmatic (re)seed produces — only real edits,
         // which diverge from the seeded text, propagate.
         if (md === seeded.current) return;
