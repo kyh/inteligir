@@ -9,7 +9,13 @@ import {
   XIcon,
 } from "lucide-react";
 import type { Descendant, TElement } from "platejs";
-import { type PlateElementProps, type RenderNodeWrapper, useReadOnly } from "platejs/react";
+import {
+  type PlateEditor,
+  type PlateElementProps,
+  type RenderNodeWrapper,
+  useEditorRef,
+  useReadOnly,
+} from "platejs/react";
 
 import { Checkbox } from "@repo/ui/components/checkbox";
 import { toast } from "@repo/ui/components/sonner";
@@ -85,17 +91,36 @@ function TodoLi(props: PlateElementProps) {
 // as editable content.
 // ---------------------------------------------------------------------------
 
+// The nearest heading above a block, used to disambiguate duplicate task text
+// across sections. Mirrors find-task-line.ts on the main side (both read the
+// nearest heading), so the renderer's anchor agrees with the resolved one.
+function nearestHeading(editor: PlateEditor, element: TElement): string | null {
+  const path = editor.api.findPath(element);
+  const top = path?.[0];
+  if (top === undefined) return null;
+  for (let i = top - 1; i >= 0; i--) {
+    const node = editor.children[i];
+    if (node && "type" in node && typeof node.type === "string" && /^h[1-6]$/.test(node.type)) {
+      const t = elementText(node).trim();
+      return t === "" ? null : t;
+    }
+  }
+  return null;
+}
+
 function DelegateControl({ element, checked }: { element: TElement; checked: boolean }) {
   const { editor: vaultEditor, flush } = useVault();
+  const plateEditor = useEditorRef();
   const delegations = useDelegationStore((s) => s.delegations);
   const delegate = useDelegationStore((s) => s.delegate);
   const cancel = useDelegationStore((s) => s.cancel);
 
   const sourceFile = vaultEditor.path;
   const text = elementText(element);
+  const heading = nearestHeading(plateEditor, element);
   if (sourceFile === null || text.trim() === "") return null;
 
-  const delegation = findDelegation(delegations, sourceFile, text);
+  const delegation = findDelegation(delegations, sourceFile, text, heading);
 
   const handleDelegate = async () => {
     // Persist the checkbox to disk first — the agent reads the file, not the
@@ -106,7 +131,7 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
       toast.error("Couldn't save your edits — try again before delegating.");
       return;
     }
-    const result = await delegate(sourceFile, text);
+    const result = await delegate(sourceFile, text, heading);
     if (!result.ok) toast.error(result.error ?? "Couldn't delegate that task.");
   };
 

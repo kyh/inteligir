@@ -52,12 +52,14 @@ export type Delegation = Static<typeof DelegationSchema>;
 // IPC params/results
 // ---------------------------------------------------------------------------
 
-/** The renderer sends only the file + the checkbox text; main resolves the
- * line, its heading, and section context. */
+/** The renderer sends the file + the checkbox text + the nearest heading above
+ * it (or null), which disambiguates duplicate item text across sections; main
+ * resolves the line + section context. */
 export const CreateDelegationParamsSchema = Type.Object(
   {
     sourceFile: Type.String({ minLength: 1 }),
     text: Type.String({ minLength: 1 }),
+    heading: Type.Union([Type.String(), Type.Null()]),
   },
   { additionalProperties: false },
 );

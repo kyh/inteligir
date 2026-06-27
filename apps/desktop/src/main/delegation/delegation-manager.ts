@@ -130,14 +130,14 @@ export class DelegationManager {
   /** Create + enqueue a delegation. Resolves the checkbox line from the vault
    * file first so a stale/edited checkbox is rejected before it queues. */
   createDelegation(params: CreateDelegationParams): CreateDelegationResult {
-    if (this.unavailableReason) return { ok: false, error: this.unavailableReason };
+    if (this.unavailableReason !== null) return { ok: false, error: this.unavailableReason };
     let raw: string;
     try {
       raw = this.readVault(params.sourceFile);
     } catch (err) {
       return { ok: false, error: `Couldn't read ${params.sourceFile}: ${toErrorMessage(err)}` };
     }
-    const match = findTaskLine(raw, params.text);
+    const match = findTaskLine(raw, params.text, params.heading);
     if (!match) {
       return {
         ok: false,

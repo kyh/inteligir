@@ -21,14 +21,23 @@ export type TaskLineMatch = {
   section: string;
 };
 
-/** Find the first UNCHECKED `- [ ] <text>` line whose item text matches `text`
- * (whitespace-trimmed). Returns null when no such line exists. */
-export function findTaskLine(raw: string, text: string): TaskLineMatch | null {
+/** Find an UNCHECKED `- [ ] <text>` line whose item text matches `text`
+ * (whitespace-trimmed). When `heading` is given (the nearest heading above the
+ * checkbox the user clicked), the occurrence under that heading is preferred so
+ * duplicate item text across sections resolves to the right checkbox; it falls
+ * back to the first text match if none sits under that heading. Returns null
+ * when no unchecked line matches the text at all. */
+export function findTaskLine(
+  raw: string,
+  text: string,
+  heading?: string | null,
+): TaskLineMatch | null {
   const target = text.trim();
   // Normalize CRLF/CR so Windows-authored files match (the `$` line anchor
   // wouldn't otherwise sit before the lone `\r`).
   const lines = raw.split(/\r\n|\r|\n/);
 
+  let firstTextMatch: TaskLineMatch | null = null;
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (line === undefined) continue;
@@ -36,14 +45,18 @@ export function findTaskLine(raw: string, text: string): TaskLineMatch | null {
     if (!m) continue;
     if ((m[2] ?? "").trim() !== target) continue;
 
-    return {
+    const match: TaskLineMatch = {
       lineIndex: i,
       lineText: line,
       heading: nearestHeading(lines, i),
       section: sectionAround(lines, i),
     };
+    if (firstTextMatch === null) firstTextMatch = match;
+    // No heading disambiguation requested → first text match. Otherwise return
+    // the occurrence under the requested heading.
+    if (heading === undefined || match.heading === heading) return match;
   }
-  return null;
+  return firstTextMatch;
 }
 
 function nearestHeading(lines: string[], from: number): string | null {

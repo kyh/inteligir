@@ -66,4 +66,15 @@ describe("findTaskLine", () => {
     expect(findTaskLine("# H\r\n\r\n- [ ] crlf task\r\n", "crlf task")).not.toBeNull();
     expect(findTaskLine("- [ ] cr task\r", "cr task")).not.toBeNull();
   });
+
+  it("prefers the duplicate occurrence under the requested heading", () => {
+    const m = findTaskLine(DOC, "book the flight", "Backlog");
+    expect(m?.heading).toBe("Backlog");
+    expect(m?.lineIndex).toBe(10); // the Backlog one, not the This week one (line 4)
+  });
+
+  it("falls back to the first text match when none sit under that heading", () => {
+    const m = findTaskLine(DOC, "book the flight", "No Such Section");
+    expect(m?.heading).toBe("This week");
+  });
 });

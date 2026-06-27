@@ -80,14 +80,14 @@ afterEach(() => vi.restoreAllMocks());
 describe("DelegationManager.createDelegation", () => {
   it("rejects a checkbox that isn't in the file", () => {
     const mgr = makeManager();
-    const result = mgr.createDelegation({ sourceFile: "n.md", text: "ghost task" });
+    const result = mgr.createDelegation({ sourceFile: "n.md", text: "ghost task", heading: null });
     expect(result.ok).toBe(false);
     expect(mgr.getDelegations()).toHaveLength(0);
   });
 
   it("queues a valid checkbox with its resolved anchor", () => {
     const mgr = makeManager();
-    const result = mgr.createDelegation({ sourceFile: "n.md", text: "task one" });
+    const result = mgr.createDelegation({ sourceFile: "n.md", text: "task one", heading: null });
     expect(result.ok).toBe(true);
     const [d] = mgr.getDelegations();
     expect(d?.status).toBe("queued");
@@ -99,7 +99,7 @@ describe("DelegationManager.createDelegation", () => {
 describe("DelegationManager.markUnavailable", () => {
   it("fails queued delegations and rejects new ones with the reason", () => {
     const mgr = makeManager();
-    mgr.createDelegation({ sourceFile: "n.md", text: "task one" });
+    mgr.createDelegation({ sourceFile: "n.md", text: "task one", heading: null });
     expect(mgr.getDelegations()[0]?.status).toBe("queued");
 
     mgr.markUnavailable("agent down");
@@ -107,7 +107,7 @@ describe("DelegationManager.markUnavailable", () => {
     expect(d?.status).toBe("failed");
     expect(d?.error).toBe("agent down");
 
-    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task two" })).toEqual({
+    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task two", heading: null })).toEqual({
       ok: false,
       error: "agent down",
     });
@@ -116,10 +116,14 @@ describe("DelegationManager.markUnavailable", () => {
   it("clears unavailability once a runner is wired", () => {
     const mgr = makeManager();
     mgr.markUnavailable("agent down");
-    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task one" }).ok).toBe(false);
+    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task one", heading: null }).ok).toBe(
+      false,
+    );
 
     mgr.setRunner(() => fakeAgent().agent);
-    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task two" }).ok).toBe(true);
+    expect(mgr.createDelegation({ sourceFile: "n.md", text: "task two", heading: null }).ok).toBe(
+      true,
+    );
   });
 });
 
@@ -129,7 +133,7 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", text: "task one" });
+    mgr.createDelegation({ sourceFile: "n.md", text: "task one", heading: null });
     await flush();
 
     expect(mgr.getDelegations()[0]?.status).toBe("running");
@@ -150,7 +154,7 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", text: "task one" });
+    mgr.createDelegation({ sourceFile: "n.md", text: "task one", heading: null });
     await flush();
     fake.timeOut();
     await flush();
@@ -165,8 +169,8 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    mgr.createDelegation({ sourceFile: "n.md", text: "task one" });
-    mgr.createDelegation({ sourceFile: "n.md", text: "task two" });
+    mgr.createDelegation({ sourceFile: "n.md", text: "task one", heading: null });
+    mgr.createDelegation({ sourceFile: "n.md", text: "task two", heading: null });
     await flush();
 
     // Only the first is running; the second stays queued.
@@ -184,8 +188,8 @@ describe("DelegationManager run lifecycle", () => {
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
 
-    const first = mgr.createDelegation({ sourceFile: "n.md", text: "task one" });
-    const second = mgr.createDelegation({ sourceFile: "n.md", text: "task two" });
+    const first = mgr.createDelegation({ sourceFile: "n.md", text: "task one", heading: null });
+    const second = mgr.createDelegation({ sourceFile: "n.md", text: "task two", heading: null });
     await flush();
     const firstId = first.ok ? first.delegation.id : "";
     const secondId = second.ok ? second.delegation.id : "";
