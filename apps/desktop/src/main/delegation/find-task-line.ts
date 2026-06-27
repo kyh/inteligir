@@ -64,7 +64,12 @@ function nearestHeading(lines: string[], from: number): string | null {
     const line = lines[i];
     if (line === undefined) continue;
     const h = HEADING.exec(line);
-    if (h) return (h[1] ?? "").trim();
+    if (h) {
+      // Empty heading text → null, matching block-list.tsx's renderer-side
+      // nearestHeading so the two anchors never disagree.
+      const t = (h[1] ?? "").trim();
+      return t === "" ? null : t;
+    }
   }
   return null;
 }

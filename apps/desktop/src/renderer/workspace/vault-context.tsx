@@ -103,11 +103,21 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [entries, setEntries] = useState<VaultEntry[]>([]);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Ordering token so overlapping list calls (initial load + onVaultChanged, or
+  // rapid vault events) can't land out of order — only the latest applies.
+  const listSeq = useRef(0);
   const refreshList = useCallback(() => {
-    getBridge()
-      ?.listVault()
-      .then(setEntries)
-      .catch(() => {});
+    const bridge = getBridge();
+    if (!bridge) return;
+    const seq = ++listSeq.current;
+    void (async () => {
+      try {
+        const next = await bridge.listVault();
+        if (seq === listSeq.current) setEntries(next);
+      } catch {
+        // Best-effort — keep the last-known listing on a transient failure.
+      }
+    })();
   }, []);
 
   const cancelTimer = useCallback(() => {

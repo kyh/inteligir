@@ -471,7 +471,13 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     // agent + append to the local chat list.
     const unsubVoice = onUserTranscript((text) => {
       set((s) => ({ messages: [...s.messages, userMessage(text)] }));
-      sendCommandSurfacingFailure(bridge, set, { type: "user_message", text });
+      // Like a typed turn: the bubble stays plain, but the sent text carries the
+      // date-grounding context (no open-note prefix — the store doesn't track
+      // the active note on this path).
+      sendCommandSurfacingFailure(bridge, set, {
+        type: "user_message",
+        text: withNoteContext(text, undefined),
+      });
     });
     void loadInitialHistory(bridge, set);
 
