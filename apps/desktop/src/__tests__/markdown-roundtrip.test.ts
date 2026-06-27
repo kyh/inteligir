@@ -40,6 +40,18 @@ describe("markdown round-trip", () => {
     expect(out).toContain("code block");
   });
 
+  it("preserves GFM tables and horizontal rules (headless plugins in sync)", () => {
+    const md = "| a | b |\n| --- | --- |\n| c | d |\n\n---\n";
+    const out = roundTrip(md);
+    // The cells + a divider must survive — a missing table plugin would drop
+    // them and Format would delete the table from the file.
+    expect(out).toMatch(/\|.*a.*\|.*b.*\|/);
+    expect(out).toContain("c");
+    expect(out).toContain("d");
+    expect(out).toMatch(/^---$/m);
+    expect(isRichSafe(md)).toBe(true);
+  });
+
   it("round-trips task-list checkboxes", () => {
     const md = "- [ ] todo one\n- [x] done two\n";
     const out = roundTrip(md);

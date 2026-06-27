@@ -29,6 +29,9 @@ const DELEGATIONS_VERSION = 1;
 const RUN_TIMEOUT_MS = 10 * 60 * 1000;
 const MAX_DELEGATIONS = 200;
 const SUMMARY_LEN = 200;
+// Re-poll interval when the agent is busy but work is queued (e.g. a prior
+// interrupt hasn't settled), so a queued delegation is never stranded.
+const BUSY_RETRY_MS = 1000;
 
 const DelegationsFileSchema = Type.Object(
   { version: Type.Literal(DELEGATIONS_VERSION), delegations: Type.Array(DelegationSchema) },
@@ -67,6 +70,7 @@ export class DelegationManager {
   private readonly readVault: (rel: string) => string;
   private getAgent: (() => DelegationAgent | null) | null = null;
   private running = false;
+  private retryTimer: ReturnType<typeof setTimeout> | null = null;
   // Set when the background agent can't run delegations at all (e.g. it failed
   // to start). New delegations are rejected with this reason instead of sitting
   // "queued" forever; cleared once a working runner is wired.
@@ -108,6 +112,18 @@ export class DelegationManager {
 
   stop(): void {
     this.getAgent = null;
+    if (this.retryTimer !== null) {
+      clearTimeout(this.retryTimer);
+      this.retryTimer = null;
+    }
+  }
+
+  private scheduleRetry(): void {
+    if (this.retryTimer !== null) return;
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null;
+      void this.processNext();
+    }, BUSY_RETRY_MS);
   }
 
   /** Mark delegation unavailable (the background agent failed to start). Fail
@@ -201,7 +217,12 @@ export class DelegationManager {
     if (this.running) return;
     const agent = this.getAgent?.();
     if (!agent) return;
-    if (agent.getState().status === "busy") return;
+    if (agent.getState().status === "busy") {
+      // Busy but nothing re-triggers us once it frees (e.g. a timed-out run left
+      // it busy after interrupt) — poll so queued work isn't stranded.
+      if (this.getDelegations().some((d) => d.status === "queued")) this.scheduleRetry();
+      return;
+    }
     const next = this.getDelegations().find((d) => d.status === "queued");
     if (!next) return;
 

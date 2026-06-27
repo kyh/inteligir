@@ -59,17 +59,23 @@ export function findTaskLine(
   return firstTextMatch;
 }
 
+// Strip inline markdown (emphasis/code markers, link syntax) so a heading like
+// `## **Q3**` reduces to the same plain text the renderer's elementText yields,
+// keeping the two delegation anchors in agreement. Empty → null.
+function plainHeading(raw: string): string | null {
+  const t = raw
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1") // [text](url) → text
+    .replace(/[*_~`]/g, "") // emphasis / inline-code markers
+    .trim();
+  return t === "" ? null : t;
+}
+
 function nearestHeading(lines: string[], from: number): string | null {
   for (let i = from - 1; i >= 0; i--) {
     const line = lines[i];
     if (line === undefined) continue;
     const h = HEADING.exec(line);
-    if (h) {
-      // Empty heading text → null, matching block-list.tsx's renderer-side
-      // nearestHeading so the two anchors never disagree.
-      const t = (h[1] ?? "").trim();
-      return t === "" ? null : t;
-    }
+    if (h) return plainHeading(h[1] ?? "");
   }
   return null;
 }

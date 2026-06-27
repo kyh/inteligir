@@ -25,6 +25,7 @@ import {
   BaseH1Plugin,
   BaseH2Plugin,
   BaseH3Plugin,
+  BaseHorizontalRulePlugin,
   BaseItalicPlugin,
   BaseStrikethroughPlugin,
   BaseUnderlinePlugin,
@@ -33,6 +34,12 @@ import { BaseCodeBlockPlugin, BaseCodeLinePlugin } from "@platejs/code-block";
 import { BaseIndentPlugin } from "@platejs/indent";
 import { BaseLinkPlugin } from "@platejs/link";
 import { BaseListPlugin } from "@platejs/list";
+import {
+  BaseTableCellHeaderPlugin,
+  BaseTableCellPlugin,
+  BaseTablePlugin,
+  BaseTableRowPlugin,
+} from "@platejs/table";
 import { MarkdownPlugin, deserializeMd, serializeMd } from "@platejs/markdown";
 import remarkGfm from "remark-gfm";
 
@@ -64,8 +71,13 @@ function makeEditor() {
       BaseH2Plugin,
       BaseH3Plugin,
       BaseBlockquotePlugin,
+      BaseHorizontalRulePlugin,
       BaseCodeBlockPlugin,
       BaseCodeLinePlugin,
+      BaseTablePlugin,
+      BaseTableRowPlugin,
+      BaseTableCellPlugin,
+      BaseTableCellHeaderPlugin,
       BaseIndentPlugin,
       BaseListPlugin,
       BaseLinkPlugin,
