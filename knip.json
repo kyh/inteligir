@@ -26,13 +26,9 @@
       "includeEntryExports": true
     },
     "packages/ui": {
-      // Library mode during the notes-app rebuild: @repo/ui is a shared
-      // component kit whose public API (the wildcard ./components/* exports) is
-      // validated by app usage, not by internal knip. The surface is actively
-      // growing back across milestones, so per-component dead-export churn isn't
-      // worth it. M6 prunes the kit to its final set and re-enables
-      // includeEntryExports.
-      "includeEntryExports": false
+      // Wildcard exports make every source file an entry; without this, dead
+      // exports in the component library are invisible to knip.
+      "includeEntryExports": true
     }
   }
 }

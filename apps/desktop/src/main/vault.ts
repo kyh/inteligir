@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // VaultManager — the user's local knowledge vault: a single, user-selectable
-// folder of markdown + JSON files that the agent and widgets both read and
-// write (Obsidian-style). This is the app's *data* store, distinct from the
-// app-state store under ~/.inteligir.
+// folder of markdown files that both the agent and the editor read and write
+// (Obsidian-style). This is the app's *data* store, distinct from the app-state
+// store under ~/.inteligir.
 //
 // Why not JsonStore: JsonStore owns a single file as the authoritative
 // in-memory cache and quarantines-then-resets anything it can't parse. The
@@ -112,7 +112,7 @@ export class VaultManager {
   }
 
   /** Repoint the vault at a new folder, (re)create it, refresh the agent
-   * symlink + watcher, and notify subscribers so panels and widgets reload.
+   * symlink + watcher, and notify subscribers so the sidebar + editor reload.
    * Rejects a root inside ~/.inteligir — that directory is wiped on logout,
    * which would silently destroy the user's "persistent" data. */
   setRoot(root: string): void {
@@ -248,7 +248,7 @@ export class VaultManager {
   // stay inside. Rejects `..` traversal and absolute escapes ("/etc/passwd"
   // resolves outside root). Residual: a symlink planted inside the vault could
   // still point out, but the user owns the vault and the agent already has raw
-  // fs access, so this guards the renderer/widget path, not the agent.
+  // fs access, so this guards the renderer path, not the agent.
   private resolve(rel: string): string {
     const root = path.resolve(this.getRoot());
     const target = path.resolve(root, rel);
