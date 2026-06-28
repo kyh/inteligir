@@ -5,6 +5,7 @@ import {
   CheckCircle2Icon,
   Clock3Icon,
   Loader2Icon,
+  RotateCwIcon,
   SparklesIcon,
   XIcon,
 } from "lucide-react";
@@ -144,7 +145,11 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
       onMouseDown={(e) => e.preventDefault()}
     >
       {delegation ? (
-        <StatusBadge delegation={delegation} onCancel={() => cancel(delegation.id)} />
+        <StatusBadge
+          delegation={delegation}
+          onCancel={() => cancel(delegation.id)}
+          onRetry={() => void handleDelegate()}
+        />
       ) : (
         !checked && (
           <button
@@ -162,7 +167,15 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
   );
 }
 
-function StatusBadge({ delegation, onCancel }: { delegation: Delegation; onCancel: () => void }) {
+function StatusBadge({
+  delegation,
+  onCancel,
+  onRetry,
+}: {
+  delegation: Delegation;
+  onCancel: () => void;
+  onRetry: () => void;
+}) {
   switch (delegation.status) {
     case "queued":
       return (
@@ -199,6 +212,14 @@ function StatusBadge({ delegation, onCancel }: { delegation: Delegation; onCance
         >
           <AlertCircleIcon className="size-3" />
           Failed
+          <button
+            type="button"
+            onClick={onRetry}
+            title="Retry delegation"
+            className="hover:text-foreground"
+          >
+            <RotateCwIcon className="size-3" />
+          </button>
         </span>
       );
   }
