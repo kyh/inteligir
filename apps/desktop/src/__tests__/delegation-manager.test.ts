@@ -94,6 +94,16 @@ describe("DelegationManager.createDelegation", () => {
     expect(d?.anchor).toEqual({ index: 0, text: "task one", heading: "Today" });
     expect(d?.lineText).toBe("- [ ] task one");
   });
+
+  it("never silently drops queued work at the cap (only terminal records evict)", () => {
+    const mgr = makeManager(); // no runner → everything stays queued
+    for (let i = 0; i < 205; i++) mgr.createDelegation({ sourceFile: "n.md", index: 0 });
+    const all = mgr.getDelegations();
+    // With no terminal (done/failed) records to evict, the queue is kept intact
+    // past MAX_DELEGATIONS rather than blind-slicing off the oldest queued ones.
+    expect(all.length).toBe(205);
+    expect(all.every((d) => d.status === "queued")).toBe(true);
+  });
 });
 
 describe("DelegationManager.markUnavailable", () => {
@@ -145,21 +155,39 @@ describe("DelegationManager run lifecycle", () => {
     expect(d?.resultSummary).toBe("Booked it.");
   });
 
-  it("re-resolves the checkbox against current bytes before running", async () => {
+  it("re-runs against current bytes when the task is unchanged but the doc shifted around it", async () => {
     let live = "## Today\n\n- [ ] task one\n- [ ] task two\n";
     const mgr = new DelegationManager({ fs: memoryFs(), path: "/d.json", readVault: () => live });
-    mgr.createDelegation({ sourceFile: "n.md", index: 0 }); // queued (no runner yet)
-    expect(mgr.getDelegations()[0]?.anchor.text).toBe("task one");
+    mgr.createDelegation({ sourceFile: "n.md", index: 0 }); // anchor = "task one"
 
-    // Edit that line while it sits queued, then wire the runner.
-    live = "## Today\n\n- [ ] task one EDITED\n- [ ] task two\n";
+    // A non-checkbox paragraph is inserted above: the ordinal is unchanged and
+    // the task text still matches, so the run proceeds against fresh bytes.
+    live = "## Today\n\nSome new note above.\n\n- [ ] task one\n- [ ] task two\n";
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
     await flush();
 
-    // The prompt + record reflect the current line, not the create-time text.
-    expect(fake.prompts[0]).toContain("task one EDITED");
-    expect(mgr.getDelegations()[0]?.lineText).toBe("- [ ] task one EDITED");
+    expect(mgr.getDelegations()[0]?.status).toBe("running");
+    expect(fake.prompts[0]).toContain("task one");
+  });
+
+  it("fails safe (never dispatches) when the ordinal would retarget to a different task", async () => {
+    let live = "## Today\n\n- [ ] task one\n- [ ] task two\n";
+    const mgr = new DelegationManager({ fs: memoryFs(), path: "/d.json", readVault: () => live });
+    mgr.createDelegation({ sourceFile: "n.md", index: 1 }); // anchor = "task two"
+    expect(mgr.getDelegations()[0]?.anchor.text).toBe("task two");
+
+    // A NEW checkbox is inserted above while queued: index 1 now points at
+    // "task one". Re-targeting would make the agent do the wrong task, so fail.
+    live = "## Today\n\n- [ ] inserted\n- [ ] task one\n- [ ] task two\n";
+    const fake = fakeAgent();
+    mgr.setRunner(() => fake.agent);
+    await flush();
+
+    const d = mgr.getDelegations()[0];
+    expect(d?.status).toBe("failed");
+    expect(d?.error).toContain("changed");
+    expect(fake.prompts.length).toBe(0);
   });
 
   it("fails (and never dispatches) a delegation whose checkbox vanished while queued", async () => {

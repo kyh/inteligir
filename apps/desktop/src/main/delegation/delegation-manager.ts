@@ -92,6 +92,13 @@ export class DelegationManager {
         versioning: {
           current: DELEGATIONS_VERSION,
           fromLegacy: () => ({ version: DELEGATIONS_VERSION, delegations: [] }),
+          // v1 used text/heading anchors the v2 schema can't validate; there's no
+          // file access at load time to recompute indices, so reset cleanly. This
+          // takes the migration path (silent rewrite) instead of the corrupt-file
+          // quarantine path — delegations are transient, so dropping them is fine,
+          // but firing a scary "corrupt file" recovery notice for a known prior
+          // version is not.
+          migrations: { 1: () => ({ version: DELEGATIONS_VERSION, delegations: [] }) },
         },
         decode: (raw) => {
           if (!Value.Check(DelegationsFileSchema, raw))
@@ -202,7 +209,19 @@ export class DelegationManager {
     };
     this.store.update((all) => {
       const next = [...all, delegation];
-      return next.length > MAX_DELEGATIONS ? next.slice(-MAX_DELEGATIONS) : next;
+      if (next.length <= MAX_DELEGATIONS) return next;
+      // Over the cap: evict the OLDEST terminal (done/failed) records, never a
+      // queued/running one — dropping work the user is waiting on would make its
+      // badge vanish with no feedback. If there aren't enough terminal records to
+      // trim, we keep slightly more than the cap rather than lose active work.
+      let toDrop = next.length - MAX_DELEGATIONS;
+      return next.filter((d) => {
+        if (toDrop > 0 && (d.status === "done" || d.status === "failed")) {
+          toDrop--;
+          return false;
+        }
+        return true;
+      });
     });
     this.notify();
     void this.processNext();
@@ -320,13 +339,27 @@ export class DelegationManager {
     if (!match) {
       return { ok: false, error: "That checkbox is no longer in the file." };
     }
+    // The index is an ORDINAL — if a checkbox was inserted/removed above this one
+    // while it sat queued, the index now lands on a DIFFERENT task. Both texts are
+    // this module's own extraction (captured at create time vs now), so comparing
+    // them is consistent. On a mismatch, fail safe rather than have the agent act
+    // on the wrong task — a delegated action can be irreversible (email, calendar).
+    if (match.text !== delegation.anchor.text) {
+      return {
+        ok: false,
+        error: "The note changed since you delegated this — re-delegate the task.",
+      };
+    }
     const fresh: Delegation = {
       ...delegation,
       lineText: match.lineText.trim(),
-      anchor: { ...delegation.anchor, text: match.text, heading: match.heading },
+      anchor: { ...delegation.anchor, heading: match.heading },
     };
     // Persist the refreshed line so the inline badge tracks it too.
-    if (fresh.lineText !== delegation.lineText || fresh.anchor.text !== delegation.anchor.text) {
+    if (
+      fresh.lineText !== delegation.lineText ||
+      fresh.anchor.heading !== delegation.anchor.heading
+    ) {
       this.patch(delegation.id, { lineText: fresh.lineText, anchor: fresh.anchor });
     }
     return { ok: true, delegation: fresh };
@@ -407,7 +440,7 @@ function buildPrompt(d: Delegation): string {
     `Steps:`,
     `1. Do the task. Use your file tools and any connected tools (calendar, email, web, etc.) as needed.`,
     `2. In ./vault/${d.sourceFile}, find the line "${d.lineText}" and change its checkbox from "[ ]" to "[x]".`,
-    `3. Immediately under that line, add an indented sub-item with a one-line result, e.g. "    - ✅ <what you did>". If you couldn't complete it, note why instead and leave the checkbox unchecked.`,
+    `3. Immediately under that line, add a nested sub-item with a one-line result, indented by TWO spaces, e.g. "  - ✅ <what you did>". If you couldn't complete it, note why instead and leave the checkbox unchecked.`,
     `Keep edits minimal — change only those lines. Don't reformat the rest of the file. Reply with a one-sentence summary of what you did.`,
   ].join("\n");
 }

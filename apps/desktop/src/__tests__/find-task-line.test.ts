@@ -78,6 +78,14 @@ describe("findTaskLine", () => {
     expect(findTaskLine(md, 0)?.heading).toBe("Real heading");
   });
 
+  it("doesn't count an empty checkbox (Plate renders `- [ ] ` as a plain bullet)", () => {
+    // A bare checkbox with no text deserializes to a non-todo in Plate, so the
+    // renderer's todoIndex skips it — main must too, or the ordinals desync.
+    const md = ["- [ ] ", "- [ ] real task"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real task");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+
   it("handles a task with no heading above it", () => {
     expect(findTaskLine("- [ ] lonely", 0)?.heading).toBeNull();
   });

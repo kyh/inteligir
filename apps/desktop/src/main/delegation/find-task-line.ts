@@ -13,8 +13,12 @@
 // Heading + section are read at the located line as agent-prompt context only.
 // Pure + line-based, so it's testable in isolation.
 
-// GFM accepts `-`, `*`, `+` bullet markers; `[ ]` unchecked, `[x]` checked.
-const TASK_LINE = /^(\s*)[-*+]\s+\[([ xX])\]\s+(.*)$/;
+// GFM accepts `-`, `*`, `+` bullet markers; `[ ]` unchecked, `[x]` checked. The
+// text must be NON-EMPTY (`\S`): Plate/remark-gfm only treats a checkbox with
+// real content as a todo — a bare `- [ ] ` deserializes to a plain bullet, not a
+// todo node — so counting empty checkboxes here would desync the ordinal from
+// the renderer's `todoIndex` and mis-target delegation.
+const TASK_LINE = /^(\s*)[-*+]\s+\[([ xX])\]\s+(\S.*)$/;
 const HEADING = /^#{1,6}\s+(.*)$/;
 const FENCE = /^(\s*)(`{3,}|~{3,})(.*)$/;
 
