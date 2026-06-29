@@ -475,6 +475,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     // (synchronously appended) chat bubbles. Chaining keeps sends in transcript
     // order on the single thread.
     let voiceChain = Promise.resolve();
+    let voiceCancelled = false;
     const unsubVoice = onUserTranscript((text) => {
       set((s) => ({ messages: [...s.messages, userMessage(text)] }));
       voiceChain = voiceChain
@@ -484,6 +485,10 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
         .then(() => flushOpenNote())
         .catch(() => undefined) // never let one turn's flush stall the chain
         .then(() => {
+          // Don't send a transcript queued behind a flush if the subscription was
+          // torn down meanwhile (logout / new session) — the bridge + set are
+          // stale by then.
+          if (voiceCancelled) return undefined;
           // Like a typed turn: the bubble stays plain, but the sent text carries
           // the date-grounding context (no open-note prefix — the store doesn't
           // track the active note on this path).
@@ -497,6 +502,7 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     void loadInitialHistory(bridge, set);
 
     return () => {
+      voiceCancelled = true;
       unsubAgent();
       unsubState();
       unsubProgress();

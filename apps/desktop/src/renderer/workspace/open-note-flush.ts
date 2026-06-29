@@ -9,14 +9,24 @@
 
 let flushImpl: (() => Promise<boolean>) | null = null;
 
+// Upper bound on how long a flush may take before callers give up on it. A flush
+// is a local disk write through IPC; if it somehow never settles, a serialized
+// caller (the voice chain) must not wedge forever behind it.
+const FLUSH_TIMEOUT_MS = 5000;
+
 /** Wire (or clear, with null) the open-note flush. Called by VaultProvider. */
 export function registerOpenNoteFlush(fn: (() => Promise<boolean>) | null): void {
   flushImpl = fn;
 }
 
 /** Flush the open note. Resolves true when the buffer is clean afterward (or
- * there's no provider / nothing to flush). Never rejects. */
+ * there's no provider / nothing to flush). Never rejects, and always settles
+ * within FLUSH_TIMEOUT_MS (resolving false on timeout) so a hung flush can't
+ * deadlock a serialized caller. */
 export function flushOpenNote(): Promise<boolean> {
   if (!flushImpl) return Promise.resolve(true);
-  return flushImpl().catch(() => false);
+  const timeout = new Promise<boolean>((resolve) =>
+    setTimeout(() => resolve(false), FLUSH_TIMEOUT_MS),
+  );
+  return Promise.race([flushImpl().catch(() => false), timeout]);
 }

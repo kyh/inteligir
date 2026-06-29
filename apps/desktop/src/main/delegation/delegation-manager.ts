@@ -440,7 +440,7 @@ function buildPrompt(d: Delegation): string {
     `Steps:`,
     `1. Do the task. Use your file tools and any connected tools (calendar, email, web, etc.) as needed.`,
     `2. In ./vault/${d.sourceFile}, find the line "${d.lineText}" and change its checkbox from "[ ]" to "[x]".`,
-    `3. Immediately under that line, add a nested sub-item with a one-line result, indented by TWO spaces, e.g. "  - ✅ <what you did>". If you couldn't complete it, note why instead and leave the checkbox unchecked.`,
+    `3. Immediately under that line, add a nested sub-item with a one-line result, indented two spaces DEEPER than the checkbox line's own indentation (its "-" should sit under the checkbox's text — so a top-level task gets a 2-space indent, a once-nested task 4, and so on), e.g. "  - ✅ <what you did>". If you couldn't complete it, note why instead and leave the checkbox unchecked.`,
     `Keep edits minimal — change only those lines. Don't reformat the rest of the file. Reply with a one-sentence summary of what you did.`,
   ].join("\n");
 }

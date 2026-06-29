@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { isOrderedList } from "@platejs/list";
 import { useTodoListElement, useTodoListElementState } from "@platejs/list/react";
 import {
@@ -114,6 +115,7 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
   const delegations = useDelegationStore((s) => s.delegations);
   const delegate = useDelegationStore((s) => s.delegate);
   const cancel = useDelegationStore((s) => s.cancel);
+  const submittingRef = useRef(false);
 
   const sourceFile = vaultEditor.path;
   const text = elementText(element);
@@ -126,16 +128,24 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
   const delegation = findDelegation(delegations, sourceFile, index);
 
   const handleDelegate = async () => {
-    // Persist the checkbox to disk first — the agent reads the file, not the
-    // in-memory buffer. If the save didn't land, abort: the agent would resolve
-    // the task against stale on-disk content (maybe the wrong/old checkbox).
-    const saved = await flush();
-    if (!saved) {
-      toast.error("Couldn't save your edits — try again before delegating.");
-      return;
+    // Guard against double-submits (rapid Delegate/Retry clicks) starting
+    // overlapping delegations for the same checkbox before the first one lands.
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    try {
+      // Persist the checkbox to disk first — the agent reads the file, not the
+      // in-memory buffer. If the save didn't land, abort: the agent would resolve
+      // the task against stale on-disk content (maybe the wrong/old checkbox).
+      const saved = await flush();
+      if (!saved) {
+        toast.error("Couldn't save your edits — try again before delegating.");
+        return;
+      }
+      const result = await delegate(sourceFile, index);
+      if (!result.ok) toast.error(result.error ?? "Couldn't delegate that task.");
+    } finally {
+      submittingRef.current = false;
     }
-    const result = await delegate(sourceFile, index);
-    if (!result.ok) toast.error(result.error ?? "Couldn't delegate that task.");
   };
 
   return (
