@@ -13,7 +13,7 @@ import {
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import { registerOpenNoteFlush } from "@/renderer/workspace/open-note-flush";
+import { registerOpenNoteFlush, registerOpenNotePath } from "@/renderer/workspace/open-note-flush";
 import { isCanonical, isRichSafe, toCanonical } from "@/renderer/editor/markdown-doc";
 import {
   VaultEditorController,
@@ -280,12 +280,18 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // Persist on unmount so a change within the debounce window isn't lost.
   useEffect(() => () => void controller.flush(), [controller]);
 
-  // Expose the flush to non-React callers (the voice transcript path) so a
-  // dictated turn also persists the open note before the agent reads it.
+  // Expose the flush + open-note path to non-React callers (the voice transcript
+  // path) so a dictated turn persists the open note AND tags the agent with which
+  // file "this note" means — same as the typed composer. The path getter reads
+  // the controller live, so it stays correct without re-registering per open.
   useEffect(() => {
     registerOpenNoteFlush(flush);
-    return () => registerOpenNoteFlush(null);
-  }, [flush]);
+    registerOpenNotePath(() => controller.getState().path);
+    return () => {
+      registerOpenNoteFlush(null);
+      registerOpenNotePath(null);
+    };
+  }, [flush, controller]);
 
   const folderName = useMemo(() => {
     const root = editor.root.replace(/[/\\]+$/, "");

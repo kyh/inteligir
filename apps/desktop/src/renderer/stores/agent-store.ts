@@ -8,7 +8,7 @@ import { AppStateSchema, type AppState } from "@/shared/app-state";
 import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
 import type { ImageAttachment } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
-import { flushOpenNote } from "@/renderer/workspace/open-note-flush";
+import { flushOpenNote, openNotePath } from "@/renderer/workspace/open-note-flush";
 import { onUserTranscript, useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -490,11 +490,11 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
           // stale by then.
           if (voiceCancelled) return undefined;
           // Like a typed turn: the bubble stays plain, but the sent text carries
-          // the date-grounding context (no open-note prefix — the store doesn't
-          // track the active note on this path).
+          // the date-grounding context AND the open note (read live at send time)
+          // so a dictated "edit this note" resolves the file, same as the composer.
           sendCommandSurfacingFailure(bridge, set, {
             type: "user_message",
-            text: withNoteContext(text, undefined),
+            text: withNoteContext(text, openNotePath() ?? undefined),
           });
           return undefined;
         });
