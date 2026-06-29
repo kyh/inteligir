@@ -78,6 +78,30 @@ describe("findTaskLine", () => {
     expect(findTaskLine(md, 0)?.heading).toBe("Real heading");
   });
 
+  it("excludes a checkbox inside an indented (4-space) code block", () => {
+    // An indented code block is code to remark/Plate, not a task — so a
+    // checkbox-like line inside it must not shift the ordinal.
+    const md = ["Notes", "", "    - [ ] alpha", "", "- [ ] real"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+
+  it("counts nested task items in document order", () => {
+    const md = ["- [ ] parent", "  - [ ] child", "- [ ] sibling"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("parent");
+    expect(findTaskLine(md, 1)?.text).toBe("child");
+    expect(findTaskLine(md, 2)?.text).toBe("sibling");
+  });
+
+  it("doesn't count a plain bullet that follows a task in the same list", () => {
+    // remark gives the plain bullet checked:null (and Plate a phantom todo with
+    // no `checked`) — both exclude it, so the ordinal stays aligned.
+    const md = ["- [ ] real one", "- plain", "- [x] real two"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real one");
+    expect(findTaskLine(md, 1)).toBeNull(); // index 1 = "real two", already checked
+    expect(findTaskLine(md, 2)).toBeNull(); // out of range (only 2 task items)
+  });
+
   it("doesn't count an empty checkbox (Plate renders `- [ ] ` as a plain bullet)", () => {
     // A bare checkbox with no text deserializes to a non-todo in Plate, so the
     // renderer's todoIndex skips it — main must too, or the ordinals desync.

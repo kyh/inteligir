@@ -6,8 +6,9 @@
 // field. A real todo always carries `checked: boolean` (false for `[ ]`, true
 // for `[x]`); a phantom plain bullet has `checked: undefined`. Requiring
 // `checked` keeps the renderer's delegation ordinal (block-list.tsx `todoIndex`)
-// in lockstep with main's raw-markdown count (find-task-line.ts), so delegation
-// never targets a checkbox that isn't on disk.
+// in lockstep with main's count (find-task-line.ts), which parses the same
+// markdown with the same remark-gfm — so delegation never targets a checkbox
+// that isn't on disk.
 export function isTodoItem(node: unknown): boolean {
   return (
     typeof node === "object" &&
