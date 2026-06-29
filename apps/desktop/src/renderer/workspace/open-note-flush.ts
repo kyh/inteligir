@@ -34,11 +34,18 @@ export function openNotePath(): string | null {
 /** Flush the open note. Resolves true when the buffer is clean afterward (or
  * there's no provider / nothing to flush). Never rejects, and always settles
  * within FLUSH_TIMEOUT_MS (resolving false on timeout) so a hung flush can't
- * deadlock a serialized caller. */
+ * deadlock a serialized caller. The timer is cleared once the race settles so it
+ * never leaks. (JS can't cancel the underlying write; a flush slow enough to time
+ * out — a >5s local disk write, i.e. a wedged main process — could still land
+ * late, the documented last-write-wins residual. The timeout only bounds the
+ * caller's wait, it doesn't abort the write.) */
 export function flushOpenNote(): Promise<boolean> {
   if (!flushImpl) return Promise.resolve(true);
-  const timeout = new Promise<boolean>((resolve) =>
-    setTimeout(() => resolve(false), FLUSH_TIMEOUT_MS),
-  );
-  return Promise.race([flushImpl().catch(() => false), timeout]);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => resolve(false), FLUSH_TIMEOUT_MS);
+  });
+  return Promise.race([flushImpl().catch(() => false), timeout]).finally(() => {
+    if (timer !== undefined) clearTimeout(timer);
+  });
 }
