@@ -483,21 +483,24 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
         // so the agent reads the latest bytes from ./vault and an agent edit
         // reloads instead of being clobbered by the next autosave.
         .then(() => flushOpenNote())
-        .catch(() => undefined) // never let one turn's flush stall the chain
-        .then(() => {
+        .catch(() => false) // a rejected flush counts as "not saved", never stalls the chain
+        .then((saved) => {
           // Don't send a transcript queued behind a flush if the subscription was
           // torn down meanwhile (logout / new session) — the bridge + set are
           // stale by then.
           if (voiceCancelled) return undefined;
           // Like a typed turn: the bubble stays plain, but the sent text carries
-          // the date-grounding context AND the open note (read live at send time)
-          // so a dictated "edit this note" resolves the file, same as the composer.
+          // the date-grounding context AND, only if the save actually landed, the
+          // open note (read live) — mirroring the composer, so a failed flush
+          // never points the agent at stale on-disk bytes.
+          const activeNote = saved ? (openNotePath() ?? undefined) : undefined;
           sendCommandSurfacingFailure(bridge, set, {
             type: "user_message",
-            text: withNoteContext(text, openNotePath() ?? undefined),
+            text: withNoteContext(text, activeNote),
           });
           return undefined;
-        });
+        })
+        .catch(() => undefined); // keep the chain alive for the next turn
     });
     void loadInitialHistory(bridge, set);
 
