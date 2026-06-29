@@ -486,9 +486,10 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
         .catch(() => false) // a rejected flush counts as "not saved", never stalls the chain
         .then((saved) => {
           // Don't send a transcript queued behind a flush if the subscription was
-          // torn down meanwhile (logout / new session) — the bridge + set are
-          // stale by then.
-          if (voiceCancelled) return undefined;
+          // torn down (voiceCancelled) OR the user logged out while it waited —
+          // checking the live phase catches logout even if init()'s teardown
+          // hasn't run, so we never dispatch with a stale session.
+          if (voiceCancelled || get().appState.phase === "logged_out") return undefined;
           // Like a typed turn: the bubble stays plain, but the sent text carries
           // the date-grounding context AND, only if the save actually landed, the
           // open note (read live) — mirroring the composer, so a failed flush
