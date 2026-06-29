@@ -38,9 +38,6 @@ export type ChatMessage = UIMessage<ChatMessageMetadata>;
 type SendIntent = "steer";
 type SendOptions = {
   intent?: SendIntent;
-  /** Vault path of the note open in front of the user, auto-attached as context
-   * so "edit this note" / "add a section here" resolve to the right file. */
-  activeNote?: string;
 };
 
 /** Prefix a fresh user turn with the open note so the single persistent thread
@@ -95,7 +92,11 @@ type AgentStore = {
    * time and routes to the right IPC command (`user_message` / `follow_up` /
    * `steer`), so callers don't need to track busy themselves.
    */
-  send: (text: string, images?: ImageAttachment[], options?: SendOptions) => void;
+  send: (
+    text: string,
+    images?: ImageAttachment[],
+    options?: SendOptions,
+  ) => Promise<{ flushed: boolean }>;
   interrupt: () => void;
   newSession: () => Promise<void>;
 };
@@ -467,46 +468,18 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const unsubAgent = subscribeAgentEvents(bridge, set);
     const unsubState = subscribeAppState(bridge, set);
     const unsubProgress = subscribeSetupProgress(bridge, set);
-    // Voice transcripts that completed while the user was actually listening
-    // get routed through the same path as a typed user message: send to the
-    // agent + append to the local chat list.
-    // Serialize the flush-then-send of voice turns: the flush is async, so two
-    // rapid transcripts could otherwise dispatch out of order relative to their
-    // (synchronously appended) chat bubbles. Chaining keeps sends in transcript
-    // order on the single thread.
-    let voiceChain = Promise.resolve();
-    let voiceCancelled = false;
+    // A completed voice transcript is just a user turn: route it through the
+    // SAME send() as a typed message, so flush, note-context, failed-flush
+    // handling and the logout bail all live in one place and can't drift. Serialize
+    // so rapid transcripts dispatch (and their bubbles append) in spoken order;
+    // send() is async, so without the chain two could race.
+    let voiceChain: Promise<unknown> = Promise.resolve();
     const unsubVoice = onUserTranscript((text) => {
-      set((s) => ({ messages: [...s.messages, userMessage(text)] }));
-      voiceChain = voiceChain
-        // Persist the open note first (like the composer does for a typed send)
-        // so the agent reads the latest bytes from ./vault and an agent edit
-        // reloads instead of being clobbered by the next autosave.
-        .then(() => flushOpenNote())
-        .catch(() => false) // a rejected flush counts as "not saved", never stalls the chain
-        .then((saved) => {
-          // Don't send a transcript queued behind a flush if the subscription was
-          // torn down (voiceCancelled) OR the user logged out while it waited —
-          // checking the live phase catches logout even if init()'s teardown
-          // hasn't run, so we never dispatch with a stale session.
-          if (voiceCancelled || get().appState.phase === "logged_out") return undefined;
-          // Like a typed turn: the bubble stays plain, but the sent text carries
-          // the date-grounding context AND, only if the save actually landed, the
-          // open note (read live) — mirroring the composer, so a failed flush
-          // never points the agent at stale on-disk bytes.
-          const activeNote = saved ? (openNotePath() ?? undefined) : undefined;
-          sendCommandSurfacingFailure(bridge, set, {
-            type: "user_message",
-            text: withNoteContext(text, activeNote),
-          });
-          return undefined;
-        })
-        .catch(() => undefined); // keep the chain alive for the next turn
+      voiceChain = voiceChain.then(() => get().send(text)).catch(() => undefined);
     });
     void loadInitialHistory(bridge, set);
 
     return () => {
-      voiceCancelled = true;
       unsubAgent();
       unsubState();
       unsubProgress();
@@ -516,9 +489,12 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
 
   // --- Agent commands (IPC) -------------------------------------------------
 
-  send: (text, images, options) => {
+  // The single entry point for sending a user turn — typed (composer) or voice.
+  // Both go through here so the flush-then-contextualize behavior can't diverge.
+  // Returns `flushed` so a UI caller can warn; resolves once dispatched.
+  send: async (text, images, options) => {
     const bridge = getBridge();
-    if (!bridge) return;
+    if (!bridge) return { flushed: true };
 
     const busy = isBusy(get().appState);
     const wantsSteer = options?.intent === "steer";
@@ -533,15 +509,29 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     set((s) => ({
       messages: [...s.messages, userMessage(text, hasMeta ? meta : undefined)],
     }));
-    // The displayed bubble stays the user's plain text; only a fresh user turn
-    // sent to the agent carries the open-note context (steer/follow-up nudges
-    // ride an already-established turn).
-    const sentText = cmdType === "user_message" ? withNoteContext(text, options?.activeNote) : text;
+
+    // The displayed bubble stays the user's plain text. Only a FRESH user turn
+    // carries the open note: flush it so the agent reads the latest bytes, and
+    // tag the turn with which file "this note" means — but only if the save
+    // actually landed, so a failed flush never points the agent at stale bytes.
+    // (steer/follow-up nudges ride an already-established turn, so they skip it.)
+    let sentText = text;
+    let flushed = true;
+    if (cmdType === "user_message") {
+      flushed = await flushOpenNote();
+      const activeNote = flushed ? (openNotePath() ?? undefined) : undefined;
+      sentText = withNoteContext(text, activeNote);
+      // The flush may have awaited a moment — bail if the session ended meanwhile
+      // (e.g. a voice turn queued behind a flush while the user logged out).
+      if (get().appState.phase === "logged_out") return { flushed };
+    }
+
     sendCommandSurfacingFailure(bridge, set, {
       type: cmdType,
       text: sentText,
       ...(images === undefined ? {} : { images }),
     });
+    return { flushed };
   },
 
   interrupt: () => {

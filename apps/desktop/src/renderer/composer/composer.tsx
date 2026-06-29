@@ -27,7 +27,6 @@ import {
 
 import type { ImageAttachment } from "@/shared/voice";
 import { useAgentStore } from "@/renderer/stores/agent-store";
-import { useVault } from "@/renderer/workspace/vault-context";
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";
 const MAX_ATTACHMENT_COUNT = 8;
@@ -83,8 +82,6 @@ export function Composer({ className }: { className?: string }) {
   const interrupt = useAgentStore((s) => s.interrupt);
   const queuedFollowUp = useAgentStore((s) => s.queuedFollowUp);
   const queuedSteering = useAgentStore((s) => s.queuedSteering);
-  const { editor: vaultEditor, flush: flushVault } = useVault();
-  const openNote = vaultEditor.path;
 
   const busy = appState.phase === "ready" && appState.agent === "busy";
 
@@ -111,24 +108,22 @@ export function Composer({ className }: { className?: string }) {
         if (!text && images.length === 0) {
           throw new Error("composer: nothing to submit after attachment conversion");
         }
-        // Persist the open note first: the agent reads it from disk (./vault),
-        // and flushing keeps the buffer clean so an agent edit reloads instead
-        // of being overwritten by the next autosave. If the save failed, don't
-        // point the agent at stale bytes — send without the note as context and
-        // tell the user — but never drop their message.
-        const saved = await flushVault();
-        if (!saved) {
+        // send() persists the open note and tags the turn with it; it returns
+        // whether the save landed so we can warn (a failed flush means the agent
+        // won't see the latest edits) — but the message still goes out.
+        const { flushed } = await send(
+          text,
+          images.length > 0 ? images : undefined,
+          wantsSteer ? { intent: "steer" } : undefined,
+        );
+        if (!flushed) {
           toast.warning("Couldn't save your latest edits — the agent won't see them this turn.");
         }
-        send(text, images.length > 0 ? images : undefined, {
-          ...(wantsSteer ? { intent: "steer" as const } : {}),
-          ...(openNote === null || !saved ? {} : { activeNote: openNote }),
-        });
       } finally {
         syncHasInputFromDOM();
       }
     },
-    [send, openNote, flushVault],
+    [send],
   );
 
   const onAttachError = useCallback((err: { code: string; message: string }) => {
