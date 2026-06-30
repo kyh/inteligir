@@ -35,6 +35,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { ThemeToggle } from "@/renderer/components/theme-toggle";
 import { SettingsDialog } from "@/renderer/settings/settings-dialog";
+import { useResizableSidebar } from "@/renderer/sidebar/use-resizable-sidebar";
 import { buildVaultTree, type VaultTreeNode } from "@/renderer/sidebar/vault-tree";
 import { useVault } from "@/renderer/workspace/vault-context";
 
@@ -55,6 +56,7 @@ export function AppSidebar() {
     changeFolder,
   } = useVault();
 
+  const { handleMouseDown } = useResizableSidebar();
   const [filter, setFilter] = useState("");
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
@@ -107,7 +109,7 @@ export function AppSidebar() {
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
             placeholder="Search notes…"
-            className="h-7 pl-7 text-xs"
+            className="h-8 rounded-md bg-background pl-7 text-sm shadow-xs"
           />
         </div>
       </SidebarHeader>
@@ -171,6 +173,17 @@ export function AppSidebar() {
         <ThemeToggle />
         <SettingsDialog />
       </SidebarFooter>
+
+      {/* Drag-to-resize handle, pinned to the sidebar's right edge. Hidden when
+       * the sidebar is collapsed off-canvas (it would otherwise sit at the
+       * screen's left edge). */}
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        onMouseDown={handleMouseDown}
+        className="app-no-drag absolute top-0 right-0 z-20 h-full w-1 cursor-col-resize bg-transparent transition-colors duration-200 group-data-[collapsible=offcanvas]:hidden hover:bg-primary/50 active:bg-primary"
+      />
     </Sidebar>
   );
 }

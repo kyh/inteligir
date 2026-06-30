@@ -29,3 +29,10 @@ textarea,
 .app-no-drag {
   -webkit-app-region: no-drag;
 }
+
+/* While dragging the sidebar resize handle, suppress the primitive's width
+ * transition so the sidebar tracks the cursor 1:1 instead of easing behind it. */
+.sidebar-resizing [data-slot="sidebar-gap"],
+.sidebar-resizing [data-slot="sidebar-container"] {
+  transition: none !important;
+}

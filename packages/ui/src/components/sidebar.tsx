@@ -229,7 +229,7 @@ function SidebarGroupLabel({ className, ...props }: React.ComponentProps<"div">)
       data-slot="sidebar-group-label"
       data-sidebar="group-label"
       className={cn(
-        "flex h-6 shrink-0 items-center px-2 text-[10px] font-medium uppercase tracking-widest text-muted-foreground/80 select-none",
+        "flex h-6 shrink-0 items-center px-2 text-xs font-medium text-muted-foreground select-none",
         className,
       )}
       {...props}
@@ -260,12 +260,12 @@ function SidebarMenuItem({ className, ...props }: React.ComponentProps<"li">) {
 }
 
 const sidebarMenuButtonVariants = cva(
-  "peer/menu-button group/menu-button flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-hidden transition-[width,height,padding] group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-active:bg-sidebar-accent data-active:font-medium data-active:text-sidebar-accent-foreground [&_svg]:size-4 [&_svg]:shrink-0 [&>span:last-child]:truncate",
+  "peer/menu-button group/menu-button flex w-full items-center gap-1.5 overflow-hidden rounded-lg px-2 py-1 text-left font-medium tracking-[-0.01em] outline-hidden transition-[width,height,padding] group-data-[collapsible=icon]:size-8! group-data-[collapsible=icon]:p-2! hover:bg-sidebar-accent hover:text-sidebar-accent-foreground active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-active:bg-sidebar-accent data-active:text-sidebar-accent-foreground [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:text-muted-foreground data-active:[&_svg]:text-foreground [&>span:last-child]:truncate",
   {
     variants: {
       size: {
-        default: "h-8 text-sm",
-        sm: "h-7 text-xs",
+        default: "min-h-8 text-sm leading-5",
+        sm: "min-h-7 text-[13px] leading-5",
       },
     },
     defaultVariants: { size: "default" },
