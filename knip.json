@@ -26,9 +26,11 @@
       "includeEntryExports": true
     },
     "packages/ui": {
-      // Wildcard exports make every source file an entry; without this, dead
-      // exports in the component library are invisible to knip.
-      "includeEntryExports": true
+      // A consumed component library: its exports are the public API, and the
+      // vendored @fluid components intentionally export surface (variants,
+      // sub-components, foundations) the app may not use internally yet. Treat
+      // entry exports as the API rather than flag them as dead.
+      "includeEntryExports": false
     }
   }
 }
