@@ -95,7 +95,7 @@ export function ConnectorCard({
         </div>
       ) : (
         <Button
-          variant="outline"
+          variant="tertiary"
           size="sm"
           onClick={onConnect}
           disabled={connecting}

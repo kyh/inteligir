@@ -130,7 +130,7 @@ function VoiceSection() {
           className="h-7 text-xs"
         />
         <Button
-          variant="outline"
+          variant="tertiary"
           size="sm"
           onClick={() => void handleSave()}
           disabled={busy || keyInput.trim().length === 0}

@@ -64,7 +64,7 @@ export function WorkspacePage() {
                   <span className="truncate text-xs text-destructive" title={workspaceError}>
                     {workspaceError}
                   </span>
-                  <Button size="xs" variant="outline" className="shrink-0" onClick={handleRetry}>
+                  <Button size="sm" variant="tertiary" className="shrink-0" onClick={handleRetry}>
                     Retry
                   </Button>
                 </div>

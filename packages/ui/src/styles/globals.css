@@ -93,6 +93,28 @@
   /* Small smoked chips (Badge glass variant) cast a tighter shadow than the
      glass sheets — a single soft drop, no inset ring. */
   --shadow-chip: 0 2px 6px rgb(0 0 0 / 0.18);
+  @keyframes shimmer {
+    0% {
+      background-position: 0% 0;
+    }
+    100% {
+      background-position: 100% 0;
+    }
+  }
+  @keyframes spinner-move {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+  @keyframes spinner-dash {
+    0%,
+    100% {
+      stroke-dasharray: 15 85;
+    }
+    50% {
+      stroke-dasharray: 40 60;
+    }
+  }
 }
 
 :root {
@@ -572,11 +594,11 @@
   color: transparent;
   background: linear-gradient(
     90deg,
-    var(--muted-foreground) 0%,
-    var(--muted-foreground) 35%,
-    var(--foreground) 50%,
-    var(--muted-foreground) 65%,
-    var(--muted-foreground) 100%
+    #a3a3a3 0%,
+    #a3a3a3 35%,
+    #525252 50%,
+    #a3a3a3 65%,
+    #a3a3a3 100%
   );
   background-size: 300% 100%;
   background-clip: text;

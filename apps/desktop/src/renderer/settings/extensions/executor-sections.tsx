@@ -39,7 +39,7 @@ export function ExecutorSections({ onError, showAdvanced }: ExecutorSectionsProp
           Executor isn&apos;t running yet. Connectors and connections appear once it&apos;s ready.
         </div>
         <Button
-          variant="outline"
+          variant="tertiary"
           size="sm"
           onClick={refreshStatus}
           className="h-7 self-start text-[10px]"

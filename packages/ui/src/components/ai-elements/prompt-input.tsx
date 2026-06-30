@@ -486,7 +486,7 @@ export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
 
 export const PromptInputSubmit = ({
   className,
-  variant = "default",
+  variant = "primary",
   size = "icon-sm",
   status,
   onStop,

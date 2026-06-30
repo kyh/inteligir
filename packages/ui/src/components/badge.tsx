@@ -1,37 +1,100 @@
-import { mergeProps } from "@base-ui/react/merge-props";
-import { useRender } from "@base-ui/react/use-render";
+"use client";
+
+import { forwardRef, type HTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-
 import { cn } from "@repo/ui/lib/utils";
+import { useShape } from "@repo/ui/lib/shape-context";
 
-const badgeVariants = cva(
-  "group/badge inline-flex h-5 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-all [&>svg]:pointer-events-none [&>svg]:size-3!",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground",
-        secondary: "bg-secondary text-secondary-foreground",
-        destructive: "bg-destructive/10 text-destructive",
-        outline: "border-border text-foreground",
-        ghost: "hover:bg-muted hover:text-muted-foreground",
-      },
+const badgeColors = {
+  gray: "#a3a3a3",
+  red: "#ef4444",
+  orange: "#f97316",
+  amber: "#f59e0b",
+  yellow: "#eab308",
+  lime: "#84cc16",
+  green: "#22c55e",
+  emerald: "#10b981",
+  teal: "#14b8a6",
+  cyan: "#06b6d4",
+  blue: "#3b82f6",
+  indigo: "#6366f1",
+  violet: "#8b5cf6",
+  purple: "#a855f7",
+  fuchsia: "#d946ef",
+  pink: "#ec4899",
+  rose: "#f43f5e",
+} as const;
+
+type BadgeColor = keyof typeof badgeColors;
+
+const badgeVariants = cva("inline-flex items-center font-medium whitespace-nowrap", {
+  variants: {
+    variant: {
+      solid: "",
+      dot: "border border-border text-foreground",
     },
-    defaultVariants: { variant: "default" },
+    size: {
+      sm: "h-5 px-2 text-[11px] gap-1",
+      md: "h-6 px-2.5 text-[12px] gap-1.5",
+      lg: "h-7 px-3 text-[13px] gap-1.5",
+    },
+  },
+  defaultVariants: {
+    variant: "solid",
+    size: "md",
+  },
+});
+
+interface BadgeProps
+  extends Omit<HTMLAttributes<HTMLSpanElement>, "color">, VariantProps<typeof badgeVariants> {
+  color?: BadgeColor;
+}
+
+const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
+  (
+    { className, variant = "solid", size = "md", color = "gray", children, style, ...props },
+    ref,
+  ) => {
+    const shape = useShape();
+    const colorValue = badgeColors[color];
+    const isSolid = variant === "solid";
+    const dotSize = size === "sm" ? 6 : size === "lg" ? 8 : 7;
+
+    const colorStyle = isSolid
+      ? color === "gray"
+        ? { backgroundColor: "var(--accent)", color: "var(--foreground)" }
+        : {
+            color: "var(--foreground)",
+            backgroundColor: `color-mix(in srgb, ${colorValue} 15%, var(--background))`,
+          }
+      : {};
+
+    const dotColor = color === "gray" ? "var(--muted-foreground)" : colorValue;
+
+    return (
+      <span
+        ref={ref}
+        className={cn(badgeVariants({ variant, size }), shape.item, className)}
+        style={{ ...colorStyle, ...style }}
+        {...props}
+      >
+        {!isSolid && (
+          <span
+            className="shrink-0 rounded-full"
+            style={{
+              width: dotSize,
+              height: dotSize,
+              backgroundColor: dotColor,
+            }}
+          />
+        )}
+        {children}
+      </span>
+    );
   },
 );
 
-function Badge({
-  className,
-  variant = "default",
-  render,
-  ...props
-}: useRender.ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
-  return useRender({
-    defaultTagName: "span",
-    props: mergeProps<"span">({ className: cn(badgeVariants({ variant }), className) }, props),
-    render,
-    state: { slot: "badge", variant },
-  });
-}
+Badge.displayName = "Badge";
 
-export { Badge };
+export { Badge, badgeVariants, badgeColors };
+export type { BadgeProps, BadgeColor };

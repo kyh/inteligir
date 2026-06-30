@@ -71,7 +71,7 @@ export function Header() {
         <div className="app-no-drag flex shrink-0 items-center gap-1.5">
           {isMarkdownOpen && richSafe && !canonical && (
             <Button
-              variant="outline"
+              variant="tertiary"
               size="sm"
               onClick={formatDoc}
               title="Tidy formatting to canonical markdown so future edits stay byte-stable"
@@ -101,7 +101,7 @@ export function Header() {
               ))}
             </div>
           )}
-          <Badge variant="ghost" className="text-muted-foreground">
+          <Badge variant="dot" className="text-muted-foreground">
             {editor.saving ? "Saving…" : editor.dirty ? "Unsaved" : "Saved"}
           </Badge>
           <Button

@@ -94,7 +94,7 @@ export function GoogleClientDialog({ open, redirectUri, busy, error, onCancel, o
           />
           {error && <div className="text-[10px] text-[#ffb4ab]">{error}</div>}
           <Button
-            variant="default"
+            variant="primary"
             size="sm"
             onClick={() => canSubmit && onSubmit(trimmedId, trimmedSecret)}
             disabled={!canSubmit}

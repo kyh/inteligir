@@ -380,7 +380,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
         <>
           <div className="flex flex-wrap gap-1.5">
             <Button
-              variant="outline"
+              variant="tertiary"
               size="sm"
               onClick={() => setCustomOpen(true)}
               className="h-7 text-[10px]"
@@ -389,7 +389,7 @@ export function ConnectorsSection({ onError, showAdvanced }: ConnectorsSectionPr
               Add custom connector
             </Button>
             <Button
-              variant="outline"
+              variant="tertiary"
               size="sm"
               onClick={() => void openGoogleOverride()}
               className="h-7 text-[10px]"

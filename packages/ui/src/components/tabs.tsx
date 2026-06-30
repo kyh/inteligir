@@ -12,31 +12,18 @@ import {
   Children,
   cloneElement,
   isValidElement,
-  useMemo,
   type ComponentPropsWithoutRef,
-  type ComponentType,
 } from "react";
 import { Tabs as TabsPrimitive } from "@base-ui/react/tabs";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence } from "framer-motion";
+import type { IconComponent } from "@repo/ui/lib/icon-context";
 import { cn } from "@repo/ui/lib/utils";
-import { springs } from "@repo/ui/lib/springs";
+import { spring } from "@repo/ui/lib/springs";
 import { fontWeights } from "@repo/ui/lib/font-weight";
-import { getShape } from "@repo/ui/lib/shape";
-import { useOnGlass, useSurface } from "@repo/ui/lib/surface-context";
+import { useShape } from "@repo/ui/lib/shape-context";
+import { useSurface } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
 import { useProximityHover } from "@repo/ui/hooks/use-proximity-hover";
-import { useMergeRefs } from "@repo/ui/hooks/use-merge-refs";
-
-/**
- * Icon component contract — matches the shape of a lucide-react icon (size +
- * strokeWidth props), so consumers can pass any lucide icon or their own
- * component with the same signature.
- */
-type IconComponent = ComponentType<{
-  size?: number;
-  strokeWidth?: number;
-  className?: string;
-}>;
 
 /* ─────────────────────── Contexts ─────────────────────── */
 
@@ -69,11 +56,11 @@ interface TabsProps extends Omit<
   ComponentPropsWithoutRef<typeof TabsPrimitive.Root>,
   "onValueChange" | "value" | "defaultValue" | "onSelect"
 > {
-  value?: string | undefined;
-  onValueChange?: ((value: string) => void) | undefined;
-  selectedIndex?: number | undefined;
-  onSelect?: ((index: number) => void) | undefined;
-  defaultValue?: string | undefined;
+  value?: string;
+  onValueChange?: (value: string) => void;
+  selectedIndex?: number;
+  onSelect?: (index: number) => void;
+  defaultValue?: string;
 }
 
 const Tabs = forwardRef<HTMLDivElement, TabsProps>(
@@ -92,32 +79,30 @@ const Tabs = forwardRef<HTMLDivElement, TabsProps>(
     const resolvedValue =
       value ?? (selectedIndex != null ? valueOrder[selectedIndex] : uncontrolledValue);
 
-    // Base UI types tab values as `any`; this wrapper constrains them to
-    // strings (TabItemProps.value), so the param can be typed directly.
+    // Base UI passes (value, eventDetails); we only need value.
     const handleValueChange = useCallback(
-      (newValue: string) => {
+      (newValue: unknown) => {
+        const v = newValue as string;
         if (value === undefined && selectedIndex == null) {
-          setUncontrolledValue(newValue);
+          setUncontrolledValue(v);
         }
-        onValueChange?.(newValue);
+        onValueChange?.(v);
         if (onSelect) {
-          const idx = valueOrder.indexOf(newValue);
+          const idx = valueOrder.indexOf(v);
           if (idx !== -1) onSelect(idx);
         }
       },
       [onValueChange, onSelect, valueOrder, value, selectedIndex],
     );
-    const contextValue = useMemo(
-      () => ({
-        valueOrder,
-        setValueOrder: updateValueOrder,
-        selectedValue: resolvedValue,
-      }),
-      [resolvedValue, updateValueOrder, valueOrder],
-    );
 
     return (
-      <TabsValueOrderContext.Provider value={contextValue}>
+      <TabsValueOrderContext.Provider
+        value={{
+          valueOrder,
+          setValueOrder: updateValueOrder,
+          selectedValue: resolvedValue,
+        }}
+      >
         <TabsPrimitive.Root
           ref={ref}
           value={resolvedValue}
@@ -142,33 +127,22 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
   ({ children, className, ...props }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const isMouseInside = useRef(false);
-    const shape = getShape();
+    const shape = useShape();
     const substrate = useSurface();
     const indicatorLevel = Math.min(substrate + 3, 8);
-    // On smoked glass the opaque ladder is invisible — track and indicators
-    // swap to the translucent white glass-row recipe.
-    const onGlass = useOnGlass();
     const valueOrderCtx = useContext(TabsValueOrderContext);
     const [optimisticIdx, setOptimisticIdx] = useState<number | null>(null);
 
-    const values = useMemo(
-      () =>
-        Children.toArray(children)
-          .filter(isValidElement)
-          .map((child) => {
-            const props: unknown = child.props;
-            return typeof props === "object" && props !== null && "value" in props
-              ? props.value
-              : undefined;
-          })
-          .filter((v): v is string => typeof v === "string"),
-      [children],
-    );
+    const values = Children.toArray(children)
+      .filter(isValidElement)
+      .map((child) => (child.props as { value?: string }).value)
+      .filter((v): v is string => typeof v === "string");
+    const valueOrderKey = values.join(",");
     const setValueOrder = valueOrderCtx?.setValueOrder;
 
     useLayoutEffect(() => {
       setValueOrder?.(values);
-    }, [setValueOrder, values]);
+    }, [setValueOrder, valueOrderKey]);
 
     const {
       activeIndex: hoveredIndex,
@@ -185,8 +159,6 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
       },
       [registerItem],
     );
-
-    const mergedListRef = useMergeRefs<HTMLDivElement>(containerRef, ref);
 
     useEffect(() => {
       measureItems();
@@ -229,50 +201,49 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
     const isHovering = hoveredIndex !== null && !isHoveringSelected;
 
     const indexedChildren = Children.map(children, (child, i) => {
-      if (isValidElement<{ _index?: number }>(child)) {
-        return cloneElement(child, { _index: i });
+      if (isValidElement(child)) {
+        return cloneElement(child, { _index: i } as Record<string, unknown>);
       }
       return child;
     });
-    const contextValue = useMemo(
-      () => ({
-        registerTab,
-        hoveredIndex,
-        selectedValue,
-        setOptimisticIdx,
-      }),
-      [hoveredIndex, registerTab, selectedValue],
-    );
 
     return (
-      <TabsListContext.Provider value={contextValue}>
+      <TabsListContext.Provider
+        value={{
+          registerTab,
+          hoveredIndex,
+          selectedValue,
+          setOptimisticIdx,
+        }}
+      >
         <TabsPrimitive.List
           // Match Radix's `activationMode="automatic"` — arrow keys move + activate.
           activateOnFocus
-          ref={mergedListRef}
+          ref={(node) => {
+            (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            if (typeof ref === "function") ref(node);
+            else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+          }}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onFocus={(e) => {
-            if (!(e.target instanceof HTMLElement)) return;
-            const trigger = e.target.closest('[role="tab"]');
+            const trigger = (e.target as HTMLElement).closest('[role="tab"]');
             if (!trigger) return;
             const indexAttr = trigger.getAttribute("data-proximity-index");
             if (indexAttr != null) {
               const idx = Number(indexAttr);
               setHoveredIndex(idx);
-              setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
+              setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null);
             }
           }}
           onBlur={(e) => {
-            if (e.relatedTarget instanceof Node && containerRef.current?.contains(e.relatedTarget))
-              return;
+            if (containerRef.current?.contains(e.relatedTarget as Node)) return;
             setFocusedIndex(null);
             if (isMouseInside.current) return;
             setHoveredIndex(null);
           }}
           className={cn(
-            "relative inline-flex items-center gap-0.5 p-1 select-none",
-            onGlass ? "bg-glass-row" : "bg-muted",
+            "relative inline-flex items-center gap-0.5 p-1 select-none bg-muted",
             shape.container,
             className,
           )}
@@ -283,7 +254,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
             <motion.div
               className={cn(
                 "absolute pointer-events-none",
-                onGlass ? "bg-glass-row-active" : surfaceClasses(indicatorLevel),
+                surfaceClasses(indicatorLevel),
                 shape.bg,
               )}
               initial={false}
@@ -295,7 +266,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
                 opacity: isHovering ? 0.85 : 1,
               }}
               transition={{
-                ...springs.moderate,
+                ...spring.moderate,
                 opacity: { duration: 0.08 },
               }}
             />
@@ -305,11 +276,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
           <AnimatePresence>
             {hoverRect && !isHoveringSelected && selectedRect && (
               <motion.div
-                className={cn(
-                  "absolute pointer-events-none",
-                  onGlass ? "bg-glass-row-hover" : "bg-hover",
-                  shape.bg,
-                )}
+                className={cn("absolute pointer-events-none bg-hover", shape.bg)}
                 initial={{
                   left: selectedRect.left,
                   width: selectedRect.width,
@@ -333,14 +300,14 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
                         height: selectedRect.height,
                         opacity: 0,
                         transition: {
-                          ...springs.moderate,
+                          ...spring.moderate,
                           opacity: { duration: 0.06 },
                         },
                       }
-                    : { opacity: 0, transition: { duration: 0.06 } }
+                    : { opacity: 0, transition: spring.fast.exit }
                 }
                 transition={{
-                  ...springs.fast,
+                  ...spring.fast,
                   opacity: { duration: 0.08 },
                 }}
               />
@@ -352,7 +319,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
             {focusRect && (
               <motion.div
                 className={cn(
-                  "absolute pointer-events-none z-20 border border-focus-ring",
+                  "absolute pointer-events-none z-20 border border-[#6B97FF]",
                   shape.focusRing,
                 )}
                 initial={false}
@@ -362,9 +329,9 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
                   width: focusRect.width + 4,
                   height: focusRect.height + 4,
                 }}
-                exit={{ opacity: 0, transition: { duration: 0.06 } }}
+                exit={{ opacity: 0, transition: spring.fast.exit }}
                 transition={{
-                  ...springs.fast,
+                  ...spring.fast,
                   opacity: { duration: 0.08 },
                 }}
               />
@@ -394,9 +361,6 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
   ({ value, icon: Icon, label, _index = 0, className, ...props }, ref) => {
     const internalRef = useRef<HTMLButtonElement>(null);
     const { registerTab, hoveredIndex, selectedValue, setOptimisticIdx } = useTabsList();
-    const onGlass = useOnGlass();
-    const activeText = onGlass ? "text-glass-fg" : "text-foreground";
-    const mutedText = onGlass ? "text-glass-fg-muted" : "text-muted-foreground";
 
     useEffect(() => {
       registerTab(_index, value, internalRef.current);
@@ -405,12 +369,18 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
 
     const isSelected = selectedValue === value;
     const isActive = hoveredIndex === _index || isSelected;
-    const mergedTabRef = useMergeRefs<HTMLButtonElement>(internalRef, ref);
 
     return (
       <TabsPrimitive.Tab
         onClick={() => setOptimisticIdx(_index)}
-        ref={mergedTabRef}
+        ref={(node) => {
+          (internalRef as React.MutableRefObject<HTMLElement | null>).current =
+            node as HTMLButtonElement | null;
+          if (typeof ref === "function") ref(node as HTMLButtonElement);
+          else if (ref)
+            (ref as React.MutableRefObject<HTMLButtonElement | null>).current =
+              node as HTMLButtonElement | null;
+        }}
         value={value}
         data-proximity-index={_index}
         className={cn(
@@ -425,7 +395,7 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
             strokeWidth={isActive ? 2 : 1.5}
             className={cn(
               "transition-[color,stroke-width] duration-80",
-              isActive ? activeText : mutedText,
+              isActive ? "text-foreground" : "text-muted-foreground",
             )}
           />
         )}
@@ -440,7 +410,7 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
           <span
             className={cn(
               "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80",
-              isActive ? activeText : mutedText,
+              isActive ? "text-foreground" : "text-muted-foreground",
             )}
             style={{
               fontVariationSettings: isSelected ? fontWeights.semibold : fontWeights.normal,
@@ -469,3 +439,4 @@ const TabPanel = forwardRef<HTMLDivElement, TabPanelProps>(({ className, ...prop
 TabPanel.displayName = "TabPanel";
 
 export { Tabs, TabsList, TabItem, TabPanel };
+export type { TabsProps, TabsListProps, TabItemProps, TabPanelProps };

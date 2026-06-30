@@ -246,7 +246,7 @@ export function AddCustomConnectorDialog({ open, onOpenChange, onAdded }: Props)
           {/* Destructive token is tuned for opaque surfaces; #ffb4ab reads on glass. */}
           {error && <div className="text-[10px] text-[#ffb4ab]">{error}</div>}
           <Button
-            variant="default"
+            variant="primary"
             size="sm"
             onClick={() => void handleAdd()}
             disabled={busy}
