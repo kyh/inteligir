@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FilePlusIcon, FileTextIcon, FolderIcon, MoonIcon, SunIcon } from "lucide-react";
 
 import {
@@ -30,10 +30,14 @@ export function CommandPalette({
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const close = useCallback(() => {
-    onOpenChange(false);
-    setQuery("");
-  }, [onOpenChange]);
+  // Clear the filter on every close, no matter the path — Esc / select run
+  // `close()`, but ⌘K-to-dismiss toggles `open` in WorkspacePage and bypasses
+  // it, so reopening would otherwise show stale query text.
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
+  const close = useCallback(() => onOpenChange(false), [onOpenChange]);
 
   // Run an action then dismiss — every item closes the palette.
   const run = useCallback(
