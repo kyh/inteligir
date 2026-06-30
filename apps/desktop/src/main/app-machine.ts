@@ -23,6 +23,7 @@ import {
 import {
   getDelegationManager,
   setDelegationsChangedNotifier,
+  setDelegationStreamNotifier,
 } from "@/main/delegation/delegation-manager";
 import { getNotifications } from "@/main/notifications";
 import { downloadModel } from "@/main/voice/model-download";
@@ -355,6 +356,7 @@ export function initMachine(): void {
   setDelegationsChangedNotifier((delegations) =>
     broadcast("onDelegationsUpdated", { delegations }),
   );
+  setDelegationStreamNotifier((id, text) => broadcast("onDelegationStreamed", { id, text }));
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);

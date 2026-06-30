@@ -59,6 +59,16 @@ export function setDelegationsChangedNotifier(
   changedNotifier = notifier;
 }
 
+// Streaming transcript channel — pushes a delegation's accumulating response
+// text (keyed by id) for the live response dock. Same electron-free pattern.
+let streamNotifier: ((id: string, text: string) => void) | null = null;
+
+export function setDelegationStreamNotifier(
+  notifier: ((id: string, text: string) => void) | null,
+): void {
+  streamNotifier = notifier;
+}
+
 export type DelegationManagerOptions = {
   fs?: FsAdapter;
   path?: string;
@@ -374,9 +384,16 @@ export class DelegationManager {
     const fresh = resolved.delegation;
 
     const captured: { text: string | null } = { text: null };
+    let streamed = "";
     const unsubscribe = agent.subscribe((raw) => {
       const event = parseAgentEvent(raw);
-      if (event?.type === "message_end" && event.role === "assistant" && event.text) {
+      if (!event) return;
+      // Accumulate the assistant's text deltas into a live transcript for the
+      // response dock; keep the last full message as the persisted summary.
+      if (event.type === "message_update") {
+        streamed += event.delta;
+        streamNotifier?.(delegation.id, streamed);
+      } else if (event.type === "message_end" && event.role === "assistant" && event.text) {
         captured.text = event.text;
       }
     });

@@ -5,6 +5,8 @@ import type { Delegation } from "@/shared/delegation";
 
 type DelegationStore = {
   delegations: Delegation[];
+  /** Accumulating response text per running/finished delegation id (live). */
+  streams: Record<string, string>;
   /** Fetch the current list + subscribe to live updates. Returns a cleanup. */
   init: () => () => void;
   /** Delegate a checkbox by its file + ordinal (position among all checkboxes
@@ -15,6 +17,7 @@ type DelegationStore = {
 
 export const useDelegationStore = create<DelegationStore>((set) => ({
   delegations: [],
+  streams: {},
 
   init: () => {
     const bridge = getBridge();
@@ -29,10 +32,17 @@ export const useDelegationStore = create<DelegationStore>((set) => ({
         return undefined;
       })
       .catch(() => {});
-    return bridge.onDelegationsUpdated(({ delegations }) => {
+    const offUpdated = bridge.onDelegationsUpdated(({ delegations }) => {
       sawUpdate = true;
       set({ delegations });
     });
+    const offStreamed = bridge.onDelegationStreamed(({ id, text }) =>
+      set((s) => ({ streams: { ...s.streams, [id]: text } })),
+    );
+    return () => {
+      offUpdated();
+      offStreamed();
+    };
   },
 
   delegate: async (sourceFile, index) => {

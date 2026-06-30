@@ -5,6 +5,7 @@ import { SidebarProvider } from "@repo/ui/components/sidebar";
 
 import { getBridge } from "@/renderer/lib/bridge";
 import { CommandPalette } from "@/renderer/command/command-palette";
+import { DelegationDock } from "@/renderer/delegation/delegation-dock";
 import { BottomComposer } from "@/renderer/composer/bottom-composer";
 import { EditorPane } from "@/renderer/editor/editor-pane";
 import { Header } from "@/renderer/layout/header";
@@ -77,6 +78,7 @@ export function WorkspacePage() {
           <main className="min-h-0 flex-1 overflow-auto">
             <EditorPane />
           </main>
+          <DelegationDock />
           <BottomComposer />
         </div>
       </SidebarProvider>
