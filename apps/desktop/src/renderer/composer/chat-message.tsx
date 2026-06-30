@@ -1,5 +1,6 @@
 import { ImageIcon } from "lucide-react";
-import { Message, MessageContent } from "@repo/ui/components/ai-elements/message";
+// Fluid's message bubble; aliased to avoid colliding with the ChatMessage data type.
+import { ChatMessage as ChatBubble } from "@repo/ui/components/chat-message";
 import { Response } from "@repo/ui/components/ai-elements/response";
 import { Shimmer } from "@repo/ui/components/ai-elements/shimmer";
 
@@ -14,17 +15,6 @@ const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [
   "github-dark-dimmed",
   "github-dark-dimmed",
 ];
-
-// MessageContent's text-sm is bigger than the pre-ai-elements bubbles used —
-// both constants drop to text-xs.
-// Chat lives on an opaque card now (reference card anatomy), so the bubbles
-// drop their backdrop-blur (a no-op cost over a solid fill). User prompts stay
-// a subtle pill; assistant answers read as plain text on the card, matching
-// the references' chat-history sheet.
-const USER_BUBBLE =
-  "text-xs group-[.is-user]:rounded-xl group-[.is-user]:bg-foreground/10 group-[.is-user]:px-3 group-[.is-user]:py-2 group-[.is-user]:backdrop-blur-none";
-const ASSISTANT_PLAIN =
-  "text-xs group-[.is-assistant]:bg-transparent group-[.is-assistant]:px-0 group-[.is-assistant]:py-1 group-[.is-assistant]:backdrop-blur-none";
 
 export function ChatMessageView({ message }: { message: ChatMessage }) {
   const first = message.parts[0];
@@ -113,12 +103,10 @@ export function ChatActivityRow({ messages, busy }: { messages: ChatMessage[]; b
 
 function UserMessage({ text, imageCount }: { text: string; imageCount: number }) {
   return (
-    <Message from="user">
-      <MessageContent className={USER_BUBBLE}>
-        {text && <span>{text}</span>}
-        <ImageCount count={imageCount} withLabel />
-      </MessageContent>
-    </Message>
+    <ChatBubble from="user" className="text-xs">
+      {text && <span>{text}</span>}
+      <ImageCount count={imageCount} withLabel />
+    </ChatBubble>
   );
 }
 
@@ -144,18 +132,16 @@ function AssistantMessage({ text }: { text: string }) {
   // with a bubble shimmer makes the UI feel noisy.
   if (!text) return null;
   return (
-    <Message from="assistant">
-      <MessageContent className={ASSISTANT_PLAIN}>
-        <Response
-          // dark:prose-invert (not unconditional) — the card under the text is
-          // near-white in the light theme.
-          className="prose prose-sm max-w-none break-words text-xs dark:prose-invert [&_*]:text-xs"
-          shikiTheme={ASSISTANT_SHIKI_THEME}
-        >
-          {text}
-        </Response>
-      </MessageContent>
-    </Message>
+    <ChatBubble from="assistant">
+      <Response
+        // dark:prose-invert (not unconditional) — the card under the text is
+        // near-white in the light theme.
+        className="prose prose-sm max-w-none break-words text-xs dark:prose-invert [&_*]:text-xs"
+        shikiTheme={ASSISTANT_SHIKI_THEME}
+      >
+        {text}
+      </Response>
+    </ChatBubble>
   );
 }
 
