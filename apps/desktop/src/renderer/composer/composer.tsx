@@ -180,11 +180,17 @@ export function Composer({ className }: { className?: string }) {
         className="rounded-xl border border-border bg-card shadow-sm [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-0 [&_[data-slot=input-group]]:rounded-xl [&_[data-slot=input-group]]:border-transparent [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0 [&_[data-slot=input-group]]:shadow-none"
       >
         <ComposerAttachments />
-        <div className="flex items-end gap-1 px-1.5 py-1.5">
+        {/* Two-row layout (the InputGroup block-end pattern): the textarea owns
+         * the top row full-width, a toolbar sits beneath with attach pinned left
+         * and steer/send pinned right — so the controls stay aligned regardless
+         * of how tall the textarea grows. */}
+        <ComposerTextarea busy={busy} onInterrupt={interrupt} onHasInputChange={setHasInput} />
+        <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
           <AttachButton />
-          <ComposerTextarea busy={busy} onInterrupt={interrupt} onHasInputChange={setHasInput} />
-          <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
-          <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
+          <div className="flex items-center gap-1">
+            <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
+            <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
+          </div>
         </div>
       </PromptInput>
     </div>
@@ -232,7 +238,7 @@ function ComposerTextarea({
   );
   return (
     <PromptInputTextarea
-      className="max-h-[160px] min-h-8 min-w-0 flex-1 bg-transparent px-2 py-1.5 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
+      className="max-h-[160px] min-h-9 w-full bg-transparent px-3 pt-3 pb-1 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
       placeholder={busy ? "Queue a message…" : "Ask the agent to edit your notes…"}
       onChange={(e) => onHasInputChange(e.currentTarget.value.trim().length > 0)}
       onKeyDown={handleKeyDown}
