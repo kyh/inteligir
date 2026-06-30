@@ -44,7 +44,7 @@ function withName(path: string, name: string): string {
   return slash === -1 ? name : `${path.slice(0, slash + 1)}${name}`;
 }
 
-export function AppSidebar() {
+export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const {
     entries,
     folderName,
@@ -57,16 +57,11 @@ export function AppSidebar() {
   } = useVault();
 
   const { handleMouseDown } = useResizableSidebar();
-  const [filter, setFilter] = useState("");
   const [newName, setNewName] = useState("");
   const [adding, setAdding] = useState(false);
   const [renaming, setRenaming] = useState<string | null>(null);
 
   const tree = useMemo(() => buildVaultTree(entries), [entries]);
-  const filtered = useMemo(() => {
-    const q = filter.trim().toLowerCase();
-    return q ? entries.filter((e) => e.path.toLowerCase().includes(q)) : null;
-  }, [entries, filter]);
 
   const handleCreate = useCallback(() => {
     const name = newName;
@@ -103,15 +98,20 @@ export function AppSidebar() {
           <span className="truncate text-sm font-semibold">{folderName || "Choose folder…"}</span>
           <ChevronsUpDownIcon className="ml-auto size-3.5 shrink-0 text-muted-foreground" />
         </button>
-        <div className="app-no-drag relative">
-          <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Search notes…"
-            className="h-8 rounded-md bg-background pl-7 text-sm shadow-xs"
-          />
-        </div>
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          title="Search notes & run commands (⌘K)"
+          className="app-no-drag flex w-full items-center gap-2 rounded-md border border-border bg-background px-2 py-1.5 text-left shadow-xs transition-colors hover:bg-accent"
+        >
+          <SearchIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="min-w-0 flex-1 truncate text-sm text-muted-foreground">
+            Quick actions
+          </span>
+          <kbd className="rounded border border-border px-1 py-px text-[10px] font-medium text-muted-foreground">
+            ⌘K
+          </kbd>
+        </button>
       </SidebarHeader>
 
       <SidebarContent className="px-2">
@@ -151,16 +151,6 @@ export function AppSidebar() {
             <p className="px-2 py-1.5 text-xs text-muted-foreground">
               No notes yet. Create one with the + button.
             </p>
-          ) : filtered ? (
-            <SidebarMenu>
-              {filtered.length === 0 ? (
-                <p className="px-2 py-1.5 text-xs text-muted-foreground">No matches.</p>
-              ) : (
-                filtered.map((e) => (
-                  <FileRow key={e.path} name={e.path} path={e.path} kind={e.kind} {...rowProps} />
-                ))
-              )}
-            </SidebarMenu>
           ) : (
             <SidebarMenu>
               <TreeNodes nodes={tree} {...rowProps} />

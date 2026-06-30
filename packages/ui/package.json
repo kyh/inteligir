@@ -30,6 +30,7 @@
     "ai": "^6.0.191",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "1.1.1",
     "framer-motion": "^12.42.1",
     "lucide-react": "catalog:",
     "motion": "^12.40.0",

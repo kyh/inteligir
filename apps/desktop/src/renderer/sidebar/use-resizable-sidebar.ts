@@ -1,16 +1,23 @@
 import { useCallback, useEffect, useRef, type MouseEvent as ReactMouseEvent } from "react";
 
+import { useDiskState } from "@/renderer/lib/use-disk-state";
+
 // The sidebar width lives in the `--sidebar-width` CSS var (read by the
 // @repo/ui Sidebar primitive's `w-(--sidebar-width)`). globals.css seeds a
 // :root default; dragging the handle writes an inline override on the root
-// element, and we persist the last width so it survives a reload.
-const STORAGE_KEY = "inteligir:sidebar-width";
-const DEFAULT_WIDTH = 240;
+// element, and the final width persists to the on-disk ui-state store so it
+// survives a reload.
+const STATE_KEY = "sidebar.width";
+const DEFAULT_WIDTH = 256;
 const MIN_WIDTH = 180;
 const MAX_WIDTH = 480;
 
 function clamp(width: number): number {
   return Math.min(Math.max(width, MIN_WIDTH), MAX_WIDTH);
+}
+
+function parseWidth(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? clamp(value) : undefined;
 }
 
 // getComputedStyle returns the custom property as authored ("240px"); parse the
@@ -23,30 +30,31 @@ function currentWidthPx(): number {
   return Number.isNaN(px) ? DEFAULT_WIDTH : px;
 }
 
-function readStoredWidth(): number {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  const parsed = raw === null ? Number.NaN : Number.parseInt(raw, 10);
-  return Number.isNaN(parsed) ? DEFAULT_WIDTH : clamp(parsed);
-}
-
-function setWidth(width: number): void {
+function setCssWidth(width: number): void {
   document.documentElement.style.setProperty("--sidebar-width", `${width}px`);
 }
 
 export function useResizableSidebar(): { handleMouseDown: (e: ReactMouseEvent) => void } {
+  const [storedWidth, setStoredWidth, loaded] = useDiskState<number>(
+    STATE_KEY,
+    DEFAULT_WIDTH,
+    parseWidth,
+  );
   const startXRef = useRef(0);
   const startWidthRef = useRef(0);
   const resizingRef = useRef(false);
 
-  // Apply the persisted width on mount (overrides the globals.css :root default).
+  // Apply the persisted width once ui-state has loaded (overrides the
+  // globals.css :root default). Re-applies after a drag too — a no-op, since
+  // the CSS var already holds the same value.
   useEffect(() => {
-    setWidth(readStoredWidth());
-  }, []);
+    if (loaded) setCssWidth(storedWidth);
+  }, [loaded, storedWidth]);
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       if (!resizingRef.current) return;
-      setWidth(clamp(startWidthRef.current + (e.clientX - startXRef.current)));
+      setCssWidth(clamp(startWidthRef.current + (e.clientX - startXRef.current)));
     };
     const onUp = () => {
       if (!resizingRef.current) return;
@@ -54,7 +62,7 @@ export function useResizableSidebar(): { handleMouseDown: (e: ReactMouseEvent) =
       document.documentElement.classList.remove("sidebar-resizing");
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      window.localStorage.setItem(STORAGE_KEY, String(currentWidthPx()));
+      setStoredWidth(currentWidthPx());
     };
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
@@ -62,7 +70,7 @@ export function useResizableSidebar(): { handleMouseDown: (e: ReactMouseEvent) =
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
     };
-  }, []);
+  }, [setStoredWidth]);
 
   const handleMouseDown = useCallback((e: ReactMouseEvent) => {
     e.preventDefault();
