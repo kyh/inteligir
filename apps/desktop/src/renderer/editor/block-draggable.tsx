@@ -24,8 +24,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVerticalIcon, PlusIcon } from "lucide-react";
-import { PathApi } from "platejs";
+import { useEffect, useRef, useState } from "react";
+import { CopyIcon, GripVerticalIcon, PlusIcon, TextIcon, Trash2Icon } from "lucide-react";
+import { KEYS, PathApi } from "platejs";
 import {
   createPlatePlugin,
   type PlateElementProps,
@@ -34,6 +35,15 @@ import {
 } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
+import {
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuSeparator,
+  MenuSub,
+  MenuSubContent,
+  MenuSubTrigger,
+} from "@repo/ui/components/menu";
 
 // Stable per-block drag ids. Slate's moveNodes preserves node object identity,
 // so a WeakMap keyed by the element yields ids that survive a reorder. Both the
@@ -92,6 +102,19 @@ const BlockDraggable: RenderNodeWrapper = ({ editor, path }) => {
   return (props) => <Draggable {...props} />;
 };
 
+// "Turn into" targets. Lists are indent-based (a paragraph carrying
+// `listStyleType` + `indent`), so they share `type: KEYS.p`.
+const TURN_INTO: { label: string; type: string; listStyleType?: string }[] = [
+  { label: "Text", type: KEYS.p },
+  { label: "Heading 1", type: KEYS.h1 },
+  { label: "Heading 2", type: KEYS.h2 },
+  { label: "Heading 3", type: KEYS.h3 },
+  { label: "Bulleted list", type: KEYS.p, listStyleType: "disc" },
+  { label: "Numbered list", type: KEYS.p, listStyleType: "decimal" },
+  { label: "To-do list", type: KEYS.p, listStyleType: "todo" },
+  { label: "Quote", type: KEYS.blockquote },
+];
+
 function Draggable(props: PlateElementProps) {
   const { children, element } = props;
   const editor = useEditorRef();
@@ -105,6 +128,15 @@ function Draggable(props: PlateElementProps) {
     isDragging,
   } = useSortable({ id: blockId(element) });
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const gripRef = useRef<HTMLButtonElement | null>(null);
+  // A drag ends in a synthetic click on the grip; remember a drag happened so
+  // that click doesn't pop the menu open right after a reorder.
+  const draggedRef = useRef(false);
+  useEffect(() => {
+    if (isDragging) draggedRef.current = true;
+  }, [isDragging]);
+
   const insertBelow = () => {
     const at = editor.api.findPath(element);
     const target = at ? PathApi.next(at.slice(0, 1)) : undefined;
@@ -113,6 +145,27 @@ function Draggable(props: PlateElementProps) {
       target ? { at: target, select: true } : { select: true },
     );
     editor.tf.insertText("/");
+  };
+
+  const removeBlock = () => {
+    const at = editor.api.findPath(element);
+    if (at) editor.tf.removeNodes({ at });
+  };
+  const duplicateBlock = () => {
+    const at = editor.api.findPath(element);
+    if (at) editor.tf.insertNodes(structuredClone(element), { at: PathApi.next(at) });
+  };
+  const turnInto = (opt: { type: string; listStyleType?: string }) => {
+    const at = editor.api.findPath(element);
+    if (!at) return;
+    editor.tf.withoutNormalizing(() => {
+      if (opt.listStyleType) {
+        editor.tf.setNodes({ type: opt.type, listStyleType: opt.listStyleType, indent: 1 }, { at });
+      } else {
+        editor.tf.unsetNodes(["listStyleType", "indent"], { at });
+        editor.tf.setNodes({ type: opt.type }, { at });
+      }
+    });
   };
 
   return (
@@ -136,8 +189,18 @@ function Draggable(props: PlateElementProps) {
         </button>
         <button
           type="button"
-          ref={setActivatorNodeRef}
-          title="Drag to move"
+          ref={(node) => {
+            setActivatorNodeRef(node);
+            gripRef.current = node;
+          }}
+          title="Drag to move · click to open menu"
+          onClick={() => {
+            if (draggedRef.current) {
+              draggedRef.current = false;
+              return;
+            }
+            setMenuOpen(true);
+          }}
           className="flex size-5 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
           {...attributes}
           {...listeners}
@@ -145,6 +208,36 @@ function Draggable(props: PlateElementProps) {
           <GripVerticalIcon className="size-4" />
         </button>
       </div>
+
+      <Menu open={menuOpen} onOpenChange={setMenuOpen}>
+        <MenuContent anchor={gripRef} side="right" align="start">
+          <MenuItem onClick={duplicateBlock}>
+            <CopyIcon />
+            Duplicate
+          </MenuItem>
+          <MenuSub>
+            <MenuSubTrigger>
+              <TextIcon />
+              Turn into
+            </MenuSubTrigger>
+            <MenuSubContent>
+              {TURN_INTO.map((opt) => (
+                <MenuItem key={opt.label} onClick={() => turnInto(opt)}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </MenuSubContent>
+          </MenuSub>
+          <MenuSeparator />
+          <MenuItem
+            onClick={removeBlock}
+            className="text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
+          >
+            <Trash2Icon />
+            Delete
+          </MenuItem>
+        </MenuContent>
+      </Menu>
 
       {children}
     </div>
