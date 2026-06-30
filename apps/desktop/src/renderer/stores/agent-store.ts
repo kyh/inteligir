@@ -35,9 +35,8 @@ export type ChatMessageMetadata = {
 
 export type ChatMessage = UIMessage<ChatMessageMetadata>;
 
-type SendIntent = "steer";
 type SendOptions = {
-  intent?: SendIntent;
+  intent?: "steer";
 };
 
 /** Prefix a fresh user turn with the open note so the single persistent thread

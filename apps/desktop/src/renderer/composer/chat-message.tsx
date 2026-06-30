@@ -8,9 +8,7 @@ import { getBridge } from "@/renderer/lib/bridge";
 import type { ChatMessage } from "@/renderer/stores/agent-store";
 import { isRecord } from "@/shared/ipc";
 
-// Hoisted so the array reference is stable across renders — the previous
-// inline literal allocated a new array every cycle. Response's memo doesn't
-// inspect this prop today, but a stable ref future-proofs the render path.
+// Hoisted so the array reference is stable across renders.
 const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [
   "github-dark-dimmed",
   "github-dark-dimmed",
@@ -134,8 +132,6 @@ function AssistantMessage({ text }: { text: string }) {
   return (
     <ChatBubble from="assistant">
       <Response
-        // dark:prose-invert (not unconditional) — the card under the text is
-        // near-white in the light theme.
         className="prose prose-sm max-w-none break-words text-xs dark:prose-invert [&_*]:text-xs"
         shikiTheme={ASSISTANT_SHIKI_THEME}
       >

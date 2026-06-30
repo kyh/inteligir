@@ -141,12 +141,7 @@ export class DelegationManager {
       all.map((d) => {
         if (d.status !== "running") return d;
         changed = true;
-        return {
-          ...d,
-          status: "failed",
-          finishedAt: Date.now(),
-          error: "Interrupted — session ended",
-        };
+        return { ...d, ...failedPatch("Interrupted — session ended") };
       }),
     );
     if (changed) this.notify();
@@ -171,7 +166,7 @@ export class DelegationManager {
       all.map((d) => {
         if (d.status !== "queued") return d;
         changed = true;
-        return { ...d, status: "failed", finishedAt: Date.now(), error: reason };
+        return { ...d, ...failedPatch(reason) };
       }),
     );
     if (changed) this.notify();
@@ -373,11 +368,7 @@ export class DelegationManager {
     // fail rather than point it at a stale, moved, or already-checked line.
     const resolved = this.resolveForRun(delegation);
     if (!resolved.ok) {
-      this.finishRun(delegation.id, {
-        status: "failed",
-        finishedAt: Date.now(),
-        error: resolved.error,
-      });
+      this.finishRun(delegation.id, failedPatch(resolved.error));
       return;
     }
     const fresh = resolved.delegation;
@@ -395,11 +386,7 @@ export class DelegationManager {
       const finished = await agent.waitForIdle(RUN_TIMEOUT_MS);
       if (!finished) {
         await agent.interrupt().catch(() => {});
-        this.finishRun(delegation.id, {
-          status: "failed",
-          finishedAt: Date.now(),
-          error: "Timed out",
-        });
+        this.finishRun(delegation.id, failedPatch("Timed out"));
         return;
       }
       this.finishRun(delegation.id, {
@@ -408,11 +395,7 @@ export class DelegationManager {
         resultSummary: captured.text?.trim().slice(0, SUMMARY_LEN) ?? "Done",
       });
     } catch (err) {
-      this.finishRun(delegation.id, {
-        status: "failed",
-        finishedAt: Date.now(),
-        error: toErrorMessage(err),
-      });
+      this.finishRun(delegation.id, failedPatch(toErrorMessage(err)));
     } finally {
       unsubscribe();
     }
@@ -426,6 +409,12 @@ function remapPath(path: string, from: string, to: string): string {
   if (path === from) return to;
   if (path.startsWith(`${from}/`)) return `${to}${path.slice(from.length)}`;
   return path;
+}
+
+/** The terminal-failure patch — one shape for every place a run/queue entry ends
+ * in failure (interrupt, unavailable, timeout, error, stale anchor). */
+function failedPatch(error: string): Partial<Delegation> {
+  return { status: "failed", finishedAt: Date.now(), error };
 }
 
 /** The instruction the background agent runs. It edits the file directly. */

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUpIcon, ListPlusIcon, PaperclipIcon, SquareIcon, ZapIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
@@ -66,11 +66,22 @@ function keyedMessages(prefix: string, messages: string[]): QueuedMessage[] {
   });
 }
 
+// One queued message row — steering and follow-up differ only by the leading icon.
+function QueuedRow({ msg, icon }: { msg: QueuedMessage; icon: ReactNode }) {
+  return (
+    <QueueItem className="rounded-md px-2 py-1 hover:bg-muted" title={msg.text}>
+      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+        {icon}
+        <QueueItemContent>{msg.text}</QueueItemContent>
+      </div>
+    </QueueItem>
+  );
+}
+
 /**
  * The AI composer — a flat bordered card pinned at the bottom of the workspace.
  * Talks to the agent via agent-store (routing user/follow-up/steer by live busy
- * state) and auto-attaches the open note as context. Styling is flat to match
- * the nexus shell; the send/steer/queue/attachment logic is unchanged.
+ * state) and auto-attaches the open note as context.
  */
 export function Composer({ className }: { className?: string }) {
   const [hasInput, setHasInput] = useState(false);
@@ -142,28 +153,18 @@ export function Composer({ className }: { className?: string }) {
         <Queue className="rounded-lg border border-border bg-card px-1.5 py-1 text-card-foreground shadow-xs">
           <QueueList className="mt-0 -mb-1">
             {steeringQueue.map((msg) => (
-              <QueueItem
+              <QueuedRow
                 key={msg.key}
-                className="rounded-md px-2 py-1 hover:bg-muted"
-                title={msg.text}
-              >
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <ZapIcon className="size-3 shrink-0 text-primary" />
-                  <QueueItemContent>{msg.text}</QueueItemContent>
-                </div>
-              </QueueItem>
+                msg={msg}
+                icon={<ZapIcon className="size-3 shrink-0 text-primary" />}
+              />
             ))}
             {followUpQueue.map((msg) => (
-              <QueueItem
+              <QueuedRow
                 key={msg.key}
-                className="rounded-md px-2 py-1 hover:bg-muted"
-                title={msg.text}
-              >
-                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                  <QueueItemIndicator className="size-1.5" />
-                  <QueueItemContent>{msg.text}</QueueItemContent>
-                </div>
-              </QueueItem>
+                msg={msg}
+                icon={<QueueItemIndicator className="size-1.5" />}
+              />
             ))}
           </QueueList>
         </Queue>

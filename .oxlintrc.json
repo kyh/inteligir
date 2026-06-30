@@ -70,12 +70,7 @@
         "packages/ui/src/components/dialog.tsx",
         "packages/ui/src/components/switch.tsx",
         "packages/ui/src/components/tabs.tsx",
-        "packages/ui/src/components/tabs-subtle.tsx",
-        "packages/ui/src/components/table.tsx",
         "packages/ui/src/components/chat-message.tsx",
-        "packages/ui/src/components/thinking-indicator.tsx",
-        "packages/ui/src/components/ask-user-questions.tsx",
-        "packages/ui/src/components/input-message.tsx",
         "packages/ui/src/components/file-thumbnail.tsx",
         "packages/ui/src/lib/springs.ts",
         "packages/ui/src/lib/surface-context.tsx",
@@ -84,7 +79,6 @@
         "packages/ui/src/lib/icon-context.tsx",
         "packages/ui/src/lib/icon-map.tsx",
         "packages/ui/src/lib/font-weight.ts",
-        "packages/ui/src/hooks/use-merge-split.tsx",
         "packages/ui/src/hooks/use-proximity-hover.ts"
       ],
       "rules": {
