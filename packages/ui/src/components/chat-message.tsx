@@ -54,9 +54,9 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(
       >
         {files && files.length > 0 && (
           <div className={cn("flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
-            {files.map((file, i) => (
+            {files.map((file) => (
               <FileThumbnail
-                key={`${file.name}-${file.size}-${file.lastModified}-${i}`}
+                key={`${file.name}-${file.size}-${file.lastModified}`}
                 file={file}
                 size={thumbnailSize}
               />

@@ -1,6 +1,14 @@
 "use client";
 
-import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  type ReactNode,
+} from "react";
 
 type ShapeVariant = "pill" | "rounded";
 
@@ -95,14 +103,16 @@ function ShapeProvider({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== "r" && e.key !== "R") return;
       if (e.metaKey || e.ctrlKey || e.altKey) return;
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement)?.isContentEditable)
-        return;
+      const target = e.target instanceof HTMLElement ? e.target : null;
+      const tag = target?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
       e.preventDefault();
       transitionShape(() => {
         setShapeState((prev) => {
           const idx = shapeOrder.indexOf(prev);
-          return shapeOrder[(idx + 1) % shapeOrder.length];
+          // Modulo keeps this in-bounds; `?? prev` only satisfies
+          // noUncheckedIndexedAccess and is never reached at runtime.
+          return shapeOrder[(idx + 1) % shapeOrder.length] ?? prev;
         });
       });
     };
@@ -110,11 +120,12 @@ function ShapeProvider({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
 
-  return (
-    <ShapeContext.Provider value={{ shape, setShape, classes: shapeMap[shape] }}>
-      {children}
-    </ShapeContext.Provider>
+  const value = useMemo<ShapeContextValue>(
+    () => ({ shape, setShape, classes: shapeMap[shape] }),
+    [shape, setShape],
   );
+
+  return <ShapeContext.Provider value={value}>{children}</ShapeContext.Provider>;
 }
 
 export { ShapeProvider, useShape, useShapeContext, shapeMap };

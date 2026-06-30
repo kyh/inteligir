@@ -18,13 +18,10 @@
     "tsBuildInfoFile": "${configDir}/.cache/tsbuildinfo.json",
     "strict": true,
     "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
     "noImplicitOverride": true,
     "noFallthroughCasesInSwitch": true,
-    // noUncheckedIndexedAccess + exactOptionalPropertyTypes (opt-in extras on top
-    // of `strict`) are off so the vendored @fluid component lib compiles when the
-    // apps import its source. The repo stays on standard `strict`.
-    "noUncheckedIndexedAccess": false,
-    "exactOptionalPropertyTypes": false
+    "exactOptionalPropertyTypes": true
   },
   "exclude": ["node_modules", "build", "dist", ".next", ".expo", ".output"]
 }

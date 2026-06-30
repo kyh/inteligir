@@ -4,6 +4,7 @@ import {
   useRef,
   useState,
   useCallback,
+  useMemo,
   useEffect,
   useLayoutEffect,
   createContext,
@@ -79,30 +80,33 @@ const Tabs = forwardRef<HTMLDivElement, TabsProps>(
     const resolvedValue =
       value ?? (selectedIndex != null ? valueOrder[selectedIndex] : uncontrolledValue);
 
-    // Base UI passes (value, eventDetails); we only need value.
+    // Base UI passes (value, eventDetails); we only need value. Base UI types the
+    // value as `any`; in this component tab values are always strings.
     const handleValueChange = useCallback(
-      (newValue: unknown) => {
-        const v = newValue as string;
+      (newValue: string) => {
         if (value === undefined && selectedIndex == null) {
-          setUncontrolledValue(v);
+          setUncontrolledValue(newValue);
         }
-        onValueChange?.(v);
+        onValueChange?.(newValue);
         if (onSelect) {
-          const idx = valueOrder.indexOf(v);
+          const idx = valueOrder.indexOf(newValue);
           if (idx !== -1) onSelect(idx);
         }
       },
       [onValueChange, onSelect, valueOrder, value, selectedIndex],
     );
 
+    const valueOrderContextValue = useMemo<TabsValueOrderContextValue>(
+      () => ({
+        valueOrder,
+        setValueOrder: updateValueOrder,
+        selectedValue: resolvedValue,
+      }),
+      [valueOrder, updateValueOrder, resolvedValue],
+    );
+
     return (
-      <TabsValueOrderContext.Provider
-        value={{
-          valueOrder,
-          setValueOrder: updateValueOrder,
-          selectedValue: resolvedValue,
-        }}
-      >
+      <TabsValueOrderContext.Provider value={valueOrderContextValue}>
         <TabsPrimitive.Root
           ref={ref}
           value={resolvedValue}
@@ -134,14 +138,17 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
     const [optimisticIdx, setOptimisticIdx] = useState<number | null>(null);
 
     const values = Children.toArray(children)
-      .filter(isValidElement)
-      .map((child) => (child.props as { value?: string }).value)
+      .filter((child): child is React.ReactElement<{ value?: string }> => isValidElement(child))
+      .map((child) => child.props.value)
       .filter((v): v is string => typeof v === "string");
     const valueOrderKey = values.join(",");
     const setValueOrder = valueOrderCtx?.setValueOrder;
 
     useLayoutEffect(() => {
       setValueOrder?.(values);
+      // `valueOrderKey` (values.join) is the stable proxy for `values`; depending on
+      // `values` directly (a fresh array each render) would re-run this every render.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [setValueOrder, valueOrderKey]);
 
     const {
@@ -201,43 +208,46 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
     const isHovering = hoveredIndex !== null && !isHoveringSelected;
 
     const indexedChildren = Children.map(children, (child, i) => {
-      if (isValidElement(child)) {
-        return cloneElement(child, { _index: i } as Record<string, unknown>);
+      if (isValidElement<{ _index?: number }>(child)) {
+        return cloneElement(child, { _index: i });
       }
       return child;
     });
 
+    const listContextValue = useMemo<TabsListContextValue>(
+      () => ({
+        registerTab,
+        hoveredIndex,
+        selectedValue,
+        setOptimisticIdx,
+      }),
+      [registerTab, hoveredIndex, selectedValue, setOptimisticIdx],
+    );
+
     return (
-      <TabsListContext.Provider
-        value={{
-          registerTab,
-          hoveredIndex,
-          selectedValue,
-          setOptimisticIdx,
-        }}
-      >
+      <TabsListContext.Provider value={listContextValue}>
         <TabsPrimitive.List
           // Match Radix's `activationMode="automatic"` — arrow keys move + activate.
           activateOnFocus
           ref={(node) => {
-            (containerRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            containerRef.current = node;
             if (typeof ref === "function") ref(node);
-            else if (ref) (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+            else if (ref) ref.current = node;
           }}
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
           onFocus={(e) => {
-            const trigger = (e.target as HTMLElement).closest('[role="tab"]');
+            const trigger = e.target.closest('[role="tab"]');
             if (!trigger) return;
             const indexAttr = trigger.getAttribute("data-proximity-index");
             if (indexAttr != null) {
               const idx = Number(indexAttr);
               setHoveredIndex(idx);
-              setFocusedIndex((e.target as HTMLElement).matches(":focus-visible") ? idx : null);
+              setFocusedIndex(e.target.matches(":focus-visible") ? idx : null);
             }
           }}
           onBlur={(e) => {
-            if (containerRef.current?.contains(e.relatedTarget as Node)) return;
+            if (containerRef.current?.contains(e.relatedTarget)) return;
             setFocusedIndex(null);
             if (isMouseInside.current) return;
             setHoveredIndex(null);
@@ -374,12 +384,11 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
       <TabsPrimitive.Tab
         onClick={() => setOptimisticIdx(_index)}
         ref={(node) => {
-          (internalRef as React.MutableRefObject<HTMLElement | null>).current =
-            node as HTMLButtonElement | null;
-          if (typeof ref === "function") ref(node as HTMLButtonElement);
-          else if (ref)
-            (ref as React.MutableRefObject<HTMLButtonElement | null>).current =
-              node as HTMLButtonElement | null;
+          // Base UI types Tab's ref as HTMLElement; it always renders a <button>.
+          const buttonNode = node instanceof HTMLButtonElement ? node : null;
+          internalRef.current = buttonNode;
+          if (typeof ref === "function") ref(buttonNode);
+          else if (ref) ref.current = buttonNode;
         }}
         value={value}
         data-proximity-index={_index}

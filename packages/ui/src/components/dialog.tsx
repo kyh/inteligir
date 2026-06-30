@@ -9,6 +9,7 @@ import { spring } from "@repo/ui/lib/springs";
 import { useShape } from "@repo/ui/lib/shape-context";
 import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
+import { toMotionStyle } from "@repo/ui/lib/motion-style";
 import { Button } from "@repo/ui/components/button";
 
 const DIALOG_OFFSET = 4;
@@ -57,7 +58,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
     return (
       <DialogPrimitive.Portal>
         <DialogPrimitive.Backdrop
-          render={(backdropProps, state) => {
+          render={(backdropProps: React.HTMLAttributes<HTMLDivElement>, state) => {
             const exiting = state.transitionStatus === "ending";
             const {
               style: _style,
@@ -68,7 +69,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
               onAnimationEnd: _onAnimationEnd,
               onAnimationIteration: _onAnimationIteration,
               ...rest
-            } = backdropProps as React.HTMLAttributes<HTMLDivElement>;
+            } = backdropProps;
             return (
               <motion.div
                 {...rest}
@@ -82,7 +83,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
         />
         <DialogPrimitive.Popup
           ref={ref}
-          render={(popupProps, state) => {
+          render={(popupProps: React.HTMLAttributes<HTMLDivElement>, state) => {
             const exiting = state.transitionStatus === "ending";
             const {
               style: baseStyle,
@@ -93,7 +94,19 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
               onAnimationEnd: _onAnimationEnd,
               onAnimationIteration: _onAnimationIteration,
               ...rest
-            } = popupProps as React.HTMLAttributes<HTMLDivElement>;
+            } = popupProps;
+            // Same object reference is spread at runtime, so behavior matches
+            // `{...props}`; the annotation only hides the framer-motion-
+            // incompatible React handler types from the motion.div spread.
+            const consumerProps: Omit<
+              React.HTMLAttributes<HTMLDivElement>,
+              | "onDrag"
+              | "onDragStart"
+              | "onDragEnd"
+              | "onAnimationStart"
+              | "onAnimationEnd"
+              | "onAnimationIteration"
+            > = props;
             return (
               <motion.div
                 // Base UI's props first (data attrs, refs, role, etc.)…
@@ -102,15 +115,7 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
                 // event handlers, data-*, etc.) land on the visible motion.div
                 // — matching the Radix flavour, which spreads `...props` onto
                 // the Content primitive that becomes the motion.div via asChild.
-                {...(props as Omit<
-                  React.HTMLAttributes<HTMLDivElement>,
-                  | "onDrag"
-                  | "onDragStart"
-                  | "onDragEnd"
-                  | "onAnimationStart"
-                  | "onAnimationEnd"
-                  | "onAnimationIteration"
-                >)}
+                {...consumerProps}
                 className={cn(
                   "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)]",
                   surfaceClasses(dialogLevel),
@@ -121,8 +126,8 @@ const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
                   className,
                 )}
                 style={{
-                  ...(baseStyle as React.CSSProperties | undefined),
-                  ...(props.style as React.CSSProperties | undefined),
+                  ...toMotionStyle(baseStyle),
+                  ...toMotionStyle(props.style),
                 }}
                 initial={{ opacity: 0, scale: 0.97, x: "-50%", y: "-50%" }}
                 animate={{

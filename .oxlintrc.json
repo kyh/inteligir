@@ -58,41 +58,6 @@
           }
         ]
       }
-    },
-    {
-      // Vendored @fluid (fluidfunctionalism.com) registry components + their
-      // foundations follow upstream's conventions, not our app lint rules. They
-      // are third-party code we don't hand-author; exempt the rules they trip so
-      // our own components stay fully linted.
-      "files": [
-        "packages/ui/src/components/button.tsx",
-        "packages/ui/src/components/badge.tsx",
-        "packages/ui/src/components/dialog.tsx",
-        "packages/ui/src/components/switch.tsx",
-        "packages/ui/src/components/tabs.tsx",
-        "packages/ui/src/components/chat-message.tsx",
-        "packages/ui/src/components/file-thumbnail.tsx",
-        "packages/ui/src/lib/springs.ts",
-        "packages/ui/src/lib/surface-context.tsx",
-        "packages/ui/src/lib/surface-classes.ts",
-        "packages/ui/src/lib/shape-context.tsx",
-        "packages/ui/src/lib/icon-context.tsx",
-        "packages/ui/src/lib/icon-map.tsx",
-        "packages/ui/src/lib/font-weight.ts",
-        "packages/ui/src/hooks/use-proximity-hover.ts"
-      ],
-      "rules": {
-        "typescript/consistent-type-assertions": "off",
-        "typescript/triple-slash-reference": "off",
-        "promise/always-return": "off",
-        "react/jsx-no-constructed-context-values": "off",
-        "react/no-object-type-as-default-prop": "off",
-        "react/no-array-index-key": "off",
-        "react/no-unstable-nested-components": "off",
-        "react-hooks/exhaustive-deps": "off",
-        "oxc/no-map-spread": "off",
-        "unicorn/no-array-sort": "off"
-      }
     }
   ]
 }

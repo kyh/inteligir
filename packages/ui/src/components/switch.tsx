@@ -5,6 +5,7 @@ import { motion, useMotionValue, animate } from "framer-motion";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
+import { toMotionStyle } from "@repo/ui/lib/motion-style";
 
 interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   label: string;
@@ -72,7 +73,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           clientX: e.clientX,
           originX: motionX.get(),
         };
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        e.currentTarget.setPointerCapture(e.pointerId);
       },
       [disabled, motionX],
     );
@@ -177,7 +178,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           onClick={(e) => e.stopPropagation()}
         >
           <SwitchPrimitive.Thumb
-            render={(props) => {
+            render={(props: React.HTMLAttributes<HTMLSpanElement>) => {
               const {
                 style: baseStyle,
                 onDrag: _onDrag,
@@ -187,14 +188,14 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
                 onAnimationEnd: _onAnimationEnd,
                 onAnimationIteration: _onAnimationIteration,
                 ...rest
-              } = props as React.HTMLAttributes<HTMLSpanElement>;
+              } = props;
               return (
                 <motion.span
                   {...rest}
                   className="absolute top-0 left-0 block rounded-full bg-white shadow-sm"
                   initial={false}
                   style={{
-                    ...(baseStyle as React.CSSProperties | undefined),
+                    ...toMotionStyle(baseStyle),
                     x: motionX,
                   }}
                   animate={{

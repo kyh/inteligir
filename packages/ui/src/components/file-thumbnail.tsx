@@ -81,6 +81,7 @@ function FileThumbnail({ file, size, className }: FileThumbnailProps) {
     renderPdfFirstPage(file, size)
       .then((url) => {
         if (!cancelled) setPdfUrl(url);
+        return undefined;
       })
       .catch(() => {
         /* fall through to spinner */
