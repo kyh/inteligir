@@ -9,8 +9,8 @@
 // this for documents that are already canonical (see markdown-doc.ts), so
 // serialization reshapes nothing the user didn't edit.
 
-import { useEffect, useRef } from "react";
-import { PlusIcon } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { KEYS } from "platejs";
 import {
   Plate,
@@ -38,7 +38,7 @@ import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code
 import { IndentPlugin } from "@platejs/indent/react";
 import { LinkPlugin } from "@platejs/link/react";
 import { ListPlugin } from "@platejs/list/react";
-import { insertTableColumn, insertTableRow } from "@platejs/table";
+import { deleteColumn, deleteRow, insertTableColumn, insertTableRow } from "@platejs/table";
 import {
   TableCellHeaderPlugin,
   TableCellPlugin,
@@ -47,6 +47,9 @@ import {
 } from "@platejs/table/react";
 import { MarkdownPlugin, deserializeMd, serializeMd } from "@platejs/markdown";
 import remarkGfm from "remark-gfm";
+import { common, createLowlight } from "lowlight";
+
+import { Menu, MenuContent, MenuItem, MenuSeparator } from "@repo/ui/components/menu";
 
 import { BlockList } from "@/renderer/editor/block-list";
 import { DragKit } from "@/renderer/editor/block-draggable";
@@ -56,6 +59,10 @@ import { SlashKit } from "@/renderer/editor/slash-menu";
 // Block plugins lists/indentation attach to. Lists are modeled as indented
 // blocks (not a dedicated node), so the indent + list plugins inject into these.
 const INDENTABLE = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock];
+
+// lowlight powers code-block syntax highlighting (`common` = ~35 popular
+// languages; the token classes are styled by the `.hljs-*` theme in styles.css).
+const lowlight = createLowlight(common);
 
 // Small styled renderers — Plate plugins are headless, so each node/mark needs
 // a component. className-only keeps them trivial and on-theme.
@@ -68,6 +75,13 @@ function element(as: keyof HTMLElementTagNameMap, className: string) {
   return function Element(props: PlateElementProps) {
     return <PlateElement {...props} as={as} className={className} />;
   };
+}
+
+// CodeSyntaxPlugin tags each highlighted token with an `.hljs-*` className on the
+// leaf; render it so the theme in styles.css colors it.
+function CodeSyntaxLeaf(props: PlateLeafProps) {
+  const { className } = props.leaf;
+  return <PlateLeaf {...props} className={typeof className === "string" ? className : ""} />;
 }
 
 // Horizontal rule is a void node, so the visual <hr> lives in a non-editable
@@ -90,6 +104,15 @@ function HrElement(props: PlateElementProps) {
 function TableElement(props: PlateElementProps) {
   const editor = useEditorRef();
   const { element } = props;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  // deleteRow/deleteColumn act on the cell holding the cursor; the trigger
+  // preventDefaults mousedown so opening the menu doesn't drop that selection.
+  const removeTable = () => {
+    const at = editor.api.findPath(element);
+    if (at) editor.tf.removeNodes({ at });
+  };
 
   const addRow = () => {
     const at = editor.api.findPath(element);
@@ -108,6 +131,31 @@ function TableElement(props: PlateElementProps) {
 
   return (
     <div className="group/table relative my-3 w-fit">
+      <button
+        type="button"
+        contentEditable={false}
+        ref={menuBtnRef}
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={() => setMenuOpen(true)}
+        title="Table options"
+        className="absolute -top-2.5 -left-2.5 z-10 flex size-5 items-center justify-center rounded-md border border-border bg-background text-muted-foreground opacity-0 transition-opacity group-hover/table:opacity-100 hover:bg-accent hover:text-foreground"
+      >
+        <EllipsisIcon className="size-3.5" />
+      </button>
+      <Menu open={menuOpen} onOpenChange={setMenuOpen}>
+        <MenuContent anchor={menuBtnRef} side="bottom" align="start">
+          <MenuItem onClick={() => deleteRow(editor)}>Delete row</MenuItem>
+          <MenuItem onClick={() => deleteColumn(editor)}>Delete column</MenuItem>
+          <MenuSeparator />
+          <MenuItem
+            onClick={removeTable}
+            className="text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
+          >
+            <Trash2Icon />
+            Delete table
+          </MenuItem>
+        </MenuContent>
+      </Menu>
       <PlateElement {...props} as="table" className="w-auto border-collapse text-sm">
         <tbody>{props.children}</tbody>
       </PlateElement>
@@ -144,7 +192,7 @@ const EDITOR_PLUGINS = [
   H3Plugin,
   BlockquotePlugin,
   HorizontalRulePlugin,
-  CodeBlockPlugin,
+  CodeBlockPlugin.configure({ options: { lowlight } }),
   CodeLinePlugin,
   CodeSyntaxPlugin,
   TablePlugin,
@@ -204,6 +252,7 @@ const EDITOR_COMPONENTS = {
     "my-1 overflow-x-auto rounded-md bg-muted px-4 py-3 font-mono text-sm leading-normal [tab-size:2]",
   ),
   [CodeLinePlugin.key]: element("div", ""),
+  [CodeSyntaxPlugin.key]: CodeSyntaxLeaf,
   [LinkPlugin.key]: element(
     "a",
     "cursor-pointer border-b border-current font-medium text-foreground/70",
