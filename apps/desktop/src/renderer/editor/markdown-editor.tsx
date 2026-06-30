@@ -9,9 +9,18 @@
 // this for documents that are already canonical (see markdown-doc.ts), so
 // serialization reshapes nothing the user didn't edit.
 
-import { useEffect, useRef, useState } from "react";
-import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { KEYS } from "platejs";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import {
+  EllipsisIcon,
+  InfoIcon,
+  LightbulbIcon,
+  OctagonAlertIcon,
+  PlusIcon,
+  ShieldAlertIcon,
+  Trash2Icon,
+  TriangleAlertIcon,
+} from "lucide-react";
+import { KEYS, NodeApi } from "platejs";
 import {
   Plate,
   PlateContent,
@@ -49,6 +58,7 @@ import { MarkdownPlugin, deserializeMd, serializeMd } from "@platejs/markdown";
 import remarkGfm from "remark-gfm";
 import { common, createLowlight } from "lowlight";
 
+import { cn } from "@repo/ui/lib/utils";
 import { Menu, MenuContent, MenuItem, MenuSeparator } from "@repo/ui/components/menu";
 
 import { BlockList } from "@/renderer/editor/block-list";
@@ -82,6 +92,70 @@ function element(as: keyof HTMLElementTagNameMap, className: string) {
 function CodeSyntaxLeaf(props: PlateLeafProps) {
   const { className } = props.leaf;
   return <PlateLeaf {...props} className={typeof className === "string" ? className : ""} />;
+}
+
+// GitHub-style alert blockquotes (`> [!NOTE] …`) render as colored callouts.
+// They stay plain blockquotes in the model, so they round-trip byte-for-byte —
+// the callout is purely presentational (the `[!TYPE]` marker stays in the text).
+const ALERTS: Record<
+  string,
+  { Icon: ComponentType<{ className?: string }>; accent: string; icon: string }
+> = {
+  NOTE: {
+    Icon: InfoIcon,
+    accent: "border-blue-500/60 bg-blue-500/[0.05]",
+    icon: "text-blue-600 dark:text-blue-400",
+  },
+  TIP: {
+    Icon: LightbulbIcon,
+    accent: "border-emerald-500/60 bg-emerald-500/[0.05]",
+    icon: "text-emerald-600 dark:text-emerald-400",
+  },
+  IMPORTANT: {
+    Icon: ShieldAlertIcon,
+    accent: "border-violet-500/60 bg-violet-500/[0.05]",
+    icon: "text-violet-600 dark:text-violet-400",
+  },
+  WARNING: {
+    Icon: TriangleAlertIcon,
+    accent: "border-amber-500/60 bg-amber-500/[0.05]",
+    icon: "text-amber-600 dark:text-amber-400",
+  },
+  CAUTION: {
+    Icon: OctagonAlertIcon,
+    accent: "border-red-500/60 bg-red-500/[0.05]",
+    icon: "text-red-600 dark:text-red-400",
+  },
+};
+
+function BlockquoteElement(props: PlateElementProps) {
+  const marker = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.exec(
+    NodeApi.string(props.element),
+  );
+  const variant = marker?.[1]?.toUpperCase();
+  const alert = variant ? ALERTS[variant] : undefined;
+  if (alert) {
+    const { Icon, accent, icon } = alert;
+    return (
+      <PlateElement
+        {...props}
+        as="blockquote"
+        className={cn("relative my-1 rounded-md border-l-[3px] py-2 pr-3 pl-9 [&>*]:my-0", accent)}
+      >
+        <span contentEditable={false} className={cn("absolute top-[9px] left-3", icon)}>
+          <Icon className="size-4" />
+        </span>
+        {props.children}
+      </PlateElement>
+    );
+  }
+  return (
+    <PlateElement
+      {...props}
+      as="blockquote"
+      className="my-1 border-l-[3px] border-foreground px-4 py-[3px]"
+    />
+  );
 }
 
 // Horizontal rule is a void node, so the visual <hr> lives in a non-editable
@@ -232,10 +306,7 @@ const EDITOR_COMPONENTS = {
     "h3",
     "relative mt-[1em] mb-1 px-0.5 py-[3px] text-[1.25em] font-semibold leading-[1.3] first:mt-0",
   ),
-  [BlockquotePlugin.key]: element(
-    "blockquote",
-    "my-1 border-l-[3px] border-foreground px-4 py-[3px]",
-  ),
+  [BlockquotePlugin.key]: BlockquoteElement,
   [HorizontalRulePlugin.key]: HrElement,
   [TablePlugin.key]: TableElement,
   [TableRowPlugin.key]: element("tr", ""),

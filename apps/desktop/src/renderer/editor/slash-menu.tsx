@@ -14,6 +14,7 @@ import {
   Heading1Icon,
   Heading2Icon,
   Heading3Icon,
+  InfoIcon,
   ListIcon,
   ListOrderedIcon,
   MinusIcon,
@@ -63,6 +64,14 @@ function turnIntoList(editor: PlateEditor, listStyleType: string, checked?: bool
       );
     }
   });
+}
+
+// A callout is a GitHub alert blockquote: the leading `[!NOTE]` marker is what
+// the editor styles into a colored callout (see markdown-editor's
+// BlockquoteElement) and it round-trips as plain markdown.
+function insertCallout(editor: PlateEditor) {
+  turnInto(editor, editor.getType(KEYS.blockquote));
+  editor.tf.insertText("[!NOTE] ");
 }
 
 function insertHorizontalRule(editor: PlateEditor) {
@@ -149,6 +158,14 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         description: "Capture a quote.",
         keywords: ["citation", "quote", ">"],
         onSelect: (editor) => turnInto(editor, editor.getType(KEYS.blockquote)),
+      },
+      {
+        icon: <InfoIcon />,
+        label: "Callout",
+        value: "callout",
+        description: "Highlighted note (GitHub alert).",
+        keywords: ["callout", "alert", "note", "warning", "tip", "admonition"],
+        onSelect: (editor) => insertCallout(editor),
       },
       {
         icon: <Code2Icon />,
