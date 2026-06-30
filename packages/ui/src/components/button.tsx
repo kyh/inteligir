@@ -9,7 +9,7 @@ import { useShape } from "@repo/ui/lib/shape-context";
 
 const buttonVariants = cva(
   [
-    "group relative isolate inline-flex items-center justify-center outline-none cursor-pointer",
+    "group/button relative isolate inline-flex items-center justify-center outline-none cursor-pointer",
     "text-box-trim-both text-box-edge-cap-alphabetic",
     "transition-colors duration-80",
     "disabled:opacity-50 disabled:pointer-events-none",
@@ -62,10 +62,10 @@ interface ButtonProps
 }
 
 const bgVariants: Record<string, string> = {
-  primary: "bg-foreground group-hover:bg-foreground/90 group-active:bg-foreground/80",
-  secondary: "bg-accent group-hover:bg-accent/80 group-active:bg-accent",
-  tertiary: "bg-transparent group-hover:bg-hover group-active:bg-active",
-  ghost: "bg-transparent group-hover:bg-hover group-active:bg-active",
+  primary: "bg-foreground group-hover/button:bg-foreground/90 group-active/button:bg-foreground/80",
+  secondary: "bg-accent group-hover/button:bg-accent/80 group-active/button:bg-accent",
+  tertiary: "bg-transparent group-hover/button:bg-hover group-active/button:bg-active",
+  ghost: "bg-transparent group-hover/button:bg-hover group-active/button:bg-active",
 };
 
 const activeBgVariants: Record<string, string> = {
@@ -121,7 +121,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         <span
           aria-hidden
           className={cn(
-            "absolute inset-0 rounded-[inherit] transition-[background-color,transform] duration-80 group-active:scale-[0.98]",
+            "absolute inset-0 rounded-[inherit] transition-[background-color,transform] duration-80 group-active/button:scale-[0.98]",
             bgClass,
           )}
         />
@@ -151,7 +151,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               </span>
             </>
           ) : isIconOnly ? (
-            <span className="[&_svg]:stroke-[1.5] [&_svg]:transition-[stroke-width] [&_svg]:duration-80 group-hover:[&_svg]:stroke-[2]">
+            <span className="[&_svg]:stroke-[1.5] [&_svg]:transition-[stroke-width] [&_svg]:duration-80 group-hover/button:[&_svg]:stroke-[2]">
               {children}
             </span>
           ) : (
@@ -160,7 +160,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 <LeadingIcon
                   size={iconSize}
                   strokeWidth={1.5}
-                  className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
+                  className="transition-[stroke-width] duration-80 group-hover/button:stroke-[2]"
                 />
               )}
               <span>{children}</span>
@@ -168,7 +168,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                 <TrailingIcon
                   size={iconSize}
                   strokeWidth={1.5}
-                  className="transition-[stroke-width] duration-80 group-hover:stroke-[2]"
+                  className="transition-[stroke-width] duration-80 group-hover/button:stroke-[2]"
                 />
               )}
             </>

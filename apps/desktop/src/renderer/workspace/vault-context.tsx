@@ -303,23 +303,33 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [mode, setMode] = useState<"raw" | "rich">("raw");
   const [canonical, setCanonical] = useState(false);
   const [richSafe, setRichSafe] = useState(false);
-  // Re-decide the editing surface whenever the file *content* changes from the
-  // outside — a file open or an external/agent reload (both land dirty=false).
-  // Skip while the user is typing (dirty), so we never recompute per keystroke
-  // or yank them mid-edit; the post-save flush leaves content unchanged, so it
-  // doesn't re-trigger this either.
+  // The mode (raw/rich) is the user's choice and is picked once per file open.
+  // `richSafe`/`canonical` still recompute on every content change (badges +
+  // the `showRich` gate), but the *mode* must not be re-derived afterward — a
+  // post-save flush (dirty→false, content unchanged) and an external/agent
+  // reload of the same file would otherwise yank the user out of the surface
+  // they picked. We track the path the mode was last chosen for to tell a real
+  // file switch from those same-file re-runs.
+  const modeChosenForPath = useRef<string | null>(null);
   useEffect(() => {
     if (editor.path === null || !MARKDOWN_RE.test(editor.path)) {
       setMode("raw");
       setCanonical(false);
       setRichSafe(false);
+      modeChosenForPath.current = editor.path;
       return;
     }
     if (editor.dirty) return;
     const safe = isRichSafe(editor.content);
     setCanonical(isCanonical(editor.content));
     setRichSafe(safe);
-    setMode(safe ? "rich" : "raw");
+    // Choose the surface only when a different file opened. (`showRich` also
+    // requires `richSafe`, so a file that turns non-rich-safe out from under us
+    // still falls back to raw regardless of the retained `mode`.)
+    if (modeChosenForPath.current !== editor.path) {
+      setMode(safe ? "rich" : "raw");
+      modeChosenForPath.current = editor.path;
+    }
   }, [editor.path, editor.content, editor.dirty]);
 
   const formatDoc = useCallback(() => {
