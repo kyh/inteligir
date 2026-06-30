@@ -68,11 +68,7 @@ export function CommandPalette({
         {entries.length > 0 && (
           <CommandGroup heading="Notes">
             {entries.map((e) => (
-              <CommandItem
-                key={e.path}
-                value={e.path}
-                onSelect={() => run(() => openFile(e.path))}
-              >
+              <CommandItem key={e.path} value={e.path} onSelect={() => run(() => openFile(e.path))}>
                 <FileTextIcon />
                 <span className="truncate">{e.path}</span>
               </CommandItem>

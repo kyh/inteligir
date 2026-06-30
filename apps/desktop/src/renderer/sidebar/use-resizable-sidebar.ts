@@ -23,9 +23,7 @@ function parseWidth(value: unknown): number | undefined {
 // getComputedStyle returns the custom property as authored ("240px"); parse the
 // leading number and fall back to the default if it isn't a px value.
 function currentWidthPx(): number {
-  const raw = getComputedStyle(document.documentElement)
-    .getPropertyValue("--sidebar-width")
-    .trim();
+  const raw = getComputedStyle(document.documentElement).getPropertyValue("--sidebar-width").trim();
   const px = Number.parseInt(raw, 10);
   return Number.isNaN(px) ? DEFAULT_WIDTH : px;
 }
