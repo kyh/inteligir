@@ -7,8 +7,12 @@
     "./globals.css": "./src/styles/globals.css",
     "./postcss.config": "./postcss.config.mjs",
     "./lib/surface-context": "./src/lib/surface-context.tsx",
+    "./lib/icon-context": "./src/lib/icon-context.tsx",
+    "./lib/icon-map": "./src/lib/icon-map.tsx",
+    "./lib/shape-context": "./src/lib/shape-context.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
+    "./hooks/use-merge-split": "./src/hooks/use-merge-split.tsx",
     "./hooks/*": "./src/hooks/*.ts"
   },
   "scripts": {
