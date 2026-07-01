@@ -33,7 +33,7 @@ import { generateInline } from "@/main/inline-ai";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { getAgentPorts } from "@/main/lib/agent-lifecycle";
 import { initAgentLog } from "@/main/lib/agent-log";
-import { broadcast } from "@/main/lib/broadcast";
+import { emitEvent, subscribeEvents } from "@/main/lib/events";
 import { handle } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
 import { getUiState } from "@/main/ui-state";
@@ -42,6 +42,7 @@ import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerVaultIpcHandlers } from "@/main/vault-ipc";
 import { getVaultManager, setVaultChangeNotifier } from "@/main/vault";
 import { isHttpUrl, toErrorMessage } from "@repo/core/ipc";
+import { IPC } from "@repo/core/ipc-registry";
 import type { UpdateState } from "@repo/core/ipc";
 
 const { autoUpdater } = electronUpdater;
@@ -127,7 +128,7 @@ let updateState: UpdateState = {
 
 function setUpdateState(patch: Partial<UpdateState>): void {
   updateState = { ...updateState, ...patch };
-  broadcast("onUpdateState", updateState);
+  emitEvent("onUpdateState", updateState);
 }
 
 // ---------------------------------------------------------------------------
@@ -291,7 +292,7 @@ function registerVoiceHandlers(): void {
             );
       const events = pushAudio(samples);
       for (const ev of events) {
-        broadcast("onSttTranscript", ev);
+        emitEvent("onSttTranscript", ev);
       }
     } catch (err) {
       console.error("[voice] audio chunk handler failed:", err);
@@ -321,7 +322,7 @@ function registerSkillAndIntegrationHandlers(): void {
   // Integrations (CLI binaries).
   handle("listIntegrations", () => listIntegrations(getAgentPorts()));
   handle("repairIntegrations", () =>
-    repairIntegrations(getAgentPorts(), (p) => broadcast("onSetupProgress", p)),
+    repairIntegrations(getAgentPorts(), (p) => emitEvent("onSetupProgress", p)),
   );
 }
 
@@ -513,11 +514,20 @@ function onAppReady(): void {
   configureAutoUpdater();
   registerIpcHandlers();
 
+  // Transport fold: forward every host-emitted event to all renderer windows.
+  subscribeEvents((method, payload) => {
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send(IPC[method].channel, payload);
+      }
+    }
+  });
+
   // Vault: ensure the folder + agent symlink exist and stream file changes to
   // the renderer so the Vault panel and bound widgets stay live. The notifier
   // is module-scoped, so it survives a logout/login reset.
   getVaultManager().ensureReady();
-  setVaultChangeNotifier((root) => broadcast("onVaultChanged", { root }));
+  setVaultChangeNotifier((root) => emitEvent("onVaultChanged", { root }));
 
   mainWindow = createWindow();
   getNotifications().setTargetWindow(mainWindow);

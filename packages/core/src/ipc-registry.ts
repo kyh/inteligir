@@ -398,6 +398,37 @@ type IpcRegistry = typeof IPC;
 export type IpcMethod = keyof IpcRegistry;
 
 // ---------------------------------------------------------------------------
+// Method partitions — hosts and transports slice the registry along these
+// lines: events are host → UI pushes (no handler), the updater trio is
+// implemented by the desktop shell (electron-updater), everything else is a
+// host-owned handler.
+// ---------------------------------------------------------------------------
+
+/** Host → UI push channels. */
+export type EventMethod = {
+  [K in IpcMethod]: IpcRegistry[K] extends { kind: "event" } ? K : never;
+}[IpcMethod];
+
+/** Self-update methods only the Electron shell can implement — a non-desktop
+ * transport has no handler for these and the UI hides the affordance. */
+export const UPDATE_METHODS = ["checkForUpdates", "downloadUpdate", "installUpdate"] as const;
+export type UpdateMethod = (typeof UPDATE_METHODS)[number];
+
+/** Methods the platform-agnostic host implements. */
+export type HostMethod = Exclude<IpcMethod, EventMethod | UpdateMethod>;
+
+// Object.keys returns string[]; the predicate re-proves membership so the
+// typed list needs no assertion.
+function methodNames<T extends Record<string, IpcEntry>>(registry: T): Array<keyof T & string> {
+  return Object.keys(registry).filter((key): key is keyof T & string =>
+    Object.hasOwn(registry, key),
+  );
+}
+
+/** Every registry method, as a runtime list (for folds and completeness checks). */
+export const IPC_METHODS: IpcMethod[] = methodNames(IPC);
+
+// ---------------------------------------------------------------------------
 // Type derivations
 // ---------------------------------------------------------------------------
 

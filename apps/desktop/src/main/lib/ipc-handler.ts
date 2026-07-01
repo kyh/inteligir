@@ -52,7 +52,7 @@ export function handle<K extends IpcMethod>(method: K, fn: IpcHandler<K>): void 
       return;
     case "event":
       throw new Error(
-        `Method "${method}" is event-only (main → renderer); use broadcast() instead`,
+        `Method "${method}" is event-only (main → renderer); use emitEvent() instead`,
       );
   }
 }

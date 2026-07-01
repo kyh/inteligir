@@ -14,7 +14,7 @@
 // runs the one-time legacy plaintext → SecretStore migration.
 // ---------------------------------------------------------------------------
 
-import { broadcast } from "@/main/lib/broadcast";
+import { emitEvent } from "@/main/lib/events";
 import { getUiState } from "@/main/ui-state";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
 
@@ -72,7 +72,7 @@ function ensureConnection(): WebSocket | null {
       if (isAudioPayload(data)) {
         // Base64-decoded PCM 24kHz int16 chunk — emit raw bytes to renderer.
         const buffer = Buffer.from(data.audio, "base64").buffer.slice(0);
-        broadcast("onTtsAudio", { audio: buffer });
+        emitEvent("onTtsAudio", { audio: buffer });
       }
     } catch {
       // ignore malformed frames

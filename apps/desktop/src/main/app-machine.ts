@@ -14,7 +14,7 @@ import {
   seedAgentResources,
   teardownAgentResources,
 } from "@/main/lib/agent-lifecycle";
-import { broadcast } from "@/main/lib/broadcast";
+import { emitEvent } from "@/main/lib/events";
 import {
   getBackgroundAgent,
   startBackgroundAgent,
@@ -141,7 +141,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
           kind: "auth",
           reason,
         } satisfies AppAgentEvent;
-        broadcast("onAgentEvent", errorEvent);
+        emitEvent("onAgentEvent", errorEvent);
       }
       machine?.ingest({ type: "AGENT_END" });
       getNotifications().notifyAgentIdle(turn?.assistantText ?? undefined);
@@ -150,7 +150,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
     }
   }
 
-  broadcast("onAgentEvent", event);
+  emitEvent("onAgentEvent", event);
 }
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
@@ -329,7 +329,7 @@ export class AppMachine {
 let machine: AppMachine | null = null;
 
 function broadcastAppState(state: AppState): void {
-  broadcast("onAppState", state);
+  emitEvent("onAppState", state);
 }
 
 async function downloadVoiceModel(): Promise<void> {
@@ -347,7 +347,7 @@ const realDeps: EffectDeps = {
   stopAgent,
   teardownResources: teardownAgentResources,
   newSession,
-  reportSetupProgress: (progress) => broadcast("onSetupProgress", progress),
+  reportSetupProgress: (progress) => emitEvent("onSetupProgress", progress),
 };
 
 export function getAppState(): AppState {
@@ -363,10 +363,10 @@ export function initMachine(): void {
   // Delegation push channel: the manager is electron-free, so the broadcast
   // hookup happens here (composition root for the machine's main singletons).
   setDelegationsChangedNotifier((delegations) =>
-    broadcast("onDelegationsUpdated", { delegations }),
+    emitEvent("onDelegationsUpdated", { delegations }),
   );
-  setDelegationStreamNotifier((id, text) => broadcast("onDelegationStreamed", { id, text }));
-  setInlineAiStreamNotifier((requestId, delta) => broadcast("onAiStreamed", { requestId, delta }));
+  setDelegationStreamNotifier((id, text) => emitEvent("onDelegationStreamed", { id, text }));
+  setInlineAiStreamNotifier((requestId, delta) => emitEvent("onAiStreamed", { requestId, delta }));
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);
