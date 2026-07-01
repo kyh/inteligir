@@ -83,4 +83,10 @@ export type HostOptions = {
   bundledGoogleClient?: { clientId: string; clientSecret: string };
   /** Mirror console to ~/.inteligir/logs/agent.log (default true). */
   agentLog?: boolean;
+  /** Open this vault folder at boot (cli mode: the vault is chosen on the
+   * command line, no native picker). Persisted through the same setRoot()
+   * path the picker uses, so all its guards apply — a root inside
+   * ~/.inteligir throws out of host.start(). Absent → the stored
+   * settings.json pointer (desktop). */
+  vaultPath?: string;
 };

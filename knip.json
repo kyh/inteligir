@@ -32,11 +32,27 @@
       "includeEntryExports": true
     },
     "packages/app": {
-      // The portable UI, source-imported by hosts (desktop today, server
-      // later) through its `./*` exports — don't flag them as unused. The dev
-      // harness entry (dev/main.tsx) is picked up via vite.config.ts.
+      // The portable UI, source-imported by hosts (desktop, server). Both
+      // browser entries (dev harness dev/main.tsx, web build web/main.tsx)
+      // are picked up via their vite configs.
       "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}", "web/**/*.{ts,tsx}"],
+      "includeEntryExports": false
+    },
+    "packages/cli": {
+      // bin/inteligir.js (package.json bin) and src/main.ts (its import +
+      // the dev script) are auto-detected entries.
+      "project": ["src/**/*.ts", "bin/**/*.js"],
+      // @repo/app: never imported — the cli resolves its dist-web assets at
+      // runtime via require.resolve("@repo/app/package.json"), and the
+      // workspace dep is what makes that resolvable (and, at Phase 7, what
+      // ships the build to npm).
+      "ignoreDependencies": ["@repo/app"]
+    },
+    "packages/server": {
+      // Consumed by @repo/cli through its `./*` exports.
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
     "packages/host": {
@@ -47,9 +63,11 @@
       "includeEntryExports": false
     },
     "packages/core": {
-      // Isomorphic contract + pure-logic library consumed by the desktop app
-      // (and, in later phases, the web server). Its `./*` exports are the
-      // public API across hosts, so don't flag them as unused.
+      // Isomorphic contract + pure-logic library consumed by every host
+      // (desktop shell, web server, browser client). Its `./*` exports are
+      // the public API across hosts, so don't flag them as unused.
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
     "packages/pi-driver": {

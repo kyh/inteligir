@@ -34,10 +34,20 @@ apps/
 packages/
   app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
   core/          # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
+  host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
+  server/        # Loopback HTTP+WS host: folds the registry over WS, serves the app build (@repo/server)
+  cli/           # `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
 ```
+
+The product runs two ways over the same `@repo/host` backend + `@repo/app` UI:
+the **Electron desktop** app (`pnpm dev:desktop`) and the **browser** via the
+cli (`pnpm --filter @repo/cli exec tsx src/main.ts <vault> [--port N] [--no-open]`,
+or the `inteligir` bin post-build). The cli boots `@repo/server` (loopback-only
+HTTP+WS; the bind address + Host/Origin allowlists are the auth gate — no
+accounts) and opens `http://127.0.0.1:<port>`.
 
 ## Common Commands
 

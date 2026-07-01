@@ -3,6 +3,7 @@
   "ignorePatterns": [
     "dist",
     "dist-electron",
+    "dist-web",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
@@ -106,10 +107,54 @@
       }
     },
     {
+      // Dependency boundary: server + cli are headless node shells over
+      // @repo/host — never electron or the desktop shell.
+      "files": ["packages/server/src/**", "packages/cli/src/**", "packages/cli/bin/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "electron-updater",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**"
+                ],
+                "message": "server/cli are headless node — no electron/desktop imports"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Dependency boundary: core is isomorphic — the same modules load in
+      // the browser (bridge-ws-client), the Electron renderer, and node
+      // hosts. No node built-ins, no electron.
+      "files": ["packages/core/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
+                "message": "packages/core is isomorphic — no node/electron imports"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       // Dependency boundary: the portable app is host-agnostic. It reaches
       // the host only through the injected Bridge (src/lib/bridge.ts) —
       // never electron, node built-ins, or the desktop shell.
-      "files": ["packages/app/src/**", "packages/app/dev/**"],
+      "files": ["packages/app/src/**", "packages/app/dev/**", "packages/app/web/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
