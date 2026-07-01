@@ -11,7 +11,6 @@ directories:
 files:
   - .output/app/**/*
   - package.json
-  - resources/agent/**/*
   # The main process bundles all JS deps (tree-shaken), so node_modules would
   # otherwise be dead weight duplicated into the asar. Exclude it wholesale,
   # then re-include only the native modules that CAN'T be bundled and must sit
@@ -19,8 +18,13 @@ files:
   # (koffi is bundled but only invoked on Windows — dead on mac, so not shipped.)
   - "!node_modules/**"
   - node_modules/sherpa-onnx-*/**/*
+# Bundled agent assets (skills/, AGENTS.md) — canonical copy lives in
+# packages/host/resources/agent; copied to Contents/Resources/agent, which is
+# where the electron platform's resourcesDir points in packaged builds.
+extraResources:
+  - from: ../../packages/host/resources/agent
+    to: agent
 asarUnpack:
-  - resources/**
   # sherpa-onnx-node ships native .node binaries (split into per-platform
   # optional deps like sherpa-onnx-darwin-arm64 — note: no "-node" infix).
   # .node files can't be require()'d from inside an asar, so unpack the whole

@@ -42,17 +42,63 @@
       }
     },
     {
-      // Dependency boundary: agent/ must stay main-free. Capabilities are
-      // injected as AgentPorts from main/lib/agent-lifecycle.ts.
-      "files": ["apps/desktop/src/agent/**"],
+      // Dependency boundary: the host library is platform-agnostic. Electron
+      // (and the desktop shell) reach it only through the injected
+      // HostPlatform (packages/host/src/platform.ts).
+      "files": ["packages/host/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
           {
             "patterns": [
               {
-                "group": ["@/main", "@/main/**", "**/main/**"],
-                "message": "agent/ must not import from main/ — inject via AgentPorts (main/lib/agent-lifecycle.ts)"
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "electron-updater",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**"
+                ],
+                "message": "packages/host is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/platform.ts)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Dependency boundary: agent/ must stay host-free (the old "agent never
+      // imports main" rule, re-rooted). Any relative import that climbs out
+      // of src/agent/ reaches host internals; capabilities are injected as
+      // AgentPorts from lib/agent-lifecycle.ts. Two blocks because the rule
+      // is per-specifier text: one "../" escapes from agent/*.ts, two from
+      // agent/<bundle>/*.ts.
+      "files": ["packages/host/src/agent/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["electron", "electron/*", "../**"],
+                "message": "agent/ must not reach into the host — inject via AgentPorts (lib/agent-lifecycle.ts)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/host/src/agent/*/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["electron", "electron/*", "../../**"],
+                "message": "agent/ must not reach into the host — inject via AgentPorts (lib/agent-lifecycle.ts)"
               }
             ]
           }
