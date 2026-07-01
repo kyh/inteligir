@@ -64,7 +64,7 @@ import { Menu, MenuContent, MenuItem, MenuSeparator } from "@repo/ui/components/
 import { BlockList } from "@/renderer/editor/block-list";
 import { DragKit } from "@/renderer/editor/block-draggable";
 import { AI_MARK, AiMarkKit } from "@/renderer/editor/inline-ai";
-import { InlineAiToolbar } from "@/renderer/editor/inline-ai-toolbar";
+import { SelectionToolbar } from "@/renderer/editor/selection-toolbar";
 import { MD_STRINGIFY } from "@/renderer/editor/markdown-doc";
 import { SlashKit } from "@/renderer/editor/slash-menu";
 import { TableOfContents } from "@/renderer/editor/toc";
@@ -394,7 +394,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
         placeholder="Write…"
         spellCheck={false}
       />
-      <InlineAiToolbar />
+      <SelectionToolbar />
       <TableOfContents />
     </Plate>
   );

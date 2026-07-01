@@ -38,7 +38,7 @@ import {
   InlineComboboxInput,
   InlineComboboxItem,
 } from "@/renderer/editor/inline-combobox";
-import { triggerInlineAi } from "@/renderer/editor/inline-ai-toolbar";
+import { triggerInlineAi } from "@/renderer/editor/selection-toolbar";
 
 // Turn the current block(s) into a plain block type (heading/paragraph/quote),
 // clearing any list formatting first.

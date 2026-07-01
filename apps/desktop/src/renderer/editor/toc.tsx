@@ -83,7 +83,7 @@ export function TableOfContents() {
   };
 
   return (
-    <div className="pointer-events-none fixed top-14 right-2 z-30 hidden lg:block">
+    <div className="pointer-events-none fixed top-1/2 right-2 z-30 hidden -translate-y-1/2 lg:block">
       <div className="group pointer-events-auto flex flex-col items-end py-2">
         {/* Collapsed: dash ticks, one per heading (fade out on hover). */}
         <div className="flex flex-col items-end gap-2 pr-2 transition-opacity duration-200 group-hover:opacity-0">

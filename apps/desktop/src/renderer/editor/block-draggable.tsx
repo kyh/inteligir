@@ -26,7 +26,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef, useState } from "react";
 import { CopyIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react";
-import { KEYS, PathApi } from "platejs";
+import { PathApi } from "platejs";
 import {
   createPlatePlugin,
   type PlateElementProps,
@@ -43,6 +43,8 @@ import {
   MenuItem,
   MenuSeparator,
 } from "@repo/ui/components/menu";
+
+import { TURN_INTO, turnIntoAt } from "@/renderer/editor/block-transforms";
 
 // Stable per-block drag ids. Slate's moveNodes preserves node object identity,
 // so a WeakMap keyed by the element yields ids that survive a reorder. Both the
@@ -101,19 +103,6 @@ const BlockDraggable: RenderNodeWrapper = ({ editor, path }) => {
   return (props) => <Draggable {...props} />;
 };
 
-// "Turn into" targets. Lists are indent-based (a paragraph carrying
-// `listStyleType` + `indent`), so they share `type: KEYS.p`.
-const TURN_INTO: { label: string; type: string; listStyleType?: string }[] = [
-  { label: "Text", type: KEYS.p },
-  { label: "Heading 1", type: KEYS.h1 },
-  { label: "Heading 2", type: KEYS.h2 },
-  { label: "Heading 3", type: KEYS.h3 },
-  { label: "Bulleted list", type: KEYS.p, listStyleType: "disc" },
-  { label: "Numbered list", type: KEYS.p, listStyleType: "decimal" },
-  { label: "To-do list", type: KEYS.p, listStyleType: "todo" },
-  { label: "Quote", type: KEYS.blockquote },
-];
-
 function Draggable(props: PlateElementProps) {
   const { children, element } = props;
   const editor = useEditorRef();
@@ -154,17 +143,9 @@ function Draggable(props: PlateElementProps) {
     const at = editor.api.findPath(element);
     if (at) editor.tf.insertNodes(structuredClone(element), { at: PathApi.next(at) });
   };
-  const turnInto = (opt: { type: string; listStyleType?: string }) => {
+  const turnInto = (opt: (typeof TURN_INTO)[number]) => {
     const at = editor.api.findPath(element);
-    if (!at) return;
-    editor.tf.withoutNormalizing(() => {
-      if (opt.listStyleType) {
-        editor.tf.setNodes({ type: opt.type, listStyleType: opt.listStyleType, indent: 1 }, { at });
-      } else {
-        editor.tf.unsetNodes(["listStyleType", "indent"], { at });
-        editor.tf.setNodes({ type: opt.type }, { at });
-      }
-    });
+    if (at) turnIntoAt(editor, at, opt);
   };
 
   return (
