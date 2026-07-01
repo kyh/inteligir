@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2Icon, ClockIcon, Loader2Icon, XCircleIcon, XIcon } from "lucide-react";
+import {
+  CheckCircle2Icon,
+  ClockIcon,
+  Loader2Icon,
+  SquareIcon,
+  XCircleIcon,
+  XIcon,
+} from "lucide-react";
 
 import { Response } from "@repo/ui/components/ai-elements/response";
 import { cn } from "@repo/ui/lib/utils";
@@ -18,6 +25,7 @@ import type { Delegation } from "@/shared/delegation";
 export function DelegationDock() {
   const delegations = useDelegationStore((s) => s.delegations);
   const streams = useDelegationStore((s) => s.streams);
+  const cancel = useDelegationStore((s) => s.cancel);
   const [tracked, setTracked] = useState<ReadonlySet<string>>(new Set());
   const [dismissed, setDismissed] = useState<ReadonlySet<string>>(new Set());
 
@@ -50,6 +58,7 @@ export function DelegationDock() {
           key={d.id}
           delegation={d}
           stream={streams[d.id] ?? null}
+          onStop={() => cancel(d.id)}
           onDismiss={() =>
             setDismissed((prev) => {
               const next = new Set(prev);
@@ -79,13 +88,16 @@ function StatusIcon({ status }: { status: Delegation["status"] }) {
 function DelegationCard({
   delegation,
   stream,
+  onStop,
   onDismiss,
 }: {
   delegation: Delegation;
   stream: string | null;
+  onStop: () => void;
   onDismiss: () => void;
 }) {
   const { status, anchor, resultSummary, error } = delegation;
+  const active = status === "running" || status === "queued";
   // Prefer the live stream while running; fall back to the persisted summary.
   const body = error ?? stream ?? resultSummary ?? "";
 
@@ -96,14 +108,26 @@ function DelegationCard({
         <span className="min-w-0 flex-1 truncate text-xs font-medium" title={anchor.text}>
           {anchor.text}
         </span>
-        <button
-          type="button"
-          onClick={onDismiss}
-          title="Dismiss"
-          className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <XIcon className="size-3.5" />
-        </button>
+        {active ? (
+          <button
+            type="button"
+            onClick={onStop}
+            title="Stop"
+            className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted hover:text-destructive"
+          >
+            <SquareIcon className="size-3 fill-current" />
+            Stop
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={onDismiss}
+            title="Dismiss"
+            className="rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <XIcon className="size-3.5" />
+          </button>
+        )}
       </div>
       {body.length > 0 && (
         <div className="min-h-0 overflow-y-auto px-3 py-2 text-xs leading-relaxed select-text">

@@ -84,7 +84,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   };
 
   return (
-    <Sidebar collapsible="offcanvas" className="border-r-0!">
+    <Sidebar collapsible="offcanvas" className="border-r border-border">
       {/* `pt-8` reserves a draggable strip for the macOS traffic lights, which
        * sit at window (16,16) and would otherwise overlap the folder switcher. */}
       <SidebarHeader className="app-drag gap-1.5 px-2 pt-9 pb-1">

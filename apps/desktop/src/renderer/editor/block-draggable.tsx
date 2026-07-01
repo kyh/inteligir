@@ -25,7 +25,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef, useState } from "react";
-import { CopyIcon, GripVerticalIcon, PlusIcon, TextIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { KEYS, PathApi } from "platejs";
 import {
   createPlatePlugin,
@@ -38,11 +38,10 @@ import { cn } from "@repo/ui/lib/utils";
 import {
   Menu,
   MenuContent,
+  MenuGroup,
+  MenuGroupLabel,
   MenuItem,
   MenuSeparator,
-  MenuSub,
-  MenuSubContent,
-  MenuSubTrigger,
 } from "@repo/ui/components/menu";
 
 // Stable per-block drag ids. Slate's moveNodes preserves node object identity,
@@ -215,19 +214,15 @@ function Draggable(props: PlateElementProps) {
             <CopyIcon />
             Duplicate
           </MenuItem>
-          <MenuSub>
-            <MenuSubTrigger>
-              <TextIcon />
-              Turn into
-            </MenuSubTrigger>
-            <MenuSubContent>
-              {TURN_INTO.map((opt) => (
-                <MenuItem key={opt.label} onClick={() => turnInto(opt)}>
-                  {opt.label}
-                </MenuItem>
-              ))}
-            </MenuSubContent>
-          </MenuSub>
+          <MenuSeparator />
+          <MenuGroup>
+            <MenuGroupLabel>Turn into</MenuGroupLabel>
+            {TURN_INTO.map((opt) => (
+              <MenuItem key={opt.label} onClick={() => turnInto(opt)}>
+                {opt.label}
+              </MenuItem>
+            ))}
+          </MenuGroup>
           <MenuSeparator />
           <MenuItem
             onClick={removeBlock}

@@ -389,7 +389,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
       }}
     >
       <PlateContent
-        className="min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20"
+        className="potion-editor-typography min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20"
         placeholder="Write…"
         spellCheck={false}
       />

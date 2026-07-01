@@ -81,6 +81,9 @@ export class DelegationManager {
   private readonly readVault: (rel: string) => string;
   private getAgent: (() => DelegationAgent | null) | null = null;
   private running = false;
+  // Id of a running delegation the user asked to stop — the run marks it stopped
+  // once the interrupt lands the agent idle.
+  private stopRequested: string | null = null;
   // Bumped on stop() to invalidate the in-flight run. A run only owns the queue
   // lock while its captured epoch is still current, so a run abandoned by stop()
   // can't reset the lock a fresh runner now holds (no overlapping execution).
@@ -253,6 +256,15 @@ export class DelegationManager {
 
   /** Cancel a still-queued delegation. A running one can't be pulled back. */
   cancelDelegation(id: string): { ok: boolean } {
+    // Running: interrupt the agent; the run marks it stopped once it goes idle.
+    if (this.getDelegations().some((d) => d.id === id && d.status === "running")) {
+      this.stopRequested = id;
+      void this.getAgent?.()
+        ?.interrupt()
+        .catch(() => {});
+      return { ok: true };
+    }
+    // Queued: drop it from the queue.
     let changed = false;
     this.store.update((all) =>
       all.filter((d) => {
@@ -388,10 +400,14 @@ export class DelegationManager {
     const unsubscribe = agent.subscribe((raw) => {
       const event = parseAgentEvent(raw);
       if (!event) return;
-      // Accumulate the assistant's text deltas into a live transcript for the
-      // response dock; keep the last full message as the persisted summary.
+      // Build a live transcript for the response dock: the assistant's text
+      // deltas + a line per tool call so the user sees what it's doing before it
+      // writes anything. Only the final message becomes the persisted summary.
       if (event.type === "message_update") {
         streamed += event.delta;
+        streamNotifier?.(delegation.id, streamed);
+      } else if (event.type === "tool_execution_start") {
+        streamed += `${streamed ? "\n\n" : ""}\`⚙ ${event.toolName}\``;
         streamNotifier?.(delegation.id, streamed);
       } else if (event.type === "message_end" && event.role === "assistant" && event.text) {
         captured.text = event.text;
@@ -401,6 +417,11 @@ export class DelegationManager {
     try {
       await agent.sendMessage(buildPrompt(fresh));
       const finished = await agent.waitForIdle(RUN_TIMEOUT_MS);
+      if (this.stopRequested === delegation.id) {
+        this.stopRequested = null;
+        this.finishRun(delegation.id, failedPatch("Stopped."));
+        return;
+      }
       if (!finished) {
         await agent.interrupt().catch(() => {});
         this.finishRun(delegation.id, failedPatch("Timed out"));

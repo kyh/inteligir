@@ -326,7 +326,7 @@ describe("DelegationManager run lifecycle", () => {
     ]);
   });
 
-  it("cancels a queued delegation but not a running one", async () => {
+  it("stops a running delegation and cancels a queued one", async () => {
     const mgr = makeManager();
     const fake = fakeAgent();
     mgr.setRunner(() => fake.agent);
@@ -337,8 +337,9 @@ describe("DelegationManager run lifecycle", () => {
     const firstId = first.ok ? first.delegation.id : "";
     const secondId = second.ok ? second.delegation.id : "";
 
-    // First is running → cancel is a no-op; second is queued → cancelled.
-    expect(mgr.cancelDelegation(firstId).ok).toBe(false);
+    // First is running → stop interrupts it (stays in the list); second is
+    // queued → removed from the queue.
+    expect(mgr.cancelDelegation(firstId).ok).toBe(true);
     expect(mgr.cancelDelegation(secondId).ok).toBe(true);
     expect(mgr.getDelegations().map((d) => d.anchor.text)).toEqual(["task one"]);
   });
