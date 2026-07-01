@@ -59,7 +59,7 @@
                   "electron-updater",
                   "@repo/desktop",
                   "@repo/desktop/*",
-                  "**/apps/desktop/**"
+                  "**/packages/desktop/**"
                 ],
                 "message": "packages/host is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/platform.ts)"
               }
@@ -122,7 +122,7 @@
                   "electron-updater",
                   "@repo/desktop",
                   "@repo/desktop/*",
-                  "**/apps/desktop/**"
+                  "**/packages/desktop/**"
                 ],
                 "message": "server/cli are headless node — no electron/desktop imports"
               }
@@ -167,7 +167,7 @@
                   "node:*",
                   "@repo/desktop",
                   "@repo/desktop/*",
-                  "**/apps/desktop/**"
+                  "**/packages/desktop/**"
                 ],
                 "message": "packages/app is portable — no electron/node/desktop imports; go through the injected Bridge (src/lib/bridge.ts)"
               }

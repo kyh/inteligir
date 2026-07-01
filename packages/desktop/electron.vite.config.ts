@@ -19,7 +19,7 @@ export default defineConfig(() => ({
       // under `pnpm with-env` (dotenv -e .env), which is what populates these;
       // empty/absent vars → no bundled client → the GCP-dialog flow remains.
       // Dev (`electron-vite dev` runs without with-env) falls back to reading
-      // process.env at runtime after main loads apps/desktop/.env.
+      // process.env at runtime after main loads packages/desktop/.env.
       // Root `pnpm build` goes through turbo: turbo.json's @repo/desktop#build
       // entry lists both vars in `env` so strict mode passes them through and
       // the cache invalidates when they change (else: stale clientless bundle).
@@ -78,7 +78,7 @@ export default defineConfig(() => ({
         // @repo/app is source-only with no exports map (an `exports` fallback
         // array resolves inconsistently across TS/Vite/node); every host pins
         // `@repo/app` to ./src, like the package's own dev harness does.
-        "@repo/app": resolve(configDir, "../../packages/app/src"),
+        "@repo/app": resolve(configDir, "../app/src"),
       },
     },
     build: {

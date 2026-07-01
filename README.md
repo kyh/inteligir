@@ -1,45 +1,44 @@
 # Inteligir
 
-> An artificially intelligent operating system.
+> An AI-native notes app — Obsidian with an agent.
 
-Turborepo monorepo. Desktop app (Electron + pi-coding-agent) plus a static marketing site, a mobile remote, and a relay Worker.
+Turborepo monorepo. The product runs two ways over the same backend + UI: an
+Electron desktop app and the browser via an `inteligir` CLI. Plus a static
+marketing site.
 
 ## Layout
 
 ```
 apps/
-  desktop/         Electron app — the product
-  mobile/          Expo app — remote surface, pairs to the desktop
-  server/          Cloudflare Worker (partyserver) — WS relay + external chat gateway
   web/             Next.js static marketing site (landing page only)
 packages/
-  agent-runtime/   Filesystem + install primitives for the agent
-  dispatch/        Shared mobile↔desktop wire protocol
-  pi-driver/       Wrapper around pi-coding-agent — stable surface for app code
-  ui/              Shared UI components (shadcn/ui base)
+  app/             Portable UI — the whole workspace as a browser React app (@repo/app)
+  core/            Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
+  host/            Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
+  server/          Loopback HTTP+WS host: folds the registry over WS, serves the app build (@repo/server)
+  cli/             `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
+  desktop/         Thin Electron shell over host + app (@repo/desktop)
+  ui/              Shared UI components (@repo/ui)
+  agent-runtime/   Filesystem + install primitives for the agent (@repo/agent-runtime)
+  pi-driver/       Wrapper around pi-coding-agent — stable surface for app code (@repo/pi-driver)
 ```
 
-Every app and package has its own `README.md`:
+Workspace `README.md`s:
 
-| Workspace                | README                                                                                       |
-| ------------------------ | -------------------------------------------------------------------------------------------- |
-| `apps/desktop`           | [process boundary, IPC, lifecycle, voice](./apps/desktop/README.md)                          |
-| `apps/mobile`            | [Expo remote — pairing flow, screens](./apps/mobile/README.md)                               |
-| `apps/server`            | [relay Worker — WS relay + chat gateway, auth](./apps/server/README.md)                      |
-| `apps/web`               | [static marketing site](./apps/web/README.md)                                                |
-| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md)                    |
-| `packages/dispatch`      | [protocol code map](./packages/dispatch/README.md) · [spec](./packages/dispatch/PROTOCOL.md) |
-| `packages/pi-driver`     | [pi-coding-agent wrapper](./packages/pi-driver/README.md)                                    |
-| `packages/ui`            | [shared design system](./packages/ui/README.md)                                              |
+| Workspace                | README                                                                       |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| `packages/desktop`       | [Electron shell — process boundary, packaging](./packages/desktop/README.md) |
+| `packages/host`          | [node backend — createHost, HostPlatform](./packages/host/README.md)         |
+| `packages/server`        | [browser host — loopback HTTP+WS](./packages/server/README.md)               |
+| `packages/cli`           | [`inteligir` launcher](./packages/cli/README.md)                             |
+| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md)    |
+| `packages/pi-driver`     | [pi-coding-agent wrapper](./packages/pi-driver/README.md)                    |
+| `packages/ui`            | [shared design system](./packages/ui/README.md)                              |
+| `apps/web`               | [static marketing site](./apps/web/README.md)                                |
 
-Deeper architecture docs live next to the code:
-
-- [`docs/chat-interfaces.md`](./docs/chat-interfaces.md) — chat with the agent from Slack/Telegram/WhatsApp/Discord (Chat SDK gateway + relay bridge on `@repo/server`)
-- [`apps/desktop/src/main/README.md`](./apps/desktop/src/main/README.md) — state machine triad (reducer/effects/machine)
-- [`apps/desktop/src/agent/README.md`](./apps/desktop/src/agent/README.md) — pi extension bundle pattern
-- [`packages/dispatch/PROTOCOL.md`](./packages/dispatch/PROTOCOL.md) — dispatch protocol v1: pairing, message catalog, trust boundaries
-
-`AGENTS.md` (root) is read by Claude Code / agents working in the repo — quality gates, dev-loop tools, conventions.
+`docs/replatform-plan.md` is the architecture plan of record. `CLAUDE.md`
+(root) is read by Claude Code / agents working in the repo — quality gates,
+dev-loop tools, conventions.
 
 ## Common commands
 
@@ -47,7 +46,6 @@ Deeper architecture docs live next to the code:
 pnpm dev              # All workspaces
 pnpm dev:web          # Web only
 pnpm dev:desktop      # Desktop only
-pnpm dev:server       # Relay Worker only (wrangler dev)
 pnpm build
 pnpm typecheck
 pnpm lint             # oxlint

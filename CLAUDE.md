@@ -30,8 +30,8 @@ symlink in its workspace and edits files with its native file tools.
 ```
 apps/
   web/           # Static marketing site (@repo/web) — landing page only
-  desktop/       # Electron app — the notes product (@repo/desktop)
 packages/
+  desktop/       # Thin Electron shell — the notes product (@repo/desktop)
   app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
   core/          # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
   host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)

@@ -3,7 +3,7 @@
   "ignoreBinaries": ["gh", "tar", "ps", "tasklist"],
   "workspaces": {
     ".": {},
-    "apps/desktop": {
+    "packages/desktop": {
       "entry": [
         "src/main/index.ts",
         "src/preload/index.ts",
