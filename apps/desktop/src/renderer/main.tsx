@@ -1,29 +1,20 @@
-import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { MemoryRouter, Route, Routes } from "react-router";
 
-import { AppLayout } from "@/renderer/app";
-import { WorkspacePage } from "@/renderer/workspace/workspace-page";
-import { LoginPage } from "@/renderer/login/login-page";
-import { OnboardingPage } from "@/renderer/onboarding/onboarding-page";
-import { ErrorBoundary } from "@/renderer/components/error-boundary";
-import "./styles.css";
+import { App } from "@repo/app/app-root";
+import { installBridge } from "@repo/app/lib/bridge";
 
+// The preload script exposes the IPC bridge on window before this module
+// runs. Missing means preload failed to load — render the failure instead of
+// a silently broken app.
 const root = document.getElementById("root");
+const bridge = window.desktopBridge;
+
 if (root) {
-  createRoot(root).render(
-    <StrictMode>
-      <ErrorBoundary>
-        <MemoryRouter>
-          <Routes>
-            <Route element={<AppLayout />}>
-              <Route index element={<WorkspacePage />} />
-              <Route path="login" element={<LoginPage />} />
-              <Route path="onboarding" element={<OnboardingPage />} />
-            </Route>
-          </Routes>
-        </MemoryRouter>
-      </ErrorBoundary>
-    </StrictMode>,
-  );
+  if (bridge) {
+    installBridge(bridge);
+    createRoot(root).render(<App />);
+  } else {
+    root.textContent =
+      "Inteligir failed to start: the desktop bridge is missing (preload did not load). Please relaunch the app.";
+  }
 }

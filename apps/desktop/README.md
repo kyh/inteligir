@@ -8,9 +8,8 @@ Three-process Electron app: an AI-native notes workspace (sidebar file tree, mar
 src/
   main/      Electron main process — app lifecycle, agent singleton, IPC, auto-updater
   preload/   Bridge — exposes a typed window.desktopBridge to the renderer over contextBridge
-  renderer/  React UI — chat, login, onboarding, voice, settings
+  renderer/  Entry shim — index.html + main.tsx that install window.desktopBridge into @repo/app
   agent/     pi-coding-agent composition — extension bundles + Agent class
-  shared/    Types/schemas crossing the IPC boundary (used by main + renderer)
   __tests__/ Vitest suites — reducer, machine, effects, etc.
 
 resources/   Bundled assets shipped inside the .app — agent skills, AGENTS.md, icons
@@ -38,7 +37,7 @@ filesystem / shell / agent-browser CLI / executor daemon (connected APIs)
 - **Preload** is the narrow bridge. Validates inbound, types outbound.
 - **Main** is where everything real happens. Holds the agent singleton, manages auth, runs the state machine.
 
-IPC is typed end-to-end via the registry in `shared/ipc-registry.ts`: each method pairs a channel name with a TypeBox payload schema (runtime-validated in main via `Value.Check`) and a result/event type. The preload bridge and the `DesktopBridge` type are both derived from the registry, so renaming a method or changing a payload shape produces a typecheck error in both processes.
+IPC is typed end-to-end via the registry in `@repo/core/ipc-registry`: each method pairs a channel name with a TypeBox payload schema (runtime-validated in main via `Value.Check`) and a result/event type. The preload bridge and the `Bridge` type are both derived from the registry, so renaming a method or changing a payload shape produces a typecheck error in both processes.
 
 ## App lifecycle
 
@@ -66,14 +65,14 @@ renderer:  voice-machine (state) → voice-store → chat agent / UI
            ElevenLabs TTS ← agent text deltas
 ```
 
-- `src/renderer/voice/` — `stt.ts` (mic + worklet), `stt-worklet.js` (audio thread), `tts.ts` (ElevenLabs WS), `voice-pipeline.ts` (pure I/O wrapper), `voice-machine.ts` (state machine — single source of truth)
-- `src/renderer/stores/voice-store.ts` — zustand projection of `VoiceMachine`. All async ops generation-guarded against teardown/swap races.
+- `packages/app/src/voice/` — `stt.ts` (mic + worklet), `stt-worklet.js` (audio thread), `tts.ts` (ElevenLabs WS), `voice-pipeline.ts` (pure I/O wrapper), `voice-machine.ts` (state machine — single source of truth)
+- `packages/app/src/stores/voice-store.ts` — zustand projection of `VoiceMachine`. All async ops generation-guarded against teardown/swap races.
 - `src/main/voice/parakeet.ts` — singleton recognizer + audio chunk handler
 - `src/main/voice/model-download.ts` — fetches the model to `app.getPath("userData")/stt/` on first run via the `setting_up` step. Download failure is non-fatal; the user can retry from the mic toggle later.
 
 The model is ~140 MB and downloads automatically during onboarding — no manual setup. STT requires no API keys; TTS requires `ELEVENLABS_API_KEY` (+ optional `ELEVENLABS_VOICE_ID`) in `.env`.
 
-Tests in `src/__tests__/voice-machine.test.ts` + `voice-store.test.ts` cover the state-machine reducer and the async race patterns (teardown mid-flight, pipeline-identity swap, reset during download, etc.).
+Tests in `packages/app/src/__tests__/voice-machine.test.ts` + `voice-store.test.ts` cover the state-machine reducer and the async race patterns (teardown mid-flight, pipeline-identity swap, reset during download, etc.).
 
 ## Dev
 
@@ -91,12 +90,12 @@ Opens Electron with HMR (renderer) + tsc watch (main/preload). CDP exposed on po
 
 ## Adding things — quick map
 
-| Adding...                                 | Where                                                                                                                                   | See                                |
-| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| New IPC method                            | Registry entry in `shared/ipc-registry.ts` + `handle()` in `main/{index,vault-ipc,executor-ipc}.ts` (preload bridge is derived)         | `main/README.md`                   |
-| New app state phase                       | `shared/app-state.ts` + reducer + tests                                                                                                 | `main/README.md`                   |
-| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring                                                                                   | `main/README.md`                   |
-| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                                                                                          | `agent/README.md`                  |
-| Reusable install primitive                | `packages/agent-runtime/`                                                                                                               | `packages/agent-runtime/README.md` |
-| New workspace feature (sidebar/editor)    | A component under `renderer/{sidebar,editor,composer,settings}/` wired into `workspace/workspace-page.tsx`; vault data via `useVault()` | (no README — standard React)       |
-| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`                                                                                      | `agent/README.md`                  |
+| Adding...                                 | Where                                                                                                                                      | See                                |
+| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------- |
+| New IPC method                            | Registry entry in `@repo/core/ipc-registry` + `handle()` in `main/{index,vault-ipc,executor-ipc}.ts` (preload bridge is derived)           | `main/README.md`                   |
+| New app state phase                       | `@repo/core/app-state` + reducer + tests                                                                                                   | `main/README.md`                   |
+| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring                                                                                      | `main/README.md`                   |
+| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                                                                                             | `agent/README.md`                  |
+| Reusable install primitive                | `packages/agent-runtime/`                                                                                                                  | `packages/agent-runtime/README.md` |
+| New workspace feature (sidebar/editor)    | A component under `packages/app/src/{sidebar,editor,composer,settings}/` wired into `workspace/workspace-page.tsx`; vault via `useVault()` | (no README — standard React)       |
+| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`                                                                                         | `agent/README.md`                  |

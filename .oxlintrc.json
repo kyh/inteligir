@@ -58,6 +58,32 @@
           }
         ]
       }
+    },
+    {
+      // Dependency boundary: the portable app is host-agnostic. It reaches
+      // the host only through the injected Bridge (src/lib/bridge.ts) —
+      // never electron, node built-ins, or the desktop shell.
+      "files": ["packages/app/src/**", "packages/app/dev/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "node:*",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**"
+                ],
+                "message": "packages/app is portable — no electron/node/desktop imports; go through the injected Bridge (src/lib/bridge.ts)"
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
