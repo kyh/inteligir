@@ -11,5 +11,13 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts"],
+    server: {
+      deps: {
+        // @platejs/math imports katex's css at module top; inlining routes the
+        // package through vite so the css import is stubbed — plain node ESM
+        // would crash on the .css extension.
+        inline: [/@platejs\/math/],
+      },
+    },
   },
 });

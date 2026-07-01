@@ -1,119 +1,122 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { isCanonical, isRichSafe, roundTrip, toCanonical } from "@repo/app/editor/markdown-doc";
+import {
+  ParseFailedError,
+  analyzeMarkdown,
+  roundTrip,
+  toCanonical,
+} from "@repo/app/editor/markdown/markdown-doc";
 
-// markdown-doc owns the editor's headless plugin set + round-trip helpers. This
-// is the fidelity guard: the editor round-trips the user's markdown, and a
-// serializer that silently dropped a construct would corrupt vault files.
+// The WP1 fixture matrix — the serialization pipeline's contract, one file per
+// behavior class:
+//
+//   canonical/*.md          roundTrip(src) === src (modulo trailing newline),
+//                           idempotent, analyzeMarkdown(src).canonical === true.
+//   raw/*.<kind>.md         analyzeMarkdown(src).richSafe === false with the
+//                           expected RawReason.kind encoded in the filename —
+//                           never mangled, never Rich; roundTrip throws.
+//   churn/*.{in,out}.md     roundTrip(in) === out, roundTrip(out) === out
+//                           (idempotent normalization); rich-safe where marked.
+//
+// A serializer change that reshapes ANY byte of a canonical fixture is a
+// regression — fix the serializer, don't re-pin the fixture, unless the change
+// is a conscious canonical-form revision documented in the commit.
 
-describe("markdown round-trip", () => {
-  it("preserves the common constructs the editor supports", () => {
-    const md = [
-      "# Title",
-      "",
-      "Some **bold**, *italic*, and `inline code`.",
-      "",
-      "## Section",
-      "",
-      "- first",
-      "- second",
-      "",
-      "> a quote",
-      "",
-      "[a link](https://example.com)",
-      "",
-      "```",
-      "code block",
-      "```",
-      "",
-    ].join("\n");
+const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/", import.meta.url));
 
-    const out = roundTrip(md);
-    expect(out).toContain("# Title");
-    expect(out).toContain("## Section");
-    expect(out).toContain("**bold**");
-    expect(out).toContain("`inline code`");
-    expect(out).toMatch(/[-*] first/);
-    expect(out).toMatch(/[-*] second/);
-    expect(out).toContain("> a quote");
-    expect(out).toContain("[a link](https://example.com)");
-    expect(out).toContain("code block");
+function read(dir: "canonical" | "raw" | "churn", name: string): string {
+  return readFileSync(`${FIXTURES}${dir}/${name}`, "utf8");
+}
+function list(dir: "canonical" | "raw" | "churn"): string[] {
+  return readdirSync(`${FIXTURES}${dir}`).toSorted();
+}
+
+describe("canonical fixtures (byte-stable)", () => {
+  for (const name of list("canonical")) {
+    it(name, () => {
+      const src = read("canonical", name);
+      const out = roundTrip(src);
+      expect(out.trimEnd()).toBe(src.trimEnd());
+      expect(roundTrip(out)).toBe(out); // idempotent
+      const analysis = analyzeMarkdown(src);
+      expect(analysis.canonical).toBe(true);
+      expect(analysis.richSafe).toBe(true);
+      expect(analysis.rawReason).toBeNull();
+    });
+  }
+});
+
+describe("raw fixtures (throw-or-Raw, never mangled)", () => {
+  for (const name of list("raw")) {
+    // Expected reason kind is the filename's second-to-last segment,
+    // e.g. `attr-bare.jsx-attr.md` → "jsx-attr".
+    const kind = name.split(".").at(-2);
+    it(`${name} → ${kind}`, () => {
+      const src = read("raw", name);
+      const analysis = analyzeMarkdown(src);
+      expect(analysis.richSafe).toBe(false);
+      expect(analysis.canonical).toBe(false);
+      expect(analysis.rawReason?.kind).toBe(kind);
+      expect(() => roundTrip(src)).toThrow(ParseFailedError);
+    });
+  }
+});
+
+// Churn fixtures that are NOT rich-safe: their round-trip drops alphanumeric
+// content (letters() diverges), so they open Raw and only Format converts them.
+//   math-meta       — the `$$latex` meta line is dropped by Plate's equation rule
+//   entities        — `&nbsp;`/`&mdash;` decode ("nbsp"/"mdash" letters vanish)
+//   jsx-attr-forms  — `&amp;` inside an attribute decodes likewise
+const CHURN_NOT_RICH_SAFE = new Set(["math-meta", "entities", "jsx-attr-forms"]);
+
+describe("churn fixtures (idempotent normalization)", () => {
+  const stems = list("churn")
+    .filter((n) => n.endsWith(".in.md"))
+    .map((n) => n.slice(0, -".in.md".length));
+  for (const stem of stems) {
+    it(stem, () => {
+      const input = read("churn", `${stem}.in.md`);
+      const expected = read("churn", `${stem}.out.md`);
+      const out = roundTrip(input);
+      expect(out.trimEnd()).toBe(expected.trimEnd());
+      expect(roundTrip(out)).toBe(out); // idempotent
+      const analysis = analyzeMarkdown(input);
+      expect(analysis.canonical).toBe(false);
+      expect(analysis.richSafe).toBe(!CHURN_NOT_RICH_SAFE.has(stem));
+      // The normalized form is canonical from then on.
+      expect(analyzeMarkdown(toCanonical(input)).canonical).toBe(true);
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Gate API behaviors carried over from the pre-WP1 suite (markdown-doc.ts's
+// isCanonical/isRichSafe/toCanonical) — same assertions, new API.
+// ---------------------------------------------------------------------------
+
+describe("analyzeMarkdown", () => {
+  it("treats empty / whitespace-only docs as canonical and rich-safe", () => {
+    for (const doc of ["", "\n\n", "   "]) {
+      const analysis = analyzeMarkdown(doc);
+      expect(analysis.canonical).toBe(true);
+      expect(analysis.richSafe).toBe(true);
+      expect(analysis.rawReason).toBeNull();
+    }
   });
 
-  it("preserves GFM tables and horizontal rules (headless plugins in sync)", () => {
-    const md = "| a | b |\n| --- | --- |\n| c | d |\n\n---\n";
-    const out = roundTrip(md);
-    // The cells + a divider must survive — a missing table plugin would drop
-    // them and Format would delete the table from the file.
-    expect(out).toMatch(/\|.*a.*\|.*b.*\|/);
-    expect(out).toContain("c");
-    expect(out).toContain("d");
-    expect(out).toMatch(/^---$/m);
-    expect(isRichSafe(md)).toBe(true);
-  });
-
-  it("round-trips task-list checkboxes", () => {
-    const md = "- [ ] todo one\n- [x] done two\n";
-    const out = roundTrip(md);
-    // Marker-agnostic (`-` or `*`), but the checkbox state must survive.
-    expect(out).toMatch(/[-*] \[ \] todo one/);
-    expect(out).toMatch(/[-*] \[x\] done two/i);
-  });
-
-  it("is idempotent after the first normalization pass", () => {
-    const md = "# Hi\n\nHello **world** with a list:\n\n- one\n- two\n";
-    const first = roundTrip(md);
-    const second = roundTrip(first);
-    expect(second).toBe(first);
+  it("accepts formatting-only differences as rich-safe but not canonical", () => {
+    // `*` bullets reflow to `-` and `***` to `---`: not byte-identical, but no
+    // content is dropped, so Rich editing is lossless.
+    const md = "* one\n* two\n\n***\n\nbody\n";
+    const analysis = analyzeMarkdown(md);
+    expect(analysis.canonical).toBe(false);
+    expect(analysis.richSafe).toBe(true);
   });
 
   it("does not invent content for an empty document", () => {
     expect(roundTrip("").trim()).toBe("");
-  });
-});
-
-describe("isCanonical", () => {
-  it("treats empty / whitespace-only docs as canonical", () => {
-    expect(isCanonical("")).toBe(true);
-    expect(isCanonical("\n\n")).toBe(true);
-  });
-
-  it("recognizes already-canonical markdown", () => {
-    const canon = toCanonical("# Hi\n\n- one\n- two\n");
-    expect(isCanonical(canon)).toBe(true);
-  });
-
-  it("flags markdown the serializer would reshape as non-canonical", () => {
-    // Setext heading + multiple blank lines — Plate reshapes both.
-    const messy = "Title\n=====\n\n\n\nbody";
-    // It is either non-canonical OR (if Plate happens to preserve it) canonical;
-    // assert the contract: canonicalizing then re-checking is always stable.
-    const canon = toCanonical(messy);
-    expect(isCanonical(canon)).toBe(true);
-  });
-});
-
-describe("isRichSafe", () => {
-  it("treats empty docs as safe", () => {
-    expect(isRichSafe("")).toBe(true);
-  });
-
-  it("accepts any byte-canonical doc (superset of canonical)", () => {
-    const canon = toCanonical("# Hi\n\n- one\n- two\n");
-    expect(isCanonical(canon)).toBe(true);
-    expect(isRichSafe(canon)).toBe(true);
-  });
-
-  it("accepts formatting-only differences that are NOT byte-canonical", () => {
-    // `*` bullets reflow to `-` and `***` to `---`: not byte-identical, but no
-    // content is dropped, so Rich editing is lossless.
-    const md = "* one\n* two\n\n***\n\nbody\n";
-    expect(isCanonical(md)).toBe(false);
-    expect(isRichSafe(md)).toBe(true);
-  });
-
-  it("accepts a tightly-packed GFM table (only cell padding reflows)", () => {
-    expect(isRichSafe("|a|b|\n|-|-|\n|c|d|\n")).toBe(true);
   });
 });
 
@@ -123,5 +126,18 @@ describe("toCanonical", () => {
     expect(once.endsWith("\n")).toBe(true);
     expect(once.endsWith("\n\n")).toBe(false);
     expect(toCanonical(once)).toBe(once);
+    expect(analyzeMarkdown(once).canonical).toBe(true);
+  });
+
+  it("canonicalizes messy-but-parseable markdown stably", () => {
+    const messy = "Title\n=====\n\n\n\nbody";
+    const canon = toCanonical(messy);
+    expect(analyzeMarkdown(canon).canonical).toBe(true);
+    expect(toCanonical(canon)).toBe(canon);
+  });
+
+  it("throws ParseFailedError when there is nothing safe to format to", () => {
+    expect(() => toCanonical("returns in <50ms\n")).toThrow(ParseFailedError);
+    expect(() => toCanonical("<Steps>x</Steps>\n")).toThrow(ParseFailedError);
   });
 });

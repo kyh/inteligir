@@ -1,23 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { createSlateEditor } from "platejs";
-import { BaseIndentPlugin } from "@platejs/indent";
-import { BaseListPlugin } from "@platejs/list";
-import { MarkdownPlugin, deserializeMd } from "@platejs/markdown";
-import remarkGfm from "remark-gfm";
 
+import { parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 import { isTodoItem } from "@repo/app/editor/todo-item";
 
-// Parse markdown the way the editor does, so we assert against the real node
-// shapes Plate produces (not a hand-built fixture that could drift).
+// Parse markdown through the real pipeline (the same path that seeds the
+// editor), so we assert against the actual node shapes it produces — not a
+// hand-built fixture that could drift.
 function parse(md: string) {
-  const editor = createSlateEditor({
-    plugins: [
-      BaseIndentPlugin,
-      BaseListPlugin,
-      MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
-    ],
-  });
-  return deserializeMd(editor, md);
+  const parsed = parseMarkdown(md);
+  if (!parsed.ok) throw new Error(`fixture must parse: ${md}`);
+  return parsed.value;
 }
 
 describe("isTodoItem", () => {

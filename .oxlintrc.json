@@ -175,6 +175,15 @@
           }
         ]
       }
+    },
+    {
+      // Tests run under vitest on node and read fixture files from disk. The
+      // portability boundary above applies to shipped app code, not the test
+      // harness.
+      "files": ["packages/app/src/__tests__/**"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
     }
   ]
 }

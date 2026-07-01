@@ -1,0 +1,3 @@
+<callout {...props}>
+  x
+</callout>
