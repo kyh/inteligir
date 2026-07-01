@@ -71,6 +71,16 @@ Decisions locked in the grilling session (each was an explicit choice):
 - **Our conventions, their structure.** pnpm + oxlint + oxfmt + knip +
   Turborepo. No Bun, changesets, or Lingui. Adopt the package layout only.
 - **Feature order: no fixed order** — work the feature list until done.
+- **Pre-launch, zero tech debt.** The app is unlaunched: no compat shims or
+  aliases, no dual old/new code paths kept alive, old renderer deleted at
+  cutover. Clean cuts over migration safety.
+- **Vault files stay `.md`.** MDX vocabulary parses inside `.md` files; no
+  `.mdx` extension.
+- **Delegation snapshots.** Host snapshots a file before any
+  background-agent write (under `~/.inteligir`), restorable — cheap undo
+  for agent edits, without a full history feature.
+- **Ghost-text uses a fast model** (configurable, via the same pi auth) —
+  latency risk accepted and mitigated by model choice.
 
 Out of scope: Yjs/Hocuspocus collaboration, arbitrary-JSX component runtime,
 embedded terminal dock, semantic search, version history, MCP/external
@@ -189,11 +199,7 @@ working-but-frozen on `main` until the Phase 5 cutover.
 ## 6. Known risks (flagged, accepted)
 
 - **MDX strictness vs existing notes**: legacy files with raw `<` / `{`
-  drop to Raw mode until touched. Acceptable; Format is one click.
-- **Ghost-text latency**: pi's OAuth'd chat models may be too slow for
-  keystroke-level copilot; may need a dedicated fast completion path or
-  feature-flag it off.
+  drop to Raw mode until touched. Accepted — user's notes are mostly plain
+  markdown; Format is one click.
 - **Obsidian interop weakens**: MDX components aren't plain markdown to
-  other tools; wiki-links keep partial compatibility.
-- **Frozen DMG during Phases 2–4**: desktop users see no updates until
-  cutover; keep `main` releasable for hotfixes.
+  other tools; wiki-links keep partial compatibility. Accepted.
