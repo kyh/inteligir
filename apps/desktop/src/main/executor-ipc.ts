@@ -10,7 +10,7 @@ import {
   ensureGoogleOAuthClient,
   getBundledGoogleClient,
 } from "@/main/executor/google-oauth-client";
-import { isHttpUrl, type ExecutorStatus } from "@/shared/ipc";
+import { isHttpUrl, type ExecutorStatus } from "@repo/core/ipc";
 
 export function registerExecutorIpcHandlers(): void {
   handle("listExecutorIntegrations", executor.listIntegrations);

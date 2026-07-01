@@ -29,7 +29,7 @@ import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   GOOGLE_TOKEN_URL,
   type ExecutorIntegration,
-} from "@/shared/executor";
+} from "@repo/core/executor";
 
 /** Add/remove an id from one of the in-flight (connecting/disconnecting) sets. */
 function setMembership(

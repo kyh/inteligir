@@ -16,7 +16,7 @@ import { x as tarExtract } from "tar";
 import unbzip2 from "unbzip2-stream";
 
 import { broadcast } from "@/main/lib/broadcast";
-import type { VoiceModelStateEvent } from "@/shared/ipc";
+import type { VoiceModelStateEvent } from "@repo/core/ipc";
 
 const streamPipeline = promisify(pipelineCb);
 

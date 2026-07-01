@@ -16,7 +16,7 @@
 
 import { broadcast } from "@/main/lib/broadcast";
 import { getUiState } from "@/main/ui-state";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@/shared/voice";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
 
 const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 const MODEL_ID = "eleven_flash_v2_5";

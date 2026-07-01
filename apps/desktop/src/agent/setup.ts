@@ -22,7 +22,7 @@ import {
   type PiExtensionBundle,
 } from "@/agent/extension";
 import { AGENT_DIR, BIN_DIR, EXTENSIONS_DIR, WORKSPACE_DIR } from "@/agent/paths";
-import type { IntegrationInfo, SetupProgress, SkillInfo } from "@/shared/ipc";
+import type { IntegrationInfo, SetupProgress, SkillInfo } from "@repo/core/ipc";
 
 // ---------------------------------------------------------------------------
 // Extension bundles — auto-discovered from ./<name>/extension.ts default

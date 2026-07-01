@@ -1,12 +1,12 @@
 import type { DynamicToolUIPart, TextUIPart, UIMessage } from "ai";
 import { create } from "zustand";
 
-import type { AppAgentEvent } from "@/shared/agent-events";
+import type { AppAgentEvent } from "@repo/core/agent-events";
 import { Value } from "@sinclair/typebox/value";
 
-import { AppStateSchema, type AppState } from "@/shared/app-state";
-import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
-import type { ImageAttachment } from "@/shared/voice";
+import { AppStateSchema, type AppState } from "@repo/core/app-state";
+import type { DesktopBridge, SetupProgress } from "@repo/core/ipc";
+import type { ImageAttachment } from "@repo/core/voice";
 import { getBridge } from "@/renderer/lib/bridge";
 import { flushOpenNote, openNotePath } from "@/renderer/workspace/open-note-flush";
 import { onUserTranscript, useVoiceStore } from "@/renderer/stores/voice-store";

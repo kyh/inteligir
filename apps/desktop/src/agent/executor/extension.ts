@@ -25,8 +25,8 @@ import type { ExtensionAPI } from "@repo/pi-driver/pi-types";
 
 import type { ExecutorPort, PiExtensionBundle } from "@/agent/extension";
 import { textResult } from "@/agent/extension-helpers";
-import type { ExecutorExecuteResult } from "@/shared/executor";
-import { isRecord } from "@/shared/ipc";
+import type { ExecutorExecuteResult } from "@repo/core/executor";
+import { isRecord } from "@repo/core/ipc";
 
 const EXECUTE_DESCRIPTION = `Execute TypeScript in a sandboxed runtime with access to the user's connected integrations.
 

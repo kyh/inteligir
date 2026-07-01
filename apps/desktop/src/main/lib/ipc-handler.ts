@@ -9,7 +9,7 @@ import { ipcMain } from "electron";
 import type { TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { IPC, type IpcHandler, type IpcMethod } from "@/shared/ipc-registry";
+import { IPC, type IpcHandler, type IpcMethod } from "@repo/core/ipc-registry";
 
 function parsePayload(method: IpcMethod, schema: TSchema, raw: unknown): unknown {
   if (!Value.Check(schema, raw)) {

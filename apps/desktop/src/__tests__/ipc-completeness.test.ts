@@ -14,7 +14,7 @@ import { ipcMain } from "electron";
 
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerVaultIpcHandlers } from "@/main/vault-ipc";
-import { IPC, type IpcMethod } from "@/shared/ipc-registry";
+import { IPC, type IpcMethod } from "@repo/core/ipc-registry";
 
 const mockHandle = vi.mocked(ipcMain.handle);
 const mockOn = vi.mocked(ipcMain.on);

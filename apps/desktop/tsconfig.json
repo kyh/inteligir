@@ -6,6 +6,7 @@
     "types": ["electron-vite/node"],
     "paths": {
       "@/*": ["./src/*"],
+      "@repo/core/*": ["../../packages/core/src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     }
   },

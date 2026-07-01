@@ -37,6 +37,7 @@
     "@platejs/slash-command": "^53.0.0",
     "@platejs/table": "^53.0.9",
     "@repo/agent-runtime": "workspace:^",
+    "@repo/core": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@repo/ui": "workspace:^",
     "@sinclair/typebox": "catalog:",

@@ -1,0 +1,21 @@
+{
+  "name": "@repo/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isomorphic core for Inteligir: the Bridge/IPC registry, domain schemas, and pure logic shared by every host (Electron desktop, web server). No node or electron imports.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/pi-driver": "workspace:^",
+    "@sinclair/typebox": "catalog:"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}

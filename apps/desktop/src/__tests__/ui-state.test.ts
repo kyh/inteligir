@@ -14,7 +14,7 @@ vi.mock("electron", () => ({
 }));
 
 import { UiStateManager } from "@/main/ui-state";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@/shared/voice";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
 
 type FakeSink = {
   values: Map<string, string>;

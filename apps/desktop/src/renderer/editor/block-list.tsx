@@ -26,7 +26,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { findDelegation, useDelegationStore } from "@/renderer/stores/delegation-store";
 import { isTodoItem } from "@/renderer/editor/todo-item";
 import { useVault } from "@/renderer/workspace/vault-context";
-import type { Delegation } from "@/shared/delegation";
+import type { Delegation } from "@repo/core/delegation";
 
 // Renders the list marker (bullet / number / checkbox) around a block that
 // carries `listStyleType`, plus — for todo items — the "Delegate" affordance and

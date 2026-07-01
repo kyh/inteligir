@@ -3,7 +3,7 @@ import { Button } from "@repo/ui/components/button";
 import { Label } from "@repo/ui/components/label";
 
 import { getBridge } from "@/renderer/lib/bridge";
-import type { IntegrationInfo, SetupProgress } from "@/shared/ipc";
+import type { IntegrationInfo, SetupProgress } from "@repo/core/ipc";
 
 /**
  * Lists the installed CLI binaries (agent-browser, peekaboo, executor)

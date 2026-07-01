@@ -24,7 +24,7 @@ import {
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.
 const MARKDOWN_RE = /\.(md|markdown)$/i;
-import type { VaultEntry } from "@/shared/ipc-registry";
+import type { VaultEntry } from "@repo/core/ipc-registry";
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
 

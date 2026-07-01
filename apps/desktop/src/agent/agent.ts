@@ -17,7 +17,7 @@ import { getAuthStorage } from "@/agent/auth";
 import { buildValidatedFactories, type AgentPorts } from "@/agent/extension";
 import { AGENT_DIR, AUTH_PROVIDER, MODEL_ID, SESSION_DIR, WORKSPACE_DIR } from "@/agent/paths";
 import { EXTENSION_BUNDLES, buildRegisterContext } from "@/agent/setup";
-import type { SessionStatus } from "@/shared/agent";
+import type { SessionStatus } from "@repo/core/agent";
 
 /** Pi built-in coding tools the session starts with. Mirrors pi's own default
  * — declared explicitly so the raw system-access surface is a deliberate,

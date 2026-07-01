@@ -3,8 +3,8 @@ import { BrowserWindow, dialog, type OpenDialogOptions } from "electron";
 import { getDelegationManager } from "@/main/delegation/delegation-manager";
 import { handle } from "@/main/lib/ipc-handler";
 import { getVaultManager } from "@/main/vault";
-import { toErrorMessage } from "@/shared/ipc";
-import type { ChooseVaultResult } from "@/shared/ipc-registry";
+import { toErrorMessage } from "@repo/core/ipc";
+import type { ChooseVaultResult } from "@repo/core/ipc-registry";
 
 export function registerVaultIpcHandlers(): void {
   // ---- Trusted surface (Vault panel) ----------------------------------------

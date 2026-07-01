@@ -7,7 +7,7 @@ vi.mock("electron", () => ({
 
 import { ipcMain } from "electron";
 import { handle } from "@/main/lib/ipc-handler";
-import { IPC } from "@/shared/ipc-registry";
+import { IPC } from "@repo/core/ipc-registry";
 
 const mockHandle = vi.mocked(ipcMain.handle);
 const mockOn = vi.mocked(ipcMain.on);
