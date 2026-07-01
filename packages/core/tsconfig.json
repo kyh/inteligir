@@ -1,10 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // dom: the WS bridge client (bridge-ws-client.ts) is browser code — the
+    // package stays free of *node* types by design.
+    "lib": ["ES2023", "dom"],
     "paths": {
       "@repo/core/*": ["./src/*"],
       "@repo/pi-driver/*": ["../pi-driver/src/*"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "vitest.config.ts"]
 }

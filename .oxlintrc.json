@@ -106,6 +106,25 @@
       }
     },
     {
+      // Dependency boundary: core is isomorphic — the same modules load in
+      // the browser (bridge-ws-client), the Electron renderer, and node
+      // hosts. No node built-ins, no electron.
+      "files": ["packages/core/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
+                "message": "packages/core is isomorphic — no node/electron imports"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       // Dependency boundary: the portable app is host-agnostic. It reaches
       // the host only through the injected Bridge (src/lib/bridge.ts) —
       // never electron, node built-ins, or the desktop shell.
