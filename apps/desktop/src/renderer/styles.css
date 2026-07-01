@@ -8,9 +8,9 @@ body,
   overflow: hidden;
 }
 
-/* Desktop-app feel: don't select text when dragging widgets, clicking buttons,
- * etc. Form fields and any element opted in via the `select-text` Tailwind
- * utility (e.g. the chat transcript) stay selectable. */
+/* Desktop-app feel: don't select text when dragging, clicking buttons, etc.
+ * Form fields and any element opted in via the `select-text` Tailwind utility
+ * (e.g. the chat transcript) stay selectable. */
 body {
   user-select: none;
   -webkit-user-select: none;
@@ -26,170 +26,118 @@ textarea,
   -webkit-app-region: drag;
 }
 
-/* Ophelias-style dotted canvas: fixed 24px lattice over the soft gray floor. */
-.shell-dots {
-  background-image:
-    radial-gradient(circle, var(--dot) 1.2px, transparent 1.2px),
-    linear-gradient(180deg, var(--canvas-from) 0%, var(--canvas-to) 100%);
-  background-size:
-    24px 24px,
-    100% 100%;
-  background-origin: border-box, border-box;
-  background-clip: border-box, border-box;
-  background-repeat: repeat, no-repeat;
+.app-no-drag {
+  -webkit-app-region: no-drag;
 }
 
-/* react-grid-layout — theme the placeholder + resize affordances. The
- * placeholder mirrors the card silhouette (same radius), kept faint. */
-.react-grid-item.react-grid-placeholder {
-  background: var(--foreground);
-  opacity: 0.08;
-  border-radius: var(--radius-card);
-}
-/* Panels stay resizable from their edges/corner, but we hide the default
- * diagonal-arrow affordance for a cleaner desktop look. */
-.react-grid-item > .react-resizable-handle::after {
-  display: none;
-}
-
-.artifact-frame {
-  position: relative;
-  overflow: hidden;
-  border: 0.5px solid var(--object-pane-border);
-  background: var(--object-pane-bg);
-  -webkit-backdrop-filter: blur(14px) saturate(116%);
-  backdrop-filter: blur(14px) saturate(116%);
-  box-shadow:
-    0 28px 90px rgb(19 20 27 / 0.045),
-    0 12px 36px rgb(19 20 27 / 0.032),
-    0 2px 8px rgb(19 20 27 / 0.025),
-    inset 0 1px 0 rgb(255 255 255 / 0.28);
+.potion-editor-typography {
+  font-family:
+    ui-sans-serif,
+    -apple-system,
+    "system-ui",
+    "Segoe UI Variable Display",
+    "Segoe UI",
+    Helvetica,
+    "Apple Color Emoji",
+    Arial,
+    sans-serif,
+    "Segoe UI Emoji",
+    "Segoe UI Symbol";
 }
 
-.artifact-titlebar {
-  background: linear-gradient(180deg, rgb(255 255 255 / 0.18), rgb(255 255 255 / 0.04));
-  border-bottom: 0.5px solid rgb(19 20 27 / 0.055);
+/* While dragging the sidebar resize handle, suppress the primitive's width
+ * transition so the sidebar tracks the cursor 1:1 instead of easing behind it. */
+.sidebar-resizing [data-slot="sidebar-gap"],
+.sidebar-resizing [data-slot="sidebar-container"] {
+  transition: none !important;
 }
 
-.artifact-actions {
-  border-radius: 999px;
+/* Code-block syntax highlighting — the GitHub light/dark theme for lowlight's
+ * `.hljs-*` token classes (emitted by CodeSyntaxPlugin). Syntax themes are
+ * inherently color-specific, so these are fixed hex rather than theme tokens. */
+.hljs-comment,
+.hljs-quote {
+  color: #6a737d;
+  font-style: italic;
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-built_in,
+.hljs-name,
+.hljs-tag {
+  color: #d73a49;
+}
+.hljs-string,
+.hljs-attr,
+.hljs-template-tag,
+.hljs-doctag,
+.hljs-addition {
+  color: #032f62;
+}
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-type {
+  color: #005cc5;
+}
+.hljs-title,
+.hljs-section,
+.hljs-attribute,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: #6f42c1;
+}
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link,
+.hljs-meta,
+.hljs-deletion {
+  color: #e36209;
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 600;
 }
 
-.artifact-actions button {
-  color: rgb(19 20 27 / 0.4);
+.dark .hljs-comment,
+.dark .hljs-quote {
+  color: #8b949e;
 }
-
-.artifact-actions button:hover {
-  background-color: rgb(19 20 27 / 0.06);
-  color: rgb(19 20 27 / 0.72);
+.dark .hljs-keyword,
+.dark .hljs-selector-tag,
+.dark .hljs-built_in,
+.dark .hljs-name,
+.dark .hljs-tag {
+  color: #ff7b72;
 }
-
-.artifact-body {
-  height: 100%;
-  /* Light outer padding only — the json-ui viewer root (p-2.5) and any card
-   * component carry the real content inset. Triple-stacking those paddings
-   * over-inset the body and pushed content out of alignment with the
-   * titlebar; this keeps content reading flush with the widget. */
-  padding: 4px 6px 8px;
-  color: rgb(19 20 27 / 0.86);
-  overflow: auto;
+.dark .hljs-string,
+.dark .hljs-attr,
+.dark .hljs-template-tag,
+.dark .hljs-doctag,
+.dark .hljs-addition {
+  color: #a5d6ff;
 }
-
-.artifact-body .text-foreground {
-  color: rgb(19 20 27 / 0.82);
+.dark .hljs-number,
+.dark .hljs-literal,
+.dark .hljs-variable,
+.dark .hljs-template-variable,
+.dark .hljs-type {
+  color: #79c0ff;
 }
-
-.artifact-body .text-muted-foreground {
-  color: rgb(19 20 27 / 0.44);
+.dark .hljs-title,
+.dark .hljs-section,
+.dark .hljs-attribute,
+.dark .hljs-selector-id,
+.dark .hljs-selector-class {
+  color: #d2a8ff;
 }
-
-/* Inside a widget body, an object-row is a content container (a json-ui
- * "card"/"section"), not an interactive list row — render it flat and flush.
- * It must not gain a hover fill: that lit up an inset, rounded "inner card"
- * the moment the pointer crossed the widget. */
-.artifact-body .object-row {
-  background: transparent;
-  border-color: transparent;
-  box-shadow: none;
-}
-
-.composer-shell {
-  align-items: center;
-}
-
-.composer-motion-wrap {
-  max-width: calc(100vw - 2rem);
-  will-change: width;
-}
-
-.composer-form {
-  width: 100%;
-  max-width: 100%;
-}
-
-.composer-shell [data-slot="input-group"] {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
-  min-height: 48px;
-  border-radius: 16px;
-}
-
-.composer-shell
-  [data-slot="input-group"]
-  > *:not(.composer-collapsed-prompt):not(.composer-gradient) {
-  position: relative;
-  z-index: 1;
-}
-
-.composer-gradient {
-  position: absolute;
-  inset: 2px auto 2px 2px;
-  z-index: 0;
-  border-radius: 15px;
-  background:
-    linear-gradient(90deg, rgb(122 238 255 / 0.5), rgb(109 255 182 / 0.18), transparent 84%),
-    radial-gradient(circle at 24% 54%, rgb(128 239 255 / 0.58), transparent 44%);
-  filter: blur(10px);
-  pointer-events: none;
-  will-change: opacity, transform, width;
-}
-
-.composer-shell [data-slot="input-group"] > .composer-collapsed-prompt {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 16px 20px;
-  color: #f8f8f8;
-  font-size: 13px;
-  line-height: 16px;
-  white-space: nowrap;
-  pointer-events: none;
-}
-
-.composer-input-row {
-  min-height: 46px;
-  padding: 8px 10px 8px 12px;
-}
-
-/* The dock pill is bottom-anchored, so any height growth shoves it upward.
- * The textarea uses field-sizing:content, which grows to fit its WRAPPING
- * placeholder while the pill is transiently narrow during the collapse→expand
- * width spring — spiking the dock up, then settling once the placeholder fits
- * on one line. Pin the empty (placeholder-shown) field to a single line so the
- * pill height is constant; real input clears :placeholder-shown and wraps and
- * grows as normal. */
-.composer-input-row textarea:placeholder-shown {
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  overflow: hidden;
-}
-
-.composer-shell:not(.composer-expanded) [data-slot="input-group"] > .composer-input-row {
-  position: absolute;
-  inset: 0;
+.dark .hljs-symbol,
+.dark .hljs-bullet,
+.dark .hljs-link,
+.dark .hljs-meta,
+.dark .hljs-deletion {
+  color: #ffa657;
 }

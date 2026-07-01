@@ -5,11 +5,9 @@
 import { Agent } from "@/agent/agent";
 import { isLoggedIn } from "@/agent/auth";
 import { isSetupComplete } from "@/agent/setup";
-import { sendDispatchResponse } from "@/main/dispatch/dispatch-client";
 import { getExecutorDaemon } from "@/main/executor/executor-daemon";
 import { reduce } from "@/main/app-reducer";
 import { runEffect, type EffectDeps } from "@/main/app-effects";
-import { maybeDailyRefresh, type DailyRefreshDeps } from "@/main/daily-refresh";
 import {
   getAgentPorts,
   loginAgent,
@@ -17,30 +15,22 @@ import {
   teardownAgentResources,
 } from "@/main/lib/agent-lifecycle";
 import { broadcast } from "@/main/lib/broadcast";
-import { getNotifications } from "@/main/notifications";
-import { getTaskManager, setTasksChangedNotifier } from "@/main/tasks/task-manager";
 import {
   getBackgroundAgent,
   startBackgroundAgent,
   stopBackgroundAgent,
-} from "@/main/tasks/background-agent";
+} from "@/main/delegation/background-agent";
+import { setInlineAiStreamNotifier, startInlineAiAgent, stopInlineAiAgent } from "@/main/inline-ai";
+import {
+  getDelegationManager,
+  setDelegationsChangedNotifier,
+  setDelegationStreamNotifier,
+} from "@/main/delegation/delegation-manager";
+import { getNotifications } from "@/main/notifications";
 import { downloadModel } from "@/main/voice/model-download";
 import { parseAgentEvent } from "@/shared/agent-event-parser";
 import type { AppAgentEvent } from "@/shared/agent-events";
 import type { AppState, MachineEvent } from "@/shared/app-state";
-import type { TextChatMessage } from "@/shared/voice";
-
-/**
- * Gateway access injected at initMachine(). app-machine must not import
- * dispatch/agent-gateway — the gateway imports getAgent from this module, and
- * a static import back would close a runtime cycle. index.ts composes the two.
- */
-export type AgentGatewayPort = {
-  dispatchAgentCommand: (command: TextChatMessage) => Promise<void>;
-  isAgentReserved: () => boolean;
-};
-
-let gateway: AgentGatewayPort | null = null;
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process
@@ -59,15 +49,6 @@ type Turn = {
   sawError: boolean;
 };
 let turn: Turn | null = null;
-
-// Most recent user-facing agent activity (turn start or end), epoch ms.
-// Feeds the daily-refresh recency gate: `busy` only protects mid-turn, this
-// protects mid-conversation (e.g. a thread straddling midnight).
-let lastUserActivityAt: number | null = null;
-
-function getLastUserActivityAt(): number | null {
-  return lastUserActivityAt;
-}
 
 function startTurn(): void {
   turn = {
@@ -128,7 +109,6 @@ function handleAgentEvent(event: AppAgentEvent): void {
   switch (event.type) {
     case "agent_start":
       startTurn();
-      lastUserActivityAt = Date.now();
       machine?.ingest({ type: "AGENT_START" });
       break;
     case "tool_execution_start":
@@ -162,9 +142,7 @@ function handleAgentEvent(event: AppAgentEvent): void {
           reason,
         } satisfies AppAgentEvent;
         broadcast("onAgentEvent", errorEvent);
-        sendDispatchResponse(errorEvent);
       }
-      lastUserActivityAt = Date.now();
       machine?.ingest({ type: "AGENT_END" });
       getNotifications().notifyAgentIdle(turn?.assistantText ?? undefined);
       turn = null;
@@ -172,23 +150,23 @@ function handleAgentEvent(event: AppAgentEvent): void {
     }
   }
 
-  // Mirrors every event to the Remote Access relay; a no-op unless the user
-  // enabled Remote Access AND an authenticated mobile peer is in the room
-  // (presence-gated inside dispatch-client).
   broadcast("onAgentEvent", event);
-  sendDispatchResponse(event);
 }
 
 async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   if (agent) return;
   const next = new Agent({ ...opts, ports: getAgentPorts() });
-  // Start the dedicated background task agent concurrently with the user agent
-  // — they share no session state (separate dirs/instances) and the executor
-  // daemon's start() is idempotent under concurrency, so there's no reason to
-  // serialize their I/O. Non-fatal: a background failure must not block the
-  // user agent, and the scheduler reads getBackgroundAgent() live.
-  const bgStarted = startBackgroundAgent().catch((err) => {
-    console.error("[machine] background task agent failed to start:", err);
+  // Start the dedicated background delegation agent concurrently — it shares no
+  // session state with the user agent and the executor daemon's start() is
+  // idempotent under concurrency. Non-fatal: a background failure must not block
+  // the user agent; delegations just stay queued until it's available.
+  const bgStarted = startBackgroundAgent().catch((err: unknown) => {
+    console.error("[machine] background delegation agent failed to start:", err);
+  });
+  // Inline-AI generator — same rationale (isolated session, non-fatal on failure;
+  // inline AI just returns "unavailable" until it's up).
+  const inlineAiStarted = startInlineAiAgent().catch((err: unknown) => {
+    console.error("[machine] inline-ai agent failed to start:", err);
   });
   try {
     await next.start();
@@ -196,37 +174,44 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
       const event = parseAgentEvent(raw);
       if (event) handleAgentEvent(event);
     });
-    // The scheduler drives the background agent (not this user agent), so it
-    // reads it live via getBackgroundAgent() — no closure over `next` needed.
-    getTaskManager().startScheduler(() => getBackgroundAgent());
   } catch (err) {
     // Don't leave a half-constructed Agent in the singleton — a retry's
-    // `if (agent) return` would skip the rest of setup and the machine
-    // would transition to ready with a non-functional agent. Tear down the
-    // (possibly started) background agent too, so a failed user start doesn't
-    // leave it running.
-    getTaskManager().stopScheduler();
+    // `if (agent) return` would skip the rest of setup and the machine would
+    // transition to ready with a non-functional agent. Tear down the (possibly
+    // started) background agent too.
     await next.stop().catch(() => {});
     await bgStarted;
     await stopBackgroundAgent();
+    await inlineAiStarted;
+    await stopInlineAiAgent();
     throw err;
   }
   agent = next;
-  // Settle the background start before the effect returns so a subsequent,
-  // queue-serialized stopAgent can't run before bgAgent is assigned and then
-  // leak a late-starting background agent.
+  // Settle the background start before returning, then wire it to the delegation
+  // queue so any delegations queued before the agent was ready start draining.
+  // If it failed to start, mark delegation unavailable so queued/new tasks fail
+  // with feedback instead of sitting "Queued" forever behind a null runner.
   await bgStarted;
+  const delegations = getDelegationManager();
+  if (getBackgroundAgent()) {
+    delegations.setRunner(() => getBackgroundAgent());
+  } else {
+    delegations.markUnavailable(
+      "The background agent isn't available — restart the app to delegate tasks.",
+    );
+  }
 }
 
 async function stopAgent(): Promise<void> {
-  getTaskManager().stopScheduler();
+  getDelegationManager().stop();
   if (agent) {
     await agent.stop();
     agent = null;
   }
-  // Stop both agents before the shared executor daemon: the daemon is a process
-  // singleton both sessions use, so it must outlive each agent's teardown.
+  // Stop all agents before the shared executor daemon: the daemon is a process
+  // singleton every session uses, so it must outlive each agent's teardown.
   await stopBackgroundAgent();
+  await stopInlineAiAgent();
   await getExecutorDaemon().stop();
   turn = null;
 }
@@ -247,53 +232,6 @@ export function getAgent(): Agent | null {
  * startAgent. Used by the "Re-authenticate" Settings affordance and the
  * empty-turn modal.
  */
-/**
- * Refresh the user-facing session for a new day and open it with a greeting.
- * Starts a fresh user session (yesterday's thread stays in session history)
- * and injects `buildGreeting()` as the first user turn — the assistant's reply
- * is the "good morning" message, rendered in the chat panel via the normal
- * broadcast path. Routed through the AppMachine queue (like reauthenticate) so
- * it can't race LOGIN/LOGOUT, and through the gateway so the greeting turn
- * serializes with any mobile/chat-relay traffic.
- *
- * Skips (without starting a new session) when there's no live agent or a turn
- * is already in flight — the caller retries on the next app-open.
- */
-async function dailyRefresh(
-  buildGreeting: () => string,
-): Promise<{ ok: boolean; skipped?: string }> {
-  if (!machine) return { ok: false, skipped: "no-machine" };
-  const gw = gateway;
-  if (!gw) return { ok: false, skipped: "no-gateway" };
-  return machine.enqueueAsync(async () => {
-    if (!agent) return { ok: false, skipped: "no-agent" };
-    // Never interrupt a turn the user (or a relay) is mid-way through.
-    if (agent.getState().status === "busy") return { ok: false, skipped: "busy" };
-    // Nor tear the session down mid-drain: after a chat relay ends the exclusive
-    // lock clears while queued UI/mobile commands are still flushing. newSession
-    // here would stop the agent and drop them. Defer; retry on the next open.
-    if (gw.isAgentReserved()) return { ok: false, skipped: "reserved" };
-    try {
-      await newSession();
-    } catch (err) {
-      // The session didn't roll — leave the day unspent so the next open retries.
-      console.error("[machine] dailyRefresh newSession failed:", err);
-      return { ok: false, skipped: "error" };
-    }
-    // The session has now rolled — that IS the daily refresh, so the day is
-    // spent regardless of the greeting's outcome. Re-running on the next focus
-    // would discard this fresh thread, so the greeting is best-effort: a
-    // submission failure is logged, and any turn-level error surfaces in-session
-    // via the normal agent-event path.
-    try {
-      await gw.dispatchAgentCommand({ type: "user_message", text: buildGreeting() });
-    } catch (err) {
-      console.error("[machine] daily greeting failed to submit:", err);
-    }
-    return { ok: true };
-  });
-}
-
 export async function reauthenticate(): Promise<{ ok: boolean; error?: string }> {
   if (!machine) return { ok: false, error: "Machine not initialized" };
   return machine.enqueueAsync(async () => {
@@ -390,25 +328,8 @@ export class AppMachine {
 
 let machine: AppMachine | null = null;
 
-const dailyRefreshDeps: DailyRefreshDeps = {
-  getAppState,
-  dailyRefresh,
-  getLastUserActivityAt,
-};
-
-/** Run the daily refresh if due. Wired to the window-focus trigger in
- * index.ts and the ready-phase hook below; no-op when not due/already done. */
-export function maybeRunDailyRefresh(): Promise<void> {
-  return maybeDailyRefresh(dailyRefreshDeps);
-}
-
 function broadcastAppState(state: AppState): void {
   broadcast("onAppState", state);
-  // Cold-launch trigger for the daily refresh: the window's first focus fires
-  // before login finishes, so also attempt once the session is ready.
-  if (state.phase === "ready") {
-    void maybeRunDailyRefresh();
-  }
 }
 
 async function downloadVoiceModel(): Promise<void> {
@@ -437,14 +358,15 @@ export function transition(event: MachineEvent): void {
   machine?.ingest(event);
 }
 
-/** Determine initial state from persisted auth/setup and auto-start if ready.
- * The gateway port is injected here (by index.ts) instead of imported — see
- * AgentGatewayPort. */
-export function initMachine(gatewayPort: AgentGatewayPort): void {
-  gateway = gatewayPort;
-  // Tasks push channel: TaskManager is electron-free, so the broadcast hookup
-  // happens here (composition root for the machine's main-side singletons).
-  setTasksChangedNotifier((tasks) => broadcast("onTasksUpdated", { tasks }));
+/** Determine initial state from persisted auth/setup and auto-start if ready. */
+export function initMachine(): void {
+  // Delegation push channel: the manager is electron-free, so the broadcast
+  // hookup happens here (composition root for the machine's main singletons).
+  setDelegationsChangedNotifier((delegations) =>
+    broadcast("onDelegationsUpdated", { delegations }),
+  );
+  setDelegationStreamNotifier((id, text) => broadcast("onDelegationStreamed", { id, text }));
+  setInlineAiStreamNotifier((requestId, delta) => broadcast("onAiStreamed", { requestId, delta }));
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);

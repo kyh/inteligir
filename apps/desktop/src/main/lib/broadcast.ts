@@ -19,17 +19,3 @@ export function broadcast<K extends EventMethod>(method: K, data: IpcEvent<K>): 
     }
   }
 }
-
-/**
- * Targeted send. Same registry-keyed contract as broadcast(); used when a
- * round-trip protocol (e.g. flush request → ack) needs to address one
- * window's webContents id from a tracked set.
- */
-export function sendToWindow<K extends EventMethod>(
-  webContents: Electron.WebContents,
-  method: K,
-  data: IpcEvent<K>,
-): void {
-  const def = IPC[method];
-  webContents.send(def.channel, data);
-}

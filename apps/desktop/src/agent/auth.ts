@@ -1,16 +1,14 @@
-// Provider credentials + one-shot completions. Both reach pi-ai through the
-// same AuthStorage; the storage is lazy so a logout-flow that deletes
-// auth.json can null the cached instance and the next login rebuilds it.
+// Provider credentials. Reaches pi-ai through an AuthStorage; the storage is
+// lazy so a logout-flow that deletes auth.json can null the cached instance and
+// the next login rebuilds it.
 
 import fs from "node:fs";
 import open from "open";
 
 import { createAuthStorage, hasAuth, loginWithProvider } from "@repo/pi-driver/auth";
-import { completeText } from "@repo/pi-driver/complete";
-import { resolveModel } from "@repo/pi-driver/model";
 import type { AuthStorage } from "@repo/pi-driver/pi-types";
 
-import { AUTH_PATH, AUTH_PROVIDER, MODEL_ID } from "@/agent/paths";
+import { AUTH_PATH, AUTH_PROVIDER } from "@/agent/paths";
 
 let authStorage: AuthStorage | null = null;
 
@@ -39,13 +37,4 @@ export async function login(): Promise<void> {
       void open(info.url);
     },
   });
-}
-
-/**
- * One-shot model completion outside the agent session — used by "live"
- * widget actions that fill UI state from the model without spawning a
- * chat turn. Uses the same model + credentials as the running agent.
- */
-export function completeOnce(prompt: string, system?: string): Promise<string> {
-  return completeText(getAuthStorage(), resolveModel(AUTH_PROVIDER, MODEL_ID), prompt, system);
 }

@@ -1,0 +1,120 @@
+import { describe, expect, it } from "vitest";
+
+import { findTaskLine } from "@/main/delegation/find-task-line";
+
+const DOC = [
+  "# Project",
+  "",
+  "## This week",
+  "",
+  "- [ ] book the flight", // index 0
+  "- [x] already done", //    index 1 (checked)
+  "- [ ] email the team", //  index 2
+  "",
+  "## Backlog",
+  "",
+  "- [ ] book the flight", // index 3 — same label, different position
+].join("\n");
+
+describe("findTaskLine", () => {
+  it("resolves a checkbox by its ordinal", () => {
+    const m = findTaskLine(DOC, 0);
+    expect(m?.text).toBe("book the flight");
+    expect(m?.lineText).toBe("- [ ] book the flight");
+    expect(m?.heading).toBe("This week");
+    expect(m?.lineIndex).toBe(4);
+  });
+
+  it("counts checked boxes in the ordinal but won't delegate one", () => {
+    expect(findTaskLine(DOC, 1)).toBeNull(); // index 1 is already checked
+    expect(findTaskLine(DOC, 2)?.text).toBe("email the team");
+  });
+
+  it("distinguishes duplicate labels purely by position", () => {
+    expect(findTaskLine(DOC, 0)?.heading).toBe("This week");
+    expect(findTaskLine(DOC, 3)?.heading).toBe("Backlog");
+  });
+
+  it("returns null for an out-of-range ordinal", () => {
+    expect(findTaskLine(DOC, 4)).toBeNull();
+  });
+
+  it("captures the section the task lives in", () => {
+    const m = findTaskLine(DOC, 2);
+    expect(m?.section).toContain("## This week");
+    expect(m?.section).not.toContain("## Backlog");
+  });
+
+  it("matches -, *, + bullets and CRLF/CR line endings", () => {
+    expect(findTaskLine("* [ ] star", 0)?.text).toBe("star");
+    expect(findTaskLine("+ [ ] plus", 0)?.text).toBe("plus");
+    expect(findTaskLine("# H\r\n\r\n- [ ] crlf", 0)?.text).toBe("crlf");
+  });
+
+  it("does not count checkbox-like lines inside fenced code", () => {
+    const md = ["```", "- [ ] not a task", "```", "", "- [ ] real task"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real task");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+
+  it("only closes a fence on a matching marker (mixed ``` / ~~~ don't desync)", () => {
+    const md = [
+      "~~~",
+      "- [ ] fake one",
+      "```", //            a different fence marker inside — must NOT close the ~~~ block
+      "- [ ] fake two",
+      "~~~", //            closes the block
+      "",
+      "- [ ] real",
+    ].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+
+  it("ignores heading-like lines inside fenced code for context", () => {
+    const md = ["## Real heading", "", "```", "## fake heading", "```", "", "- [ ] task"].join(
+      "\n",
+    );
+    expect(findTaskLine(md, 0)?.heading).toBe("Real heading");
+  });
+
+  it("excludes a checkbox inside an indented (4-space) code block", () => {
+    // An indented code block is code to remark/Plate, not a task — so a
+    // checkbox-like line inside it must not shift the ordinal.
+    const md = ["Notes", "", "    - [ ] alpha", "", "- [ ] real"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+
+  it("counts nested task items in document order", () => {
+    const md = ["- [ ] parent", "  - [ ] child", "- [ ] sibling"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("parent");
+    expect(findTaskLine(md, 1)?.text).toBe("child");
+    expect(findTaskLine(md, 2)?.text).toBe("sibling");
+  });
+
+  it("doesn't count a plain bullet that follows a task in the same list", () => {
+    // remark gives the plain bullet checked:null (and Plate a phantom todo with
+    // no `checked`) — both exclude it, so the ordinal stays aligned.
+    const md = ["- [ ] real one", "- plain", "- [x] real two"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real one");
+    expect(findTaskLine(md, 1)).toBeNull(); // index 1 = "real two", already checked
+    expect(findTaskLine(md, 2)).toBeNull(); // out of range (only 2 task items)
+  });
+
+  it("doesn't count an empty checkbox (Plate renders `- [ ] ` as a plain bullet)", () => {
+    // A bare checkbox with no text deserializes to a non-todo in Plate, so the
+    // renderer's todoIndex skips it — main must too, or the ordinals desync.
+    const md = ["- [ ] ", "- [ ] real task"].join("\n");
+    expect(findTaskLine(md, 0)?.text).toBe("real task");
+    expect(findTaskLine(md, 1)).toBeNull();
+  });
+
+  it("handles a task with no heading above it", () => {
+    expect(findTaskLine("- [ ] lonely", 0)?.heading).toBeNull();
+  });
+
+  it("keeps inline markdown verbatim in the resolved text (no normalization)", () => {
+    expect(findTaskLine("- [ ] **buy** milk", 0)?.text).toBe("**buy** milk");
+  });
+});

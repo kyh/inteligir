@@ -28,6 +28,7 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
   --color-destructive-light: var(--destructive-light);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
@@ -92,6 +93,28 @@
   /* Small smoked chips (Badge glass variant) cast a tighter shadow than the
      glass sheets — a single soft drop, no inset ring. */
   --shadow-chip: 0 2px 6px rgb(0 0 0 / 0.18);
+  @keyframes shimmer {
+    0% {
+      background-position: 0% 0;
+    }
+    100% {
+      background-position: 100% 0;
+    }
+  }
+  @keyframes spinner-move {
+    to {
+      stroke-dashoffset: -100;
+    }
+  }
+  @keyframes spinner-dash {
+    0%,
+    100% {
+      stroke-dasharray: 15 85;
+    }
+    50% {
+      stroke-dasharray: 40 60;
+    }
+  }
 }
 
 :root {
@@ -99,28 +122,28 @@
     -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue",
     system-ui, sans-serif;
 
-  /* Core palette — derived from the Ophelias neutral hex scale and
-     the surface ladder, so idiomatic shadcn tokens and surface utilities share
-     one coherent set of colors. */
-  --background: var(--surface-1);
-  --foreground: #13141b;
-  --card: var(--surface-3);
-  --card-foreground: #13141b;
-  --popover: var(--surface-3);
-  --popover-foreground: #13141b;
-  --primary: #13141b;
-  --primary-foreground: #f8f8f8;
-  --secondary: #e5e7e7;
-  --secondary-foreground: #13141b;
-  --muted: rgb(19 20 27 / 0.03);
-  --muted-foreground: rgb(19 20 27 / 0.5);
-  --accent: #e5e7e7;
-  --accent-foreground: #13141b;
-  --destructive: #ef4444;
+  /* Core palette — Fluid's neutral zinc theme. The structural tokens below
+     (surface ladder, --hover/--active, glass) are unchanged; only the hues swap. */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(1 0 0);
   --destructive-light: #fef2f2;
-  --border: rgb(19 20 27 / 0.1);
-  --input: rgb(19 20 27 / 0.06);
-  --ring: rgb(19 20 27 / 0.28);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
 
   /* Neutral scale (for opacity variants that can't reference tokens directly). */
   --neutral-100: #f5f5f5;
@@ -141,8 +164,8 @@
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
-  /* 10px base radius — matches Ophelias' compact control shape. */
-  --radius: 0.625rem;
+  /* Claude theme base radius. */
+  --radius: 0.5rem;
 
   /* Component radius scale. Controls/buttons keep --radius;
      these are the generous container radii from the reference language.
@@ -152,6 +175,9 @@
   --radius-glass: 16px; /* composer bar, dialogs, large glass sheets */
   --radius-menu: 14px; /* dropdowns / popovers / tooltips */
   --radius-dock: 18px; /* left dock bar */
+  /* Sidebar layout (referenced by the sidebar component's w-(--sidebar-width)). */
+  --sidebar-width: 15rem;
+  --sidebar-width-icon: 3rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.141 0.005 285.823);
   --sidebar-primary: oklch(0.21 0.006 285.885);
@@ -279,27 +305,27 @@
 }
 
 .dark {
-  /* Core palette — additive dark neutral scale over the #171717 surface floor.
-     --border is left to inherit the :root foreground-mix so it stays
-     theme-aware (light translucent edge on dark surfaces). */
-  --background: var(--surface-1);
-  --foreground: #f4f4f6;
-  --card: var(--surface-3);
-  --card-foreground: #f4f4f6;
-  --popover: var(--surface-3);
-  --popover-foreground: #f4f4f6;
-  --primary: #f5f5f5;
-  --primary-foreground: #171717;
-  --secondary: #525252;
-  --secondary-foreground: #f5f5f5;
-  --muted: var(--surface-2);
-  --muted-foreground: #a2a2ab;
-  --accent: #525252;
-  --accent-foreground: #f5f5f5;
-  --destructive: #f87171;
+  /* Core palette — Fluid's neutral zinc theme, dark. */
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.885);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.885);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.92 0.004 286.32);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
   --destructive-light: #450a0a;
-  --input: #404040;
-  --ring: #404040;
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.938);
 
   --neutral-100: #f5f5f5;
   --neutral-200: #e5e5e5;
@@ -320,8 +346,8 @@
   --chart-5: oklch(0.274 0.006 286.033);
   --sidebar: oklch(0.21 0.006 285.885);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.92 0.004 286.32);
+  --sidebar-primary-foreground: oklch(0.21 0.006 285.885);
   --sidebar-accent: oklch(0.274 0.006 286.033);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
@@ -565,11 +591,11 @@
   color: transparent;
   background: linear-gradient(
     90deg,
-    var(--muted-foreground) 0%,
-    var(--muted-foreground) 35%,
-    var(--foreground) 50%,
-    var(--muted-foreground) 65%,
-    var(--muted-foreground) 100%
+    #a3a3a3 0%,
+    #a3a3a3 35%,
+    #525252 50%,
+    #a3a3a3 65%,
+    #a3a3a3 100%
   );
   background-size: 300% 100%;
   background-clip: text;

@@ -1,16 +1,16 @@
 "use client";
 
 import {
-  useCallback,
-  useEffect,
   useRef,
   useState,
+  useCallback,
+  useEffect,
   type Dispatch,
   type RefObject,
   type SetStateAction,
 } from "react";
 
-interface ItemRect {
+export interface ItemRect {
   top: number;
   height: number;
   left: number;
@@ -35,12 +35,6 @@ interface UseProximityHoverReturn {
   measureItems: () => void;
 }
 
-/**
- * Tracks which item in a list the pointer is closest to, so a single shared
- * highlight can glide between items rather than each item toggling its own
- * hover state. Items register their position via the returned `registerItem`;
- * the closest/containing index is exposed as `activeIndex`.
- */
 export function useProximityHover<T extends HTMLElement>(
   containerRef: RefObject<T | null>,
   options: UseProximityHoverOptions = {},
@@ -83,7 +77,9 @@ export function useProximityHover<T extends HTMLElement>(
         itemsRef.current.delete(index);
       }
       // Coalesce rapid register/unregister calls (e.g. when an AnimatePresence
-      // remounts a list of rows) into a single remeasure on the next frame.
+      // remounts a list of rows) into a single remeasure on the next frame,
+      // so consumers don't have to manually call measureItems after the
+      // container's children swap.
       if (remeasureRafIdRef.current !== null) {
         cancelAnimationFrame(remeasureRafIdRef.current);
       }
@@ -117,7 +113,7 @@ export function useProximityHover<T extends HTMLElement>(
         let containingIndex: number | null = null;
 
         const rects = itemRectsRef.current;
-        // Convert content-relative rects to viewport coords using live scroll.
+        // Convert content-relative rects to viewport coords using live scroll
         const scrollOffset = axis === "x" ? container.scrollLeft : container.scrollTop;
         const borderOffset = axis === "x" ? container.clientLeft : container.clientTop;
         const containerEdge = axis === "x" ? containerRect.left : containerRect.top;
@@ -169,6 +165,7 @@ export function useProximityHover<T extends HTMLElement>(
     setActiveIndex(null);
   }, []);
 
+  // Clean up rAF on unmount
   useEffect(() => {
     return () => {
       if (rafIdRef.current !== null) {
@@ -193,4 +190,19 @@ export function useProximityHover<T extends HTMLElement>(
     registerItem,
     measureItems,
   };
+}
+
+/**
+ * Hook for child items to register themselves with the proximity hover system.
+ * Call in useEffect with the item's ref and index.
+ */
+export function useRegisterProximityItem(
+  registerItem: (index: number, element: HTMLElement | null) => void,
+  index: number,
+  ref: RefObject<HTMLElement | null>,
+) {
+  useEffect(() => {
+    registerItem(index, ref.current);
+    return () => registerItem(index, null);
+  }, [index, registerItem, ref]);
 }

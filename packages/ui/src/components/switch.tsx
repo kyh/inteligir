@@ -1,11 +1,11 @@
 "use client";
 
 import { forwardRef, useRef, useState, useEffect, useCallback, type HTMLAttributes } from "react";
-import { motion, useMotionValue, animate } from "motion/react";
+import { motion, useMotionValue, animate } from "framer-motion";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { cn } from "@repo/ui/lib/utils";
-import { springs } from "@repo/ui/lib/springs";
-import { stripMotionConflicts, toMotionStyle } from "@repo/ui/lib/motion-bridge";
+import { spring } from "@repo/ui/lib/springs";
+import { toMotionStyle } from "@repo/ui/lib/motion-style";
 
 interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   label: string;
@@ -58,7 +58,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
       if (!hasMounted.current) {
         motionX.set(thumbX);
       } else {
-        animate(motionX, thumbX, springs.moderate);
+        animate(motionX, thumbX, spring.moderate);
       }
     }, [thumbX, motionX]);
 
@@ -117,7 +117,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           onToggle();
         } else {
           const snapTarget = checked ? THUMB_OFFSET + THUMB_TRAVEL : THUMB_OFFSET;
-          animate(motionX, snapTarget, springs.moderate);
+          animate(motionX, snapTarget, spring.moderate);
         }
 
         requestAnimationFrame(() => {
@@ -178,8 +178,17 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
           onClick={(e) => e.stopPropagation()}
         >
           <SwitchPrimitive.Thumb
-            render={(props) => {
-              const { style: baseStyle, rest } = stripMotionConflicts<HTMLSpanElement>(props);
+            render={(props: React.HTMLAttributes<HTMLSpanElement>) => {
+              const {
+                style: baseStyle,
+                onDrag: _onDrag,
+                onDragStart: _onDragStart,
+                onDragEnd: _onDragEnd,
+                onAnimationStart: _onAnimationStart,
+                onAnimationEnd: _onAnimationEnd,
+                onAnimationIteration: _onAnimationIteration,
+                ...rest
+              } = props;
               return (
                 <motion.span
                   {...rest}
@@ -194,7 +203,7 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
                     width: thumbWidth,
                     height: thumbHeight,
                   }}
-                  transition={hasMounted.current ? springs.moderate : { duration: 0 }}
+                  transition={hasMounted.current ? spring.moderate : { duration: 0 }}
                 />
               );
             }}
@@ -218,3 +227,4 @@ const Switch = forwardRef<HTMLDivElement, SwitchProps>(
 Switch.displayName = "Switch";
 
 export { Switch };
+export type { SwitchProps };

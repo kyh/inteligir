@@ -13,20 +13,18 @@ vi.mock("electron", () => ({
 import { ipcMain } from "electron";
 
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
-import { registerShellIpcHandlers } from "@/main/shell-ipc";
+import { registerVaultIpcHandlers } from "@/main/vault-ipc";
 import { IPC, type IpcMethod } from "@/shared/ipc-registry";
 
 const mockHandle = vi.mocked(ipcMain.handle);
 const mockOn = vi.mocked(ipcMain.on);
 
 // ---------------------------------------------------------------------------
-// Static scan — every main-side handler registration goes through one of two
-// mechanical patterns:
-//   1. handle("method", …)            — the typed wrapper in lib/ipc-handler.ts
-//   2. ipcMain.on(IPC.method.channel) — the flush-ack listener in widget-flush
-// Both carry the registry method name as a static token, so scanning main/
-// source gives the full set of channels main claims to serve. New wiring
-// files are picked up automatically by the recursive walk.
+// Static scan — every main-side handler registration goes through the typed
+// wrapper `handle("method", …)` (lib/ipc-handler.ts), which carries the registry
+// method name as a static token, so scanning main/ source gives the full set of
+// channels main claims to serve. New wiring files are picked up automatically by
+// the recursive walk.
 // ---------------------------------------------------------------------------
 
 const MAIN_DIR = path.resolve(import.meta.dirname, "../main");
@@ -117,9 +115,9 @@ describe("wiring modules register what their source claims", () => {
     mockOn.mockClear();
   });
 
-  it("registerShellIpcHandlers registers exactly shell-ipc.ts's scanned channels", () => {
-    registerShellIpcHandlers();
-    const claimed = channelsOf(scanHandledMethods(path.join(MAIN_DIR, "shell-ipc.ts")));
+  it("registerVaultIpcHandlers registers exactly vault-ipc.ts's scanned channels", () => {
+    registerVaultIpcHandlers();
+    const claimed = channelsOf(scanHandledMethods(path.join(MAIN_DIR, "vault-ipc.ts")));
     expect(registeredChannels()).toEqual(claimed);
   });
 

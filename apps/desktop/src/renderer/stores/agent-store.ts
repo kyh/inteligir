@@ -8,6 +8,7 @@ import { AppStateSchema, type AppState } from "@/shared/app-state";
 import type { DesktopBridge, SetupProgress } from "@/shared/ipc";
 import type { ImageAttachment } from "@/shared/voice";
 import { getBridge } from "@/renderer/lib/bridge";
+import { flushOpenNote, openNotePath } from "@/renderer/workspace/open-note-flush";
 import { onUserTranscript, useVoiceStore } from "@/renderer/stores/voice-store";
 
 // ---------------------------------------------------------------------------
@@ -34,8 +35,37 @@ export type ChatMessageMetadata = {
 
 export type ChatMessage = UIMessage<ChatMessageMetadata>;
 
-type SendIntent = "steer";
-type SendOptions = { intent?: SendIntent };
+type SendOptions = {
+  intent?: "steer";
+};
+
+/** Prefix a fresh user turn with the open note so the single persistent thread
+ * is note-aware without the user naming the file. Kept out of the displayed
+ * bubble — only the text sent to the agent carries it. */
+export function withNoteContext(text: string, activeNote: string | undefined): string {
+  // Ground the agent in the real date — it otherwise hallucinates one — and, if
+  // a note is open, in which file "this note" refers to.
+  const today = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const note =
+    activeNote === undefined
+      ? ""
+      : ` The note open in front of me is ./vault/${activeNote}; if I say "this note", "here", or don't name a file, I mean that one.`;
+  return `[Context: today is ${today}.${note}]\n\n${text}`;
+}
+
+/** Remove the auto-attached note context so rehydrated history shows the user's
+ * actual words (the agent's stored message includes the prefix; the live
+ * optimistic bubble never did). */
+export function stripNoteContext(text: string): string {
+  // Lazy up to the first `]` that closes the block (`]\n\n`), so a note path
+  // containing `]` doesn't truncate the strip and leak context into the bubble.
+  return text.replace(/^\[Context: [\s\S]*?\]\n\n/, "");
+}
 
 // ---------------------------------------------------------------------------
 // Store
@@ -61,7 +91,11 @@ type AgentStore = {
    * time and routes to the right IPC command (`user_message` / `follow_up` /
    * `steer`), so callers don't need to track busy themselves.
    */
-  send: (text: string, images?: ImageAttachment[], options?: SendOptions) => void;
+  send: (
+    text: string,
+    images?: ImageAttachment[],
+    options?: SendOptions,
+  ) => Promise<{ flushed: boolean }>;
   interrupt: () => void;
   newSession: () => Promise<void>;
 };
@@ -188,7 +222,7 @@ function historyToChatMessages(
   for (const entry of history) {
     switch (entry.role) {
       case "user":
-        messages.push(userMessage(entry.text));
+        messages.push(userMessage(stripNoteContext(entry.text)));
         break;
       case "assistant":
         messages.push(assistantTextMessage(entry.text));
@@ -433,12 +467,14 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     const unsubAgent = subscribeAgentEvents(bridge, set);
     const unsubState = subscribeAppState(bridge, set);
     const unsubProgress = subscribeSetupProgress(bridge, set);
-    // Voice transcripts that completed while the user was actually listening
-    // get routed through the same path as a typed user message: send to the
-    // agent + append to the local chat list.
+    // A completed voice transcript is just a user turn: route it through the
+    // SAME send() as a typed message, so flush, note-context, failed-flush
+    // handling and the logout bail all live in one place and can't drift. Serialize
+    // so rapid transcripts dispatch (and their bubbles append) in spoken order;
+    // send() is async, so without the chain two could race.
+    let voiceChain: Promise<unknown> = Promise.resolve();
     const unsubVoice = onUserTranscript((text) => {
-      set((s) => ({ messages: [...s.messages, userMessage(text)] }));
-      sendCommandSurfacingFailure(bridge, set, { type: "user_message", text });
+      voiceChain = voiceChain.then(() => get().send(text)).catch(() => undefined);
     });
     void loadInitialHistory(bridge, set);
 
@@ -452,9 +488,12 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
 
   // --- Agent commands (IPC) -------------------------------------------------
 
-  send: (text, images, options) => {
+  // The single entry point for sending a user turn — typed (composer) or voice.
+  // Both go through here so the flush-then-contextualize behavior can't diverge.
+  // Returns `flushed` so a UI caller can warn; resolves once dispatched.
+  send: async (text, images, options) => {
     const bridge = getBridge();
-    if (!bridge) return;
+    if (!bridge) return { flushed: true };
 
     const busy = isBusy(get().appState);
     const wantsSteer = options?.intent === "steer";
@@ -469,11 +508,29 @@ export const useAgentStore = create<AgentStore>((set: SetFn, get: GetFn) => ({
     set((s) => ({
       messages: [...s.messages, userMessage(text, hasMeta ? meta : undefined)],
     }));
+
+    // The displayed bubble stays the user's plain text. Only a FRESH user turn
+    // carries the open note: flush it so the agent reads the latest bytes, and
+    // tag the turn with which file "this note" means — but only if the save
+    // actually landed, so a failed flush never points the agent at stale bytes.
+    // (steer/follow-up nudges ride an already-established turn, so they skip it.)
+    let sentText = text;
+    let flushed = true;
+    if (cmdType === "user_message") {
+      flushed = await flushOpenNote();
+      const activeNote = flushed ? (openNotePath() ?? undefined) : undefined;
+      sentText = withNoteContext(text, activeNote);
+      // The flush may have awaited a moment — bail if the session ended meanwhile
+      // (e.g. a voice turn queued behind a flush while the user logged out).
+      if (get().appState.phase === "logged_out") return { flushed };
+    }
+
     sendCommandSurfacingFailure(bridge, set, {
       type: cmdType,
-      text,
+      text: sentText,
       ...(images === undefined ? {} : { images }),
     });
+    return { flushed };
   },
 
   interrupt: () => {

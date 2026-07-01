@@ -2,43 +2,40 @@
 
 ## Project Overview
 
-**inteligir** - An artificially intelligent operating system.
+**inteligir** — an AI-native notes app (Obsidian-with-an-agent). You pick a
+directory (a _vault_); your content is local markdown files on disk. It's
+AI-native two ways: chat to an agent that edits those files, and highlight a
+checkbox to _delegate_ it to a background agent that does the task and writes the
+result back.
 
-Turborepo monorepo with Next.js marketing site + shared packages.
+Turborepo monorepo: an Electron desktop app (the product) + a static Next.js
+marketing site + shared packages.
 
 ## Tech Stack
 
 - **Monorepo**: Turborepo + pnpm workspaces
-- **Frontend**: Next.js 15, React 19, Tailwind CSS 4 (static marketing site, no backend)
-- **UI**: shadcn/ui (Base UI), lucide-react, vaul, sonner
-- **Desktop**: Electron + electron-vite (@repo/desktop) — the actual product
-- **Mobile**: Expo (@repo/mobile) — remote surface, pairs to desktop
-- **Transport**: partyserver Worker (@repo/server) — WebSocket relay, mobile↔desktop
+- **Desktop**: Electron + electron-vite (@repo/desktop) — the product
+- **Editor**: Plate (platejs) rich markdown + a raw textarea fallback
+- **UI**: shadcn/ui (Base UI), lucide-react, sonner, zustand
+- **Web**: Next.js 16, React 19, Tailwind CSS 4 (static marketing site, no backend)
 - **AI Agent**: pi coding agent framework (@mariozechner/pi-coding-agent)
 
 The agent runs locally in the desktop app. There is no server-side API or
-database — auth is provider OAuth (OpenAI), handled by pi on-device.
+database — auth is provider OAuth (OpenAI), handled by pi on-device. The vault is
+just a folder of markdown the user owns; the agent reaches it through a `./vault`
+symlink in its workspace and edits files with its native file tools.
 
 ## Workspace Structure
 
 ```
 apps/
   web/           # Static marketing site (@repo/web) — landing page only
-  desktop/       # Electron app — agent UI, voice, extensions (@repo/desktop)
-  mobile/        # Expo app — remote surface, pairs to desktop (@repo/mobile)
-  server/        # partyserver Worker — WS relay, mobile↔desktop (@repo/server)
-                 # deployed to Cloudflare (inteligir-server) via .github/workflows/deploy.yml
+  desktop/       # Electron app — the notes product (@repo/desktop)
 packages/
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
-  dispatch/      # Shared mobile↔desktop wire protocol (@repo/dispatch)
 ```
-
-The relay ("Remote Access") is opt-in and OFF by default — the desktop never
-connects until the user enables it. Wire contract is dispatch protocol v1:
-typed discriminated-union messages, CSPRNG pairing credentials, parsed with
-`parseMessage` at every boundary. See `packages/dispatch/PROTOCOL.md`.
 
 ## Common Commands
 
@@ -48,21 +45,21 @@ pnpm dev:web          # Dev web app only
 pnpm dev:desktop      # Dev desktop app only
 pnpm build            # Build all
 pnpm typecheck        # Type check all
-pnpm lint             # Lint all
-pnpm lint:fix         # Lint fix all
-pnpm format           # Format check
-pnpm format:fix       # Format fix
+pnpm lint             # Lint all   (oxlint)
+pnpm format:fix       # Format     (oxfmt)
 ```
 
 ## Verifying Changes
 
-Use the **agent-browser** skill to check things in a running app — it drives
-both the web app (browser) and the desktop app (Electron). Don't claim a UI
-change works without driving it; type/test passing isn't feature-correct.
+Use the **agent-browser** skill to drive a running app — both the web app
+(browser) and the desktop app (Electron). Don't claim a UI change works without
+driving it; type/test passing isn't feature-correct.
 
 - Desktop dev exposes a remote-debugging port: `pnpm dev:desktop` runs
-  electron-vite with `--remoteDebuggingPort 9222`. Point agent-browser at it
-  to inspect/automate the Electron renderer.
+  electron-vite with `--remoteDebuggingPort 9222`. `agent-browser connect 9222`
+  attaches to the Electron renderer.
+- Kill stale instances between runs — a leftover Electron/executor process holds
+  ports 9222 and 47888 and the next launch can't bind them.
 
 ## Quality Gates
 
@@ -72,88 +69,60 @@ Before committing:
 pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build
 ```
 
-## Runtime UI architecture (@repo/desktop)
+## Desktop architecture (@repo/desktop)
 
-The desktop renderer is a small OS shell over an agent. The model splits
-"what's installed" (widget definitions) from "what's open" (placed instances);
-the shell is one of several surfaces over that model.
+Three processes: **main** (Electron), **preload**, **renderer** (React). The
+`agent/` boundary never imports `main/` — it's lint-enforced; main composes
+capabilities and hands the agent an injected `AgentPorts` (`{ executor }`).
 
-### Three UI tiers
+### Data model — the vault
 
-1. **Shell chrome** (`renderer/shell/{panel-grid,floating-layer,floating-window,bottom-dock}.tsx`)
-   — React, owned by us. Not a widget; can't be rearranged by the user.
-2. **Built-in React widgets** (`renderer/shell/builtin-widgets.tsx` → `BUILTIN_WIDGET_UI`)
-   — chat, widgets, tasks, extensions, settings. `WidgetDef.source.kind === "builtin-react"`.
-   Trusted, privileged access to IPC and integrations; ship with the binary.
-   The Extensions panel is the consolidated surface for connecting tools:
-   the connectors grid (Google etc., always visible and first), connections,
-   the read-only skills list, and Remote Access; a "Developer tools" toggle
-   gates the custom add-connector escape hatch and the bundled CLI binaries
-   list. The Widgets panel manages custom JSON-UI defs.
-3. **JSON-UI widgets** (`renderer/shell/widget-viewer.tsx` rendering a `WidgetSpec`)
-   — agent-authored or user-added. `WidgetDef.source.kind === "json-ui"`. Constrained
-   to a fixed catalog (`shared/widget-spec.ts`: 38 components, 12 actions). The only
-   path the agent can use to extend the UI.
+`main/vault.ts` (`VaultManager`) owns the vault: a user-chosen folder whose
+markdown files are canonical. It reads through to disk (never quarantines user
+files), writes atomically, watches for changes (broadcasts `onVaultChanged`), and
+maintains a `./vault` symlink in the agent workspace so the agent's file tools
+find it regardless of where the user put it. `~/.inteligir` holds only app state
+(auth, sessions, ui-state, delegations) via versioned `JsonStore`s — never note
+content. Notes are plain GitHub-flavored markdown (no wiki-links).
 
-### Kernel
+### Renderer — one fixed workspace
 
-`main/shell.ts` (`ShellManager`) is the single writer. It persists
-`Shell = { version, customDefs, instances, archivedStates }` at
-`~/.inteligir/runtime-ui.json` through a TypeBox-validated `JsonStore`
-(`main/lib/json-store.ts`) — every store declares `versioning` (current
-version + migration chain); corrupt or newer-versioned files are quarantined
-to a backup, never silently overwritten. Reads on
-the renderer side go through `getShellSnapshot()` (always live); writes go
-through `getWritableShell()`, which returns `null` while shell writes are
-suspended (post-logout, between `resetShellCache()` and `resumeShellWrites()`).
+`renderer/workspace/workspace-page.tsx` is the only surface: **Sidebar (file
+tree) | Editor | Chat**, settings behind a dialog. There is no widget grid.
 
-- `WidgetInstance.placement` is a discriminated union: `{ surface: "pinned",
-geometry }` (grid) or `{ surface: "floating", rect, z }` (window).
-- `Shell.archivedStates` is the per-widgetId state we last saw before an
-  unplace — re-placing the same widget restores it. Cleared on `deleteWidget`
-  and on empty-state unplace.
-- Built-ins are singletons. JSON-UI widgets are multi-instance. The dock
-  ignores the archive when a sibling is already live.
+- `workspace/vault-context.tsx` — a `VaultProvider` owning the editor controller
+  (`editor/vault-editor.ts`), the file listing, and all vault actions
+  (open/create/rename/delete/flush). Sidebar + editor + chat consume `useVault()`.
+- `editor/markdown-doc.ts` is the byte-stability brain: Plate's markdown
+  round-trip is normalizing but **idempotent**, so a _canonical_ file
+  (`roundTrip(raw) === raw`) re-serializes to a minimal diff after an edit. The
+  editor pane opens Rich for canonical files and Raw (byte-exact) + a one-click
+  **Format** for the rest. `editor/block-list.tsx` renders list markers +
+  todo checkboxes (and the per-checkbox Delegate affordance).
 
-### Flush protocol (main ↔ renderer)
+### Delegation — `main/delegation/`
 
-Renderer-owned widget state (json-render store) is debounced (400ms) and
-persisted via the `setInstanceState` IPC method. Before any main-side action
-that would remount or destroy a viewer (unplace, delete, surface switch),
-main asks each window to flush:
+A checkbox's "Delegate" → `delegation-manager.ts` (versioned `JsonStore` +
+event-driven serialized queue) runs it on `background-agent.ts` (a second pi
+session on `BACKGROUND_SESSION_DIR`). The agent edits the file via `./vault`,
+checks the box, and appends a result; the watcher refreshes the editor. Status
+streams to inline badges (`onDelegationsUpdated`). `find-task-line.ts` is the
+pure, content-addressed locator (item text + nearest heading + section).
 
-1. Main broadcasts `onWidgetFlushRequest { instanceId, requestId }` to every
-   live `BrowserWindow` and tracks pending `webContents.id`s.
-2. Each renderer's `initFlushBridge` (wired at startup in `main.tsx`) calls
-   the registered `flushPersist` (returns `boolean`: persisted vs failed)
-   and replies with `ackWidgetFlush { requestId, persisted }`.
-3. Main resolves true only when every window has acked with `persisted=true`;
-   any false or a 2000ms timeout resolves false. Wrappers in
-   `main/lib/shell-actions.ts` (`unplaceWithFlush`/`placeWithFlush`/
-   `deleteWithFlush`) throw `FlushFailedError` on failure so the agent and
-   IPC handlers can distinguish "widget not found" from "flush failed."
+### Agent surface — `agent/`
 
-### Agent surface
+Extension bundles are auto-discovered from `agent/<name>/extension.ts` and
+receive `AgentPorts` at register time — adding/removing a capability is one
+folder. `executor/` is the MCP/connectors capability. `validateToolParametersSchema`
+rejects tool schemas that aren't a top-level `Type.Object` (OpenAI silently
+rejects `anyOf`-rooted schemas). The chat agent edits notes with pi's native file
+tools pointed at `./vault` — no custom edit tool. Chat is a single persistent
+thread; the open note is auto-attached as context (agent-side only) so "edit this
+note" resolves without naming the file. `Cmd+K` rolls a fresh thread.
 
-`agent/` never imports `main/` — the boundary is lint-enforced (oxlint
-`no-restricted-imports` override in `.oxlintrc.json`). Everything an extension
-needs from main is injected as `AgentPorts` (shell/tasks/executor), composed
-in `main/lib/agent-lifecycle.ts`.
+### IPC
 
-`agent/ui/extension.ts` registers a single `manage_ui` tool with actions:
-`list`, `catalog`, `read`, `install` (installs **and** pins the new def in
-one call — the common "make me a widget" path), `update`, `patch` (RFC 6902
-against a custom def's spec, with prototype-pollution guards in
-`shared/json-pointer.ts`), `delete`, `place` (additional instance of an
-already-installed def), `unplace`. All write actions short-circuit when the
-shell is suspended. `install`/`update`/`patch` validate specs with
-`parseWidgetSpec`, including per-component props — the prop schemas, the
-renderer catalog, and the `catalog` action's docs all derive from the one
-TypeBox component table in `shared/widget-spec.ts`.
-
-The tool's `parameters` schema is intentionally a flat `Type.Object` with
-`action` as a discriminator and the union of all per-action fields as
-optional. `Type.Union([...Type.Object])` compiles to JSON Schema `anyOf`
-without a top-level `type` field, which OpenAI silently rejects on every
-turn — `agent/extension.ts::validateToolParametersSchema` runs at extension
-registration to catch that class of bug at startup rather than runtime.
+`shared/ipc-registry.ts` is the single source of truth: each channel pairs a
+TypeBox payload schema with a result/event type, and the preload bridge +
+`DesktopBridge` type are both derived from it. Add a channel = add a registry
+entry; handlers go through `main/lib/ipc-handler.ts::handle`.

@@ -12,7 +12,7 @@ import { login, resetAuthStorage } from "@/agent/auth";
 import type { AgentPorts } from "@/agent/extension";
 import { AGENT_DIR } from "@/agent/paths";
 import { seedResources } from "@/agent/setup";
-import { resetDailyRefresh } from "@/main/daily-refresh";
+import { resetDelegationManager } from "@/main/delegation/delegation-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "@/main/executor/executor-client";
 import {
   EXECUTOR_CLI,
@@ -20,11 +20,8 @@ import {
   installExecutor,
   resetExecutorDaemon,
 } from "@/main/executor/executor-daemon";
-import { deleteWithFlush, placeWithFlush, unplaceWithFlush } from "@/main/lib/shell-actions";
-import { getWritableShell, resetShellCache, resumeShellWrites } from "@/main/shell";
 import { resetNotifications } from "@/main/notifications";
 import { resetSecretStore } from "@/main/secrets";
-import { getTaskManager, resetTaskManager } from "@/main/tasks/task-manager";
 import { resetUiState } from "@/main/ui-state";
 import {
   getVaultManager,
@@ -39,22 +36,13 @@ import type { SetupProgress } from "@/shared/ipc";
  * before a logout/login cycle stays valid after it. */
 export function getAgentPorts(): AgentPorts {
   return {
-    shell: { getWritableShell, placeWithFlush, unplaceWithFlush, deleteWithFlush },
-    tasks: {
-      getTasks: () => getTaskManager().getTasks(),
-      createTask: (params) => getTaskManager().createTask(params),
-      toggleTask: (id) => getTaskManager().toggleTask(id),
-      deleteTask: (id) => {
-        getTaskManager().deleteTask(id);
-      },
-    },
     executor: {
       cli: EXECUTOR_CLI,
       install: (force) => installExecutor(force),
       start: async () => (await getExecutorDaemon().start()) !== null,
       // The *EnsuringDaemon variants attempt one daemon (re)start before each
       // call, so a mid-session daemon crash doesn't permanently break the
-      // agent's execute tool (the widget path already restarts this way).
+      // agent's execute tool.
       execute: executeEnsuringDaemon,
       resume: resumeEnsuringDaemon,
     },
@@ -90,27 +78,21 @@ export async function seedAgentResources(onProgress: (p: SetupProgress) => void)
   getVaultManager().ensureReady();
 }
 
-/** Run the provider OAuth flow, then lift the shell write suspension that a
- * previous logout's resetShellCache put in place — after successful re-auth
- * the workspace may materialize again on the next write. */
+/** Run the provider OAuth flow, then lift the vault write suspension that a
+ * previous logout put in place — after successful re-auth the workspace may
+ * materialize again on the next write. */
 export async function loginAgent(): Promise<void> {
   await login();
-  resumeShellWrites();
   resumeVaultWrites();
 }
 
 export function teardownAgentResources(): void {
-  // Drop singletons that hold JsonStore caches BEFORE removing the directory.
-  // An in-flight debounced write (e.g. a WidgetViewer's unmount-time flush)
-  // running between the rm and the cache reset would otherwise resurrect
-  // runtime-ui.json from the warm in-memory shell. With this order, such a
-  // write either races against the singleton reset (its write lands before
-  // rm and gets wiped) or arrives after the cache is gone.
+  // Drop singletons that hold JsonStore caches BEFORE removing the directory,
+  // so an in-flight debounced write can't resurrect a store file from a warm
+  // in-memory cache after the rm.
   resetAuthStorage();
   resetNotifications();
-  resetShellCache();
-  resetTaskManager();
-  resetDailyRefresh();
+  resetDelegationManager();
   resetExecutorDaemon();
   resetUiState();
   resetSecretStore();

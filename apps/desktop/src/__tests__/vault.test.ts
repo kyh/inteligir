@@ -39,20 +39,6 @@ describe("VaultManager", () => {
     expect(list).toContainEqual({ path: "notes/hello.md", name: "hello.md", kind: "doc" });
   });
 
-  it("serializes and parses JSON blobs via writeAuto/readAuto", () => {
-    const mgr = newManager();
-    mgr.writeAuto("data/habits.json", { streak: 3, items: ["a", "b"] });
-    expect(mgr.readAuto("data/habits.json")).toEqual({ streak: 3, items: ["a", "b"] });
-    // On disk it is valid, pretty-printed JSON.
-    const onDisk = fs.readFileSync(path.join(root, "data/habits.json"), "utf8");
-    expect(JSON.parse(onDisk)).toEqual({ streak: 3, items: ["a", "b"] });
-    expect(mgr.list()).toContainEqual({
-      path: "data/habits.json",
-      name: "habits.json",
-      kind: "blob",
-    });
-  });
-
   it("excludes sibling .tmp files from the listing", () => {
     const mgr = newManager();
     mgr.writeText("note.md", "hi");
@@ -62,24 +48,11 @@ describe("VaultManager", () => {
     expect(names).not.toContain("note.md.tmp");
   });
 
-  it("returns raw text from readAuto for non-JSON files", () => {
-    const mgr = newManager();
-    mgr.writeAuto("note.md", "plain text");
-    expect(mgr.readAuto("note.md")).toBe("plain text");
-  });
-
-  it("refuses to write undefined instead of corrupting the file", () => {
-    const mgr = newManager();
-    expect(() => mgr.writeAuto("data/x.json", undefined)).toThrow(/undefined/);
-    expect(() => mgr.writeAuto("note.md", undefined)).toThrow(/undefined/);
-    expect(fs.existsSync(path.join(root, "data/x.json"))).toBe(false);
-  });
-
-  it("surfaces malformed JSON instead of resetting the file", () => {
+  it("read-through never resets a malformed file — the bytes survive", () => {
     const mgr = newManager();
     mgr.writeText("broken.json", "{ not json");
-    expect(() => mgr.readAuto("broken.json")).toThrow(/valid JSON/i);
-    // The bytes survive — never quarantined or reset.
+    // Unlike JsonStore, the vault reads through to disk and never quarantines
+    // or rewrites user-owned files.
     expect(mgr.readText("broken.json")).toBe("{ not json");
   });
 

@@ -1,8 +1,8 @@
 // ---------------------------------------------------------------------------
 // VaultManager — the user's local knowledge vault: a single, user-selectable
-// folder of markdown + JSON files that the agent and widgets both read and
-// write (Obsidian-style). This is the app's *data* store, distinct from the
-// app-state store under ~/.inteligir.
+// folder of markdown files that both the agent and the editor read and write
+// (Obsidian-style). This is the app's *data* store, distinct from the app-state
+// store under ~/.inteligir.
 //
 // Why not JsonStore: JsonStore owns a single file as the authoritative
 // in-memory cache and quarantines-then-resets anything it can't parse. The
@@ -26,7 +26,6 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "@/agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
-import { toErrorMessage } from "@/shared/ipc";
 import type { VaultEntry } from "@/shared/ipc-registry";
 
 // ---------------------------------------------------------------------------
@@ -49,16 +48,12 @@ function defaultVaultRoot(): string {
   return path.join(os.homedir(), "Documents", "Inteligir");
 }
 
-// File-extension → entry kind. `doc` is free text we edit raw; `blob` is JSON
-// the widgets/agent treat as structured data.
+// File-extension → entry kind. `doc` is editable markdown/text; everything else
+// (images, pdfs, json, …) is `other` and shown but not opened in the editor.
 const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
-const BLOB_EXTENSIONS = new Set([".json"]);
 
 function classify(filePath: string): VaultEntry["kind"] {
-  const ext = path.extname(filePath).toLowerCase();
-  if (DOC_EXTENSIONS.has(ext)) return "doc";
-  if (BLOB_EXTENSIONS.has(ext)) return "blob";
-  return "other";
+  return DOC_EXTENSIONS.has(path.extname(filePath).toLowerCase()) ? "doc" : "other";
 }
 
 const MAX_LIST_ENTRIES = 2000;
@@ -117,7 +112,7 @@ export class VaultManager {
   }
 
   /** Repoint the vault at a new folder, (re)create it, refresh the agent
-   * symlink + watcher, and notify subscribers so panels and widgets reload.
+   * symlink + watcher, and notify subscribers so the sidebar + editor reload.
    * Rejects a root inside ~/.inteligir — that directory is wiped on logout,
    * which would silently destroy the user's "persistent" data. */
   setRoot(root: string): void {
@@ -199,39 +194,27 @@ export class VaultManager {
     atomicWrite(target, content);
   }
 
-  /** Typed read for widgets/agent: parsed JSON for `.json`, raw text otherwise. */
-  readAuto(rel: string): unknown {
-    const text = this.readText(rel);
-    if (classify(rel) !== "blob") return text;
-    try {
-      return JSON.parse(text);
-    } catch (err) {
-      throw new Error(`Not valid JSON (${rel}): ${toErrorMessage(err)}`, { cause: err });
-    }
-  }
-
-  /** Typed write for widgets: serialize `.json` blobs, coerce everything else
-   * to text. A whole-file replace — last write wins (atomic). */
-  writeAuto(rel: string, value: unknown): void {
-    // `undefined` (e.g. a missing widget state pointer) would otherwise stringify
-    // to the literal text "undefined" and corrupt the file — fail cleanly so the
-    // widget surfaces an error instead.
-    if (value === undefined) {
-      throw new Error(`Nothing to write to ${rel}: value is undefined`);
-    }
-    if (classify(rel) === "blob") {
-      this.writeText(rel, `${JSON.stringify(value, null, 2)}\n`);
-      return;
-    }
-    this.writeText(rel, typeof value === "string" ? value : JSON.stringify(value, null, 2));
-  }
-
   delete(rel: string): boolean {
     assertVaultWritable();
     const target = this.resolve(rel);
     if (!fs.existsSync(target)) return false;
     fs.rmSync(target, { force: true });
     return true;
+  }
+
+  /** Rename/move a file within the vault. Both paths are confined under the
+   * root; parent dirs of the destination are created. Refuses to overwrite an
+   * existing destination so a rename can't silently clobber another note. */
+  rename(from: string, to: string): { ok: true } | { ok: false; error: string } {
+    assertVaultWritable();
+    const src = this.resolve(from);
+    const dst = this.resolve(to);
+    if (!fs.existsSync(src)) return { ok: false, error: `Not found: ${from}` };
+    if (src === dst) return { ok: true };
+    if (fs.existsSync(dst)) return { ok: false, error: `${to} already exists` };
+    fs.mkdirSync(path.dirname(dst), { recursive: true });
+    fs.renameSync(src, dst);
+    return { ok: true };
   }
 
   // ---- Watcher / notifier ---------------------------------------------------
@@ -265,7 +248,7 @@ export class VaultManager {
   // stay inside. Rejects `..` traversal and absolute escapes ("/etc/passwd"
   // resolves outside root). Residual: a symlink planted inside the vault could
   // still point out, but the user owns the vault and the agent already has raw
-  // fs access, so this guards the renderer/widget path, not the agent.
+  // fs access, so this guards the renderer path, not the agent.
   private resolve(rel: string): string {
     const root = path.resolve(this.getRoot());
     const target = path.resolve(root, rel);

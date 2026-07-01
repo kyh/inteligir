@@ -56,26 +56,26 @@ export function SiteHeader() {
   return (
     <header className="fixed top-4 right-4 z-50 flex items-center gap-1">
       <ThemeToggle />
-      {/* `render` makes the anchor the host element while Button's children
-          (the icon) render inside it; nativeButton={false} since it's an <a>. */}
-      <Button
-        variant="secondary"
-        size="icon"
-        className="rounded-full"
-        nativeButton={false}
-        render={<a href={GITHUB_URL} target="_blank" rel="noreferrer" aria-label="GitHub" />}
+      {/* Social links are plain anchors styled as secondary icon buttons (a
+          Fluid Button can't be asChild — its decorative children break Slot). */}
+      <a
+        href={GITHUB_URL}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="GitHub"
+        className="flex size-9 items-center justify-center rounded-full bg-accent text-foreground transition-colors hover:bg-accent/80"
       >
-        <GithubIcon />
-      </Button>
-      <Button
-        variant="secondary"
-        size="icon"
-        className="rounded-full"
-        nativeButton={false}
-        render={<a href={TWITTER_URL} target="_blank" rel="noreferrer" aria-label="X (Twitter)" />}
+        <GithubIcon className="size-4" />
+      </a>
+      <a
+        href={TWITTER_URL}
+        target="_blank"
+        rel="noreferrer"
+        aria-label="X (Twitter)"
+        className="flex size-9 items-center justify-center rounded-full bg-accent text-foreground transition-colors hover:bg-accent/80"
       >
-        <XIcon />
-      </Button>
+        <XIcon className="size-4" />
+      </a>
     </header>
   );
 }

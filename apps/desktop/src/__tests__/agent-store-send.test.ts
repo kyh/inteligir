@@ -68,9 +68,11 @@ describe("agent-store send", () => {
     const messages = useAgentStore.getState().messages;
     expect(messages).toHaveLength(1);
     expect(messages[0]?.role).toBe("user");
+    // The sent text carries the date-grounding context prefix (stripped from
+    // the displayed bubble); assert the user's words survive inside it.
     expect(helpers.bridgeMock.sendAgentCommand).toHaveBeenCalledWith({
       type: "user_message",
-      text: "hello",
+      text: expect.stringContaining("hello"),
       images: undefined,
     });
   });

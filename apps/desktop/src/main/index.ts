@@ -26,38 +26,21 @@ import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice
 import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
 import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-proxy";
 
-import {
-  getAppState,
-  initMachine,
-  maybeRunDailyRefresh,
-  reauthenticate,
-  shutdown,
-  transition,
-} from "@/main/app-machine";
-import {
-  getDispatchState,
-  initDispatch,
-  rotateDispatchCredential,
-  setRemoteAccessEnabled,
-  shutdownDispatch,
-} from "@/main/dispatch/dispatch-client";
-import { handleChatMessage } from "@/main/dispatch/chat-bridge";
-import { dispatchAgentCommand, isAgentReserved } from "@/main/dispatch/agent-gateway";
+import { getAppState, initMachine, reauthenticate, shutdown, transition } from "@/main/app-machine";
+import { dispatchAgentCommand } from "@/main/agent-gateway";
+import { getDelegationManager } from "@/main/delegation/delegation-manager";
+import { generateInline } from "@/main/inline-ai";
 import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
 import { getAgentPorts } from "@/main/lib/agent-lifecycle";
 import { initAgentLog } from "@/main/lib/agent-log";
 import { broadcast } from "@/main/lib/broadcast";
 import { handle } from "@/main/lib/ipc-handler";
 import { getNotifications } from "@/main/notifications";
-import { getWritableShell } from "@/main/shell";
 import { getUiState } from "@/main/ui-state";
-import { getTaskManager } from "@/main/tasks/task-manager";
 import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
-import { registerShellIpcHandlers } from "@/main/shell-ipc";
 import { registerVaultIpcHandlers } from "@/main/vault-ipc";
 import { getVaultManager, setVaultChangeNotifier } from "@/main/vault";
-import { registerWidgetActionIpcHandlers } from "@/main/widget-actions";
 import { isHttpUrl, toErrorMessage } from "@/shared/ipc";
 import type { UpdateState } from "@/shared/ipc";
 
@@ -95,9 +78,9 @@ process.on("unhandledRejection", (reason) => {
 // ---------------------------------------------------------------------------
 // Graceful shutdown — the single path every quit trigger funnels through:
 // cmd+Q / window close (before-quit), SIGINT/SIGTERM, and the auto-update
-// install. Stops the agent + executor daemon (app-machine shutdown) and
-// disconnects the dispatch relay, with a hard timeout so a hung teardown
-// can't wedge quit. Idempotent: concurrent triggers share one promise.
+// install. Stops the agent + executor daemon (app-machine shutdown) with a
+// hard timeout so a hung teardown can't wedge quit. Idempotent: concurrent
+// triggers share one promise.
 // ---------------------------------------------------------------------------
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -107,7 +90,6 @@ let shutdownFinished = false;
 function runGracefulShutdown(): Promise<void> {
   if (shutdownPromise) return shutdownPromise;
   shutdownPromise = (async () => {
-    shutdownDispatch();
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<void>((resolve) => {
       timer = setTimeout(() => {
@@ -119,16 +101,9 @@ function runGracefulShutdown(): Promise<void> {
     });
     try {
       await Promise.race([
-        Promise.all([
-          shutdown().catch((error: unknown) => {
-            console.error("[desktop] shutdown failed:", error);
-          }),
-          // Drain any pending coalesced runtime-ui.json write so a quit within
-          // milliseconds of a drag/state tick can't lose the trailing write.
-          (getWritableShell()?.flushStore() ?? Promise.resolve()).catch((error: unknown) => {
-            console.error("[desktop] shell flush on shutdown failed:", error);
-          }),
-        ]),
+        shutdown().catch((error: unknown) => {
+          console.error("[desktop] shutdown failed:", error);
+        }),
         timeout,
       ]);
     } finally {
@@ -210,17 +185,21 @@ function configureApplicationMenu(): void {
 function registerIpcHandlers(): void {
   registerUpdateHandlers();
   registerAgentHandlers();
-  registerDispatchHandlers();
   registerLifecycleHandlers();
-  registerTaskHandlers();
   registerVoiceHandlers();
   registerNotificationHandlers();
   registerUiStateHandlers();
-  registerShellIpcHandlers();
-  registerWidgetActionIpcHandlers();
   registerExecutorIpcHandlers();
   registerVaultIpcHandlers();
+  registerDelegationHandlers();
   registerSkillAndIntegrationHandlers();
+}
+
+function registerDelegationHandlers(): void {
+  handle("createDelegation", (params) => getDelegationManager().createDelegation(params));
+  handle("listDelegations", () => ({ delegations: getDelegationManager().getDelegations() }));
+  handle("cancelDelegation", (id) => getDelegationManager().cancelDelegation(id));
+  handle("generateInlineAi", (params) => generateInline(params.prompt, params.requestId));
 }
 
 function registerUpdateHandlers(): void {
@@ -276,27 +255,11 @@ function registerAgentHandlers(): void {
   handle("reauthenticate", () => reauthenticate());
 }
 
-function registerDispatchHandlers(): void {
-  handle("getDispatchState", () => getDispatchState());
-  handle("setRemoteAccess", ({ enabled }) => setRemoteAccessEnabled(enabled));
-  handle("rotateDispatchCredential", () => rotateDispatchCredential());
-}
-
 function registerLifecycleHandlers(): void {
   handle("getAppState", () => getAppState());
   handle("transition", (event) => {
     transition(event);
   });
-}
-
-function registerTaskHandlers(): void {
-  handle("createTask", (params) => ({ task: getTaskManager().createTask(params) }));
-  handle("listTasks", () => ({ tasks: getTaskManager().getTasks() }));
-  handle("deleteTask", (id): { ok: true } => {
-    getTaskManager().deleteTask(id);
-    return { ok: true };
-  });
-  handle("toggleTask", (id) => ({ task: getTaskManager().toggleTask(id) }));
 }
 
 function registerVoiceHandlers(): void {
@@ -558,42 +521,8 @@ function onAppReady(): void {
 
   mainWindow = createWindow();
   getNotifications().setTargetWindow(mainWindow);
-  // Re-opening the app (window regains focus) is the primary "good morning"
-  // trigger; maybeRunDailyRefresh no-ops unless a new local day is due and the
-  // session is ready. (Cold launch is covered by the ready-state hook.)
-  mainWindow.on("focus", () => void maybeRunDailyRefresh());
 
-  // app-machine can't import the gateway (the gateway imports getAgent from
-  // it); index.ts composes the two here.
-  initMachine({ dispatchAgentCommand, isAgentReserved });
-
-  // Inbound relay traffic arrives fully parsed (TypeBox-validated in
-  // dispatch-client via parseMessage) and only from authenticated peers — the
-  // Worker refuses unauthenticated sockets at connect time. No casts here.
-  initDispatch((message) => {
-    switch (message.type) {
-      // Chat-bridge messages from external interfaces run a full agent turn
-      // and reply out of band via chat_reply.
-      case "chat_message":
-        handleChatMessage(message);
-        break;
-      // Mobile commands funnel through the same gateway as the desktop UI,
-      // so they queue (rather than corrupt) an in-flight external chat turn.
-      case "user_message":
-        if (message.text) {
-          void dispatchAgentCommand({ type: "user_message", text: message.text }).catch(() => {});
-        }
-        break;
-      case "steer":
-        if (message.text) {
-          void dispatchAgentCommand({ type: "steer", text: message.text }).catch(() => {});
-        }
-        break;
-      case "interrupt":
-        void dispatchAgentCommand({ type: "interrupt" }).catch(() => {});
-        break;
-    }
-  });
+  initMachine();
 }
 
 app

@@ -1,5 +1,6 @@
 import { BrowserWindow, dialog, type OpenDialogOptions } from "electron";
 
+import { getDelegationManager } from "@/main/delegation/delegation-manager";
 import { handle } from "@/main/lib/ipc-handler";
 import { getVaultManager } from "@/main/vault";
 import { toErrorMessage } from "@/shared/ipc";
@@ -37,23 +38,20 @@ export function registerVaultIpcHandlers(): void {
     getVaultManager().writeText(path, content);
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
-
-  // ---- Widget surface (envelope results, never throws to the renderer) -------
-
-  handle("widgetVaultRead", ({ path }) => {
-    try {
-      return { ok: true as const, value: getVaultManager().readAuto(path) };
-    } catch (err) {
-      return { ok: false as const, error: toErrorMessage(err) };
+  handle("renameVaultEntry", ({ from, to }) => {
+    const result = getVaultManager().rename(from, to);
+    // Repoint any delegations so badges keep matching and queued runs target the
+    // new path (rename preserves content, so their positional anchors hold). The
+    // disk rename is the source of truth — if this best-effort metadata remap
+    // throws, log it but still report the rename that actually happened, rather
+    // than tell the renderer it failed and leave the two views inconsistent.
+    if (result.ok) {
+      try {
+        getDelegationManager().renameSource(from, to);
+      } catch (err) {
+        console.warn("[vault] delegation remap after rename failed:", err);
+      }
     }
-  });
-
-  handle("widgetVaultWrite", ({ path, value }) => {
-    try {
-      getVaultManager().writeAuto(path, value);
-      return { ok: true as const };
-    } catch (err) {
-      return { ok: false as const, error: toErrorMessage(err) };
-    }
+    return result;
   });
 }

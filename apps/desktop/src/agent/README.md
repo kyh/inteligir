@@ -1,6 +1,6 @@
 # `agent/` — pi extensions
 
-Inteligir-specific composition over `@repo/pi-driver`. Each "extension" plugs a third-party capability (Google Workspace, agent-browser, scheduled tasks) into pi as a tool.
+Inteligir-specific composition over `@repo/pi-driver`. Each "extension" plugs a third-party capability (connected APIs via the executor, agent-browser, native macOS automation) into pi as a tool.
 
 ## The bundle pattern
 
@@ -72,9 +72,11 @@ agent/
   browser/extension.ts  # Wraps agent-browser CLI (setup installs binary + browser runtime)
   executor/extension.ts # Code mode — surfaces executor's `execute`/`resume` tools (connected APIs, incl. Google Workspace)
   peekaboo/extension.ts # Native macOS automation CLI (setup downloads tarball)
-  tasks/extension.ts    # Scheduled task management (no setup)
-  ui/extension.ts       # manage_ui tool — agent-driven runtime UI (install/place/patch/etc.)
 ```
+
+The agent edits the user's notes with its native file tools against the `./vault`
+symlink, so there's no notes-specific extension. Checkbox delegation is driven
+from the UI (main/delegation), not an agent tool.
 
 Single-file extensions live as `<name>/extension.ts` rather than `<name>-tool.ts` so they can grow into a folder without churn.
 

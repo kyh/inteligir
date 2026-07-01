@@ -12,49 +12,17 @@ import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver/pi-types";
 
 import { isRecord, type SetupProgress } from "@/shared/ipc";
 import type { ExecutorExecuteResult } from "@/shared/executor";
-import type {
-  InstallWidgetInput,
-  JsonUiWidgetDef,
-  ShellSnapshot,
-  UpdateWidgetInput,
-  WidgetDef,
-  WidgetInstance,
-  WidgetPatchInput,
-  WidgetSurface,
-} from "@/shared/shell";
-import type { CreateTaskParams, Task } from "@/shared/task";
 
 // ---------------------------------------------------------------------------
 // Ports — main-owned capabilities handed to extensions at register/setup time.
 // agent/ never imports @/main/*; main/lib/agent-lifecycle.ts builds these
 // (structural subsets of the main singletons) and passes them down. The
 // dependency direction stays one-way: main composes, agent receives.
+//
+// The agent reads/writes vault files through the `./vault` workspace symlink
+// using pi's native file tools, so there is no vault port — only capabilities
+// that can't be expressed as plain filesystem access need one.
 // ---------------------------------------------------------------------------
-
-/** Writable widget-shell surface (subset of main/shell.ts ShellManager). */
-type ShellWriterPort = {
-  snapshot(): ShellSnapshot;
-  getDef(id: string): WidgetDef | null;
-  installWidget(input: InstallWidgetInput): JsonUiWidgetDef;
-  updateWidget(input: UpdateWidgetInput): JsonUiWidgetDef;
-  patchWidgetSpec(input: WidgetPatchInput): JsonUiWidgetDef;
-};
-
-type ShellPort = {
-  /** Null while shell writes are suspended (post-logout). */
-  getWritableShell(): ShellWriterPort | null;
-  placeWithFlush(widgetId: string, surface?: WidgetSurface): Promise<WidgetInstance | null>;
-  unplaceWithFlush(instanceId: string): Promise<boolean>;
-  deleteWithFlush(widgetId: string, expectedRevision?: number): Promise<boolean>;
-};
-
-/** Scheduled-task store handle (subset of main/tasks/task-manager.ts). */
-export type TasksPort = {
-  getTasks(): Task[];
-  createTask(params: CreateTaskParams): Task;
-  toggleTask(id: string): Task;
-  deleteTask(id: string): void;
-};
 
 /** Executor daemon access (main/executor/*): install, lifecycle, code mode. */
 export type ExecutorPort = {
@@ -72,8 +40,6 @@ export type ExecutorPort = {
 };
 
 export type AgentPorts = {
-  shell: ShellPort;
-  tasks: TasksPort;
   executor: ExecutorPort;
 };
 

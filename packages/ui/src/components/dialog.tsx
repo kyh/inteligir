@@ -1,212 +1,202 @@
 "use client";
 
-import * as React from "react";
+import { forwardRef, type ReactNode, type HTMLAttributes } from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
-import { motion } from "motion/react";
-import { XIcon } from "lucide-react";
-
+import { motion } from "framer-motion";
 import { cn } from "@repo/ui/lib/utils";
+import { useIcon } from "@repo/ui/lib/icon-context";
+import { spring } from "@repo/ui/lib/springs";
+import { useShape } from "@repo/ui/lib/shape-context";
+import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
+import { surfaceClasses } from "@repo/ui/lib/surface-classes";
+import { toMotionStyle } from "@repo/ui/lib/motion-style";
 import { Button } from "@repo/ui/components/button";
-import { springs } from "@repo/ui/lib/springs";
-import { stripMotionConflicts, toMotionStyle } from "@repo/ui/lib/motion-bridge";
-import { GLASS_TIER } from "@repo/ui/lib/surface-classes";
-import { GlassProvider, SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
 
-// A dialog floats four elevation steps above whatever surface it opens over.
-// (The panel itself renders as smoked glass — the level only seeds nested
-// opaque surfaces via SurfaceProvider.)
 const DIALOG_OFFSET = 4;
 
-function Dialog({ ...props }: DialogPrimitive.Root.Props) {
-  return <DialogPrimitive.Root data-slot="dialog" {...props} />;
+interface DialogProps {
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  modal?: boolean;
+  children?: ReactNode;
 }
 
-function DialogTrigger({ ...props }: DialogPrimitive.Trigger.Props) {
-  return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />;
-}
-
-function DialogPortal({ ...props }: DialogPrimitive.Portal.Props) {
-  return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />;
-}
-
-// Spring-animated scrim. Motion is information — the backdrop eases in on the
-// slow spring and out on the moderate one, matching the popup's tempo.
-function DialogOverlay({ className }: { className?: string }) {
+function Dialog({ children, open, defaultOpen, onOpenChange, modal }: DialogProps) {
+  // Base UI's Root handles controlled/uncontrolled state internally. We only
+  // narrow the (open, eventDetails) callback to (open) for our public prop.
   return (
-    <DialogPrimitive.Backdrop
-      data-slot="dialog-overlay"
-      render={(backdropProps, state) => {
-        const exiting = state.transitionStatus === "ending";
-        const { rest } = stripMotionConflicts<HTMLDivElement>(backdropProps);
-        return (
-          <motion.div
-            {...rest}
-            className={cn(
-              // Dim only — no backdrop blur. The refs keep the canvas crisp
-              // outside the glass; the smoked popup supplies its own blur.
-              "fixed inset-0 z-50 bg-black/25 dark:bg-black/45",
-              className,
-            )}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: exiting ? 0 : 1 }}
-            transition={exiting ? springs.moderate : springs.slow}
-          />
-        );
-      }}
-    />
-  );
-}
-
-function DialogContent({
-  className,
-  children,
-  showCloseButton = true,
-  size = "sm",
-  style,
-  ...props
-}: DialogPrimitive.Popup.Props & {
-  showCloseButton?: boolean;
-  size?: "sm" | "lg";
-}) {
-  const substrate = useSurface();
-  const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
-
-  // No `if (!open) return null` here — Base UI's `<DialogPrimitive.Popup>`
-  // handles mount/unmount itself, and waits for the motion opacity/scale tween
-  // below to finish (via `element.getAnimations()`) before unmounting.
-  // Returning null early would short-circuit the closing animation.
-  return (
-    <DialogPortal>
-      <DialogOverlay />
-      <DialogPrimitive.Popup
-        data-slot="dialog-content"
-        // Behavioral Popup props (focus management, etc.) and any HTML
-        // attributes/handlers stay on the primitive, so Base UI applies the
-        // behavioral ones and merges the forwardable ones into `popupProps` for
-        // the rendered element. className/style are pulled out and handled in
-        // the render callback to preserve tailwind-merge / motion semantics.
-        {...props}
-        render={(popupProps, state) => {
-          const exiting = state.transitionStatus === "ending";
-          const { style: baseStyle, rest } = stripMotionConflicts<HTMLDivElement>(popupProps);
-          // Base UI's `style` prop can be a state-resolving function.
-          const userStyle = typeof style === "function" ? style(state) : style;
-          return (
-            <motion.div
-              // Base UI's resolved props (data attrs, refs, role, plus the
-              // consumer's merged HTML attributes/handlers) land on the
-              // visible motion.div.
-              {...rest}
-              // Centering lives in Tailwind's `translate` utilities (a
-              // standalone CSS property in v4), not in the motion transform, so
-              // consumers can still override placement via className — e.g. the
-              // command palette's `top-1/3 translate-y-0`. Motion only animates
-              // opacity + scale (the `transform` property), which composes with
-              // `translate` rather than clobbering it.
-              className={cn(
-                "fixed top-1/2 left-1/2 z-50 w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2",
-                // Smoked glass in BOTH themes — dark translucent fill, heavy
-                // blur, white text (the references' menus/sheets language).
-                GLASS_TIER.deep,
-                "rounded-[var(--radius-glass)] p-6 text-sm text-glass-fg outline-none",
-                size === "sm" && "max-w-[400px]",
-                size === "lg" && "max-w-[540px]",
-                className,
-              )}
-              style={toMotionStyle({ ...baseStyle, ...userStyle })}
-              initial={{ opacity: 0, scale: 0.97 }}
-              animate={{
-                opacity: exiting ? 0 : 1,
-                scale: exiting ? 0.97 : 1,
-              }}
-              transition={exiting ? springs.moderate : springs.slow}
-            >
-              <SurfaceProvider value={dialogLevel}>
-                <GlassProvider value={true}>
-                  {children}
-                  {showCloseButton && (
-                    <DialogPrimitive.Close
-                      data-slot="dialog-close"
-                      render={
-                        <Button variant="ghost" size="icon-sm" className="absolute top-3 right-3" />
-                      }
-                    >
-                      <XIcon />
-                      <span className="sr-only">Close</span>
-                    </DialogPrimitive.Close>
-                  )}
-                </GlassProvider>
-              </SurfaceProvider>
-            </motion.div>
-          );
-        }}
-      />
-    </DialogPortal>
-  );
-}
-
-function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
-  return (
-    <div
-      data-slot="dialog-header"
-      className={cn("flex flex-col gap-1.5 mb-4", className)}
-      {...props}
-    />
-  );
-}
-
-function DialogFooter({
-  className,
-  showCloseButton = false,
-  children,
-  ...props
-}: React.ComponentProps<"div"> & {
-  showCloseButton?: boolean;
-}) {
-  return (
-    <div
-      data-slot="dialog-footer"
-      className={cn("flex justify-end gap-2 mt-6", className)}
-      {...props}
+    <DialogPrimitive.Root
+      open={open}
+      defaultOpen={defaultOpen}
+      onOpenChange={(next) => onOpenChange?.(next)}
+      modal={modal}
     >
       {children}
-      {showCloseButton && (
-        <DialogPrimitive.Close render={<Button variant="outline" />}>Close</DialogPrimitive.Close>
-      )}
-    </div>
+    </DialogPrimitive.Root>
   );
 }
 
-function DialogTitle({ className, ...props }: DialogPrimitive.Title.Props) {
-  return (
+const DialogTrigger = DialogPrimitive.Trigger;
+const DialogClose = DialogPrimitive.Close;
+
+interface DialogContentProps extends HTMLAttributes<HTMLDivElement> {
+  size?: "sm" | "lg";
+}
+
+const DialogContent = forwardRef<HTMLDivElement, DialogContentProps>(
+  ({ className, children, size = "sm", ...props }, ref) => {
+    const XIcon = useIcon("x");
+    const shape = useShape();
+    const substrate = useSurface();
+    const dialogLevel = Math.min(substrate + DIALOG_OFFSET, 8);
+
+    // No `if (!open) return null` here — Base UI's `<DialogPrimitive.Popup>`
+    // handles mount/unmount itself, and waits for the framer-motion opacity
+    // tween below to finish (via `element.getAnimations()`) before unmounting.
+    // Returning null early would short-circuit the closing animation.
+    return (
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Backdrop
+          render={(backdropProps: React.HTMLAttributes<HTMLDivElement>, state) => {
+            const exiting = state.transitionStatus === "ending";
+            const {
+              style: _style,
+              onDrag: _onDrag,
+              onDragStart: _onDragStart,
+              onDragEnd: _onDragEnd,
+              onAnimationStart: _onAnimationStart,
+              onAnimationEnd: _onAnimationEnd,
+              onAnimationIteration: _onAnimationIteration,
+              ...rest
+            } = backdropProps;
+            return (
+              <motion.div
+                {...rest}
+                className="fixed inset-0 z-50 bg-black/40 dark:bg-black/80"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: exiting ? 0 : 1 }}
+                transition={exiting ? spring.slow.exit : spring.slow}
+              />
+            );
+          }}
+        />
+        <DialogPrimitive.Popup
+          ref={ref}
+          render={(popupProps: React.HTMLAttributes<HTMLDivElement>, state) => {
+            const exiting = state.transitionStatus === "ending";
+            const {
+              style: baseStyle,
+              onDrag: _onDrag,
+              onDragStart: _onDragStart,
+              onDragEnd: _onDragEnd,
+              onAnimationStart: _onAnimationStart,
+              onAnimationEnd: _onAnimationEnd,
+              onAnimationIteration: _onAnimationIteration,
+              ...rest
+            } = popupProps;
+            // Same object reference is spread at runtime, so behavior matches
+            // `{...props}`; the annotation only hides the framer-motion-
+            // incompatible React handler types from the motion.div spread.
+            const consumerProps: Omit<
+              React.HTMLAttributes<HTMLDivElement>,
+              | "onDrag"
+              | "onDragStart"
+              | "onDragEnd"
+              | "onAnimationStart"
+              | "onAnimationEnd"
+              | "onAnimationIteration"
+            > = props;
+            return (
+              <motion.div
+                // Base UI's props first (data attrs, refs, role, etc.)…
+                {...rest}
+                // …then the consumer's `<DialogContent>` props (className,
+                // event handlers, data-*, etc.) land on the visible motion.div
+                // — matching the Radix flavour, which spreads `...props` onto
+                // the Content primitive that becomes the motion.div via asChild.
+                {...consumerProps}
+                className={cn(
+                  "fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)]",
+                  surfaceClasses(dialogLevel),
+                  "p-6 focus:outline-none",
+                  size === "sm" && "max-w-[400px]",
+                  size === "lg" && "max-w-[540px]",
+                  shape.container,
+                  className,
+                )}
+                style={{
+                  ...toMotionStyle(baseStyle),
+                  ...toMotionStyle(props.style),
+                }}
+                initial={{ opacity: 0, scale: 0.97, x: "-50%", y: "-50%" }}
+                animate={{
+                  opacity: exiting ? 0 : 1,
+                  scale: exiting ? 0.97 : 1,
+                  x: "-50%",
+                  y: "-50%",
+                }}
+                transition={exiting ? spring.slow.exit : spring.slow}
+              >
+                <SurfaceProvider value={dialogLevel}>
+                  {children}
+                  <DialogPrimitive.Close
+                    render={
+                      <Button variant="ghost" size="icon-sm" className="absolute right-3 top-3">
+                        <XIcon />
+                        <span className="sr-only">Close</span>
+                      </Button>
+                    }
+                  />
+                </SurfaceProvider>
+              </motion.div>
+            );
+          }}
+        />
+      </DialogPrimitive.Portal>
+    );
+  },
+);
+DialogContent.displayName = "DialogContent";
+
+function DialogHeader({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("flex flex-col gap-1.5 mb-4", className)} {...props} />;
+}
+
+function DialogFooter({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("flex justify-end gap-2 mt-6", className)} {...props} />;
+}
+
+const DialogTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
+  ({ className, ...props }, ref) => (
     <DialogPrimitive.Title
-      data-slot="dialog-title"
-      className={cn("text-[16px] text-glass-fg leading-tight", className)}
+      ref={ref}
+      className={cn("text-[16px] text-foreground leading-tight", className)}
       style={{ fontVariationSettings: "'wght' 700" }}
       {...props}
     />
-  );
-}
+  ),
+);
+DialogTitle.displayName = "DialogTitle";
 
-function DialogDescription({ className, ...props }: DialogPrimitive.Description.Props) {
-  return (
+const DialogDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
+  ({ className, ...props }, ref) => (
     <DialogPrimitive.Description
-      data-slot="dialog-description"
-      className={cn(
-        "text-[13px] text-glass-fg-muted *:[a]:underline *:[a]:underline-offset-3 *:[a]:hover:text-glass-fg",
-        className,
-      )}
+      ref={ref}
+      className={cn("text-[13px] text-muted-foreground", className)}
       {...props}
     />
-  );
-}
+  ),
+);
+DialogDescription.displayName = "DialogDescription";
 
 export {
   Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
   DialogTrigger,
+  DialogContent,
+  DialogHeader,
+  DialogFooter,
+  DialogTitle,
+  DialogDescription,
+  DialogClose,
 };

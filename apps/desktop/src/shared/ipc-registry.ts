@@ -34,22 +34,13 @@ import {
   type AddOpenApiResult,
 } from "./executor";
 import {
-  FloatRectSchema,
-  WidgetGeometrySchema,
-  type ShellSnapshot,
-  type WidgetDef,
-  type WidgetInstance,
-} from "./shell";
-import {
-  CreateTaskParamsSchema,
-  type CreateTaskResult,
-  type DeleteTaskResult,
-  type ListTasksResult,
-  type ToggleTaskResult,
-} from "./task";
+  CreateDelegationParamsSchema,
+  type CreateDelegationResult,
+  type ListDelegationsResult,
+} from "./delegation";
+import { AiGenerateParamsSchema, type AiGenerateResult } from "./inline-ai";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
-import type { DispatchState } from "./dispatch";
 
 // ---------------------------------------------------------------------------
 // Shared shapes referenced by registry entries
@@ -140,71 +131,8 @@ const NotificationsPatchSchema = Type.Object(
   { additionalProperties: false },
 );
 
-const PlaceWidgetSchema = Type.Object(
-  {
-    widgetId: Type.String(),
-    surface: Type.Optional(Type.Union([Type.Literal("pinned"), Type.Literal("floating")])),
-  },
-  { additionalProperties: false },
-);
-
-const DeleteWidgetSchema = Type.Object(
-  {
-    widgetId: Type.String(),
-    expectedRevision: Type.Optional(Type.Number()),
-  },
-  { additionalProperties: false },
-);
-
-const WidgetGeometriesSchema = Type.Record(Type.String(), WidgetGeometrySchema);
-
-const SetInstanceRectSchema = Type.Object(
-  { instanceId: Type.String(), rect: FloatRectSchema },
-  { additionalProperties: false },
-);
-
-const SetInstanceSurfaceSchema = Type.Object(
-  {
-    instanceId: Type.String(),
-    surface: Type.Union([Type.Literal("pinned"), Type.Literal("floating")]),
-  },
-  { additionalProperties: false },
-);
-
-const SetInstanceStateSchema = Type.Object(
-  {
-    instanceId: Type.String(),
-    state: Type.Record(Type.String(), Type.Unknown()),
-  },
-  { additionalProperties: false },
-);
-
-const FlushAckSchema = Type.Object(
-  { requestId: Type.String(), persisted: Type.Boolean() },
-  { additionalProperties: false },
-);
-
-const WidgetPromptSchema = Type.Object({ prompt: Type.String() }, { additionalProperties: false });
-const WidgetCompleteSchema = Type.Object(
-  { prompt: Type.String(), system: Type.Optional(Type.String()) },
-  { additionalProperties: false },
-);
-const WidgetFetchSchema = Type.Object({ url: Type.String() }, { additionalProperties: false });
-const WidgetCallToolSchema = Type.Object(
-  { tool: Type.String(), input: Type.Optional(Type.Unknown()) },
-  { additionalProperties: false },
-);
-
-// Result envelope for widget:call-tool. The handler returns this instead of
-// throwing so a failed tool call never reaches the renderer as Electron's
-// "Error invoking remote method '…': <main-side stack>" string — which a widget
-// would otherwise render verbatim into its error state. `ok:false` carries a
-// short, already-cleaned message safe to show inline.
-export type WidgetCallToolResult = { ok: true; data: unknown } | { ok: false; error: string };
-const WidgetOpenUrlSchema = Type.Object({ url: Type.String() }, { additionalProperties: false });
-
 // ---------------------------------------------------------------------------
-// Vault — the user's local knowledge folder (markdown + JSON). Paths are
+// Vault — the user's local knowledge folder (markdown). Paths are
 // vault-relative; main confines them under the vault root.
 // ---------------------------------------------------------------------------
 
@@ -213,37 +141,19 @@ const VaultWriteDocSchema = Type.Object(
   { path: Type.String(), content: Type.String() },
   { additionalProperties: false },
 );
-const VaultWriteValueSchema = Type.Object(
-  { path: Type.String(), value: Type.Unknown() },
-  { additionalProperties: false },
-);
 
-/** One file in the vault, relative to the vault root. `kind` splits free-text
- * docs (md/txt) from structured JSON blobs from everything else. */
+/** One file in the vault, relative to the vault root. `kind` splits editable
+ * markdown docs (md/markdown/txt) from everything else (images, pdfs, …). */
 export type VaultEntry = {
   path: string;
   name: string;
-  kind: "doc" | "blob" | "other";
+  kind: "doc" | "other";
 };
 
 export type ChooseVaultResult = { root: string } | { canceled: true } | { error: string };
 
-// Result envelopes for the widget vault actions — same rationale as
-// WidgetCallToolResult: a failed read/write resolves with ok:false so the
-// renderer shows a clean inline message, never Electron's IPC stack string.
-export type WidgetVaultReadResult = { ok: true; value: unknown } | { ok: false; error: string };
-export type WidgetVaultWriteResult = { ok: true } | { ok: false; error: string };
-
-// InstallWidgetInput carries a WidgetSpec — the deep validation lives in
-// widget-spec.ts (TypeBox + cycle check). At the IPC boundary we only need
-// to confirm the wrapper shape so a malformed payload rejects cleanly.
-const InstallWidgetInputSchema = Type.Object(
-  {
-    id: Type.Optional(Type.String()),
-    title: Type.String(),
-    description: Type.Optional(Type.String()),
-    spec: Type.Unknown(),
-  },
+const VaultRenameSchema = Type.Object(
+  { from: Type.String(), to: Type.String() },
   { additionalProperties: false },
 );
 
@@ -252,11 +162,6 @@ const InstallWidgetInputSchema = Type.Object(
 const BinaryAudioSchema = Type.Any();
 
 const TtsSendSchema = Type.Object({ text: Type.String() }, { additionalProperties: false });
-
-const SetRemoteAccessSchema = Type.Object(
-  { enabled: Type.Boolean() },
-  { additionalProperties: false },
-);
 
 // ---------------------------------------------------------------------------
 // Entry helpers — phantom types carry result/event shapes through the registry
@@ -339,24 +244,6 @@ export const IPC = {
   getAgentHistory: invokeVoid<ChatHistoryEntry[]>("agent:history"),
   reauthenticate: invokeVoid<{ ok: boolean; error?: string }>("agent:reauthenticate"),
 
-  // Tasks
-  createTask: invoke<typeof CreateTaskParamsSchema, CreateTaskResult>(
-    "task:create",
-    CreateTaskParamsSchema,
-  ),
-  listTasks: invokeVoid<ListTasksResult>("task:list"),
-  deleteTask: invoke<ReturnType<typeof Type.String>, DeleteTaskResult>(
-    "task:delete",
-    Type.String({ minLength: 1 }),
-  ),
-  toggleTask: invoke<ReturnType<typeof Type.String>, ToggleTaskResult>(
-    "task:toggle",
-    Type.String({ minLength: 1 }),
-  ),
-  /** Push channel: fired on every task mutation (IPC, agent tool, scheduler)
-   * so the Tasks panel stays live instead of only refreshing on mount. */
-  onTasksUpdated: event<ListTasksResult>("task:updated"),
-
   // Voice
   isTtsAvailable: invokeVoid<boolean>("voice:tts:available"),
   ttsSend: send<typeof TtsSendSchema>("voice:tts:send", TtsSendSchema),
@@ -372,15 +259,6 @@ export const IPC = {
   downloadVoiceModel: invokeVoid<{ ok: boolean; error?: string }>("voice:model:download"),
   onVoiceModelState: event<VoiceModelStateEvent>("voice:model:state"),
 
-  // Dispatch (Remote Access relay — opt-in mobile ↔ desktop pairing)
-  getDispatchState: invokeVoid<DispatchState>("dispatch:get-state"),
-  setRemoteAccess: invoke<typeof SetRemoteAccessSchema, DispatchState>(
-    "dispatch:set-remote-access",
-    SetRemoteAccessSchema,
-  ),
-  rotateDispatchCredential: invokeVoid<DispatchState>("dispatch:rotate-credential"),
-  onDispatchState: event<DispatchState>("dispatch:state"),
-
   // Notifications
   getNotificationSettings: invokeVoid<NotificationSettings>("notifications:get"),
   updateNotificationSettings: invoke<typeof NotificationsPatchSchema, NotificationSettings>(
@@ -392,74 +270,7 @@ export const IPC = {
   getUiState: invokeVoid<Record<string, unknown>>("ui-state:get"),
   setUiState: invoke<typeof UiStateSetSchema, void>("ui-state:set", UiStateSetSchema),
 
-  // Shell
-  listShell: invokeVoid<ShellSnapshot>("shell:list"),
-  onShellUpdated: event<ShellSnapshot>("shell:updated"),
-  installWidget: invoke<typeof InstallWidgetInputSchema, WidgetDef>(
-    "shell:install",
-    InstallWidgetInputSchema,
-  ),
-  placeWidget: invoke<typeof PlaceWidgetSchema, WidgetInstance | null>(
-    "shell:place",
-    PlaceWidgetSchema,
-  ),
-  unplaceWidget: invoke<ReturnType<typeof Type.String>, { removed: boolean }>(
-    "shell:unplace",
-    Type.String(),
-  ),
-  deleteWidget: invoke<typeof DeleteWidgetSchema, { deleted: boolean }>(
-    "shell:delete",
-    DeleteWidgetSchema,
-  ),
-  setInstanceGeometry: invoke<typeof WidgetGeometriesSchema, void>(
-    "shell:set-geometry",
-    WidgetGeometriesSchema,
-  ),
-  setInstanceRect: invoke<typeof SetInstanceRectSchema, void>(
-    "shell:set-rect",
-    SetInstanceRectSchema,
-  ),
-  setInstanceSurface: invoke<typeof SetInstanceSurfaceSchema, WidgetInstance | null>(
-    "shell:set-surface",
-    SetInstanceSurfaceSchema,
-  ),
-  focusInstance: invoke<ReturnType<typeof Type.String>, void>("shell:focus", Type.String()),
-  setInstanceState: invoke<typeof SetInstanceStateSchema, WidgetInstance | null>(
-    "shell:set-state",
-    SetInstanceStateSchema,
-  ),
-  onWidgetFlushRequest: event<{ instanceId: string; requestId: string }>("shell:flush-request"),
-  ackWidgetFlush: send<typeof FlushAckSchema>("shell:flush-ack", FlushAckSchema),
-
-  // Live widget actions
-  widgetSendPrompt: invoke<typeof WidgetPromptSchema, void>(
-    "widget:send-prompt",
-    WidgetPromptSchema,
-  ),
-  widgetComplete: invoke<typeof WidgetCompleteSchema, string>(
-    "widget:complete",
-    WidgetCompleteSchema,
-  ),
-  widgetFetch: invoke<typeof WidgetFetchSchema, string>("widget:fetch", WidgetFetchSchema),
-  widgetCallTool: invoke<typeof WidgetCallToolSchema, WidgetCallToolResult>(
-    "widget:call-tool",
-    WidgetCallToolSchema,
-  ),
-  widgetOpenUrl: invoke<typeof WidgetOpenUrlSchema, boolean>(
-    "widget:open-url",
-    WidgetOpenUrlSchema,
-  ),
-  // Widget vault access — typed read (parsed JSON for blobs) + whole-file write.
-  widgetVaultRead: invoke<typeof VaultPathSchema, WidgetVaultReadResult>(
-    "widget:vault-read",
-    VaultPathSchema,
-  ),
-  widgetVaultWrite: invoke<typeof VaultWriteValueSchema, WidgetVaultWriteResult>(
-    "widget:vault-write",
-    VaultWriteValueSchema,
-  ),
-
-  // Vault (knowledge folder) — trusted renderer surface for the Vault panel.
+  // Vault (knowledge folder) — trusted renderer surface for the editor.
   getVaultRoot: invokeVoid<string>("vault:get-root"),
   chooseVaultRoot: invokeVoid<ChooseVaultResult>("vault:choose-root"),
   listVault: invokeVoid<VaultEntry[]>("vault:list"),
@@ -469,9 +280,42 @@ export const IPC = {
     "vault:delete",
     VaultPathSchema,
   ),
+  /** Rename/move a file to a new vault-relative path (creating parent dirs).
+   * Refuses to clobber an existing file. */
+  renameVaultEntry: invoke<typeof VaultRenameSchema, { ok: true } | { ok: false; error: string }>(
+    "vault:rename",
+    VaultRenameSchema,
+  ),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
-   * Vault panel re-lists and bound widgets re-read. */
+   * sidebar re-lists and the editor reloads. */
   onVaultChanged: event<{ root: string }>("vault:changed"),
+
+  // Delegation — a checkbox handed to a background agent.
+  createDelegation: invoke<typeof CreateDelegationParamsSchema, CreateDelegationResult>(
+    "delegation:create",
+    CreateDelegationParamsSchema,
+  ),
+  listDelegations: invokeVoid<ListDelegationsResult>("delegation:list"),
+  cancelDelegation: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
+    "delegation:cancel",
+    Type.String({ minLength: 1 }),
+  ),
+  /** Fired on every delegation status change so the editor's inline badges
+   * stay live. */
+  onDelegationsUpdated: event<ListDelegationsResult>("delegation:updated"),
+  /** Fired as a running delegation streams its response text (accumulating,
+   * keyed by id) so the response dock can show it live. */
+  onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
+
+  // Inline AI — one-shot text generation for the editor (continue / summarize /
+  // improve), run on an isolated no-tools session.
+  generateInlineAi: invoke<typeof AiGenerateParamsSchema, AiGenerateResult>(
+    "ai:generate",
+    AiGenerateParamsSchema,
+  ),
+  /** Fired for each text delta of an in-flight inline-AI request (keyed by the
+   * caller's requestId) so the editor can insert the generation live. */
+  onAiStreamed: event<{ requestId: string; delta: string }>("ai:streamed"),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection

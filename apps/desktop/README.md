@@ -1,6 +1,6 @@
 # `@repo/desktop` — Inteligir Electron app
 
-Three-process Electron app wrapping a pi-coding-agent runtime. The agent does real work (filesystem, shell, browser via agent-browser CLI, connected APIs — Google Workspace and more — via executor code mode); the renderer is a chat UI over it.
+Three-process Electron app: an AI-native notes workspace (sidebar file tree, markdown editor, chat) over a pi-coding-agent runtime. The agent does real work (edits the user's vault files, plus shell, browser via agent-browser CLI, connected APIs — Google Workspace and more — via executor code mode).
 
 ## Layout
 
@@ -91,12 +91,12 @@ Opens Electron with HMR (renderer) + tsc watch (main/preload). CDP exposed on po
 
 ## Adding things — quick map
 
-| Adding...                                 | Where                                                                                                                                          | See                                |
-| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| New IPC method                            | Registry entry in `shared/ipc-registry.ts` + `handle()` in `main/{index,shell-ipc,executor-ipc,widget-actions}.ts` (preload bridge is derived) | `main/README.md`                   |
-| New app state phase                       | `shared/app-state.ts` + reducer + tests                                                                                                        | `main/README.md`                   |
-| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring                                                                                          | `main/README.md`                   |
-| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                                                                                                 | `agent/README.md`                  |
-| Reusable install primitive                | `packages/agent-runtime/`                                                                                                                      | `packages/agent-runtime/README.md` |
-| New built-in widget panel                 | `renderer/shell/builtin/<name>-panel.tsx` + register in `builtin-widgets.tsx` + def in `shared/shell.ts`                                       | (no README — standard React)       |
-| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`                                                                                             | `agent/README.md`                  |
+| Adding...                                 | Where                                                                                                                                   | See                                |
+| ----------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| New IPC method                            | Registry entry in `shared/ipc-registry.ts` + `handle()` in `main/{index,vault-ipc,executor-ipc}.ts` (preload bridge is derived)         | `main/README.md`                   |
+| New app state phase                       | `shared/app-state.ts` + reducer + tests                                                                                                 | `main/README.md`                   |
+| New side effect on transition             | `main/app-effects.ts` + `EffectDeps` + machine wiring                                                                                   | `main/README.md`                   |
+| New pi tool / 3rd-party integration       | `agent/<name>/extension.ts` + glob picks it up                                                                                          | `agent/README.md`                  |
+| Reusable install primitive                | `packages/agent-runtime/`                                                                                                               | `packages/agent-runtime/README.md` |
+| New workspace feature (sidebar/editor)    | A component under `renderer/{sidebar,editor,composer,settings}/` wired into `workspace/workspace-page.tsx`; vault data via `useVault()` | (no README — standard React)       |
+| Bundled resource (skill, AGENTS.md, etc.) | `resources/agent/` + reference in `agent/setup.ts`                                                                                      | `agent/README.md`                  |
