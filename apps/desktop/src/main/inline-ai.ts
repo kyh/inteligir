@@ -20,6 +20,16 @@ const GEN_TIMEOUT_MS = 60_000;
 let agent: Agent | null = null;
 let busy = false;
 
+// Streaming channel — pushes each text delta (keyed by requestId) so the editor
+// can insert the generation live. Wired from app-machine to stay electron-free.
+let streamNotifier: ((requestId: string, delta: string) => void) | null = null;
+
+export function setInlineAiStreamNotifier(
+  notifier: ((requestId: string, delta: string) => void) | null,
+): void {
+  streamNotifier = notifier;
+}
+
 export async function startInlineAiAgent(): Promise<void> {
   if (agent) return;
   const next = new Agent({
@@ -39,15 +49,19 @@ export async function stopInlineAiAgent(): Promise<void> {
   await a.stop().catch(() => {});
 }
 
-/** Run one generation. `prompt` is fully formed by the caller (action + text). */
-export async function generateInline(prompt: string): Promise<AiGenerateResult> {
+/** Run one generation. `prompt` is fully formed by the caller (action + text);
+ * text deltas stream out via the notifier keyed by `requestId`. */
+export async function generateInline(prompt: string, requestId: string): Promise<AiGenerateResult> {
   if (!agent) return { ok: false, error: "AI isn't available — restart the app." };
   if (busy) return { ok: false, error: "Another AI request is already running." };
   busy = true;
   let captured = "";
   const unsubscribe = agent.subscribe((raw) => {
     const event = parseAgentEvent(raw);
-    if (event?.type === "message_end" && event.role === "assistant" && event.text) {
+    if (event?.type === "message_update") {
+      captured += event.delta;
+      streamNotifier?.(requestId, event.delta);
+    } else if (event?.type === "message_end" && event.role === "assistant" && event.text) {
       captured = event.text;
     }
   });

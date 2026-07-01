@@ -20,7 +20,7 @@ import {
   startBackgroundAgent,
   stopBackgroundAgent,
 } from "@/main/delegation/background-agent";
-import { startInlineAiAgent, stopInlineAiAgent } from "@/main/inline-ai";
+import { setInlineAiStreamNotifier, startInlineAiAgent, stopInlineAiAgent } from "@/main/inline-ai";
 import {
   getDelegationManager,
   setDelegationsChangedNotifier,
@@ -366,6 +366,7 @@ export function initMachine(): void {
     broadcast("onDelegationsUpdated", { delegations }),
   );
   setDelegationStreamNotifier((id, text) => broadcast("onDelegationStreamed", { id, text }));
+  setInlineAiStreamNotifier((requestId, delta) => broadcast("onAiStreamed", { requestId, delta }));
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);

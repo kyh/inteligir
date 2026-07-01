@@ -8,7 +8,7 @@
 // accepting just removes the highlight; the text was already in the document.
 
 import { useCallback, useRef, useState } from "react";
-import { type TRange, RangeApi } from "platejs";
+import { type TRange, PointApi, RangeApi } from "platejs";
 import { createPlatePlugin, type PlateEditor } from "platejs/react";
 
 import { getBridge } from "@/renderer/lib/bridge";
@@ -47,23 +47,8 @@ function buildPrompt(action: InlineAiAction, text: string): string {
   }
 }
 
-// Insert `text` as an AI-marked range: replacing the selection for edit actions,
-// or at the cursor for generate actions. Returns the inserted range.
-function insertAi(editor: PlateEditor, text: string, mode: "replace" | "insert"): TRange | null {
-  if (mode === "insert") editor.tf.collapse({ edge: "end" });
-  const sel = editor.selection;
-  if (!sel) return null;
-  const anchor = RangeApi.start(sel);
-  editor.tf.insertText(text);
-  const focus = editor.selection?.anchor;
-  if (!focus) return null;
-  const range: TRange = { anchor, focus };
-  editor.tf.setNodes({ [AI_MARK]: true }, { at: range, match: (n) => "text" in n, split: true });
-  // Select the pending text so it reads as a distinct, highlighted proposal and
-  // the Accept/Discard bar can anchor to it.
-  editor.tf.select(range);
-  return range;
-}
+// Serial ids so a stale stream event from a previous request is ignored.
+let requestCounter = 0;
 
 export function useInlineAi(editor: PlateEditor): {
   status: InlineAiStatus;
@@ -73,7 +58,9 @@ export function useInlineAi(editor: PlateEditor): {
   dismissError: () => void;
 } {
   const [status, setStatus] = useState<InlineAiStatus>({ kind: "idle" });
-  const pendingRef = useRef<ReturnType<PlateEditor["api"]["rangeRef"]> | null>(null);
+  // The editor history length before the AI touched the doc; Discard undoes back
+  // to it, reverting the delete + every streamed insert in one clean step.
+  const undoDepthRef = useRef(0);
 
   const run = useCallback(
     (action: InlineAiAction) => {
@@ -89,37 +76,80 @@ export function useInlineAi(editor: PlateEditor): {
           ? editor.api.string(sel)
           : editor.api.string([]);
 
+      // Remember where the history stood so Discard can revert everything below.
+      undoDepthRef.current = editor.history.undos.length;
+      // Clear the target (edit actions replace the selection) or drop to its end
+      // (generate actions), then track the start so the streamed deltas form one
+      // accept/discard-able range.
+      if (isEdit) editor.tf.delete();
+      else editor.tf.collapse({ edge: "end" });
+      const insertion = editor.selection;
+      if (!insertion) return;
+      const startRef = editor.api.pointRef(RangeApi.start(insertion));
+
+      requestCounter += 1;
+      const requestId = String(requestCounter);
       setStatus({ kind: "loading" });
+
+      // Insert each streamed delta, AI-marked, at the growing end of the range.
+      const off = bridge.onAiStreamed(({ requestId: id, delta }) => {
+        if (id !== requestId || delta.length === 0) return;
+        editor.tf.addMark(AI_MARK, true);
+        editor.tf.insertText(delta);
+      });
+
       void bridge
-        .generateInlineAi({ prompt: buildPrompt(action, input) })
+        .generateInlineAi({ prompt: buildPrompt(action, input), requestId })
         .then((result) => {
+          off();
+          const start = startRef.current;
+          startRef.unref();
+          const end = editor.selection?.anchor;
           if (!result.ok) {
+            if (start && end) editor.tf.delete({ at: { anchor: start, focus: end } });
             setStatus({ kind: "error", message: result.error });
             return undefined;
           }
-          const range = insertAi(editor, result.text, isEdit ? "replace" : "insert");
-          pendingRef.current = range ? editor.api.rangeRef(range) : null;
+          // Fallback for models that don't stream: insert the final text now.
+          if (start && end && PointApi.equals(start, end)) {
+            editor.tf.addMark(AI_MARK, true);
+            editor.tf.insertText(result.text);
+          }
+          const focus = editor.selection?.anchor;
+          if (start && focus) {
+            const range: TRange = { anchor: start, focus };
+            editor.tf.setNodes(
+              { [AI_MARK]: true },
+              {
+                at: range,
+                match: (n) => "text" in n,
+                split: true,
+              },
+            );
+            editor.tf.select(range);
+          }
           setStatus({ kind: "pending", action });
           return undefined;
         })
-        .catch(() => setStatus({ kind: "error", message: "AI request failed." }));
+        .catch(() => {
+          off();
+          startRef.unref();
+          setStatus({ kind: "error", message: "AI request failed." });
+        });
     },
     [editor],
   );
 
   const finish = useCallback(
     (mode: "accept" | "discard") => {
-      const ref = pendingRef.current;
-      const range = ref?.current;
-      if (range) {
-        if (mode === "accept") {
-          editor.tf.unsetNodes([AI_MARK], { at: range, match: (n) => "text" in n, split: true });
-        } else {
-          editor.tf.delete({ at: range });
-        }
+      if (mode === "accept") {
+        // Keep the text, just strip the highlight everywhere it landed.
+        editor.tf.unsetNodes([AI_MARK], { at: [], match: (n) => AI_MARK in n, mode: "lowest" });
+        editor.tf.collapse({ edge: "end" });
+      } else {
+        // Revert the delete + every streamed insert back to the pre-AI state.
+        while (editor.history.undos.length > undoDepthRef.current) editor.undo();
       }
-      ref?.unref();
-      pendingRef.current = null;
       setStatus({ kind: "idle" });
       editor.tf.focus();
     },

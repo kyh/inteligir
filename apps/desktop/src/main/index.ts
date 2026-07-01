@@ -199,7 +199,7 @@ function registerDelegationHandlers(): void {
   handle("createDelegation", (params) => getDelegationManager().createDelegation(params));
   handle("listDelegations", () => ({ delegations: getDelegationManager().getDelegations() }));
   handle("cancelDelegation", (id) => getDelegationManager().cancelDelegation(id));
-  handle("generateInlineAi", (params) => generateInline(params.prompt));
+  handle("generateInlineAi", (params) => generateInline(params.prompt, params.requestId));
 }
 
 function registerUpdateHandlers(): void {

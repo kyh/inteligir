@@ -313,6 +313,9 @@ export const IPC = {
     "ai:generate",
     AiGenerateParamsSchema,
   ),
+  /** Fired for each text delta of an in-flight inline-AI request (keyed by the
+   * caller's requestId) so the editor can insert the generation live. */
+  onAiStreamed: event<{ requestId: string; delta: string }>("ai:streamed"),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection
