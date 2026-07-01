@@ -5,8 +5,13 @@
 //
 // Security posture: local single-user, loopback IS the auth gate. The server
 // binds 127.0.0.1 only (asserted after listen), and every HTTP request and
-// WS upgrade must carry a loopback Host header (DNS-rebinding guard). No
-// accounts, no tokens — anything that can speak to 127.0.0.1 is the user.
+// WS upgrade must carry a loopback Host header (DNS-rebinding guard). The WS
+// upgrade additionally enforces an Origin allowlist: a WebSocket handshake
+// is NOT subject to CORS, so any page the user visits could otherwise open
+// ws://127.0.0.1/bridge and drive the vault. Browsers always attach an
+// unforgeable Origin, so a loopback-only allowlist shuts that out; a missing
+// Origin means a non-browser local client (which already has machine access).
+// No accounts, no tokens — anything that can speak to 127.0.0.1 is the user.
 // ---------------------------------------------------------------------------
 
 import http from "node:http";
@@ -54,6 +59,19 @@ function isAllowedHostHeader(header: string | undefined): boolean {
   }
 }
 
+/** WS handshakes bypass CORS, so a cross-origin page could otherwise drive
+ * the bridge. Browsers always send an unforgeable Origin — require it to be
+ * loopback. An absent Origin is a non-browser local client (native tooling
+ * that already has full machine access), so it's allowed through. */
+function isAllowedOrigin(origin: string | undefined): boolean {
+  if (origin === undefined) return true;
+  try {
+    return ALLOWED_HOSTNAMES.has(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
 function toBytes(data: unknown): Uint8Array | null {
   if (data instanceof Uint8Array) return data;
   if (data instanceof ArrayBuffer) return new Uint8Array(data);
@@ -90,7 +108,11 @@ export async function createServer(options: ServerOptions): Promise<RunningServe
 
   httpServer.on("upgrade", (req, socket, head) => {
     const pathname = new URL(req.url ?? "/", `http://${LOOPBACK_ADDRESS}`).pathname;
-    if (!isAllowedHostHeader(req.headers.host) || pathname !== BRIDGE_PATH) {
+    if (
+      !isAllowedHostHeader(req.headers.host) ||
+      !isAllowedOrigin(req.headers.origin) ||
+      pathname !== BRIDGE_PATH
+    ) {
       socket.destroy();
       return;
     }

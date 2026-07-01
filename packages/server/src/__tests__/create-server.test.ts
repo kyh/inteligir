@@ -135,6 +135,37 @@ describe("createServer", () => {
     await expect(statusFor(`localhost:${server.port}`)).resolves.toBe(200);
   });
 
+  it("rejects WS upgrades from a cross-origin page", async () => {
+    const { server } = await boot();
+    // A browser at evil.example.com hits the loopback bridge directly: Host is
+    // 127.0.0.1 (allowed) but the browser attaches its own unforgeable Origin.
+    const upgrade = (origin: string | undefined) =>
+      new Promise<"open" | "rejected">((resolve) => {
+        const req = http.request({
+          host: "127.0.0.1",
+          port: server.port,
+          path: "/bridge",
+          headers: {
+            connection: "Upgrade",
+            upgrade: "websocket",
+            "sec-websocket-version": "13",
+            "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==",
+            ...(origin === undefined ? {} : { origin }),
+          },
+        });
+        req.on("upgrade", (_res, socket) => {
+          socket.destroy();
+          resolve("open");
+        });
+        req.on("response", () => resolve("rejected"));
+        req.on("error", () => resolve("rejected"));
+        req.end();
+      });
+    await expect(upgrade("http://evil.example.com")).resolves.toBe("rejected");
+    await expect(upgrade(`http://127.0.0.1:${server.port}`)).resolves.toBe("open");
+    await expect(upgrade(undefined)).resolves.toBe("open");
+  });
+
   it("answers req envelopes from host handlers, including errors", async () => {
     const { server } = await boot({
       getVaultRoot: () => "/tmp/vault",
