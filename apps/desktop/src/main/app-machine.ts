@@ -20,6 +20,7 @@ import {
   startBackgroundAgent,
   stopBackgroundAgent,
 } from "@/main/delegation/background-agent";
+import { startInlineAiAgent, stopInlineAiAgent } from "@/main/inline-ai";
 import {
   getDelegationManager,
   setDelegationsChangedNotifier,
@@ -162,6 +163,11 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
   const bgStarted = startBackgroundAgent().catch((err: unknown) => {
     console.error("[machine] background delegation agent failed to start:", err);
   });
+  // Inline-AI generator — same rationale (isolated session, non-fatal on failure;
+  // inline AI just returns "unavailable" until it's up).
+  const inlineAiStarted = startInlineAiAgent().catch((err: unknown) => {
+    console.error("[machine] inline-ai agent failed to start:", err);
+  });
   try {
     await next.start();
     next.subscribe((raw) => {
@@ -176,6 +182,8 @@ async function startAgent(opts: { newSession?: boolean } = {}): Promise<void> {
     await next.stop().catch(() => {});
     await bgStarted;
     await stopBackgroundAgent();
+    await inlineAiStarted;
+    await stopInlineAiAgent();
     throw err;
   }
   agent = next;
@@ -200,9 +208,10 @@ async function stopAgent(): Promise<void> {
     await agent.stop();
     agent = null;
   }
-  // Stop both agents before the shared executor daemon: the daemon is a process
-  // singleton both sessions use, so it must outlive each agent's teardown.
+  // Stop all agents before the shared executor daemon: the daemon is a process
+  // singleton every session uses, so it must outlive each agent's teardown.
   await stopBackgroundAgent();
+  await stopInlineAiAgent();
   await getExecutorDaemon().stop();
   turn = null;
 }

@@ -47,6 +47,10 @@ export type AgentOptions = {
    * thread). A separate session dir can be passed to keep a run out of the
    * user's continueRecent pool. */
   sessionDir?: string;
+  /** Hard tool allowlist. When set (e.g. `[]`), ONLY these tools exist — used by
+   * the inline-AI session, which is a pure text generator with no file/executor
+   * access. Unset keeps the default active tool set. */
+  allowedToolNames?: string[];
 };
 
 export class Agent {
@@ -68,7 +72,10 @@ export class Agent {
         authStorage: getAuthStorage(),
         model: resolveModel(AUTH_PROVIDER, MODEL_ID),
         sessionManager,
-        initialActiveToolNames: INITIAL_ACTIVE_TOOLS,
+        // A hard allowlist (even `[]`) replaces the default active-tool set.
+        ...(this.opts.allowedToolNames !== undefined
+          ? { allowedToolNames: this.opts.allowedToolNames }
+          : { initialActiveToolNames: INITIAL_ACTIVE_TOOLS }),
         extensionFactories: () =>
           buildValidatedFactories(EXTENSION_BUNDLES, buildRegisterContext(this.opts.ports)),
       });

@@ -18,10 +18,12 @@ import {
   ListIcon,
   ListOrderedIcon,
   MinusIcon,
+  PenLineIcon,
   PilcrowIcon,
   QuoteIcon,
   SquareCheckIcon,
   Table2Icon,
+  WandSparklesIcon,
 } from "lucide-react";
 import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
@@ -36,6 +38,7 @@ import {
   InlineComboboxInput,
   InlineComboboxItem,
 } from "@/renderer/editor/inline-combobox";
+import { triggerInlineAi } from "@/renderer/editor/inline-ai-toolbar";
 
 // Turn the current block(s) into a plain block type (heading/paragraph/quote),
 // clearing any list formatting first.
@@ -92,6 +95,27 @@ type SlashItem = {
 };
 
 const GROUPS: { group: string; items: SlashItem[] }[] = [
+  {
+    group: "Ask AI",
+    items: [
+      {
+        icon: <PenLineIcon />,
+        label: "Continue writing",
+        value: "ai-continue",
+        description: "Let AI continue from here.",
+        keywords: ["ai", "continue", "write", "autocomplete"],
+        onSelect: () => triggerInlineAi("continue"),
+      },
+      {
+        icon: <WandSparklesIcon />,
+        label: "Summarize",
+        value: "ai-summarize",
+        description: "Summarize the selection or note.",
+        keywords: ["ai", "summary", "tldr", "recap"],
+        onSelect: () => triggerInlineAi("summarize"),
+      },
+    ],
+  },
   {
     group: "Basic blocks",
     items: [

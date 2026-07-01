@@ -38,6 +38,7 @@ import {
   type CreateDelegationResult,
   type ListDelegationsResult,
 } from "./delegation";
+import { AiGenerateParamsSchema, type AiGenerateResult } from "./inline-ai";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
 
@@ -305,6 +306,13 @@ export const IPC = {
   /** Fired as a running delegation streams its response text (accumulating,
    * keyed by id) so the response dock can show it live. */
   onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
+
+  // Inline AI — one-shot text generation for the editor (continue / summarize /
+  // improve), run on an isolated no-tools session.
+  generateInlineAi: invoke<typeof AiGenerateParamsSchema, AiGenerateResult>(
+    "ai:generate",
+    AiGenerateParamsSchema,
+  ),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection

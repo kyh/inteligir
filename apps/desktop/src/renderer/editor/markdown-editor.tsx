@@ -63,6 +63,8 @@ import { Menu, MenuContent, MenuItem, MenuSeparator } from "@repo/ui/components/
 
 import { BlockList } from "@/renderer/editor/block-list";
 import { DragKit } from "@/renderer/editor/block-draggable";
+import { AI_MARK, AiMarkKit } from "@/renderer/editor/inline-ai";
+import { InlineAiToolbar } from "@/renderer/editor/inline-ai-toolbar";
 import { MD_STRINGIFY } from "@/renderer/editor/markdown-doc";
 import { SlashKit } from "@/renderer/editor/slash-menu";
 
@@ -281,6 +283,7 @@ const EDITOR_PLUGINS = [
   LinkPlugin,
   ...SlashKit,
   ...DragKit,
+  ...AiMarkKit,
   // remark-gfm gives task-list checkboxes (- [ ] / - [x]) + strikethrough.
   MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
 ];
@@ -327,6 +330,9 @@ const EDITOR_COMPONENTS = {
   [LinkPlugin.key]: element(
     "a",
     "cursor-pointer border-b border-current font-medium text-foreground/70",
+  ),
+  [AI_MARK]: leaf(
+    "rounded-sm bg-primary/15 underline decoration-primary/40 decoration-dotted underline-offset-2",
   ),
 };
 
@@ -387,6 +393,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
         placeholder="Write…"
         spellCheck={false}
       />
+      <InlineAiToolbar />
     </Plate>
   );
 }

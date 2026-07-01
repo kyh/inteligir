@@ -29,6 +29,9 @@ export const SESSION_DIR = inteligirPath("sessions");
  * SESSION_DIR via continueRecent(), so a delegation run there would be resumed
  * as the user's thread on the next launch. */
 export const BACKGROUND_SESSION_DIR = inteligirPath("sessions", "background");
+/** Isolated session for inline-AI text generation — kept out of the user's
+ * continueRecent pool like the delegation session. */
+export const INLINE_AI_SESSION_DIR = inteligirPath("sessions", "inline-ai");
 export const WORKSPACE_DIR = inteligirPath("workspace");
 export const BIN_DIR = inteligirPath("bin");
 export const EXTENSIONS_DIR = inteligirPath("extensions");
