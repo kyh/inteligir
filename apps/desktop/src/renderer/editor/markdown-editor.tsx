@@ -67,6 +67,7 @@ import { AI_MARK, AiMarkKit } from "@/renderer/editor/inline-ai";
 import { InlineAiToolbar } from "@/renderer/editor/inline-ai-toolbar";
 import { MD_STRINGIFY } from "@/renderer/editor/markdown-doc";
 import { SlashKit } from "@/renderer/editor/slash-menu";
+import { TableOfContents } from "@/renderer/editor/toc";
 
 // Block plugins lists/indentation attach to. Lists are modeled as indented
 // blocks (not a dedicated node), so the indent + list plugins inject into these.
@@ -394,6 +395,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
         spellCheck={false}
       />
       <InlineAiToolbar />
+      <TableOfContents />
     </Plate>
   );
 }

@@ -41,7 +41,7 @@ export function Header() {
   return (
     <header
       className={cn(
-        "app-drag sticky top-0 z-20 flex h-11 shrink-0 items-center gap-2 border-b border-border bg-card px-3",
+        "app-drag sticky top-0 z-20 flex h-11 shrink-0 items-center gap-2 bg-background px-3",
         state === "collapsed" && "pl-20",
       )}
     >
