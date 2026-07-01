@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { IPC, type DesktopBridge } from "@repo/core/ipc-registry";
+import { IPC, type Bridge } from "@repo/core/ipc-registry";
 
 function forwardEvent<T>(channel: string, listener: (data: T) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, data: T) => {
@@ -13,8 +13,8 @@ function forwardEvent<T>(channel: string, listener: (data: T) => void): () => vo
 }
 
 // Auto-construct the bridge from the registry. Each entry's `kind` decides
-// the IPC mechanism; the registry's per-entry typing flows into DesktopBridge
-// via the `as DesktopBridge` at the end (the runtime shape exactly matches
+// the IPC mechanism; the registry's per-entry typing flows into Bridge
+// via the `as Bridge` at the end (the runtime shape exactly matches
 // what the derivation produces).
 const entries = Object.entries(IPC).map(([method, def]) => {
   switch (def.kind) {
@@ -33,6 +33,6 @@ const entries = Object.entries(IPC).map(([method, def]) => {
 });
 
 // oxlint-disable-next-line typescript/consistent-type-assertions -- runtime fold over the registry; shape proven by derivation above
-const desktopBridge = Object.fromEntries(entries) as unknown as DesktopBridge;
+const desktopBridge = Object.fromEntries(entries) as unknown as Bridge;
 
 contextBridge.exposeInMainWorld("desktopBridge", desktopBridge);

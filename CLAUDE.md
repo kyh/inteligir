@@ -32,6 +32,8 @@ apps/
   web/           # Static marketing site (@repo/web) — landing page only
   desktop/       # Electron app — the notes product (@repo/desktop)
 packages/
+  app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
+  core/          # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
@@ -71,8 +73,10 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build
 
 ## Desktop architecture (@repo/desktop)
 
-Three processes: **main** (Electron), **preload**, **renderer** (React). The
-`agent/` boundary never imports `main/` — it's lint-enforced; main composes
+Three processes: **main** (Electron), **preload**, **renderer**. The renderer
+is a thin shim (`src/renderer/main.tsx`) that installs `window.desktopBridge`
+into `@repo/app` and renders its `App` — the actual UI lives in `packages/app`.
+The `agent/` boundary never imports `main/` — it's lint-enforced; main composes
 capabilities and hands the agent an injected `AgentPorts` (`{ executor }`).
 
 ### Data model — the vault
@@ -85,9 +89,13 @@ find it regardless of where the user put it. `~/.inteligir` holds only app state
 (auth, sessions, ui-state, delegations) via versioned `JsonStore`s — never note
 content. Notes are plain GitHub-flavored markdown (no wiki-links).
 
-### Renderer — one fixed workspace
+### UI — `packages/app`, one fixed workspace
 
-`renderer/workspace/workspace-page.tsx` is the only surface: **Sidebar (file
+The portable UI (@repo/app) consumes an injected `Bridge`
+(`src/lib/bridge.ts::installBridge`) — never electron/node (lint-enforced). It
+runs standalone in a plain browser via `pnpm --filter @repo/app dev` (a vite
+harness with an in-memory fixture Bridge in `dev/`).
+`workspace/workspace-page.tsx` is the only surface: **Sidebar (file
 tree) | Editor | Chat**, settings behind a dialog. There is no widget grid.
 
 - `workspace/vault-context.tsx` — a `VaultProvider` owning the editor controller
@@ -122,7 +130,10 @@ note" resolves without naming the file. `Cmd+K` rolls a fresh thread.
 
 ### IPC
 
-`shared/ipc-registry.ts` is the single source of truth: each channel pairs a
-TypeBox payload schema with a result/event type, and the preload bridge +
-`DesktopBridge` type are both derived from it. Add a channel = add a registry
-entry; handlers go through `main/lib/ipc-handler.ts::handle`.
+`packages/core/src/ipc-registry.ts` is the single source of truth: each channel
+pairs a TypeBox payload schema with a result/event type, and both the preload
+bridge and the transport-agnostic `Bridge` type are derived from it. Add a
+channel = add a registry entry; handlers go through
+`main/lib/ipc-handler.ts::handle`; the dev-harness fixture Bridge
+(`packages/app/dev/fixture-bridge.ts`) fails typecheck until it covers the new
+channel too.

@@ -9,7 +9,7 @@
 
 export type {
   ChatHistoryEntry,
-  DesktopBridge,
+  Bridge,
   ExecutorStatus,
   IntegrationInfo,
   NotificationSettings,

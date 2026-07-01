@@ -73,7 +73,13 @@ export default defineConfig(() => ({
   renderer: {
     plugins: [tailwindcss(), react()],
     resolve: {
-      alias: { "@": resolve(configDir, "src") },
+      alias: {
+        "@": resolve(configDir, "src"),
+        // @repo/app is source-only with no exports map (an `exports` fallback
+        // array resolves inconsistently across TS/Vite/node); every host pins
+        // `@repo/app` to ./src, like the package's own dev harness does.
+        "@repo/app": resolve(configDir, "../../packages/app/src"),
+      },
     },
     build: {
       outDir: ".output/app/renderer",

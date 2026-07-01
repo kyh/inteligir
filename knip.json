@@ -22,6 +22,14 @@
     "packages/agent-runtime": {
       "includeEntryExports": true
     },
+    "packages/app": {
+      // The portable UI, source-imported by hosts (desktop today, server
+      // later) through its `./*` exports — don't flag them as unused. The dev
+      // harness entry (dev/main.tsx) is picked up via vite.config.ts.
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}"],
+      "includeEntryExports": false
+    },
     "packages/core": {
       // Isomorphic contract + pure-logic library consumed by the desktop app
       // (and, in later phases, the web server). Its `./*` exports are the

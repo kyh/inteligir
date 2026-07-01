@@ -4,6 +4,7 @@
 @import "shadcn/tailwind.css";
 
 @source "../../../../apps/**/*.{ts,tsx}";
+@source "../../../app/src/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
 
 @custom-variant dark (&:is(.dark *));

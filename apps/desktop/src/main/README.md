@@ -1,6 +1,6 @@
 # `main/` — Electron main process
 
-Owns the app lifecycle, the agent singleton, IPC handlers, and the auto-updater. Everything here runs in the privileged Node process; renderer code talks to it only via IPC methods declared in the registry (`shared/ipc-registry.ts`).
+Owns the app lifecycle, the agent singleton, IPC handlers, and the auto-updater. Everything here runs in the privileged Node process; renderer code talks to it only via IPC methods declared in the registry (`@repo/core/ipc-registry`).
 
 ## State machine — three-part split
 
@@ -66,7 +66,7 @@ Domain-grouped across a few files:
 - `vault-ipc.ts::registerVaultIpcHandlers()` — vault file ops (list/read/write/delete/rename).
 - `executor-ipc.ts::registerExecutorIpcHandlers()` — executor daemon pass-throughs (integrations/connections/OAuth).
 
-All registration goes through `lib/ipc-handler.ts::handle(method, fn)`: the channel, TypeBox payload schema, and result type are looked up from the shared registry (`shared/ipc-registry.ts`), and payloads are `Value.Check`-validated before the handler runs. Main → renderer events use `lib/broadcast.ts::broadcast`, keyed by the same registry — a renamed channel or changed payload shape is a compile error on both sides, and the preload bridge is derived from the registry too.
+All registration goes through `lib/ipc-handler.ts::handle(method, fn)`: the channel, TypeBox payload schema, and result type are looked up from the shared registry (`@repo/core/ipc-registry`), and payloads are `Value.Check`-validated before the handler runs. Main → renderer events use `lib/broadcast.ts::broadcast`, keyed by the same registry — a renamed channel or changed payload shape is a compile error on both sides, and the preload bridge is derived from the registry too.
 
 ## Other modules
 

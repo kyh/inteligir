@@ -2,7 +2,7 @@
 // IPC registry — single source of truth for every channel that crosses the
 // main <-> preload <-> renderer boundary. Each entry pairs a channel name
 // with a TypeBox payload schema (for runtime validation) and a TypeScript
-// result/event type (for compile-time inference). The DesktopBridge type
+// result/event type (for compile-time inference). The Bridge type
 // and the preload bridge object are both derived from this registry, so a
 // rename here is a compile error everywhere it matters.
 // ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ const TtsSendSchema = Type.Object({ text: Type.String() }, { additionalPropertie
 
 // The `_payload`/`_result`/`_event` fields are phantom: optional and never
 // set at runtime, they exist purely so `infer` can pull the wire types back
-// out of an entry (see DesktopBridge / IpcResult below).
+// out of an entry (see Bridge / IpcResult below).
 type Invoke<S extends TSchema, R> = {
   readonly kind: "invoke";
   readonly channel: string;
@@ -412,8 +412,9 @@ type MethodToFn<E extends IpcEntry> =
           ? (listener: (event: V) => void) => () => void
           : never;
 
-/** The shape exposed on `window.desktopBridge`. Derived from the registry. */
-export type DesktopBridge = {
+/** The transport-agnostic host contract the UI consumes. Derived from the
+ * registry; each host (Electron preload today, WS server later) implements it. */
+export type Bridge = {
   [K in IpcMethod]: MethodToFn<IpcRegistry[K]>;
 };
 
