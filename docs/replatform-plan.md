@@ -1,62 +1,110 @@
 # Re-platform plan — adopt the open-knowledge structure
 
-Status: **proposed** (Phase 0). This is the roadmap for restructuring inteligir
-to follow [inkeep/open-knowledge](https://github.com/inkeep/open-knowledge)'s
-web-first, multi-package architecture — while keeping the two things we
-deliberately do **not** copy from them: **Plate** (not Tiptap) and the
-**bundled pi agent harness** (not external-harness-only).
+Status: **decided** (v2, revised after the 2026-07-01 grilling session; Phase 1
+merged in #351). Roadmap for restructuring inteligir to follow
+[inkeep/open-knowledge](https://github.com/inkeep/open-knowledge)'s web-first,
+multi-package architecture, with the editor rebuilt to
+[Potion](https://pro.platejs.org) parity on Plate and styled with the Fluid
+Functionalism system already in `@repo/ui`.
 
 ---
 
-## 1. Goal & constraints
+## 1. Goal & locked decisions
 
-Re-platform from "Electron app is the product, web is a landing page" to
-open-knowledge's model: **a portable web app is the product**, rendered by
-both a browser and a thin Electron shell, and runnable anywhere via
-`npx`.
+Re-platform from "Electron app is the product, web is a landing page" to:
+**a portable web app is the product**, rendered by a browser, a thin Electron
+shell, and a local `npx` server.
 
-Locked decisions (from the scoping conversation):
+Decisions locked in the grilling session (each was an explicit choice):
 
-- **Web-first, portable UI.** The editor UI runs in a plain browser, in an
-  Electron shell, and behind a local `npx` server. Same React code, three
-  hosts. This is the core of the re-platform.
-- **Keep Plate (platejs).** We do _not_ migrate the editor to Tiptap/ProseMirror.
-- **Keep the pi harness.** The bundled in-app agent (pi + OpenAI OAuth),
-  delegation, voice, inline-AI, and the executor/browser/peekaboo extensions
-  all stay. They are our differentiators.
-- **Also add external-harness AI.** In addition to bundled pi, expose an MCP
-  server + skills so the user's own Claude Code / Codex / Cursor can edit the
-  vault (open-knowledge's model). The two coexist.
-- **Our conventions, their structure.** Keep pnpm + oxlint + oxfmt + knip +
-  Turborepo. Do **not** adopt Bun, changesets, or Lingui i18n (i18n optional
-  later). Adopt their _package layout_ (`core` / `app` / `desktop` / `server` /
-  `cli` / `plugin`).
-- **Priority features:** wiki-links + backlinks + graph, tabs + rich content
-  (Mermaid / KaTeX / PDF / embeds), external-harness AI.
+- **Hybrid build strategy.** Keep the hard-won host logic — vault,
+  `markdown-doc` byte-stability, pi wiring, voice STT/TTS, delegation,
+  executor — and port it. **Greenfield the UI**: a fresh `packages/app` built
+  from Potion's editor kits + Fluid components, with inline-AI / voice /
+  chat UI ported into it. The old renderer keeps working on `main` until
+  cutover; the new app grows beside it.
+- **Disk-canonical, CRDT-ready seams.** Bytes on disk stay canonical (no Yjs
+  layer now). The Bridge doc channel carries explicit doc-level updates
+  (path + content + revision) rather than implicit file writes, so a CRDT
+  transport can replace the payload later without changing consumers.
+  Agent edits land as watcher-driven refreshes, as today.
+- **MDX vault, fixed component vocabulary.** Files become MDX with a known
+  component set — callout, toggle, columns, embed (YouTube / tweet / PDF),
+  date — each with a native Plate node, plus md-native extensions: `$$` math,
+  mermaid fences, `[[wiki-links]]`, `> [!NOTE]` alerts. Unknown JSX or
+  unparseable files (MDX is stricter than md: raw `<` / `{` can fail) fall
+  back to the existing Raw mode. Byte-stable round-trip must keep holding
+  for the whole vocabulary.
+- **Browser-first development.** Build `packages/app` + `packages/server`
+  first and develop in a plain browser; re-wrap the Electron shell near the
+  end. The desktop DMG is effectively frozen on `main` during the rebuild.
+- **Full Potion AI surface, backed by pi.** AI menu with intent
+  classification (generate vs edit), copilot ghost-text (tab-accept), and
+  AI-suggestions mode (track-changes marks, accept/reject per change) — all
+  running on pi sessions, not HTTP AI routes. Suggestion/ai marks are
+  transient: never serialized to disk.
+- **External-harness AI: deferred.** No MCP server / skills bundle / harness
+  config-writers this round; bundled pi is the only agent. `packages/plugin`
+  is cut; `cli` simplifies to "pick vault, boot server, open browser".
+- **No built-in version history.** Users git their own vaults. No shadow
+  repo, no checkpoint/restore. (Revisit if agent-edit safety bites.)
+- **Fluid tokens, Potion layout.** Fluid Functionalism owns the theme
+  (colors, elevation, motion). From Potion take structure — centered ~700px
+  editor column, per-block placeholders, page-title-as-H1, toolbar layouts —
+  restyled with Fluid tokens. One design system.
+- **Menus rebuilt on Base UI.** Potion's ariakit menus (slash, block
+  context, turn-into, combobox pickers) are re-implemented on Base UI
+  primitives. No third headless-UI dependency.
+- **Search: lexical host index.** Orama-style full-text + link index in
+  `packages/host`, exposed over the Bridge; powers palette, backlinks,
+  graph. No semantic embeddings (no second credential).
+- **Voice rides the Bridge.** Voice channels (STT PCM streaming, TTS) are
+  part of the Bridge contract so browser and Electron both get voice; STT
+  (sherpa-onnx) and the TTS proxy stay host-side.
+- **Wiki-links, full scope.** `[[note]]` + `[[note|alias]]` with
+  Obsidian-style resolution, `![[transclusion]]` embeds, rename-rewrite
+  across the vault, and a `[[`-triggered autocomplete picker.
+- **Chat stays BottomComposer.** The bottom-pinned composer + delegation
+  dock port as-is. No side chat panel.
+- **Keep Plate. Keep pi + voice + delegation + executor/browser/peekaboo.**
+  Unchanged from v1 — these are the differentiators.
+- **Our conventions, their structure.** pnpm + oxlint + oxfmt + knip +
+  Turborepo. No Bun, changesets, or Lingui. Adopt the package layout only.
+- **Feature order: no fixed order** — work the feature list until done.
+- **Pre-launch, zero tech debt.** The app is unlaunched: no compat shims or
+  aliases, no dual old/new code paths kept alive, old renderer deleted at
+  cutover. Clean cuts over migration safety.
+- **Vault files stay `.md`.** MDX vocabulary parses inside `.md` files; no
+  `.mdx` extension.
+- **Delegation snapshots.** Host snapshots a file before any
+  background-agent write (under `~/.inteligir`), restorable — cheap undo
+  for agent edits, without a full history feature.
+- **Ghost-text uses a fast model** (configurable, via the same pi auth) —
+  latency risk accepted and mitigated by model choice.
 
-Out of scope unless later requested: Tiptap, real-time Yjs/Hocuspocus
-collaboration, MDX-compile pipeline, i18n.
+Out of scope: Yjs/Hocuspocus collaboration, arbitrary-JSX component runtime,
+embedded terminal dock, semantic search, version history, MCP/external
+harnesses, i18n.
+
+### Licensing constraints (hard)
+
+- **open-knowledge is GPL-3.0-or-later.** Copy architecture, package
+  boundaries, tool verbs, index shapes — never code. inteligir is MIT.
+- **Potion is Plate Plus commercial.** Usable in the product under the held
+  license (open-source End Products are explicitly permitted), but
+  Potion-derived files can't be plainly MIT-relicensed; keep the license
+  notice with substantial ports.
 
 ---
 
 ## 2. Why this is tractable — the Bridge seam
 
-The renderer is already a **pure browser React app**. It imports nothing from
-`main/` (lint-enforced) and reaches node only through
-`window.desktopBridge`, an object whose entire shape is _derived_ from one
-transport-agnostic registry:
-
-- `src/shared/ipc-registry.ts` — `IPC` pairs each channel with a TypeBox
-  payload schema + a result/event type. `DesktopBridge` is a pure type
-  derivation from it.
-- `src/preload/*.ts` — folds that same `IPC` registry into Electron
-  `ipcRenderer.invoke/send/on` calls.
-
-Nothing in `IPC` is Electron-specific. A **WebSocket server can fold the exact
-same registry** into `socket.send` / request-response calls and satisfy the
-identical `Bridge` type — so the UI runs unchanged in a browser. The
-re-platform is therefore mostly _relocation + one new transport_, not a
-rewrite.
+Unchanged from v1: the renderer is already a pure browser React app reaching
+node only through `window.desktopBridge`, whose shape derives from the
+transport-agnostic `IPC` registry now living in `@repo/core`
+(`packages/core/src/ipc-registry.ts`, merged in #351). A WebSocket server
+folds the same registry into WS request/response and satisfies the identical
+`Bridge` type.
 
 ```
                     ┌───────────────── packages/core ─────────────────┐
@@ -64,114 +112,94 @@ rewrite.
                     │  + pure logic (markdown-doc, find-task-line, …)  │
                     └──────────────────────┬──────────────────────────┘
                                            │ implemented-by / typed-by
-        ┌──────────────── packages/app (Plate UI, browser React) ──────────────┐
-        │            consumes an injected `Bridge` — no host imports            │
-        └───────┬───────────────────────────────────────────────┬──────────────┘
+        ┌──────── packages/app (greenfield Plate UI: Potion kits + Fluid) ────────┐
+        │            consumes an injected `Bridge` — no host imports              │
+        └───────┬───────────────────────────────────────────────┬────────────────┘
                 │ Bridge over Electron IPC        Bridge over WebSocket │
         ┌───────┴────────┐                             ┌───────────────┴────────┐
         │ packages/desktop│  ── both wrap ──▶ packages/host ◀── both wrap ──     │ packages/server
-        │ (Electron shell)│   (vault, pi sessions, delegation, executor, voice) │ (HTTP+WS, serves app)
-        └────────────────┘                                                       └────────┬────────┘
+        │ (Electron shell)│   (vault, pi sessions, delegation, executor,        │ (HTTP+WS, serves app)
+        └────────────────┘    voice, search/link index)                          └────────┬────────┘
                                                                           packages/cli ── npx launcher
-                                                                          packages/plugin ─ MCP + skills
 ```
 
 ---
 
-## 3. Target package graph (mapped to today's files)
+## 3. Target package graph
 
-| open-knowledge              | ours (target)         | Contents                                                                                                                                                                                                                                                                        | Comes from today                                                                               |
-| --------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `core`                      | `packages/core`       | Isomorphic contracts + pure logic: the Bridge/IPC registry, domain schemas (vault, delegation, executor, voice, inline-ai, app-state), agent-event types + parser, and pure helpers (`markdown-doc.ts`, `find-task-line.ts`, `vault-tree.ts`). No node/electron imports.        | `apps/desktop/src/shared/*`, plus pure files lifted from `renderer/editor` + `main/delegation` |
-| `app`                       | `packages/app`        | The portable Plate UI: editor, workspace, sidebar, composer/chat, command palette, settings, voice UI, onboarding. Depends on `core` + a `Bridge` injected at runtime. Vite → static assets.                                                                                    | `apps/desktop/src/renderer/*`                                                                  |
-| `desktop`                   | `packages/desktop`    | Electron shell: `main` + `preload`. Provides the Bridge over IPC and loads the `app` build. Keeps electron-updater, native voice, packaging.                                                                                                                                    | `apps/desktop/src/main`, `src/preload`, `src/agent` (see host note)                            |
-| _(part of `core`/`server`)_ | `packages/host`       | **New split.** The node backend as a platform-agnostic library: `VaultManager`, pi session wiring (`agent-gateway`, `session-history`), delegation manager + background agent, executor daemon/client, voice models, agent extensions. Consumed by both `desktop` and `server`. | `apps/desktop/src/main/*` (minus Electron wiring) + `apps/desktop/src/agent/*`                 |
-| `server`                    | `packages/server`     | Node HTTP + WebSocket server: serves the `app` static build and exposes the `IPC` registry over WS, wired to `host`. Enables browser + Linux/Windows/Intel-mac.                                                                                                                 | new                                                                                            |
-| `cli`                       | `packages/cli`        | `npx inteligir`: pick/init a vault folder, boot `server`, open the browser; also install MCP/skill config for detected harnesses (delegates to `plugin`).                                                                                                                       | new                                                                                            |
-| `plugin`                    | `packages/plugin`     | External-harness integration: an MCP server exposing vault tools (read/write/search/list) + a skills bundle, plus config-writers that register it into Claude Code / Codex / Cursor. Wraps `host`'s vault logic.                                                                | new                                                                                            |
-| `native-config`             | folded into `desktop` | Native packaging/config. Small; no separate package needed initially.                                                                                                                                                                                                           | `apps/desktop` build config                                                                    |
-| `docs` (Next.js)            | `apps/web` → `docs`   | Reuse our existing Next.js `apps/web`; grow it into the docs + marketing site.                                                                                                                                                                                                  | `apps/web`                                                                                     |
+| Package            | Contents                                                                                                                                                                                             | Comes from                                                                                  |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `packages/core`    | **Merged (#351).** Bridge/IPC registry, domain schemas, agent-event parser, pure helpers. Grows: MDX/markdown pipeline types, link-index schemas, doc-update channel.                                | `apps/desktop/src/shared/*` (done)                                                          |
+| `packages/app`     | **Greenfield.** Portable Plate UI: Potion-kit editor (trimmed to the locked vocabulary), workspace (sidebar, tabs, BottomComposer, palette, settings, voice UI, graph). Fluid-styled. Vite → static. | New, porting `renderer/editor` brains (`markdown-doc` consumers, inline-AI, voice pipeline) |
+| `packages/host`    | Node backend as a platform-agnostic library: `VaultManager`, pi sessions, delegation, executor, voice models, search/link index, agent extensions.                                                   | `apps/desktop/src/main/*` (minus Electron) + `src/agent/*`                                  |
+| `packages/server`  | HTTP + WS server: serves the `app` build, folds the `IPC` registry over WS, wired to `host`. Loopback-only bind + host-header allowlist (no accounts — local single-user).                           | New                                                                                         |
+| `packages/cli`     | `npx inteligir`: pick/init vault, boot `server`, open browser.                                                                                                                                       | New                                                                                         |
+| `packages/desktop` | Thin Electron shell: window/menu/updater, IPC transport over `host`, loads the `app` build. Native voice packaging.                                                                                  | `apps/desktop` main/preload, slimmed                                                        |
+| `apps/web`         | Marketing → grows into docs site later.                                                                                                                                                              | Existing                                                                                    |
 
-The one structural refactor beyond pure relocation is the **`host` split**:
-today the node backend lives in `apps/desktop/src/main`, tightly bound to
-Electron. To serve it from both the Electron shell _and_ a standalone server,
-that logic becomes a platform-agnostic node library each shell wires to its own
-transport. This is the linchpin of the whole effort.
+Cut from v1: `packages/plugin` (external-harness AI — deferred).
 
 ---
 
 ## 4. Phased sequencing
 
-Each phase is a self-contained, **build-green** PR (`pnpm typecheck && pnpm lint
-&& pnpm test && pnpm knip && pnpm build`). No phase leaves the desktop app
-broken.
+Gates stay `pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build`
+per PR, but unlike v1 the **desktop app does not track every phase** — it stays
+working-but-frozen on `main` until the Phase 5 cutover.
 
-- **Phase 0 — this document.** Agree the target and sequencing.
-- **Phase 1 — `packages/core`.** Move `src/shared/*` + the pure helpers into a
-  new isomorphic package. Rename `DesktopBridge` → `Bridge` (keep a
-  `DesktopBridge` alias for compat). Desktop re-exports from `core`. Pure
-  relocation, zero behavior change. _Highest-leverage, lowest-risk first step._
-- **Phase 2 — `packages/app`.** Extract `src/renderer/*` into a Vite React
-  package that takes a `Bridge` via context/prop instead of reading
-  `window.desktopBridge` directly. The Electron shell injects the IPC-backed
-  bridge and loads this build. Electron still ships and works.
-- **Phase 3 — `packages/host`.** Lift the node backend (vault, pi wiring,
-  delegation, executor, voice, agent extensions) out of `main` into a
-  platform-agnostic library. `desktop/main` becomes thin: Electron lifecycle +
-  IPC transport over `host`.
-- **Phase 4 — `packages/server` + `packages/cli`.** WS transport that serves
-  `app` and drives `host`; `cli` boots it via `npx` and opens a browser. First
-  moment the product runs outside Electron (Linux/Windows/browser).
-- **Phase 5 — `packages/plugin` (external-harness AI).** MCP server + skills
-  bundle over `host`'s vault; `cli`/onboarding writes harness config
-  (`.mcp.json`, Claude/Codex/Cursor settings). Coexists with bundled pi.
-- **Phase 6 — priority features.** Tabs (multi-doc), rich content
-  (Mermaid/KaTeX/PDF/embeds in Plate), wiki-links + backlinks + graph.
-- **Phase 7 — distribution & docs.** Publish the `cli` to npm; keep
-  electron-updater for the DMG; grow `apps/web` into the docs site.
-
----
-
-## 5. Priority-feature design notes
-
-- **Wiki-links + backlinks + graph.** Add a `[[wiki-link]]` remark plugin to
-  `markdown-doc.ts` and a Plate link node; build a backlink index in `host`
-  (scan the vault, resolve link targets); render a graph-view component in
-  `app`. **Invariant change:** CLAUDE.md currently states "notes are plain GFM,
-  no wiki-links." This phase deliberately revises that — the wiki-link syntax
-  must still round-trip byte-stably through `markdown-doc.ts`.
-- **Tabs.** The workspace opens a single note today
-  (`workspace/open-note-flush.ts`). Add a tab store (zustand) and a tab bar;
-  `vault-context` manages N editor controllers keyed by path.
-- **Rich content.** Plate plugins for Mermaid and KaTeX math (we already have
-  code-block + table); a generic embed/HTML node; PDF via a viewer node. MDX
-  (compile step) is intentionally deferred — flag before starting.
-- **External-harness AI.** `plugin`'s MCP server exposes vault read/write/
-  search/list tools; a skills bundle ships alongside; `cli` writes the harness
-  config so Claude Code / Codex / Cursor pick it up. Bundled pi is unaffected.
+- **Phase 1 — `packages/core`. ✅ merged (#351).**
+- **Phase 2 — `packages/app` (greenfield).** New Vite React package: Potion
+  editor kits rebuilt on Plate v53 + Base UI menus + Fluid theme, workspace
+  chrome, Bridge injected via context. Runs against a stub/dev Bridge in a
+  plain browser. Port `markdown-doc` consumers, inline-AI, voice pipeline,
+  composer, delegation UI.
+- **Phase 3 — `packages/host`.** Lift the node backend out of Electron
+  `main` into a platform-agnostic library (vault, pi, delegation, executor,
+  voice, new search/link index).
+- **Phase 4 — `packages/server` + `packages/cli`.** WS transport over
+  `host`, serves `app`; `npx` boots it. First real target: the browser.
+  Voice PCM/TTS over WS lands here.
+- **Phase 5 — Electron re-wrap + cutover.** `packages/desktop` becomes the
+  thin shell loading the `app` build over the IPC Bridge. Old renderer
+  deleted; DMG ships again.
+- **Phase 6 — features** (any order, run until done):
+  - **MDX vocabulary**: callout, toggle, columns, embeds, date — Plate nodes
+    - byte-stable MDX serialization + Raw-mode fallback for unknowns.
+  - **Editor AI surface**: AI menu w/ intent classification, copilot
+    ghost-text, suggestions mode — on pi sessions.
+  - **Wiki-links suite**: links + aliases + transclusion + rename-rewrite +
+    autocomplete; backlink index in `host`.
+  - **Graph view** + **tabs** (tab store, N editor controllers) +
+    **rich content** (mermaid render, KaTeX, PDF viewer).
+- **Phase 7 — distribution & docs.** Publish `cli` to npm; electron-updater
+  for the DMG; grow `apps/web` into docs.
 
 ---
 
-## 6. Invariants to preserve
+## 5. Invariants to preserve
 
-- **Byte-stable markdown** (`markdown-doc.ts`) — must keep holding through
-  `core`, and now also server-side writes.
-- **pi runs node-side.** In server mode, pi + OAuth run on the local `host`
-  (localhost `npx`). Safe for local use; **any hosted/multi-user deployment
-  needs a separate auth story** — out of scope here, but do not accidentally
-  expose the bridge WS without an auth gate.
-- **Electron-only deps stay out of `core`/`app`.** `electron-updater`,
-  `sherpa-onnx-node` (native voice), and packaging live in `desktop`/`host`
-  only. Voice inference is host-side; the browser streams audio over the bridge.
-- **Boundary lint.** Keep the "`agent`/`app` never import `main`/electron"
-  rule; extend it to "`core`/`app` never import node built-ins."
+- **Byte-stable markdown/MDX** — `roundTrip(raw) === raw` gates Rich mode
+  for the entire new vocabulary; every new node type lands in both the live
+  editor kit and the headless mirror, with round-trip tests.
+- **pi runs node-side.** In server mode pi + OAuth live in local `host`.
+  Never expose the bridge WS without the loopback/auth gate; hosted
+  multi-user is out of scope.
+- **Electron-only deps stay in `desktop`/`host`** (`electron-updater`,
+  `sherpa-onnx-node`, packaging). The browser gets voice via the Bridge, not
+  via native modules.
+- **Vault stays clean.** App state in `~/.inteligir`; nothing written into
+  the vault beyond the user's own files.
+- **Boundary lint.** `core`/`app` never import node built-ins; `agent`
+  never imports `main` (carried into `host`).
+- **No code copied from open-knowledge** (GPL). Potion ports keep their
+  license notice.
 
 ---
 
-## 7. What we deliberately do NOT adopt from open-knowledge
+## 6. Known risks (flagged, accepted)
 
-- **Tiptap/ProseMirror + CodeMirror editor** — we keep Plate.
-- **Yjs / Hocuspocus real-time collaboration** — not in scope (single-user +
-  git sync is the collaboration story if/when we add it).
-- **Bun, changesets, Lingui** — we keep pnpm + our release skill + oxlint/oxfmt;
-  i18n is a later, optional consideration.
+- **MDX strictness vs existing notes**: legacy files with raw `<` / `{`
+  drop to Raw mode until touched. Accepted — user's notes are mostly plain
+  markdown; Format is one click.
+- **Obsidian interop weakens**: MDX components aren't plain markdown to
+  other tools; wiki-links keep partial compatibility. Accepted.
