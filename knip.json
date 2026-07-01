@@ -32,11 +32,11 @@
       "includeEntryExports": true
     },
     "packages/app": {
-      // The portable UI, source-imported by hosts (desktop today, server
-      // later) through its `./*` exports — don't flag them as unused. The dev
-      // harness entry (dev/main.tsx) is picked up via vite.config.ts.
+      // The portable UI, source-imported by hosts (desktop, server). Both
+      // browser entries (dev harness dev/main.tsx, web build web/main.tsx)
+      // are picked up via their vite configs.
       "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}", "web/**/*.{ts,tsx}"],
       "includeEntryExports": false
     },
     "packages/host": {

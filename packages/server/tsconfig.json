@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"],
+    "paths": {
+      "@repo/core/*": ["../core/src/*"],
+      "@repo/host/*": ["../host/src/*"],
+      "@repo/pi-driver/*": ["../pi-driver/src/*"],
+      "@repo/agent-runtime/*": ["../agent-runtime/src/*"]
+    }
+  },
+  "include": ["src", "vitest.config.ts", "../host/src/voice/sherpa-onnx-node.d.ts"]
+}

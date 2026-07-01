@@ -3,6 +3,7 @@
   "ignorePatterns": [
     "dist",
     "dist-electron",
+    "dist-web",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
@@ -128,7 +129,7 @@
       // Dependency boundary: the portable app is host-agnostic. It reaches
       // the host only through the injected Bridge (src/lib/bridge.ts) —
       // never electron, node built-ins, or the desktop shell.
-      "files": ["packages/app/src/**", "packages/app/dev/**"],
+      "files": ["packages/app/src/**", "packages/app/dev/**", "packages/app/web/**"],
       "rules": {
         "no-restricted-imports": [
           "error",

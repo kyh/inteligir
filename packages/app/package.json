@@ -5,7 +5,8 @@
   "description": "Portable Inteligir UI: the whole workspace (editor, sidebar, composer, settings) as a browser React app. Talks to its host exclusively through an injected Bridge — no electron, no node.",
   "type": "module",
   "scripts": {
-    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "build": "vite build --config vite.web.config.ts",
+    "clean": "git clean -xdf .cache .turbo dist dist-web node_modules",
     "dev": "vite dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
