@@ -9,6 +9,7 @@ import { configurePaths } from "./agent/paths";
 import { initMachine, shutdown } from "./app/app-machine";
 import { emitEvent, subscribeEvents } from "./events";
 import { initAgentLog } from "./lib/agent-log";
+import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
 import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
 import { registerAllHandlers } from "./handlers/register-handlers";
 import { getNotifications } from "./notifications";
@@ -81,6 +82,12 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       if (started) return;
       started = true;
 
+      // Refuse to run two hosts over one ~/.inteligir (they'd resume the
+      // same session thread, race the executor daemon, and a logout's
+      // rm -rf would gut the other process). Throws to the shell, which
+      // surfaces it and quits.
+      acquireHostLock();
+
       // Must run before any pi-coding-agent call that consults getAgentDir().
       configurePaths();
 
@@ -94,6 +101,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
     },
     async dispose() {
       await shutdown();
+      releaseHostLock();
     },
   };
 }

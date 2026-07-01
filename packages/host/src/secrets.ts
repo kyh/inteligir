@@ -25,9 +25,17 @@ const SecretEntrySchema = Type.Union([
     { kind: Type.Literal("safe-storage"), data: Type.String() },
     { additionalProperties: false },
   ),
-  // safeStorage unavailable at write time (no OS keyring). The 0o600 file
-  // mode is the only protection — recorded explicitly so a later read knows
-  // not to attempt decryption.
+  // Encrypted via the server-mode file-key cipher (lib/file-key-cipher.ts).
+  // Both encrypted kinds live in the schema so a store written by one
+  // install mode never quarantines in the other — a cross-mode entry just
+  // reads as "not configured" (see get()).
+  Type.Object(
+    { kind: Type.Literal("file-key"), data: Type.String() },
+    { additionalProperties: false },
+  ),
+  // The cipher was unavailable at write time (no OS keyring / unwritable key
+  // file). The 0o600 file mode is the only protection — recorded explicitly
+  // so a later read knows not to attempt decryption.
   Type.Object(
     { kind: Type.Literal("plaintext"), data: Type.String() },
     { additionalProperties: false },
@@ -82,7 +90,7 @@ export class SecretStore {
 
   set(key: string, plaintext: string): void {
     const entry: SecretEntry = this.cipher.isAvailable()
-      ? { kind: "safe-storage", data: this.cipher.encrypt(plaintext) }
+      ? { kind: this.cipher.kind, data: this.cipher.encrypt(plaintext) }
       : { kind: "plaintext", data: plaintext };
     this.store.update((current) => ({
       ...current,
@@ -90,13 +98,21 @@ export class SecretStore {
     }));
   }
 
-  /** Decrypted secret, or null when missing or undecryptable (keychain
-   * reset). An undecryptable entry reads as absent so the owning feature
+  /** Decrypted secret, or null when missing, written by another install
+   * mode (desktop safeStorage vs server file-key), or undecryptable
+   * (keychain reset). All of those read as absent so the owning feature
    * reports "not configured" instead of failing with garbage. */
   get(key: string): string | null {
     const entry = this.store.read().secrets[key];
     if (!entry) return null;
     if (entry.kind === "plaintext") return entry.data;
+    if (entry.kind !== this.cipher.kind) {
+      console.warn(
+        `[secrets] '${key}' was written by another install mode (${entry.kind}); ` +
+          "treating as not configured",
+      );
+      return null;
+    }
     try {
       return this.cipher.decrypt(entry.data);
     } catch (err) {

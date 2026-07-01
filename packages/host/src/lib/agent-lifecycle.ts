@@ -14,6 +14,7 @@ import type { AgentPorts } from "../agent/extension";
 import { AGENT_DIR } from "../agent/paths";
 import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
+import { reassertHostLock } from "./host-lock";
 import { resetDelegationManager } from "../delegation/delegation-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../executor/executor-client";
 import {
@@ -110,4 +111,7 @@ export function teardownAgentResources(): void {
   suspendVaultWrites();
   resetVaultManager();
   fs.rmSync(AGENT_DIR, { recursive: true, force: true });
+  // The rm just deleted our own host.lock — re-assert it so another host
+  // can't boot beside us between logout and the next login.
+  reassertHostLock();
 }
