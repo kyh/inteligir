@@ -21,7 +21,7 @@ export const AiMarkKit = [createPlatePlugin({ key: AI_MARK, node: { isLeaf: true
 
 export type InlineAiAction = "continue" | "summarize" | "improve" | "shorter" | "grammar";
 
-const AI_EDIT_ACTIONS: InlineAiAction[] = ["improve", "shorter", "grammar"];
+const AI_EDIT_ACTIONS = new Set<InlineAiAction>(["improve", "shorter", "grammar"]);
 
 export type InlineAiStatus =
   | { kind: "idle" }
@@ -81,7 +81,7 @@ export function useInlineAi(editor: PlateEditor): {
       const sel = editor.selection;
       if (!bridge || !sel) return;
       const hasSelection = !RangeApi.isCollapsed(sel);
-      const isEdit = AI_EDIT_ACTIONS.includes(action);
+      const isEdit = AI_EDIT_ACTIONS.has(action);
       if (isEdit && !hasSelection) return;
 
       const input =
