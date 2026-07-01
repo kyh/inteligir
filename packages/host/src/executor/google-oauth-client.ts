@@ -3,7 +3,7 @@
 // bundle via electron-vite `define` and passes them in as
 // HostOptions.bundledGoogleClient (build defines can't live in a library
 // consumed by multiple bundlers); the INTELIGIR_GOOGLE_OAUTH_CLIENT_* env
-// vars are the runtime fallback (desktop dev loads apps/desktop/.env after
+// vars are the runtime fallback (desktop dev loads packages/desktop/.env after
 // startup; server/cli read the plain environment).
 //
 // SECURITY NOTE: this is a Google "Desktop app" (installed application) type

@@ -1,7 +1,7 @@
 # `@repo/pi-driver` — pi-coding-agent wrapper
 
 A thin, stable surface over [`@mariozechner/pi-coding-agent`](https://www.npmjs.com/package/@mariozechner/pi-coding-agent)
-and `@mariozechner/pi-ai`. App code (mainly `apps/desktop`) talks to this package
+and `@mariozechner/pi-ai`. App code (mainly `packages/host`) talks to this package
 instead of pi's internals, so when pi moves an export or changes a signature, the
 blast radius is one file here — not the whole desktop app.
 
@@ -36,7 +36,7 @@ location, only that file changes.
 
 This package has no Electron dependency — it's the pi adapter, not the app. The
 glue that wires it into the desktop (ports, lifecycle, IPC) lives in
-`apps/desktop/src/main/`.
+`packages/host/src/`.
 
 ## Typecheck
 

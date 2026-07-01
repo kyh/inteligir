@@ -11,12 +11,12 @@ Cut a new version of the Inteligir desktop app and publish it to GitHub Releases
 ## Context
 
 - Repo root: `/Users/kyh/Documents/Projects/inteligir`
-- The only shipping artifact is the Electron app at `apps/desktop` (`@repo/desktop`). The whole monorepo (packages + app) bundles into it.
-- Version of record: `version` in `apps/desktop/package.json`. The repo root has no version field.
+- The only shipping artifact is the Electron app at `packages/desktop` (`@repo/desktop`). The whole monorepo (packages + app) bundles into it.
+- Version of record: `version` in `packages/desktop/package.json`. The repo root has no version field.
 - Tag scheme: `v<version>` (e.g. `v0.3.0`) — electron-builder creates this tag + GitHub release.
 - Build chain: `electron-vite build` → `electron-builder --mac` (targets `dmg` + `zip` from `electron-builder.yml`; the zip is the auto-update artifact) → publishes to `github:kyh/inteligir` as a live release.
-- **macOS only.** electron-builder notarizes (`notarize: true`) — needs Apple creds from `apps/desktop/.env` (loaded via `with-env`/dotenv) and must run on a Mac. No Windows/Linux targets.
-- Existing scripts in `apps/desktop`:
+- **macOS only.** electron-builder notarizes (`notarize: true`) — needs Apple creds from `packages/desktop/.env` (loaded via `with-env`/dotenv) and must run on a Mac. No Windows/Linux targets.
+- Existing scripts in `packages/desktop`:
   - `release` — build + package locally, `--publish never` (dry run, no upload)
   - `release:publish` — build + package + `--publish always` (uploads to GitHub), wraps `GH_TOKEN=$(gh auth token)` and the `verify:release`/`verify:packaged` guards
 - Current branch: !`git -C /Users/kyh/Documents/Projects/inteligir rev-parse --abbrev-ref HEAD`
@@ -40,10 +40,10 @@ Run in parallel:
 - `gh auth status` — must be authenticated (the publish step pulls `GH_TOKEN` from `gh auth token`). If not, stop and tell the user to `gh auth login`.
 - `git status --porcelain` — if dirty in unrelated files, surface and ask whether to proceed.
 - `uname -s` — must be `Darwin`. If not, stop: notarized mac builds require macOS.
-- `test -f apps/desktop/.env` — notarization creds live here. If missing, stop and say so.
-- Bundled Google OAuth client — release builds bake `INTELIGIR_GOOGLE_OAUTH_CLIENT_ID` + `INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET` from `.env` into the main bundle (electron-vite `define`; see `apps/desktop/.env.example`):
+- `test -f packages/desktop/.env` — notarization creds live here. If missing, stop and say so.
+- Bundled Google OAuth client — release builds bake `INTELIGIR_GOOGLE_OAUTH_CLIENT_ID` + `INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET` from `.env` into the main bundle (electron-vite `define`; see `packages/desktop/.env.example`):
   ```
-  grep -E '^INTELIGIR_GOOGLE_OAUTH_CLIENT_(ID|SECRET)=.+' apps/desktop/.env | wc -l
+  grep -E '^INTELIGIR_GOOGLE_OAUTH_CLIENT_(ID|SECRET)=.+' packages/desktop/.env | wc -l
   ```
   Must print `2`. If not, the artifact ships WITHOUT a bundled Google client — every user gets the paste-your-own-GCP-app dialog on Google connect. Surface this and ask whether to proceed before building.
 - `gh release view v<current-version>` — sanity check the current version isn't already released.
@@ -56,11 +56,11 @@ Run in parallel:
 
 ### 2. Bump
 
-Edit `version` in `apps/desktop/package.json`. Keep semver. If a published release is ahead of the local file (out-of-band release), use that as the floor and bump from there.
+Edit `version` in `packages/desktop/package.json`. Keep semver. If a published release is ahead of the local file (out-of-band release), use that as the floor and bump from there.
 
 ### 3. Changelog
 
-Prepend a new entry to `apps/desktop/CHANGELOG.md` (create if missing). Source bullets from `git log --pretty='- %s' ${LAST:+$LAST..}HEAD`, dropping merge commits, previous `release:` commits, and pure dependency bumps. The whole repo bundles into the app, so repo-wide log is correct here. Format:
+Prepend a new entry to `packages/desktop/CHANGELOG.md` (create if missing). Source bullets from `git log --pretty='- %s' ${LAST:+$LAST..}HEAD`, dropping merge commits, previous `release:` commits, and pure dependency bumps. The whole repo bundles into the app, so repo-wide log is correct here. Format:
 
 ```markdown
 # Changelog
@@ -78,7 +78,7 @@ Terse bullets — sacrifice grammar for concision. If unsure, show the proposed 
 This ordering matters and differs from the npm release skills. electron-builder creates the GitHub release + `v<version>` tag against the **remote** branch tip, so the bump commit must already be pushed:
 
 ```
-git add apps/desktop/package.json apps/desktop/CHANGELOG.md
+git add packages/desktop/package.json packages/desktop/CHANGELOG.md
 git commit -m "release: v<version>"
 git push origin <current-branch>
 ```
@@ -92,7 +92,7 @@ pnpm install            # defensive — native deps (sherpa-onnx) may be unlinke
 pnpm -F @repo/desktop release:publish
 ```
 
-This is the long pole: electron-vite build → electron-builder package → **notarize** (minutes) → upload to GitHub release `v<version>`. For a dry run use `pnpm -F @repo/desktop release` instead (packages to `apps/desktop/.output/bin`, no upload) and skip steps 4/6/7's push/tag — just report the local artifact path.
+This is the long pole: electron-vite build → electron-builder package → **notarize** (minutes) → upload to GitHub release `v<version>`. For a dry run use `pnpm -F @repo/desktop release` instead (packages to `packages/desktop/.output/bin`, no upload) and skip steps 4/6/7's push/tag — just report the local artifact path.
 
 If the build fails after the bump was pushed: the version bump sits on `main` with no release. That's recoverable — fix the cause and re-run; if the same version then publishes, fine. Do not roll back the bump commit.
 

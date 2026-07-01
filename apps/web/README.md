@@ -39,5 +39,5 @@ pnpm --filter @repo/web build   # next build --turbopack
 pnpm --filter @repo/web start   # serve the production build
 ```
 
-The site is fully static — the desktop app (`apps/desktop`) is the actual
+The site is fully static — the desktop app (`packages/desktop`) is the actual
 product; this is the landing page only.

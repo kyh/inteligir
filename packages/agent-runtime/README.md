@@ -1,6 +1,6 @@
 # `@repo/agent-runtime`
 
-Filesystem + install primitives for the Inteligir desktop agent. Pure Node, **zero Electron deps** — anything that needs `app.isPackaged` or `process.resourcesPath` belongs in `apps/desktop/`, not here.
+Filesystem + install primitives for the Inteligir desktop agent. Pure Node, **zero Electron deps** — anything that needs `app.isPackaged` or `process.resourcesPath` belongs in `packages/desktop/`, not here.
 
 ## What's here
 
@@ -109,6 +109,6 @@ PATH, `runCli` invokes it.
 
 ❌ **No** — when:
 
-- It needs `app.isPackaged`, `process.resourcesPath`, `BrowserWindow`, etc. → `apps/desktop/src/main/`
-- It's a pi extension's tool registration → `apps/desktop/src/agent/<name>/extension.ts`
+- It needs `app.isPackaged`, `process.resourcesPath`, `BrowserWindow`, etc. → `packages/desktop/src/main/`
+- It's a pi extension's tool registration → `packages/host/src/agent/<name>/extension.ts`
 - It's specific to one integration's quirks (e.g. an extension's OAuth client_secret seed). Keep generic primitives here, glue in the consumer.
