@@ -107,6 +107,31 @@
       }
     },
     {
+      // Dependency boundary: server + cli are headless node shells over
+      // @repo/host — never electron or the desktop shell.
+      "files": ["packages/server/src/**", "packages/cli/src/**", "packages/cli/bin/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "electron-updater",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**"
+                ],
+                "message": "server/cli are headless node — no electron/desktop imports"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       // Dependency boundary: core is isomorphic — the same modules load in
       // the browser (bridge-ws-client), the Electron renderer, and node
       // hosts. No node built-ins, no electron.

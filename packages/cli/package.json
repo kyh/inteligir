@@ -1,0 +1,26 @@
+{
+  "name": "@repo/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "inteligir — pick a vault, boot @repo/server against a local @repo/host, open the browser. Pre-publish the bin runs the workspace TS sources through tsx; Phase 7 ships a compiled dist to npm.",
+  "bin": {
+    "inteligir": "./bin/inteligir.js"
+  },
+  "type": "module",
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/app": "workspace:^",
+    "@repo/host": "workspace:^",
+    "@repo/server": "workspace:^",
+    "open": "^11.0.0",
+    "tsx": "^4.21.1"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

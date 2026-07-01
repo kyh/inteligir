@@ -5,6 +5,7 @@
   "description": "Platform-agnostic node backend for Inteligir: vault, pi sessions, delegation, executor, voice, and agent extensions behind createHost(). No electron imports — shells inject a HostPlatform and fold the handler map into their transport.",
   "type": "module",
   "exports": {
+    "./package.json": "./package.json",
     "./*": "./src/*.ts"
   },
   "scripts": {

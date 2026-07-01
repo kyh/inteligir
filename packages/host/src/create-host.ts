@@ -5,6 +5,8 @@
 // start()/dispose() around its own lifecycle.
 // ---------------------------------------------------------------------------
 
+import path from "node:path";
+
 import { configurePaths } from "./agent/paths";
 import { initMachine, shutdown } from "./app/app-machine";
 import { emitEvent, subscribeEvents } from "./events";
@@ -90,6 +92,16 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
 
       // Must run before any pi-coding-agent call that consults getAgentDir().
       configurePaths();
+
+      // Boot-time vault preset (cli): repoint the persisted root before the
+      // watcher starts. setRoot creates the dir and enforces the
+      // not-inside-~/.inteligir guard; a violation throws out to the shell.
+      if (options.vaultPath !== undefined) {
+        const requested = path.resolve(options.vaultPath);
+        if (requested !== getVaultManager().getRoot()) {
+          getVaultManager().setRoot(requested);
+        }
+      }
 
       // Vault: ensure the folder + agent symlink exist and stream file changes
       // to the UI so the sidebar and editor stay live. The notifier is

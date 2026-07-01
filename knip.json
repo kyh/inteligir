@@ -39,6 +39,22 @@
       "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}", "web/**/*.{ts,tsx}"],
       "includeEntryExports": false
     },
+    "packages/cli": {
+      // bin/inteligir.js (package.json bin) and src/main.ts (its import +
+      // the dev script) are auto-detected entries.
+      "project": ["src/**/*.ts", "bin/**/*.js"],
+      // @repo/app: never imported — the cli resolves its dist-web assets at
+      // runtime via require.resolve("@repo/app/package.json"), and the
+      // workspace dep is what makes that resolvable (and, at Phase 7, what
+      // ships the build to npm).
+      "ignoreDependencies": ["@repo/app"]
+    },
+    "packages/server": {
+      // Consumed by @repo/cli through its `./*` exports.
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
+    },
     "packages/host": {
       // The node backend, source-imported by its shells (desktop today,
       // server later) through its `./*` exports — don't flag them as unused.
