@@ -263,7 +263,9 @@ function TableElement(props: PlateElementProps) {
   );
 }
 
-const EDITOR_PLUGINS = [
+// Exported for the kit-parity test only: until WP2's EDITOR_KIT replaces this
+// hand-spread list, that test is what keeps it mirroring BASE_KIT.
+export const EDITOR_PLUGINS = [
   BoldPlugin,
   ItalicPlugin,
   UnderlinePlugin,
