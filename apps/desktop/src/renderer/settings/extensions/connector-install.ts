@@ -16,8 +16,8 @@ import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ExecutorConnection,
   type ExecutorOwner,
-} from "@/shared/executor";
-import type { DesktopBridge } from "@/shared/ipc";
+} from "@repo/core/executor";
+import type { DesktopBridge } from "@repo/core/ipc";
 import type { CatalogConnector } from "@/renderer/settings/extensions/connector-catalog";
 import { runOAuthFlow } from "@/renderer/settings/extensions/lib";
 

@@ -12,7 +12,7 @@ import { Response } from "@repo/ui/components/ai-elements/response";
 import { cn } from "@repo/ui/lib/utils";
 
 import { useDelegationStore } from "@/renderer/stores/delegation-store";
-import type { Delegation } from "@/shared/delegation";
+import type { Delegation } from "@repo/core/delegation";
 
 /**
  * A Messenger-style dock of delegation cards pinned bottom-right. Each card

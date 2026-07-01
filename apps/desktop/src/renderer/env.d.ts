@@ -5,5 +5,5 @@ declare module "*?url" {
 }
 
 interface Window {
-  desktopBridge?: import("@/shared/ipc").DesktopBridge;
+  desktopBridge?: import("@repo/core/ipc").DesktopBridge;
 }

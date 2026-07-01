@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { AppMachine } from "@/main/app-machine";
 import type { EffectDeps } from "@/main/app-effects";
-import type { AppState } from "@/shared/app-state";
+import type { AppState } from "@repo/core/app-state";
 
 vi.mock("electron", () => ({
   BrowserWindow: { getAllWindows: vi.fn().mockReturnValue([]) },

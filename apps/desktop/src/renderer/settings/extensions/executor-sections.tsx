@@ -11,7 +11,7 @@ import { Button } from "@repo/ui/components/button";
 import { getBridge } from "@/renderer/lib/bridge";
 import { ConnectorsSection } from "@/renderer/settings/extensions/connectors-section";
 import type { SectionProps } from "@/renderer/settings/extensions/lib";
-import type { ExecutorStatus } from "@/shared/ipc";
+import type { ExecutorStatus } from "@repo/core/ipc";
 
 type ExecutorSectionsProps = SectionProps & { showAdvanced: boolean };
 

@@ -29,7 +29,7 @@ import {
   resumeVaultWrites,
   suspendVaultWrites,
 } from "@/main/vault";
-import type { SetupProgress } from "@/shared/ipc";
+import type { SetupProgress } from "@repo/core/ipc";
 
 /** Build the main-owned capability ports handed to agent extension bundles.
  * Stateless — every function defers to the live singleton, so a port built

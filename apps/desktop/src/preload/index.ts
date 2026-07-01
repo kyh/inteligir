@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer } from "electron";
 
-import { IPC, type DesktopBridge } from "@/shared/ipc-registry";
+import { IPC, type DesktopBridge } from "@repo/core/ipc-registry";
 
 function forwardEvent<T>(channel: string, listener: (data: T) => void): () => void {
   const wrapped = (_event: Electron.IpcRendererEvent, data: T) => {

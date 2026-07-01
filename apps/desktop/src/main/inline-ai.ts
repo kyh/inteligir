@@ -12,8 +12,8 @@
 import { Agent } from "@/agent/agent";
 import { INLINE_AI_SESSION_DIR } from "@/agent/paths";
 import { getAgentPorts } from "@/main/lib/agent-lifecycle";
-import { parseAgentEvent } from "@/shared/agent-event-parser";
-import type { AiGenerateResult } from "@/shared/inline-ai";
+import { parseAgentEvent } from "@repo/core/agent-event-parser";
+import type { AiGenerateResult } from "@repo/core/inline-ai";
 
 const GEN_TIMEOUT_MS = 60_000;
 

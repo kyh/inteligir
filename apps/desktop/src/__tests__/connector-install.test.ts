@@ -12,8 +12,8 @@ import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ExecutorConnection,
   type ExecutorIntegration,
-} from "@/shared/executor";
-import type { DesktopBridge } from "@/shared/ipc";
+} from "@repo/core/executor";
+import type { DesktopBridge } from "@repo/core/ipc";
 
 function connector(id: string) {
   const c = CONNECTOR_CATALOG.find((x) => x.id === id);

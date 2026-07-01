@@ -2,7 +2,7 @@ import { GeometricOrb, type DisplayStatus } from "@repo/ui/components/geometric-
 
 import { useTheme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
-import type { AppState } from "@/shared/app-state";
+import type { AppState } from "@repo/core/app-state";
 
 function phaseToOrbStatus(phase: AppState["phase"]): DisplayStatus {
   return phase === "error" ? "error" : "starting";

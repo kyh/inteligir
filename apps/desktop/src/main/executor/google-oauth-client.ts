@@ -19,8 +19,8 @@ import {
   GOOGLE_TOKEN_URL,
   type CreateOAuthClientInput,
   type ExecutorOAuthClient,
-} from "@/shared/executor";
-import type { EnsureGoogleClientResult } from "@/shared/ipc-registry";
+} from "@repo/core/executor";
+import type { EnsureGoogleClientResult } from "@repo/core/ipc-registry";
 
 // Build-time defines (electron.vite.config.ts). Declared `| undefined` and
 // read behind `typeof` guards so the module stays loadable where the defines

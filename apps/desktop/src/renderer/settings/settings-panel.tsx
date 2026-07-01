@@ -10,8 +10,8 @@ import { getBridge } from "@/renderer/lib/bridge";
 import { useTheme, type Theme } from "@/renderer/lib/use-theme";
 import { useAgentStore } from "@/renderer/stores/agent-store";
 import { useVoiceStore } from "@/renderer/stores/voice-store";
-import type { NotificationSettings } from "@/shared/ipc";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@/shared/voice";
+import type { NotificationSettings } from "@repo/core/ipc";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: typeof SunIcon }[] = [
   { value: "system", label: "System", icon: MonitorIcon },

@@ -16,14 +16,14 @@ import { Value } from "@sinclair/typebox/value";
 import { findTaskLine } from "@/main/delegation/find-task-line";
 import { JsonStore, inteligirPath, type FsAdapter } from "@/main/lib/json-store";
 import { getVaultManager } from "@/main/vault";
-import { parseAgentEvent } from "@/shared/agent-event-parser";
+import { parseAgentEvent } from "@repo/core/agent-event-parser";
 import {
   DelegationSchema,
   type CreateDelegationParams,
   type CreateDelegationResult,
   type Delegation,
-} from "@/shared/delegation";
-import { toErrorMessage } from "@/shared/ipc";
+} from "@repo/core/delegation";
+import { toErrorMessage } from "@repo/core/ipc";
 
 // v2: anchor moved from text/heading matching to a positional `index`.
 const DELEGATIONS_VERSION = 2;

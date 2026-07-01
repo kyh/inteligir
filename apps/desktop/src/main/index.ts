@@ -41,8 +41,8 @@ import { readSessionHistory } from "@/main/session-history";
 import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
 import { registerVaultIpcHandlers } from "@/main/vault-ipc";
 import { getVaultManager, setVaultChangeNotifier } from "@/main/vault";
-import { isHttpUrl, toErrorMessage } from "@/shared/ipc";
-import type { UpdateState } from "@/shared/ipc";
+import { isHttpUrl, toErrorMessage } from "@repo/core/ipc";
+import type { UpdateState } from "@repo/core/ipc";
 
 const { autoUpdater } = electronUpdater;
 

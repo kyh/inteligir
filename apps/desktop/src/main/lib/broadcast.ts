@@ -1,6 +1,6 @@
 import { BrowserWindow } from "electron";
 
-import { IPC, type IpcEvent, type IpcMethod } from "@/shared/ipc-registry";
+import { IPC, type IpcEvent, type IpcMethod } from "@repo/core/ipc-registry";
 
 type EventMethod = {
   [K in IpcMethod]: (typeof IPC)[K] extends { kind: "event" } ? K : never;
