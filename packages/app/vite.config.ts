@@ -10,8 +10,9 @@ export default defineConfig({
   root: "dev",
   plugins: [tailwindcss(), react()],
   resolve: {
-    // esbuild's dependency scanner can't follow package self-references
-    // (`@repo/app/*` from inside the package), so pin them to ./src here.
+    // The package is source-only with no exports map (an `exports` fallback
+    // array resolves inconsistently across TS/Vite/node); every host pins
+    // `@repo/app` to ./src, including this harness.
     alias: { "@repo/app": fileURLToPath(new URL("./src", import.meta.url)) },
   },
 });

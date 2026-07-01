@@ -4,12 +4,6 @@
   "private": true,
   "description": "Portable Inteligir UI: the whole workspace (editor, sidebar, composer, settings) as a browser React app. Talks to its host exclusively through an injected Bridge — no electron, no node.",
   "type": "module",
-  "exports": {
-    "./*": [
-      "./src/*.ts",
-      "./src/*.tsx"
-    ]
-  },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
     "dev": "vite dev",
