@@ -6,9 +6,10 @@ import { app, BrowserWindow, dialog, Menu, nativeTheme, shell } from "electron";
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 
 import type { MenuItemConstructorOptions } from "electron";
-import electronUpdater from "electron-updater";
 
 declare const PROJECT_ROOT: string;
+declare const BUNDLED_GOOGLE_OAUTH_CLIENT_ID: string | undefined;
+declare const BUNDLED_GOOGLE_OAUTH_CLIENT_SECRET: string | undefined;
 
 // Dev-only .env loader. In packaged builds PROJECT_ROOT points to a path that
 // no longer exists on the user's machine, so loadEnvFile would always fail.
@@ -21,47 +22,28 @@ if (!app.isPackaged) {
   }
 }
 
-import { configurePaths } from "@/agent/paths";
-import { initParakeet, pushAudio, startSession, stopSession } from "@/main/voice/parakeet";
-import { downloadModel, isModelInstalled } from "@/main/voice/model-download";
-import { ttsAvailable, ttsFlush, ttsInterrupt, ttsSend } from "@/main/voice/tts-proxy";
+import { createHost, type Host } from "@repo/host/create-host";
+import type { HostOptions } from "@repo/host/platform";
+import { isHttpUrl, isRecord, toErrorMessage } from "@repo/core/ipc";
 
-import { getAppState, initMachine, reauthenticate, shutdown, transition } from "@/main/app-machine";
-import { dispatchAgentCommand } from "@/main/agent-gateway";
-import { getDelegationManager } from "@/main/delegation/delegation-manager";
-import { generateInline } from "@/main/inline-ai";
-import { listIntegrations, listSkills, repairIntegrations } from "@/agent/setup";
-import { getAgentPorts } from "@/main/lib/agent-lifecycle";
-import { initAgentLog } from "@/main/lib/agent-log";
-import { broadcast } from "@/main/lib/broadcast";
-import { handle } from "@/main/lib/ipc-handler";
-import { getNotifications } from "@/main/notifications";
-import { getUiState } from "@/main/ui-state";
-import { readSessionHistory } from "@/main/session-history";
-import { registerExecutorIpcHandlers } from "@/main/executor-ipc";
-import { registerVaultIpcHandlers } from "@/main/vault-ipc";
-import { getVaultManager, setVaultChangeNotifier } from "@/main/vault";
-import { isHttpUrl, toErrorMessage } from "@repo/core/ipc";
-import type { UpdateState } from "@repo/core/ipc";
-
-const { autoUpdater } = electronUpdater;
+import { createElectronPlatform } from "@/main/electron-platform";
+import { foldHostIntoIpc } from "@/main/host-fold";
+import { setupAutoUpdater, type Updater } from "@/main/updater";
 
 const isDevelopment = !app.isPackaged;
-const STARTUP_UPDATE_DELAY_MS = 15_000;
 const APP_DISPLAY_NAME = isDevelopment ? "Inteligir (Dev)" : "Inteligir";
 
 let mainWindow: BrowserWindow | null = null;
+let host: Host | null = null;
+let updater: Updater | null = null;
 
 // ---------------------------------------------------------------------------
-// Crash visibility — wire the log mirror and global error hooks before
-// anything else can fail, so even startup crashes land in agent.log.
+// Crash visibility — global error hooks before anything else can fail. The
+// agent.log console mirror is wired inside createHost() (first thing in
+// onAppReady), so startup crashes after that point land on disk too.
 // ---------------------------------------------------------------------------
-
-initAgentLog();
 
 process.on("uncaughtException", (error) => {
-  // appendFileSync inside the log mirror means this line is on disk before we
-  // continue — an owner debugging a dead install gets the stack.
   console.error("[desktop] uncaught exception:", error);
   // Preserve Electron's default behavior (which our listener suppresses):
   // surface the error dialog and keep the app alive.
@@ -78,7 +60,7 @@ process.on("unhandledRejection", (reason) => {
 // ---------------------------------------------------------------------------
 // Graceful shutdown — the single path every quit trigger funnels through:
 // cmd+Q / window close (before-quit), SIGINT/SIGTERM, and the auto-update
-// install. Stops the agent + executor daemon (app-machine shutdown) with a
+// install. Disposes the host (agent + executor daemon + vault watcher) with a
 // hard timeout so a hung teardown can't wedge quit. Idempotent: concurrent
 // triggers share one promise.
 // ---------------------------------------------------------------------------
@@ -101,7 +83,7 @@ function runGracefulShutdown(): Promise<void> {
     });
     try {
       await Promise.race([
-        shutdown().catch((error: unknown) => {
+        (host?.dispose() ?? Promise.resolve()).catch((error: unknown) => {
           console.error("[desktop] shutdown failed:", error);
         }),
         timeout,
@@ -112,22 +94,6 @@ function runGracefulShutdown(): Promise<void> {
     }
   })();
   return shutdownPromise;
-}
-
-// ---------------------------------------------------------------------------
-// Auto-updater state
-// ---------------------------------------------------------------------------
-
-let updateState: UpdateState = {
-  status: "idle",
-  version: null,
-  downloadPercent: null,
-  message: null,
-};
-
-function setUpdateState(patch: Partial<UpdateState>): void {
-  updateState = { ...updateState, ...patch };
-  broadcast("onUpdateState", updateState);
 }
 
 // ---------------------------------------------------------------------------
@@ -150,7 +116,7 @@ function configureApplicationMenu(): void {
         { role: "about" },
         {
           label: "Check for Updates...",
-          click: () => void checkForUpdates(),
+          click: () => void updater?.checkForUpdates(),
         },
         { type: "separator" },
         { role: "services" },
@@ -175,199 +141,23 @@ function configureApplicationMenu(): void {
 }
 
 // ---------------------------------------------------------------------------
-// IPC handlers
+// Host composition
 // ---------------------------------------------------------------------------
 
-// IPC handlers, grouped by domain. registerIpcHandlers() wires them all; each
-// group is a small named function so a reader (or reviewer) sees the domain
-// boundaries instead of scanning one 150-line block. Handlers reference
-// module-level singletons, so the groups take no arguments.
-function registerIpcHandlers(): void {
-  registerUpdateHandlers();
-  registerAgentHandlers();
-  registerLifecycleHandlers();
-  registerVoiceHandlers();
-  registerNotificationHandlers();
-  registerUiStateHandlers();
-  registerExecutorIpcHandlers();
-  registerVaultIpcHandlers();
-  registerDelegationHandlers();
-  registerSkillAndIntegrationHandlers();
-}
-
-function registerDelegationHandlers(): void {
-  handle("createDelegation", (params) => getDelegationManager().createDelegation(params));
-  handle("listDelegations", () => ({ delegations: getDelegationManager().getDelegations() }));
-  handle("cancelDelegation", (id) => getDelegationManager().cancelDelegation(id));
-  handle("generateInlineAi", (params) => generateInline(params.prompt, params.requestId));
-}
-
-function registerUpdateHandlers(): void {
-  handle("checkForUpdates", async () => {
-    await checkForUpdates();
-    return updateState;
-  });
-
-  handle("downloadUpdate", async () => {
-    if (updateState.status !== "available") {
-      return { accepted: false, state: updateState };
-    }
-    try {
-      setUpdateState({ status: "downloading", downloadPercent: 0 });
-      await autoUpdater.downloadUpdate();
-      return { accepted: true, state: updateState };
-    } catch (error: unknown) {
-      setUpdateState({ status: "error", message: toErrorMessage(error) });
-      return { accepted: false, state: updateState };
-    }
-  });
-
-  handle("installUpdate", () => {
-    if (updateState.status !== "downloaded") {
-      return { accepted: false, state: updateState };
-    }
-    // Graceful shutdown FIRST: quitAndInstall's internal quit must not be
-    // intercepted (preventDefault breaks the install on some platforms), and
-    // the executor daemon must not outlive the app across an update. After
-    // the shutdown resolves, shutdownFinished lets before-quit pass through.
-    const shutdownThenInstall = async (): Promise<void> => {
-      await runGracefulShutdown();
-      try {
-        autoUpdater.quitAndInstall();
-      } catch (error: unknown) {
-        setUpdateState({ status: "error", message: toErrorMessage(error) });
-      }
-    };
-    setImmediate(() => void shutdownThenInstall());
-    return { accepted: true, state: updateState };
-  });
-}
-
-function registerAgentHandlers(): void {
-  // All interactive agent commands funnel through the gateway, which defers
-  // them while an external chat turn owns the session (see agent-gateway.ts).
-  // Return the submission promise so renderer-side failure surfacing
-  // (agent-store's sendCommandSurfacingFailure) sees rejections — e.g.
-  // "Agent unavailable" mid-newSession — instead of a silently dropped send.
-  handle("sendAgentCommand", (command) => dispatchAgentCommand(command));
-
-  handle("getAgentHistory", () => readSessionHistory());
-  handle("reauthenticate", () => reauthenticate());
-}
-
-function registerLifecycleHandlers(): void {
-  handle("getAppState", () => getAppState());
-  handle("transition", (event) => {
-    transition(event);
-  });
-}
-
-function registerVoiceHandlers(): void {
-  handle("isTtsAvailable", () => ttsAvailable());
-  handle("ttsSend", ({ text }) => ttsSend(text));
-  handle("ttsFlush", () => ttsFlush());
-  handle("ttsInterrupt", () => ttsInterrupt());
-
-  handle("startStt", async () => {
-    const result = await initParakeet();
-    if (!result.ok) return { ok: false, reason: result.reason };
-    startSession();
-    return { ok: true };
-  });
-
-  handle("sendSttAudio", (payload) => {
-    // Fire-and-forget hot path — uncaught throws on the event loop would crash
-    // the app, so swallow + log and keep the session alive.
-    try {
-      // Honor byteOffset/byteLength: a Buffer view may sit inside a larger
-      // pooled ArrayBuffer.
-      const samples =
-        payload instanceof ArrayBuffer
-          ? new Float32Array(payload)
-          : new Float32Array(
-              payload.buffer,
-              payload.byteOffset,
-              payload.byteLength / Float32Array.BYTES_PER_ELEMENT,
-            );
-      const events = pushAudio(samples);
-      for (const ev of events) {
-        broadcast("onSttTranscript", ev);
-      }
-    } catch (err) {
-      console.error("[voice] audio chunk handler failed:", err);
-    }
-  });
-
-  handle("stopStt", () => stopSession());
-  handle("getVoiceModelStatus", () => (isModelInstalled() ? "ready" : "missing"));
-  handle("downloadVoiceModel", () => downloadModel());
-}
-
-function registerNotificationHandlers(): void {
-  handle("getNotificationSettings", () => getNotifications().getSettings());
-  handle("updateNotificationSettings", (patch) => getNotifications().updateSettings(patch));
-}
-
-function registerUiStateHandlers(): void {
-  handle("getUiState", () => getUiState().getAll());
-  handle("setUiState", ({ key, value }) => {
-    getUiState().set(key, value);
-  });
-}
-
-function registerSkillAndIntegrationHandlers(): void {
-  handle("listSkills", () => ({ skills: listSkills() }));
-
-  // Integrations (CLI binaries).
-  handle("listIntegrations", () => listIntegrations(getAgentPorts()));
-  handle("repairIntegrations", () =>
-    repairIntegrations(getAgentPorts(), (p) => broadcast("onSetupProgress", p)),
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Auto-updater
-// ---------------------------------------------------------------------------
-
-async function checkForUpdates(): Promise<void> {
-  if (isDevelopment) return;
-
-  setUpdateState({ status: "checking", message: null, downloadPercent: null });
-
-  try {
-    await autoUpdater.checkForUpdates();
-  } catch (error: unknown) {
-    setUpdateState({ status: "error", message: toErrorMessage(error) });
-  }
-}
-
-function configureAutoUpdater(): void {
-  if (isDevelopment) return;
-
-  autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
-
-  autoUpdater.on("update-available", (info) => {
-    setUpdateState({ status: "available", version: info.version });
-  });
-
-  autoUpdater.on("update-not-available", () => {
-    setUpdateState({ status: "not-available" });
-  });
-
-  autoUpdater.on("download-progress", (progress) => {
-    setUpdateState({ status: "downloading", downloadPercent: Math.floor(progress.percent) });
-  });
-
-  autoUpdater.on("update-downloaded", (info) => {
-    setUpdateState({ status: "downloaded", version: info.version, downloadPercent: 100 });
-  });
-
-  autoUpdater.on("error", (error) => {
-    setUpdateState({ status: "error", message: error.message });
-  });
-
-  setTimeout(() => void checkForUpdates(), STARTUP_UPDATE_DELAY_MS);
+/** The Google OAuth "Desktop app" client baked into this build by
+ * electron-vite `define` (see electron.vite.config.ts for why shipping it is
+ * fine). Declared `| undefined` and read behind `typeof` guards so the module
+ * stays loadable where the defines don't exist (vitest runs the raw source);
+ * the host falls back to INTELIGIR_GOOGLE_OAUTH_CLIENT_* env at call time. */
+function hostOptionsFromDefines(): HostOptions {
+  const clientId =
+    typeof BUNDLED_GOOGLE_OAUTH_CLIENT_ID === "string" ? BUNDLED_GOOGLE_OAUTH_CLIENT_ID.trim() : "";
+  const clientSecret =
+    typeof BUNDLED_GOOGLE_OAUTH_CLIENT_SECRET === "string"
+      ? BUNDLED_GOOGLE_OAUTH_CLIENT_SECRET.trim()
+      : "";
+  if (!clientId || !clientSecret) return {};
+  return { bundledGoogleClient: { clientId, clientSecret } };
 }
 
 // ---------------------------------------------------------------------------
@@ -379,21 +169,22 @@ function configureAutoUpdater(): void {
  * background matches what the renderer will render (no dark flash in light
  * mode). Mirrors the renderer's default-to-light behaviour for unset/invalid.
  */
-function startupBackgroundColor(): string {
-  const stored = getUiState().getAll()["theme"];
+async function startupBackgroundColor(theHost: Host): Promise<string> {
+  const uiState = await Promise.resolve(theHost.handlers.getUiState(undefined));
+  const stored = isRecord(uiState) ? uiState["theme"] : undefined;
   const theme = stored === "dark" || stored === "system" ? stored : "light";
   const dark = theme === "dark" || (theme === "system" && nativeTheme.shouldUseDarkColors);
   return dark ? "#141415" : "#f0f2f2";
 }
 
-function createWindow(): BrowserWindow {
+function createWindow(backgroundColor: string): BrowserWindow {
   const window = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 800,
     minHeight: 600,
     show: false,
-    backgroundColor: startupBackgroundColor(),
+    backgroundColor,
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
     titleBarStyle: "hiddenInset",
@@ -505,30 +296,29 @@ app.on("before-quit", (event) => {
   void runGracefulShutdown().then(() => quitNow());
 });
 
-function onAppReady(): void {
-  // Must run before any pi-coding-agent call that consults getAgentDir().
-  configurePaths();
+async function onAppReady(): Promise<void> {
+  const electronPlatform = createElectronPlatform();
+  const theHost = createHost(electronPlatform.platform, hostOptionsFromDefines());
+  host = theHost;
+
   configureAppIdentity();
   configureApplicationMenu();
-  configureAutoUpdater();
-  registerIpcHandlers();
 
-  // Vault: ensure the folder + agent symlink exist and stream file changes to
-  // the renderer so the Vault panel and bound widgets stay live. The notifier
-  // is module-scoped, so it survives a logout/login reset.
-  getVaultManager().ensureReady();
-  setVaultChangeNotifier((root) => broadcast("onVaultChanged", { root }));
+  // Transport fold + the desktop-only updater overlay, before any renderer
+  // can invoke a channel.
+  foldHostIntoIpc(theHost);
+  updater = setupAutoUpdater({ isDevelopment, gracefulShutdown: runGracefulShutdown });
 
-  mainWindow = createWindow();
-  getNotifications().setTargetWindow(mainWindow);
+  mainWindow = createWindow(await startupBackgroundColor(theHost));
+  electronPlatform.setTargetWindow(mainWindow);
 
-  initMachine();
+  theHost.start();
 }
 
 app
   .whenReady()
   .then(onAppReady)
-  .catch((error) => {
+  .catch((error: unknown) => {
     console.error("[desktop] fatal startup error", error);
     dialog.showErrorBox("Inteligir failed to start", toErrorMessage(error));
     app.quit();

@@ -8,8 +8,13 @@
       "@/*": ["./src/*"],
       "@repo/app/*": ["../../packages/app/src/*"],
       "@repo/core/*": ["../../packages/core/src/*"],
+      "@repo/host/*": ["../../packages/host/src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     }
   },
-  "include": ["src/**/*", "electron.vite.config.ts"]
+  "include": [
+    "src/**/*",
+    "electron.vite.config.ts",
+    "../../packages/host/src/voice/sherpa-onnx-node.d.ts"
+  ]
 }

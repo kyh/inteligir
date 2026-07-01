@@ -1,0 +1,35 @@
+{
+  "name": "@repo/host",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Platform-agnostic node backend for Inteligir: vault, pi sessions, delegation, executor, voice, and agent extensions behind createHost(). No electron imports — shells inject a HostPlatform and fold the handler map into their transport.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@repo/agent-runtime": "workspace:^",
+    "@repo/core": "workspace:^",
+    "@repo/pi-driver": "workspace:^",
+    "@sinclair/typebox": "catalog:",
+    "open": "^11.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "sherpa-onnx-node": "^1.10.41",
+    "tar": "^7.5.15",
+    "unbzip2-stream": "^1.4.3",
+    "unified": "^11.0.5"
+  },
+  "devDependencies": {
+    "@types/mdast": "^4.0.4",
+    "@types/node": "catalog:",
+    "@types/unbzip2-stream": "^1.4.3",
+    "typescript": "catalog:",
+    "vitest": "^4.1.7"
+  }
+}

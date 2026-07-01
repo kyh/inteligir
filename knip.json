@@ -13,7 +13,16 @@
         "scripts/**/*.mjs"
       ],
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}"],
-      "ignoreDependencies": ["@tailwindcss/vite", "@vitejs/plugin-react", "electron-builder"]
+      // sherpa-onnx-node: not imported by desktop source (host imports it),
+      // but it must stay a desktop dependency so electron-builder packs the
+      // externalized native module (+ its sherpa-onnx-* platform binaries)
+      // into the app bundle.
+      "ignoreDependencies": [
+        "@tailwindcss/vite",
+        "@vitejs/plugin-react",
+        "electron-builder",
+        "sherpa-onnx-node"
+      ]
     },
     "apps/web": {
       "entry": ["src/app/**/*.{ts,tsx}", "src/components/**/*.{ts,tsx}"],
@@ -28,6 +37,13 @@
       // harness entry (dev/main.tsx) is picked up via vite.config.ts.
       "entry": ["src/__tests__/**/*.test.ts"],
       "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}"],
+      "includeEntryExports": false
+    },
+    "packages/host": {
+      // The node backend, source-imported by its shells (desktop today,
+      // server later) through its `./*` exports — don't flag them as unused.
+      "entry": ["src/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
       "includeEntryExports": false
     },
     "packages/core": {

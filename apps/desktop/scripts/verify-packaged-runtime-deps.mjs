@@ -5,10 +5,10 @@
 //
 // Runs after `electron-builder --mac`. Walks the unpacked .app bundle
 // and asserts:
-//   - resources/agent/AGENTS.md and resources/agent/skills/ are asar-unpacked
+//   - agent resources (AGENTS.md, skills/) are copied to Contents/Resources/agent
 //   - app.asar exists at all
 //   - pi-coding-agent + pi-ai are bundled into the built main process. They
-//     arrive transitively via the @repo/pi-driver workspace dep and are
+//     arrive transitively via the @repo/host workspace dep and are
 //     tree-shaken INTO main/index.js by electron-vite — electron-builder.yml
 //     excludes node_modules wholesale, so the failure mode is "didn't bundle,"
 //     not "missing from package.json."
@@ -81,15 +81,9 @@ function assertPlatformBinaryUnpacked(unpackedNodeModules) {
 const app = findAppBundle();
 const resources = join(app, "Contents", "Resources");
 
-// asar-unpacked agent resources
-assertExists(
-  join(resources, "app.asar.unpacked", "resources", "agent", "AGENTS.md"),
-  "AGENTS.md (unpacked)",
-);
-assertExists(
-  join(resources, "app.asar.unpacked", "resources", "agent", "skills"),
-  "skills directory (unpacked)",
-);
+// agent assets copied by extraResources
+assertExists(join(resources, "agent", "AGENTS.md"), "AGENTS.md (unpacked)");
+assertExists(join(resources, "agent", "skills"), "skills directory (unpacked)");
 
 // asar exists at all
 assertExists(join(resources, "app.asar"), "app.asar");
