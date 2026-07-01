@@ -37,6 +37,23 @@ if (!defaultBlockquoteDeserialize || !defaultBlockquoteSerialize) {
 
 const ALERT_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
 
+// Plate's NodeIdPlugin is a v53 core DEFAULT (disabled only under
+// NODE_ENV=test): every block in a live editor carries an `id`. Plate's own
+// column rules strip it before propsToAttributes, but its callout and media
+// rules spread it — leaking `id="…"` junk into user files. These serialize
+// overrides mirror the defaults minus the leak; deserialize is not overridden
+// (rule dispatch falls back to the default per-function).
+function mediaSerializeWithoutId(node: TElement, options: SerializeMdOptions) {
+  const { id, children, type, url, ...rest } = node;
+  void id;
+  return {
+    attributes: propsToAttributes({ ...rest, src: url }),
+    children: convertNodesSerialize(children, options),
+    name: type,
+    type: "mdxJsxFlowElement",
+  };
+}
+
 // Concatenated text of a Slate subtree. Plate keeps blockquote soft breaks as
 // "\n" inside text leaves, so this sees the alert marker on the first line.
 function nodeText(node: unknown): string {
@@ -71,6 +88,24 @@ export const MD_RULES: MdRules = {
       };
     },
   },
+
+  // id-leak overrides (see mediaSerializeWithoutId).
+  callout: {
+    serialize: (node: TElement, options: SerializeMdOptions) => {
+      const { id, children, type, ...rest } = node;
+      void id;
+      void type;
+      return {
+        attributes: propsToAttributes(rest),
+        children: convertNodesSerialize(children, options),
+        name: "callout",
+        type: "mdxJsxFlowElement",
+      };
+    },
+  },
+  video: { serialize: mediaSerializeWithoutId },
+  media_embed: { serialize: mediaSerializeWithoutId },
+  file: { serialize: mediaSerializeWithoutId },
 
   // Inline-void wiki nodes; `body` stays verbatim both directions. The remark
   // plugin's toMarkdown handler emits the actual `[[…]]` / `![[…]]` bytes.

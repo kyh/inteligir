@@ -273,6 +273,32 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(roundTrip(md)).toBe(md);
   });
 
+  it("never serializes node ids into vocabulary attributes", () => {
+    // NodeIdPlugin (a Plate core default, off under NODE_ENV=test — so this
+    // test injects ids explicitly) puts `id` on every live-editor block;
+    // Plate's default callout/media rules would leak it as an `id="…"` attr.
+    const out = serializeMd(editor(), {
+      remarkStringifyOptions: MD_STRINGIFY,
+      value: [
+        {
+          children: [{ children: [{ text: "x" }], id: "p1", type: "p" }],
+          id: "c1",
+          type: "callout",
+          variant: "info",
+        },
+        { children: [{ text: "" }], id: "v1", type: "video", url: "https://y.tb/1" },
+        { children: [{ text: "" }], id: "m1", type: "media_embed", url: "https://t.co/1" },
+        { children: [{ text: "" }], id: "f1", type: "file", url: "https://e.com/a.pdf" },
+        { children: [{ children: [{ text: "t" }], id: "p2", type: "p" }], id: "t1", type: "toggle" },
+      ],
+    });
+    expect(out).not.toContain("id=");
+    expect(out).toContain('<callout variant="info">');
+    expect(out).toContain('<video src="https://y.tb/1" />');
+    expect(out).toContain('<file src="https://e.com/a.pdf" />');
+    expect(out).toContain("<toggle>");
+  });
+
   it("keeps transient AI/suggestion text out of serialization", () => {
     // disallowedNodes drops the still-pending (not yet accepted) AI text from
     // saves entirely; accepting removes the mark, and only then does the text
