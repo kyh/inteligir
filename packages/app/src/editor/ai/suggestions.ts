@@ -128,14 +128,28 @@ function withTransient(nodes: Descendant[]): Descendant[] {
   });
 }
 
+/** Strip every leftover transient marker. withTransient stamps EVERY node the
+ * session inserts (data-carrying or not, so the byte-safety gate holds across
+ * the whole span), but accept/rejectSuggestion only clean data-carrying nodes
+ * — without this sweep the bare stamps outlive the session and the save gate
+ * (transient.ts::hasTransientAiState) never releases. */
+function sweepTransientMarkers(editor: SlateEditor): void {
+  editor.tf.unsetNodes([getTransientSuggestionKey()], {
+    at: [],
+    mode: "all",
+    match: (n) => n[getTransientSuggestionKey()] === true,
+  });
+}
+
 /** Resolve one suggestion by id: accept applies the change (insertions stay,
  * deletions are executed), reject reverts it precisely (insertions removed,
- * deletions restored, mark updates undone). */
+ * deletions restored, mark updates undone). Resolving the LAST one sweeps the
+ * leftover transient stamps so the byte-safety gate releases. */
 export function resolveSuggestion(editor: SlateEditor, id: string, mode: ResolveMode): void {
   const api = editor.getApi(BaseSuggestionPlugin).suggestion;
-  const entry = api.nodes({ transient: true }).find(([node]) =>
-    dataListOf(node).some((data) => data.id === id),
-  );
+  const entry = api
+    .nodes({ transient: true })
+    .find(([node]) => dataListOf(node).some((data) => data.id === id));
   if (!entry) return;
   const data = dataListOf(entry[0]).find((d) => d.id === id);
   if (!data) return;
@@ -146,8 +160,11 @@ export function resolveSuggestion(editor: SlateEditor, id: string, mode: Resolve
     type: data.type,
     userId: data.userId,
   };
-  if (mode === "accept") acceptSuggestion(editor, description);
-  else rejectSuggestion(editor, description);
+  editor.tf.withoutNormalizing(() => {
+    if (mode === "accept") acceptSuggestion(editor, description);
+    else rejectSuggestion(editor, description);
+    if (transientSuggestionIds(editor).length === 0) sweepTransientMarkers(editor);
+  });
 }
 
 /** Resolve every unresolved suggestion, then sweep any leftover transient
@@ -155,19 +172,15 @@ export function resolveSuggestion(editor: SlateEditor, id: string, mode: Resolve
 export function resolveAllSuggestions(editor: SlateEditor, mode: ResolveMode): void {
   editor.tf.withoutNormalizing(() => {
     for (const id of transientSuggestionIds(editor)) resolveSuggestion(editor, id, mode);
-    editor.tf.unsetNodes([getTransientSuggestionKey()], {
-      at: [],
-      mode: "all",
-      match: (n) => n[getTransientSuggestionKey()] === true,
-    });
+    sweepTransientMarkers(editor);
   });
 }
 
 /** First document node carrying suggestion `id` (review-bar scroll target). */
 export function firstSuggestionNode(editor: SlateEditor, id: string): Descendant | null {
   const api = editor.getApi(BaseSuggestionPlugin).suggestion;
-  const entry = api.nodes({ transient: true }).find(([node]) =>
-    dataListOf(node).some((data) => data.id === id),
-  );
+  const entry = api
+    .nodes({ transient: true })
+    .find(([node]) => dataListOf(node).some((data) => data.id === id));
   return entry ? entry[0] : null;
 }

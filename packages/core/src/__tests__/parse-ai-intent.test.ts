@@ -28,6 +28,8 @@ describe("parseAiIntent", () => {
     "edit or generate, hard to say", // names both → safe branch
     "I would generate an edit", // names both
     "0", // numeric garbage
+    "éditer le texte", // non-English (accented letters break the word scan)
+    "编辑这段文字", // non-English (no latin words at all)
   ])("falls back to generate for %j", (input) => {
     expect(parseAiIntent(input)).toBe("generate");
   });

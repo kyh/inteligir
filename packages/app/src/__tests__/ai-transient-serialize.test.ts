@@ -13,6 +13,7 @@ import { AI_MARK } from "@repo/app/editor/ai/ai-mark";
 import {
   applyEditSuggestions,
   resolveAllSuggestions,
+  resolveSuggestion,
   transientSuggestionIds,
 } from "@repo/app/editor/ai/suggestions";
 import { TRANSIENT_SUGGESTION_KEY, hasTransientAiState } from "@repo/app/editor/ai/transient";
@@ -105,6 +106,42 @@ describe("mid-suggestion autosave", () => {
     const editor = seedEditor(ORIGINAL);
     expect(applyEditSuggestions(editor, [[0], [1]], parsedValue(ORIGINAL))).toBe(false);
     expect(hasTransientAiState(editor)).toBe(false);
+  });
+
+  // A rewrite that DELETES user content: the deletion-marked original text is
+  // the user's — it must survive a mid-session autosave byte-for-byte (this is
+  // exactly what a blanket disallowedNodes: ["suggestion"] would drop) and
+  // must come back whole on reject.
+  it("deletion-marked user text survives autosave and reject", () => {
+    const editor = seedEditor(ORIGINAL);
+    const before = serialize(editor);
+    const applied = applyEditSuggestions(
+      editor,
+      [[0], [1]],
+      parsedValue("The cat is black.\n"), // drops "Keep me unchanged."
+    );
+    expect(applied).toBe(true);
+    expect(serialize(editor)).toBe(before); // mid-session bytes keep the paragraph
+    resolveAllSuggestions(editor, "reject");
+    expect(serialize(editor)).toBe(before);
+  });
+
+  // The accept-half-then-switch-files attack: with SOME suggestions resolved,
+  // the save gate must keep holding (a flush/unmount mid-session writes the
+  // frozen pre-session buffer, never a half-resolved hybrid) until the LAST
+  // one resolves — only then does the settled document serialize.
+  it("accepting one of several suggestions keeps the save gate held", () => {
+    const editor = seedEditor(ORIGINAL);
+    applyEditSuggestions(editor, [[0], [1]], parsedValue(REWRITE));
+    const ids = transientSuggestionIds(editor);
+    expect(ids.length).toBeGreaterThan(1);
+    for (const [index, id] of ids.entries()) {
+      expect(hasTransientAiState(editor)).toBe(true);
+      resolveSuggestion(editor, id, index % 2 === 0 ? "accept" : "reject");
+    }
+    expect(hasTransientAiState(editor)).toBe(false);
+    const out = serialize(editor);
+    expect(out).not.toContain("suggestion");
   });
 });
 
