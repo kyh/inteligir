@@ -1,7 +1,10 @@
 # Re-platform plan — adopt the open-knowledge structure
 
-Status: **decided** (v2, revised after the 2026-07-01 grilling session; Phase 1
-merged in #351). Roadmap for restructuring inteligir to follow
+Status: **executed** (2026-07-02 — all phases shipped: #351 core, #353 app,
+#354 host, #355 server+cli, #356 desktop, #357/#358/#360/#361 editor overhaul,
+#363 snapshots, #364/#366 knowledge suite, #365 AI surface; #362 fixed the
+fixture/format CI regime). Kept as the decision record. Originally: roadmap
+for restructuring inteligir to follow
 [inkeep/open-knowledge](https://github.com/inkeep/open-knowledge)'s web-first,
 multi-package architecture, with the editor rebuilt to
 [Potion](https://pro.platejs.org) parity on Plate and styled with the Fluid
