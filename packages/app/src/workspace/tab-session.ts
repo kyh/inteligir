@@ -79,6 +79,22 @@ export function moveTab(session: TabSession, from: number, to: number): TabSessi
   return { tabs, active: session.active };
 }
 
+/** Most-recently-activated tab order — the pane host keeps one to decide
+ * which tabs retain a live (mounted) editor across switches (#369). The
+ * active path moves (or inserts) at the front; paths no longer open drop
+ * out. Pure and identity-stable: returns `recency` itself when the update
+ * is a no-op, so render-adjust callers can compare by reference. */
+export function touchRecency(
+  recency: readonly string[],
+  tabs: readonly string[],
+  active: string | null,
+): readonly string[] {
+  const kept = recency.filter((path) => tabs.includes(path));
+  const next = active === null ? kept : [active, ...kept.filter((path) => path !== active)];
+  const unchanged = next.length === recency.length && next.every((p, i) => p === recency[i]);
+  return unchanged ? recency : next;
+}
+
 /** Parse a persisted ui-state value back into a session, dropping anything
  * malformed (unknown shape, duplicates, active not a member). */
 export function parseSession(value: unknown): TabSession | undefined {

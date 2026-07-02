@@ -11,21 +11,20 @@
 // the settled markdown for the flush to persist.
 //
 // Mirrors the open-note-flush seam: the editor owns the implementation, this
-// module is just the wire. One rich editor mounts at a time, so one slot
-// suffices; the entry carries its path so flushing some OTHER tab never
-// settles the active editor's session.
+// module is just the wire. One rich editor mounts PER OPEN TAB (#369 keeps
+// hidden tabs' editors alive), so this is a registry keyed by path — flushing
+// one tab settles exactly that tab's editor, never a sibling's.
 
-let current: { path: string; settle: () => string | null } | null = null;
+const settlers = new Map<string, () => string | null>();
 
-/** Wire the mounted editor's settler: `path` is the vault-relative file it
+/** Wire a mounted editor's settler: `path` is the vault-relative file it
  * serves; `settle` resolves any pending suggestion session (reject-all) and
  * returns the settled markdown, or null when nothing was pending. Returns
  * the unregister function. */
 export function registerTransientSettler(path: string, settle: () => string | null): () => void {
-  const entry = { path, settle };
-  current = entry;
+  settlers.set(path, settle);
   return () => {
-    if (current === entry) current = null;
+    if (settlers.get(path) === settle) settlers.delete(path);
   };
 }
 
@@ -33,6 +32,5 @@ export function registerTransientSettler(path: string, settle: () => string | nu
  * if any. Returns the settled markdown when a session was resolved, else
  * null (no editor on that path, or nothing pending). */
 export function settleTransients(path: string): string | null {
-  if (current === null || current.path !== path) return null;
-  return current.settle();
+  return settlers.get(path)?.() ?? null;
 }

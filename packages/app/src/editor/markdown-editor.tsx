@@ -114,9 +114,9 @@ export function MarkdownEditor({ path, value, onChange, onSettled }: Props) {
     () => () => {
       const md = settleSuggestions();
       if (md !== null) onSettledRef.current(md);
-      useAiReviewStore.getState().setReviewing(false);
+      useAiReviewStore.getState().setReviewing(path, false);
     },
-    [settleSuggestions],
+    [settleSuggestions, path],
   );
 
   return (
@@ -138,7 +138,7 @@ export function MarkdownEditor({ path, value, onChange, onSettled }: Props) {
         // save badge surfaces the suggestion freeze as "Reviewing
         // suggestions" via the store.
         const reviewing = hasTransientSuggestions(editor);
-        useAiReviewStore.getState().setReviewing(reviewing);
+        useAiReviewStore.getState().setReviewing(path, reviewing);
         if (reviewing || hasTransientAiState(editor)) return;
         const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
         // Drop the echo a programmatic (re)seed produces — only real edits,

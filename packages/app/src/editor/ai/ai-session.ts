@@ -164,6 +164,13 @@ let lastRun: LastRun | null = null;
 let undoDepth = 0;
 let streamOff: (() => void) | null = null;
 let activeRequestId: string | null = null;
+// The editor whose session owns the module-level bookkeeping above. Every
+// open tab keeps its editor mounted (#369), so "one session at a time" needs
+// enforcing rather than assuming: opening the menu on another editor CLOSES
+// the owner's session first (cancel/unwind — the same teardown the user
+// closing that menu would run), or the two runs would corrupt each other's
+// tokens and leave the first editor stuck "generating" forever.
+let sessionOwner: PlateEditor | null = null;
 
 function setOptions(editor: PlateEditor, patch: Partial<AiSessionOptions>): void {
   editor.setOptions(AiSessionPlugin, patch);
@@ -180,6 +187,7 @@ function savedSelection(editor: PlateEditor): TRange | null {
 /** Open the AI menu anchored under the block holding the selection's end. */
 export function openAiMenu(editor: PlateEditor): void {
   if (editor.getOption(AiSessionPlugin, "status") !== "closed") return;
+  if (sessionOwner !== null && sessionOwner !== editor) closeAiMenu(sessionOwner);
   const sel = editor.selection;
   if (!sel) return;
   const blockIndex = RangeApi.end(sel).path[0];
@@ -189,6 +197,7 @@ export function openAiMenu(editor: PlateEditor): void {
   const anchor = editor.api.toDOMNode(entry[0]);
   if (!anchor) return;
   setOptions(editor, { status: "input", anchor, savedSelection: sel, error: null });
+  sessionOwner = editor;
 }
 
 /**
@@ -209,6 +218,7 @@ export function closeAiMenu(editor: PlateEditor): void {
   const sel = savedSelection(editor);
   setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
   lastRun = null;
+  if (sessionOwner === editor) sessionOwner = null;
   if (sel) editor.tf.select(sel);
   editor.tf.focus();
 }
@@ -347,6 +357,7 @@ export function acceptGenerate(editor: PlateEditor): void {
   setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
   lastRun = null;
   runToken += 1;
+  if (sessionOwner === editor) sessionOwner = null;
   if (at) editor.tf.select(at);
   editor.tf.focus();
 }
@@ -426,6 +437,7 @@ function startEdit(editor: PlateEditor, instruction: string): void {
       runToken += 1;
       setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
       lastRun = null;
+      if (sessionOwner === editor) sessionOwner = null;
       editor.tf.focus();
       return undefined;
     })

@@ -85,4 +85,26 @@ describe("transient-settle registry", () => {
     offB();
     expect(settleTransients("b.md")).toBeNull();
   });
+
+  it("holds settlers for every mounted pane at once (#369)", () => {
+    // Hidden tabs keep their editors mounted, so N settlers coexist —
+    // flushing one tab settles exactly that tab's editor.
+    const offA = registerTransientSettler("a.md", () => "A");
+    const offB = registerTransientSettler("b.md", () => "B");
+    expect(settleTransients("a.md")).toBe("A");
+    expect(settleTransients("b.md")).toBe("B");
+    offA();
+    expect(settleTransients("a.md")).toBeNull();
+    expect(settleTransients("b.md")).toBe("B");
+    offB();
+  });
+
+  it("a remount over the same path replaces the settler", () => {
+    const offOld = registerTransientSettler("a.md", () => "old");
+    const offNew = registerTransientSettler("a.md", () => "new");
+    offOld(); // StrictMode-style stale cleanup — must not clear the newer one
+    expect(settleTransients("a.md")).toBe("new");
+    offNew();
+    expect(settleTransients("a.md")).toBeNull();
+  });
 });

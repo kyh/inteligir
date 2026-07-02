@@ -39,10 +39,13 @@ export function Header() {
     deleteEntry,
   } = useVault();
   const { state } = useSidebar();
-  // While an AI suggestion session pends, autosave is frozen (the transient
-  // gate) — say so instead of silently reading "Saved" over stale bytes.
-  const reviewing = useAiReviewStore((s) => s.reviewing);
   const path = editor.path;
+  // While an AI suggestion session pends ON THIS note, its autosave is frozen
+  // (the transient gate) — say so instead of silently reading "Saved" over
+  // stale bytes. Keyed by path: a background tab's pending review (its pane
+  // stays mounted, #369) must not relabel the active tab's badge.
+  const reviewingPaths = useAiReviewStore((s) => s.reviewing);
+  const reviewing = path !== null && reviewingPaths.has(path);
   const segments = path ? path.split("/") : [];
 
   const confirmDelete = async () => {

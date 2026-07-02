@@ -24,6 +24,7 @@ import { type PlateEditor, useEditorRef } from "platejs/react";
 
 import { toast } from "@repo/ui/components/sonner";
 
+import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 import { isTodoItem } from "@repo/app/editor/todo-item";
 import { findDelegation, useDelegationStore } from "@repo/app/stores/delegation-store";
 import { useVault } from "@repo/app/workspace/vault-context";
@@ -52,7 +53,11 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
   const cancel = useDelegationStore((s) => s.cancel);
   const submittingRef = useRef(false);
 
-  const sourceFile = vaultEditor.path;
+  // The checkbox belongs to the note THIS pane serves — panes for background
+  // tabs stay mounted (#369), so the active tab's path would mis-key their
+  // badges. Delegate itself only fires from the active pane (hidden panes
+  // aren't clickable), where flush() flushes exactly this file.
+  const sourceFile = useEditorPane()?.path ?? vaultEditor.path;
   const text = elementText(element);
   const index = todoIndex(plateEditor, element);
 

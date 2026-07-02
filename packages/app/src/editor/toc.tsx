@@ -10,6 +10,8 @@ import { useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { useEditorPane } from "@repo/app/editor/editor-pane-context";
+
 type HeadingItem = { id: string; depth: number; title: string };
 
 const HEADING_DEPTH: Record<string, number> = { [KEYS.h1]: 1, [KEYS.h2]: 2, [KEYS.h3]: 3 };
@@ -29,11 +31,13 @@ function collectHeadings(editor: ReturnType<typeof useEditorRef>): HeadingItem[]
   return out;
 }
 
-// The heading elements in the live editable, in document order — the same order
-// as collectHeadings, so index i lines up. Excludes the page-title <h1>, which
-// lives outside the Slate editable.
-function editorHeadingEls(): HTMLElement[] {
-  const root = document.querySelector("[data-slate-editor]");
+// The heading elements in THIS editor's live editable, in document order —
+// the same order as collectHeadings, so index i lines up. Excludes the
+// page-title <h1>, which lives outside the Slate editable. Scoped to the
+// editor's own DOM node because every open tab keeps its editor mounted
+// (#369) — a bare [data-slate-editor] query would read a hidden sibling's.
+function editorHeadingEls(editor: ReturnType<typeof useEditorRef>): HTMLElement[] {
+  const root = editor.api.toDOMNode(editor);
   return root ? [...root.querySelectorAll<HTMLElement>("h1, h2, h3")] : [];
 }
 
@@ -43,17 +47,22 @@ export function TableOfContents() {
   // ref inside so the helper keeps its concrete PlateEditor type.
   const headings = useEditorSelector(() => collectHeadings(editor), []);
   const [activeIndex, setActiveIndex] = useState(0);
+  // A hidden pane's rail must not render (it's position:fixed, so it escapes
+  // the pane's layout even though display:none on the ancestor hides it) nor
+  // scrollspy against zero-size boxes.
+  const paneActive = useEditorPane()?.active ?? true;
 
   // Scrollspy: the last heading scrolled above the header line is "active". A
   // scroll listener on the workspace scroller (IntersectionObserver never fires
   // with a custom root in this Electron renderer).
   useEffect(() => {
+    if (!paneActive) return;
     const scroller = document.querySelector("main");
     if (!scroller || headings.length === 0) return;
     const onScroll = () => {
       const scannerY = scroller.getBoundingClientRect().top + HEADER_OFFSET + 8;
       let active = 0;
-      editorHeadingEls().forEach((el, i) => {
+      editorHeadingEls(editor).forEach((el, i) => {
         if (el.getBoundingClientRect().top <= scannerY) active = i;
       });
       setActiveIndex(active);
@@ -61,15 +70,15 @@ export function TableOfContents() {
     onScroll();
     scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => scroller.removeEventListener("scroll", onScroll);
-  }, [headings]);
+  }, [headings, paneActive, editor]);
 
-  if (headings.length < 2) return null;
+  if (!paneActive || headings.length < 2) return null;
 
   // Smooth scrolling is a no-op in this Electron renderer (both scrollIntoView
   // and scrollTo ignore `behavior: "smooth"`), so compute the target offset and
   // jump instantly, leaving room for the sticky header.
   const scrollTo = (index: number) => {
-    const el = editorHeadingEls()[index];
+    const el = editorHeadingEls(editor)[index];
     const scroller = document.querySelector("main");
     if (el && scroller) {
       const top =

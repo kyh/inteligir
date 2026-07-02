@@ -127,13 +127,17 @@ type VaultContextValue = {
   subscribeTab: (path: string, listener: () => void) => () => void;
   /** Whether a tab has unsaved edits (read inside a subscribeTab store). */
   isTabDirty: (path: string) => boolean;
-  /** Record an edit to the active tab's buffer (debounced autosave). */
-  onEdit: (content: string) => void;
-  /** Record an edit to a SPECIFIC tab's buffer (debounced autosave). The
-   * editor's teardown settle path (#374) routes through this — by the time an
-   * unmounting editor settles a pending AI session, the active tab may
-   * already have changed, so the bytes carry their own path. No-op when the
-   * tab has no live runtime (e.g. it was deleted). */
+  /** Snapshot of one open tab's live editor state (a stable empty state for
+   * unknown/still-loading paths). Pair with subscribeTab for
+   * useSyncExternalStore — every open tab's pane renders its OWN state, not
+   * the active tab's (#369). */
+  getTabState: (path: string) => VaultEditorState;
+  /** Record an edit to a SPECIFIC tab's buffer (debounced autosave). Every
+   * pane routes its edits through this with its own path — panes for
+   * background tabs stay mounted (#369) and their editors can still emit
+   * (AI settle on teardown #374, external re-seeds), so bytes always carry
+   * the path of the editor that produced them. No-op when the tab has no
+   * live runtime (e.g. it was deleted). */
   editTab: (path: string, content: string) => void;
   /** Create a file at `path` (e.g. "folder/note.md") and open it. */
   createFile: (path: string) => Promise<void>;
@@ -166,6 +170,11 @@ type VaultContextValue = {
   /** Why the open file is Raw-only (parse error / out-of-vocabulary construct),
    * or null. Drives the header's Raw badge tooltip. */
   rawReason: RawReason | null;
+  /** The path `canonical`/`richSafe`/`rawReason`/`mode` were computed for.
+   * Normally the active tab, but it LAGS during the switch-to-a-dirty-tab
+   * window (analysis only recomputes over saved bytes) — panes compare it to
+   * their own path before adopting the context view (#369). */
+  analyzedPath: string | null;
   /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
   mode: "raw" | "rich";
   setMode: (mode: "raw" | "rich") => void;
@@ -364,6 +373,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const isTabDirty = useCallback((path: string): boolean => {
     return runtimes.current.get(path)?.controller.getState().dirty ?? false;
+  }, []);
+
+  const getTabState = useCallback((path: string): VaultEditorState => {
+    return runtimes.current.get(path)?.controller.getState() ?? NO_TAB_STATE;
   }, []);
 
   // ---- Active-tab editor state ---------------------------------------------
@@ -685,7 +698,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       cycleTab,
       subscribeTab,
       isTabDirty,
-      onEdit,
+      getTabState,
       editTab,
       createFile,
       createFileAt,
@@ -698,6 +711,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       canonical: analysis.canonical,
       richSafe: analysis.richSafe,
       rawReason: analysis.rawReason,
+      analyzedPath: analyzed.path,
       mode,
       setMode,
       formatDoc,
@@ -713,7 +727,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       cycleTab,
       subscribeTab,
       isTabDirty,
-      onEdit,
+      getTabState,
       editTab,
       createFile,
       createFileAt,
@@ -724,6 +738,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       resolveWikiTarget,
       isMarkdownOpen,
       analysis,
+      analyzed.path,
       mode,
       formatDoc,
     ],

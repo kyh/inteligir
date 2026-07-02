@@ -1,5 +1,5 @@
-// Backlinks for the open note — a collapsible section at the bottom of the
-// editor column (below the document, sharing its geometry) rather than a
+// Backlinks for the hosting pane's note — a collapsible section at the bottom
+// of the editor column (below the document, sharing its geometry) rather than a
 // right rail: the workspace is a single centered text column with the
 // composer pinned bottom, so a rail would fight both the 700px measure and
 // the chat popover. Entries group by source note with the linking line as a
@@ -26,9 +26,8 @@ function noteTitle(path: string): string {
   return dot > 0 ? name.slice(0, dot) : name;
 }
 
-export function BacklinksPanel() {
-  const { editor, openFile } = useVault();
-  const path = editor.path;
+export function BacklinksPanel({ path }: { path: string }) {
+  const { openFile } = useVault();
   const [backlinks, setBacklinks] = useState<BacklinkEntry[]>([]);
 
   const refresh = useCallback((notePath: string) => {
@@ -41,16 +40,12 @@ export function BacklinksPanel() {
   }, []);
 
   useEffect(() => {
-    if (path === null) {
-      setBacklinks([]);
-      return;
-    }
     refresh(path);
     const bridge = getBridge();
     return bridge?.onKnowledgeUpdated(() => refresh(path));
   }, [path, refresh]);
 
-  if (path === null || backlinks.length === 0) return null;
+  if (backlinks.length === 0) return null;
 
   // Group occurrences by source note (index order preserved), one row per
   // source LINE — two links on the same line share a snippet and a target.
