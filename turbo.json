@@ -7,7 +7,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": [".cache/tsbuildinfo.json", "dist/**", ".next/**", "!.next/cache/**", ".output/**"]
+      "outputs": [".cache/tsbuildinfo.json", "dist/**", ".output/**"]
     },
     // Static web build served by @repo/server (dist-web/, non-default
     // outDir); the cli resolves it at runtime, so `pnpm build` must emit it.
@@ -21,8 +21,8 @@
       "env": ["INTELIGIR_GOOGLE_OAUTH_CLIENT_ID", "INTELIGIR_GOOGLE_OAUTH_CLIENT_SECRET"]
     },
     // No ^dev edge: every dev script is a long-running server (electron-vite,
-    // next, @repo/app's vite harness), so a dependency edge would block a
-    // dependent's dev behind a server that never exits.
+    // web's vite dev, @repo/app's vite harness), so a dependency edge would
+    // block a dependent's dev behind a server that never exits.
     "dev": {
       "cache": false,
       "persistent": false
@@ -43,12 +43,5 @@
     }
   },
   "globalEnv": ["PORT"],
-  "globalPassThroughEnv": [
-    "NODE_ENV",
-    "CI",
-    "VERCEL",
-    "VERCEL_ENV",
-    "VERCEL_URL",
-    "npm_lifecycle_event"
-  ]
+  "globalPassThroughEnv": ["NODE_ENV", "CI", "npm_lifecycle_event"]
 }

@@ -25,8 +25,11 @@
       ]
     },
     "apps/web": {
-      "entry": ["src/app/**/*.{ts,tsx}", "src/components/**/*.{ts,tsx}"],
-      "project": ["*.config.{js,mjs}", "src/**/*.{ts,tsx}"]
+      "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
+      "project": ["src/**/*.{ts,tsx}"],
+      // @fontsource-variable/inter + tailwindcss are referenced only from
+      // globals.css (@import), which knip doesn't parse.
+      "ignoreDependencies": ["@fontsource-variable/inter", "tailwindcss"]
     },
     "packages/agent-runtime": {
       "includeEntryExports": true

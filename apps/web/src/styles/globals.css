@@ -1,0 +1,10 @@
+@import "@fontsource-variable/inter";
+@import "@repo/ui/globals.css";
+
+/* Inter Variable powers Fluid Functionalism's weight-axis transitions
+ * (labels easing normal -> semibold). Self-hosted via @fontsource-variable
+ * (next/font parity); overrides @repo/ui's system-font default. */
+:root {
+  --font-sans:
+    "Inter Variable", -apple-system, BlinkMacSystemFont, "Helvetica Neue", system-ui, sans-serif;
+}

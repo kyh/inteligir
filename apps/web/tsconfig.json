@@ -2,13 +2,13 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2023", "dom", "dom.iterable"],
-    "jsx": "preserve",
-    "module": "esnext",
-    "plugins": [{ "name": "next" }],
+    "jsx": "react-jsx",
     "paths": {
       "@/*": ["./src/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
-    }
+    },
+    "types": ["vite/client"]
   },
-  "include": [".", ".next/types/**/*.ts"]
+  "include": ["src", "vite.config.ts"],
+  "exclude": ["node_modules", "dist", ".wrangler", ".tanstack"]
 }

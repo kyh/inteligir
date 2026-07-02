@@ -1,0 +1,71 @@
+# Deploys @repo/web to Cloudflare Workers on push to main.
+#
+# Requires the CLOUDFLARE_API_TOKEN repo secret: a Cloudflare API token with
+# "Workers Scripts: Edit" (account) + "Workers Routes: Edit" (inteligir.com
+# zone) permissions.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-${{ github.ref }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      web: ${{ steps.check.outputs.web }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Detect changed apps
+        id: check
+        run: |
+          BASE="${{ github.event.before }}"
+          if [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "web=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          for app in web; do
+            output=$(pnpm turbo ls --filter="@repo/${app}...[${BASE}]") || { echo "${app}=true" >> "$GITHUB_OUTPUT"; continue; }
+            if echo "$output" | grep -q "@repo/"; then
+              echo "${app}=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "${app}=false" >> "$GITHUB_OUTPUT"
+            fi
+          done
+
+  deploy-web:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Build & deploy web
+        run: pnpm turbo run build --filter=@repo/web... && pnpm -F @repo/web exec wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

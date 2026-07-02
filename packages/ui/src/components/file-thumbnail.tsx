@@ -103,7 +103,6 @@ function FileThumbnail({ file, size, className }: FileThumbnailProps) {
       style={{ width: size, height: size }}
     >
       {previewUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
         <img
           src={previewUrl}
           alt={file.name}

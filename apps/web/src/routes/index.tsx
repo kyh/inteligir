@@ -1,9 +1,11 @@
-import { cacheLife, cacheTag } from "next/cache";
+import { ClientOnly, createFileRoute } from "@tanstack/react-router";
+import { createServerFn } from "@tanstack/react-start";
 
 import { HeroOrb } from "@/components/hero-orb";
 
 const GITHUB_REPO = "kyh/inteligir";
 const FALLBACK_URL = `https://github.com/${GITHUB_REPO}/releases`;
+const CACHE_TTL_MS = 60 * 60 * 1000;
 
 function MacLogoIcon({ className }: { className?: string }) {
   return (
@@ -13,14 +15,16 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-async function getDownloadUrl(): Promise<string> {
-  "use cache";
-  cacheLife("hours");
-  cacheTag("download-url");
+// Isolate-local memo (parity with the old `cacheLife("hours")`): one GitHub
+// API hit per worker isolate per hour, falling back to the releases page.
+let cached: { url: string; expires: number } | null = null;
+
+const getDownloadUrl = createServerFn().handler(async (): Promise<string> => {
+  if (cached && cached.expires > Date.now()) return cached.url;
 
   try {
     const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`, {
-      headers: { Accept: "application/vnd.github+json" },
+      headers: { Accept: "application/vnd.github+json", "User-Agent": "inteligir-web" },
     });
     if (!res.ok) return FALLBACK_URL;
 
@@ -29,20 +33,30 @@ async function getDownloadUrl(): Promise<string> {
     } = await res.json();
 
     const dmg = release.assets.find((a) => a.name.endsWith(".dmg"));
-    return dmg?.browser_download_url ?? FALLBACK_URL;
+    const url = dmg?.browser_download_url ?? FALLBACK_URL;
+    cached = { url, expires: Date.now() + CACHE_TTL_MS };
+    return url;
   } catch {
     return FALLBACK_URL;
   }
-}
+});
 
-export default async function Page() {
-  const downloadUrl = await getDownloadUrl();
+export const Route = createFileRoute("/")({
+  loader: () => getDownloadUrl(),
+  component: Page,
+});
+
+function Page() {
+  const downloadUrl = Route.useLoaderData();
 
   return (
     <main className="flex min-h-dvh w-full flex-col">
       <div className="flex flex-1 flex-col items-center justify-center">
         <div className="h-48 w-48">
-          <HeroOrb />
+          {/* three.js canvas — client-only (no SSR in the worker) */}
+          <ClientOnly fallback={null}>
+            <HeroOrb />
+          </ClientOnly>
         </div>
       </div>
       <div className="flex flex-col items-center gap-3 px-6 pb-16">
