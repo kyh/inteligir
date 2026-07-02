@@ -40,6 +40,13 @@ import {
   type RestoreSnapshotResult,
 } from "./delegation";
 import { AiGenerateParamsSchema, type AiGenerateResult } from "./inline-ai";
+import type {
+  BacklinkEntry,
+  ForwardLinkEntry,
+  LinkGraph,
+  SearchResult,
+  WikiTarget,
+} from "./knowledge/knowledge-index";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
 
@@ -155,6 +162,20 @@ export type ChooseVaultResult = { root: string } | { canceled: true } | { error:
 
 const VaultRenameSchema = Type.Object(
   { from: Type.String(), to: Type.String() },
+  { additionalProperties: false },
+);
+
+// ---------------------------------------------------------------------------
+// Knowledge — the host's link + lexical search indexes over the vault
+// (backlinks, graph, palette search, wiki autocomplete). Result shapes live
+// in knowledge/knowledge-index.ts next to the engine that produces them.
+// ---------------------------------------------------------------------------
+
+const KnowledgeSearchSchema = Type.Object(
+  {
+    query: Type.String(),
+    limit: Type.Optional(Type.Number({ minimum: 1, maximum: 200 })),
+  },
   { additionalProperties: false },
 );
 
@@ -290,6 +311,30 @@ export const IPC = {
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
   onVaultChanged: event<{ root: string }>("vault:changed"),
+
+  // Knowledge — link + search indexes over the vault, kept fresh from vault
+  // change events. Queries are cheap index reads.
+  getBacklinks: invoke<typeof VaultPathSchema, BacklinkEntry[]>(
+    "knowledge:backlinks",
+    VaultPathSchema,
+  ),
+  getForwardLinks: invoke<typeof VaultPathSchema, ForwardLinkEntry[]>(
+    "knowledge:forward-links",
+    VaultPathSchema,
+  ),
+  /** Whole-vault link graph, shaped for a force-graph renderer (unresolved
+   * targets appear as flagged phantom nodes). */
+  getLinkGraph: invokeVoid<LinkGraph>("knowledge:graph"),
+  /** Ranked lexical full-text search (title > heading > body tiers). */
+  searchVault: invoke<typeof KnowledgeSearchSchema, SearchResult[]>(
+    "knowledge:search",
+    KnowledgeSearchSchema,
+  ),
+  /** Every linkable note, for the `[[`-autocomplete picker. */
+  listWikiTargets: invokeVoid<WikiTarget[]>("knowledge:wiki-targets"),
+  /** Fired after every index refresh (revision is monotonic) so backlink
+   * panes / graph views re-query. */
+  onKnowledgeUpdated: event<{ revision: number }>("knowledge:updated"),
 
   // Delegation — a checkbox handed to a background agent.
   createDelegation: invoke<typeof CreateDelegationParamsSchema, CreateDelegationResult>(

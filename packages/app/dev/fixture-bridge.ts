@@ -10,6 +10,9 @@ import type { AppState } from "@repo/core/app-state";
 import type { Delegation, ListDelegationsResult } from "@repo/core/delegation";
 import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/core/ipc";
 import type { VaultEntry } from "@repo/core/ipc-registry";
+import { isDocPath } from "@repo/core/knowledge/doc-file";
+import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
+import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
 // note IS the canonical kitchen-sink fixture.
@@ -303,6 +306,7 @@ export function createFixtureBridge(): Bridge {
   const vaultEvents = new Emitter<{ root: string }>();
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();
+  const knowledgeEvents = new Emitter<{ revision: number }>();
 
   const setAppState = (next: AppState) => {
     appState = next;
@@ -313,8 +317,26 @@ export function createFixtureBridge(): Bridge {
     [...vault.keys()].toSorted().map((path) => ({
       path,
       name: path.split("/").at(-1) ?? path,
-      kind: /\.(md|markdown|txt)$/.test(path) ? "doc" : "other",
+      kind: isDocPath(path) ? "doc" : "other",
     }));
+
+  // A REAL knowledge index over the in-memory vault — the same core engine
+  // the host runs — so backlinks/graph/search/autocomplete are exercisable
+  // in the harness with live data.
+  const knowledge = new KnowledgeIndex();
+  const indexEntry = (path: string): void => {
+    const content = vault.get(path);
+    if (content === undefined) return;
+    if (isDocPath(path)) knowledge.setDoc(path, content);
+    else knowledge.setOther(path);
+  };
+  for (const path of vault.keys()) indexEntry(path);
+  let knowledgeRevision = 0;
+  const touchVault = (): void => {
+    vaultEvents.emit({ root: FIXTURE_ROOT });
+    knowledgeRevision++;
+    knowledgeEvents.emit({ revision: knowledgeRevision });
+  };
 
   const cannedReply = (text: string) => {
     history.push({ role: "user", text });
@@ -414,23 +436,46 @@ export function createFixtureBridge(): Bridge {
     },
     writeVaultDoc: async ({ path, content }) => {
       vault.set(path, content);
-      vaultEvents.emit({ root: FIXTURE_ROOT });
+      indexEntry(path);
+      touchVault();
     },
     deleteVaultEntry: async ({ path }) => {
       const removed = vault.delete(path);
-      if (removed) vaultEvents.emit({ root: FIXTURE_ROOT });
+      if (removed) {
+        knowledge.remove(path);
+        touchVault();
+      }
       return { removed };
     },
     renameVaultEntry: async ({ from, to }) => {
       const content = vault.get(from);
       if (content === undefined) return { ok: false, error: `no such file: ${from}` };
       if (vault.has(to)) return { ok: false, error: `already exists: ${to}` };
+      // Mirror the host: rename, then rewrite every link that pointed at the
+      // old path (same pure core edit computation).
+      const docs = new Map<string, string>();
+      for (const [path, text] of vault) {
+        if (isDocPath(path)) docs.set(path, text);
+      }
+      const edits = computeRenameEdits(docs, vault.keys(), from, to);
       vault.delete(from);
+      knowledge.remove(from);
       vault.set(to, content);
-      vaultEvents.emit({ root: FIXTURE_ROOT });
+      for (const [path, text] of edits) vault.set(path, text);
+      indexEntry(to);
+      for (const path of edits.keys()) indexEntry(path);
+      touchVault();
       return { ok: true };
     },
     onVaultChanged: vaultEvents.subscribe,
+
+    // Knowledge — live queries against the in-memory index.
+    getBacklinks: async ({ path }) => knowledge.backlinks(path),
+    getForwardLinks: async ({ path }) => knowledge.forwardLinks(path),
+    getLinkGraph: async () => knowledge.graph(),
+    searchVault: async ({ query, limit }) => knowledge.search(query, limit),
+    listWikiTargets: async () => knowledge.wikiTargets(),
+    onKnowledgeUpdated: knowledgeEvents.subscribe,
 
     // Delegation — no background agent, but the run is simulated against the
     // in-memory vault (running → snapshot → check the box + append a result →

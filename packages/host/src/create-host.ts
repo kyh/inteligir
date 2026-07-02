@@ -15,6 +15,7 @@ import { initAgentLog } from "./lib/agent-log";
 import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
 import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
 import { registerAllHandlers } from "./handlers/register-handlers";
+import { disposeKnowledgeManager, getKnowledgeManager } from "./knowledge/knowledge-manager";
 import { getNotifications } from "./notifications";
 import { installHostRuntime } from "./platform-instance";
 import { setStoreRecoveryNotifier } from "./lib/json-store";
@@ -106,9 +107,16 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
 
       // Vault: ensure the folder + agent symlink exist and stream file changes
       // to the UI so the sidebar and editor stay live. The notifier is
-      // module-scoped, so it survives a logout/login reset.
+      // module-scoped, so it survives a logout/login reset. Every vault change
+      // also nudges the knowledge index (debounced incremental refresh).
       getVaultManager().ensureReady();
-      setVaultChangeNotifier((root) => emitEvent("onVaultChanged", { root }));
+      setVaultChangeNotifier((root) => {
+        emitEvent("onVaultChanged", { root });
+        getKnowledgeManager().scheduleRefresh();
+      });
+      // First index build rides the debounce too, keeping it off the boot
+      // path; a query landing earlier builds lazily.
+      getKnowledgeManager().scheduleRefresh();
 
       // Snapshot retention sweep (keep the newest SNAPSHOT_RETENTION pre-run
       // copies). Best-effort — a prune failure must never block boot.
@@ -121,6 +129,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       initMachine();
     },
     async dispose() {
+      disposeKnowledgeManager();
       await shutdown();
       releaseHostLock();
     },
