@@ -5,7 +5,6 @@ import {
   useState,
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
-  type RefObject,
 } from "react";
 import { flip, offset, shift, useFloatingToolbar, useFloatingToolbarState } from "@platejs/floating";
 import { wrapLink } from "@platejs/link";
@@ -33,7 +32,14 @@ import {
 } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
-import { Menu, MenuContent, MenuGroup, MenuGroupLabel, MenuItem } from "@repo/ui/components/menu";
+import {
+  Menu,
+  MenuContent,
+  MenuGroup,
+  MenuGroupLabel,
+  MenuItem,
+  MenuTrigger,
+} from "@repo/ui/components/menu";
 
 import {
   TURN_INTO,
@@ -122,26 +128,22 @@ function IconButton({
   );
 }
 
-function DropdownTrigger({
-  triggerRef,
-  onOpen,
-  children,
-}: {
-  triggerRef: RefObject<HTMLButtonElement | null>;
-  onOpen: () => void;
-  children: ReactNode;
-}) {
+// A real Base UI MenuTrigger (must render inside <Menu>): a detached
+// controlled menu anchored to a plain button ref closes itself with reason
+// `trigger-hover` as soon as the pointer travels from the button into the
+// popup — every mouse click on an item died mid-flight (keyboard worked).
+// The registered trigger gives Base UI the correct press/hover linkage.
+// `onMouseDown` preventDefault keeps the editor selection alive through the
+// opening click.
+function DropdownTrigger({ children }: { children: ReactNode }) {
   return (
-    <button
-      ref={triggerRef}
-      type="button"
+    <MenuTrigger
       onMouseDown={(e) => e.preventDefault()}
-      onClick={onOpen}
       className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
     >
       {children}
       <ChevronDownIcon className="!size-3 text-muted-foreground/70" />
-    </button>
+    </MenuTrigger>
   );
 }
 
@@ -314,13 +316,10 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
   // escape clickOutsideRef, so this explicit gate is the reliable one.
   const frozen = openMenu !== null || linkMode;
 
-  const aiRef = useRef<HTMLButtonElement | null>(null);
-  const turnRef = useRef<HTMLButtonElement | null>(null);
-
   // Remember the live selection at the moment an action starts — opening a
   // popover or the link input moves DOM focus off the editable and collapses
-  // it. Captured on the click (when editor.selection has settled), not via an
-  // effect (which races Slate's throttled selection sync).
+  // it. Captured when the menu opens (editor.selection has settled), not via
+  // an effect (which races Slate's throttled selection sync).
   const savedSel = useRef<typeof editor.selection>(null);
   const remember = () => {
     savedSel.current = editor.selection;
@@ -395,18 +394,23 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
           />
         ) : (
           <>
-            <DropdownTrigger
-              triggerRef={aiRef}
-              onOpen={() => {
-                remember();
-                setOpenMenu("ai");
+            <Menu
+              open={openMenu === "ai"}
+              onOpenChange={(o) => {
+                if (o) remember();
+                setOpenMenu(o ? "ai" : null);
               }}
             >
-              <SparklesIcon className="text-primary" />
-              <span className="text-primary">Ask AI</span>
-            </DropdownTrigger>
-            <Menu open={openMenu === "ai"} onOpenChange={(o) => setOpenMenu(o ? "ai" : null)}>
-              <MenuContent anchor={aiRef} side="bottom" align="start">
+              <DropdownTrigger>
+                <SparklesIcon className="text-primary" />
+                <span className="text-primary">Ask AI</span>
+              </DropdownTrigger>
+              {/* ignore-click-outside/toolbar: the portaled popup escapes the
+                  hook's clickOutsideRef; without the ignore class a mousedown
+                  on a menu item flips the hook's open state, display:none-s
+                  the bar, and the popup (anchored to the hidden trigger)
+                  jumps away before mouseup — items become unclickable. */}
+              <MenuContent side="bottom" align="start" className="ignore-click-outside/toolbar">
                 {AI_ACTIONS.map(({ action, label }) => (
                   <MenuItem key={action} onClick={() => withSelection(() => run(action))}>
                     {label}
@@ -417,17 +421,15 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
 
             <Sep />
 
-            <DropdownTrigger
-              triggerRef={turnRef}
-              onOpen={() => {
-                remember();
-                setOpenMenu("turn");
+            <Menu
+              open={openMenu === "turn"}
+              onOpenChange={(o) => {
+                if (o) remember();
+                setOpenMenu(o ? "turn" : null);
               }}
             >
-              {typeLabel}
-            </DropdownTrigger>
-            <Menu open={openMenu === "turn"} onOpenChange={(o) => setOpenMenu(o ? "turn" : null)}>
-              <MenuContent anchor={turnRef} side="bottom" align="start">
+              <DropdownTrigger>{typeLabel}</DropdownTrigger>
+              <MenuContent side="bottom" align="start" className="ignore-click-outside/toolbar">
                 <MenuGroup>
                   <MenuGroupLabel>Turn into</MenuGroupLabel>
                   {TURN_INTO.map((opt) => (

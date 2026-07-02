@@ -2,7 +2,7 @@
   "name": "@repo/app",
   "version": "0.1.0",
   "private": true,
-  "description": "Portable Inteligir UI: the whole workspace (editor, sidebar, composer, settings) as a browser React app. Talks to its host exclusively through an injected Bridge \u2014 no electron, no node.",
+  "description": "Portable Inteligir UI: the whole workspace (editor, sidebar, composer, settings) as a browser React app. Talks to its host exclusively through an injected Bridge — no electron, no node.",
   "type": "module",
   "scripts": {
     "build": "vite build --config vite.web.config.ts",
