@@ -141,3 +141,11 @@ textarea,
 .dark .hljs-deletion {
   color: #ffa657;
 }
+
+/* KaTeX renders with fixed black by default; inherit the theme's foreground so
+ * equations stay legible in dark mode. The katex stylesheet itself ships in
+ * the lazy equation chunk (nodes/equation-katex.tsx); this rule is global and
+ * inert until that chunk loads. */
+.katex {
+  color: inherit;
+}
