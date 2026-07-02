@@ -91,13 +91,22 @@ export const CANNED_ACTIONS: CannedAction[] = [
   { id: "explain", label: "Explain", intent: "generate", keywords: ["what", "meaning"] },
   { id: "improve", label: "Improve writing", intent: "edit", keywords: ["rewrite", "better"] },
   { id: "shorter", label: "Make shorter", intent: "edit", keywords: ["concise", "shorten"] },
-  { id: "grammar", label: "Fix spelling & grammar", intent: "edit", keywords: ["spelling", "typo"] },
+  {
+    id: "grammar",
+    label: "Fix spelling & grammar",
+    intent: "edit",
+    keywords: ["spelling", "typo"],
+  },
 ];
 
 const PROMPT_BASE =
   "You are a writing assistant inside a notes editor. Respond with ONLY the resulting text — no preamble, no surrounding quotes, no markdown code fences, no explanation.";
 
-function generatePromptFor(action: CannedActionId | null, request: string, context: string): string {
+function generatePromptFor(
+  action: CannedActionId | null,
+  request: string,
+  context: string,
+): string {
   switch (action) {
     case "continue":
       return `${PROMPT_BASE}\n\nContinue the following text naturally with one short paragraph:\n\n${context}`;

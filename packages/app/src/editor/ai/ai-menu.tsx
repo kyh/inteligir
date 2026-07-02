@@ -102,8 +102,7 @@ export function AiMenu() {
     if (status !== "input") return [];
     return CANNED_ACTIONS.filter(
       (action) =>
-        input.length === 0 ||
-        [action.label, ...action.keywords].some((k) => filterWords(k, input)),
+        input.length === 0 || [action.label, ...action.keywords].some((k) => filterWords(k, input)),
     ).map((action) => ({
       key: action.id,
       label: action.label,

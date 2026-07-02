@@ -8,16 +8,27 @@ import type { GhostTextResult } from "@repo/core/inline-ai";
 
 type Pending = { requestId: string; resolve: (r: GhostTextResult) => void };
 
+type HarnessState = {
+  scheduled: { fn: () => void; canceled: boolean; fired: boolean }[];
+  pending: Pending[];
+  canceled: string[];
+  shown: string[];
+  hidden: number;
+  inserted: string[];
+  canTrigger: boolean;
+  prompt: string | null;
+};
+
 function makeHarness(overrides: Partial<GhostHooks> = {}) {
-  const state = {
-    scheduled: [] as Array<{ fn: () => void; canceled: boolean; fired: boolean }>,
-    pending: [] as Pending[],
-    canceled: [] as string[],
-    shown: [] as string[],
+  const state: HarnessState = {
+    scheduled: [],
+    pending: [],
+    canceled: [],
+    shown: [],
     hidden: 0,
-    inserted: [] as string[],
+    inserted: [],
     canTrigger: true,
-    prompt: "continue this" as string | null,
+    prompt: "continue this",
   };
   const hooks: GhostHooks = {
     schedule: (fn) => {
