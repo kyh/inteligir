@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  DelegationSnapshotStore,
-  SNAPSHOT_RETENTION,
-} from "../delegation/delegation-snapshots";
+import { DelegationSnapshotStore, SNAPSHOT_RETENTION } from "../delegation/delegation-snapshots";
 import type { FsAdapter } from "../lib/json-store";
 
 const DIR = "/snaps";

@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { DelegationManager, type DelegationAgent } from "../delegation/delegation-manager";
-import { DelegationSnapshotStore } from "../delegation/delegation-snapshots";
+import { DelegationSnapshotStore, SNAPSHOT_RETENTION } from "../delegation/delegation-snapshots";
 import type { FsAdapter } from "../lib/json-store";
+import { isRecord } from "@repo/core/ipc";
 
 function memoryFs(): FsAdapter {
   const files = new Map<string, string>();
@@ -34,7 +35,9 @@ function memorySnapshots(): DelegationSnapshotStore {
         files.delete(p);
       },
       list: (dir) =>
-        [...files.keys()].filter((p) => p.startsWith(`${dir}/`)).map((p) => p.slice(dir.length + 1)),
+        [...files.keys()]
+          .filter((p) => p.startsWith(`${dir}/`))
+          .map((p) => p.slice(dir.length + 1)),
     },
     dir: "/snaps",
     indexPath: "/snapshots.json",
@@ -552,5 +555,92 @@ describe("DelegationManager.restoreSnapshot", () => {
 
     expect(rig.mgr.restoreSnapshot(firstId)).toEqual({ ok: true });
     expect(rig.state.live).toBe(DOC); // back to the original document
+  });
+
+  it("round-trips nasty bytes exactly — CRLF, lone CR, trailing whitespace, unicode, no final newline", async () => {
+    const nasty =
+      "## Tödāy 👩‍🚀\r\n\r\n- [ ] tâsk one\r\n\r\ntrailing spaces  \r\nzero​width, combining é, 日本語\rlone-CR line\nmixed LF, no final newline";
+    const rig = makeRestoreRig(nasty);
+    const id = await runOne(rig);
+
+    // The "agent" checks the box and appends a result on its own line endings.
+    rig.state.live = `${nasty.replace("- [ ]", "- [x]")}\n  - ✅ done\n`;
+
+    expect(rig.mgr.restoreSnapshot(id)).toEqual({ ok: true });
+    expect(rig.state.live).toBe(nasty); // byte-identical, not merely equivalent
+  });
+
+  it("fails gracefully (no write) when the snapshot was pruned by retention", async () => {
+    const rig = makeRestoreRig();
+    const id = await runOne(rig);
+
+    // Push the real snapshot past the retention horizon with strictly newer
+    // captures, then run the host-start sweep.
+    let now = Date.now();
+    vi.spyOn(Date, "now").mockImplementation(() => ++now);
+    for (let i = 0; i < SNAPSHOT_RETENTION; i++) {
+      rig.snapshots.capture(`filler-${i}`, "x.md", `filler ${i}`);
+    }
+    rig.mgr.pruneSnapshots();
+
+    const result = rig.mgr.restoreSnapshot(id);
+    expect(result).toMatchObject({ ok: false });
+    if (!result.ok) expect(result.error).toContain("No snapshot");
+    expect(rig.writes).toEqual([]);
+    expect(rig.mgr.getDelegations()[0]?.restoredAt).toBeNull();
+    // The record's hasSnapshot flag stays true (prune doesn't rewrite records).
+    // That stale flag is unreachable from the UI: prune runs only at host
+    // start, and the dock only shows delegations seen active this session — a
+    // new surface listing ALL delegations would need to revalidate it.
+    expect(rig.mgr.getDelegations()[0]?.hasSnapshot).toBe(true);
+  });
+});
+
+describe("delegations store v2 → v3 migration", () => {
+  // A record exactly as a v2 build persisted it — no hasSnapshot/restoredAt.
+  const V2_RECORD = {
+    id: "3f6b2c1a-0000-4000-8000-000000000001",
+    sourceFile: "notes/today.md",
+    anchor: { index: 1, text: "task two", heading: "Today" },
+    lineText: "- [ ] task two",
+    status: "done",
+    createdAt: 1700000000000,
+    startedAt: 1700000001000,
+    finishedAt: 1700000002000,
+    resultSummary: "did it",
+    error: null,
+  };
+
+  it("loads a real v2 blob, adds snapshot fields with safe defaults, and never quarantines", () => {
+    const files = new Map<string, string>([
+      ["/delegations.json", JSON.stringify({ version: 2, delegations: [V2_RECORD] }, null, 2)],
+    ]);
+    const fs: FsAdapter = {
+      read: (p) => files.get(p) ?? null,
+      write: (p, content) => {
+        files.set(p, content);
+      },
+      rename: (from, to) => {
+        const content = files.get(from);
+        if (content === undefined) throw new Error(`rename: missing ${from}`);
+        files.delete(from);
+        files.set(to, content);
+      },
+    };
+    const mgr = new DelegationManager({
+      fs,
+      path: "/delegations.json",
+      readVault: () => DOC,
+      snapshots: memorySnapshots(),
+    });
+
+    // The record survives intact and gains the v3 fields with their only sane
+    // defaults: a pre-snapshot record has no snapshot and was never restored.
+    expect(mgr.getDelegations()).toEqual([{ ...V2_RECORD, hasSnapshot: false, restoredAt: null }]);
+    // Migration path, not the corrupt-recovery path — nothing was set aside…
+    expect([...files.keys()].filter((k) => k !== "/delegations.json")).toEqual([]);
+    // …and the upgraded shape was re-persisted as v3 so the chain doesn't re-run.
+    const persisted: unknown = JSON.parse(files.get("/delegations.json") ?? "null");
+    expect(isRecord(persisted) ? persisted["version"] : null).toBe(3);
   });
 });
