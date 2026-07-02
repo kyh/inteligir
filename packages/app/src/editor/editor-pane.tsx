@@ -63,9 +63,7 @@ export function EditorPane() {
     if (e.key === "Enter") {
       e.preventDefault();
       e.currentTarget.blur();
-      paneRef.current
-        ?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')
-        ?.focus();
+      paneRef.current?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')?.focus();
     }
     if (e.key === "Escape") {
       e.preventDefault();

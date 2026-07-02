@@ -274,8 +274,13 @@ function InlineComboboxInput({
   ref?: React.Ref<HTMLInputElement>;
   placeholder?: string;
 }) {
-  const { inputProps, inputRef: contextRef, showTrigger, trigger, value } =
-    useInlineComboboxContext();
+  const {
+    inputProps,
+    inputRef: contextRef,
+    showTrigger,
+    trigger,
+    value,
+  } = useInlineComboboxContext();
   const ref = useComposedRef(refProp, contextRef);
 
   return (
@@ -393,10 +398,7 @@ function InlineComboboxEmpty({ children, className }: React.HTMLAttributes<HTMLD
   return <div className={cn(ITEM_BASE, "my-1.5 text-muted-foreground", className)}>{children}</div>;
 }
 
-function InlineComboboxGroup({
-  className,
-  ...props
-}: React.ComponentProps<typeof Combobox.Group>) {
+function InlineComboboxGroup({ className, ...props }: React.ComponentProps<typeof Combobox.Group>) {
   return (
     <Combobox.Group
       className={cn("hidden py-1.5 not-last:border-b [&:has([role=option])]:block", className)}

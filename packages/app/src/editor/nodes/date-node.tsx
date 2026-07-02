@@ -8,7 +8,13 @@
 // presence flips Plate's serializer to the `<date>text</date>` children form.
 
 import { Suspense, lazy, useState } from "react";
-import { PlateElement, useEditorRef, useElement, useReadOnly, type PlateElementProps } from "platejs/react";
+import {
+  PlateElement,
+  useEditorRef,
+  useElement,
+  useReadOnly,
+  type PlateElementProps,
+} from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 

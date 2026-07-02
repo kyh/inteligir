@@ -39,10 +39,7 @@ const ALERT_MARKER_RE = /^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s?/;
  * the toggle itself — converting "Toggle → Text" from the toolbar must
  * unwrap the toggle, not no-op on the paragraph inside it.
  */
-export function effectiveBlockEntry(
-  editor: PlateEditor,
-  at?: TRange,
-): [TElement, Path] | null {
+export function effectiveBlockEntry(editor: PlateEditor, at?: TRange): [TElement, Path] | null {
   const block = editor.api.block(at ? { at } : {});
   if (!block || !ElementApi.isElement(block[0])) return null;
   return retargetToggleSummary(editor, [block[0], block[1]]);
@@ -66,9 +63,7 @@ function retargetToggleSummary(editor: PlateEditor, entry: [TElement, Path]): [T
 /** The TURN_INTO entry describing `node`, for the toolbar's type indicator. */
 export function turnIntoLabelFor(node: { type: string } & Record<string, unknown>): string {
   if (typeof node.listStyleType === "string") {
-    return (
-      TURN_INTO.find((opt) => opt.listStyleType === node.listStyleType)?.label ?? "Text"
-    );
+    return TURN_INTO.find((opt) => opt.listStyleType === node.listStyleType)?.label ?? "Text";
   }
   const isAlert =
     node.type === KEYS.blockquote &&

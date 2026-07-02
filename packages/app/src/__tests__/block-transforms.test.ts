@@ -126,15 +126,13 @@ describe("turnIntoAt round-trips", () => {
 describe("turnIntoLabelFor (toolbar type indicator)", () => {
   it("labels paragraphs, lists, quotes, callouts, toggles", () => {
     expect(turnIntoLabelFor({ children: [{ text: "" }], type: "p" })).toBe("Text");
-    expect(
-      turnIntoLabelFor({ children: [{ text: "" }], listStyleType: "todo", type: "p" }),
-    ).toBe("To-do list");
-    expect(
-      turnIntoLabelFor({ children: [{ text: "plain" }], type: "blockquote" }),
-    ).toBe("Quote");
-    expect(
-      turnIntoLabelFor({ children: [{ text: "[!NOTE] hi" }], type: "blockquote" }),
-    ).toBe("Callout");
+    expect(turnIntoLabelFor({ children: [{ text: "" }], listStyleType: "todo", type: "p" })).toBe(
+      "To-do list",
+    );
+    expect(turnIntoLabelFor({ children: [{ text: "plain" }], type: "blockquote" })).toBe("Quote");
+    expect(turnIntoLabelFor({ children: [{ text: "[!NOTE] hi" }], type: "blockquote" })).toBe(
+      "Callout",
+    );
     expect(turnIntoLabelFor({ children: [{ text: "" }], type: "toggle" })).toBe("Toggle");
   });
 });

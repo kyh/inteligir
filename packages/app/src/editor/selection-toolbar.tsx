@@ -6,7 +6,13 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
-import { flip, offset, shift, useFloatingToolbar, useFloatingToolbarState } from "@platejs/floating";
+import {
+  flip,
+  offset,
+  shift,
+  useFloatingToolbar,
+  useFloatingToolbarState,
+} from "@platejs/floating";
 import { wrapLink } from "@platejs/link";
 import { BlockSelectionPlugin } from "@platejs/selection/react";
 import {

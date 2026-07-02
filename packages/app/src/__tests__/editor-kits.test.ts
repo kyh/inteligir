@@ -21,8 +21,7 @@ import { MD_STRINGIFY, parseMarkdown, roundTrip } from "@repo/app/editor/markdow
 // parameter structurally.
 function makeEditor(md = "") {
   const parsed = md === "" ? null : parseMarkdown(md);
-  const value =
-    parsed && parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
+  const value = parsed && parsed.ok ? parsed.value : [{ children: [{ text: "" }], type: "p" }];
   return createSlateEditor({ plugins: EDITOR_KIT, value });
 }
 
@@ -40,7 +39,8 @@ function el(node: unknown): TElement {
 
 describe("column normalizer (suppressed width writer)", () => {
   it("keeps bare columns bare through a forced normalize + edit", () => {
-    const src = "<column_group>\n  <column>\n    left\n  </column>\n\n  <column>\n    right\n  </column>\n</column_group>\n";
+    const src =
+      "<column_group>\n  <column>\n    left\n  </column>\n\n  <column>\n    right\n  </column>\n</column_group>\n";
     const editor = makeEditor(src);
     editor.tf.normalize({ force: true });
     // Edit inside the first column — @platejs/layout's withColumn would stamp
@@ -187,10 +187,7 @@ describe("wiki `]]` completion rule", () => {
   it("still preserves a deliberately empty paragraph (ZWSP placeholder)", () => {
     const editor = makeEditor("a\n\nb\n");
     // Turn the doc into a / EMPTY / b by inserting an empty paragraph.
-    editor.tf.insertNodes(
-      { children: [{ text: "" }], type: "p" },
-      { at: [1] },
-    );
+    editor.tf.insertNodes({ children: [{ text: "" }], type: "p" }, { at: [1] });
     const output = out(editor);
     expect(output).toContain("​");
     expect(roundTrip(output)).toBe(output);

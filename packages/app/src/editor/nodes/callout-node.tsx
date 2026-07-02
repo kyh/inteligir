@@ -29,7 +29,11 @@ export function CalloutElement(props: PlateElementProps) {
   return (
     <PlateElement
       {...props}
-      className={cn("relative my-1 rounded-md border-l-[3px] py-2 pr-3 [&>*]:my-0", accent, icon ? "pl-9" : "pl-4")}
+      className={cn(
+        "relative my-1 rounded-md border-l-[3px] py-2 pr-3 [&>*]:my-0",
+        accent,
+        icon ? "pl-9" : "pl-4",
+      )}
     >
       {icon ? (
         <span contentEditable={false} className="absolute top-2 left-3 select-none">

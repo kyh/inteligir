@@ -56,8 +56,7 @@ function DelegateControl({ element, checked }: { element: TElement; checked: boo
   const text = elementText(element);
   const index = todoIndex(plateEditor, element);
 
-  const delegation =
-    sourceFile === null ? null : findDelegation(delegations, sourceFile, index);
+  const delegation = sourceFile === null ? null : findDelegation(delegations, sourceFile, index);
 
   // The "Done" badge is temporary — it lingers briefly after a delegation
   // finishes, then hides (the checked box is the durable signal), so it doesn't

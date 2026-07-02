@@ -20,12 +20,7 @@ import type {
   Token,
 } from "mdast-util-from-markdown";
 import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
-import type {
-  Code,
-  Effects,
-  Extension as MicromarkExtension,
-  State,
-} from "micromark-util-types";
+import type { Code, Effects, Extension as MicromarkExtension, State } from "micromark-util-types";
 import type { Plugin, Processor } from "unified";
 
 export interface WikiLink {

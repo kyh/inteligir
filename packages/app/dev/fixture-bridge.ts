@@ -24,6 +24,9 @@ export const SAMPLE_NOTES: Record<string, string> = {
   // note would reflow wholesale on its first edit, drowning the user's change
   // in formatting noise. Long paragraphs stay on one line (the alternative
   // canonical form is `\`-terminated hard-break lines).
+  // empty.md exercises the pristine-editor placeholder path — the one state
+  // every other (non-empty) sample note can't reach.
+  "empty.md": "",
   "welcome.md": `# Welcome
 
 This is the **inteligir** dev harness — a plain-browser run of the portable app against an in-memory vault. Edits persist until you reload the page.

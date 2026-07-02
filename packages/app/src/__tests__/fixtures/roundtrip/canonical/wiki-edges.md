@@ -1,6 +1,6 @@
 # About [[Some Note]]
 
-See [[a#b|c]] and a [[ padded ]] link.
+See [[a#b|c]] and a [[padded]] link.
 
 ![[img.png|300]]
 
@@ -8,6 +8,6 @@ See [[a#b|c]] and a [[ padded ]] link.
 
 - [ ] read [[x]]
 
-| a     | b |
-| ----- | - |
-| [[x]] | y |
+| a     | b   |
+| ----- | --- |
+| [[x]] | y   |

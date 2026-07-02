@@ -6,7 +6,12 @@
 import { useState } from "react";
 import { CodeIcon, EyeIcon } from "lucide-react";
 import { NodeApi } from "platejs";
-import { PlateElement, PlateLeaf, type PlateElementProps, type PlateLeafProps } from "platejs/react";
+import {
+  PlateElement,
+  PlateLeaf,
+  type PlateElementProps,
+  type PlateLeafProps,
+} from "platejs/react";
 import { BaseCodeBlockPlugin, BaseCodeLinePlugin, CodeBlockRules } from "@platejs/code-block";
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code-block/react";
 import { common, createLowlight } from "lowlight";

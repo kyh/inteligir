@@ -7,9 +7,9 @@
 </callout>
 
 <column_group>
-  <column>
-    sibling one
-  </column>
+<column>
+sibling one
+</column>
 
   <column>
     sibling two

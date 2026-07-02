@@ -14,9 +14,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { useDarkClass } from "@repo/app/lib/use-dark-class";
 import { MediaToolbar } from "@repo/app/editor/nodes/media-toolbar";
 
-const Tweet = lazy(() =>
-  import("react-tweet").then((mod) => ({ default: mod.Tweet })),
-);
+const Tweet = lazy(() => import("react-tweet").then((mod) => ({ default: mod.Tweet })));
 
 export function MediaEmbedElement(props: PlateElementProps) {
   const selected = useSelected();
@@ -40,7 +38,9 @@ export function MediaEmbedElement(props: PlateElementProps) {
             data-theme={dark ? "dark" : "light"}
           >
             <Suspense
-              fallback={<div className="h-40 w-full max-w-[550px] animate-pulse rounded-xl bg-muted" />}
+              fallback={
+                <div className="h-40 w-full max-w-[550px] animate-pulse rounded-xl bg-muted" />
+              }
             >
               <Tweet id={tweet.id} />
             </Suspense>

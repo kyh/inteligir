@@ -42,7 +42,11 @@ export const BasicBlocksBaseKit = [
 function element(as: keyof HTMLElementTagNameMap, className: string) {
   return function Element(props: PlateElementProps) {
     return (
-      <PlateElement {...props} as={props.element.listStyleType ? "div" : as} className={className} />
+      <PlateElement
+        {...props}
+        as={props.element.listStyleType ? "div" : as}
+        className={className}
+      />
     );
   };
 }

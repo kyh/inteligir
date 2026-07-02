@@ -16,12 +16,7 @@
 
 import { NodeApi, type Path, type SlateEditor, type TElement } from "platejs";
 
-export type ComboboxCancelCause =
-  | "arrowLeft"
-  | "arrowRight"
-  | "backspace"
-  | "deselect"
-  | "escape";
+export type ComboboxCancelCause = "arrowLeft" | "arrowRight" | "backspace" | "deselect" | "escape";
 
 function elementPath(editor: SlateEditor, element: TElement): Path | null {
   const path = editor.api.findPath(element);

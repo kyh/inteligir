@@ -39,6 +39,7 @@ const EXPECTED: Record<string, Classification> = {
   // dev fixture vault — pre-canonicalized (WP4): a first edit must produce a
   // minimal diff, not a wholesale reflow. legacy-web-clip.md stays the Raw
   // exemplar; README.md above keeps the formattable path covered.
+  "empty.md": "canonical",
   "welcome.md": "canonical",
   "tasks.md": "canonical",
   "notes/roadmap.md": "canonical",
