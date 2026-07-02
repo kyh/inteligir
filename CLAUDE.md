@@ -91,59 +91,90 @@ capabilities and hands the agent an injected `AgentPorts` (`{ executor }`).
 
 ### Data model — the vault
 
-`main/vault.ts` (`VaultManager`) owns the vault: a user-chosen folder whose
-markdown files are canonical. It reads through to disk (never quarantines user
-files), writes atomically, watches for changes (broadcasts `onVaultChanged`), and
-maintains a `./vault` symlink in the agent workspace so the agent's file tools
-find it regardless of where the user put it. `~/.inteligir` holds only app state
-(auth, sessions, ui-state, delegations) via versioned `JsonStore`s — never note
-content. Notes are plain GitHub-flavored markdown (no wiki-links).
+`packages/host/src/vault/` (`VaultManager`) owns the vault: a user-chosen
+folder whose markdown files are canonical. It reads through to disk (never
+quarantines user files), writes atomically, watches for changes (broadcasts
+`onVaultChanged`), and maintains a `./vault` symlink in the agent workspace so
+the agent's file tools find it regardless of where the user put it.
+`~/.inteligir` holds only app state (auth, sessions, ui-state, delegations,
+pre-delegation snapshots) via versioned `JsonStore`s — never note content.
+
+Notes are **markdown with a fixed MDX vocabulary**: GFM plus `[[wiki-links]]`
+(aliases, `![[transclusion]]`), `$$` math, mermaid fences, `> [!NOTE]` alerts,
+and the MDX components `<toggle>`, `<column_group>/<column>`, `<video>`,
+`<media_embed>`, `<file>`, `<date>`. Anything outside the vocabulary (unknown
+JSX, expressions, HTML comments) sends the file to Raw mode rather than being
+mangled. Files stay `.md`.
+
+`packages/host/src/knowledge/` maintains the derived indexes (wiki/md link
+graph, backlinks, lexical search, wiki-target list) — incrementally updated
+from vault events; renames rewrite `[[links]]` across the vault byte-surgically
+(shadow-protection qualifies links the new name would steal).
 
 ### UI — `packages/app`, one fixed workspace
 
 The portable UI (@repo/app) consumes an injected `Bridge`
 (`src/lib/bridge.ts::installBridge`) — never electron/node (lint-enforced). It
 runs standalone in a plain browser via `pnpm --filter @repo/app dev` (a vite
-harness with an in-memory fixture Bridge in `dev/`).
-`workspace/workspace-page.tsx` is the only surface: **Sidebar (file
-tree) | Editor | Chat**, settings behind a dialog. There is no widget grid.
+harness with an in-memory fixture Bridge in `dev/` that runs the real knowledge
+engine over sample notes). `workspace/workspace-page.tsx` is the only surface:
+**Sidebar (file tree) | tabbed Editor | BottomComposer** (chat pinned bottom —
+no side chat panel), settings behind a dialog; backlinks collapse under the
+editor column; the graph view (lazy d3-force canvas) and full-text search live
+in the command palette.
 
-- `workspace/vault-context.tsx` — a `VaultProvider` owning the editor controller
-  (`editor/vault-editor.ts`), the file listing, and all vault actions
-  (open/create/rename/delete/flush). Sidebar + editor + chat consume `useVault()`.
-- `editor/markdown-doc.ts` is the byte-stability brain: Plate's markdown
-  round-trip is normalizing but **idempotent**, so a _canonical_ file
-  (`roundTrip(raw) === raw`) re-serializes to a minimal diff after an edit. The
-  editor pane opens Rich for canonical files and Raw (byte-exact) + a one-click
-  **Format** for the rest. `editor/block-list.tsx` renders list markers +
-  todo checkboxes (and the per-checkbox Delegate affordance).
+- `workspace/vault-context.tsx` — a `VaultProvider` owning one editor
+  controller/autosave/vanish-watcher **per open tab** (`workspace/tab-session.ts`
+  is the pure tab model; session persists in ui-state), the file listing, and
+  all vault actions. Sidebar + editor + composer consume `useVault()`.
+- `editor/markdown/` is the byte-stability brain: it owns the unified parse
+  (remark-gfm + math + MDX vocabulary + wiki-links + frontmatter) and the
+  canonical gate — round-trip is normalizing but **idempotent** (bounded
+  fixpoint), so a _canonical_ file (`roundTrip(raw) === raw`) re-serializes to
+  a minimal diff. Rich for canonical files; Raw (byte-exact) + one-click
+  **Format** for the rest. Every node type lives in `editor/kits/*` as a Base
+  (headless) + React pair; `base-kit.ts` composes the Base halves for the
+  headless serializer mirror — kit-parity tests make drift impossible. The
+  round-trip fixture matrix under `src/__tests__/fixtures/` is byte-pinned
+  (oxfmt ignores it — formatting fixtures is corruption).
+- **Editor AI** (pi-backed, transient-only — AI state never reaches disk):
+  selection-toolbar actions + AI menu with host-side intent classification
+  (generate streams under an `ai` mark; edit lands as accept/reject
+  suggestions), and opt-in ghost-text completions on a fast model
+  (Settings › Editor AI).
 
-### Delegation — `main/delegation/`
+### Delegation — `packages/host/src/delegation/`
 
 A checkbox's "Delegate" → `delegation-manager.ts` (versioned `JsonStore` +
 event-driven serialized queue) runs it on `background-agent.ts` (a second pi
-session on `BACKGROUND_SESSION_DIR`). The agent edits the file via `./vault`,
-checks the box, and appends a result; the watcher refreshes the editor. Status
-streams to inline badges (`onDelegationsUpdated`). `find-task-line.ts` is the
-pure, content-addressed locator (item text + nearest heading + section).
+session on `BACKGROUND_SESSION_DIR`). Before the agent dispatches, the host
+**snapshots the file** (bytes under `~/.inteligir`, newest 50 kept) — the dock's
+"Restore original" undoes an agent edit byte-exactly. The agent edits the file
+via `./vault`, checks the box, and appends a result; the watcher refreshes the
+editor. Status streams to inline badges (`onDelegationsUpdated`).
+`find-task-line.ts` is the pure, content-addressed locator.
 
-### Agent surface — `agent/`
+### Agent surface — `packages/host/src/agent/`
 
-Extension bundles are auto-discovered from `agent/<name>/extension.ts` and
-receive `AgentPorts` at register time — adding/removing a capability is one
-folder. `executor/` is the MCP/connectors capability. `validateToolParametersSchema`
-rejects tool schemas that aren't a top-level `Type.Object` (OpenAI silently
-rejects `anyOf`-rooted schemas). The chat agent edits notes with pi's native file
-tools pointed at `./vault` — no custom edit tool. Chat is a single persistent
-thread; the open note is auto-attached as context (agent-side only) so "edit this
-note" resolves without naming the file. `Cmd+K` rolls a fresh thread.
+Extension bundles are listed in `agent/bundles.ts` (static registry + disk-drift
+test) and receive `AgentPorts` at register time — adding/removing a capability
+is one folder + one line. `executor/` is the MCP/connectors capability.
+`validateToolParametersSchema` rejects tool schemas that aren't a top-level
+`Type.Object` (OpenAI silently rejects `anyOf`-rooted schemas). The chat agent
+edits notes with pi's native file tools pointed at `./vault` — no custom edit
+tool. Chat is a single persistent thread; the open note is auto-attached as
+context (agent-side only). `Cmd+K` rolls a fresh thread. Two more no-tools pi
+sessions serve the editor: inline-AI/intent classification, and an ephemeral
+in-memory session for ghost-text on a fast model.
 
-### IPC
+### IPC / Bridge
 
 `packages/core/src/ipc-registry.ts` is the single source of truth: each channel
-pairs a TypeBox payload schema with a result/event type, and both the preload
-bridge and the transport-agnostic `Bridge` type are derived from it. Add a
-channel = add a registry entry; handlers go through
-`main/lib/ipc-handler.ts::handle`; the dev-harness fixture Bridge
-(`packages/app/dev/fixture-bridge.ts`) fails typecheck until it covers the new
-channel too.
+pairs a TypeBox payload schema with a result/event type, and the
+transport-agnostic `Bridge` type is derived from it. `createHost` returns a
+schema-validated handler map (`packages/host/src/handlers/`) that both
+transports fold: desktop over `ipcMain` (preload derives automatically), server
+over WS envelopes (`packages/core/src/bridge-wire.ts`; binary frames carry
+voice PCM). Add a channel = registry entry + host handler + one line each in
+`bridge-ws-client.ts` and the dev-harness fixture Bridge
+(`packages/app/dev/fixture-bridge.ts`) — both fail typecheck until covered.
