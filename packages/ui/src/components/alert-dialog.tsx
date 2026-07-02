@@ -176,6 +176,17 @@ const alertDialog = {
   },
 };
 
+// Composable primitives for feature-owned confirms (mirrors dialog.tsx's
+// export surface) — GlobalAlertDialog below stays the imperative root.
+export {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+};
+
 export const GlobalAlertDialog = () => {
   const [pendingAction, setPendingAction] = React.useState(false);
   const [pendingCancel, setPendingCancel] = React.useState(false);

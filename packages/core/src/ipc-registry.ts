@@ -37,6 +37,7 @@ import {
   CreateDelegationParamsSchema,
   type CreateDelegationResult,
   type ListDelegationsResult,
+  type RestoreSnapshotResult,
 } from "./delegation";
 import { AiGenerateParamsSchema, type AiGenerateResult } from "./inline-ai";
 import { UiStateSetSchema } from "./ui-state";
@@ -298,6 +299,14 @@ export const IPC = {
   listDelegations: invokeVoid<ListDelegationsResult>("delegation:list"),
   cancelDelegation: invoke<ReturnType<typeof Type.String>, { ok: boolean }>(
     "delegation:cancel",
+    Type.String({ minLength: 1 }),
+  ),
+  /** Restore the target file's pre-run bytes (captured before the background
+   * agent dispatched). Writes atomically through the vault, so the watcher's
+   * standard onVaultChanged refreshes editors; no-op success when the file
+   * already matches the snapshot. Records `restoredAt` on the delegation. */
+  restoreDelegationSnapshot: invoke<ReturnType<typeof Type.String>, RestoreSnapshotResult>(
+    "delegation:restore-snapshot",
     Type.String({ minLength: 1 }),
   ),
   /** Fired on every delegation status change so the editor's inline badges

@@ -13,6 +13,9 @@ type DelegationStore = {
    * in the document). */
   delegate: (sourceFile: string, index: number) => Promise<{ ok: boolean; error?: string }>;
   cancel: (id: string) => void;
+  /** Overwrite the delegation's file with its pre-run snapshot (cheap undo of
+   * the agent's edit). The vault watcher refreshes the open editor. */
+  restore: (id: string) => Promise<{ ok: boolean; error?: string }>;
 };
 
 export const useDelegationStore = create<DelegationStore>((set) => ({
@@ -57,6 +60,14 @@ export const useDelegationStore = create<DelegationStore>((set) => ({
     getBridge()
       ?.cancelDelegation(id)
       .catch(() => {});
+  },
+
+  restore: async (id) => {
+    const bridge = getBridge();
+    if (!bridge) return { ok: false, error: "Unavailable" };
+    const result = await bridge.restoreDelegationSnapshot(id).catch(() => null);
+    if (!result) return { ok: false, error: "Couldn't restore the snapshot." };
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
   },
 }));
 
