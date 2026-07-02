@@ -622,7 +622,22 @@ export function createFixtureBridge(): Bridge {
       if (edited !== null) {
         return new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: edited }), 400));
       }
-      const text = `This sentence was written by the canned dev-harness generator in response to the prompt, and it streams in word by word to exercise the live-insert path.`;
+      // Multi-block markdown so the incremental streaming parse (#370) is
+      // exercisable: heading, bold, list, fence, closing paragraph.
+      const text = [
+        "## Canned heading",
+        "",
+        "The dev-harness generator streams **markdown** now, and each construct lands as a real block.",
+        "",
+        "- first canned bullet",
+        "- second canned bullet with _emphasis_",
+        "",
+        "```ts",
+        "const canned = true;",
+        "```",
+        "",
+        "A closing paragraph follows the fence.",
+      ].join("\n");
       return new Promise((resolve) => {
         streamText(
           text,

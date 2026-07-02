@@ -11,7 +11,7 @@ import { useVault } from "@repo/app/workspace/vault-context";
  * composer.
  */
 export function EditorPane() {
-  const { editor, onEdit, isMarkdownOpen, richSafe, mode, renameEntry } = useVault();
+  const { editor, onEdit, editTab, isMarkdownOpen, richSafe, mode, renameEntry } = useVault();
   const selected = editor.path;
 
   const fileName = selected ? (selected.split("/").pop() ?? selected) : "";
@@ -96,9 +96,16 @@ export function EditorPane() {
       {showRich ? (
         <MarkdownEditor
           key={selected}
+          path={selected}
           value={editor.content}
           onChange={(md) => {
             if (md !== editor.content) onEdit(md);
+          }}
+          // Teardown settle (#374): route by the path THIS editor served —
+          // the closure captures `selected` from the render that mounted it,
+          // so a tab switch can't misdeliver the settled bytes.
+          onSettled={(md) => {
+            if (md !== editor.content) editTab(selected, md);
           }}
         />
       ) : (

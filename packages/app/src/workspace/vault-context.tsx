@@ -13,6 +13,7 @@ import {
 import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@repo/app/lib/bridge";
+import { settleTransients } from "@repo/app/editor/ai/transient-settle";
 import { registerOpenNoteFlush, registerOpenNotePath } from "@repo/app/workspace/open-note-flush";
 import {
   type RawReason,
@@ -128,6 +129,12 @@ type VaultContextValue = {
   isTabDirty: (path: string) => boolean;
   /** Record an edit to the active tab's buffer (debounced autosave). */
   onEdit: (content: string) => void;
+  /** Record an edit to a SPECIFIC tab's buffer (debounced autosave). The
+   * editor's teardown settle path (#374) routes through this — by the time an
+   * unmounting editor settles a pending AI session, the active tab may
+   * already have changed, so the bytes carry their own path. No-op when the
+   * tab has no live runtime (e.g. it was deleted). */
+  editTab: (path: string, content: string) => void;
   /** Create a file at `path` (e.g. "folder/note.md") and open it. */
   createFile: (path: string) => Promise<void>;
   /** Create an empty file WITHOUT opening it (wiki create-on-complete). An
@@ -260,10 +267,19 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [notifyTab],
   );
 
-  /** Flush one tab's pending edits (clearing its debounce). True when clean. */
+  /** Flush one tab's pending edits (clearing its debounce). True when clean.
+   * A pending AI suggestion session on this file is settled first (#374):
+   * reject-all reverts only the suggestion-marked ranges, so typing the user
+   * interleaved during the review persists while the AI marks disappear —
+   * without this, the flush would write the frozen pre-session buffer and
+   * the typing would die with the unmounting editor. */
   const flushTab = useCallback(async (path: string): Promise<boolean> => {
     const runtime = runtimes.current.get(path);
     if (!runtime) return true;
+    const settled = settleTransients(path);
+    if (settled !== null && settled !== runtime.controller.getState().content) {
+      runtime.controller.edit(settled);
+    }
     if (runtime.saveTimer) {
       clearTimeout(runtime.saveTimer);
       runtime.saveTimer = null;
@@ -375,9 +391,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const onEdit = useCallback((next: string) => {
-    const active = sessionRef.current.active;
-    const runtime = active !== null ? runtimes.current.get(active) : undefined;
+  const editTab = useCallback((path: string, next: string) => {
+    const runtime = runtimes.current.get(path);
     if (!runtime) return;
     runtime.controller.edit(next);
     if (runtime.saveTimer) clearTimeout(runtime.saveTimer);
@@ -386,6 +401,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       void runtime.controller.flush();
     }, AUTOSAVE_DEBOUNCE_MS);
   }, []);
+
+  const onEdit = useCallback(
+    (next: string) => {
+      const active = sessionRef.current.active;
+      if (active !== null) editTab(active, next);
+    },
+    [editTab],
+  );
 
   const createFileAt = useCallback(
     async (rawPath: string): Promise<boolean> => {
@@ -663,6 +686,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       subscribeTab,
       isTabDirty,
       onEdit,
+      editTab,
       createFile,
       createFileAt,
       renameEntry,
@@ -690,6 +714,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       subscribeTab,
       isTabDirty,
       onEdit,
+      editTab,
       createFile,
       createFileAt,
       renameEntry,
