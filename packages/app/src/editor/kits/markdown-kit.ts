@@ -13,8 +13,11 @@ import { MD_RULES } from "@repo/app/editor/markdown/md-rules";
 export const MarkdownKit = [
   MarkdownPlugin.configure({
     options: {
-      // Transient marks never serialize: suggestion + the inline-AI highlight.
-      disallowedNodes: [KEYS.suggestion, AI_MARK],
+      // Transient nodes never serialize: suggestion + the inline-AI highlight
+      // marks, plus the combobox trigger elements (`/` and `:` inputs are UI
+      // state — an autosave firing mid-combobox must skip them structurally,
+      // never hit the serializer's "Unreachable code" fallback).
+      disallowedNodes: [KEYS.suggestion, AI_MARK, KEYS.slashInput, KEYS.emojiInput],
       remarkPlugins: MD_REMARK_PLUGINS,
       rules: MD_RULES,
     },

@@ -57,7 +57,7 @@ describe("kit parity (Base half)", () => {
     expect(optionsB.rules).toBe(MD_RULES);
     expect(optionsA.remarkPlugins).toBe(MD_REMARK_PLUGINS);
     expect(optionsB.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(optionsA.disallowedNodes).toEqual(["suggestion", "ai"]);
+    expect(optionsA.disallowedNodes).toEqual(["suggestion", "ai", "slash_input", "emoji_input"]);
   });
 
   it("serializes the canonical corpus identically across editor instances", () => {
@@ -97,7 +97,7 @@ describe("kit parity (live editor mirror)", () => {
     const options = live.getOptions(MarkdownPlugin);
     expect(options.rules).toBe(MD_RULES);
     expect(options.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(options.disallowedNodes).toEqual(["suggestion", "ai"]);
+    expect(options.disallowedNodes).toEqual(["suggestion", "ai", "slash_input", "emoji_input"]);
   });
 
   it("both editors agree on inline/void metadata for every corpus element", () => {
