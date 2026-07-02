@@ -14,6 +14,8 @@ import {
 } from "@platejs/media";
 import { FilePlugin, MediaEmbedPlugin, VideoPlugin } from "@platejs/media/react";
 
+import { insertVoidAndEscape } from "@repo/app/editor/insert-void";
+
 import { MediaEmbedElement } from "@repo/app/editor/nodes/embed-node";
 import { FileElement } from "@repo/app/editor/nodes/pdf-node";
 import { VideoElement } from "@repo/app/editor/nodes/youtube-node";
@@ -38,7 +40,7 @@ export function insertEmbedFromUrl(editor: PlateEditor, url: string): void {
       : PDF_RE.test(trimmed)
         ? KEYS.file
         : KEYS.mediaEmbed;
-  editor.tf.insertNodes({ children: [{ text: "" }], type, url: trimmed }, { select: true });
+  insertVoidAndEscape(editor, { children: [{ text: "" }], type, url: trimmed });
 }
 
 export const EmbedKit = [

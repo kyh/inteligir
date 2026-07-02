@@ -11,6 +11,7 @@ import { PlateElement, type PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { insertVoidAndEscape } from "@repo/app/editor/insert-void";
 import { parseWikiBody } from "@repo/app/editor/markdown/remark-wiki-link";
 
 const wikiLinkBasePlugin = createSlatePlugin({
@@ -89,10 +90,13 @@ function completeWikiChip(editor: SlateEditor): boolean {
         focus: anchor,
       },
     });
-    editor.tf.insertNodes(
-      { body, children: [{ text: "" }], type: bang ? "wikiEmbed" : "wikiLink" },
-      { select: true },
-    );
+  });
+  // insertVoidAndEscape moves the caret past the chip — Slate would otherwise
+  // park it inside the void's empty text and swallow subsequent keystrokes.
+  insertVoidAndEscape(editor, {
+    body,
+    children: [{ text: "" }],
+    type: bang ? "wikiEmbed" : "wikiLink",
   });
   return true;
 }

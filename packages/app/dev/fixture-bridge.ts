@@ -145,7 +145,7 @@ Due <date value="2026-07-04" /> and reviewed on <date value="2026-07-01" />.
 
 <video src="https://vimeo.com/76979871" />
 
-<media_embed src="https://twitter.com/nasa/status/1410624005669169154" />
+<media_embed src="https://twitter.com/jack/status/20" />
 
 <file src="https://pdfobject.com/pdf/sample.pdf" />
 

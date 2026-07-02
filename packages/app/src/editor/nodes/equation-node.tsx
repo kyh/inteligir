@@ -119,7 +119,9 @@ export function EquationElement(props: PlateElementProps) {
     <PlateElement {...props} className="my-1">
       <NodePopover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
         <NodePopoverTrigger
+          // A <button> can't contain KaTeX's block-level display markup.
           render={<div role="button" />}
+          nativeButton={false}
           className={cn(
             "flex w-full cursor-pointer items-center justify-center rounded-sm transition-colors select-none hover:bg-primary/10",
             selected && "bg-primary/10",
@@ -161,7 +163,9 @@ export function InlineEquationElement(props: PlateElementProps) {
     <PlateElement {...props} className="mx-px inline-block rounded-sm select-none">
       <NodePopover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
         <NodePopoverTrigger
+          // Inline chip stays a span (a nested <button> would break the line).
           render={<span role="button" />}
+          nativeButton={false}
           className={cn(
             "cursor-pointer rounded-sm px-0.5 transition-colors hover:bg-primary/10",
             (open || selected) && "bg-primary/15",

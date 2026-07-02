@@ -153,6 +153,33 @@ describe("wiki `]]` completion rule", () => {
     type(editor, " [TODO]");
     expect(editor.api.string([0])).toBe("x [TODO]");
   });
+
+  it("never leaks zero-width spaces around live-typed inline voids", () => {
+    // Slate normalization pads inline elements with empty text siblings;
+    // Plate's default p rule would serialize each as U+200B (the md-rules
+    // p override prunes them — this is its regression pin). Typing must also
+    // CONTINUE after a completed chip — a caret parked inside the void would
+    // swallow the rest of the line.
+    const editor = makeEditor("x\n");
+    editor.tf.select(editor.api.end([0]));
+    type(editor, " [[a]]![[b]] tail");
+    const output = out(editor);
+    expect(output).toBe("x [[a]]![[b]] tail\n");
+    expect(output).not.toContain("​");
+    expect(roundTrip(output)).toBe(output);
+  });
+
+  it("still preserves a deliberately empty paragraph (ZWSP placeholder)", () => {
+    const editor = makeEditor("a\n\nb\n");
+    // Turn the doc into a / EMPTY / b by inserting an empty paragraph.
+    editor.tf.insertNodes(
+      { children: [{ text: "" }], type: "p" },
+      { at: [1] },
+    );
+    const output = out(editor);
+    expect(output).toContain("​");
+    expect(roundTrip(output)).toBe(output);
+  });
 });
 
 describe("insertToggle", () => {

@@ -14,6 +14,7 @@
 import { KEYS, createSlatePlugin } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
+import { insertVoidAndEscape } from "@repo/app/editor/insert-void";
 import { EquationElement, InlineEquationElement } from "@repo/app/editor/nodes/equation-node";
 
 const EquationBasePlugin = createSlatePlugin({
@@ -30,19 +31,21 @@ export const MathBaseKit = [EquationBasePlugin, InlineEquationBasePlugin];
 
 /** Insert an empty display equation ($$ block); the popover opens on click. */
 export function insertEquation(editor: PlateEditor): void {
-  editor.tf.insertNodes(
-    { children: [{ text: "" }], texExpression: "", type: editor.getType(KEYS.equation) },
-    { select: true },
-  );
+  insertVoidAndEscape(editor, {
+    children: [{ text: "" }],
+    texExpression: "",
+    type: editor.getType(KEYS.equation),
+  });
 }
 
 /** Insert an inline equation ($$x$$), seeding it with the selected text. */
 export function insertInlineEquation(editor: PlateEditor): void {
   const seed = editor.selection ? editor.api.string(editor.selection) : "";
-  editor.tf.insertNodes(
-    { children: [{ text: "" }], texExpression: seed, type: editor.getType(KEYS.inlineEquation) },
-    { select: true },
-  );
+  insertVoidAndEscape(editor, {
+    children: [{ text: "" }],
+    texExpression: seed,
+    type: editor.getType(KEYS.inlineEquation),
+  });
 }
 
 export const MathKit = [

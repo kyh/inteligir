@@ -7,6 +7,7 @@ import type { PlateEditor } from "platejs/react";
 import { BaseDatePlugin } from "@platejs/date";
 import { DatePlugin } from "@platejs/date/react";
 
+import { insertVoidAndEscape } from "@repo/app/editor/insert-void";
 import { DateElement } from "@repo/app/editor/nodes/date-node";
 
 export const DateBaseKit = [BaseDatePlugin];
@@ -21,10 +22,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 export function insertDate(editor: PlateEditor): void {
   const now = new Date();
   const iso = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  editor.tf.insertNodes(
-    { children: [{ text: "" }], date: iso, type: KEYS.date },
-    { select: true },
-  );
+  insertVoidAndEscape(editor, { children: [{ text: "" }], date: iso, type: KEYS.date });
   editor.tf.insertText(" ");
 }
 
