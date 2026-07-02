@@ -432,16 +432,23 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         toast.error("Couldn't save the file — resolve that before renaming.");
         return false;
       }
+      // Dispose `from`'s runtime BEFORE the bridge call: the rename's
+      // vault-changed broadcast otherwise races the remap below — the old
+      // controller reloads the now-missing source path, lands on path: null,
+      // and the vanish watcher closes the very tab we're carrying over.
+      const wasOpen = sessionRef.current.tabs.includes(from);
+      if (wasOpen) disposeRuntime(from);
       const result = await bridge.renameVaultEntry({ from, to: dest }).catch(() => null);
       if (!result || !result.ok) {
         toast.error(result?.ok === false ? result.error : "Couldn't rename the file.");
+        // The file never moved — re-attach a controller to the still-open tab.
+        if (wasOpen && sessionRef.current.tabs.includes(from)) ensureRuntime(from);
         return false;
       }
       refreshList();
       // Carry the tab to the new path: same strip position, fresh controller
-      // reading the moved file (the old one was flushed above).
+      // reading the moved file (the old one was flushed + disposed above).
       if (sessionRef.current.tabs.includes(from)) {
-        disposeRuntime(from);
         const next = renameTabPure(sessionRef.current, from, dest);
         ensureRuntime(dest);
         applySession(next);

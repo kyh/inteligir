@@ -90,6 +90,11 @@ describe("renameTab", () => {
     expect(renameTab(s, "a.md", "b.md")).toEqual(session(["b.md"], "b.md"));
   });
 
+  it("collapsing a BACKGROUND tab into an open destination keeps the active tab", () => {
+    const s = session(["a.md", "b.md", "c.md"], "c.md");
+    expect(renameTab(s, "a.md", "b.md")).toEqual(session(["b.md", "c.md"], "c.md"));
+  });
+
   it("ignores unknown sources", () => {
     const s = session(["a.md"], "a.md");
     expect(renameTab(s, "x.md", "y.md")).toBe(s);
@@ -120,6 +125,9 @@ describe("parseSession", () => {
       session(["a.md", "b.md"], "a.md"),
     );
     expect(parseSession({ tabs: ["a.md"] })).toEqual(session(["a.md"], "a.md"));
+    expect(parseSession({ active: 7, tabs: ["a.md", "b.md"] })).toEqual(
+      session(["a.md", "b.md"], "a.md"),
+    );
   });
 
   it("rejects malformed shapes and duplicates", () => {
