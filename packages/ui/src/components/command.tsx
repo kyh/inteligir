@@ -30,6 +30,7 @@ function CommandDialog({
   onOpenChange,
   title = "Command palette",
   initialFocus,
+  shouldFilter,
   children,
 }: {
   open: boolean;
@@ -38,6 +39,9 @@ function CommandDialog({
   // Focused on open via Base UI's own mechanism — point it at the cmdk input
   // so the user can type immediately (Base UI otherwise focuses the popup).
   initialFocus?: RefObject<HTMLElement | null>;
+  // Forwarded to cmdk — off when the caller does its own matching (e.g. the
+  // palette mixing filename filtering with host-ranked full-text results).
+  shouldFilter?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -50,7 +54,7 @@ function CommandDialog({
           className="fixed left-1/2 top-[18vh] z-50 w-[calc(100%-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-border bg-popover shadow-lg outline-none transition-all duration-150 data-[ending-style]:scale-95 data-[ending-style]:opacity-0 data-[starting-style]:scale-95 data-[starting-style]:opacity-0"
         >
           <DialogPrimitive.Title className="sr-only">{title}</DialogPrimitive.Title>
-          <Command>{children}</Command>
+          <Command {...(shouldFilter !== undefined && { shouldFilter })}>{children}</Command>
         </DialogPrimitive.Popup>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

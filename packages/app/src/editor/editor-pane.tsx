@@ -1,6 +1,7 @@
 import { useEffect, useRef, type KeyboardEvent } from "react";
 
 import { MarkdownEditor } from "@repo/app/editor/markdown-editor";
+import { BacklinksPanel } from "@repo/app/workspace/backlinks-panel";
 import { useVault } from "@repo/app/workspace/vault-context";
 
 /**
@@ -109,6 +110,8 @@ export function EditorPane() {
           placeholder="Empty note"
         />
       )}
+      {/* Linked mentions live in the same centered column, below the doc. */}
+      <BacklinksPanel />
     </div>
   );
 }
