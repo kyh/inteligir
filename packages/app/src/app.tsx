@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Navigate, Outlet, useLocation } from "react-router";
 
+import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { ReauthDialog } from "@repo/app/components/reauth-dialog";
 import { useAgentStore } from "@repo/app/stores/agent-store";
@@ -46,6 +47,8 @@ export function AppLayout() {
       </div>
 
       <ReauthDialog />
+      {/* One shared confirm() dialog for the whole workspace. */}
+      <ConfirmDialogHost />
       {/* Desktop toasts join the smoked-glass overlay language. */}
       <Toaster glass />
     </div>
