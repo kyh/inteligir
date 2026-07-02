@@ -10,7 +10,8 @@
     ".expo",
     ".wxt",
     ".output",
-    "out"
+    "out",
+    "packages/app/src/__tests__/fixtures"
   ],
   "experimentalSortPackageJson": {}
 }

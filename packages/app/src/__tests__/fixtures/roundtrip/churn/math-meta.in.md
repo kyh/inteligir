@@ -1,4 +1,3 @@
-$$
-latex
+$$latex
 x
 $$

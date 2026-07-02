@@ -9,6 +9,6 @@ E=mc^2
 
 ```html
 <!-- keep me -->
-<br />
+<br>
 <div class="x">hi</div>
 ```
