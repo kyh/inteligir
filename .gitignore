@@ -8,10 +8,10 @@ node_modules
 # testing
 coverage
 
-# next.js
-.next/
+# tanstack start / wrangler
+.tanstack/
+.wrangler/
 out/
-next-env.d.ts
 
 # nitro
 .nitro/
@@ -43,9 +43,6 @@ yarn-error.log*
 .env*.local
 .dev.vars
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
 .cache
@@ -63,4 +60,3 @@ apps/desktop/resources/agent/client_secret.json
 .claude/scheduled_tasks.lock
 .claude/worktrees
 .playwright-mcp
-.wrangler/

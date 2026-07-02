@@ -1,0 +1,13 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "inteligir-web",
+  "main": "@tanstack/react-start/server-entry",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "inteligir.com/*", "zone_name": "inteligir.com" },
+    { "pattern": "www.inteligir.com/*", "zone_name": "inteligir.com" },
+  ],
+}

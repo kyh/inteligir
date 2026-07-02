@@ -1,5 +1,3 @@
-"use client";
-
 import { ThemeProvider as NextThemeProvider } from "next-themes";
 
 // next-themes' ThemeProviderProps `extends React.PropsWithChildren`, but that

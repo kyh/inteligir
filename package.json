@@ -35,7 +35,8 @@
       "electron-winstaller",
       "esbuild",
       "sharp",
-      "spawn-sync"
+      "spawn-sync",
+      "workerd"
     ]
   }
 }
