@@ -329,8 +329,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       return;
     }
     if (editor.dirty) return;
-    // ONE parse+serialize pass per content change (the old isRichSafe +
-    // isCanonical pair ran two full round-trips).
+    // One parse+serialize pass per content change for byte-canonical files
+    // (plus a bounded fixpoint probe otherwise — the old isRichSafe +
+    // isCanonical pair always ran two full round-trips).
     const next = analyzeMarkdown(editor.content);
     setAnalysis(next);
     // Choose the surface only when a different file opened. (`showRich` also

@@ -69,7 +69,9 @@ describe("raw fixtures (throw-or-Raw, never mangled)", () => {
 //   math-meta       — the `$$latex` meta line is dropped by Plate's equation rule
 //   entities        — `&nbsp;`/`&mdash;` decode ("nbsp"/"mdash" letters vanish)
 //   jsx-attr-forms  — `&amp;` inside an attribute decodes likewise
-const CHURN_NOT_RICH_SAFE = new Set(["math-meta", "entities", "jsx-attr-forms"]);
+//   mailto-resource — `[a@b.cd](mailto:a@b.cd)` collapses to the bare literal
+//                     (same link on re-parse, but the "mailto" letters vanish)
+const CHURN_NOT_RICH_SAFE = new Set(["math-meta", "entities", "jsx-attr-forms", "mailto-resource"]);
 
 describe("churn fixtures (idempotent normalization)", () => {
   const stems = list("churn")

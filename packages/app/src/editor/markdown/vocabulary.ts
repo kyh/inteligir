@@ -31,10 +31,17 @@ const ALLOWED_FLOW_TAGS = new Set([
 ]);
 const ALLOWED_TEXT_TAGS = new Set(["date"]);
 
+// Plate's `date` rule keeps only `value` and DROPS every other attribute at
+// deserialize — an unknown name on <date> would be silently deleted by the
+// first rich save, so it must gate to Raw instead.
+const DATE_ATTRS = new Set(["value"]);
+
 // Every attribute on an allowed element must be a plain string-valued
 // mdxJsxAttribute: bare booleans (`<callout draft>`) come back from Plate as
 // `draft="null"`, braced expressions and spreads don't survive parseAttributes/
-// propsToAttributes. Unknown attr NAMES are fine (string props round-trip).
+// propsToAttributes. Unknown attr NAMES are fine on the FLOW tags (their rules
+// spread string props both directions, so they round-trip); `date` is the
+// exception — see DATE_ATTRS.
 function scanAttributes(
   tag: string,
   attributes: (MdxJsxAttribute | MdxJsxExpressionAttribute)[],
@@ -44,6 +51,9 @@ function scanAttributes(
       return { attr: "{...spread}", kind: "jsx-attr", name: tag };
     }
     if (typeof attr.value !== "string") {
+      return { attr: attr.name, kind: "jsx-attr", name: tag };
+    }
+    if (tag === "date" && !DATE_ATTRS.has(attr.name)) {
       return { attr: attr.name, kind: "jsx-attr", name: tag };
     }
   }

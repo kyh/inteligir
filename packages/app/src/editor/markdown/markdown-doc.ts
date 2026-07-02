@@ -77,6 +77,21 @@ type Converted =
   | { ok: true; value: Descendant[]; editor: ReturnType<typeof makeEditor> }
   | { ok: false; reason: RawReason };
 
+// The mdast→Slate→stringify recursion overflows the stack around nesting
+// depth ~1250 (micromark's own parse survives to ~6-8k, where parseMdast
+// catches its overflow). A RangeError in this band is a depth failure, not a
+// pipeline bug — classify it Raw. Anything else is a real bug: rethrow.
+const DEPTH_REASON: RawReason = {
+  kind: "parse-error",
+  line: null,
+  message: "Document nests too deeply to convert",
+};
+
+function rangeErrorToRaw(error: unknown): RawReason {
+  if (error instanceof RangeError) return DEPTH_REASON;
+  throw error;
+}
+
 // One parse + scan + mdast→Slate pass, shared by every entry point.
 function convert(md: string): Converted {
   const parsed = parseMdast(md);
@@ -89,23 +104,83 @@ function convert(md: string): Converted {
   const rejected = scanVocabulary(parsed.root);
   if (rejected) return { ok: false, reason: rejected };
   const editor = makeEditor();
-  const value = mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
-  return { editor, ok: true, value };
+  try {
+    const value = mdastToSlate(parsed.root, getMergedOptionsDeserialize(editor));
+    return { editor, ok: true, value };
+  } catch (error) {
+    return { ok: false, reason: rangeErrorToRaw(error) };
+  }
 }
 
-function serialize(editor: ReturnType<typeof makeEditor>, value: Descendant[]): string {
-  return serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value });
+type Serialized = { ok: true; out: string } | { ok: false; reason: RawReason };
+
+function serialize(editor: ReturnType<typeof makeEditor>, value: Descendant[]): Serialized {
+  try {
+    return { ok: true, out: serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value }) };
+  } catch (error) {
+    return { ok: false, reason: rangeErrorToRaw(error) };
+  }
 }
 
-/** Classify `md` in ONE parse+serialize pass (call once per content change). */
+// One full parse→serialize pass as a Result (the throwing `roundTrip` wraps it).
+function roundTripResult(md: string): Serialized {
+  const converted = convert(md);
+  if (!converted.ok) return converted;
+  return serialize(converted.editor, converted.value);
+}
+
+// Defense in depth for the classifier: the canonical/rich gate must never
+// bless a form that drifts or breaks on the NEXT save. `out` is trusted only
+// if re-serializing it reproduces it byte-exactly (one extra pass; a third
+// probe distinguishes "stabilizes at pass 2" from "never settles"). Every
+// known input is a pass-1 fixpoint — this catches future regressions, turning
+// would-be corruption into an honest Raw/non-rich classification.
+const UNSTABLE_REASON: RawReason = {
+  kind: "parse-error",
+  line: null,
+  message: "Round-trip does not stabilize",
+};
+
+type Fixpoint =
+  | { stable: true; at: string } // `at` re-serializes to itself
+  | { stable: false; reason: RawReason };
+
+function findFixpoint(out: string): Fixpoint {
+  let current = out;
+  // ≤3 total passes over the document: out was pass 1; probe passes 2 and 3.
+  for (let pass = 0; pass < 2; pass++) {
+    const next = roundTripResult(current);
+    if (!next.ok) return { reason: next.reason, stable: false };
+    if (next.out === current) return { at: current, stable: true };
+    current = next.out;
+  }
+  return { reason: UNSTABLE_REASON, stable: false };
+}
+
+/** Classify `md`: one parse+serialize pass, plus a fixpoint probe of the
+ * output when it isn't already byte-identical (call once per content change). */
 export function analyzeMarkdown(md: string): DocAnalysis {
   if (md.trim() === "") return { canonical: true, rawReason: null, richSafe: true };
   const converted = convert(md);
   if (!converted.ok) return { canonical: false, rawReason: converted.reason, richSafe: false };
-  const out = serialize(converted.editor, converted.value);
-  const canonical = out.trimEnd() === md.trimEnd();
-  const richSafe = canonical || letters(md) === letters(out);
-  return { canonical, rawReason: null, richSafe };
+  const serialized = serialize(converted.editor, converted.value);
+  if (!serialized.ok) return { canonical: false, rawReason: serialized.reason, richSafe: false };
+  const out = serialized.out;
+  // Byte-identical output is trivially a fixpoint — the common canonical case
+  // (files we saved end in exactly one "\n") stays a single pass.
+  if (out !== md) {
+    const fixpoint = findFixpoint(out);
+    if (!fixpoint.stable) {
+      return { canonical: false, rawReason: fixpoint.reason, richSafe: false };
+    }
+    // Rich mode saves pass-1 bytes and each later save advances the chain, so
+    // rich is only safe when the whole chain preserves the letters of `md`.
+    const canonical = out.trimEnd() === md.trimEnd() && fixpoint.at === out;
+    const richSafe =
+      canonical || (letters(md) === letters(out) && letters(md) === letters(fixpoint.at));
+    return { canonical, rawReason: null, richSafe };
+  }
+  return { canonical: true, rawReason: null, richSafe: true };
 }
 
 /** Parse `md` to a Plate value — the live editor's seed path. */
@@ -120,12 +195,16 @@ export function parseMarkdown(
   return { ok: true, value: converted.value as Value };
 }
 
-/** Serialize the parse of `md` — the pipeline's canonical form of the document.
- * Throws ParseFailedError when the file can't round-trip (parse/scan failure). */
+/** Serialize the parse of `md` — the pipeline's canonical form of the
+ * document, verified stable (re-serializing the result is a no-op; see
+ * findFixpoint). Throws ParseFailedError when the file can't round-trip
+ * (parse/scan failure) or its serialized form never settles. */
 export function roundTrip(md: string): string {
-  const converted = convert(md);
-  if (!converted.ok) throw new ParseFailedError(converted.reason);
-  return serialize(converted.editor, converted.value);
+  const serialized = roundTripResult(md);
+  if (!serialized.ok) throw new ParseFailedError(serialized.reason);
+  const fixpoint = findFixpoint(serialized.out);
+  if (!fixpoint.stable) throw new ParseFailedError(fixpoint.reason);
+  return fixpoint.at;
 }
 
 /** Canonicalize `md` (the one-time Format action). Idempotent thereafter.

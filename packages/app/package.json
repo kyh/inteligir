@@ -38,6 +38,7 @@
     "lowlight": "^3.3.0",
     "lucide-react": "catalog:",
     "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-gfm-task-list-item": "^2.0.0",
     "mdast-util-mdx": "^3.0.0",
     "mdast-util-to-markdown": "^2.1.2",
     "micromark-extension-mdx": "^2.1.0",

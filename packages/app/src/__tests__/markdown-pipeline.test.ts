@@ -73,7 +73,6 @@ const scan = (md: string) => {
 };
 
 describe("vocabulary scan (probe1 unknown-JSX hole)", () => {
-
   it("rejects unknown components that would pass the letters() heuristic", () => {
     // `<Foo bar="1">text</Foo>` degrades to escaped text whose letters() equals
     // the source — without the scan, isRichSafe would wave it into Rich mode
@@ -91,7 +90,9 @@ describe("vocabulary scan (probe1 unknown-JSX hole)", () => {
   });
 
   it("rejects non-string attribute forms on allowed tags", () => {
-    expect(scan('<column_group>\n  <column width={50}>\n    x\n  </column>\n</column_group>\n')).toEqual({
+    expect(
+      scan("<column_group>\n  <column width={50}>\n    x\n  </column>\n</column_group>\n"),
+    ).toEqual({
       attr: "width",
       kind: "jsx-attr",
       name: "column",
@@ -108,8 +109,18 @@ describe("vocabulary scan (probe1 unknown-JSX hole)", () => {
     });
   });
 
-  it("permits unknown attr NAMES on allowed tags (string props round-trip)", () => {
+  it("permits unknown attr NAMES on allowed flow tags (string props round-trip)", () => {
     expect(scan('<callout variant="info" custom="yes">\n  x\n</callout>\n')).toBeNull();
+  });
+
+  it("rejects unknown attr names on <date> (Plate's rule keeps only `value`)", () => {
+    // Unlike the flow tags, date's deserialize DROPS everything but `value` —
+    // waving `foo` through would silently delete it on the first rich save.
+    expect(scan('Meet <date value="2026-07-01" foo="x" /> ok\n')).toEqual({
+      attr: "foo",
+      kind: "jsx-attr",
+      name: "date",
+    });
   });
 
   it("allows date only as an inline (text) element", () => {
@@ -227,7 +238,6 @@ describe("parseWikiBody (display-time helper)", () => {
 const editor = () => createSlateEditor({ plugins: BASE_KIT });
 
 describe("serialize rules (probe1 §5 / probe5 translations)", () => {
-
   it("does not drop toggle nodes (Plate ships no toggle rule)", () => {
     const out = serializeMd(editor(), {
       remarkStringifyOptions: MD_STRINGIFY,
@@ -289,7 +299,11 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
         { children: [{ text: "" }], id: "v1", type: "video", url: "https://y.tb/1" },
         { children: [{ text: "" }], id: "m1", type: "media_embed", url: "https://t.co/1" },
         { children: [{ text: "" }], id: "f1", type: "file", url: "https://e.com/a.pdf" },
-        { children: [{ children: [{ text: "t" }], id: "p2", type: "p" }], id: "t1", type: "toggle" },
+        {
+          children: [{ children: [{ text: "t" }], id: "p2", type: "p" }],
+          id: "t1",
+          type: "toggle",
+        },
       ],
     });
     expect(out).not.toContain("id=");
@@ -297,6 +311,88 @@ describe("serialize rules (probe1 §5 / probe5 translations)", () => {
     expect(out).toContain('<video src="https://y.tb/1" />');
     expect(out).toContain('<file src="https://e.com/a.pdf" />');
     expect(out).toContain("<toggle>");
+  });
+
+  it("emits bare emails as literal bytes, never <angle> autolinks (V2)", () => {
+    // gfm email literals used to reach mdast-util-to-markdown's
+    // formatLinkAsAutolink and come back as `<a@b.cd>` — unparseable under
+    // MDX, so a richSafe:true file was corrupted by its first save.
+    const bare = "contact a@b.cd today\n";
+    expect(roundTrip(bare)).toBe(bare);
+    expect(analyzeMarkdown(bare).canonical).toBe(true);
+    // The explicit resource form is indistinguishable from a parsed literal
+    // in the model, so it normalizes to the literal (letters diverge → Raw).
+    expect(roundTrip("[a@b.cd](mailto:a@b.cd)\n")).toBe("a@b.cd\n");
+    // mailto links whose text is NOT the address stay resource links.
+    const named = "[write us](mailto:a@b.cd)\n";
+    expect(roundTrip(named)).toBe(named);
+    // Non-gfm protocols must never take the angle-autolink form either
+    // (resourceLink: true) — `<tel:123>` would not re-parse.
+    const tel = "[tel:123](tel:123)\n";
+    expect(roundTrip(tel)).toBe(tel);
+  });
+
+  it("keeps bare https literals byte-canonical (resourceLink must not regress them)", () => {
+    const md = "see https://example.com now\n";
+    expect(roundTrip(md)).toBe(md);
+    expect(analyzeMarkdown(md).canonical).toBe(true);
+  });
+
+  it("never emits `---` as a document's first line (V5 frontmatter guard)", () => {
+    // A doc-leading `---` re-parses as a frontmatter fence and can silently
+    // absorb following prose into YAML. Leading hrs canonicalize to `***`;
+    // mid-document hrs keep the `---` rule.
+    expect(roundTrip("---\n")).toBe("***\n");
+    expect(roundTrip("***\n***\n")).toBe("***\n\n---\n");
+    expect(roundTrip("***\n\nkey: value\n\n***\n")).toBe("***\n\nkey: value\n\n---\n");
+    expect(roundTrip("x\n\n---\n")).toBe("x\n\n---\n");
+    // Real frontmatter still serializes its own fences at byte 0.
+    const fm = "---\ntitle: x\n---\n\nbody\n";
+    expect(roundTrip(fm)).toBe(fm);
+  });
+
+  it("omits src from url-less media (V3 — a bare attr fails the vocabulary scan)", () => {
+    expect(roundTrip("<video />\n")).toBe("<video />\n");
+    expect(analyzeMarkdown("<video />\n").canonical).toBe(true);
+    const out = serializeMd(editor(), {
+      remarkStringifyOptions: MD_STRINGIFY,
+      value: [{ children: [{ text: "" }], type: "file" }],
+    });
+    expect(out).toBe("<file />\n");
+  });
+
+  it("pads ragged tables into a pass-1 fixpoint (V4)", () => {
+    // Short rows become REAL empty cells at deserialize, so the first pass
+    // already emits the stable ZWSP-cell form instead of reaching it on pass 3.
+    const out = roundTrip("| a | b |\n| - | - |\n| 1 |\n");
+    expect(out).toBe("| a | b |\n| - | - |\n| 1 | ​ |\n");
+    expect(roundTrip(out)).toBe(out);
+  });
+
+  it("persists table column alignment across the round-trip", () => {
+    // Plate's default table rule dropped mdast `align`, so `:-:` delimiters
+    // were silently stripped by a rich save. The align array now rides on the
+    // Slate table node.
+    const out = roundTrip("| a |\n|:-:|\n| 1 |\n");
+    expect(out).toBe("|  a  |\n| :-: |\n|  1  |\n");
+    expect(roundTrip(out)).toBe(out);
+    expect(analyzeMarkdown("| a |\n|:-:|\n| 1 |\n").richSafe).toBe(true);
+  });
+
+  it("keeps empty todos checkable via the ZWSP placeholder", () => {
+    // gfm's serializer inserts the checkbox after the bullet's following
+    // space, which empty content never produces — an empty todo used to save
+    // as a bare `-`, silently dropping the checkbox.
+    const out = serializeMd(editor(), {
+      remarkStringifyOptions: MD_STRINGIFY,
+      value: [
+        { checked: false, children: [{ text: "" }], indent: 1, listStyleType: "todo", type: "p" },
+        { checked: true, children: [{ text: "" }], indent: 1, listStyleType: "todo", type: "p" },
+      ],
+    });
+    expect(out).toBe("- [ ] ​\n- [x] ​\n");
+    expect(roundTrip(out)).toBe(out); // and it re-parses as an empty todo
+    expect(analyzeMarkdown(out).canonical).toBe(true);
   });
 
   it("keeps transient AI/suggestion text out of serialization", () => {
@@ -347,6 +443,22 @@ describe("gate API", () => {
         expect(describeRawReason(error.reason)).toMatch(/^Parse error at line 1/);
       }
     }
+  });
+
+  it("classifies conversion stack overflow as Raw instead of throwing (V1)", () => {
+    // micromark parses ~3000-deep nesting fine, but the mdast→Slate→stringify
+    // recursion overflows around depth ~1250 — that RangeError must surface
+    // as a DocAnalysis, and the badge and Format must agree on it.
+    const deep = "> ".repeat(3000) + "x\n";
+    const analysis = analyzeMarkdown(deep);
+    expect(analysis.richSafe).toBe(false);
+    expect(analysis.canonical).toBe(false);
+    expect(analysis.rawReason).toEqual({
+      kind: "parse-error",
+      line: null,
+      message: "Document nests too deeply to convert",
+    });
+    expect(() => roundTrip(deep)).toThrow(ParseFailedError);
   });
 
   it("describes every reason kind for the mode badge", () => {
