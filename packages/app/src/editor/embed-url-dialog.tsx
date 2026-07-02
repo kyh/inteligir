@@ -49,6 +49,14 @@ export function EmbedUrlDialogHost() {
     };
   }, [paneActive]);
 
+  // The dialog itself PORTALS to <body>, so a tab switch (the pane hides but
+  // never unmounts, #369) would leave it floating over the next tab, with
+  // Insert targeting the now-hidden document. Close on deactivate — same
+  // semantics as dismissing it.
+  useEffect(() => {
+    if (!paneActive) setOpen(false);
+  }, [paneActive]);
+
   const trimmed = url.trim();
 
   const submit = () => {

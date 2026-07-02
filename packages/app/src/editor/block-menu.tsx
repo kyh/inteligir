@@ -10,7 +10,7 @@
 // revisit if upstream fixes the nesting. Omitted: copy-link-to-block
 // (markdown files have no block-anchor concept) and Ask-AI (Phase F slot).
 
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
 import { ArrowDownIcon, ArrowUpIcon, CopyIcon, Trash2Icon } from "lucide-react";
 import type { Path } from "platejs";
@@ -26,11 +26,21 @@ import {
 } from "@repo/ui/components/menu";
 
 import { TURN_INTO, moveBlocks, turnIntoBlocks } from "@repo/app/editor/block-transforms";
+import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 
 export function BlockMenu() {
   const { api, editor } = useEditorPlugin(BlockMenuPlugin);
   const openId = usePluginOption(BlockMenuPlugin, "openId");
   const position = usePluginOption(BlockMenuPlugin, "position");
+
+  // Switching tabs hides this pane WITHOUT unmounting it (#369), and the
+  // MenuContent PORTALS to <body> — left open it would float over the next
+  // tab and its items would edit the hidden document. Hide on deactivate;
+  // the stale anchor position is meaningless after a switch anyway.
+  const paneActive = useEditorPane()?.active ?? true;
+  useEffect(() => {
+    if (!paneActive) api.blockMenu.hide();
+  }, [paneActive, api]);
 
   const anchor = useMemo(() => {
     const { x, y } = position;
@@ -49,7 +59,7 @@ export function BlockMenu() {
 
   return (
     <Menu
-      open={openId !== null}
+      open={openId !== null && paneActive}
       onOpenChange={(open) => {
         if (!open) api.blockMenu.hide();
       }}
