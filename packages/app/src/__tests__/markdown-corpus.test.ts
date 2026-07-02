@@ -45,6 +45,12 @@ const EXPECTED: Record<string, Classification> = {
   "kitchen-sink.md": "canonical",
   "legacy-web-clip.md": "raw:parse-error",
   "frontmatter-note.md": "canonical",
+  // WP2 vocabulary notes — canonical by construction (drafted, then pinned to
+  // the pipeline's own round-trip output).
+  "components-playground.md": "canonical",
+  "math-and-diagrams.md": "canonical",
+  "wiki/hub.md": "canonical",
+  "wiki/target note.md": "canonical",
 };
 
 const CORPUS: Record<string, string> = { ...REPO_DOCS, ...SAMPLE_NOTES };

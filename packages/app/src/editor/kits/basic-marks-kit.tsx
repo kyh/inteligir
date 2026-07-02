@@ -1,6 +1,13 @@
-// Basic marks kit — Base half (WP1). WP2 appends the React half:
-//   export const BasicMarksKit = [BoldPlugin.withComponent(...), …]
-// with the leaf class names relocated from markdown-editor.tsx.
+// Basic marks kit. Base half feeds the headless serialization mirror; the
+// React half adds the styled leaves plus the md-representable autoformat
+// input rules (v53 puts autoformat on the owning plugin as `inputRules` —
+// the old @platejs/autoformat package is a deprecated inert stub).
+//
+// Underline has no GFM form, so it gets NO input rule (`__` stays literal) and
+// no toolbar surface — the plugin is registered only so legacy content
+// carrying the mark doesn't fall to an unstyled leaf. Kept md-representable
+// rules: `**bold**`, `*italic*`/`_italic_`, `~~strike~~`, `` `code` ``,
+// `***bold-italic***`.
 
 import {
   BaseBoldPlugin,
@@ -8,7 +15,20 @@ import {
   BaseItalicPlugin,
   BaseStrikethroughPlugin,
   BaseUnderlinePlugin,
+  BoldRules,
+  CodeRules,
+  ItalicRules,
+  MarkComboRules,
+  StrikethroughRules,
 } from "@platejs/basic-nodes";
+import {
+  BoldPlugin,
+  CodePlugin,
+  ItalicPlugin,
+  StrikethroughPlugin,
+  UnderlinePlugin,
+} from "@platejs/basic-nodes/react";
+import { PlateLeaf, type PlateLeafProps } from "platejs/react";
 
 export const BasicMarksBaseKit = [
   BaseBoldPlugin,
@@ -16,4 +36,29 @@ export const BasicMarksBaseKit = [
   BaseUnderlinePlugin,
   BaseStrikethroughPlugin,
   BaseCodePlugin,
+];
+
+// className-only leaf renderers keep the marks trivial and on-theme.
+function leaf(className: string) {
+  return function Leaf(props: PlateLeafProps) {
+    return <PlateLeaf {...props} className={className} />;
+  };
+}
+
+export const BasicMarksKit = [
+  BoldPlugin.configure({
+    inputRules: [BoldRules.markdown(), MarkComboRules.markdown({ variant: "boldItalic" })],
+  }).withComponent(leaf("font-bold")),
+  ItalicPlugin.configure({
+    inputRules: [ItalicRules.markdown(), ItalicRules.markdown({ variant: "_" })],
+  }).withComponent(leaf("italic")),
+  UnderlinePlugin.withComponent(leaf("underline")),
+  StrikethroughPlugin.configure({
+    inputRules: [StrikethroughRules.markdown()],
+  }).withComponent(leaf("line-through")),
+  CodePlugin.configure({
+    inputRules: [CodeRules.markdown()],
+  }).withComponent(
+    leaf("whitespace-pre-wrap rounded-md bg-muted px-[0.3em] py-[0.2em] font-mono text-sm"),
+  ),
 ];

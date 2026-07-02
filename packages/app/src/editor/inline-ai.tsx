@@ -9,15 +9,26 @@
 
 import { useCallback, useRef, useState } from "react";
 import { type TRange, PointApi, RangeApi } from "platejs";
-import { createPlatePlugin, type PlateEditor } from "platejs/react";
+import { PlateLeaf, createPlatePlugin, type PlateEditor, type PlateLeafProps } from "platejs/react";
 
 import { getBridge } from "@repo/app/lib/bridge";
 
 export const AI_MARK = "ai";
 
-// A leaf-only plugin: the `ai` mark just needs to exist so the editor renders it
-// (highlight styling is registered in markdown-editor's components).
-export const AiMarkKit = [createPlatePlugin({ key: AI_MARK, node: { isLeaf: true } })];
+function AiLeaf(props: PlateLeafProps) {
+  return (
+    <PlateLeaf
+      {...props}
+      className="rounded-sm bg-primary/15 underline decoration-primary/40 decoration-dotted underline-offset-2"
+    />
+  );
+}
+
+// A leaf-only plugin: the `ai` mark exists so the editor renders the pending
+// highlight; it never serializes (markdown-kit's disallowedNodes).
+export const AiMarkKit = [
+  createPlatePlugin({ key: AI_MARK, node: { isLeaf: true } }).withComponent(AiLeaf),
+];
 
 export type InlineAiAction = "continue" | "summarize" | "improve" | "shorter" | "grammar";
 

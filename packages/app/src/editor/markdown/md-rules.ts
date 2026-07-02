@@ -10,7 +10,7 @@
 // Slate `frontmatter` node, which serializes back under its own key.
 
 import type { AlignType } from "mdast";
-import type { Descendant, TElement } from "platejs";
+import { ElementApi, TextApi, type Descendant, type TElement } from "platejs";
 import {
   type DeserializeMdOptions,
   type MdDecoration,
@@ -49,6 +49,10 @@ if (!defaultTableDeserialize || !defaultTableSerialize) {
 const defaultLinkSerialize = defaultRules.a?.serialize;
 if (!defaultLinkSerialize) {
   throw new Error("@platejs/markdown defaultRules.a is missing — pipeline cannot start");
+}
+const defaultParagraphSerialize = defaultRules.p?.serialize;
+if (!defaultParagraphSerialize) {
+  throw new Error("@platejs/markdown defaultRules.p is missing — pipeline cannot start");
 }
 
 const ALERT_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
@@ -113,7 +117,39 @@ function nodeText(node: unknown): string {
   return "";
 }
 
+// Slate normalization pads inline elements with empty text siblings (a live
+// editor's paragraph holding `[[a]]![[b]]` is [text"", wiki, text"", embed,
+// text""]). Plate's default p rule converts EVERY empty text child to a
+// zero-width space on serialize (its empty-PARAGRAPH preservation mechanism),
+// which would sprinkle invisible ​ bytes around chips/dates in user
+// files after any live edit. Element-adjacent empties are pure normalization
+// artifacts — parse never produces them — so they're dropped before the
+// default rule runs. A lone empty text (a genuinely empty paragraph, or the
+// ZWSP table-cell placeholder) has no element neighbor and is preserved.
+function pruneElementAdjacentEmptyTexts(children: Descendant[]): Descendant[] {
+  const pruned = children.filter((child, i) => {
+    if (!TextApi.isText(child) || child.text !== "") return true;
+    const prev = children[i - 1];
+    const next = children[i + 1];
+    return !(
+      (prev !== undefined && ElementApi.isElement(prev)) ||
+      (next !== undefined && ElementApi.isElement(next))
+    );
+  });
+  return pruned.length > 0 ? pruned : children;
+}
+
 export const MD_RULES: MdRules = {
+  // Serialize-only override of the default p rule (deserialize dispatch falls
+  // back to the default): see pruneElementAdjacentEmptyTexts.
+  p: {
+    serialize: (node, options) =>
+      defaultParagraphSerialize(
+        { ...node, children: pruneElementAdjacentEmptyTexts(node.children) },
+        options,
+      ),
+  },
+
   // Serialize-only override of Plate's `a` rule (deserialize dispatch falls
   // back to the default). Plate's default emits bare https literals as raw
   // bytes but lets mailto links reach mdast-util-to-markdown, whose
