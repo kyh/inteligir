@@ -1,21 +1,23 @@
 # `@repo/ui` — shared UI components
 
-The design system shared by the web app and the desktop renderer. shadcn/ui
-built on **Base UI** (`@base-ui/react`), styled with Tailwind 4, plus a few
-heavier shared pieces (charts, a Three.js orb, markdown streaming, motion
-helpers).
+The design system shared by the portable app (`packages/app`) and the marketing
+site (`apps/web`). shadcn/ui built on **Base UI** (`@base-ui/react`), styled
+with Tailwind 4, plus a few heavier shared pieces (a Three.js orb, streamed
+markdown chat rendering, motion helpers).
 
 ## Layout
 
 ```
 src/
-  components/        shadcn-style primitives — button, dialog, drawer, select,
-                     table, tabs, chart/data-chart, sonner, geometric-orb, …
+  components/        shadcn-style primitives — button, dialog, alert/confirm-dialog,
+                     menu, popover, command, sidebar, tabs, sonner, geometric-orb, …
+    ai-elements/     chat surface — conversation, prompt-input, response (streamdown), queue
   hooks/             use-proximity-hover, use-merge-refs
   lib/
     utils.ts         cn() and friends
     surface-context.tsx  Elevation ladder (1–8) for nested surfaces
     surface-classes.ts / css-vars.ts / shape.ts / springs.ts / motion-bridge.ts
+    icon-map.tsx / icon-context.tsx / font-weight.ts / motion-style.ts / shape-context.tsx
   styles/
     globals.css      Tailwind entry — theme tokens, dark variant, @source globs
 postcss.config.mjs   Shared PostCSS config (re-exported)
@@ -42,8 +44,9 @@ import { useSurface } from "@repo/ui/lib/surface-context";
 export { default } from "@repo/ui/postcss.config";
 ```
 
-`globals.css` uses `@source` globs to scan both this package and `apps/**` for
-class usage, so consuming apps don't re-declare content paths.
+`globals.css` uses `@source` globs to scan this package, `apps/**`, and
+`packages/app` for class usage, so consuming apps don't re-declare content
+paths.
 
 ## Surfaces
 

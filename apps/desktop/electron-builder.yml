@@ -22,7 +22,7 @@ files:
 # packages/host/resources/agent; copied to Contents/Resources/agent, which is
 # where the electron platform's resourcesDir points in packaged builds.
 extraResources:
-  - from: ../host/resources/agent
+  - from: ../../packages/host/resources/agent
     to: agent
 asarUnpack:
   # sherpa-onnx-node ships native .node binaries (split into per-platform

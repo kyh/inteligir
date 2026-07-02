@@ -48,7 +48,7 @@ export function createElectronPlatform(): ElectronPlatform {
     // Contents/Resources/agent (extraResources). Dev: read the workspace copy.
     resourcesDir: app.isPackaged
       ? path.join(process.resourcesPath, "agent")
-      : path.resolve(PROJECT_ROOT, "../host/resources/agent"),
+      : path.resolve(PROJECT_ROOT, "../../packages/host/resources/agent"),
 
     // A packaged install missing its resources is corrupt — fail loudly.
     strictResources: app.isPackaged,

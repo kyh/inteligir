@@ -9,15 +9,15 @@ marketing site.
 ## Layout
 
 ```
-apps/
+apps/              Shippable artifacts
+  desktop/         Thin Electron shell over host + app (@repo/desktop)
+  cli/             `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
   web/             Next.js static marketing site (landing page only)
-packages/
+packages/          Libraries
   app/             Portable UI — the whole workspace as a browser React app (@repo/app)
   core/            Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
   host/            Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
   server/          Loopback HTTP+WS host: folds the registry over WS, serves the app build (@repo/server)
-  cli/             `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
-  desktop/         Thin Electron shell over host + app (@repo/desktop)
   ui/              Shared UI components (@repo/ui)
   agent-runtime/   Filesystem + install primitives for the agent (@repo/agent-runtime)
   pi-driver/       Wrapper around pi-coding-agent — stable surface for app code (@repo/pi-driver)
@@ -25,16 +25,18 @@ packages/
 
 Workspace `README.md`s:
 
-| Workspace                | README                                                                       |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `packages/desktop`       | [Electron shell — process boundary, packaging](./packages/desktop/README.md) |
-| `packages/host`          | [node backend — createHost, HostPlatform](./packages/host/README.md)         |
-| `packages/server`        | [browser host — loopback HTTP+WS](./packages/server/README.md)               |
-| `packages/cli`           | [`inteligir` launcher](./packages/cli/README.md)                             |
-| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md)    |
-| `packages/pi-driver`     | [pi-coding-agent wrapper](./packages/pi-driver/README.md)                    |
-| `packages/ui`            | [shared design system](./packages/ui/README.md)                              |
-| `apps/web`               | [static marketing site](./apps/web/README.md)                                |
+| Workspace                | README                                                                    |
+| ------------------------ | ------------------------------------------------------------------------- |
+| `apps/desktop`           | [Electron shell — process boundary, packaging](./apps/desktop/README.md)  |
+| `apps/cli`               | [`inteligir` launcher](./apps/cli/README.md)                              |
+| `apps/web`               | [static marketing site](./apps/web/README.md)                             |
+| `packages/app`           | [portable UI — Bridge-injected workspace](./packages/app/README.md)       |
+| `packages/core`          | [isomorphic contract — IPC registry, schemas](./packages/core/README.md)  |
+| `packages/host`          | [node backend — createHost, HostPlatform](./packages/host/README.md)      |
+| `packages/server`        | [browser host — loopback HTTP+WS](./packages/server/README.md)            |
+| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md) |
+| `packages/pi-driver`     | [pi-coding-agent wrapper](./packages/pi-driver/README.md)                 |
+| `packages/ui`            | [shared design system](./packages/ui/README.md)                           |
 
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
 three ways to run the app, ports/shared state, gates, verification, and
