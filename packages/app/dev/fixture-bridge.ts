@@ -20,10 +20,13 @@ const FIXTURE_ROOT = "/fixture-vault";
 // Exported for the legacy-corpus classification test: every sample note must
 // hold its expected canonical/raw class as the pipeline evolves.
 export const SAMPLE_NOTES: Record<string, string> = {
+  // Sample notes are PRE-CANONICALIZED (pinned by the corpus test): a churn-y
+  // note would reflow wholesale on its first edit, drowning the user's change
+  // in formatting noise. Long paragraphs stay on one line (the alternative
+  // canonical form is `\`-terminated hard-break lines).
   "welcome.md": `# Welcome
 
-This is the **inteligir** dev harness — a plain-browser run of the portable
-app against an in-memory vault. Edits persist until you reload the page.
+This is the **inteligir** dev harness — a plain-browser run of the portable app against an in-memory vault. Edits persist until you reload the page.
 
 - Open a note from the sidebar
 - Try the editor: headings, lists, tables, code
@@ -46,12 +49,12 @@ Read more in [tasks](tasks.md).
 `,
   "notes/roadmap.md": `# Roadmap
 
-| Phase | Package         | Status  |
-| ----- | --------------- | ------- |
-| 1     | packages/core   | merged  |
-| 2     | packages/app    | active  |
-| 3     | packages/host   | queued  |
-| 4     | packages/server | queued  |
+| Phase | Package         | Status |
+| ----- | --------------- | ------ |
+| 1     | packages/core   | merged |
+| 2     | packages/app    | active |
+| 3     | packages/host   | queued |
+| 4     | packages/server | queued |
 `,
   "notes/snippets.md": `# Snippets
 
@@ -71,7 +74,7 @@ Inline \`code\` and a blockquote:
 
 ## 2026-07-01
 
-Started the harness. *Everything* renders without Electron.
+Started the harness. _Everything_ renders without Electron.
 
 1. First ordered item
 2. Second ordered item

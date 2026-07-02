@@ -36,12 +36,14 @@ const EXPECTED: Record<string, Classification> = {
   // repo docs (real-world hand-written markdown)
   "README.md": "formattable", // wrapped paragraphs → soft-break churn (pre-WP1 behavior too)
   "docs/replatform-plan.md": "letters-diverge", // entity-style sequences decode on round-trip
-  // dev fixture vault
-  "welcome.md": "formattable", // wrapped paragraphs, as README
+  // dev fixture vault — pre-canonicalized (WP4): a first edit must produce a
+  // minimal diff, not a wholesale reflow. legacy-web-clip.md stays the Raw
+  // exemplar; README.md above keeps the formattable path covered.
+  "welcome.md": "canonical",
   "tasks.md": "canonical",
-  "notes/roadmap.md": "formattable", // table cell padding differs from Plate's alignment
+  "notes/roadmap.md": "canonical",
   "notes/snippets.md": "canonical",
-  "journal.md": "formattable", // `*Everything*` → `_Everything_` emphasis churn
+  "journal.md": "canonical",
   "kitchen-sink.md": "canonical",
   "legacy-web-clip.md": "raw:parse-error",
   "frontmatter-note.md": "canonical",
