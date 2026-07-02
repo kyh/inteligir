@@ -12,11 +12,7 @@ import { PlateElement, useEditorRef, useElement, useReadOnly, type PlateElementP
 
 import { cn } from "@repo/ui/lib/utils";
 
-import {
-  NodePopover,
-  NodePopoverContent,
-  NodePopoverTrigger,
-} from "@repo/app/editor/nodes/node-popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
 const Calendar = lazy(() =>
   import("@repo/app/editor/nodes/calendar").then((mod) => ({ default: mod.Calendar })),
@@ -61,8 +57,8 @@ export function DateElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props} as="span" className="inline-block">
-      <NodePopover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
-        <NodePopoverTrigger
+      <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
+        <PopoverTrigger
           className={cn(
             "w-fit cursor-pointer rounded-sm px-0.5 text-primary/65 transition-colors hover:bg-primary/10",
             open && "bg-primary/10",
@@ -72,8 +68,8 @@ export function DateElement(props: PlateElementProps) {
         >
           <span className="font-semibold text-primary/45">@</span>
           {label(value)}
-        </NodePopoverTrigger>
-        <NodePopoverContent className="w-auto p-0">
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-0">
           <Suspense fallback={<div className="size-64 animate-pulse rounded-lg bg-muted" />}>
             <Calendar
               autoFocus
@@ -86,8 +82,8 @@ export function DateElement(props: PlateElementProps) {
               }}
             />
           </Suspense>
-        </NodePopoverContent>
-      </NodePopover>
+        </PopoverContent>
+      </Popover>
       {props.children}
     </PlateElement>
   );

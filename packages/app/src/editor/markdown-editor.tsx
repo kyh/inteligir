@@ -15,7 +15,6 @@ import { serializeMd } from "@platejs/markdown";
 
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
-import { SelectionToolbar } from "@repo/app/editor/selection-toolbar";
 import { TableOfContents } from "@repo/app/editor/toc";
 
 // Seed markdown → Plate value through the owned pipeline. Unparseable content
@@ -79,14 +78,14 @@ export function MarkdownEditor({ value, onChange }: Props) {
       }}
     >
       {/* relative: the cursor overlay's selection ghost and the floating
-          toolbar position absolutely against this wrapper. */}
+          toolbar (both afterEditable renders) position against this wrapper.
+          The toolbar itself renders from FloatingToolbarKit. */}
       <div className="relative">
         <PlateContent
           className="potion-editor-typography min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20 [&_.slate-selection-area]:bg-primary/15"
           spellCheck={false}
         />
       </div>
-      <SelectionToolbar />
       <TableOfContents />
     </Plate>
   );

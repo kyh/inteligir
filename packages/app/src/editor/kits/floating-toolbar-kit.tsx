@@ -1,8 +1,14 @@
-// Floating toolbar kit — WP3 fills this file (the @platejs/floating swap of
-// selection-toolbar.tsx's positioning layer; the toolbar then renders from
-// this kit's `render.afterEditable` instead of markdown-editor.tsx JSX).
-// Landed empty in WP2 so EDITOR_KIT's composition is final.
+// Renders the selection toolbar from the plugin tree (afterEditable) instead
+// of markdown-editor.tsx JSX, so it sits inside the editor's relative
+// positioning context that @platejs/floating computes against.
 
-import type { SlatePlugins } from "platejs";
+import { createPlatePlugin } from "platejs/react";
 
-export const FloatingToolbarKit: SlatePlugins = [];
+import { SelectionToolbar } from "@repo/app/editor/selection-toolbar";
+
+export const FloatingToolbarKit = [
+  createPlatePlugin({
+    key: "floating-toolbar",
+    render: { afterEditable: () => <SelectionToolbar /> },
+  }),
+];
