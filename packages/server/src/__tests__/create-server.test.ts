@@ -117,6 +117,16 @@ describe("createServer", () => {
     expect(await fallback.text()).toContain("<title>app</title>");
   });
 
+  it("serves assets added after boot (rebuild under a running server)", async () => {
+    const { server } = await boot();
+    // A rebuild writes freshly hashed bundles into assetsDir; the server must
+    // pick them up without a restart (sirv dev mode, no boot-time manifest).
+    fs.writeFileSync(path.join(assetsDir, "app-abc123.js"), "console.log('rebuilt')");
+    const rebuilt = await fetch(`${server.url}/app-abc123.js`);
+    expect(rebuilt.status).toBe(200);
+    expect(await rebuilt.text()).toContain("rebuilt");
+  });
+
   it("rejects non-loopback Host headers (DNS rebinding)", async () => {
     const { server } = await boot();
     // fetch() silently drops the forbidden Host header — go through raw http.

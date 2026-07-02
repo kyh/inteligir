@@ -22,6 +22,7 @@ const buttonVariants = cva(
         secondary: "text-foreground",
         tertiary: "border border-border text-foreground",
         ghost: "text-muted-foreground hover:text-foreground",
+        destructive: "text-destructive-foreground",
       },
       size: {
         sm: "h-7 px-3 text-[12px] gap-1",
@@ -66,6 +67,8 @@ const bgVariants: Record<string, string> = {
   secondary: "bg-accent group-hover/button:bg-accent/80 group-active/button:bg-accent",
   tertiary: "bg-transparent group-hover/button:bg-hover group-active/button:bg-active",
   ghost: "bg-transparent group-hover/button:bg-hover group-active/button:bg-active",
+  destructive:
+    "bg-destructive group-hover/button:bg-destructive/90 group-active/button:bg-destructive/80",
 };
 
 const activeBgVariants: Record<string, string> = {
@@ -73,6 +76,7 @@ const activeBgVariants: Record<string, string> = {
   secondary: "bg-accent",
   tertiary: "bg-active",
   ghost: "bg-active",
+  destructive: "bg-destructive/80",
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(

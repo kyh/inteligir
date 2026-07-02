@@ -93,7 +93,14 @@ function isTtsAudioPayload(payload: unknown): payload is { audio: ArrayBuffer } 
 export async function createServer(options: ServerOptions): Promise<RunningServer> {
   const { host, assetsDir } = options;
 
-  const serveAssets = sirv(assetsDir, { single: true, etag: true });
+  // dev: true makes sirv stat the filesystem per request instead of
+  // snapshotting the asset manifest at boot — without it, rebuilding
+  // packages/app/dist-web under a running server 404s the new hashed assets
+  // (and serves stale ETags/lengths for changed ones). The trade-offs are a
+  // stat syscall per request and no maxage headers (etag revalidation still
+  // works: dev mode sends Cache-Control: no-cache) — both irrelevant for a
+  // single-user loopback server, where correctness wins.
+  const serveAssets = sirv(assetsDir, { single: true, etag: true, dev: true });
 
   const httpServer = http.createServer((req, res) => {
     if (!isAllowedHostHeader(req.headers.host)) {

@@ -5,7 +5,7 @@
 //
 // Update flow: VaultManager's watcher already coalesces fs event bursts into
 // one notification; the manager adds its own short debounce, then diffs the
-// listing against recorded (mtime, size) fingerprints so only added/changed
+// listing against recorded (mtime, size, ino) fingerprints so only added/changed
 // docs are re-parsed and removed ones dropped — a save touches one file's
 // extraction, not the vault. A root switch (or first use) rebuilds from
 // scratch. Queries before any notification build lazily, so handlers never
@@ -29,11 +29,14 @@ import { getVaultManager, type VaultManager } from "../vault/vault";
 
 const REFRESH_DEBOUNCE_MS = 100;
 
-type Fingerprint = { mtimeMs: number; size: number };
+// ino rides along because vault writes are atomic (write temp + rename): a
+// swap always lands on a fresh inode, so even an exact (mtime, size)
+// collision can't masquerade as "unchanged".
+type Fingerprint = { mtimeMs: number; size: number; ino: number };
 
 export class KnowledgeManager {
   private readonly index = new KnowledgeIndex();
-  /** (mtime, size) per indexed doc — the incremental-refresh diff basis. */
+  /** (mtime, size, ino) per indexed doc — the incremental-refresh diff basis. */
   private readonly fingerprints = new Map<string, Fingerprint>();
   private readonly otherPaths = new Set<string>();
   private builtRoot: string | null = null;
@@ -111,7 +114,12 @@ export class KnowledgeManager {
       const fingerprint = statFingerprint(path.join(root, entry.path));
       if (fingerprint === null) continue; // vanished mid-scan; next refresh drops it
       const prior = this.fingerprints.get(entry.path);
-      if (prior && prior.mtimeMs === fingerprint.mtimeMs && prior.size === fingerprint.size) {
+      if (
+        prior &&
+        prior.mtimeMs === fingerprint.mtimeMs &&
+        prior.size === fingerprint.size &&
+        prior.ino === fingerprint.ino
+      ) {
         continue;
       }
       try {
@@ -159,7 +167,7 @@ export class KnowledgeManager {
 function statFingerprint(absolute: string): Fingerprint | null {
   try {
     const stat = fs.statSync(absolute);
-    return { mtimeMs: stat.mtimeMs, size: stat.size };
+    return { mtimeMs: stat.mtimeMs, size: stat.size, ino: stat.ino };
   } catch {
     return null;
   }

@@ -22,6 +22,8 @@ import {
   type SimulationNodeDatum,
 } from "d3-force";
 
+import { confirm } from "@repo/ui/components/confirm-dialog";
+
 import { getBridge } from "@repo/app/lib/bridge";
 import { useTheme } from "@repo/app/lib/use-theme";
 import { useViewStore } from "@repo/app/stores/view-store";
@@ -374,7 +376,15 @@ export default function GraphView() {
       if (node.phantom) {
         // Phantom → offer to create the missing note (created at the vault
         // root, matching wiki resolution for a bare target).
-        if (window.confirm(`Create "${node.title}.md"?`)) void createFile(node.title);
+        const offerCreate = async () => {
+          const confirmed = await confirm({
+            title: `Create "${node.title}.md"?`,
+            body: "This note doesn't exist yet — create it at the vault root.",
+            confirmLabel: "Create",
+          });
+          if (confirmed) await createFile(node.title);
+        };
+        void offerCreate();
         return;
       }
       if (node.path !== undefined) openFile(node.path, { newTab: e.metaKey || e.ctrlKey });

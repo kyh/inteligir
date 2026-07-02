@@ -18,6 +18,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@repo/ui/components/collapsible";
+import { confirm } from "@repo/ui/components/confirm-dialog";
 import { Input } from "@repo/ui/components/input";
 import {
   Sidebar,
@@ -263,6 +264,16 @@ function FileRow({
 }: { name: string; path: string; kind: "doc" | "other" } & RowHandlers) {
   const [draft, setDraft] = useState(name);
 
+  const confirmDelete = async () => {
+    const confirmed = await confirm({
+      title: `Delete ${path}?`,
+      body: "This permanently deletes the file from your vault.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (confirmed) onDelete(path);
+  };
+
   if (renaming === path) {
     return (
       <SidebarMenuItem>
@@ -307,9 +318,7 @@ function FileRow({
         showOnHover
         title="Delete"
         className="hover:text-destructive"
-        onClick={() => {
-          if (window.confirm(`Delete ${path}?`)) onDelete(path);
-        }}
+        onClick={() => void confirmDelete()}
       >
         <Trash2Icon />
       </SidebarMenuAction>

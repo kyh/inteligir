@@ -3,6 +3,7 @@ import { Trash2Icon, WandSparklesIcon } from "lucide-react";
 
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
+import { confirm } from "@repo/ui/components/confirm-dialog";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -39,6 +40,17 @@ export function Header() {
   const { state } = useSidebar();
   const path = editor.path;
   const segments = path ? path.split("/") : [];
+
+  const confirmDelete = async () => {
+    if (!path) return;
+    const confirmed = await confirm({
+      title: `Delete ${path}?`,
+      body: "This permanently deletes the file from your vault.",
+      confirmLabel: "Delete",
+      destructive: true,
+    });
+    if (confirmed) await deleteEntry(path);
+  };
 
   return (
     <header
@@ -118,9 +130,7 @@ export function Header() {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => {
-              if (window.confirm(`Delete ${path}?`)) void deleteEntry(path);
-            }}
+            onClick={() => void confirmDelete()}
             className="size-7 px-0 text-muted-foreground hover:text-destructive"
             title="Delete note"
           >
