@@ -30,6 +30,8 @@ Workspace `README.md`s:
 | `apps/desktop`           | [Electron shell — process boundary, packaging](./apps/desktop/README.md)  |
 | `apps/cli`               | [`inteligir` launcher](./apps/cli/README.md)                              |
 | `apps/web`               | [static marketing site](./apps/web/README.md)                             |
+| `packages/app`           | [portable UI — Bridge-injected workspace](./packages/app/README.md)       |
+| `packages/core`          | [isomorphic contract — IPC registry, schemas](./packages/core/README.md)  |
 | `packages/host`          | [node backend — createHost, HostPlatform](./packages/host/README.md)      |
 | `packages/server`        | [browser host — loopback HTTP+WS](./packages/server/README.md)            |
 | `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md) |

@@ -15,8 +15,7 @@ src/
   auth.ts       createAuthStorage(authPath) — pi's OAuth credential store
   model.ts      resolveModel(provider, modelId) from pi-ai's static registry
   skills.ts     loadSkills + PiAgentSkill projection (serializable over IPC)
-  complete.ts   One-shot complete() helper, with a cached ModelRegistry per AuthStorage
-  pi-types.ts   Curated re-exports of pi types the desktop reaches for
+  pi-types.ts   Curated re-exports of pi types the host reaches for
 ```
 
 No barrel — import by file:
@@ -35,7 +34,7 @@ shape here (`PiAgentTool`, `PiAgentSkill`, …) rather than leaking pi's classes
 location, only that file changes.
 
 This package has no Electron dependency — it's the pi adapter, not the app. The
-glue that wires it into the desktop (ports, lifecycle, IPC) lives in
+glue that wires it into the product (ports, lifecycle, Bridge handlers) lives in
 `packages/host/src/`.
 
 ## Typecheck

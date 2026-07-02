@@ -1,6 +1,6 @@
 # `@repo/web` — Inteligir marketing site
 
-Static Next.js 15 landing page. No backend, no database, no auth — just the
+Static Next.js 16 landing page. No backend, no database, no auth — just the
 public-facing pitch for the product. Built with the App Router + Turbopack and
 styled with Tailwind 4 via `@repo/ui`.
 

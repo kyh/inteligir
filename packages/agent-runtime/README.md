@@ -1,6 +1,6 @@
 # `@repo/agent-runtime`
 
-Filesystem + install primitives for the Inteligir desktop agent. Pure Node, **zero Electron deps** — anything that needs `app.isPackaged` or `process.resourcesPath` belongs in `apps/desktop/`, not here.
+Filesystem + install primitives for the Inteligir agent. Pure Node, **zero Electron deps** — anything that needs `app.isPackaged` or `process.resourcesPath` belongs in `apps/desktop/`, not here.
 
 ## What's here
 

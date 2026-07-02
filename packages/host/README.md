@@ -1,6 +1,6 @@
 # `@repo/host` — the node backend
 
-The platform-agnostic backend library: app lifecycle, the agent singleton, vault, delegation, executor, voice, and the Bridge handler map. `createHost(platform, options)` (`src/create-host.ts`) composes it all; a shell (the Electron desktop today, a WebSocket server later) injects a `HostPlatform` (`src/platform.ts`) for everything OS/shell-shaped — native dialogs, keychain cipher, notifications, packaged-resource paths — folds `host.handlers` into its transport, and forwards `host.events`. The UI talks to it only via methods declared in the registry (`@repo/core/ipc-registry`). No electron imports anywhere in `src/` — lint-enforced.
+The platform-agnostic backend library: app lifecycle, the agent singleton, vault, knowledge indexes, delegation, executor, voice, and the Bridge handler map. `createHost(platform, options)` (`src/create-host.ts`) composes it all; a shell (the Electron desktop `apps/desktop`, or `@repo/server` behind the cli) injects a `HostPlatform` (`src/platform.ts`) for everything OS/shell-shaped — native dialogs, secret cipher (keychain or file-key), notifications, packaged-resource paths — folds `host.handlers` into its transport, and forwards `host.events`. Only one real host runs at a time: `lib/host-lock.ts` is a pidfile under `~/.inteligir`. The UI talks to it only via methods declared in the registry (`@repo/core/ipc-registry`). No electron imports anywhere in `src/` — lint-enforced.
 
 ## State machine — three-part split
 
@@ -42,7 +42,7 @@ Internal events (`LOGIN_OK`/`LOGIN_FAIL`, `SETUP_OK`/`SETUP_FAIL`, `LOGOUT_OK`/`
 2. Wire the real implementation in `realDeps` in `app-machine.ts`.
 3. Mirror in `fakeDeps` / `makeDeps` in tests.
 
-If the effect is part of `SETUP` (binary install, config seed), prefer adding it to a [pi extension bundle](../agent/README.md) instead. Bundles run inside `seedResources()` so each new third-party integration doesn't grow the EffectDeps surface.
+If the effect is part of `SETUP` (binary install, config seed), prefer adding it to a [pi extension bundle](./src/agent/README.md) instead. Bundles run inside `seedResources()` so each new third-party integration doesn't grow the EffectDeps surface.
 
 ## Agent singleton
 
@@ -65,8 +65,13 @@ Domain-grouped under `handlers/` (one file per domain, composed by `handlers/reg
 ## Other modules
 
 - `vault/vault.ts` — the user's markdown vault (folder of files, watcher, `./vault` agent symlink).
+- `knowledge/` — `knowledge-manager.ts` runs the pure engine from `@repo/core/knowledge` over vault events (incremental link graph, backlinks, lexical search); `rename-rewrite.ts` applies byte-surgical `[[link]]` rewrites across the vault on rename.
 - `app/agent-gateway.ts` — the single entry point for interactive agent commands (a thin typed pass-through to the live agent).
-- `delegation/` — checkbox delegation: a versioned store + serialized queue (`delegation-manager.ts`) running tasks on a dedicated `background-agent.ts`; `find-task-line.ts` is the pure checkbox locator.
+- `app/inline-ai.ts` + `app/ghost-text.ts` — the editor-AI backends: intent classification/generation on a no-tools pi session, and ephemeral ghost-text completions on a fast model.
+- `delegation/` — checkbox delegation: a versioned store + serialized queue (`delegation-manager.ts`) running tasks on a dedicated `background-agent.ts`; the target file is snapshotted before dispatch (newest 50 kept) so "Restore original" undoes an agent edit byte-exactly; `find-task-line.ts` is the pure checkbox locator.
+- `executor/` — the MCP/connectors capability behind the executor daemon (integrations, OAuth flows, connection store).
+- `voice/` — sherpa-onnx STT (`parakeet.ts`), model download, and the TTS proxy.
 - `notifications.ts` — notification settings + message shaping (delivery goes through `platform.notify`).
+- `secrets.ts` / `ui-state.ts` — cipher-backed secret store and persisted UI state (tabs, panes) shared across hosts.
 - `app/session-history.ts` — reads recent pi messages from disk for UI history rehydration (one-shot per mount; no cache).
-- `lib/` — shared helpers (agent lifecycle/ports, registry-keyed handler collection, TypeBox-validated JSON store with versioning/migrations, agent-log tee).
+- `lib/` — shared helpers (agent lifecycle/ports, registry-keyed handler collection, TypeBox-validated JSON store with versioning/migrations, host pidfile lock, file-key cipher, agent-log tee).
