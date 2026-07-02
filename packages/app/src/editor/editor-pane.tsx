@@ -1,4 +1,5 @@
 import {
+  memo,
   useCallback,
   useEffect,
   useLayoutEffect,
@@ -11,6 +12,7 @@ import {
 
 import { EditorPaneContext } from "@repo/app/editor/editor-pane-context";
 import { MarkdownEditor } from "@repo/app/editor/markdown-editor";
+import type { VaultEditorState } from "@repo/app/editor/vault-editor";
 import { BacklinksPanel } from "@repo/app/workspace/backlinks-panel";
 import { touchRecency } from "@repo/app/workspace/tab-session";
 import { useVault } from "@repo/app/workspace/vault-context";
@@ -123,6 +125,45 @@ function TabPane({ path, active }: { path: string; active: boolean }) {
   if (coherent && frozenShowRich !== ctxShowRich) setFrozenShowRich(ctxShowRich);
   const showRich = coherent ? ctxShowRich : frozenShowRich;
 
+  return (
+    <TabPaneBody
+      path={path}
+      active={active}
+      state={state}
+      showRich={showRich}
+      getTabState={getTabState}
+      editTab={editTab}
+      renameEntry={renameEntry}
+    />
+  );
+}
+
+type TabPaneBodyProps = {
+  path: string;
+  active: boolean;
+  state: VaultEditorState;
+  showRich: boolean;
+  getTabState: (path: string) => VaultEditorState;
+  editTab: (path: string, content: string) => void;
+  renameEntry: (from: string, to: string) => Promise<boolean>;
+};
+
+/** The pane's actual DOM — split out and memoized so a HIDDEN pane's Plate
+ * tree doesn't re-render on every keystroke in the active tab: the vault
+ * context value changes per edit, TabPane consumes it, and without the memo
+ * boundary every live pane would re-render its whole editor shell in
+ * sympathy. For a hidden pane every prop here is identity-stable (its own
+ * state only changes on its own edits; the callbacks are stable; showRich is
+ * frozen), so the memo bails out and only the active pane pays. */
+const TabPaneBody = memo(function TabPaneBody({
+  path,
+  active,
+  state,
+  showRich,
+  getTabState,
+  editTab,
+  renameEntry,
+}: TabPaneBodyProps) {
   const fileName = state.path !== null ? (state.path.split("/").pop() ?? state.path) : "";
   const dot = fileName.lastIndexOf(".");
   const displayName = dot > 0 ? fileName.slice(0, dot) : fileName;
@@ -231,4 +272,4 @@ function TabPane({ path, active }: { path: string; active: boolean }) {
       </div>
     </EditorPaneContext.Provider>
   );
-}
+});
