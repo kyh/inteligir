@@ -121,11 +121,17 @@ function type(editor: ReturnType<typeof makeEditor>, text: string) {
   for (const char of text) editor.tf.insertText(char);
 }
 
+// Since Phase F, char-by-char typing of `[[` opens the autocomplete picker
+// (wiki-autocomplete.test.ts pins that flow). The `]]` rule remains the
+// completion path for bodies already present as TEXT — a paste, or the
+// picker's cancel-restore — so these drive it with a bulk insert (the trigger
+// only fires on a single typed `[`) followed by typed closing brackets.
 describe("wiki `]]` completion rule", () => {
   it("completes [[Note]] into a wikiLink chip whose bytes round-trip", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
-    type(editor, " see [[Some Note]]");
+    editor.tf.insertText(" see [[Some Note");
+    type(editor, "]]");
     const wiki = el(editor.children[0]).children.find(
       (child) => ElementApi.isElement(child) && child.type === "wikiLink",
     );
@@ -135,10 +141,18 @@ describe("wiki `]]` completion rule", () => {
     expect(roundTrip(output)).toBe(output);
   });
 
+  it("typing [[ char-by-char opens the autocomplete picker instead", () => {
+    const editor = makeEditor("x\n");
+    editor.tf.select(editor.api.end([0]));
+    type(editor, " [[");
+    expect(JSON.stringify(editor.children).includes("wiki_input")).toBe(true);
+  });
+
   it("completes ![[img.png]] into a wikiEmbed chip", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
-    type(editor, " ![[img.png]]");
+    editor.tf.insertText(" ![[img.png");
+    type(editor, "]]");
     expect(out(editor)).toContain("![[img.png]]");
     expect(
       el(editor.children[0]).children.some(
@@ -150,7 +164,8 @@ describe("wiki `]]` completion rule", () => {
   it("keeps alias/anchor bodies verbatim", () => {
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
-    type(editor, " [[target#sec|alias]]");
+    editor.tf.insertText(" [[target#sec|alias");
+    type(editor, "]]");
     expect(out(editor)).toContain("[[target#sec|alias]]");
   });
 
@@ -177,7 +192,11 @@ describe("wiki `]]` completion rule", () => {
     // swallow the rest of the line.
     const editor = makeEditor("x\n");
     editor.tf.select(editor.api.end([0]));
-    type(editor, " [[a]]![[b]] tail");
+    editor.tf.insertText(" [[a");
+    type(editor, "]]");
+    editor.tf.insertText("![[b");
+    type(editor, "]]");
+    type(editor, " tail");
     const output = out(editor);
     expect(output).toBe("x [[a]]![[b]] tail\n");
     expect(output).not.toContain("​");

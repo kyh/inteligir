@@ -27,6 +27,7 @@ import { TableKit } from "@repo/app/editor/kits/table-kit";
 import { ToggleKit } from "@repo/app/editor/kits/toggle-kit";
 import { WikiLinkKit } from "@repo/app/editor/kits/wiki-link-kit";
 import { SlashKit } from "@repo/app/editor/slash-menu";
+import { WikiAutocompleteKit } from "@repo/app/editor/wiki-autocomplete";
 
 export const EDITOR_KIT = [
   ...BasicMarksKit,
@@ -43,6 +44,7 @@ export const EDITOR_KIT = [
   ...CalloutKit,
   ...FrontmatterKit,
   ...WikiLinkKit,
+  ...WikiAutocompleteKit,
   ...EmojiKit,
   ...SlashKit,
   ...DragKit,

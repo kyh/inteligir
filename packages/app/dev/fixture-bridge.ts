@@ -223,6 +223,35 @@ Embed placeholder: ![[target note]]
 
 The hub links here. Backlinks arrive in a later phase.
 `,
+  // Phase F knowledge notes — an interlinked cluster so tabs, chips,
+  // backlinks, transclusion (incl. guards), graph, and search all demo well.
+  "wiki/ideas.md": `# Ideas
+
+Seeds worth growing, linked from the [[hub]].
+
+- Build a [[target note|target]] deep-dive
+- Cross-link with [[wiki/projects|projects]]
+- Chase the [[missing note]] ghost
+
+Embedded reference: ![[target note]]
+`,
+  "wiki/projects.md": `# Projects
+
+Active work, paired with [[ideas]].
+
+1. Ship the knowledge UI (see [[hub]])
+2. Write the [[target note#Section|section notes]]
+`,
+  "wiki/digest.md": `# Digest
+
+A transclusion sampler over the wiki cluster.
+
+Full embed: ![[ideas]]
+
+Missing embed: ![[missing note]]
+
+Self embed (cycle guard): ![[digest]]
+`,
 };
 
 // Matches one checkbox line: indent, marker, box state, label. Ordinals count

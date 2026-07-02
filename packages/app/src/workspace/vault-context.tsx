@@ -24,6 +24,19 @@ import {
   type VaultEditorState,
   type VaultIO,
 } from "@repo/app/editor/vault-editor";
+import {
+  EMPTY_SESSION,
+  activateTab as activateTabPure,
+  closeTab as closeTabPure,
+  cycleTab as cycleTabPure,
+  openTab as openTabPure,
+  parseSession,
+  renameTab as renameTabPure,
+  type TabSession,
+} from "@repo/app/workspace/tab-session";
+import { useUiStateStore } from "@repo/app/stores/ui-state-store";
+import { useViewStore } from "@repo/app/stores/view-store";
+import { buildResolver } from "@repo/core/knowledge/link-resolve";
 
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.
@@ -32,9 +45,12 @@ import type { VaultEntry } from "@repo/core/ipc-registry";
 
 const AUTOSAVE_DEBOUNCE_MS = 600;
 
-// IO the editor controller acts through — thin wrappers over the bridge so the
-// controller stays bridge-agnostic and unit-testable. A missing bridge throws,
-// which the controller treats like any read/write failure.
+/** ui-state key the open-tab session persists under (restored on boot). */
+const TAB_SESSION_KEY = "workspace.tabs";
+
+// IO the editor controllers act through — thin wrappers over the bridge so the
+// controllers stay bridge-agnostic and unit-testable. A missing bridge throws,
+// which a controller treats like any read/write failure.
 const VAULT_IO: VaultIO = {
   read: (path) => {
     const bridge = getBridge();
@@ -53,29 +69,83 @@ const VAULT_IO: VaultIO = {
   },
 };
 
+// The `editor` snapshot rendered while no tab is open. Root lives at the
+// provider level (state below), so this can be a stable module constant.
+const NO_TAB_STATE: VaultEditorState = {
+  root: "",
+  path: null,
+  content: "",
+  dirty: false,
+  saving: false,
+};
+const noTabSubscribe = () => () => {};
+const getNoTabState = () => NO_TAB_STATE;
+
+/** One open tab's live machinery: its own editor controller (per-doc state),
+ * its own autosave debounce, and the vanish watcher that closes the tab when
+ * the file disappears out from under it. */
+type TabRuntime = {
+  controller: VaultEditorController;
+  saveTimer: ReturnType<typeof setTimeout> | null;
+  /** The controller has successfully loaded its path at least once — gates the
+   * vanish watcher so the initial `path: null` state doesn't close the tab. */
+  opened: boolean;
+  unsubscribe: () => void;
+};
+
+export type OpenFileOptions = {
+  /** Open in a new tab (Cmd/Ctrl-click) instead of replacing the active one. */
+  newTab?: boolean;
+};
+
 type VaultContextValue = {
-  /** Live editor session state (open file, content, dirty, saving). */
+  /** Live editor session state of the ACTIVE tab (open file, content, dirty,
+   * saving). A stable empty snapshot when no tab is open. */
   editor: VaultEditorState;
+  /** Open tabs, in strip order (vault-relative paths). */
+  tabs: readonly string[];
+  /** The active tab's path (=== editor.path once its content is loaded). */
+  activeTab: string | null;
   /** Flat listing of every file in the vault (the tree is derived from it). */
   entries: VaultEntry[];
   /** The vault root folder name (display only). */
   folderName: string;
-  /** Open a file, autosaving any pending edits first. */
-  openFile: (path: string) => void;
-  /** Record an edit to the open buffer (debounced autosave). */
+  /** Open a file: activate its existing tab, else replace the active tab
+   * (VS Code convention) — or append a new tab with `{ newTab: true }`.
+   * Any pending edits on a replaced tab are flushed first. */
+  openFile: (path: string, options?: OpenFileOptions) => void;
+  /** Close a tab, flushing its unsaved edits first (a failed flush keeps the
+   * tab open so nothing is lost). */
+  closeTab: (path: string) => void;
+  /** Make an already-open tab active. */
+  activateTab: (path: string) => void;
+  /** Ctrl+Tab / Ctrl+Shift+Tab — cycle the active tab. */
+  cycleTab: (delta: 1 | -1) => void;
+  /** Subscribe to one tab's controller (dirty-dot rendering). Fires on every
+   * state change of that tab; returns an unsubscribe. */
+  subscribeTab: (path: string, listener: () => void) => () => void;
+  /** Whether a tab has unsaved edits (read inside a subscribeTab store). */
+  isTabDirty: (path: string) => boolean;
+  /** Record an edit to the active tab's buffer (debounced autosave). */
   onEdit: (content: string) => void;
   /** Create a file at `path` (e.g. "folder/note.md") and open it. */
   createFile: (path: string) => Promise<void>;
+  /** Create an empty file WITHOUT opening it (wiki create-on-complete). An
+   * existing file is left untouched and counts as success. */
+  createFileAt: (path: string) => Promise<boolean>;
   /** Rename/move the file at `from` to `to`. Resolves `false` if the rename
    * failed (so callers like the title field can roll back their UI). */
   renameEntry: (from: string, to: string) => Promise<boolean>;
-  /** Delete a file (the open one, or any path). */
+  /** Delete a file (closes its tab if open). */
   deleteEntry: (path: string) => Promise<void>;
   /** Pick a different vault folder. */
   changeFolder: () => Promise<void>;
-  /** Persist any pending edits to disk now (e.g. before delegating a checkbox).
-   * Resolves `true` once the buffer is clean, `false` if the save didn't land. */
+  /** Persist the active tab's pending edits to disk now (e.g. before
+   * delegating a checkbox). Resolves `true` once the buffer is clean. */
   flush: () => Promise<boolean>;
+  /** Resolve a wiki target (`[[target]]`) against the current file listing —
+   * the same Obsidian-style tiers the host's knowledge index uses. */
+  resolveWikiTarget: (target: string) => string | null;
 
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
@@ -106,10 +176,187 @@ export function useVault(): VaultContextValue {
 }
 
 export function VaultProvider({ children }: { children: ReactNode }) {
-  const controller = useMemo(() => new VaultEditorController(VAULT_IO), []);
-  const editor = useSyncExternalStore(controller.subscribe, controller.getState);
   const [entries, setEntries] = useState<VaultEntry[]>([]);
-  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [root, setRoot] = useState("");
+  const rootRef = useRef("");
+
+  // ---- Tab session ---------------------------------------------------------
+  // The ref is the source of truth every operation reads and writes
+  // SYNCHRONOUSLY; the state is its render mirror. Keeping mutations out of
+  // setState updaters keeps them single-shot under StrictMode's double-invoke.
+  const sessionRef = useRef<TabSession>(EMPTY_SESSION);
+  const [session, setSession] = useState<TabSession>(EMPTY_SESSION);
+  const runtimes = useRef(new Map<string, TabRuntime>());
+  // Per-tab dirty-dot subscribers (keyed by path), fed by controller emits.
+  const tabListeners = useRef(new Map<string, Set<() => void>>());
+  const setUiState = useUiStateStore((s) => s.set);
+  const uiLoaded = useUiStateStore((s) => s.loaded);
+
+  const applySession = useCallback(
+    (next: TabSession) => {
+      if (next === sessionRef.current) return;
+      sessionRef.current = next;
+      setSession(next);
+      setUiState(TAB_SESSION_KEY, { tabs: [...next.tabs], active: next.active });
+    },
+    [setUiState],
+  );
+
+  const notifyTab = useCallback((path: string) => {
+    const listeners = tabListeners.current.get(path);
+    if (listeners) for (const fn of listeners) fn();
+  }, []);
+
+  const disposeRuntime = useCallback((path: string) => {
+    const runtime = runtimes.current.get(path);
+    if (!runtime) return;
+    if (runtime.saveTimer) clearTimeout(runtime.saveTimer);
+    runtime.unsubscribe();
+    runtimes.current.delete(path);
+  }, []);
+
+  /** Drop a tab without flushing — the file is already gone (external delete,
+   * unreadable restore) or explicitly deleted. */
+  const dropTab = useCallback(
+    (path: string) => {
+      disposeRuntime(path);
+      applySession(closeTabPure(sessionRef.current, path));
+    },
+    [applySession, disposeRuntime],
+  );
+  const dropTabRef = useRef(dropTab);
+  dropTabRef.current = dropTab;
+
+  /** Create (if needed) the runtime for a tab and start loading its file. */
+  const ensureRuntime = useCallback(
+    (path: string): TabRuntime => {
+      const existing = runtimes.current.get(path);
+      if (existing) return existing;
+      const controller = new VaultEditorController(VAULT_IO);
+      controller.setRoot(rootRef.current);
+      const runtime: TabRuntime = {
+        controller,
+        saveTimer: null,
+        opened: false,
+        unsubscribe: () => {},
+      };
+      runtime.unsubscribe = controller.subscribe(() => {
+        const st = controller.getState();
+        if (st.path === path) runtime.opened = true;
+        // The file vanished under an open tab (deleted externally / removed) —
+        // its tab closes rather than lingering over nothing.
+        else if (runtime.opened && st.path === null) dropTabRef.current(path);
+        notifyTab(path);
+      });
+      runtimes.current.set(path, runtime);
+      void controller.open(path).then(() => {
+        // Unreadable on first load (e.g. a restored tab whose file is gone) —
+        // the tab never held content, so it silently closes.
+        if (controller.getState().path !== path) dropTabRef.current(path);
+        return undefined;
+      });
+      return runtime;
+    },
+    [notifyTab],
+  );
+
+  /** Flush one tab's pending edits (clearing its debounce). True when clean. */
+  const flushTab = useCallback(async (path: string): Promise<boolean> => {
+    const runtime = runtimes.current.get(path);
+    if (!runtime) return true;
+    if (runtime.saveTimer) {
+      clearTimeout(runtime.saveTimer);
+      runtime.saveTimer = null;
+    }
+    await runtime.controller.flush();
+    return !runtime.controller.getState().dirty;
+  }, []);
+
+  const openFile = useCallback(
+    (path: string, options?: OpenFileOptions) => {
+      void (async () => {
+        // Navigation always lands on the editor surface — opening a note from
+        // the graph, palette, or a wiki chip must show the note, not stay on
+        // whatever surface was up.
+        useViewStore.getState().setSurface("editor");
+        const current = sessionRef.current;
+        if (current.tabs.includes(path)) {
+          applySession(activateTabPure(current, path));
+          return;
+        }
+        const mode = options?.newTab ? "new" : "replace";
+        // A plain open replaces the active tab — flush it first, and refuse to
+        // navigate away from edits that won't save (same contract as before).
+        const leaving = mode === "replace" ? current.active : null;
+        if (leaving !== null && !(await flushTab(leaving))) {
+          toast.error("Couldn't save the current file — resolve that before switching.");
+          return;
+        }
+        const next = openTabPure(sessionRef.current, path, mode);
+        for (const tab of sessionRef.current.tabs) {
+          if (!next.tabs.includes(tab)) disposeRuntime(tab); // replaced (already flushed)
+        }
+        ensureRuntime(path);
+        applySession(next);
+      })();
+    },
+    [applySession, disposeRuntime, ensureRuntime, flushTab],
+  );
+
+  const closeTab = useCallback(
+    (path: string) => {
+      void (async () => {
+        if (!sessionRef.current.tabs.includes(path)) return;
+        // Closing a dirty tab flushes; a failed flush keeps the tab open so
+        // the edits aren't dropped on the floor.
+        if (!(await flushTab(path))) {
+          toast.error("Couldn't save the file — resolve that before closing its tab.");
+          return;
+        }
+        disposeRuntime(path);
+        applySession(closeTabPure(sessionRef.current, path));
+      })();
+    },
+    [applySession, disposeRuntime, flushTab],
+  );
+
+  const activateTab = useCallback(
+    (path: string) => {
+      useViewStore.getState().setSurface("editor");
+      applySession(activateTabPure(sessionRef.current, path));
+    },
+    [applySession],
+  );
+
+  const cycleTab = useCallback(
+    (delta: 1 | -1) => applySession(cycleTabPure(sessionRef.current, delta)),
+    [applySession],
+  );
+
+  const subscribeTab = useCallback((path: string, listener: () => void) => {
+    let set = tabListeners.current.get(path);
+    if (!set) {
+      set = new Set();
+      tabListeners.current.set(path, set);
+    }
+    set.add(listener);
+    return () => {
+      set.delete(listener);
+      if (set.size === 0) tabListeners.current.delete(path);
+    };
+  }, []);
+
+  const isTabDirty = useCallback((path: string): boolean => {
+    return runtimes.current.get(path)?.controller.getState().dirty ?? false;
+  }, []);
+
+  // ---- Active-tab editor state ---------------------------------------------
+  const activeRuntime = session.active !== null ? runtimes.current.get(session.active) : undefined;
+  const activeController = activeRuntime?.controller ?? null;
+  const editor = useSyncExternalStore(
+    activeController ? activeController.subscribe : noTabSubscribe,
+    activeController ? activeController.getState : getNoTabState,
+  );
 
   // Ordering token so overlapping list calls (initial load + onVaultChanged, or
   // rapid vault events) can't land out of order — only the latest applies.
@@ -128,31 +375,40 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     })();
   }, []);
 
-  const cancelTimer = useCallback(() => {
-    if (saveTimer.current) {
-      clearTimeout(saveTimer.current);
-      saveTimer.current = null;
-    }
+  const onEdit = useCallback((next: string) => {
+    const active = sessionRef.current.active;
+    const runtime = active !== null ? runtimes.current.get(active) : undefined;
+    if (!runtime) return;
+    runtime.controller.edit(next);
+    if (runtime.saveTimer) clearTimeout(runtime.saveTimer);
+    runtime.saveTimer = setTimeout(() => {
+      runtime.saveTimer = null;
+      void runtime.controller.flush();
+    }, AUTOSAVE_DEBOUNCE_MS);
   }, []);
 
-  const onEdit = useCallback(
-    (next: string) => {
-      controller.edit(next);
-      cancelTimer();
-      saveTimer.current = setTimeout(() => void controller.flush(), AUTOSAVE_DEBOUNCE_MS);
+  const createFileAt = useCallback(
+    async (rawPath: string): Promise<boolean> => {
+      const trimmed = rawPath.trim();
+      if (!trimmed) return false;
+      const path = /\.[a-z0-9]+$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
+      const bridge = getBridge();
+      if (!bridge) return false;
+      // Don't truncate an existing file — it already satisfies "exists".
+      const exists = await bridge
+        .readVaultDoc({ path })
+        .then(() => true)
+        .catch(() => false);
+      if (exists) return true;
+      const created = await bridge
+        .writeVaultDoc({ path, content: "" })
+        .then(() => true)
+        .catch(() => false);
+      if (created) refreshList();
+      else toast.error(`Couldn't create ${path}.`);
+      return created;
     },
-    [controller, cancelTimer],
-  );
-
-  const openFile = useCallback(
-    (path: string) => {
-      cancelTimer();
-      void controller.open(path).then((opened) => {
-        if (!opened) toast.error("Couldn't save the current file — resolve that before switching.");
-        return undefined;
-      });
-    },
-    [cancelTimer, controller],
+    [refreshList],
   );
 
   const createFile = useCallback(
@@ -160,35 +416,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const trimmed = rawPath.trim();
       if (!trimmed) return;
       const path = /\.[a-z0-9]+$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
-      const bridge = getBridge();
-      if (!bridge) return;
-      cancelTimer();
-      await controller.flush();
-      if (controller.getState().dirty) {
-        toast.error("Couldn't save the current file — resolve that before creating another.");
-        return;
-      }
-      // Don't truncate an existing file — open it instead (disk truth via read).
-      const exists = await bridge
-        .readVaultDoc({ path })
-        .then(() => true)
-        .catch(() => false);
-      if (exists) {
-        openFile(path);
-        return;
-      }
-      const created = await bridge
-        .writeVaultDoc({ path, content: "" })
-        .then(() => true)
-        .catch(() => false);
-      if (!created) {
-        toast.error(`Couldn't create ${path}.`);
-        return;
-      }
-      refreshList();
-      openFile(path);
+      if (await createFileAt(path)) openFile(path);
     },
-    [cancelTimer, controller, openFile, refreshList],
+    [createFileAt, openFile],
   );
 
   const renameEntry = useCallback(
@@ -198,47 +428,64 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const bridge = getBridge();
       if (!bridge) return false;
       // Flush first so an in-flight write of `from` can't recreate it post-move.
-      cancelTimer();
-      await controller.flush();
-      if (controller.getState().dirty) {
-        // Save failed — don't move a file out from under unsaved edits.
-        toast.error("Couldn't save the current file — resolve that before renaming.");
+      if (!(await flushTab(from))) {
+        toast.error("Couldn't save the file — resolve that before renaming.");
         return false;
       }
+      // Dispose `from`'s runtime BEFORE the bridge call: the rename's
+      // vault-changed broadcast otherwise races the remap below — the old
+      // controller reloads the now-missing source path, lands on path: null,
+      // and the vanish watcher closes the very tab we're carrying over.
+      const wasOpen = sessionRef.current.tabs.includes(from);
+      if (wasOpen) disposeRuntime(from);
       const result = await bridge.renameVaultEntry({ from, to: dest }).catch(() => null);
       if (!result || !result.ok) {
         toast.error(result?.ok === false ? result.error : "Couldn't rename the file.");
+        // The file never moved — re-attach a controller to the still-open tab.
+        if (wasOpen && sessionRef.current.tabs.includes(from)) ensureRuntime(from);
         return false;
       }
       refreshList();
-      // Re-open under the new path if the renamed file was the open one.
-      if (controller.getState().path === from) openFile(dest);
+      // Carry the tab to the new path: same strip position, fresh controller
+      // reading the moved file (the old one was flushed + disposed above).
+      if (sessionRef.current.tabs.includes(from)) {
+        const next = renameTabPure(sessionRef.current, from, dest);
+        ensureRuntime(dest);
+        applySession(next);
+      }
       return true;
     },
-    [cancelTimer, controller, openFile, refreshList],
+    [applySession, disposeRuntime, ensureRuntime, flushTab, refreshList],
   );
 
   const deleteEntry = useCallback(
     async (path: string) => {
-      const bridge = getBridge();
-      if (!bridge) return;
-      if (controller.getState().path === path) {
-        cancelTimer();
-        await controller.remove();
+      const runtime = runtimes.current.get(path);
+      if (runtime) {
+        if (runtime.saveTimer) {
+          clearTimeout(runtime.saveTimer);
+          runtime.saveTimer = null;
+        }
+        // remove() emits path:null, which the vanish watcher turns into a
+        // dropped tab; the explicit drop below is an idempotent backstop.
+        await runtime.controller.remove();
+        dropTab(path);
       } else {
+        const bridge = getBridge();
+        if (!bridge) return;
         await bridge.deleteVaultEntry({ path }).catch(() => undefined);
       }
       refreshList();
     },
-    [cancelTimer, controller, refreshList],
+    [dropTab, refreshList],
   );
 
   const changeFolder = useCallback(async () => {
-    cancelTimer();
-    await controller.flush();
-    if (controller.getState().dirty) {
-      toast.error("Couldn't save the current file — resolve that before switching folders.");
-      return;
+    for (const path of sessionRef.current.tabs) {
+      if (!(await flushTab(path))) {
+        toast.error("Couldn't save every open file — resolve that before switching folders.");
+        return;
+      }
     }
     const bridge = getBridge();
     if (!bridge) return;
@@ -249,61 +496,108 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       return;
     }
     if ("root" in result) {
-      controller.setRoot(result.root);
-      controller.clear();
+      rootRef.current = result.root;
+      setRoot(result.root);
+      // disposeRuntime only deletes the key being visited — safe mid-iteration.
+      for (const path of runtimes.current.keys()) disposeRuntime(path);
+      applySession(EMPTY_SESSION);
       refreshList();
     }
-  }, [cancelTimer, controller, refreshList]);
+  }, [applySession, disposeRuntime, flushTab, refreshList]);
 
   const flush = useCallback(async (): Promise<boolean> => {
-    cancelTimer();
-    await controller.flush();
-    return !controller.getState().dirty;
-  }, [cancelTimer, controller]);
+    const active = sessionRef.current.active;
+    return active === null ? true : flushTab(active);
+  }, [flushTab]);
 
   // Initial load: adopt the root + list files.
   useEffect(() => {
     getBridge()
       ?.getVaultRoot()
-      .then((root) => {
-        controller.setRoot(root);
+      .then((r) => {
+        rootRef.current = r;
+        setRoot(r);
+        for (const runtime of runtimes.current.values()) runtime.controller.setRoot(r);
         return undefined;
       })
       .catch(() => {});
     refreshList();
-  }, [controller, refreshList]);
+  }, [refreshList]);
 
-  // Live updates: hand every vault-changed broadcast to the controller (reload
-  // or drop the open file) and re-list the tree.
+  // Restore the persisted tab session once ui-state has loaded — but never
+  // over tabs the user already opened while it was loading.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!uiLoaded || restored.current) return;
+    restored.current = true;
+    if (sessionRef.current.tabs.length > 0) return;
+    const stored = parseSession(useUiStateStore.getState().values[TAB_SESSION_KEY]);
+    if (!stored || stored.tabs.length === 0) return;
+    for (const path of stored.tabs) ensureRuntime(path);
+    sessionRef.current = stored;
+    setSession(stored);
+  }, [uiLoaded, ensureRuntime]);
+
+  // Live updates: hand every vault-changed broadcast to every tab's controller
+  // (reload or drop) and re-list the tree. A real root switch drops all tabs —
+  // their relative paths belong to the old vault.
   useEffect(() => {
     const bridge = getBridge();
     if (!bridge) return;
-    return bridge.onVaultChanged(({ root }) => {
-      controller.externalChange(root);
+    return bridge.onVaultChanged(({ root: nextRoot }) => {
+      const switched = rootRef.current !== "" && nextRoot !== rootRef.current;
+      rootRef.current = nextRoot;
+      setRoot(nextRoot);
+      if (switched) {
+        for (const path of runtimes.current.keys()) disposeRuntime(path);
+        applySession(EMPTY_SESSION);
+      } else {
+        for (const runtime of runtimes.current.values()) {
+          runtime.controller.externalChange(nextRoot);
+        }
+      }
       refreshList();
     });
-  }, [controller, refreshList]);
+  }, [applySession, disposeRuntime, refreshList]);
 
   // Persist on unmount so a change within the debounce window isn't lost.
-  useEffect(() => () => void controller.flush(), [controller]);
+  useEffect(
+    () => () => {
+      for (const runtime of runtimes.current.values()) void runtime.controller.flush();
+    },
+    [],
+  );
 
   // Expose the flush + open-note path to non-React callers (the voice transcript
   // path) so a dictated turn persists the open note AND tags the agent with which
   // file "this note" means — same as the typed composer. The path getter reads
-  // the controller live, so it stays correct without re-registering per open.
+  // the live session, so it stays correct without re-registering per open.
   useEffect(() => {
     registerOpenNoteFlush(flush);
-    registerOpenNotePath(() => controller.getState().path);
+    registerOpenNotePath(() => {
+      const active = sessionRef.current.active;
+      return active !== null
+        ? (runtimes.current.get(active)?.controller.getState().path ?? null)
+        : null;
+    });
     return () => {
       registerOpenNoteFlush(null);
       registerOpenNotePath(null);
     };
-  }, [flush, controller]);
+  }, [flush]);
 
   const folderName = useMemo(() => {
-    const root = editor.root.replace(/[/\\]+$/, "");
-    return root.split(/[/\\]/).pop() ?? root;
-  }, [editor.root]);
+    const cleaned = root.replace(/[/\\]+$/, "");
+    return cleaned.split(/[/\\]/).pop() ?? cleaned;
+  }, [root]);
+
+  // Wiki resolution over the live listing — same engine as the host's index,
+  // so chips and the knowledge channels agree on what resolves.
+  const resolver = useMemo(() => buildResolver(entries.map((e) => e.path)), [entries]);
+  const resolveWikiTarget = useCallback(
+    (target: string) => resolver.resolveWiki(target),
+    [resolver],
+  );
 
   // ---- Editor view (mode + canonicality) ----------------------------------
   const isMarkdownOpen = editor.path !== null && MARKDOWN_RE.test(editor.path);
@@ -358,15 +652,24 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const value = useMemo<VaultContextValue>(
     () => ({
       editor,
+      tabs: session.tabs,
+      activeTab: session.active,
       entries,
       folderName,
       openFile,
+      closeTab,
+      activateTab,
+      cycleTab,
+      subscribeTab,
+      isTabDirty,
       onEdit,
       createFile,
+      createFileAt,
       renameEntry,
       deleteEntry,
       changeFolder,
       flush,
+      resolveWikiTarget,
       isMarkdownOpen,
       canonical: analysis.canonical,
       richSafe: analysis.richSafe,
@@ -377,15 +680,23 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     }),
     [
       editor,
+      session,
       entries,
       folderName,
       openFile,
+      closeTab,
+      activateTab,
+      cycleTab,
+      subscribeTab,
+      isTabDirty,
       onEdit,
       createFile,
+      createFileAt,
       renameEntry,
       deleteEntry,
       changeFolder,
       flush,
+      resolveWikiTarget,
       isMarkdownOpen,
       analysis,
       mode,

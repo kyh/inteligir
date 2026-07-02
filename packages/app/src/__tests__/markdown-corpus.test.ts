@@ -54,6 +54,11 @@ const EXPECTED: Record<string, Classification> = {
   "math-and-diagrams.md": "canonical",
   "wiki/hub.md": "canonical",
   "wiki/target note.md": "canonical",
+  // Phase F knowledge notes — the interlinked wiki cluster + transclusion
+  // sampler; canonical so knowledge surfaces demo on Rich-mode files.
+  "wiki/ideas.md": "canonical",
+  "wiki/projects.md": "canonical",
+  "wiki/digest.md": "canonical",
 };
 
 const CORPUS: Record<string, string> = { ...REPO_DOCS, ...SAMPLE_NOTES };

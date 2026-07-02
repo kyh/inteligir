@@ -38,6 +38,7 @@
     "@repo/ui": "workspace:^",
     "@sinclair/typebox": "catalog:",
     "ai": "^6.0.191",
+    "d3-force": "^3.0.0",
     "katex": "^0.16.22",
     "lowlight": "^3.3.0",
     "lucide-react": "catalog:",
@@ -62,6 +63,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "catalog:",
+    "@types/d3-force": "^3.0.10",
     "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

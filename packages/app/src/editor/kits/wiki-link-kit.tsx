@@ -1,18 +1,23 @@
 // Wiki-link kit: inline-void nodes for [[target]] / [[target|alias]] /
 // ![[embed]]. Node shape: { type, body, children:[{text:""}] } with `body`
-// verbatim (round-trip contract lives in @repo/core/markdown/remark-wiki-link). The
-// React half renders non-navigating chips (resolution/backlinks/autocomplete
-// are Phase F) and adds the `]]` input rule: without it, typed `[[Note]]`
-// would stay plain text and the serializer would escape it to `\[\[Note]]`
-// on save — the flagship syntax would self-destruct.
+// verbatim (round-trip contract lives in @repo/core/markdown/remark-wiki-link).
+// The React half renders navigating chips (wiki-chip.tsx) and transclusion
+// cards (transclusion.tsx) — both behind React.lazy, because they reach into
+// vault-context and an eager import from this file (which base-kit composes)
+// would close an import cycle around the kit files. It also adds the `]]`
+// input rule: without it, typed `[[Note]]` would stay plain text and the
+// serializer would escape it to `\[\[Note]]` on save — the flagship syntax
+// would self-destruct.
 
+import { Suspense, lazy } from "react";
 import { KEYS, NodeApi, TextApi, createSlatePlugin, type SlateEditor } from "platejs";
 import { PlateElement, type PlateElementProps } from "platejs/react";
 
-import { cn } from "@repo/ui/lib/utils";
-
 import { insertVoidAndEscape } from "@repo/app/editor/insert-void";
 import { parseWikiBody } from "@repo/core/markdown/remark-wiki-link";
+
+const WikiChip = lazy(() => import("@repo/app/editor/wiki-chip"));
+const Transclusion = lazy(() => import("@repo/app/editor/transclusion"));
 
 const wikiLinkBasePlugin = createSlatePlugin({
   key: "wikiLink",
@@ -37,15 +42,33 @@ function chipLabel(body: unknown): string {
   return parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target;
 }
 
+// The pre-hydration fallback chip (also what a chip looks like while the lazy
+// module streams in) — inert, but visually identical to a resolved chip.
+function FallbackChip({ body, embed }: { body: unknown; embed?: boolean }) {
+  return (
+    <span
+      contentEditable={false}
+      className="cursor-default rounded-sm bg-primary/10 px-1 text-primary/80"
+    >
+      {embed === true && (
+        <span className="mr-0.5 font-semibold text-primary/50 select-none">!</span>
+      )}
+      {chipLabel(body)}
+    </span>
+  );
+}
+
+function elementBody(element: PlateElementProps["element"]): string {
+  return typeof element.body === "string" ? element.body : "";
+}
+
 function WikiLinkElement(props: PlateElementProps) {
   return (
     <PlateElement {...props} as="span" className="inline-block">
-      <span
-        contentEditable={false}
-        title="Links resolve in a later phase"
-        className="cursor-default rounded-sm bg-primary/10 px-1 text-primary/80"
-      >
-        {chipLabel(props.element.body)}
+      <span contentEditable={false}>
+        <Suspense fallback={<FallbackChip body={props.element.body} />}>
+          <WikiChip body={elementBody(props.element)} />
+        </Suspense>
       </span>
       {props.children}
     </PlateElement>
@@ -54,14 +77,11 @@ function WikiLinkElement(props: PlateElementProps) {
 
 function WikiEmbedElement(props: PlateElementProps) {
   return (
-    <PlateElement {...props} as="span" className="inline-block">
-      <span
-        contentEditable={false}
-        title="Embeds resolve in a later phase"
-        className="cursor-default rounded-sm bg-primary/10 px-1 text-primary/80"
-      >
-        <span className={cn("mr-0.5 font-semibold select-none", "text-primary/50")}>!</span>
-        {chipLabel(props.element.body)}
+    <PlateElement {...props} as="span" className="inline-block w-full">
+      <span contentEditable={false} className="block w-full">
+        <Suspense fallback={<FallbackChip body={props.element.body} embed />}>
+          <Transclusion body={elementBody(props.element)} />
+        </Suspense>
       </span>
       {props.children}
     </PlateElement>
