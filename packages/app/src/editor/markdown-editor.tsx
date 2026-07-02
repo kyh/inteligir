@@ -68,6 +68,11 @@ export function MarkdownEditor({ value, onChange }: Props) {
     <Plate
       editor={editor}
       onChange={() => {
+        // Selection-only flushes (caret moves, slate-react selection
+        // re-syncs) never change bytes — skip the serialize pass and the
+        // vault-context re-render it would otherwise trigger on every caret
+        // move; per-event work stays bounded under input-event storms.
+        if (editor.operations.every((op) => op.type === "set_selection")) return;
         const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
         // Drop the echo a programmatic (re)seed produces — only real edits,
         // which diverge from the seeded text, propagate.

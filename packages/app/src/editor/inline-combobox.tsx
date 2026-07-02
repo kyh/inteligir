@@ -27,6 +27,7 @@ import { useComposedRef, useEditorRef, useSelected } from "platejs/react";
 import { cn } from "@repo/ui/lib/utils";
 
 import {
+  absorbRacedComboboxText,
   cancelComboboxInput,
   commitComboboxInput,
   racedComboboxText,
@@ -137,17 +138,22 @@ function InlineCombobox({
     [editor, element],
   );
 
-  // Focus the input and absorb keystrokes that raced into the element's
-  // hidden text child before the input existed (read-only on the document —
-  // the bytes leave with the element on commit/cancel).
-  const absorbedRef = React.useRef(false);
   React.useEffect(() => {
     inputRef.current?.focus();
-    if (absorbedRef.current) return;
-    absorbedRef.current = true;
-    const raced = racedComboboxText(element);
-    if (raced.length > 0) setValue(raced + valueRef.current);
-  }, [element, setValue]);
+  }, []);
+
+  // Keystrokes race into the element's hidden text child whenever they beat
+  // the input's focus (trigger→mount window, or a focus round-trip). The
+  // element prop re-renders on every Slate change, so this absorbs each
+  // batch as it lands: prepend to the query (raced chars were typed first)
+  // and clear the slate bytes (they'd render after the input — visible
+  // reordering — and double-absorb otherwise).
+  const raced = racedComboboxText(element);
+  React.useEffect(() => {
+    if (closedRef.current || raced.length === 0) return;
+    const absorbed = absorbRacedComboboxText(editor, element);
+    if (absorbed.length > 0) setValue(absorbed + valueRef.current);
+  }, [raced, editor, element, setValue]);
 
   // Clicking elsewhere in the note moves the Slate selection off the element
   // while it is still mounted — cancel and restore the typed text.

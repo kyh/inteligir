@@ -31,11 +31,32 @@ function elementPath(editor: SlateEditor, element: TElement): Path | null {
 /**
  * Text that landed inside the trigger element's hidden text child during the
  * insert→focus race window (keystrokes between the trigger keydown and the
- * HTML input receiving focus). The input absorbs it into its value on mount;
- * the bytes leave the document when the element is removed on commit/cancel.
+ * HTML input receiving focus). The input absorbs it into its value; the
+ * bytes leave the document when the element is removed on commit/cancel.
  */
 export function racedComboboxText(element: TElement): string {
   return NodeApi.string(element);
+}
+
+/**
+ * Read AND clear the raced text (it renders after the input otherwise —
+ * visible reordering). Returns the absorbed text; the caller prepends it to
+ * the input value. Safe when the element is already gone.
+ */
+export function absorbRacedComboboxText(editor: SlateEditor, element: TElement): string {
+  const raced = NodeApi.string(element);
+  if (raced.length === 0) return "";
+  const path = editor.api.findPath(element);
+  if (path) {
+    editor.tf.delete({
+      at: {
+        anchor: { offset: 0, path: [...path, 0] },
+        focus: { offset: raced.length, path: [...path, 0] },
+      },
+      voids: true,
+    });
+  }
+  return raced;
 }
 
 /**

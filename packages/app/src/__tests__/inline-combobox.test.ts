@@ -11,6 +11,7 @@ import { ElementApi, KEYS, createSlateEditor, type TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
 
 import {
+  absorbRacedComboboxText,
   cancelComboboxInput,
   commitComboboxInput,
   racedComboboxText,
@@ -137,19 +138,28 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
   it("absorbs keystrokes that raced into the element's hidden text child", () => {
     const editor = makeEditor("");
     const element = openCombobox(editor, ":", KEYS.emojiInput);
-    // A fast keystroke landing before the HTML input mounts goes into the
-    // void's text child; the input's mount effect reads it via
-    // racedComboboxText and prepends it to the query.
+    // A fast keystroke landing before the HTML input has focus goes into the
+    // void's text child; the input absorbs it (read + clear) and prepends it
+    // to the query.
     const path = editor.api.findPath(element);
     if (!path) throw new Error("element path missing");
     editor.tf.select({ offset: 0, path: [...path, 0] });
     editor.tf.insertText("t", { voids: true });
     const raced = findByType(editor, KEYS.emojiInput);
     expect(raced ? racedComboboxText(raced) : "").toBe("t");
-    // The raced bytes leave with the element on cancel; the restore text (the
-    // component passes trigger + absorbed value) carries them instead.
     if (!raced) throw new Error("element missing");
-    cancelComboboxInput(editor, raced, { cause: "escape", restoreText: ":tada" });
+    expect(absorbRacedComboboxText(editor, raced)).toBe("t");
+    // Cleared: no leftover bytes to render after the input or double-absorb.
+    const cleared = findByType(editor, KEYS.emojiInput);
+    expect(cleared ? racedComboboxText(cleared) : "?").toBe("");
+    // Cancel restores trigger + absorbed value; undo spam stays safe.
+    if (!cleared) throw new Error("element missing");
+    cancelComboboxInput(editor, cleared, { cause: "escape", restoreText: ":tada" });
+    expect(out(editor)).toBe(":tada\n");
+    expect(() => {
+      for (let i = 0; i < 10; i++) editor.undo();
+      for (let i = 0; i < 10; i++) editor.redo();
+    }).not.toThrow();
     expect(out(editor)).toBe(":tada\n");
   });
 });
