@@ -207,9 +207,6 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.16.0(react@19.2.6)
-      mdast-util-from-markdown:
-        specifier: ^2.0.3
-        version: 2.0.3
       mdast-util-gfm-task-list-item:
         specifier: ^2.0.0
         version: 2.0.0
@@ -283,9 +280,6 @@ importers:
       '@vitejs/plugin-react':
         specifier: 'catalog:'
         version: 6.0.2(babel-plugin-react-compiler@1.0.0)(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.44.1)(tsx@4.22.3)(yaml@2.9.0))
-      micromark-util-types:
-        specifier: ^2.0.2
-        version: 2.0.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -329,7 +323,34 @@ importers:
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.49
+      remark-frontmatter:
+        specifier: ^5.0.0
+        version: 5.0.0
+      remark-gfm:
+        specifier: ^4.0.1
+        version: 4.0.1
+      remark-parse:
+        specifier: ^11.0.0
+        version: 11.0.0
+      unified:
+        specifier: ^11.0.5
+        version: 11.0.5
     devDependencies:
+      '@types/mdast':
+        specifier: ^4.0.4
+        version: 4.0.4
+      mdast-util-from-markdown:
+        specifier: ^2.0.3
+        version: 2.0.3
+      mdast-util-to-markdown:
+        specifier: ^2.1.2
+        version: 2.1.2
+      micromark-util-types:
+        specifier: ^2.0.2
+        version: 2.0.2
+      remark-stringify:
+        specifier: ^11.0.0
+        version: 11.0.0
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -12061,9 +12082,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
     optional: true
 
   '@react-native/normalize-colors@0.85.3':

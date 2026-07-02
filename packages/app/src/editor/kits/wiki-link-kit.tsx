@@ -1,6 +1,6 @@
 // Wiki-link kit: inline-void nodes for [[target]] / [[target|alias]] /
 // ![[embed]]. Node shape: { type, body, children:[{text:""}] } with `body`
-// verbatim (round-trip contract lives in markdown/remark-wiki-link). The
+// verbatim (round-trip contract lives in @repo/core/markdown/remark-wiki-link). The
 // React half renders non-navigating chips (resolution/backlinks/autocomplete
 // are Phase F) and adds the `]]` input rule: without it, typed `[[Note]]`
 // would stay plain text and the serializer would escape it to `\[\[Note]]`
@@ -12,7 +12,7 @@ import { PlateElement, type PlateElementProps } from "platejs/react";
 import { cn } from "@repo/ui/lib/utils";
 
 import { insertVoidAndEscape } from "@repo/app/editor/insert-void";
-import { parseWikiBody } from "@repo/app/editor/markdown/remark-wiki-link";
+import { parseWikiBody } from "@repo/core/markdown/remark-wiki-link";
 
 const wikiLinkBasePlugin = createSlatePlugin({
   key: "wikiLink",
