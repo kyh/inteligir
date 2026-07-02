@@ -20,6 +20,10 @@ export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
 // lowlight powers code-block syntax highlighting (`common` = ~35 popular
 // languages; the token classes are styled by the `.hljs-*` theme in styles.css).
 const lowlight = createLowlight(common);
+// Fence languages we render but lowlight doesn't ship grammars for — alias to
+// plaintext (no tokens) so CodeSyntaxPlugin stops logging "not registered" on
+// every mermaid/math note.
+lowlight.registerAlias("plaintext", ["mermaid", "math"]);
 
 const PRE_CLASS =
   "my-1 overflow-x-auto rounded-md bg-muted px-4 py-3 font-mono text-sm leading-normal [tab-size:2]";

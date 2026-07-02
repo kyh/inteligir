@@ -308,48 +308,52 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // ---- Editor view (mode + canonicality) ----------------------------------
   const isMarkdownOpen = editor.path !== null && MARKDOWN_RE.test(editor.path);
   const [mode, setMode] = useState<"raw" | "rich">("raw");
-  const [analysis, setAnalysis] = useState<ReturnType<typeof analyzeMarkdown>>({
-    canonical: false,
-    rawReason: null,
-    richSafe: false,
+  // Analysis is derived state kept in LOCKSTEP with (path, content) within a
+  // single render — the state-adjustment-during-render pattern. Recomputing in
+  // an effect committed one frame where a freshly opened Raw-only file still
+  // wore the PREVIOUS file's richSafe: the rich editor mounted against
+  // unparseable bytes (console error + a throwaway editor instance) before
+  // the effect corrected the gate. Adjusting state during render re-renders
+  // before any child mounts, so the gate and the content can never disagree.
+  const [analyzed, setAnalyzed] = useState<{
+    analysis: ReturnType<typeof analyzeMarkdown>;
+    content: string;
+    path: string | null;
+  }>({
+    analysis: { canonical: false, rawReason: null, richSafe: false },
+    content: "",
+    path: null,
   });
-  // The mode (raw/rich) is the user's choice and is picked once per file open.
-  // `richSafe`/`canonical` still recompute on every content change (badges +
-  // the `showRich` gate), but the *mode* must not be re-derived afterward — a
-  // post-save flush (dirty→false, content unchanged) and an external/agent
-  // reload of the same file would otherwise yank the user out of the surface
-  // they picked. We track the path the mode was last chosen for to tell a real
-  // file switch from those same-file re-runs.
-  const modeChosenForPath = useRef<string | null>(null);
-  useEffect(() => {
-    if (editor.path === null || !MARKDOWN_RE.test(editor.path)) {
-      setMode("raw");
-      setAnalysis({ canonical: false, rawReason: null, richSafe: false });
-      modeChosenForPath.current = editor.path;
-      return;
-    }
-    if (editor.dirty) return;
-    // One parse+serialize pass per content change for byte-canonical files
-    // (plus a bounded fixpoint probe otherwise — the old isRichSafe +
-    // isCanonical pair always ran two full round-trips).
-    const next = analyzeMarkdown(editor.content);
-    setAnalysis(next);
-    // Choose the surface only when a different file opened. (`showRich` also
-    // requires `richSafe`, so a file that turns non-rich-safe out from under us
-    // still falls back to raw regardless of the retained `mode`.)
-    if (modeChosenForPath.current !== editor.path) {
-      setMode(next.richSafe ? "rich" : "raw");
-      modeChosenForPath.current = editor.path;
-    }
-  }, [editor.path, editor.content, editor.dirty]);
+  // While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
+  // intentionally retained — one parse+serialize pass per SAVED content change
+  // (badges + the `showRich` gate), not per keystroke.
+  const pathChanged = analyzed.path !== editor.path;
+  if ((pathChanged || analyzed.content !== editor.content) && !editor.dirty) {
+    const analysis = isMarkdownOpen
+      ? analyzeMarkdown(editor.content)
+      : { canonical: false, rawReason: null, richSafe: false };
+    setAnalyzed({ analysis, content: editor.content, path: editor.path });
+    // The mode (raw/rich) is the user's choice, picked once per file open — a
+    // post-save flush (dirty→false, content unchanged) and an external/agent
+    // reload of the same file must not yank the user out of the surface they
+    // picked. (`showRich` also requires `richSafe`, so a file that turns
+    // non-rich-safe out from under us still falls back to raw regardless.)
+    if (pathChanged) setMode(analysis.richSafe ? "rich" : "raw");
+  }
+  const analysis = analyzed.analysis;
 
   const formatDoc = useCallback(() => {
     // Only reachable when the header offered Format (parse+scan ok, not
     // canonical) — toCanonical throws on unparseable content by contract.
-    onEdit(toCanonical(editor.content));
-    setAnalysis({ canonical: true, rawReason: null, richSafe: true });
+    const canonical = toCanonical(editor.content);
+    onEdit(canonical);
+    setAnalyzed({
+      analysis: { canonical: true, rawReason: null, richSafe: true },
+      content: canonical,
+      path: editor.path,
+    });
     setMode("rich");
-  }, [onEdit, editor.content]);
+  }, [onEdit, editor.content, editor.path]);
 
   const value = useMemo<VaultContextValue>(
     () => ({
