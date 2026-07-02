@@ -26,6 +26,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@repo/app/lib/bridge";
 import { BASE_KIT } from "@repo/app/editor/kits/base-kit";
+import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/app/editor/kits/table-kit";
 import { parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 import {
   decideTransclusion,
@@ -138,6 +139,27 @@ function FrontmatterStatic(props: SlateElementProps) {
   );
 }
 
+// Tables: the default static renderer is a bare <div> per node, which
+// flattens a transcluded table into stacked lines (#376). Mirror the live
+// table-kit markup — table > tbody > tr > td/th, same cell classes.
+function TableStatic(props: SlateElementProps) {
+  return (
+    <SlateElement {...props} as="table" className="my-1 w-auto border-collapse text-sm">
+      <tbody>{props.children}</tbody>
+    </SlateElement>
+  );
+}
+
+function TableRowStatic(props: SlateElementProps) {
+  return <SlateElement {...props} as="tr" />;
+}
+
+function tableCellStatic(as: "td" | "th", className: string) {
+  return function TableCellStatic(props: SlateElementProps) {
+    return <SlateElement {...props} as={as} className={className} />;
+  };
+}
+
 const STATIC_COMPONENTS: Record<string, (props: SlateElementProps) => ReactNode> = {
   a: LinkStatic,
   date: DateStatic,
@@ -147,6 +169,10 @@ const STATIC_COMPONENTS: Record<string, (props: SlateElementProps) => ReactNode>
   media_embed: MediaStatic,
   file: MediaStatic,
   frontmatter: FrontmatterStatic,
+  table: TableStatic,
+  tr: TableRowStatic,
+  td: tableCellStatic("td", TABLE_CELL_CLASS),
+  th: tableCellStatic("th", TABLE_HEADER_CELL_CLASS),
   wikiLink: WikiLinkStatic,
   wikiEmbed: WikiEmbedStatic,
 };
@@ -294,7 +320,7 @@ export default function Transclusion({ body }: { body: string }) {
           {title}
         </button>
       </span>
-      <span className="block px-3 py-2 text-sm">
+      <span className="block overflow-x-auto px-3 py-2 text-sm">
         {content.status === "loading" || innerScope === null ? (
           <span className="text-muted-foreground italic">Loading…</span>
         ) : (
