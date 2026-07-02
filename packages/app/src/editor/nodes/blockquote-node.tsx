@@ -1,8 +1,13 @@
 // GitHub-style alert blockquotes (`> [!NOTE] …`) render as colored callouts.
 // They stay plain blockquotes in the model, so they round-trip byte-for-byte —
-// the callout is purely presentational (the `[!TYPE]` marker stays in the
-// text). Relocated verbatim from markdown-editor.tsx in WP2; the ALERTS map is
-// shared with the `<callout>` compat renderer (callout-node.tsx).
+// the callout is purely presentational. When the alert's first line is exactly
+// the `[!TYPE]` marker, the marker text is hidden at render behind a variant
+// title badge (icon + label) and revealed while the caret is inside the quote
+// (Obsidian live-preview convention: raw syntax shows exactly when you edit
+// that block, so the bytes stay discoverable and editable). The hiding itself
+// is a `calloutMarker` leaf decoration (kits/basic-blocks-kit.tsx) + CSS in
+// styles.css — the document model never changes. The ALERTS map is shared with
+// the `<callout>` compat renderer (callout-node.tsx).
 
 import type { ComponentType } from "react";
 import {
@@ -12,50 +17,125 @@ import {
   ShieldAlertIcon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { NodeApi } from "platejs";
-import { PlateElement, type PlateElementProps } from "platejs/react";
+import { ElementApi, KEYS, NodeApi, TextApi, type SlateEditor, type TElement } from "platejs";
+import { PlateElement, useSelected, type PlateElementProps } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
+const ALERT_VARIANTS = ["NOTE", "TIP", "IMPORTANT", "WARNING", "CAUTION"] as const;
+
+type AlertVariant = (typeof ALERT_VARIANTS)[number];
+
 const ALERTS: Record<
-  string,
-  { Icon: ComponentType<{ className?: string }>; accent: string; icon: string }
+  AlertVariant,
+  { Icon: ComponentType<{ className?: string }>; accent: string; icon: string; label: string }
 > = {
   NOTE: {
     Icon: InfoIcon,
     accent: "border-blue-500/60 bg-blue-500/[0.05]",
     icon: "text-blue-600 dark:text-blue-400",
+    label: "Note",
   },
   TIP: {
     Icon: LightbulbIcon,
     accent: "border-emerald-500/60 bg-emerald-500/[0.05]",
     icon: "text-emerald-600 dark:text-emerald-400",
+    label: "Tip",
   },
   IMPORTANT: {
     Icon: ShieldAlertIcon,
     accent: "border-violet-500/60 bg-violet-500/[0.05]",
     icon: "text-violet-600 dark:text-violet-400",
+    label: "Important",
   },
   WARNING: {
     Icon: TriangleAlertIcon,
     accent: "border-amber-500/60 bg-amber-500/[0.05]",
     icon: "text-amber-600 dark:text-amber-400",
+    label: "Warning",
   },
   CAUTION: {
     Icon: OctagonAlertIcon,
     accent: "border-red-500/60 bg-red-500/[0.05]",
     icon: "text-red-600 dark:text-red-400",
+    label: "Caution",
   },
 };
 
+// Strict form only: the marker IS the whole first line (GitHub's alert
+// grammar). `hidden` spans the marker plus its soft break, so hiding it pulls
+// the body up to the first visible line.
+const ALERT_MARKER_RE = /^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\](?:\n|$)/i;
+
+// Legacy/loose form (`[!TIP] trailing words`): still tinted like an alert,
+// but the marker stays visible — hiding non-marker bytes would lie.
+const ALERT_LOOSE_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i;
+
+function toVariant(raw: string): AlertVariant | null {
+  const upper = raw.toUpperCase();
+  return ALERT_VARIANTS.find((variant) => variant === upper) ?? null;
+}
+
+/** Marker-line prefix of `text`, or null. `hidden` = chars to hide (marker +
+ * trailing soft break). */
+export function alertMarkerPrefix(text: string): { hidden: number; variant: AlertVariant } | null {
+  const match = ALERT_MARKER_RE.exec(text);
+  const variant = match ? toVariant(match[1] ?? "") : null;
+  if (!match || !variant) return null;
+  return { hidden: match[0].length, variant };
+}
+
+/** The badge-form marker of an alert blockquote: its first child is a
+ * paragraph whose first leaf starts with a marker-only line. The calloutMarker
+ * decoration (basic-blocks-kit.tsx) mirrors these checks through
+ * alertMarkerPrefix, so badge and hiding can never disagree. */
+function alertQuoteMarker(
+  editor: SlateEditor,
+  quote: TElement,
+): { hidden: number; variant: AlertVariant } | null {
+  const first = quote.children[0];
+  if (!ElementApi.isElement(first) || first.type !== editor.getType(KEYS.p)) return null;
+  const leaf = first.children[0];
+  if (!TextApi.isText(leaf)) return null;
+  return alertMarkerPrefix(leaf.text);
+}
+
 export function BlockquoteElement(props: PlateElementProps) {
-  const marker = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/i.exec(
-    NodeApi.string(props.element),
-  );
-  const variant = marker?.[1]?.toUpperCase();
-  const alert = variant ? ALERTS[variant] : undefined;
-  if (alert) {
-    const { Icon, accent, icon } = alert;
+  const selected = useSelected();
+  const marker = alertQuoteMarker(props.editor, props.element);
+  if (marker) {
+    const { Icon, accent, icon, label } = ALERTS[marker.variant];
+    return (
+      <PlateElement
+        {...props}
+        as="blockquote"
+        className={cn(
+          "callout-alert my-1 rounded-md border-l-[3px] py-2 pr-3 pl-4 [&>*]:my-0",
+          accent,
+          selected && "callout-editing",
+        )}
+      >
+        {/* The badge swaps with the raw marker line: hidden while editing so
+            the variant label never doubles up with its own bytes. */}
+        <div
+          contentEditable={false}
+          className={cn(
+            "flex items-center gap-1.5 py-[3px] text-[13px] leading-[1.3] font-semibold select-none",
+            icon,
+            selected && "hidden",
+          )}
+        >
+          <Icon className="size-4" />
+          {label}
+        </div>
+        {props.children}
+      </PlateElement>
+    );
+  }
+  const loose = ALERT_LOOSE_RE.exec(NodeApi.string(props.element));
+  const looseVariant = loose ? toVariant(loose[1] ?? "") : null;
+  if (looseVariant) {
+    const { Icon, accent, icon } = ALERTS[looseVariant];
     return (
       <PlateElement
         {...props}
