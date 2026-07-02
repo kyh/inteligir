@@ -55,6 +55,45 @@ export function absorbRacedComboboxText(editor: SlateEditor, element: TElement):
 }
 
 /**
+ * Chromium leaves the caret BEFORE the text of an IME-style commit
+ * (`Input.insertText` automation, dictation) when it is the first edit after
+ * the input was focused programmatically — the next keystroke then lands at
+ * offset 0 and "deep" assembles as "eepd" (issue #367). Given the input's
+ * previous value, its new value, and the caret the browser reported, return
+ * the caret a native keystroke would have produced — or null when the
+ * browser's caret is already consistent (never fight a correct browser).
+ *
+ * Detection: a value change that is a single inserted run has a (possibly
+ * ambiguous, when the run repeats neighboring characters) interval of valid
+ * insertion positions. A caret that can only be read as an insertion START —
+ * never as an insertion END — is the quirk; anything else is left alone.
+ */
+export function reconcileInsertionCaret(
+  previous: string,
+  next: string,
+  caret: number | null,
+): number | null {
+  if (caret === null) return null;
+  const inserted = next.length - previous.length;
+  if (inserted <= 0) return null; // deletion or no-op — not an insertion
+  let prefix = 0;
+  while (prefix < previous.length && previous[prefix] === next[prefix]) prefix += 1;
+  let suffix = 0;
+  while (
+    suffix < previous.length &&
+    previous[previous.length - 1 - suffix] === next[next.length - 1 - suffix]
+  ) {
+    suffix += 1;
+  }
+  if (prefix + suffix < previous.length) return null; // not a single run
+  const lo = previous.length - suffix;
+  const hi = prefix;
+  if (caret >= lo + inserted && caret <= hi + inserted) return null; // consistent
+  if (caret >= lo && caret <= hi) return caret + inserted; // stranded before the run
+  return null; // unrelated caret — don't touch
+}
+
+/**
  * Commit path: remove the trigger element (the selected item's own action
  * inserts content afterwards). Safe when the element is already gone.
  */

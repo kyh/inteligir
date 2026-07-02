@@ -31,6 +31,7 @@ import {
   cancelComboboxInput,
   commitComboboxInput,
   racedComboboxText,
+  reconcileInsertionCaret,
   type ComboboxCancelCause,
 } from "@repo/app/editor/combobox-input";
 
@@ -171,6 +172,22 @@ function InlineCombobox({
     inputRef.current?.setSelectionRange(pos, pos);
   });
 
+  // Chromium strands the caret at 0 on the first IME-style commit into the
+  // freshly focused input ("deep" → "eepd", issue #367); the pure reconciler
+  // detects that signature and moves the caret where a native keystroke would
+  // have left it, before React commits the controlled value.
+  const onInputValueChange = React.useCallback(
+    (nextValue: string) => {
+      const input = inputRef.current;
+      if (input && document.activeElement === input) {
+        const fixed = reconcileInsertionCaret(valueRef.current, nextValue, input.selectionStart);
+        if (fixed !== null) input.setSelectionRange(fixed, fixed);
+      }
+      setValue(nextValue);
+    },
+    [setValue],
+  );
+
   // Clicking elsewhere in the note moves the Slate selection off the element
   // while it is still mounted — cancel and restore the typed text.
   const selected = useSelected();
@@ -251,7 +268,7 @@ function InlineCombobox({
         filter={null}
         inputValue={value}
         modal={false}
-        onInputValueChange={setValue}
+        onInputValueChange={onInputValueChange}
         // Open state is fully derived; Base UI close requests (escape/outside
         // click) route through cancel paths instead.
         onOpenChange={() => undefined}
