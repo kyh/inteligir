@@ -50,11 +50,7 @@ const withStableColumns: OverrideEditor<ColumnConfig> = ({
           return;
         }
         // No columns left → dissolve the group.
-        if (
-          !node.children.some(
-            (child) => ElementApi.isElement(child) && child.type === type,
-          )
-        ) {
+        if (!node.children.some((child) => ElementApi.isElement(child) && child.type === type)) {
           editor.tf.unwrapNodes({ at: path });
           return;
         }

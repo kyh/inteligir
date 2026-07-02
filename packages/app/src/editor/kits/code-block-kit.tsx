@@ -6,7 +6,12 @@
 import { useState } from "react";
 import { CodeIcon, EyeIcon } from "lucide-react";
 import { NodeApi } from "platejs";
-import { PlateElement, PlateLeaf, type PlateElementProps, type PlateLeafProps } from "platejs/react";
+import {
+  PlateElement,
+  PlateLeaf,
+  type PlateElementProps,
+  type PlateLeafProps,
+} from "platejs/react";
 import { BaseCodeBlockPlugin, BaseCodeLinePlugin, CodeBlockRules } from "@platejs/code-block";
 import { CodeBlockPlugin, CodeLinePlugin, CodeSyntaxPlugin } from "@platejs/code-block/react";
 import { common, createLowlight } from "lowlight";
@@ -20,6 +25,10 @@ export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
 // lowlight powers code-block syntax highlighting (`common` = ~35 popular
 // languages; the token classes are styled by the `.hljs-*` theme in styles.css).
 const lowlight = createLowlight(common);
+// Fence languages we render but lowlight doesn't ship grammars for — alias to
+// plaintext (no tokens) so CodeSyntaxPlugin stops logging "not registered" on
+// every mermaid/math note.
+lowlight.registerAlias("plaintext", ["mermaid", "math"]);
 
 const PRE_CLASS =
   "my-1 overflow-x-auto rounded-md bg-muted px-4 py-3 font-mono text-sm leading-normal [tab-size:2]";
@@ -72,8 +81,19 @@ function MermaidCodeBlock(props: PlateElementProps) {
 
 function CodeBlockElement(props: PlateElementProps) {
   if (props.element.lang === "mermaid") return <MermaidCodeBlock {...props} />;
+  const lang = typeof props.element.lang === "string" ? props.element.lang : null;
   return (
-    <PlateElement {...props} as="pre" className={PRE_CLASS}>
+    <PlateElement {...props} as="pre" className={cn(PRE_CLASS, "group/code relative")}>
+      {/* Hover-reveal language label (display-only header — the fence's lang
+          is edited in Raw / at creation). A <span>: <pre> hosts phrasing. */}
+      {lang ? (
+        <span
+          contentEditable={false}
+          className="absolute top-1.5 right-2 font-sans text-[10px] tracking-wide text-muted-foreground/80 uppercase opacity-0 transition-opacity select-none group-hover/code:opacity-100"
+        >
+          {lang}
+        </span>
+      ) : null}
       {props.children}
     </PlateElement>
   );

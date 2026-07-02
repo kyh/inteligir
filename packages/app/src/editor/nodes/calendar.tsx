@@ -23,7 +23,7 @@ export function Calendar({ className, classNames, ...props }: DayPickerProps) {
         chevron: "size-4 fill-current",
         day: "p-0 text-center text-sm",
         day_button:
-          "inline-flex size-8 items-center justify-center rounded-md font-normal transition-colors hover:bg-accent hover:text-accent-foreground",
+          "inline-flex size-8 items-center justify-center rounded-md font-normal transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         disabled: "text-muted-foreground opacity-50",
         hidden: "invisible",
         month: "space-y-4",
@@ -33,9 +33,11 @@ export function Calendar({ className, classNames, ...props }: DayPickerProps) {
         nav: "absolute inset-x-3 top-3 z-10 flex items-center justify-between",
         outside: "[&_button]:text-muted-foreground [&_button]:opacity-50",
         root: "relative",
+        // Selected day is the filled primary pill; today gets a ring so the
+        // two states stay distinct when they coincide (ring under the fill).
         selected:
           "[&_button]:bg-primary [&_button]:text-primary-foreground [&_button]:hover:bg-primary [&_button]:hover:text-primary-foreground",
-        today: "[&_button]:bg-accent [&_button]:text-accent-foreground",
+        today: "[&_button]:font-medium [&_button]:ring-1 [&_button]:ring-ring/50",
         week: "mt-1 flex w-full",
         weekday: "w-8 text-[0.8rem] font-normal text-muted-foreground",
         weekdays: "flex",

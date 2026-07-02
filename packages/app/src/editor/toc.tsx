@@ -101,7 +101,7 @@ export function TableOfContents() {
         {/* Expanded: the outline, revealed on hover. */}
         <nav
           aria-label="Table of contents"
-          className="absolute top-0 right-0 max-h-[70vh] w-56 translate-x-2 overflow-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground opacity-0 shadow-md transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100"
+          className="absolute top-0 right-0 max-h-[70vh] w-56 translate-x-2 overflow-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground opacity-0 shadow-surface-4 transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100"
         >
           {headings.map((h, i) => (
             <button

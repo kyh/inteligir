@@ -14,7 +14,12 @@ import { useEditorRef } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-function Cursor({ id, caretPosition, selection, selectionRects }: CursorOverlayState<UnknownObject>) {
+function Cursor({
+  id,
+  caretPosition,
+  selection,
+  selectionRects,
+}: CursorOverlayState<UnknownObject>) {
   const editor = useEditorRef();
   const isCursor = selection ? RangeApi.isCollapsed(selection) : false;
 

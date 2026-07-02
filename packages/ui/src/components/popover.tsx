@@ -6,7 +6,7 @@ import { Popover as PopoverPrimitive } from "@base-ui/react/popover";
 import { cn } from "@repo/ui/lib/utils";
 
 const popupClass =
-  "z-50 max-h-[var(--available-height)] origin-[var(--transform-origin)] rounded-lg border border-border bg-popover text-popover-foreground shadow-md outline-none transition-[transform,opacity] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0";
+  "z-50 max-h-[var(--available-height)] origin-[var(--transform-origin)] rounded-lg border border-border bg-popover text-popover-foreground shadow-surface-5 outline-none transition-[transform,opacity] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0";
 
 function Popover(props: ComponentProps<typeof PopoverPrimitive.Root>) {
   return <PopoverPrimitive.Root {...props} />;

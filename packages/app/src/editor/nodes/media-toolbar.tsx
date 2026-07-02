@@ -48,7 +48,7 @@ export function MediaToolbar() {
     <div
       contentEditable={false}
       className={cn(
-        "absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-0.5 shadow-md select-none",
+        "absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-0.5 shadow-surface-4 select-none",
         selected ? "opacity-100" : "pointer-events-none opacity-0",
         "transition-opacity",
       )}

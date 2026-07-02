@@ -6,6 +6,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
+import { useDarkClass } from "@repo/app/lib/use-dark-class";
+
 type MermaidModule = typeof import("mermaid").default;
 
 let mermaidPromise: Promise<MermaidModule> | null = null;
@@ -16,27 +18,17 @@ function loadMermaid(): Promise<MermaidModule> {
   return mermaidPromise;
 }
 
-function isDarkTheme(): boolean {
-  return document.documentElement.classList.contains("dark");
-}
-
 /**
  * Renders `code` as a mermaid diagram, debounced against typing. Re-renders
- * when the app theme flips (observes the root element's class attribute —
- * mermaid bakes theme colors into the emitted SVG).
+ * when the app theme flips (useDarkClass — mermaid bakes theme colors into
+ * the emitted SVG).
  */
 export function MermaidPreview({ code }: { code: string }) {
   // useId contains `:` which is invalid in the DOM id mermaid.render targets.
   const renderId = useId().replaceAll(":", "");
   const hostRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [dark, setDark] = useState(isDarkTheme);
-
-  useEffect(() => {
-    const observer = new MutationObserver(() => setDark(isDarkTheme()));
-    observer.observe(document.documentElement, { attributeFilter: ["class"], attributes: true });
-    return () => observer.disconnect();
-  }, []);
+  const dark = useDarkClass();
 
   useEffect(() => {
     let cancelled = false;
@@ -72,14 +64,20 @@ export function MermaidPreview({ code }: { code: string }) {
   return (
     <div contentEditable={false} className="my-1 select-none">
       {error ? (
-        <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-red-500/40 bg-red-500/[0.06] px-2 py-1 text-xs text-red-600 dark:text-red-400">
+        <div className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">
           <span className="font-medium">Mermaid:</span>
           <span className="truncate">{error}</span>
         </div>
       ) : null}
+      {/* Container matches the code fence's surface (PRE_CLASS family) so the
+          block reads as one object across preview/source modes. */}
       <div
         ref={hostRef}
-        className={error ? "hidden" : "flex justify-center [&_svg]:max-w-full"}
+        className={
+          error
+            ? "hidden"
+            : "flex justify-center rounded-md border border-border/60 bg-muted/30 px-4 py-3 [&_svg]:max-w-full"
+        }
       />
     </div>
   );

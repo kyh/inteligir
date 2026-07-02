@@ -10,7 +10,7 @@ const itemClass =
   "relative flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none select-none data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:text-muted-foreground data-[highlighted]:[&_svg]:text-accent-foreground";
 
 const popupClass =
-  "z-50 max-h-[var(--available-height)] min-w-[180px] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md outline-none transition-[transform,opacity] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0";
+  "z-50 max-h-[var(--available-height)] min-w-[180px] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 outline-none transition-[transform,opacity] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0";
 
 function Menu(props: ComponentProps<typeof MenuPrimitive.Root>) {
   return <MenuPrimitive.Root {...props} />;

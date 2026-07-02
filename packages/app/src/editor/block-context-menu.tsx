@@ -6,7 +6,11 @@
 // the shared BlockMenu at the pointer.
 
 import type { ReactNode } from "react";
-import { BLOCK_CONTEXT_MENU_ID, BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
+import {
+  BLOCK_CONTEXT_MENU_ID,
+  BlockMenuPlugin,
+  BlockSelectionPlugin,
+} from "@platejs/selection/react";
 import { useEditorPlugin } from "platejs/react";
 
 import { BlockMenu } from "@repo/app/editor/block-menu";

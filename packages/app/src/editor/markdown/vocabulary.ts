@@ -17,9 +17,13 @@ export type RawReason =
   | { kind: "esm" }; // unreachable under agnostic MDX; kept for safety
 
 // The fixed vocabulary (this phase). Flow tags map to block nodes; `date` is
-// the only inline (text) JSX element. Everything else — headings, gfm, math,
-// yaml, wikiLink/wikiEmbed — passes untouched. mdx-md disables htmlFlow/htmlText
-// so no `html` nodes reach the scanner from parse.
+// the only inline (text) JSX element — but it is ALSO admitted in flow
+// position: a paragraph holding nothing but a date chip serializes to
+// `<date value="…" />` alone on its line, which micromark re-reads as a flow
+// element (md-rules' date rule wraps it back into a paragraph). Everything
+// else — headings, gfm, math, yaml, wikiLink/wikiEmbed — passes untouched.
+// mdx-md disables htmlFlow/htmlText so no `html` nodes reach the scanner from
+// parse.
 const ALLOWED_FLOW_TAGS = new Set([
   "callout",
   "toggle",
@@ -28,6 +32,7 @@ const ALLOWED_FLOW_TAGS = new Set([
   "video",
   "media_embed",
   "file",
+  "date",
 ]);
 const ALLOWED_TEXT_TAGS = new Set(["date"]);
 

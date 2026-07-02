@@ -33,10 +33,21 @@ export const BasicBlocksBaseKit = [
   BaseHorizontalRulePlugin,
 ];
 
-// className-only element renderers (Plate plugins ship headless).
+// className-only element renderers (Plate plugins ship headless). A block
+// carrying `listStyleType` hosts BlockList's <ul>/<ol> INSIDE it
+// (list-kit's render.belowNodes) — invalid DOM inside <p>/<h*>, so React
+// logged a DOM-nesting error on every list note. List-carrying blocks render
+// as <div> instead; the tag is render-only, bytes are pinned by the
+// round-trip fixtures.
 function element(as: keyof HTMLElementTagNameMap, className: string) {
   return function Element(props: PlateElementProps) {
-    return <PlateElement {...props} as={as} className={className} />;
+    return (
+      <PlateElement
+        {...props}
+        as={props.element.listStyleType ? "div" : as}
+        className={className}
+      />
+    );
   };
 }
 

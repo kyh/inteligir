@@ -140,7 +140,9 @@ export function EquationElement(props: PlateElementProps) {
           <EquationEditor
             isInline={false}
             onClose={close}
-            placeholder={"f(x) = \\begin{cases}\n  x^2, &\\quad x > 0 \\\\\n  0, &\\quad x = 0\n\\end{cases}"}
+            placeholder={
+              "f(x) = \\begin{cases}\n  x^2, &\\quad x > 0 \\\\\n  0, &\\quad x = 0\n\\end{cases}"
+            }
           />
         </PopoverContent>
       </Popover>

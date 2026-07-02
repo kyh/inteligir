@@ -11,15 +11,15 @@ import { PlateElement, useFocused, useSelected, type PlateElementProps } from "p
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { useDarkClass } from "@repo/app/lib/use-dark-class";
 import { MediaToolbar } from "@repo/app/editor/nodes/media-toolbar";
 
-const Tweet = lazy(() =>
-  import("react-tweet").then((mod) => ({ default: mod.Tweet })),
-);
+const Tweet = lazy(() => import("react-tweet").then((mod) => ({ default: mod.Tweet })));
 
 export function MediaEmbedElement(props: PlateElementProps) {
   const selected = useSelected();
   const focused = useFocused();
+  const dark = useDarkClass();
   const url = typeof props.element.url === "string" ? props.element.url : "";
   const tweet = parseTwitterUrl(url);
 
@@ -32,11 +32,15 @@ export function MediaEmbedElement(props: PlateElementProps) {
               "flex justify-center text-left [&_.react-tweet-theme]:my-0",
               selected && "[&_.react-tweet-theme]:ring-2 [&_.react-tweet-theme]:ring-ring",
             )}
-            // react-tweet themes itself off this attribute; follow the app.
-            data-theme={document.documentElement.classList.contains("dark") ? "dark" : "light"}
+            // react-tweet themes itself off this attribute; useDarkClass
+            // keeps it live across theme flips (a one-shot read froze the
+            // tweet on whichever theme it first rendered under).
+            data-theme={dark ? "dark" : "light"}
           >
             <Suspense
-              fallback={<div className="h-40 w-full max-w-[550px] animate-pulse rounded-xl bg-muted" />}
+              fallback={
+                <div className="h-40 w-full max-w-[550px] animate-pulse rounded-xl bg-muted" />
+              }
             >
               <Tweet id={tweet.id} />
             </Suspense>

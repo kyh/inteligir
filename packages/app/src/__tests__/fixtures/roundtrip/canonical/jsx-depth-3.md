@@ -8,5 +8,6 @@
     <column>
       right
     </column>
-  </column_group>
+
+</column_group>
 </callout>

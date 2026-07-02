@@ -46,8 +46,7 @@ export function insertToggle(editor: PlateEditor): void {
 const toggleInputRule = createBlockStartInputRule({
   match: "+",
   trigger: " ",
-  enabled: ({ editor }) =>
-    !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),
+  enabled: ({ editor }) => !editor.api.some({ match: { type: [editor.getType(KEYS.codeBlock)] } }),
   apply: ({ editor }, match) => {
     editor.tf.delete({ at: match.range });
     insertToggle(editor);
