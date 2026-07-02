@@ -14,6 +14,7 @@ import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
 import { Editor, EditorContainer } from "@repo/app/editor/editor-chrome";
+import { WRITE_PLACEHOLDER } from "@repo/app/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 import { TableOfContents } from "@repo/app/editor/toc";
@@ -87,7 +88,12 @@ export function MarkdownEditor({ value, onChange }: Props) {
           selection ghost and the floating toolbar (afterEditable renders)
           position against. The toolbar itself renders from FloatingToolbarKit. */}
       <EditorContainer>
-        <Editor spellCheck={false} />
+        {/* The editor-level placeholder covers the pristine-empty doc —
+            BlockPlaceholderPlugin deliberately skips that state (its
+            isPristineEmptyEditor gate) and only handles empty blocks in
+            non-empty docs. Same copy as the kit's `p` entry so the hint
+            reads identically in both states. */}
+        <Editor placeholder={WRITE_PLACEHOLDER} spellCheck={false} />
       </EditorContainer>
       <TableOfContents />
     </Plate>

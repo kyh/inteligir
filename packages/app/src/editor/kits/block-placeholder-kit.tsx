@@ -6,13 +6,18 @@
 import { KEYS } from "platejs";
 import { BlockPlaceholderPlugin } from "platejs/react";
 
+/** Shared with the editor-level placeholder (markdown-editor.tsx): the plugin
+ * deliberately skips a pristine-empty doc (its isPristineEmptyEditor gate), so
+ * PlateContent's own placeholder covers that state with identical copy. */
+export const WRITE_PLACEHOLDER = "Write, or press '/' for commands";
+
 export const BlockPlaceholderKit = [
   BlockPlaceholderPlugin.configure({
     options: {
       className:
         "before:absolute before:cursor-text before:text-muted-foreground/60 before:content-[attr(placeholder)]",
       placeholders: {
-        [KEYS.p]: "Write, or press '/' for commands",
+        [KEYS.p]: WRITE_PLACEHOLDER,
         [KEYS.h1]: "Heading 1",
         [KEYS.h2]: "Heading 2",
         [KEYS.h3]: "Heading 3",
