@@ -123,9 +123,12 @@ describe("vocabulary scan (probe1 unknown-JSX hole)", () => {
     });
   });
 
-  it("allows date only as an inline (text) element", () => {
+  it("allows date in text AND flow position", () => {
     expect(scan('Meet on <date value="2026-07-01" /> at noon.\n')).toBeNull();
-    expect(scan('<date value="2026-07-01" />\n')).toEqual({ kind: "unknown-jsx", name: "date" });
+    // A chip-only paragraph serializes to a line-filling `<date />`, which
+    // re-parses as flow — md-rules wraps it back into a paragraph, so the
+    // scan admits it (fixture: canonical/date-only-paragraph.md).
+    expect(scan('<date value="2026-07-01" />\n')).toBeNull();
   });
 
   it("passes the whole fixed vocabulary", () => {

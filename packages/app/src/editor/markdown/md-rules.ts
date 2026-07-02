@@ -15,6 +15,7 @@ import {
   type DeserializeMdOptions,
   type MdDecoration,
   type MdMdxJsxFlowElement,
+  type MdMdxJsxTextElement,
   type MdRules,
   type MdTableRow,
   type MdText,
@@ -49,6 +50,10 @@ if (!defaultTableDeserialize || !defaultTableSerialize) {
 const defaultLinkSerialize = defaultRules.a?.serialize;
 if (!defaultLinkSerialize) {
   throw new Error("@platejs/markdown defaultRules.a is missing — pipeline cannot start");
+}
+const defaultDateDeserialize = defaultRules.date?.deserialize;
+if (!defaultDateDeserialize) {
+  throw new Error("@platejs/markdown defaultRules.date is missing — pipeline cannot start");
 }
 const defaultParagraphSerialize = defaultRules.p?.serialize;
 if (!defaultParagraphSerialize) {
@@ -241,6 +246,28 @@ export const MD_RULES: MdRules = {
         name: "column",
         type: "mdxJsxFlowElement",
       };
+    },
+  },
+
+  // Deserialize-only override of Plate's date rule (serialize dispatch falls
+  // back to the default `<date value="…" />` emitter). A paragraph holding
+  // ONLY a date chip serializes to `<date value="…" />` alone on its line —
+  // bytes the NEXT parse classifies as a FLOW JSX element (micromark reads
+  // any line-filling tag as flow). The default rule would return the inline
+  // void at block level; wrapping it back into a paragraph restores the exact
+  // shape that produced the bytes, so the form round-trips canonically.
+  // vocabulary.ts admits flow `<date>` to match.
+  date: {
+    deserialize: (
+      node: MdMdxJsxFlowElement | MdMdxJsxTextElement,
+      deco: MdDecoration,
+      options: DeserializeMdOptions,
+    ): TElement => {
+      const chip: TElement = defaultDateDeserialize(node, deco, options);
+      if (node.type !== "mdxJsxFlowElement") return chip;
+      // Empty-text padding mirrors Slate's normalized inline-void shape (the
+      // p serialize rule prunes it back out, so bytes are unaffected).
+      return { children: [{ text: "" }, chip, { text: "" }], type: "p" };
     },
   },
 
