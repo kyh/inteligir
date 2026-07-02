@@ -6,22 +6,20 @@
 // row; children 2..n are the collapsible body. Open state lives in the toggle
 // plugin's store (openIds) keyed by node id — never on the node — so
 // collapse/expand cannot dirty the document.
+//
+// Hiding happens in CSS, not by splitting `props.children`: Plate hands the
+// element ALL of its rendered Slate children as a single React child (plus a
+// BelowRootNodes sibling), so a React-level split can't separate summary from
+// body without poking into opaque internals. Instead every Slate block after
+// the first is hidden by the `[data-toggle-collapsed]` rule in styles.css —
+// kept mounted (Slate needs the DOM) but invisible, mirroring the flat-model
+// plugin's hidden style.
 
-import { Children, type ReactNode } from "react";
 import { ChevronRightIcon } from "lucide-react";
 import { PlateElement, useElement, type PlateElementProps } from "platejs/react";
 import { useToggleButton, useToggleButtonState } from "@platejs/toggle/react";
 
 import { cn } from "@repo/ui/lib/utils";
-
-// Mirrors @platejs/toggle's hidden style for closed flat-model toggles: keeps
-// the collapsed children mounted (Slate needs their DOM) but invisible.
-const HIDDEN_STYLE: React.CSSProperties = {
-  height: 0,
-  margin: 0,
-  overflow: "hidden",
-  visibility: "hidden",
-};
 
 export function ToggleElement(props: PlateElementProps) {
   const element = useElement();
@@ -31,10 +29,6 @@ export function ToggleElement(props: PlateElementProps) {
   const id = typeof element.id === "string" ? element.id : "";
   const state = useToggleButtonState(id);
   const { buttonProps, open } = useToggleButton(state);
-
-  const childArray = Children.toArray(props.children);
-  const summary: ReactNode = childArray[0] ?? null;
-  const body = childArray.slice(1);
 
   const onChevronClick = (e: React.MouseEvent) => {
     // Collapsing while the selection sits in the body would strand the DOM
@@ -48,7 +42,14 @@ export function ToggleElement(props: PlateElementProps) {
   };
 
   return (
-    <PlateElement {...props} className="relative mb-1 pl-6">
+    <PlateElement
+      {...props}
+      className="relative mb-1 pl-6"
+      attributes={{
+        ...props.attributes,
+        "data-toggle-collapsed": open ? undefined : "",
+      }}
+    >
       <button
         type="button"
         aria-expanded={open}
@@ -62,8 +63,7 @@ export function ToggleElement(props: PlateElementProps) {
           className={cn("size-4 transition-transform duration-75", open ? "rotate-90" : "rotate-0")}
         />
       </button>
-      {summary}
-      {body.length > 0 ? <div style={open ? undefined : HIDDEN_STYLE}>{body}</div> : null}
+      {props.children}
     </PlateElement>
   );
 }

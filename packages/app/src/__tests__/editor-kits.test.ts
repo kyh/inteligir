@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { createSlateEditor, ElementApi, KEYS, type TElement } from "platejs";
 import { serializeMd } from "@platejs/markdown";
+import { TogglePlugin } from "@platejs/toggle/react";
 
 import { insertColumnGroup } from "@repo/app/editor/kits/column-kit";
 import { insertDate } from "@repo/app/editor/kits/date-kit";
@@ -244,6 +245,22 @@ describe("insertToggle", () => {
     const editor = makeEditor("<toggle />\n\ntext\n");
     editor.tf.insertText("!", { at: { offset: 4, path: [1, 0] } });
     expect(out(editor)).toBe("<toggle />\n\ntext!\n");
+  });
+
+  it("collapse state lives in the plugin store — flipping it never dirties bytes", () => {
+    // The chevron (ToggleElement) renders open = openIds.has(id) and hides the
+    // body via CSS; this pins the store mapping it consumes. Live blocks get
+    // ids from NodeIdPlugin; headless parse doesn't, so drive an explicit id.
+    const editor = makeEditor("<toggle>\n  Summary\n\n  body\n</toggle>\n");
+    const before = out(editor);
+    const isOpen = (id: string) => editor.getOptions(TogglePlugin).openIds?.has(id) ?? false;
+    expect(isOpen("t1")).toBe(false); // default: collapsed
+    editor.getApi(TogglePlugin).toggle.toggleIds(["t1"]);
+    expect(isOpen("t1")).toBe(true);
+    editor.getApi(TogglePlugin).toggle.toggleIds(["t1"]);
+    expect(isOpen("t1")).toBe(false);
+    expect(out(editor)).toBe(before); // open state never reaches the document
+    expect(before).toContain("<toggle>\n"); // zero attributes serialized
   });
 });
 
