@@ -5,24 +5,24 @@ import { type Descendant, ElementApi, type TElement, createSlateEditor } from "p
 import { MarkdownPlugin, serializeMd } from "@platejs/markdown";
 
 import { BASE_KIT } from "@repo/app/editor/kits/base-kit";
-import { EDITOR_PLUGINS } from "@repo/app/editor/markdown-editor";
+import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/app/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/app/editor/markdown/md-rules";
 import { parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 
-// Mirror-sync-by-construction (WP1): every editor built from the kits carries
-// THE shared MarkdownPlugin instance — reference-identical options — and
+// Mirror-sync-by-construction: every editor built from the kits carries THE
+// shared MarkdownPlugin instance — reference-identical options — and
 // serializes the canonical corpus deterministically. The live editor's
-// hand-spread EDITOR_PLUGINS (WP2 replaces it with EDITOR_KIT) is held to the
-// same contract here: it must be a plugin-superset of BASE_KIT, share the
-// serialization brain by reference, and agree on inline/void node metadata —
-// a missing isInline/isVoid registration would let Slate normalization DELETE
-// date/wiki inline voids from a canonical file on first edit.
+// EDITOR_KIT is held to the same contract: it must be a plugin-superset of
+// BASE_KIT, share the serialization brain by reference, and agree on
+// inline/void node metadata — a missing isInline/isVoid registration would
+// let Slate normalization DELETE date/wiki inline voids from a canonical file
+// on first edit.
 
 const FIXTURES = fileURLToPath(new URL("fixtures/roundtrip/canonical/", import.meta.url));
 
 // Every node plugin the vocabulary depends on. Dropping any of these from
-// BASE_KIT or EDITOR_PLUGINS is a silent corruption hazard, not a cosmetic one.
+// BASE_KIT or EDITOR_KIT is a silent corruption hazard, not a cosmetic one.
 const VOCABULARY_PLUGIN_KEYS = [
   "callout",
   "toggle",
@@ -78,16 +78,16 @@ describe("kit parity (Base half)", () => {
 
 describe("kit parity (live editor mirror)", () => {
   const base = createSlateEditor({ plugins: BASE_KIT });
-  const live = createSlateEditor({ plugins: EDITOR_PLUGINS });
+  const live = createSlateEditor({ plugins: EDITOR_KIT });
 
   it("both editors register every vocabulary node plugin", () => {
     for (const key of VOCABULARY_PLUGIN_KEYS) {
       expect(key in base.plugins, `BASE_KIT must register ${key}`).toBe(true);
-      expect(key in live.plugins, `EDITOR_PLUGINS must register ${key}`).toBe(true);
+      expect(key in live.plugins, `EDITOR_KIT must register ${key}`).toBe(true);
     }
   });
 
-  it("EDITOR_PLUGINS is a plugin superset of BASE_KIT", () => {
+  it("EDITOR_KIT is a plugin superset of BASE_KIT", () => {
     const liveKeys = new Set(Object.keys(live.plugins));
     const missing = Object.keys(base.plugins).filter((key) => !liveKeys.has(key));
     expect(missing, "BASE_KIT plugins missing from the live editor").toEqual([]);
@@ -120,7 +120,7 @@ describe("kit parity (live editor mirror)", () => {
       const el: TElement = { children: [{ text: "" }], type };
       for (const [label, editor] of [
         ["BASE_KIT", base],
-        ["EDITOR_PLUGINS", live],
+        ["EDITOR_KIT", live],
       ] as const) {
         expect(editor.api.isInline(el), `${label}: ${type} must be inline`).toBe(true);
         expect(editor.api.isVoid(el), `${label}: ${type} must be void`).toBe(true);
