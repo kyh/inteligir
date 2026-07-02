@@ -10,15 +10,16 @@ import { AI_MARK } from "@repo/app/editor/ai/ai-mark";
 import { shouldSerializeNode } from "@repo/app/editor/ai/transient";
 import { MD_REMARK_PLUGINS } from "@repo/app/editor/markdown/md-plugins";
 import { MD_RULES } from "@repo/app/editor/markdown/md-rules";
+import { WIKI_INPUT_KEY } from "@repo/app/editor/wiki-input-key";
 
 export const MarkdownKit = [
   MarkdownPlugin.configure({
     options: {
       // Transient nodes never serialize. Two mechanisms:
       // - disallowedNodes drops WHOLE nodes: the inline-AI streaming mark and
-      //   the combobox trigger elements (`/` and `:` inputs are UI state — an
-      //   autosave firing mid-combobox must skip them structurally, never hit
-      //   the serializer's "Unreachable code" fallback).
+      //   the combobox trigger elements (`/`, `:`, and `[[` inputs are UI
+      //   state — an autosave firing mid-combobox must skip them structurally,
+      //   never hit the serializer's "Unreachable code" fallback).
       // - allowNode.serialize handles suggestion (track-changes) marks, which
       //   need per-TYPE treatment: pending INSERTIONS are dropped, but
       //   deletion-marked text is the user's ORIGINAL content and must stay
@@ -26,7 +27,7 @@ export const MarkdownKit = [
       // - plainMarks strips the default `suggestion` mark rule's
       //   <suggestion> JSX wrapper from the kept (remove/update) text — the
       //   bytes are the plain original text.
-      disallowedNodes: [AI_MARK, KEYS.slashInput, KEYS.emojiInput],
+      disallowedNodes: [AI_MARK, KEYS.slashInput, KEYS.emojiInput, WIKI_INPUT_KEY],
       allowNode: { serialize: shouldSerializeNode },
       plainMarks: [KEYS.suggestion],
       remarkPlugins: MD_REMARK_PLUGINS,

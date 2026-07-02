@@ -40,7 +40,7 @@ type FilterItem = {
   keywords?: string[] | undefined;
   label?: string | undefined;
 };
-type FilterFn = (item: FilterItem, search: string) => boolean;
+export type FilterFn = (item: FilterItem, search: string) => boolean;
 
 type InlineComboboxContextValue = {
   commit: (focusEditor: boolean) => void;

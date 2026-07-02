@@ -58,7 +58,7 @@ describe("kit parity (Base half)", () => {
     expect(optionsB.rules).toBe(MD_RULES);
     expect(optionsA.remarkPlugins).toBe(MD_REMARK_PLUGINS);
     expect(optionsB.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(optionsA.disallowedNodes).toEqual(["ai", "slash_input", "emoji_input"]);
+    expect(optionsA.disallowedNodes).toEqual(["ai", "slash_input", "emoji_input", "wiki_input"]);
     // Suggestion marks are transient via allowNode + plainMarks (a blanket
     // disallow would drop deletion-marked ORIGINAL text): see ai/transient.ts.
     expect(optionsA.allowNode?.serialize).toBe(shouldSerializeNode);
@@ -102,7 +102,7 @@ describe("kit parity (live editor mirror)", () => {
     const options = live.getOptions(MarkdownPlugin);
     expect(options.rules).toBe(MD_RULES);
     expect(options.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(options.disallowedNodes).toEqual(["ai", "slash_input", "emoji_input"]);
+    expect(options.disallowedNodes).toEqual(["ai", "slash_input", "emoji_input", "wiki_input"]);
     expect(options.allowNode?.serialize).toBe(shouldSerializeNode);
     expect(options.plainMarks).toEqual(["suggestion"]);
   });
