@@ -54,7 +54,7 @@ import { insertColumnGroup } from "@repo/app/editor/kits/column-kit";
 import { insertDate } from "@repo/app/editor/kits/date-kit";
 import { insertEquation, insertInlineEquation } from "@repo/app/editor/kits/math-kit";
 import { insertToggle } from "@repo/app/editor/kits/toggle-kit";
-import { triggerInlineAi } from "@repo/app/editor/selection-toolbar";
+import { openAiMenu, runCannedAction } from "@repo/app/editor/ai/ai-session";
 
 function turnInto(editor: PlateEditor, label: string): void {
   const opt = TURN_INTO.find((o) => o.label === label);
@@ -101,7 +101,12 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "ai-continue",
         description: "Let AI continue from here.",
         keywords: ["ai", "continue", "write", "autocomplete"],
-        onSelect: () => triggerInlineAi("continue"),
+        onSelect: (editor) => {
+          // Open the menu first (captures the caret as the session target),
+          // then run — the menu shows progress and the review affordances.
+          openAiMenu(editor);
+          runCannedAction(editor, "continue");
+        },
       },
       {
         icon: <WandSparklesIcon />,
@@ -109,7 +114,10 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "ai-summarize",
         description: "Summarize the selection or note.",
         keywords: ["ai", "summary", "tldr", "recap"],
-        onSelect: () => triggerInlineAi("summarize"),
+        onSelect: (editor) => {
+          openAiMenu(editor);
+          runCannedAction(editor, "summarize");
+        },
       },
     ],
   },

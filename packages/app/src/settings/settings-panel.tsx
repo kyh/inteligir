@@ -9,6 +9,7 @@ import { cn } from "@repo/ui/lib/utils";
 import { getBridge } from "@repo/app/lib/bridge";
 import { useTheme, type Theme } from "@repo/app/lib/use-theme";
 import { useAgentStore } from "@repo/app/stores/agent-store";
+import { useAiSettingsStore } from "@repo/app/stores/ai-settings-store";
 import { useVoiceStore } from "@repo/app/stores/voice-store";
 import type { NotificationSettings } from "@repo/core/ipc";
 import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
@@ -139,6 +140,64 @@ function VoiceSection() {
           {busy ? "Saving…" : "Save key"}
         </Button>
         {error && <span className="text-[10px] text-destructive">{error}</span>}
+      </div>
+    </div>
+  );
+}
+
+// Ghost text is opt-in: it spends the user's tokens on every typing pause,
+// so the switch defaults off and the model picker names the fast tier the
+// host would use by default.
+function EditorAiSection() {
+  const loaded = useAiSettingsStore((s) => s.loaded);
+  const enabled = useAiSettingsStore((s) => s.ghostTextEnabled);
+  const model = useAiSettingsStore((s) => s.ghostTextModel);
+  const models = useAiSettingsStore((s) => s.models);
+  const defaultModelId = useAiSettingsStore((s) => s.defaultModelId);
+  const init = useAiSettingsStore((s) => s.init);
+  const setEnabled = useAiSettingsStore((s) => s.setGhostTextEnabled);
+  const setModel = useAiSettingsStore((s) => s.setGhostTextModel);
+
+  useEffect(() => {
+    void init();
+  }, [init]);
+
+  const effectiveId = model ?? defaultModelId;
+
+  return (
+    <div className="flex flex-col gap-2">
+      <Label className="text-xs font-medium text-muted-foreground">Editor AI</Label>
+      <div className="rounded-[12px] bg-muted">
+        <Switch
+          label="Ghost text completions"
+          checked={enabled}
+          onToggle={() => void setEnabled(!enabled)}
+          disabled={!loaded}
+          className="w-full flex-row-reverse justify-between text-xs"
+        />
+        <p className="px-3 pb-2 text-[10px] text-muted-foreground">
+          Grey inline completions after a typing pause — Tab accepts, Escape dismisses. Runs on a
+          fast model with your OpenAI account.
+        </p>
+        {enabled && models.length > 0 && (
+          <div className="flex items-center justify-between gap-2 px-3 pb-2">
+            <span className="text-xs text-foreground">Completion model</span>
+            {/* Native select: a portaled Base UI menu popup inside the
+                settings Dialog reads as an outside press and dismisses it. */}
+            <select
+              value={effectiveId ?? ""}
+              onChange={(e) => void setModel(e.target.value)}
+              className="h-6 max-w-[55%] rounded-md bg-card px-1.5 text-[10px] font-medium text-muted-foreground shadow-surface-2 outline-none transition-colors hover:text-foreground"
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                  {m.id === defaultModelId ? " (default)" : ""}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -280,6 +339,8 @@ export function SettingsPanel() {
           </p>
         </div>
       </div>
+
+      <EditorAiSection />
 
       <VoiceSection />
     </div>

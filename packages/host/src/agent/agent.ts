@@ -52,6 +52,14 @@ export type AgentOptions = {
    * the inline-AI session, which is a pure text generator with no file/executor
    * access. Unset keeps the default active tool set. */
   allowedToolNames?: string[];
+  /** Model id override (must exist in pi-ai's registry for AUTH_PROVIDER).
+   * Defaults to MODEL_ID — the ghost-text session passes its fast model. */
+  modelId?: string;
+  /** Keep the session entirely in memory (never written to disk). Used by the
+   * ghost-text session: high-frequency throwaway turns that should neither
+   * pile up session files nor be resumable. Takes precedence over
+   * newSession/sessionDir. */
+  ephemeralSession?: boolean;
 };
 
 export class Agent {
@@ -64,14 +72,16 @@ export class Agent {
   async start(): Promise<void> {
     if (!this.pi) {
       const sessionDir = this.opts.sessionDir ?? SESSION_DIR;
-      const sessionManager = this.opts.newSession
-        ? SessionManager.create(WORKSPACE_DIR, sessionDir)
-        : resolveSessionManager(sessionDir);
+      const sessionManager = this.opts.ephemeralSession
+        ? SessionManager.inMemory(WORKSPACE_DIR)
+        : this.opts.newSession
+          ? SessionManager.create(WORKSPACE_DIR, sessionDir)
+          : resolveSessionManager(sessionDir);
       this.pi = new PiAgent({
         cwd: WORKSPACE_DIR,
         agentDir: AGENT_DIR,
         authStorage: getAuthStorage(),
-        model: resolveModel(AUTH_PROVIDER, MODEL_ID),
+        model: resolveModel(AUTH_PROVIDER, this.opts.modelId ?? MODEL_ID),
         sessionManager,
         // A hard allowlist (even `[]`) replaces the default active-tool set.
         ...(this.opts.allowedToolNames !== undefined

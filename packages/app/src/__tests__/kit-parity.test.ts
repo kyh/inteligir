@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { type Descendant, ElementApi, type TElement, createSlateEditor } from "platejs";
 import { MarkdownPlugin, serializeMd } from "@platejs/markdown";
 
+import { shouldSerializeNode } from "@repo/app/editor/ai/transient";
 import { BASE_KIT } from "@repo/app/editor/kits/base-kit";
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_REMARK_PLUGINS, MD_STRINGIFY } from "@repo/app/editor/markdown/md-plugins";
@@ -57,7 +58,11 @@ describe("kit parity (Base half)", () => {
     expect(optionsB.rules).toBe(MD_RULES);
     expect(optionsA.remarkPlugins).toBe(MD_REMARK_PLUGINS);
     expect(optionsB.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(optionsA.disallowedNodes).toEqual(["suggestion", "ai", "slash_input", "emoji_input"]);
+    expect(optionsA.disallowedNodes).toEqual(["ai", "slash_input", "emoji_input"]);
+    // Suggestion marks are transient via allowNode + plainMarks (a blanket
+    // disallow would drop deletion-marked ORIGINAL text): see ai/transient.ts.
+    expect(optionsA.allowNode?.serialize).toBe(shouldSerializeNode);
+    expect(optionsA.plainMarks).toEqual(["suggestion"]);
   });
 
   it("serializes the canonical corpus identically across editor instances", () => {
@@ -97,7 +102,9 @@ describe("kit parity (live editor mirror)", () => {
     const options = live.getOptions(MarkdownPlugin);
     expect(options.rules).toBe(MD_RULES);
     expect(options.remarkPlugins).toBe(MD_REMARK_PLUGINS);
-    expect(options.disallowedNodes).toEqual(["suggestion", "ai", "slash_input", "emoji_input"]);
+    expect(options.disallowedNodes).toEqual(["ai", "slash_input", "emoji_input"]);
+    expect(options.allowNode?.serialize).toBe(shouldSerializeNode);
+    expect(options.plainMarks).toEqual(["suggestion"]);
   });
 
   it("both editors agree on inline/void metadata for every corpus element", () => {

@@ -39,7 +39,16 @@ import {
   type ListDelegationsResult,
   type RestoreSnapshotResult,
 } from "./delegation";
-import { AiGenerateParamsSchema, type AiGenerateResult } from "./inline-ai";
+import {
+  AiCancelParamsSchema,
+  AiGenerateParamsSchema,
+  AiIntentParamsSchema,
+  GhostTextParamsSchema,
+  type AiGenerateResult,
+  type AiIntentResult,
+  type GhostModelsResult,
+  type GhostTextResult,
+} from "./inline-ai";
 import type {
   BacklinkEntry,
   ForwardLinkEntry,
@@ -361,8 +370,8 @@ export const IPC = {
    * keyed by id) so the response dock can show it live. */
   onDelegationStreamed: event<{ id: string; text: string }>("delegation:streamed"),
 
-  // Inline AI — one-shot text generation for the editor (continue / summarize /
-  // improve), run on an isolated no-tools session.
+  // Inline AI — one-shot text generation for the editor's AI menu (generate
+  // and edit flows), run on an isolated no-tools session.
   generateInlineAi: invoke<typeof AiGenerateParamsSchema, AiGenerateResult>(
     "ai:generate",
     AiGenerateParamsSchema,
@@ -370,6 +379,30 @@ export const IPC = {
   /** Fired for each text delta of an in-flight inline-AI request (keyed by the
    * caller's requestId) so the editor can insert the generation live. */
   onAiStreamed: event<{ requestId: string; delta: string }>("ai:streamed"),
+  /** Abort an in-flight generateInlineAi turn (Escape mid-stream). */
+  cancelInlineAi: invoke<typeof AiCancelParamsSchema, void>(
+    "ai:generate-cancel",
+    AiCancelParamsSchema,
+  ),
+  /** Classify a free-form AI-menu prompt as generate vs edit intent. Runs on
+   * the inline-AI session; unparseable answers fall back to generate. */
+  classifyAiIntent: invoke<typeof AiIntentParamsSchema, AiIntentResult>(
+    "ai:classify-intent",
+    AiIntentParamsSchema,
+  ),
+  /** One ghost-text completion on the dedicated fast session. A new request
+   * supersedes (aborts) the previous one. */
+  generateGhostText: invoke<typeof GhostTextParamsSchema, GhostTextResult>(
+    "ai:ghost-text",
+    GhostTextParamsSchema,
+  ),
+  /** Abort an in-flight ghost completion (typing / Escape / blur). */
+  cancelGhostText: invoke<typeof AiCancelParamsSchema, void>(
+    "ai:ghost-text-cancel",
+    AiCancelParamsSchema,
+  ),
+  /** Models the ghost-text session can run (for the settings picker). */
+  listGhostModels: invokeVoid<GhostModelsResult>("ai:ghost-models"),
 
   // Executor (v1.5 model: integrations = catalog, connections = credentials).
   // The v1 sources/secrets channels are gone — secrets are now connection

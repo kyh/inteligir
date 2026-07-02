@@ -20,6 +20,7 @@ import {
   startBackgroundAgent,
   stopBackgroundAgent,
 } from "../delegation/background-agent";
+import { stopGhostAgent } from "./ghost-text";
 import { setInlineAiStreamNotifier, startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
 import {
   getDelegationManager,
@@ -212,6 +213,8 @@ async function stopAgent(): Promise<void> {
   // singleton every session uses, so it must outlive each agent's teardown.
   await stopBackgroundAgent();
   await stopInlineAiAgent();
+  // Lazily started (first ghost request), unconditionally stopped.
+  await stopGhostAgent();
   await getExecutorDaemon().stop();
   turn = null;
 }

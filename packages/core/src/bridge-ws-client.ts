@@ -309,6 +309,11 @@ export function createWsBridge(url: string, options: WsBridgeOptions = {}): Brid
     // Inline AI
     generateInlineAi: rpc("generateInlineAi"),
     onAiStreamed: sub("onAiStreamed"),
+    cancelInlineAi: rpc("cancelInlineAi"),
+    classifyAiIntent: rpc("classifyAiIntent"),
+    generateGhostText: rpc("generateGhostText"),
+    cancelGhostText: rpc("cancelGhostText"),
+    listGhostModels: rpc("listGhostModels"),
 
     // Executor
     executorStatus: rpc("executorStatus"),

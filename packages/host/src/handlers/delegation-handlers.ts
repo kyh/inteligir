@@ -1,4 +1,3 @@
-import { generateInline } from "../app/inline-ai";
 import { getDelegationManager } from "../delegation/delegation-manager";
 import type { HandlerRegistrar } from "../lib/handler-registry";
 
@@ -7,5 +6,4 @@ export function registerDelegationHandlers(handle: HandlerRegistrar): void {
   handle("listDelegations", () => ({ delegations: getDelegationManager().getDelegations() }));
   handle("cancelDelegation", (id) => getDelegationManager().cancelDelegation(id));
   handle("restoreDelegationSnapshot", (id) => getDelegationManager().restoreSnapshot(id));
-  handle("generateInlineAi", (params) => generateInline(params.prompt, params.requestId));
 }

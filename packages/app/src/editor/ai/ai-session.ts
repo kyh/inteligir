@@ -1,0 +1,453 @@
+// AI session controller — the state machine behind the editor's AI menu.
+// One session at a time; state lives in AiSessionPlugin options so the menu
+// (afterEditable), the selection toolbar, and the slash menu all drive the
+// same instance through the exported functions.
+//
+// Two flows, routed by intent:
+// - generate: streams text into the document at the caret under the transient
+//   `ai` mark (accept keeps the text and strips the mark; discard undoes the
+//   inserts precisely).
+// - edit: rewrites the selection's blocks host-side, then lands the result as
+//   per-change track-changes suggestions (suggestions.ts) reviewed in the
+//   floating bar.
+// Free-form prompts are classified host-side (generate on any failure);
+// canned actions carry a fixed intent.
+
+import { isHotkey, PointApi, RangeApi, type Path, type PluginConfig, type TRange } from "platejs";
+import { createTPlatePlugin, type PlateEditor } from "platejs/react";
+import { serializeMd } from "@platejs/markdown";
+
+import type { AiIntentResult } from "@repo/core/inline-ai";
+
+import { getBridge } from "@repo/app/lib/bridge";
+import { AI_MARK } from "@repo/app/editor/ai/ai-mark";
+import { applyEditSuggestions } from "@repo/app/editor/ai/suggestions";
+import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
+
+// ---------------------------------------------------------------------------
+// Plugin state
+// ---------------------------------------------------------------------------
+
+export type AiMenuStatus =
+  | "closed"
+  | "input" // menu open, waiting for a prompt / action pick
+  | "classifying" // free-form prompt sent for intent classification
+  | "generating" // generate flow streaming into the document
+  | "editing" // edit flow waiting for the rewritten markdown
+  | "review" // generate flow finished — accept / discard / try again
+  | "error";
+
+type AiSessionOptions = {
+  status: AiMenuStatus;
+  /** DOM block the menu anchors under (null = cannot open). */
+  anchor: HTMLElement | null;
+  /** Editor selection captured when the menu opened. */
+  savedSelection: TRange | null;
+  error: string | null;
+};
+
+const DEFAULT_OPTIONS: AiSessionOptions = {
+  status: "closed",
+  anchor: null,
+  savedSelection: null,
+  error: null,
+};
+
+export const AiSessionPlugin = createTPlatePlugin<PluginConfig<"aiSession", AiSessionOptions>>({
+  key: "aiSession",
+  options: DEFAULT_OPTIONS,
+  handlers: {
+    onKeyDown: ({ editor, event }) => {
+      if (isHotkey("mod+j", event)) {
+        event.preventDefault();
+        openAiMenu(editor);
+      }
+    },
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Canned actions
+// ---------------------------------------------------------------------------
+
+export type CannedActionId =
+  | "continue"
+  | "summarize"
+  | "explain"
+  | "improve"
+  | "shorter"
+  | "grammar";
+
+export type CannedAction = {
+  id: CannedActionId;
+  label: string;
+  intent: "generate" | "edit";
+  keywords: string[];
+};
+
+export const CANNED_ACTIONS: CannedAction[] = [
+  { id: "continue", label: "Continue writing", intent: "generate", keywords: ["write", "more"] },
+  { id: "summarize", label: "Summarize", intent: "generate", keywords: ["tldr", "summary"] },
+  { id: "explain", label: "Explain", intent: "generate", keywords: ["what", "meaning"] },
+  { id: "improve", label: "Improve writing", intent: "edit", keywords: ["rewrite", "better"] },
+  { id: "shorter", label: "Make shorter", intent: "edit", keywords: ["concise", "shorten"] },
+  {
+    id: "grammar",
+    label: "Fix spelling & grammar",
+    intent: "edit",
+    keywords: ["spelling", "typo"],
+  },
+];
+
+const PROMPT_BASE =
+  "You are a writing assistant inside a notes editor. Respond with ONLY the resulting text — no preamble, no surrounding quotes, no markdown code fences, no explanation.";
+
+function generatePromptFor(
+  action: CannedActionId | null,
+  request: string,
+  context: string,
+): string {
+  switch (action) {
+    case "continue":
+      return `${PROMPT_BASE}\n\nContinue the following text naturally with one short paragraph:\n\n${context}`;
+    case "summarize":
+      return `${PROMPT_BASE}\n\nWrite a concise summary of the following:\n\n${context}`;
+    case "explain":
+      return `${PROMPT_BASE}\n\nExplain the following in one short, plain-language paragraph:\n\n${context}`;
+    default:
+      return `${PROMPT_BASE}\n\nContext:\n\n${context}\n\nRequest: ${request}`;
+  }
+}
+
+function editInstructionFor(action: CannedActionId | null, request: string): string {
+  switch (action) {
+    case "improve":
+      return "Improve the writing for clarity and flow, keeping the meaning and the markdown structure.";
+    case "shorter":
+      return "Make the content more concise, keeping the meaning and the markdown structure.";
+    case "grammar":
+      return "Fix spelling, grammar, and punctuation only. Do not change meaning, tone, or structure.";
+    default:
+      return request;
+  }
+}
+
+// The <markdown> sentinel is load-bearing: the host passes the prompt through
+// verbatim, and the dev-harness fixture parses the block back out to fake an
+// edit. Keep in sync with fixture-bridge.ts.
+function buildEditPrompt(instruction: string, markdown: string): string {
+  return [
+    "You are a writing assistant inside a notes editor. Apply the instruction to the markdown document below.",
+    "Respond with ONLY the full rewritten markdown — same dialect (GitHub-flavored), no code fences around the whole answer, no commentary.",
+    "",
+    `<instruction>\n${instruction}\n</instruction>`,
+    `<markdown>\n${markdown}\n</markdown>`,
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Run bookkeeping (module-level: one editor surface, one session at a time)
+// ---------------------------------------------------------------------------
+
+type LastRun =
+  | { kind: "canned"; action: CannedActionId }
+  | { kind: "prompt"; text: string; intent: "generate" | "edit" };
+
+let runCounter = 0;
+// Bumped on every cancel/close; async continuations check it before touching
+// the editor so a stale response can't land after the user moved on.
+let runToken = 0;
+let lastRun: LastRun | null = null;
+// Generate-flow unwind state: history depth before the AI touched the doc,
+// stream unsubscribe, and the in-flight requestId (for host-side abort).
+let undoDepth = 0;
+let streamOff: (() => void) | null = null;
+let activeRequestId: string | null = null;
+
+function setOptions(editor: PlateEditor, patch: Partial<AiSessionOptions>): void {
+  editor.setOptions(AiSessionPlugin, patch);
+}
+
+function savedSelection(editor: PlateEditor): TRange | null {
+  return editor.getOption(AiSessionPlugin, "savedSelection");
+}
+
+// ---------------------------------------------------------------------------
+// Open / close
+// ---------------------------------------------------------------------------
+
+/** Open the AI menu anchored under the block holding the selection's end. */
+export function openAiMenu(editor: PlateEditor): void {
+  if (editor.getOption(AiSessionPlugin, "status") !== "closed") return;
+  const sel = editor.selection;
+  if (!sel) return;
+  const blockIndex = RangeApi.end(sel).path[0];
+  if (blockIndex === undefined) return;
+  const entry = editor.api.node([blockIndex]);
+  if (!entry) return;
+  const anchor = editor.api.toDOMNode(entry[0]);
+  if (!anchor) return;
+  setOptions(editor, { status: "input", anchor, savedSelection: sel, error: null });
+}
+
+/**
+ * Close the menu from any state, leaving the document clean: an in-flight run
+ * is canceled (streamed inserts unwound), a pending generate review is
+ * discarded. Suggestions already applied by the edit flow are NOT touched —
+ * they belong to the review bar.
+ */
+export function closeAiMenu(editor: PlateEditor): void {
+  const status = editor.getOption(AiSessionPlugin, "status");
+  if (status === "closed") return;
+  if (status === "generating" || status === "editing" || status === "classifying") {
+    cancelActiveRun(editor);
+  } else if (status === "review") {
+    unwindGenerate(editor);
+  }
+  runToken += 1;
+  const sel = savedSelection(editor);
+  setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
+  lastRun = null;
+  if (sel) editor.tf.select(sel);
+  editor.tf.focus();
+}
+
+/** Abort the in-flight run (Escape / stop button) and return to the prompt. */
+export function cancelActiveRun(editor: PlateEditor): void {
+  runToken += 1;
+  streamOff?.();
+  streamOff = null;
+  if (activeRequestId !== null) {
+    void getBridge()?.cancelInlineAi({ requestId: activeRequestId });
+    activeRequestId = null;
+  }
+  const status = editor.getOption(AiSessionPlugin, "status");
+  if (status === "generating") unwindGenerate(editor);
+  setOptions(editor, { status: "input", error: null });
+}
+
+/** Revert every AI-inserted delta back to the pre-run document. */
+function unwindGenerate(editor: PlateEditor): void {
+  while (editor.history.undos.length > undoDepth) editor.undo();
+}
+
+// ---------------------------------------------------------------------------
+// Submitting
+// ---------------------------------------------------------------------------
+
+/** Free-form prompt path: classify host-side, then route. Submitting from the
+ * generate review discards the pending output first (a follow-up replaces). */
+export function submitAiPrompt(editor: PlateEditor, text: string): void {
+  const bridge = getBridge();
+  const prompt = text.trim();
+  if (!bridge || prompt.length === 0) return;
+  if (editor.getOption(AiSessionPlugin, "status") === "review") unwindGenerate(editor);
+  const token = ++runToken;
+  setOptions(editor, { status: "classifying", error: null });
+  const sel = savedSelection(editor);
+  const hasSelection = sel !== null && RangeApi.isExpanded(sel);
+  const fallback: AiIntentResult = { intent: "generate" };
+  void bridge
+    .classifyAiIntent({ prompt, hasSelection })
+    .catch(() => fallback)
+    .then(({ intent }) => {
+      if (runToken !== token) return; // canceled / closed while classifying
+      lastRun = { kind: "prompt", text: prompt, intent };
+      if (intent === "edit") startEdit(editor, editInstructionFor(null, prompt));
+      else startGenerate(editor, null, prompt);
+      return undefined;
+    });
+}
+
+/** Canned action path: fixed intent, no classification round-trip. */
+export function runCannedAction(editor: PlateEditor, id: CannedActionId): void {
+  const action = CANNED_ACTIONS.find((a) => a.id === id);
+  if (!action) return;
+  lastRun = { kind: "canned", action: id };
+  if (action.intent === "edit") startEdit(editor, editInstructionFor(id, ""));
+  else startGenerate(editor, id, "");
+}
+
+/** Discard the current pending output (if any) and re-run the last request. */
+export function retryLastRun(editor: PlateEditor): void {
+  const run = lastRun;
+  if (!run) return;
+  if (editor.getOption(AiSessionPlugin, "status") === "review") unwindGenerate(editor);
+  if (run.kind === "canned") runCannedAction(editor, run.action);
+  else if (run.intent === "edit") startEdit(editor, editInstructionFor(null, run.text));
+  else startGenerate(editor, null, run.text);
+}
+
+// ---------------------------------------------------------------------------
+// Generate flow (streaming insert under the transient ai mark)
+// ---------------------------------------------------------------------------
+
+function startGenerate(editor: PlateEditor, action: CannedActionId | null, request: string): void {
+  const bridge = getBridge();
+  if (!bridge) return;
+  const sel = savedSelection(editor) ?? editor.selection;
+  if (!sel) return;
+  const hasSelection = RangeApi.isExpanded(sel);
+  const context =
+    hasSelection && action !== "continue" ? editor.api.string(sel) : editor.api.string([]);
+
+  // Generations INSERT at the end of the captured selection — they never
+  // replace content (that's the edit flow's job).
+  editor.tf.select(sel);
+  editor.tf.collapse({ edge: "end" });
+  const insertion = editor.selection;
+  if (!insertion) return;
+
+  undoDepth = editor.history.undos.length;
+  const startRef = editor.api.pointRef(RangeApi.start(insertion));
+  const token = ++runToken;
+  runCounter += 1;
+  const requestId = `menu-${runCounter}`;
+  activeRequestId = requestId;
+  setOptions(editor, { status: "generating", error: null });
+
+  streamOff = bridge.onAiStreamed(({ requestId: id, delta }) => {
+    if (id !== requestId || delta.length === 0 || runToken !== token) return;
+    editor.tf.addMark(AI_MARK, true);
+    editor.tf.insertText(delta);
+  });
+
+  void bridge
+    .generateInlineAi({ prompt: generatePromptFor(action, request, context), requestId })
+    .then((result) => {
+      if (runToken !== token) {
+        startRef.unref();
+        return undefined;
+      }
+      streamOff?.();
+      streamOff = null;
+      activeRequestId = null;
+      const start = startRef.current;
+      startRef.unref();
+      const end = editor.selection?.anchor;
+      if (!result.ok) {
+        if (start && end) editor.tf.delete({ at: { anchor: start, focus: end } });
+        setOptions(editor, { status: "error", error: result.error });
+        return undefined;
+      }
+      // Fallback for models that don't stream: insert the final text now.
+      if (start && end && PointApi.equals(start, end)) {
+        editor.tf.addMark(AI_MARK, true);
+        editor.tf.insertText(result.text);
+      }
+      const focus = editor.selection?.anchor;
+      if (start && focus) {
+        // Sweep the mark across the whole streamed range (covers any splits).
+        editor.tf.setNodes(
+          { [AI_MARK]: true },
+          { at: { anchor: start, focus }, match: (n) => "text" in n, split: true },
+        );
+      }
+      setOptions(editor, { status: "review" });
+      return undefined;
+    })
+    .catch(() => {
+      if (runToken !== token) return;
+      streamOff?.();
+      streamOff = null;
+      activeRequestId = null;
+      setOptions(editor, { status: "error", error: "AI request failed." });
+    });
+}
+
+/** Keep the generated text: strip the highlight, close the menu. */
+export function acceptGenerate(editor: PlateEditor): void {
+  editor.tf.unsetNodes([AI_MARK], { at: [], match: (n) => AI_MARK in n, mode: "lowest" });
+  editor.tf.collapse({ edge: "end" });
+  const at = editor.selection;
+  setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
+  lastRun = null;
+  runToken += 1;
+  if (at) editor.tf.select(at);
+  editor.tf.focus();
+}
+
+/** Remove the generated text (precise undo back to the pre-run document). */
+export function discardGenerate(editor: PlateEditor): void {
+  unwindGenerate(editor);
+  closeAiMenu(editor);
+}
+
+/** Back from the error state to the prompt. */
+export function dismissAiError(editor: PlateEditor): void {
+  setOptions(editor, { status: "input", error: null });
+}
+
+// ---------------------------------------------------------------------------
+// Edit flow (suggestions)
+// ---------------------------------------------------------------------------
+
+/** The contiguous top-level blocks covered by the captured selection (caret =
+ * its single block). Frontmatter is never an edit target. */
+function editTargetPaths(editor: PlateEditor): Path[] {
+  const sel = savedSelection(editor) ?? editor.selection;
+  if (!sel) return [];
+  const startIndex = RangeApi.start(sel).path[0];
+  const endIndex = RangeApi.end(sel).path[0];
+  if (startIndex === undefined || endIndex === undefined) return [];
+  const paths: Path[] = [];
+  for (let i = startIndex; i <= endIndex; i++) {
+    const entry = editor.api.node([i]);
+    if (!entry) continue;
+    const [node] = entry;
+    if ("type" in node && node.type === "frontmatter") continue;
+    paths.push([i]);
+  }
+  return paths;
+}
+
+function startEdit(editor: PlateEditor, instruction: string): void {
+  const bridge = getBridge();
+  if (!bridge) return;
+  const paths = editTargetPaths(editor);
+  const nodes = paths.flatMap((path) => {
+    const entry = editor.api.node(path);
+    return entry ? [entry[0]] : [];
+  });
+  if (nodes.length === 0) {
+    setOptions(editor, { status: "error", error: "Nothing to edit here." });
+    return;
+  }
+  const markdown = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: nodes });
+  const token = ++runToken;
+  runCounter += 1;
+  const requestId = `menu-${runCounter}`;
+  activeRequestId = requestId;
+  setOptions(editor, { status: "editing", error: null });
+
+  void bridge
+    .generateInlineAi({ prompt: buildEditPrompt(instruction, markdown), requestId })
+    .then((result) => {
+      if (runToken !== token) return undefined; // canceled / closed
+      activeRequestId = null;
+      if (!result.ok) {
+        setOptions(editor, { status: "error", error: result.error });
+        return undefined;
+      }
+      const parsed = parseMarkdown(result.text);
+      if (!parsed.ok) {
+        setOptions(editor, { status: "error", error: "The AI reply couldn't be applied." });
+        return undefined;
+      }
+      if (!applyEditSuggestions(editor, editTargetPaths(editor), parsed.value)) {
+        setOptions(editor, { status: "error", error: "The AI suggested no changes." });
+        return undefined;
+      }
+      // Suggestions are in the document; the review bar owns them from here.
+      runToken += 1;
+      setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
+      lastRun = null;
+      editor.tf.focus();
+      return undefined;
+    })
+    .catch(() => {
+      if (runToken !== token) return;
+      activeRequestId = null;
+      setOptions(editor, { status: "error", error: "AI request failed." });
+    });
+}

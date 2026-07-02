@@ -180,6 +180,9 @@ importers:
       '@platejs/slash-command':
         specifier: ^53.0.0
         version: 53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      '@platejs/suggestion':
+        specifier: ^53.2.3
+        version: 53.2.3(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       '@platejs/table':
         specifier: ^53.0.9
         version: 53.0.9(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -2914,6 +2917,13 @@ packages:
       react: '>=18.0.0'
       react-dom: '>=18.0.0'
 
+  '@platejs/diff@53.0.0':
+    resolution: {integrity: sha512-OldWJ0SYMqy6GcTaqA/oHhdshwbcQue9bIPnRZMoCET+svo/COu3gXHdEfWJZ7ueHZwYA8zrHAiw5amRgZB6wg==}
+    peerDependencies:
+      platejs: '>=53.0.0'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
+
   '@platejs/emoji@53.1.7':
     resolution: {integrity: sha512-Gs+3nDqiup7I7DU9hgv9WyWve1cD0G7w4mfjZ4jTb5uy8VBT/ahRJW9GLkc+hGi8xuy29tdceGR1aiIxPMcltg==}
     peerDependencies:
@@ -2987,6 +2997,13 @@ packages:
 
   '@platejs/slate@53.0.7':
     resolution: {integrity: sha512-vDkeHL/xGgtXA8pRL4FMbdcAk1ZnfhdXgUwxgU65zu/sY3tqK47SEAA0Z+1zpBjeNchWij9sJ75X15p0+edzHg==}
+
+  '@platejs/suggestion@53.2.3':
+    resolution: {integrity: sha512-SMBe0dU2KYfP2ri+BN49JaY4dz4xoGRKuNdF3YBB1pvbf3Ho58BsNuSHkhkr6QCzNDZUY4il4ACasOeSbeSjeA==}
+    peerDependencies:
+      platejs: '>=53.0.3'
+      react: '>=18.0.0'
+      react-dom: '>=18.0.0'
 
   '@platejs/table@53.0.9':
     resolution: {integrity: sha512-fie96c0AE8bShfog+SA767rbf/1i5YYAxZFndETCNkXxT+nzc0GKaVyEOkSaVBtwq9OBqHfD/t4ITpadbrTa0Q==}
@@ -5143,6 +5160,9 @@ packages:
 
   devlop@1.1.0:
     resolution: {integrity: sha512-RWmIqhcFf1lRYBvNmr7qTNuyCt/7/ns2jbpp1+PalgE/rDQcBT0fioSMUpJ93irlUhC5hrg4cYqe6U+0ImW0rA==}
+
+  diff-match-patch-ts@0.6.0:
+    resolution: {integrity: sha512-U0uPIJ+wJqgaBoVw2MFSFpGIk7q3mJJ+/sehbxDZFv4Gx6a1GOmrsSLmxVDDrGtRL4Q9de084aa5lVpCHn+eUw==}
 
   diff@8.0.4:
     resolution: {integrity: sha512-DPi0FmjiSU5EvQV0++GFDOJ9ASQUVFh5kD+OzOnYdi7n3Wpm9hWWGfB/O2blfHcMVTL5WkQXSnRiK9makhrcnw==}
@@ -11400,6 +11420,15 @@ snapshots:
       react-compiler-runtime: 1.0.0(react@19.2.6)
       react-dom: 19.2.6(react@19.2.6)
 
+  '@platejs/diff@53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      diff-match-patch-ts: 0.6.0
+      lodash: 4.18.1
+      platejs: 53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6))
+      react: 19.2.6
+      react-compiler-runtime: 1.0.0(react@19.2.6)
+      react-dom: 19.2.6(react@19.2.6)
+
   '@platejs/emoji@53.1.7(@emoji-mart/data@1.2.1)(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
       '@emoji-mart/data': 1.2.1
@@ -11502,6 +11531,15 @@ snapshots:
       scroll-into-view-if-needed: 3.1.0
       slate: 0.124.1
       slate-dom: 0.124.1(slate@0.124.1)
+
+  '@platejs/suggestion@53.2.3(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
+    dependencies:
+      '@platejs/diff': 53.0.0(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      lodash: 4.18.1
+      platejs: 53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6))
+      react: 19.2.6
+      react-compiler-runtime: 1.0.0(react@19.2.6)
+      react-dom: 19.2.6(react@19.2.6)
 
   '@platejs/table@53.0.9(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)':
     dependencies:
@@ -13819,6 +13857,8 @@ snapshots:
   devlop@1.1.0:
     dependencies:
       dequal: 2.0.3
+
+  diff-match-patch-ts@0.6.0: {}
 
   diff@8.0.4: {}
 
