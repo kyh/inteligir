@@ -146,19 +146,6 @@ const GhostTextPlugin = createTPlatePlugin<PluginConfig<"ghostText", GhostTextOp
     },
   },
   handlers: {
-    onKeyDown: ({ editor, event }) => {
-      const machine = machines.get(editor);
-      if (!machine) return;
-      if (event.key === "Tab" && !event.shiftKey && machine.onTab()) {
-        event.preventDefault();
-        event.stopPropagation();
-        return;
-      }
-      if (event.key === "Escape" && machine.onEscape()) {
-        event.preventDefault();
-        event.stopPropagation();
-      }
-    },
     onBlur: ({ editor }) => {
       machines.get(editor)?.onBlur();
     },
@@ -173,7 +160,26 @@ const GhostTextPlugin = createTPlatePlugin<PluginConfig<"ghostText", GhostTextOp
       if (!enabled) return;
       const machine = createMachine(editor);
       machines.set(editor, machine);
+      // Tab/Escape ride a CAPTURE-phase DOM listener on the editable, not a
+      // plugin onKeyDown: with a ghost visible Tab must beat the indent
+      // kit's binding (plugin handler order would hand it to indent first),
+      // and capture on the editable runs before React's root-delegated
+      // handlers. Without a ghost both keys fall through untouched.
+      const editable = editor.api.toDOMNode(editor);
+      const onKeyDown = (event: KeyboardEvent) => {
+        if (event.key === "Tab" && !event.shiftKey && machine.onTab()) {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
+        if (event.key === "Escape" && machine.onEscape()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      };
+      editable?.addEventListener("keydown", onKeyDown, true);
       return () => {
+        editable?.removeEventListener("keydown", onKeyDown, true);
         machine.dispose();
         machines.delete(editor);
         editor.setOptions(GhostTextPlugin, { anchorKey: null, text: null });

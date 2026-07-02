@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { CheckIcon, ChevronDownIcon, MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
+import { MonitorIcon, MoonIcon, SunIcon } from "lucide-react";
 import { Button } from "@repo/ui/components/button";
 import { Switch } from "@repo/ui/components/switch";
 import { Input } from "@repo/ui/components/input";
 import { Label } from "@repo/ui/components/label";
-import { Menu, MenuContent, MenuItem, MenuTrigger } from "@repo/ui/components/menu";
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@repo/app/lib/bridge";
@@ -164,7 +163,6 @@ function EditorAiSection() {
   }, [init]);
 
   const effectiveId = model ?? defaultModelId;
-  const currentLabel = models.find((m) => m.id === effectiveId)?.label ?? "Default";
 
   return (
     <div className="flex flex-col gap-2">
@@ -182,27 +180,22 @@ function EditorAiSection() {
           fast model with your OpenAI account.
         </p>
         {enabled && models.length > 0 && (
-          <div className="flex items-center justify-between px-3 pb-2">
+          <div className="flex items-center justify-between gap-2 px-3 pb-2">
             <span className="text-xs text-foreground">Completion model</span>
-            <Menu>
-              <MenuTrigger className="flex h-6 items-center gap-1 rounded-md px-2 text-[10px] font-medium text-muted-foreground transition-colors hover:bg-hover hover:text-foreground">
-                {currentLabel}
-                <ChevronDownIcon className="size-3" />
-              </MenuTrigger>
-              <MenuContent side="bottom" align="end">
-                {models.map((m) => (
-                  <MenuItem key={m.id} onClick={() => void setModel(m.id)}>
-                    <span className="flex w-full items-center justify-between gap-3">
-                      {m.label}
-                      {m.id === defaultModelId && (
-                        <span className="text-[10px] text-muted-foreground">default</span>
-                      )}
-                      {m.id === effectiveId && <CheckIcon className="size-3.5" />}
-                    </span>
-                  </MenuItem>
-                ))}
-              </MenuContent>
-            </Menu>
+            {/* Native select: a portaled Base UI menu popup inside the
+                settings Dialog reads as an outside press and dismisses it. */}
+            <select
+              value={effectiveId ?? ""}
+              onChange={(e) => void setModel(e.target.value)}
+              className="h-6 max-w-[55%] rounded-md bg-card px-1.5 text-[10px] font-medium text-muted-foreground shadow-surface-2 outline-none transition-colors hover:text-foreground"
+            >
+              {models.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.label}
+                  {m.id === defaultModelId ? " (default)" : ""}
+                </option>
+              ))}
+            </select>
           </div>
         )}
       </div>

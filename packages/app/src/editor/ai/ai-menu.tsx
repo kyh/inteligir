@@ -71,6 +71,8 @@ export function AiMenu() {
     }
   }, [open]);
   React.useEffect(() => {
+    // The submitted prompt was consumed — review offers a fresh follow-up.
+    if (status === "review") setInput("");
     if (status === "input" || status === "review") inputRef.current?.focus();
   }, [status]);
 
@@ -157,8 +159,17 @@ export function AiMenu() {
   return (
     <Popover
       open={open}
-      onOpenChange={(next) => {
-        if (!next) closeAiMenu(editor);
+      onOpenChange={(next, eventDetails) => {
+        if (next) return;
+        // Escape during a busy state cancels back to the prompt (Base UI's
+        // popup-level Escape fires when DOM focus sits on the popup itself —
+        // the input is unmounted then, so its onKeyDown can't intercept).
+        // Everything else (outside press, focus-out) closes for real.
+        if (eventDetails.reason === "escape-key" && busyLabel) {
+          cancelActiveRun(editor);
+          return;
+        }
+        closeAiMenu(editor);
       }}
     >
       <PopoverContent
