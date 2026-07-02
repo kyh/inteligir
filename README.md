@@ -36,9 +36,11 @@ Workspace `README.md`s:
 | `packages/ui`            | [shared design system](./packages/ui/README.md)                              |
 | `apps/web`               | [static marketing site](./apps/web/README.md)                                |
 
-`docs/replatform-plan.md` is the architecture plan of record. `CLAUDE.md`
-(root) is read by Claude Code / agents working in the repo — quality gates,
-dev-loop tools, conventions.
+**[`docs/development.md`](./docs/development.md) is the dev guide** — the
+three ways to run the app, ports/shared state, gates, verification, and
+change checklists. `docs/replatform-plan.md` is the architecture decision
+record. `CLAUDE.md` (root) is read by Claude Code / agents working in the
+repo — architecture summary + conventions.
 
 ## Common commands
 
