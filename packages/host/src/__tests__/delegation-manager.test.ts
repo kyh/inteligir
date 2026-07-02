@@ -588,11 +588,9 @@ describe("DelegationManager.restoreSnapshot", () => {
     if (!result.ok) expect(result.error).toContain("No snapshot");
     expect(rig.writes).toEqual([]);
     expect(rig.mgr.getDelegations()[0]?.restoredAt).toBeNull();
-    // The record's hasSnapshot flag stays true (prune doesn't rewrite records).
-    // That stale flag is unreachable from the UI: prune runs only at host
-    // start, and the dock only shows delegations seen active this session — a
-    // new surface listing ALL delegations would need to revalidate it.
-    expect(rig.mgr.getDelegations()[0]?.hasSnapshot).toBe(true);
+    // Prune flips hasSnapshot at the data level, so no surface — present or
+    // future — can offer a restore whose bytes are gone.
+    expect(rig.mgr.getDelegations()[0]?.hasSnapshot).toBe(false);
   });
 });
 

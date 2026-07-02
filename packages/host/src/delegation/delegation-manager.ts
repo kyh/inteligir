@@ -349,9 +349,15 @@ export class DelegationManager {
     return { ok: true };
   }
 
-  /** Retention sweep for the snapshot store — run once at host start. */
+  /** Retention sweep for the snapshot store — run once at host start. Pruned
+   * records lose `hasSnapshot` at the data level so no surface (present or
+   * future) can offer a restore whose bytes are gone. */
   pruneSnapshots(): void {
-    this.snapshots.prune();
+    const prunedIds = new Set(this.snapshots.prune());
+    if (prunedIds.size === 0) return;
+    this.store.update((all) =>
+      all.map((d) => (prunedIds.has(d.id) && d.hasSnapshot ? { ...d, hasSnapshot: false } : d)),
+    );
   }
 
   private patch(id: string, patch: Partial<Delegation>): void {

@@ -190,13 +190,14 @@ export class DelegationSnapshotStore {
    * entries, delete the bytes of everything older, and remove orphan files in
    * the content dir that no surviving entry references (crash leftovers).
    * Best-effort on the file operations — the index is the source of truth. */
-  prune(): void {
+  prune(): string[] {
     const all = this.index.read();
     const byNewest = all.toSorted((a, b) => b.capturedAt - a.capturedAt);
     const kept = byNewest.slice(0, SNAPSHOT_RETENTION);
     if (kept.length !== all.length) {
       this.index.write(kept);
     }
+    const prunedIds = byNewest.slice(SNAPSHOT_RETENTION).map((e) => e.delegationId);
     const referenced = new Set(kept.map((e) => e.snapshotFile));
     for (const name of this.files.list(this.dir)) {
       if (referenced.has(name)) continue;
@@ -206,5 +207,6 @@ export class DelegationSnapshotStore {
         console.warn(`[snapshots] could not remove ${name}:`, err);
       }
     }
+    return prunedIds;
   }
 }
