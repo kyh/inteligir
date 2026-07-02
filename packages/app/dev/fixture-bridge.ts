@@ -97,6 +97,122 @@ tags: [meta, demo]
 
 The yaml block above survives Rich edits byte-for-byte; edit it via Raw.
 `,
+  // WP2 vocabulary notes — every kit exercisable in the harness. All four are
+  // CANONICAL (the corpus test pins that): editing them must never flip the
+  // pane to Raw.
+  "components-playground.md": `# Components playground
+
+One of each vocabulary block, exercisable in the harness.
+
+<toggle>
+  Toggle summary line.
+
+  Toggle body with a [[wiki link]] and **bold**.
+
+  - nested bullet
+  - another
+</toggle>
+
+<toggle />
+
+<column_group>
+  <column>
+    Left column text.
+  </column>
+
+  <column>
+    Right column text.
+  </column>
+</column_group>
+
+<column_group>
+  <column width="33.33%">
+    one
+  </column>
+
+  <column width="33.33%">
+    two
+  </column>
+
+  <column width="33.34%">
+    three
+  </column>
+</column_group>
+
+Due <date value="2026-07-04" /> and reviewed on <date value="2026-07-01" />.
+
+<video src="https://www.youtube.com/watch?v=dQw4w9WgXcQ" />
+
+<video src="https://vimeo.com/76979871" />
+
+<media_embed src="https://twitter.com/nasa/status/1410624005669169154" />
+
+<file src="https://pdfobject.com/pdf/sample.pdf" />
+
+<callout variant="info">
+  A compat callout with **bold** body text.
+</callout>
+
+> [!TIP]
+> Product callouts stay GitHub-alert blockquotes.
+
+$$
+\\int_0^1 x^2 \\, dx = \\frac{1}{3}
+$$
+
+Inline math $$E = mc^2$$ mid-sentence, and an emoji trigger to try: type a colon.
+`,
+  "math-and-diagrams.md": `# Math and diagrams
+
+Display math with a multi-line matrix:
+
+$$
+\\begin{pmatrix}
+a & b \\\\
+c & d
+\\end{pmatrix}
+$$
+
+Inline $$m$$ in a table:
+
+| name | value   |
+| ---- | ------- |
+| mass | $$m$$   |
+| c    | $$3e8$$ |
+
+\`\`\`mermaid
+graph TD;
+A[Start] --> B{Decide};
+B -->|yes| C[Ship];
+B -->|no| D[Iterate];
+\`\`\`
+
+\`\`\`mermaid
+sequenceDiagram
+Alice->>Bob: Ship WP2?
+Bob-->>Alice: Green gates first.
+\`\`\`
+
+A \`math\` fence stays a plain fence:
+
+\`\`\`math
+E = mc^2
+\`\`\`
+`,
+  "wiki/hub.md": `# Hub
+
+Links: [[target note]], aliased [[target note|the target]], an anchor [[target note#section]], and a missing [[missing note]].
+
+Embed placeholder: ![[target note]]
+
+- [ ] follow up on [[target note]]
+`,
+  "wiki/target note.md": `# Target note
+
+## Section
+
+The hub links here. Backlinks arrive in a later phase.
+`,
 };
 
 /** Streams `text` in small chunks via `onDelta`, then calls `onDone`. */
