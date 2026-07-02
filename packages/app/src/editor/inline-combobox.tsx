@@ -1,20 +1,38 @@
-// Inline combobox for the slash menu — adapted from Potion's Plate-UI component
-// (registry/ui/inline-combobox.tsx), built on @platejs/combobox + Ariakit. The
-// Yjs "is creator" gate is removed (single-user, local vault) and the code is
-// reshaped to our lint rules (no any / non-null assertion / type assertion).
+// Inline combobox for editor triggers (`/` slash menu, `:` emoji, and Phase
+// F's `[[` wiki autocomplete), built on Base UI Combobox. The popup anchors to
+// the in-line input; Base UI's virtual focus keeps DOM focus ON the input
+// (aria-activedescendant roving), so keyboard navigation never fights the
+// editor for focus.
+//
+// Correctness properties (the ariakit predecessor violated all three):
+// - Input order is stable under fast typing: the value is plain synchronous
+//   React state (no transition/deferral between keystroke and controlled
+//   input), and any keystrokes that raced into the trigger element's hidden
+//   text child before the input mounted are absorbed into the initial value.
+// - Cancel is point-ref-safe and idempotent: all editor mutations run through
+//   combobox-input.ts, which re-resolves the element at call time and no-ops
+//   when an undo/redo already removed it — rapid undo after Escape can no
+//   longer replay a stale restore into the document (the about:blank crash).
+// - The trigger elements themselves never serialize: markdown-kit lists
+//   `slash_input`/`emoji_input` in disallowedNodes, so an autosave firing
+//   mid-combobox skips them structurally instead of warning "Unreachable".
 
-import * as Ariakit from "@ariakit/react";
-import { filterWords } from "@platejs/combobox";
-import {
-  type UseComboboxInputResult,
-  useComboboxInput,
-  useHTMLInputCursorState,
-} from "@platejs/combobox/react";
-import type { Point, TElement } from "platejs";
-import { useComposedRef, useEditorRef } from "platejs/react";
 import * as React from "react";
+import { Combobox } from "@base-ui/react/combobox";
+import { filterWords } from "@platejs/combobox";
+import { useHTMLInputCursorState } from "@platejs/combobox/react";
+import { Hotkeys, isHotkey, type TElement } from "platejs";
+import { useComposedRef, useEditorRef, useSelected } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
+
+import {
+  absorbRacedComboboxText,
+  cancelComboboxInput,
+  commitComboboxInput,
+  racedComboboxText,
+  type ComboboxCancelCause,
+} from "@repo/app/editor/combobox-input";
 
 type FilterItem = {
   value: string;
@@ -25,13 +43,18 @@ type FilterItem = {
 type FilterFn = (item: FilterItem, search: string) => boolean;
 
 type InlineComboboxContextValue = {
+  commit: (focusEditor: boolean) => void;
   filter: FilterFn | false;
-  inputProps: UseComboboxInputResult["props"];
+  inputProps: {
+    onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void;
+  };
   inputRef: React.RefObject<HTMLInputElement | null>;
-  removeInput: UseComboboxInputResult["removeInput"];
+  registerVisibleItem: () => () => void;
+  setHasEmpty: (hasEmpty: boolean) => void;
   showTrigger: boolean;
   trigger: string;
-  setHasEmpty: (hasEmpty: boolean) => void;
+  value: string;
+  visibleCount: number;
 };
 
 const InlineComboboxContext = React.createContext<InlineComboboxContextValue | null>(null);
@@ -40,12 +63,6 @@ function useInlineComboboxContext(): InlineComboboxContextValue {
   const ctx = React.useContext(InlineComboboxContext);
   if (!ctx) throw new Error("InlineCombobox parts must be used inside <InlineCombobox>.");
   return ctx;
-}
-
-function useComboboxStore(): Ariakit.ComboboxStore {
-  const store = Ariakit.useComboboxContext();
-  if (!store) throw new Error("Combobox store is missing.");
-  return store;
 }
 
 const defaultFilter: FilterFn = ({ group, keywords = [], label, value }, search) => {
@@ -90,58 +107,160 @@ function InlineCombobox({
     [setValueProp, hasValueProp],
   );
 
-  const insertPoint = React.useRef<Point | null>(null);
+  // The latest value, readable from stable callbacks (cancel/commit).
+  const valueRef = React.useRef(value);
+  valueRef.current = value;
 
-  React.useEffect(() => {
-    const path = editor.api.findPath(element);
-    if (!path) return;
-    const point = editor.api.before(path);
-    if (!point) return;
-    const pointRef = editor.api.pointRef(point);
-    insertPoint.current = pointRef.current;
-    return () => {
-      pointRef.unref();
-    };
-  }, [editor, element]);
+  // Once a commit or cancel ran for this element instance, every later cause
+  // (a deselect effect firing after an Escape, unmount churn) is a no-op —
+  // double-restoring the trigger text would duplicate bytes.
+  const closedRef = React.useRef(false);
 
-  const { props: inputProps, removeInput } = useComboboxInput({
-    cancelInputOnBlur: false,
-    cursorState,
-    autoFocus: true,
-    ref: inputRef,
-    onCancelInput: (cause) => {
-      if (cause !== "backspace") {
-        const at = insertPoint.current;
-        editor.tf.insertText(trigger + value, at ? { at } : {});
-      }
-      if (cause === "arrowLeft" || cause === "arrowRight") {
-        editor.tf.move({ distance: 1, reverse: cause === "arrowLeft" });
-      }
+  const cancel = React.useCallback(
+    (cause: ComboboxCancelCause) => {
+      if (closedRef.current) return;
+      closedRef.current = true;
+      cancelComboboxInput(editor, element, {
+        cause,
+        restoreText: trigger + valueRef.current,
+      });
+      editor.tf.focus();
     },
-  });
-
-  const [hasEmpty, setHasEmpty] = React.useState(false);
-
-  const contextValue = React.useMemo<InlineComboboxContextValue>(
-    () => ({ filter, inputProps, inputRef, removeInput, setHasEmpty, showTrigger, trigger }),
-    [trigger, showTrigger, filter, inputProps, removeInput],
+    [editor, element, trigger],
   );
 
-  const store = Ariakit.useComboboxStore({
-    setValue: (newValue) => React.startTransition(() => setValue(newValue)),
+  const commit = React.useCallback(
+    (focusEditor: boolean) => {
+      if (closedRef.current) return;
+      closedRef.current = true;
+      commitComboboxInput(editor, element, focusEditor);
+    },
+    [editor, element],
+  );
+
+  React.useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Keystrokes race into the element's hidden text child whenever they beat
+  // the input's focus (trigger→mount window, or a Slate op yanking DOM focus
+  // back to the editable mid-burst). The element prop re-renders on every
+  // Slate change, so this absorbs each batch as it lands: splice at the
+  // input's caret (chronologically where those keystrokes belong), clear the
+  // slate bytes (they'd render after the input — visible reordering — and
+  // double-absorb otherwise), and re-take focus so the next keystroke lands
+  // in the input again.
+  const raced = racedComboboxText(element);
+  const pendingCaretRef = React.useRef<number | null>(null);
+  React.useEffect(() => {
+    if (closedRef.current || raced.length === 0) return;
+    const absorbed = absorbRacedComboboxText(editor, element);
+    if (absorbed.length === 0) return;
+    const input = inputRef.current;
+    const current = valueRef.current;
+    const caret = input?.selectionStart ?? current.length;
+    setValue(current.slice(0, caret) + absorbed + current.slice(caret));
+    pendingCaretRef.current = caret + absorbed.length;
+    input?.focus();
+  }, [raced, editor, element, setValue]);
+  // Place the caret after the spliced text once the new value has committed.
+  React.useLayoutEffect(() => {
+    const pos = pendingCaretRef.current;
+    if (pos === null) return;
+    pendingCaretRef.current = null;
+    inputRef.current?.setSelectionRange(pos, pos);
   });
-  const items = store.useState("items");
+
+  // Clicking elsewhere in the note moves the Slate selection off the element
+  // while it is still mounted — cancel and restore the typed text.
+  const selected = useSelected();
+  const previousSelected = React.useRef(selected);
+  React.useEffect(() => {
+    if (previousSelected.current && !selected) cancel("deselect");
+    previousSelected.current = selected;
+  }, [selected, cancel]);
+
+  const onKeyDown = React.useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (isHotkey("escape", event)) {
+        event.preventDefault();
+        cancel("escape");
+        return;
+      }
+      if (cursorState.atStart && isHotkey("backspace", event)) {
+        event.preventDefault();
+        cancel("backspace");
+        return;
+      }
+      if (cursorState.atStart && isHotkey("arrowleft", event)) {
+        event.preventDefault();
+        cancel("arrowLeft");
+        return;
+      }
+      if (cursorState.atEnd && isHotkey("arrowright", event)) {
+        event.preventDefault();
+        cancel("arrowRight");
+        return;
+      }
+      // Undo/redo pressed while the input holds focus target the editor.
+      const isUndo = Hotkeys.isUndo(event) && editor.history.undos.length > 0;
+      const isRedo = Hotkeys.isRedo(event) && editor.history.redos.length > 0;
+      if (isUndo || isRedo) {
+        event.preventDefault();
+        if (isUndo) editor.undo();
+        else editor.redo();
+        editor.tf.focus();
+      }
+    },
+    [cancel, cursorState.atStart, cursorState.atEnd, editor],
+  );
+
+  const inputProps = React.useMemo(() => ({ onKeyDown }), [onKeyDown]);
+
+  // Visible items register themselves (self-filtering renders null), so the
+  // open state and the Empty row derive from the same count the popup shows.
+  const [visibleCount, setVisibleCount] = React.useState(0);
+  const registerVisibleItem = React.useCallback(() => {
+    setVisibleCount((count) => count + 1);
+    return () => setVisibleCount((count) => count - 1);
+  }, []);
+  const [hasEmpty, setHasEmpty] = React.useState(false);
+
+  const open = (visibleCount > 0 || hasEmpty) && (!hideWhenNoValue || value.length > 0);
+
+  const contextValue = React.useMemo<InlineComboboxContextValue>(
+    () => ({
+      commit,
+      filter,
+      inputProps,
+      inputRef,
+      registerVisibleItem,
+      setHasEmpty,
+      showTrigger,
+      trigger,
+      value,
+      visibleCount,
+    }),
+    [commit, filter, inputProps, registerVisibleItem, showTrigger, trigger, value, visibleCount],
+  );
 
   return (
     <span contentEditable={false}>
-      <Ariakit.ComboboxProvider
-        open={(items.length > 0 || hasEmpty) && (!hideWhenNoValue || value.length > 0)}
-        store={store}
+      <Combobox.Root
+        autoHighlight
+        filter={null}
+        inputValue={value}
+        modal={false}
+        onInputValueChange={setValue}
+        // Open state is fully derived; Base UI close requests (escape/outside
+        // click) route through cancel paths instead.
+        onOpenChange={() => undefined}
+        open={open}
       >
         <InlineComboboxContext.Provider value={contextValue}>
           {children}
         </InlineComboboxContext.Provider>
-      </Ariakit.ComboboxProvider>
+      </Combobox.Root>
     </span>
   );
 }
@@ -155,9 +274,8 @@ function InlineComboboxInput({
   ref?: React.Ref<HTMLInputElement>;
   placeholder?: string;
 }) {
-  const { inputProps, inputRef: contextRef, showTrigger, trigger } = useInlineComboboxContext();
-  const store = useComboboxStore();
-  const value = store.useState("value");
+  const { inputProps, inputRef: contextRef, showTrigger, trigger, value } =
+    useInlineComboboxContext();
   const ref = useComposedRef(refProp, contextRef);
 
   return (
@@ -167,10 +285,8 @@ function InlineComboboxInput({
         <span aria-hidden="true" className="invisible overflow-hidden text-nowrap">
           {value || placeholder || "​"}
         </span>
-        <Ariakit.Combobox
-          autoSelect
+        <Combobox.Input
           className={cn("absolute top-0 left-0 size-full bg-transparent outline-hidden", className)}
-          value={value}
           {...inputProps}
           ref={ref}
           placeholder={placeholder}
@@ -183,26 +299,33 @@ function InlineComboboxInput({
 const ITEM_BASE =
   "relative mx-1 flex select-none items-center rounded-sm px-2 py-1 text-sm text-foreground outline-hidden transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 const ITEM_INTERACTIVE =
-  "cursor-pointer hover:bg-accent hover:text-accent-foreground data-[active-item=true]:bg-accent data-[active-item=true]:text-accent-foreground";
+  "cursor-pointer hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
 function InlineComboboxContent({
   className,
   variant = "default",
-  ...props
-}: React.ComponentProps<typeof Ariakit.ComboboxPopover> & { variant?: "default" | "slash" }) {
+  children,
+}: {
+  className?: string;
+  variant?: "default" | "slash";
+  children: React.ReactNode;
+}) {
+  // keepMounted: closed popups keep their items registered, so the derived
+  // open state (visible-item count) can flip true once a search matches.
   return (
-    <Ariakit.Portal>
-      <Ariakit.ComboboxPopover
-        className={cn(
-          "z-50 mt-1 h-full max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-lg",
-          variant === "slash" && "w-[320px]",
-          className,
-        )}
-        {...props}
-      >
-        {props.children}
-      </Ariakit.ComboboxPopover>
-    </Ariakit.Portal>
+    <Combobox.Portal keepMounted>
+      <Combobox.Positioner align="start" className="z-50" side="bottom" sideOffset={4}>
+        <Combobox.Popup
+          className={cn(
+            "max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-lg",
+            variant === "slash" && "w-[320px]",
+            className,
+          )}
+        >
+          <Combobox.List>{children}</Combobox.List>
+        </Combobox.Popup>
+      </Combobox.Positioner>
+    </Combobox.Portal>
   );
 }
 
@@ -213,49 +336,57 @@ function InlineComboboxItem({
   keywords,
   label,
   onClick,
-  ...props
+  value,
+  children,
 }: {
+  className?: string;
   focusEditor?: boolean | undefined;
   group?: string | undefined;
   keywords?: string[] | undefined;
   label?: string | undefined;
-} & Ariakit.ComboboxItemProps &
-  Required<Pick<Ariakit.ComboboxItemProps, "value">>) {
-  const { value } = props;
-  const { filter, removeInput } = useInlineComboboxContext();
-  const store = useComboboxStore();
-  const search = filter && store.useState("value");
+  onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
+  value: string;
+  children: React.ReactNode;
+}) {
+  const { commit, filter, registerVisibleItem, value: search } = useInlineComboboxContext();
 
   const visible = React.useMemo(
-    () => !filter || filter({ group, keywords, label, value }, search || ""),
+    () => !filter || filter({ group, keywords, label, value }, search),
     [filter, group, keywords, value, label, search],
   );
+
+  React.useEffect(() => {
+    if (visible) return registerVisibleItem();
+    return undefined;
+  }, [visible, registerVisibleItem]);
 
   if (!visible) return null;
 
   return (
-    <Ariakit.ComboboxItem
+    <Combobox.Item
       className={cn(ITEM_BASE, ITEM_INTERACTIVE, className)}
+      // Fires on pointer click AND on Enter while highlighted (Base UI
+      // dispatches the click for the keyboard path).
       onClick={(event) => {
-        removeInput(focusEditor);
+        commit(focusEditor);
         onClick?.(event);
       }}
-      {...props}
-    />
+      value={value}
+    >
+      {children}
+    </Combobox.Item>
   );
 }
 
 function InlineComboboxEmpty({ children, className }: React.HTMLAttributes<HTMLDivElement>) {
-  const { setHasEmpty } = useInlineComboboxContext();
-  const store = useComboboxStore();
-  const items = store.useState("items");
+  const { setHasEmpty, visibleCount } = useInlineComboboxContext();
 
   React.useEffect(() => {
     setHasEmpty(true);
     return () => setHasEmpty(false);
   }, [setHasEmpty]);
 
-  if (items.length > 0) return null;
+  if (visibleCount > 0) return null;
 
   return <div className={cn(ITEM_BASE, "my-1.5 text-muted-foreground", className)}>{children}</div>;
 }
@@ -263,9 +394,9 @@ function InlineComboboxEmpty({ children, className }: React.HTMLAttributes<HTMLD
 function InlineComboboxGroup({
   className,
   ...props
-}: React.ComponentProps<typeof Ariakit.ComboboxGroup>) {
+}: React.ComponentProps<typeof Combobox.Group>) {
   return (
-    <Ariakit.ComboboxGroup
+    <Combobox.Group
       className={cn("hidden py-1.5 not-last:border-b [&:has([role=option])]:block", className)}
       {...props}
     />
@@ -275,9 +406,9 @@ function InlineComboboxGroup({
 function InlineComboboxGroupLabel({
   className,
   ...props
-}: React.ComponentProps<typeof Ariakit.ComboboxGroupLabel>) {
+}: React.ComponentProps<typeof Combobox.GroupLabel>) {
   return (
-    <Ariakit.ComboboxGroupLabel
+    <Combobox.GroupLabel
       className={cn("mt-1.5 mb-2 px-3 text-xs font-medium text-muted-foreground", className)}
       {...props}
     />

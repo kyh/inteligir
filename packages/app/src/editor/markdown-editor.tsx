@@ -15,7 +15,6 @@ import { serializeMd } from "@platejs/markdown";
 
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
-import { SelectionToolbar } from "@repo/app/editor/selection-toolbar";
 import { TableOfContents } from "@repo/app/editor/toc";
 
 // Seed markdown → Plate value through the owned pipeline. Unparseable content
@@ -69,6 +68,11 @@ export function MarkdownEditor({ value, onChange }: Props) {
     <Plate
       editor={editor}
       onChange={() => {
+        // Selection-only flushes (caret moves, slate-react selection
+        // re-syncs) never change bytes — skip the serialize pass and the
+        // vault-context re-render it would otherwise trigger on every caret
+        // move; per-event work stays bounded under input-event storms.
+        if (editor.operations.every((op) => op.type === "set_selection")) return;
         const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
         // Drop the echo a programmatic (re)seed produces — only real edits,
         // which diverge from the seeded text, propagate.
@@ -78,12 +82,15 @@ export function MarkdownEditor({ value, onChange }: Props) {
         onChange(md);
       }}
     >
-      <PlateContent
-        className="potion-editor-typography min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20"
-        placeholder="Write…"
-        spellCheck={false}
-      />
-      <SelectionToolbar />
+      {/* relative: the cursor overlay's selection ghost and the floating
+          toolbar (both afterEditable renders) position against this wrapper.
+          The toolbar itself renders from FloatingToolbarKit. */}
+      <div className="relative">
+        <PlateContent
+          className="potion-editor-typography min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20 [&_.slate-selection-area]:bg-primary/15"
+          spellCheck={false}
+        />
+      </div>
       <TableOfContents />
     </Plate>
   );

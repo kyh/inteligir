@@ -19,11 +19,7 @@ import {
 
 import { cn } from "@repo/ui/lib/utils";
 
-import {
-  NodePopover,
-  NodePopoverContent,
-  NodePopoverTrigger,
-} from "@repo/app/editor/nodes/node-popover";
+import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 
 const KatexView = lazy(() => import("@repo/app/editor/nodes/equation-katex"));
 
@@ -117,8 +113,8 @@ export function EquationElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props} className="my-1">
-      <NodePopover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
-        <NodePopoverTrigger
+      <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
+        <PopoverTrigger
           // A <button> can't contain KaTeX's block-level display markup.
           render={<div role="button" />}
           nativeButton={false}
@@ -139,15 +135,15 @@ export function EquationElement(props: PlateElementProps) {
               Add a TeX equation
             </span>
           )}
-        </NodePopoverTrigger>
-        <NodePopoverContent className="p-0">
+        </PopoverTrigger>
+        <PopoverContent className="p-0">
           <EquationEditor
             isInline={false}
             onClose={close}
             placeholder={"f(x) = \\begin{cases}\n  x^2, &\\quad x > 0 \\\\\n  0, &\\quad x = 0\n\\end{cases}"}
           />
-        </NodePopoverContent>
-      </NodePopover>
+        </PopoverContent>
+      </Popover>
       {props.children}
     </PlateElement>
   );
@@ -161,8 +157,8 @@ export function InlineEquationElement(props: PlateElementProps) {
 
   return (
     <PlateElement {...props} as="span" className="mx-px inline-block rounded-sm select-none">
-      <NodePopover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
-        <NodePopoverTrigger
+      <Popover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
+        <PopoverTrigger
           // Inline chip stays a span (a nested <button> would break the line).
           render={<span role="button" />}
           nativeButton={false}
@@ -187,11 +183,11 @@ export function InlineEquationElement(props: PlateElementProps) {
               New equation
             </span>
           )}
-        </NodePopoverTrigger>
-        <NodePopoverContent className="p-0">
+        </PopoverTrigger>
+        <PopoverContent className="p-0">
           <EquationEditor isInline onClose={close} placeholder="E = mc^2" />
-        </NodePopoverContent>
-      </NodePopover>
+        </PopoverContent>
+      </Popover>
       {props.children}
     </PlateElement>
   );

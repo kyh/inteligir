@@ -83,14 +83,29 @@ describe("column normalizer (suppressed width writer)", () => {
 });
 
 describe("insertColumnGroup", () => {
-  it("inserts bare columns that serialize canonically", () => {
+  it("inserts bare columns whose EMPTY form is the self-closed canonical one", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 2);
+    // An autosave can land before either column has content: the empty
+    // column (one empty paragraph) must serialize to `<column />` — the
+    // same bytes its parse produces — or the very first save is
+    // non-canonical and the file falls to Raw (live-drive regression).
     const output = out(editor);
     expect(output).toContain("<column_group>");
-    expect((output.match(/<column>/g) ?? []).length).toBe(2);
+    expect((output.match(/<column \/>/g) ?? []).length).toBe(2);
     expect(output).not.toContain("width");
+    expect(roundTrip(output)).toBe(output);
+  });
+
+  it("a half-filled group stays canonical (one filled, one still empty)", () => {
+    const editor = makeEditor("seed\n");
+    editor.tf.select(editor.api.end([0]));
+    insertColumnGroup(editor, 2);
+    editor.tf.insertText("left cell");
+    const output = out(editor);
+    expect(output).toContain("left cell");
+    expect(output).toContain("<column />");
     expect(roundTrip(output)).toBe(output);
   });
 
@@ -98,7 +113,7 @@ describe("insertColumnGroup", () => {
     const editor = makeEditor("seed\n");
     editor.tf.select(editor.api.end([0]));
     insertColumnGroup(editor, 3);
-    expect((out(editor).match(/<column>/g) ?? []).length).toBe(3);
+    expect((out(editor).match(/<column \/>/g) ?? []).length).toBe(3);
   });
 });
 

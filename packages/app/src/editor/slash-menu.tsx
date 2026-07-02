@@ -1,16 +1,23 @@
-// Slash command menu — adapted from Potion's slash-node.tsx, trimmed to the
-// blocks that round-trip cleanly through our markdown serializer. Anything
-// without a native markdown form (tables, media, callout, toggle, columns,
-// equations, colors) is deliberately omitted: it would render broken or be
-// dropped/mangled on the next save, which also kicks the file out of canonical
-// (rich) mode. See markdown/markdown-doc.ts.
+// Slash command menu covering the full locked vocabulary (Phase E): basic
+// blocks, toggle, columns, date, equations, mermaid, embeds — every insert
+// routes through the shared kit transforms so the bytes each item produces
+// are the canonical fixture forms. Grouping + keywords follow potion's
+// slash-node (reference-only). Block conversions route through
+// block-transforms.ts (one turn-into source for slash, menus, and toolbar).
+//
+// Phase F slot: the `[[` wiki-link picker will be a second inline-combobox
+// consumer following the emoji-input pattern.
 
 import { HorizontalRulePlugin } from "@platejs/basic-nodes/react";
-import { insertCodeBlock } from "@platejs/code-block";
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { insertTable } from "@platejs/table";
 import {
+  CalendarIcon,
+  ChevronRightIcon,
   Code2Icon,
+  Columns2Icon,
+  Columns3Icon,
+  FilmIcon,
   Heading1Icon,
   Heading2Icon,
   Heading3Icon,
@@ -21,14 +28,19 @@ import {
   PenLineIcon,
   PilcrowIcon,
   QuoteIcon,
+  RadicalIcon,
+  SigmaIcon,
   SquareCheckIcon,
   Table2Icon,
   WandSparklesIcon,
+  WorkflowIcon,
 } from "lucide-react";
 import { KEYS } from "platejs";
 import type { PlateEditor, PlateElementProps } from "platejs/react";
-import { PlateElement } from "platejs/react";
+import { PlateElement, createPlatePlugin } from "platejs/react";
 
+import { TURN_INTO, turnIntoSelection } from "@repo/app/editor/block-transforms";
+import { EmbedUrlDialogHost, openEmbedUrlDialog } from "@repo/app/editor/embed-url-dialog";
 import {
   InlineCombobox,
   InlineComboboxContent,
@@ -38,43 +50,15 @@ import {
   InlineComboboxInput,
   InlineComboboxItem,
 } from "@repo/app/editor/inline-combobox";
+import { insertColumnGroup } from "@repo/app/editor/kits/column-kit";
+import { insertDate } from "@repo/app/editor/kits/date-kit";
+import { insertEquation, insertInlineEquation } from "@repo/app/editor/kits/math-kit";
+import { insertToggle } from "@repo/app/editor/kits/toggle-kit";
 import { triggerInlineAi } from "@repo/app/editor/selection-toolbar";
 
-// Turn the current block(s) into a plain block type (heading/paragraph/quote),
-// clearing any list formatting first.
-function turnInto(editor: PlateEditor, type: string) {
-  editor.tf.withoutNormalizing(() => {
-    for (const [, path] of editor.api.blocks({ mode: "lowest" })) {
-      editor.tf.unsetNodes(["listStyleType", "listStart", "indent"], { at: path });
-      editor.tf.setNodes({ type }, { at: path });
-    }
-  });
-}
-
-// Lists are indent-based (a paragraph with `indent` + `listStyleType`), matching
-// block-list.tsx. "disc" / "decimal" / "todo" are the values it renders. Todo
-// items also need `checked` so the markdown serializer emits `- [ ]` (without
-// it the item round-trips to a plain bullet).
-function turnIntoList(editor: PlateEditor, listStyleType: string, checked?: boolean) {
-  const type = editor.getType(KEYS.p);
-  editor.tf.withoutNormalizing(() => {
-    for (const [, path] of editor.api.blocks({ mode: "lowest" })) {
-      editor.tf.setNodes(
-        checked === undefined
-          ? { type, indent: 1, listStyleType }
-          : { type, indent: 1, listStyleType, checked },
-        { at: path },
-      );
-    }
-  });
-}
-
-// A callout is a GitHub alert blockquote: the leading `[!NOTE]` marker is what
-// the editor styles into a colored callout (see markdown-editor's
-// BlockquoteElement) and it round-trips as plain markdown.
-function insertCallout(editor: PlateEditor) {
-  turnInto(editor, editor.getType(KEYS.blockquote));
-  editor.tf.insertText("[!NOTE] ");
+function turnInto(editor: PlateEditor, label: string): void {
+  const opt = TURN_INTO.find((o) => o.label === label);
+  if (opt) turnIntoSelection(editor, opt);
 }
 
 function insertHorizontalRule(editor: PlateEditor) {
@@ -83,6 +67,19 @@ function insertHorizontalRule(editor: PlateEditor) {
     { select: true },
   );
   editor.tf.insertNodes({ type: editor.getType(KEYS.p), children: [{ text: "" }] });
+}
+
+// A mermaid diagram is a plain ```mermaid fence (render-only preview — zero
+// serialization surface), seeded with a minimal valid graph.
+function insertMermaid(editor: PlateEditor) {
+  turnInto(editor, "Code block");
+  editor.tf.setNodes(
+    { lang: "mermaid" },
+    { match: (n) => n.type === editor.getType(KEYS.codeBlock) },
+  );
+  editor.tf.insertText("graph TD;");
+  editor.tf.insertBreak();
+  editor.tf.insertText("  A-->B;");
 }
 
 type SlashItem = {
@@ -125,7 +122,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "p",
         description: "Plain paragraph.",
         keywords: ["paragraph", "text"],
-        onSelect: (editor) => turnInto(editor, editor.getType(KEYS.p)),
+        onSelect: (editor) => turnInto(editor, "Text"),
       },
       {
         icon: <Heading1Icon />,
@@ -133,7 +130,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "h1",
         description: "Large section heading.",
         keywords: ["title", "h1", "#"],
-        onSelect: (editor) => turnInto(editor, editor.getType(KEYS.h1)),
+        onSelect: (editor) => turnInto(editor, "Heading 1"),
       },
       {
         icon: <Heading2Icon />,
@@ -141,7 +138,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "h2",
         description: "Medium section heading.",
         keywords: ["subtitle", "h2", "##"],
-        onSelect: (editor) => turnInto(editor, editor.getType(KEYS.h2)),
+        onSelect: (editor) => turnInto(editor, "Heading 2"),
       },
       {
         icon: <Heading3Icon />,
@@ -149,7 +146,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "h3",
         description: "Small section heading.",
         keywords: ["subtitle", "h3", "###"],
-        onSelect: (editor) => turnInto(editor, editor.getType(KEYS.h3)),
+        onSelect: (editor) => turnInto(editor, "Heading 3"),
       },
       {
         icon: <ListIcon />,
@@ -157,7 +154,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "ul",
         description: "Create a bulleted list.",
         keywords: ["unordered", "ul", "-"],
-        onSelect: (editor) => turnIntoList(editor, "disc"),
+        onSelect: (editor) => turnInto(editor, "Bulleted list"),
       },
       {
         icon: <ListOrderedIcon />,
@@ -165,7 +162,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "ol",
         description: "Create a numbered list.",
         keywords: ["ordered", "ol", "1."],
-        onSelect: (editor) => turnIntoList(editor, "decimal"),
+        onSelect: (editor) => turnInto(editor, "Numbered list"),
       },
       {
         icon: <SquareCheckIcon />,
@@ -173,7 +170,15 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "todo",
         description: "Track tasks with checkboxes.",
         keywords: ["checklist", "task", "checkbox", "[]"],
-        onSelect: (editor) => turnIntoList(editor, "todo", false),
+        onSelect: (editor) => turnInto(editor, "To-do list"),
+      },
+      {
+        icon: <ChevronRightIcon />,
+        label: "Toggle",
+        value: "toggle",
+        description: "Collapsible block.",
+        keywords: ["toggle", "collapsible", "details", "expandable", "+"],
+        onSelect: (editor) => insertToggle(editor),
       },
       {
         icon: <QuoteIcon />,
@@ -181,7 +186,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "blockquote",
         description: "Capture a quote.",
         keywords: ["citation", "quote", ">"],
-        onSelect: (editor) => turnInto(editor, editor.getType(KEYS.blockquote)),
+        onSelect: (editor) => turnInto(editor, "Quote"),
       },
       {
         icon: <InfoIcon />,
@@ -189,7 +194,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "callout",
         description: "Highlighted note (GitHub alert).",
         keywords: ["callout", "alert", "note", "warning", "tip", "admonition"],
-        onSelect: (editor) => insertCallout(editor),
+        onSelect: (editor) => turnInto(editor, "Callout"),
       },
       {
         icon: <Code2Icon />,
@@ -197,7 +202,7 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         value: "code",
         description: "Capture a code snippet.",
         keywords: ["```", "fenced"],
-        onSelect: (editor) => insertCodeBlock(editor),
+        onSelect: (editor) => turnInto(editor, "Code block"),
       },
       {
         icon: <Table2Icon />,
@@ -207,6 +212,77 @@ const GROUPS: { group: string; items: SlashItem[] }[] = [
         keywords: ["grid", "rows", "columns"],
         onSelect: (editor) =>
           insertTable(editor, { colCount: 3, rowCount: 3, header: true }, { select: true }),
+      },
+      {
+        icon: <RadicalIcon />,
+        label: "Equation",
+        value: "equation",
+        description: "Display math block (KaTeX).",
+        keywords: ["math", "katex", "tex", "latex", "$$"],
+        onSelect: (editor) => insertEquation(editor),
+      },
+    ],
+  },
+  {
+    group: "Advanced",
+    items: [
+      {
+        icon: <Columns2Icon />,
+        label: "2 columns",
+        value: "columns-2",
+        description: "Two side-by-side columns.",
+        keywords: ["columns", "layout", "side", "split"],
+        onSelect: (editor) => insertColumnGroup(editor, 2),
+      },
+      {
+        icon: <Columns3Icon />,
+        label: "3 columns",
+        value: "columns-3",
+        description: "Three side-by-side columns.",
+        keywords: ["columns", "layout", "grid"],
+        onSelect: (editor) => insertColumnGroup(editor, 3),
+      },
+      {
+        icon: <WorkflowIcon />,
+        label: "Mermaid diagram",
+        value: "mermaid",
+        description: "Diagram-as-code with live preview.",
+        keywords: ["diagram", "chart", "flowchart", "graph", "mermaid"],
+        onSelect: (editor) => insertMermaid(editor),
+      },
+    ],
+  },
+  {
+    group: "Inline",
+    items: [
+      {
+        icon: <CalendarIcon />,
+        label: "Date",
+        value: "date",
+        description: "Inline date chip (today).",
+        keywords: ["date", "today", "calendar", "@"],
+        onSelect: (editor) => insertDate(editor),
+      },
+      {
+        icon: <SigmaIcon />,
+        label: "Inline equation",
+        value: "inline-equation",
+        description: "Math within a sentence.",
+        keywords: ["math", "inline", "formula", "tex"],
+        onSelect: (editor) => insertInlineEquation(editor),
+      },
+    ],
+  },
+  {
+    group: "Media",
+    items: [
+      {
+        icon: <FilmIcon />,
+        label: "Embed",
+        value: "embed",
+        description: "YouTube, tweet, PDF, or iframe by URL.",
+        keywords: ["youtube", "tweet", "twitter", "pdf", "iframe", "embed", "video"],
+        onSelect: () => openEmbedUrlDialog(),
       },
     ],
   },
@@ -273,4 +349,9 @@ export const SlashKit = [
     },
   }),
   SlashInputPlugin.withComponent(SlashInputElement),
+  // The Embed item's URL prompt lives outside the (self-unmounting) combobox.
+  createPlatePlugin({
+    key: "embed-url-dialog",
+    render: { afterEditable: () => <EmbedUrlDialogHost /> },
+  }),
 ];

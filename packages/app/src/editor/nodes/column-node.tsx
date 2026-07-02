@@ -47,7 +47,7 @@ export function ColumnElement(props: PlateElementProps) {
 
   const width = typeof element.width === "string" ? element.width : undefined;
 
-  const startResize = (e: React.PointerEvent) => {
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
     const path = editor.api.findPath(element);
     const host = hostRef.current;
     const groupRow = host?.parentElement;
@@ -56,6 +56,18 @@ export function ColumnElement(props: PlateElementProps) {
     if (!(next instanceof HTMLElement)) return;
 
     e.preventDefault();
+    // Best-effort pointer capture (keeps move/up flowing when the pointer
+    // leaves the window or enters an iframe mid-drag). The listeners live on
+    // window regardless — capture is an assist, not the routing mechanism —
+    // and pointercancel (tab switch, OS gesture) aborts without committing.
+    const handle = e.currentTarget;
+    if (typeof handle.setPointerCapture === "function") {
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch {
+        // Synthetic pointers (tests, automation) may not be capturable.
+      }
+    }
     const startX = e.clientX;
     const cells = Array.from(groupRow.children).filter(
       (cell): cell is HTMLElement => cell instanceof HTMLElement,
@@ -80,11 +92,22 @@ export function ColumnElement(props: PlateElementProps) {
       next.style.flex = `0 0 ${pairPx - (startSelf + delta)}px`;
     };
 
-    const onUp = (up: PointerEvent) => {
+    const detach = () => {
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
       host.style.flex = "";
       next.style.flex = "";
+    };
+
+    // Aborted drag (pointercancel): restore the flex-driven layout, commit
+    // nothing — the document stays untouched.
+    const onCancel = () => {
+      detach();
+    };
+
+    const onUp = (up: PointerEvent) => {
+      detach();
       const delta = clampDelta(up.clientX);
       if (delta === 0) return; // no movement — document untouched
       // Commit-on-release: every column gets a width so the group is fully
@@ -105,6 +128,7 @@ export function ColumnElement(props: PlateElementProps) {
 
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   };
 
   const path = editor.api.findPath(element);
