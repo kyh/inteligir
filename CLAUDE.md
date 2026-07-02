@@ -58,8 +58,13 @@ pnpm dev:desktop      # Dev desktop app only
 pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all   (oxlint)
-pnpm format:fix       # Format     (oxfmt)
+pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
 ```
+
+**`docs/development.md` is the full dev guide**: the three run modes (fixture
+harness / cli browser / Electron), ports + `~/.inteligir` shared state +
+`host.lock`, the fixture byte-pinning rule, verification patterns, and the
+add-a-Bridge-channel / add-a-node-type checklists.
 
 ## Verifying Changes
 
