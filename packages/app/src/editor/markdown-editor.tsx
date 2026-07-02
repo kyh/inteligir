@@ -78,11 +78,14 @@ export function MarkdownEditor({ value, onChange }: Props) {
         onChange(md);
       }}
     >
-      <PlateContent
-        className="potion-editor-typography min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20"
-        placeholder="Write…"
-        spellCheck={false}
-      />
+      {/* relative: the cursor overlay's selection ghost and the floating
+          toolbar position absolutely against this wrapper. */}
+      <div className="relative">
+        <PlateContent
+          className="potion-editor-typography min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20 [&_.slate-selection-area]:bg-primary/15"
+          spellCheck={false}
+        />
+      </div>
       <SelectionToolbar />
       <TableOfContents />
     </Plate>

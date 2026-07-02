@@ -24,8 +24,9 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useEffect, useRef, useState } from "react";
-import { CopyIcon, GripVerticalIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { GripVerticalIcon, PlusIcon } from "lucide-react";
+import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
 import { PathApi } from "platejs";
 import {
   createPlatePlugin,
@@ -35,16 +36,6 @@ import {
 } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
-import {
-  Menu,
-  MenuContent,
-  MenuGroup,
-  MenuGroupLabel,
-  MenuItem,
-  MenuSeparator,
-} from "@repo/ui/components/menu";
-
-import { TURN_INTO, turnIntoAt } from "@repo/app/editor/block-transforms";
 
 // Stable per-block drag ids. Slate's moveNodes preserves node object identity,
 // so a WeakMap keyed by the element yields ids that survive a reorder. Both the
@@ -116,7 +107,6 @@ function Draggable(props: PlateElementProps) {
     isDragging,
   } = useSortable({ id: blockId(element) });
 
-  const [menuOpen, setMenuOpen] = useState(false);
   const gripRef = useRef<HTMLButtonElement | null>(null);
   // A drag ends in a synthetic click on the grip; remember a drag happened so
   // that click doesn't pop the menu open right after a reorder.
@@ -135,17 +125,15 @@ function Draggable(props: PlateElementProps) {
     editor.tf.insertText("/");
   };
 
-  const removeBlock = () => {
-    const at = editor.api.findPath(element);
-    if (at) editor.tf.removeNodes({ at });
-  };
-  const duplicateBlock = () => {
-    const at = editor.api.findPath(element);
-    if (at) editor.tf.insertNodes(structuredClone(element), { at: PathApi.next(at) });
-  };
-  const turnInto = (opt: (typeof TURN_INTO)[number]) => {
-    const at = editor.api.findPath(element);
-    if (at) turnIntoAt(editor, at, opt);
+  // Grip click: select this block and open THE block menu (block-menu.tsx —
+  // same one as right-click) anchored under the grip.
+  const openBlockMenu = () => {
+    const id = typeof element.id === "string" ? element.id : null;
+    const grip = gripRef.current;
+    if (!id || !grip) return;
+    editor.getApi(BlockSelectionPlugin).blockSelection.set(id);
+    const rect = grip.getBoundingClientRect();
+    editor.getApi(BlockMenuPlugin).blockMenu.show(id, { x: rect.left, y: rect.bottom + 4 });
   };
 
   return (
@@ -179,7 +167,7 @@ function Draggable(props: PlateElementProps) {
               draggedRef.current = false;
               return;
             }
-            setMenuOpen(true);
+            openBlockMenu();
           }}
           className="flex size-5 cursor-grab touch-none items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground active:cursor-grabbing"
           {...attributes}
@@ -188,32 +176,6 @@ function Draggable(props: PlateElementProps) {
           <GripVerticalIcon className="size-4" />
         </button>
       </div>
-
-      <Menu open={menuOpen} onOpenChange={setMenuOpen}>
-        <MenuContent anchor={gripRef} side="right" align="start">
-          <MenuItem onClick={duplicateBlock}>
-            <CopyIcon />
-            Duplicate
-          </MenuItem>
-          <MenuSeparator />
-          <MenuGroup>
-            <MenuGroupLabel>Turn into</MenuGroupLabel>
-            {TURN_INTO.map((opt) => (
-              <MenuItem key={opt.label} onClick={() => turnInto(opt)}>
-                {opt.label}
-              </MenuItem>
-            ))}
-          </MenuGroup>
-          <MenuSeparator />
-          <MenuItem
-            onClick={removeBlock}
-            className="text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
-          >
-            <Trash2Icon />
-            Delete
-          </MenuItem>
-        </MenuContent>
-      </Menu>
 
       {children}
     </div>
