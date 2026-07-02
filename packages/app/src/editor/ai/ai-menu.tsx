@@ -34,6 +34,7 @@ import {
   submitAiPrompt,
   type AiMenuStatus,
 } from "@repo/app/editor/ai/ai-session";
+import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 
 type MenuItem = {
   key: string;
@@ -60,7 +61,13 @@ export function AiMenu() {
   // Arrow keys arm item-selection; typing re-arms free-form submit.
   const [navigated, setNavigated] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
-  const open = status !== "closed";
+  // The popover PORTALS to <body>, escaping a hidden pane's display:none —
+  // a background tab's session (its pane stays mounted, #369) must not
+  // float its menu over the active tab. The session itself survives the
+  // hide (plugin state + streamed blocks live in the editor); the popover
+  // just re-presents when the pane is active again.
+  const paneActive = useEditorPane()?.active ?? true;
+  const open = status !== "closed" && paneActive;
 
   // Fresh prompt every time the menu opens; re-focus after busy states end.
   React.useEffect(() => {

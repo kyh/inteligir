@@ -9,6 +9,7 @@ import {
   openTab,
   parseSession,
   renameTab,
+  touchRecency,
   type TabSession,
 } from "@repo/app/workspace/tab-session";
 
@@ -136,5 +137,38 @@ describe("parseSession", () => {
     expect(parseSession({ tabs: ["a.md", "a.md"] })).toBeUndefined();
     expect(parseSession({ tabs: [1] })).toBeUndefined();
     expect(parseSession({ tabs: [] })).toEqual(EMPTY_SESSION);
+  });
+});
+
+describe("touchRecency (live-pane retention, #369)", () => {
+  const tabs = ["a.md", "b.md", "c.md"];
+
+  it("moves the active path to the front", () => {
+    expect(touchRecency(["a.md", "b.md"], tabs, "b.md")).toEqual(["b.md", "a.md"]);
+  });
+
+  it("inserts a newly activated path", () => {
+    expect(touchRecency(["a.md"], tabs, "c.md")).toEqual(["c.md", "a.md"]);
+    expect(touchRecency([], tabs, "a.md")).toEqual(["a.md"]);
+  });
+
+  it("drops paths whose tabs closed", () => {
+    expect(touchRecency(["a.md", "x.md", "b.md"], tabs, "a.md")).toEqual(["a.md", "b.md"]);
+  });
+
+  it("alternating between two tabs preserves the rest of the order", () => {
+    let recency: readonly string[] = ["c.md", "b.md", "a.md"];
+    recency = touchRecency(recency, tabs, "b.md");
+    recency = touchRecency(recency, tabs, "c.md");
+    recency = touchRecency(recency, tabs, "b.md");
+    expect(recency).toEqual(["b.md", "c.md", "a.md"]);
+  });
+
+  it("is identity-stable on no-ops (render-adjust contract)", () => {
+    const recency = ["b.md", "a.md"];
+    expect(touchRecency(recency, tabs, "b.md")).toBe(recency);
+    expect(touchRecency(recency, tabs, null)).toBe(recency);
+    const empty: string[] = [];
+    expect(touchRecency(empty, tabs, null)).toBe(empty);
   });
 });

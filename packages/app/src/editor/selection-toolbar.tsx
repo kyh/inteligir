@@ -1,4 +1,5 @@
 import {
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -50,6 +51,7 @@ import {
   turnIntoLabelFor,
   turnIntoSelection,
 } from "@repo/app/editor/block-transforms";
+import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 
 // Elevation: toolbars sit on the menu tier (surface-4; popovers float higher
 // at surface-5 — @repo/ui's ladder). animate-in runs once on mount.
@@ -212,6 +214,18 @@ export function SelectionToolbar() {
   // them and the bar keeps its last computed position. Base UI portals
   // escape clickOutsideRef, so this explicit gate is the reliable one.
   const frozen = openMenu !== null || linkMode;
+
+  // Switching tabs hides this pane WITHOUT unmounting it (#369). The bar
+  // itself dies with the pane's display:none, but the Turn-into MenuContent
+  // PORTALS to <body> — left open it floats over the next tab and its items
+  // would edit the hidden document. Drop the frozen state on deactivate.
+  const paneActive = useEditorPane()?.active ?? true;
+  useEffect(() => {
+    if (!paneActive) {
+      setOpenMenu(null);
+      setLinkMode(false);
+    }
+  }, [paneActive]);
 
   // Remember the live selection at the moment an action starts — opening a
   // popover or the link input moves DOM focus off the editable and collapses

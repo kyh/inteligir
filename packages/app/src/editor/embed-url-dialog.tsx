@@ -17,6 +17,7 @@ import {
 } from "@repo/ui/components/dialog";
 import { Input } from "@repo/ui/components/input";
 
+import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 import { insertEmbedFromUrl } from "@repo/app/editor/kits/embed-kit";
 
 let activeOpener: (() => void) | null = null;
@@ -31,7 +32,13 @@ export function EmbedUrlDialogHost() {
   const [open, setOpen] = useState(false);
   const [url, setUrl] = useState("");
 
+  // One host mounts per open tab (#369) but the module-level opener is a
+  // single global slot — only the ACTIVE pane's host claims it, so the slash
+  // menu (which always runs on the active editor) can't open a dialog that
+  // inserts into a hidden tab.
+  const paneActive = useEditorPane()?.active ?? true;
   useEffect(() => {
+    if (!paneActive) return;
     const opener = () => {
       setUrl("");
       setOpen(true);
@@ -40,7 +47,15 @@ export function EmbedUrlDialogHost() {
     return () => {
       if (activeOpener === opener) activeOpener = null;
     };
-  }, []);
+  }, [paneActive]);
+
+  // The dialog itself PORTALS to <body>, so a tab switch (the pane hides but
+  // never unmounts, #369) would leave it floating over the next tab, with
+  // Insert targeting the now-hidden document. Close on deactivate — same
+  // semantics as dismissing it.
+  useEffect(() => {
+    if (!paneActive) setOpen(false);
+  }, [paneActive]);
 
   const trimmed = url.trim();
 
