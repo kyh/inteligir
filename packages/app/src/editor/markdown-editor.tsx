@@ -6,19 +6,23 @@
 // Thin by design (WP2): the plugin/component composition lives in
 // kits/editor-kit.ts (per-feature kit files whose Base halves compose the
 // headless serialization mirror — see kits/base-kit.ts); this file owns only
-// the seed/echo-dedupe lifecycle and the Plate surface.
+// the seed/echo-dedupe lifecycle, the transient-AI settle seam, and the Plate
+// surface.
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
+import { hasTransientSuggestions, resolveAllSuggestions } from "@repo/app/editor/ai/suggestions";
 import { hasTransientAiState } from "@repo/app/editor/ai/transient";
+import { registerTransientSettler } from "@repo/app/editor/ai/transient-settle";
 import { Editor, EditorContainer } from "@repo/app/editor/editor-chrome";
 import { WRITE_PLACEHOLDER } from "@repo/app/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 import { TableOfContents } from "@repo/app/editor/toc";
+import { useAiReviewStore } from "@repo/app/stores/ai-review-store";
 
 // Seed markdown → Plate value through the owned pipeline. Unparseable content
 // is impossible behind the richSafe gate, but never crash the surface: fall
@@ -31,14 +35,23 @@ function seedValue(md: string): Value {
 }
 
 type Props = {
+  /** Vault-relative path this editor serves — keys the transient-settle seam
+   * so a flush of some OTHER tab never resolves this editor's AI session. */
+  path: string;
   /** Markdown to render. Seeds the editor on mount and re-seeds it when the
    * prop changes externally (a vault reload / file switch) — see the effect. */
   value: string;
   /** Called with serialized markdown on every change. */
   onChange: (markdown: string) => void;
+  /** Teardown escape hatch (#374): called with the settled markdown when the
+   * editor unmounts while an AI suggestion session was still pending
+   * (reject-all — the user's typing survives, the AI marks disappear). The
+   * OWNER must route these bytes by `path`: by unmount time the active tab
+   * may already have changed, so the normal onChange must not carry them. */
+  onSettled: (markdown: string) => void;
 };
 
-export function MarkdownEditor({ value, onChange }: Props) {
+export function MarkdownEditor({ path, value, onChange, onSettled }: Props) {
   const editor = usePlateEditor({
     plugins: EDITOR_KIT,
     value: () => seedValue(value),
@@ -67,10 +80,51 @@ export function MarkdownEditor({ value, onChange }: Props) {
     seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
   }, [value, editor]);
 
+  // ---- Transient-AI settle seam (#374) -------------------------------------
+  // While a suggestion session pends, autosave is frozen (the gate below) and
+  // any typing the user interleaves exists ONLY in this editor's value.
+  // Abandoning the session must not drop it: settle resolves reject-all (the
+  // user's typing survives; the AI proposal reverts) and hands back the
+  // settled markdown. The Plate onChange is suppressed for the duration —
+  // settled bytes reach exactly ONE controller, routed by the caller.
+  const settling = useRef(false);
+  const settleSuggestions = useCallback((): string | null => {
+    if (!hasTransientSuggestions(editor)) return null;
+    settling.current = true;
+    try {
+      resolveAllSuggestions(editor, "reject");
+    } finally {
+      settling.current = false;
+    }
+    const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
+    // The settled bytes round back as the value prop — don't re-seed on them.
+    lastValueProp.current = md;
+    return md;
+  }, [editor]);
+
+  // Flush path: VaultProvider settles through this registration BEFORE
+  // flushing this file (tab replace/close, folder switch, explicit flush).
+  useEffect(() => registerTransientSettler(path, settleSuggestions), [path, settleSuggestions]);
+
+  // Unmount path (tab switch without a flush, raw-mode flip, surface change):
+  // settle and hand the bytes to the owner for path-routed persistence.
+  const onSettledRef = useRef(onSettled);
+  onSettledRef.current = onSettled;
+  useEffect(
+    () => () => {
+      const md = settleSuggestions();
+      if (md !== null) onSettledRef.current(md);
+      useAiReviewStore.getState().setReviewing(false);
+    },
+    [settleSuggestions],
+  );
+
   return (
     <Plate
       editor={editor}
       onChange={() => {
+        // Teardown settle routes its bytes itself (see settleSuggestions).
+        if (settling.current) return;
         // Selection-only flushes (caret moves, slate-react selection
         // re-syncs) never change bytes — skip the serialize pass and the
         // vault-context re-render it would otherwise trigger on every caret
@@ -80,8 +134,12 @@ export function MarkdownEditor({ value, onChange }: Props) {
         // session is touching the document, freeze the save buffer at the
         // pre-session bytes — the marks are UI state, never content. The
         // resolving edit (accept/reject/discard) clears the transients and
-        // the next onChange serializes the settled document.
-        if (hasTransientAiState(editor)) return;
+        // the next onChange serializes the settled document. The header's
+        // save badge surfaces the suggestion freeze as "Reviewing
+        // suggestions" via the store.
+        const reviewing = hasTransientSuggestions(editor);
+        useAiReviewStore.getState().setReviewing(reviewing);
+        if (reviewing || hasTransientAiState(editor)) return;
         const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
         // Drop the echo a programmatic (re)seed produces — only real edits,
         // which diverge from the seeded text, propagate.

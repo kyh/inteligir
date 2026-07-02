@@ -10,6 +10,7 @@ import { getTransientSuggestionKey } from "@platejs/suggestion";
 import { serializeMd } from "@platejs/markdown";
 
 import { AI_MARK } from "@repo/app/editor/ai/ai-mark";
+import { createMarkdownStream } from "@repo/app/editor/ai/stream-markdown";
 import {
   applyEditSuggestions,
   resolveAllSuggestions,
@@ -64,6 +65,18 @@ describe("mid-stream autosave (ai mark)", () => {
     editor.tf.select(editor.api.end([]));
     editor.tf.addMark(AI_MARK, true);
     editor.tf.insertText("streamed remnant");
+    expect(serialize(editor)).toBe(before);
+  });
+
+  // #370's block streaming: whole ai-stamped BLOCKS (heading/list/bold) must
+  // vanish from the serializer's output, not leave empty husks behind —
+  // that's the element-level arm of shouldSerializeNode.
+  it("streamed markdown blocks never serialize mid-stream", () => {
+    const editor = seedEditor(ORIGINAL);
+    const before = serialize(editor);
+    const stream = createMarkdownStream(editor, editor.children.length - 1);
+    stream.append("## Streamed heading\n\n- a bullet\n\n**bold** tail");
+    expect(hasTransientAiState(editor)).toBe(true);
     expect(serialize(editor)).toBe(before);
   });
 });

@@ -14,6 +14,7 @@ import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
 import { describeRawReason } from "@repo/app/editor/markdown/markdown-doc";
+import { useAiReviewStore } from "@repo/app/stores/ai-review-store";
 import { useVault } from "@repo/app/workspace/vault-context";
 
 /**
@@ -37,6 +38,9 @@ export function Header() {
     deleteEntry,
   } = useVault();
   const { state } = useSidebar();
+  // While an AI suggestion session pends, autosave is frozen (the transient
+  // gate) — say so instead of silently reading "Saved" over stale bytes.
+  const reviewing = useAiReviewStore((s) => s.reviewing);
   const path = editor.path;
   const segments = path ? path.split("/") : [];
 
@@ -112,8 +116,22 @@ export function Header() {
               ))}
             </div>
           )}
-          <Badge variant="dot" className="text-muted-foreground">
-            {editor.saving ? "Saving…" : editor.dirty ? "Unsaved" : "Saved"}
+          <Badge
+            variant="dot"
+            className="text-muted-foreground"
+            title={
+              reviewing
+                ? "Saving is paused while AI suggestions await review — resolve or leave to settle them"
+                : undefined
+            }
+          >
+            {reviewing
+              ? "Reviewing suggestions"
+              : editor.saving
+                ? "Saving…"
+                : editor.dirty
+                  ? "Unsaved"
+                  : "Saved"}
           </Badge>
           <Button
             variant="ghost"

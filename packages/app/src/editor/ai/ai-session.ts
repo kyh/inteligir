@@ -4,23 +4,24 @@
 // same instance through the exported functions.
 //
 // Two flows, routed by intent:
-// - generate: streams text into the document at the caret under the transient
-//   `ai` mark (accept keeps the text and strips the mark; discard undoes the
-//   inserts precisely).
+// - generate: streams markdown below the caret's block, incrementally parsed
+//   into real blocks under the transient `ai` mark (stream-markdown.ts;
+//   accept keeps the blocks and strips the marks; discard undoes the inserts
+//   precisely).
 // - edit: rewrites the selection's blocks host-side, then lands the result as
 //   per-change track-changes suggestions (suggestions.ts) reviewed in the
 //   floating bar.
 // Free-form prompts are classified host-side (generate on any failure);
 // canned actions carry a fixed intent.
 
-import { isHotkey, PointApi, RangeApi, type Path, type PluginConfig, type TRange } from "platejs";
+import { isHotkey, RangeApi, type Path, type PluginConfig, type TRange } from "platejs";
 import { createTPlatePlugin, type PlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
 import type { AiIntentResult } from "@repo/core/inline-ai";
 
 import { getBridge } from "@repo/app/lib/bridge";
-import { AI_MARK } from "@repo/app/editor/ai/ai-mark";
+import { createMarkdownStream, stripAiMarks } from "@repo/app/editor/ai/stream-markdown";
 import { applyEditSuggestions } from "@repo/app/editor/ai/suggestions";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 
@@ -279,7 +280,7 @@ export function retryLastRun(editor: PlateEditor): void {
 }
 
 // ---------------------------------------------------------------------------
-// Generate flow (streaming insert under the transient ai mark)
+// Generate flow (streaming markdown parsed into blocks, transient ai mark)
 // ---------------------------------------------------------------------------
 
 function startGenerate(editor: PlateEditor, action: CannedActionId | null, request: string): void {
@@ -291,15 +292,16 @@ function startGenerate(editor: PlateEditor, action: CannedActionId | null, reque
   const context =
     hasSelection && action !== "continue" ? editor.api.string(sel) : editor.api.string([]);
 
-  // Generations INSERT at the end of the captured selection — they never
-  // replace content (that's the edit flow's job).
+  // Generations INSERT below the block holding the captured selection's end —
+  // they never replace content (that's the edit flow's job). Deltas
+  // accumulate as markdown and land as incrementally parsed blocks (#370).
   editor.tf.select(sel);
   editor.tf.collapse({ edge: "end" });
-  const insertion = editor.selection;
-  if (!insertion) return;
+  const caretBlock = editor.selection?.anchor.path[0];
+  if (caretBlock === undefined) return;
 
   undoDepth = editor.history.undos.length;
-  const startRef = editor.api.pointRef(RangeApi.start(insertion));
+  const stream = createMarkdownStream(editor, caretBlock);
   const token = ++runToken;
   runCounter += 1;
   const requestId = `menu-${runCounter}`;
@@ -308,41 +310,23 @@ function startGenerate(editor: PlateEditor, action: CannedActionId | null, reque
 
   streamOff = bridge.onAiStreamed(({ requestId: id, delta }) => {
     if (id !== requestId || delta.length === 0 || runToken !== token) return;
-    editor.tf.addMark(AI_MARK, true);
-    editor.tf.insertText(delta);
+    stream.append(delta);
   });
 
   void bridge
     .generateInlineAi({ prompt: generatePromptFor(action, request, context), requestId })
     .then((result) => {
-      if (runToken !== token) {
-        startRef.unref();
-        return undefined;
-      }
+      if (runToken !== token) return undefined;
       streamOff?.();
       streamOff = null;
       activeRequestId = null;
-      const start = startRef.current;
-      startRef.unref();
-      const end = editor.selection?.anchor;
       if (!result.ok) {
-        if (start && end) editor.tf.delete({ at: { anchor: start, focus: end } });
+        unwindGenerate(editor);
         setOptions(editor, { status: "error", error: result.error });
         return undefined;
       }
-      // Fallback for models that don't stream: insert the final text now.
-      if (start && end && PointApi.equals(start, end)) {
-        editor.tf.addMark(AI_MARK, true);
-        editor.tf.insertText(result.text);
-      }
-      const focus = editor.selection?.anchor;
-      if (start && focus) {
-        // Sweep the mark across the whole streamed range (covers any splits).
-        editor.tf.setNodes(
-          { [AI_MARK]: true },
-          { at: { anchor: start, focus }, match: (n) => "text" in n, split: true },
-        );
-      }
+      // Fallback for models that don't stream: land the whole reply now.
+      if (stream.text().length === 0) stream.append(result.text);
       setOptions(editor, { status: "review" });
       return undefined;
     })
@@ -355,9 +339,9 @@ function startGenerate(editor: PlateEditor, action: CannedActionId | null, reque
     });
 }
 
-/** Keep the generated text: strip the highlight, close the menu. */
+/** Keep the generated blocks: strip the highlight, close the menu. */
 export function acceptGenerate(editor: PlateEditor): void {
-  editor.tf.unsetNodes([AI_MARK], { at: [], match: (n) => AI_MARK in n, mode: "lowest" });
+  stripAiMarks(editor);
   editor.tf.collapse({ edge: "end" });
   const at = editor.selection;
   setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
