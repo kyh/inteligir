@@ -54,6 +54,25 @@ describe("KnowledgeManager", () => {
     expect(updates).toEqual([1, 2]);
   });
 
+  it("re-indexes an atomic swap that collides on mtime and size (ino differs)", () => {
+    const abs = path.join(root, "note.md");
+    const pinned = new Date("2026-01-01T00:00:00Z");
+    vault.writeText("note.md", "links [[alpha]]\n");
+    fs.utimesSync(abs, pinned, pinned);
+    manager.refresh();
+    expect(manager.forwardLinks("note.md").map((l) => l.target)).toEqual(["alpha"]);
+
+    // Same byte count, same pinned mtime — only the inode betrays the swap
+    // (an atomic write always renames a fresh temp file into place).
+    const swap = path.join(tmp, "swap.md");
+    fs.writeFileSync(swap, "links [[bravo]]\n");
+    fs.renameSync(swap, abs);
+    fs.utimesSync(abs, pinned, pinned);
+    manager.refresh();
+    expect(manager.forwardLinks("note.md").map((l) => l.target)).toEqual(["bravo"]);
+    expect(updates).toEqual([1, 2]);
+  });
+
   it("does not emit when nothing changed", () => {
     vault.writeText("note.md", "# Note\n");
     manager.refresh();
