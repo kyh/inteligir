@@ -297,7 +297,7 @@ function InlineComboboxInput({
 }
 
 const ITEM_BASE =
-  "relative mx-1 flex select-none items-center rounded-sm px-2 py-1 text-sm text-foreground outline-hidden transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+  "relative mx-1 flex select-none items-center rounded-md px-2 py-1 text-sm text-foreground outline-hidden transition-colors [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
 const ITEM_INTERACTIVE =
   "cursor-pointer hover:bg-accent hover:text-accent-foreground data-[highlighted]:bg-accent data-[highlighted]:text-accent-foreground";
 
@@ -316,8 +316,10 @@ function InlineComboboxContent({
     <Combobox.Portal keepMounted>
       <Combobox.Positioner align="start" className="z-50" side="bottom" sideOffset={4}>
         <Combobox.Popup
+          // Menu-tier elevation (surface-4) + the same starting-style fade the
+          // @repo/ui menu popup uses, so every editor popup enters alike.
           className={cn(
-            "max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-lg",
+            "max-h-[40vh] min-w-[180px] max-w-[calc(100vw-24px)] origin-[var(--transform-origin)] overflow-y-auto rounded-lg border border-border bg-popover text-popover-foreground shadow-surface-4 transition-[transform,opacity] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0",
             variant === "slash" && "w-[320px]",
             className,
           )}

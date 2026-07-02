@@ -74,8 +74,11 @@ function usePendingRect(status: InlineAiStatus): DOMRect | null {
   return rect;
 }
 
+// Elevation: toolbars sit on the menu tier (surface-4; popovers float higher
+// at surface-5 — @repo/ui's ladder). animate-in runs once on mount for both
+// the idle (floating-positioned) and busy (fixed) shells.
 const BAR_CLASS =
-  "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-md";
+  "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
 
 // Fixed-position shell for the busy states (viewport-clamped above the rect).
 function FloatingBar({ rect, children }: { rect: DOMRect; children: ReactNode }) {

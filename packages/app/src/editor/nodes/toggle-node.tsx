@@ -53,7 +53,7 @@ export function ToggleElement(props: PlateElementProps) {
         type="button"
         aria-expanded={open}
         aria-label={open ? "Collapse toggle" : "Expand toggle"}
-        className="absolute top-1 left-0 flex cursor-pointer items-center justify-center rounded-sm p-px transition-colors select-none hover:bg-accent"
+        className="absolute top-1 left-0 flex cursor-pointer items-center justify-center rounded-sm p-px transition-colors select-none hover:bg-hover"
         contentEditable={false}
         onMouseDown={buttonProps.onMouseDown}
         onClick={onChevronClick}

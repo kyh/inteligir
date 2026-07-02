@@ -72,8 +72,19 @@ function MermaidCodeBlock(props: PlateElementProps) {
 
 function CodeBlockElement(props: PlateElementProps) {
   if (props.element.lang === "mermaid") return <MermaidCodeBlock {...props} />;
+  const lang = typeof props.element.lang === "string" ? props.element.lang : null;
   return (
-    <PlateElement {...props} as="pre" className={PRE_CLASS}>
+    <PlateElement {...props} as="pre" className={cn(PRE_CLASS, "group/code relative")}>
+      {/* Hover-reveal language label (display-only header — the fence's lang
+          is edited in Raw / at creation). A <span>: <pre> hosts phrasing. */}
+      {lang ? (
+        <span
+          contentEditable={false}
+          className="absolute top-1.5 right-2 font-sans text-[10px] tracking-wide text-muted-foreground/80 uppercase opacity-0 transition-opacity select-none group-hover/code:opacity-100"
+        >
+          {lang}
+        </span>
+      ) : null}
       {props.children}
     </PlateElement>
   );
