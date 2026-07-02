@@ -8,6 +8,7 @@
 import type { AppAgentEvent } from "@repo/core/agent-events";
 import type { AppState } from "@repo/core/app-state";
 import type { Delegation, ListDelegationsResult } from "@repo/core/delegation";
+import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/core/inline-ai";
 import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/core/ipc";
 import type { VaultEntry } from "@repo/core/ipc-registry";
 import { isDocPath } from "@repo/core/knowledge/doc-file";
@@ -290,9 +291,39 @@ const IDLE_UPDATE: UpdateState = {
 const unavailable = (feature: string) =>
   new Error(`${feature} is not available in the dev harness`);
 
+// ---------------------------------------------------------------------------
+// Canned editor-AI behaviors, so the whole AI surface (menu intents, edit
+// suggestions, ghost text) is drivable in the harness without a host.
+// ---------------------------------------------------------------------------
+
+// Keyword heuristic standing in for the host-side classifier.
+const EDIT_INTENT_WORDS =
+  /\b(rewrite|rephrase|fix|improve|shorten|shorter|longer|simplify|translate|edit|change|correct|polish|tighten)\b/i;
+
+function cannedIntent(prompt: string): AiIntent {
+  return EDIT_INTENT_WORDS.test(prompt) ? "edit" : "generate";
+}
+
+// The edit prompt embeds the target markdown between <markdown> sentinels
+// (see ai-session.ts buildEditPrompt). The canned "edit" mutates it
+// deterministically: word swaps produce inline insert+remove marks and the
+// appended paragraph produces a block-insert suggestion.
+function cannedEditResponse(prompt: string): string | null {
+  const match = /<markdown>\n([\s\S]*?)\n<\/markdown>/.exec(prompt);
+  const markdown = match?.[1];
+  if (markdown === undefined) return null;
+  const rewritten = markdown
+    .replaceAll(/\bis\b/g, "was")
+    .replaceAll(/\bthe\b/g, "that")
+    .trimEnd();
+  return `${rewritten}\n\nA canned closing thought from the dev harness.`;
+}
+
 export function createFixtureBridge(): Bridge {
   const vault = new Map<string, string>(Object.entries(SAMPLE_NOTES));
-  const uiState: Record<string, unknown> = {};
+  // Ghost text defaults ON in the harness — there is no cost here and the
+  // whole AI surface should be drivable out of the box.
+  const uiState: Record<string, unknown> = { [GHOST_TEXT_ENABLED_UI_STATE]: true };
   const history: ChatHistoryEntry[] = [];
   const delegations: Delegation[] = [];
   // Pre-run copies keyed by delegation id — the in-memory twin of the host's
@@ -548,9 +579,16 @@ export function createFixtureBridge(): Bridge {
     onDelegationsUpdated: delegationEvents.subscribe,
     onDelegationStreamed: () => () => {},
 
-    // Inline AI — streams a canned generation so the editor flow is testable.
+    // Inline AI — canned intent classification + streamed generations + a
+    // deterministic edit rewrite, so the whole AI menu is drivable.
     generateInlineAi: async ({ prompt, requestId }) => {
-      const text = `(canned inline-AI output for: ${prompt.slice(0, 60)}…)`;
+      const edited = cannedEditResponse(prompt);
+      // Edit prompts return the rewritten markdown whole (the renderer
+      // diffs it into suggestions); generate prompts stream deltas.
+      if (edited !== null) {
+        return new Promise((resolve) => setTimeout(() => resolve({ ok: true, text: edited }), 400));
+      }
+      const text = `This sentence was written by the canned dev-harness generator in response to the prompt, and it streams in word by word to exercise the live-insert path.`;
       return new Promise((resolve) => {
         streamText(
           text,
@@ -560,6 +598,23 @@ export function createFixtureBridge(): Bridge {
       });
     },
     onAiStreamed: aiEvents.subscribe,
+    cancelInlineAi: async () => {},
+    classifyAiIntent: async ({ prompt }) => ({ intent: cannedIntent(prompt) }),
+    generateGhostText: async ({ requestId: _requestId }) =>
+      new Promise((resolve) =>
+        setTimeout(
+          () => resolve({ ok: true, text: " and this grey continuation came from the harness." }),
+          250,
+        ),
+      ),
+    cancelGhostText: async () => {},
+    listGhostModels: async () => ({
+      models: [
+        { id: "canned-fast", label: "Canned Fast" },
+        { id: "canned-smart", label: "Canned Smart" },
+      ],
+      defaultId: "canned-fast",
+    }),
 
     // Executor — not running; mutating calls reject loudly.
     executorStatus: async () => ({ running: false }),

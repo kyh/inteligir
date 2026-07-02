@@ -2,10 +2,11 @@
 // feature (same kit files export both halves, so the serialization brain and
 // node metadata stay shared by construction — the kit-parity test converts
 // that premise into CI) and adds the live-only surfaces: slash menu, emoji,
-// drag handle, inline-AI mark, and WP3's chrome kits (placeholders for now).
+// drag handle, the AI surface (menu / suggestions / ghost text), and WP3's
+// chrome kits.
 
+import { AiKit } from "@repo/app/editor/ai/ai-kit";
 import { DragKit } from "@repo/app/editor/block-draggable";
-import { AiMarkKit } from "@repo/app/editor/inline-ai";
 import { BasicBlocksKit } from "@repo/app/editor/kits/basic-blocks-kit";
 import { BasicMarksKit } from "@repo/app/editor/kits/basic-marks-kit";
 import { BlockMenuKit } from "@repo/app/editor/kits/block-menu-kit";
@@ -45,7 +46,7 @@ export const EDITOR_KIT = [
   ...EmojiKit,
   ...SlashKit,
   ...DragKit,
-  ...AiMarkKit,
+  ...AiKit,
   // WP3 fills these three (they're empty today).
   ...BlockMenuKit,
   ...FloatingToolbarKit,

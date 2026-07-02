@@ -1,11 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type MouseEvent as ReactMouseEvent,
-  type ReactNode,
-} from "react";
+import { useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import {
   flip,
   offset,
@@ -17,15 +10,12 @@ import { wrapLink } from "@platejs/link";
 import { BlockSelectionPlugin } from "@platejs/selection/react";
 import {
   BoldIcon,
-  CheckIcon,
   ChevronDownIcon,
   CodeIcon,
   ItalicIcon,
   Link2Icon,
-  Loader2Icon,
   SparklesIcon,
   StrikethroughIcon,
-  XIcon,
 } from "lucide-react";
 import { KEYS } from "platejs";
 import {
@@ -47,59 +37,18 @@ import {
   MenuTrigger,
 } from "@repo/ui/components/menu";
 
+import { AiSessionPlugin, openAiMenu } from "@repo/app/editor/ai/ai-session";
 import {
   TURN_INTO,
   effectiveBlockEntry,
   turnIntoLabelFor,
   turnIntoSelection,
 } from "@repo/app/editor/block-transforms";
-import { useInlineAi, type InlineAiStatus } from "@repo/app/editor/inline-ai";
-
-// Track the pending range's viewport rect for the BUSY states (loading /
-// pending / error): the selection collapses during streaming and DOM focus
-// may sit in a popover, so @platejs/floating's focus-driven hook is wrong
-// here — a plain selectionchange listener re-reads on every status
-// transition (the pending text is programmatically selected, so its rect
-// appears then). The idle toolbar does NOT use this path.
-function usePendingRect(status: InlineAiStatus): DOMRect | null {
-  const [rect, setRect] = useState<DOMRect | null>(null);
-  useEffect(() => {
-    const update = () => {
-      const sel = window.getSelection();
-      if (!sel || sel.rangeCount === 0) {
-        setRect(null);
-        return;
-      }
-      const r = sel.getRangeAt(0).getBoundingClientRect();
-      setRect(r.width > 0 || r.height > 0 ? r : null);
-    };
-    update();
-    document.addEventListener("selectionchange", update);
-    return () => document.removeEventListener("selectionchange", update);
-  }, [status]);
-  return rect;
-}
 
 // Elevation: toolbars sit on the menu tier (surface-4; popovers float higher
-// at surface-5 — @repo/ui's ladder). animate-in runs once on mount for both
-// the idle (floating-positioned) and busy (fixed) shells.
+// at surface-5 — @repo/ui's ladder). animate-in runs once on mount.
 const BAR_CLASS =
   "z-50 flex items-center gap-0.5 rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-surface-4 animate-in fade-in-0 zoom-in-95";
-
-// Fixed-position shell for the busy states (viewport-clamped above the rect).
-function FloatingBar({ rect, children }: { rect: DOMRect; children: ReactNode }) {
-  const left = Math.min(Math.max(rect.left + rect.width / 2, 180), window.innerWidth - 180);
-  const top = Math.max(rect.top - 46, 8);
-  return (
-    <div
-      style={{ position: "fixed", top, left, transform: "translateX(-50%)" }}
-      className={BAR_CLASS}
-      onMouseDown={(e) => e.preventDefault()}
-    >
-      {children}
-    </div>
-  );
-}
 
 function Sep() {
   return <div className="mx-0.5 h-5 w-px shrink-0 bg-border" />;
@@ -204,18 +153,6 @@ function BarButton({
   );
 }
 
-// The five AI actions, surfaced under the "Ask AI" dropdown.
-const AI_ACTIONS: {
-  action: "improve" | "shorter" | "grammar" | "continue" | "summarize";
-  label: string;
-}[] = [
-  { action: "improve", label: "Improve writing" },
-  { action: "grammar", label: "Fix spelling & grammar" },
-  { action: "shorter", label: "Make shorter" },
-  { action: "continue", label: "Continue writing" },
-  { action: "summarize", label: "Summarize" },
-];
-
 function LinkInput({
   onSubmit,
   onCancel,
@@ -250,74 +187,19 @@ function LinkInput({
   );
 }
 
-type InlineAiController = ReturnType<typeof useInlineAi>;
-
 /**
  * The editor's selection toolbar — a potion-style floating bar over a text
- * selection: an **Ask AI** dropdown (Improve / Shorten / Fix grammar / Continue
- * / Summarize), **Turn into** (with a current-block-type indicator), the
- * **Bold / Italic / Strikethrough / Code** marks, and a **Link** input.
- *
- * Dual-path positioning (the AI state machine survives the @platejs/floating
- * swap): the IDLE bar rides useFloatingToolbar (flip/shift/offset, hides on
- * blur/collapse); the BUSY bar (loading → "Generating…", pending →
- * Accept/Discard/Retry, error) keeps the selectionchange-rect path because
- * the hook's hide conditions are all true mid-stream. Both render the same
- * bar shell. Only GFM-round-tripping marks are offered.
+ * selection: **Ask AI** (opens the AI menu on the selection), **Turn into**
+ * (with a current-block-type indicator), the **Bold / Italic / Strikethrough
+ * / Code** marks, and a **Link** input. Positioning rides
+ * useFloatingToolbar (flip/shift/offset, hides on blur/collapse); the bar
+ * also hides while the AI menu is open — the menu owns the selection then.
+ * Only GFM-round-tripping marks are offered.
  */
 export function SelectionToolbar() {
   const editor = useEditorRef();
-  const controller = useInlineAi(editor);
 
-  // Let slash commands drive the same controller (they can't call the hook).
-  useEffect(() => registerInlineAiRunner(controller.run), [controller.run]);
-
-  if (controller.status.kind !== "idle") return <BusyToolbar controller={controller} />;
-  return <IdleToolbar controller={controller} />;
-}
-
-function BusyToolbar({ controller }: { controller: InlineAiController }) {
-  const { status, run, accept, discard, dismissError } = controller;
-  const rect = usePendingRect(status);
-  if (!rect || status.kind === "idle") return null;
-
-  if (status.kind === "loading") {
-    return (
-      <FloatingBar rect={rect}>
-        <span className="flex items-center gap-1.5 px-1 text-xs text-muted-foreground">
-          <Loader2Icon className="size-3.5 animate-spin" /> Generating…
-        </span>
-      </FloatingBar>
-    );
-  }
-  if (status.kind === "pending") {
-    return (
-      <FloatingBar rect={rect}>
-        <BarButton variant="primary" onClick={accept}>
-          <CheckIcon /> Accept
-        </BarButton>
-        <BarButton variant="danger" onClick={discard}>
-          <XIcon /> Discard
-        </BarButton>
-        <BarButton onClick={() => run(status.action)}>Retry</BarButton>
-      </FloatingBar>
-    );
-  }
-  return (
-    <FloatingBar rect={rect}>
-      <span className="px-1 text-xs text-destructive">{status.message}</span>
-      <BarButton variant="danger" onClick={dismissError}>
-        <XIcon />
-      </BarButton>
-    </FloatingBar>
-  );
-}
-
-function IdleToolbar({ controller }: { controller: InlineAiController }) {
-  const editor = useEditorRef();
-  const { run } = controller;
-
-  const [openMenu, setOpenMenu] = useState<null | "ai" | "turn">(null);
+  const [openMenu, setOpenMenu] = useState<null | "turn">(null);
   const [linkMode, setLinkMode] = useState(false);
   // While a Base UI menu or the link input holds focus the hook's hide
   // conditions fire (blur, collapsed selection) — `frozen` short-circuits
@@ -333,22 +215,15 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
   const remember = () => {
     savedSel.current = editor.selection;
   };
-  // Run an action against the remembered selection: restore the model range
-  // first (so an expanded selection stays expanded — a link needs it), then
-  // focus. Focusing before selecting collapses the range.
-  const withSelection = (fn: () => void) => {
-    if (savedSel.current) editor.tf.select(savedSel.current);
-    fn();
-    editor.tf.focus();
-  };
 
   const focusedEditorId = useEventEditorValue("focus");
   const isSelectingSome = usePluginOption(BlockSelectionPlugin, "isSelectingSome");
+  const aiMenuOpen = usePluginOption(AiSessionPlugin, "status") !== "closed";
 
   const floatingToolbarState = useFloatingToolbarState({
     editorId: editor.id,
     focusedEditorId,
-    hideToolbar: isSelectingSome,
+    hideToolbar: isSelectingSome || aiMenuOpen,
     floatingOptions: {
       middleware: [
         offset({ crossAxis: -24, mainAxis: 12 }),
@@ -377,7 +252,7 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
     return entry ? turnIntoLabelFor(entry[0]) : "Text";
   }, [selection, editor]);
 
-  if (hidden && !frozen) return null;
+  if ((hidden && !frozen) || aiMenuOpen) return null;
 
   return (
     <div ref={clickOutsideRef}>
@@ -403,30 +278,17 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
           />
         ) : (
           <>
-            <Menu
-              open={openMenu === "ai"}
-              onOpenChange={(o) => {
-                if (o) remember();
-                setOpenMenu(o ? "ai" : null);
-              }}
+            <button
+              type="button"
+              // preventDefault keeps the editor selection alive through the
+              // click; openAiMenu captures it as the session's target.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => openAiMenu(editor)}
+              className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary transition-colors hover:bg-accent [&_svg]:size-3.5"
             >
-              <DropdownTrigger>
-                <SparklesIcon className="text-primary" />
-                <span className="text-primary">Ask AI</span>
-              </DropdownTrigger>
-              {/* ignore-click-outside/toolbar: the portaled popup escapes the
-                  hook's clickOutsideRef; without the ignore class a mousedown
-                  on a menu item flips the hook's open state, display:none-s
-                  the bar, and the popup (anchored to the hidden trigger)
-                  jumps away before mouseup — items become unclickable. */}
-              <MenuContent side="bottom" align="start" className="ignore-click-outside/toolbar">
-                {AI_ACTIONS.map(({ action, label }) => (
-                  <MenuItem key={action} onClick={() => withSelection(() => run(action))}>
-                    {label}
-                  </MenuItem>
-                ))}
-              </MenuContent>
-            </Menu>
+              <SparklesIcon />
+              Ask AI
+            </button>
 
             <Sep />
 
@@ -438,6 +300,11 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
               }}
             >
               <DropdownTrigger>{typeLabel}</DropdownTrigger>
+              {/* ignore-click-outside/toolbar: the portaled popup escapes the
+                  hook's clickOutsideRef; without the ignore class a mousedown
+                  on a menu item flips the hook's open state, display:none-s
+                  the bar, and the popup (anchored to the hidden trigger)
+                  jumps away before mouseup — items become unclickable. */}
               <MenuContent side="bottom" align="start" className="ignore-click-outside/toolbar">
                 <MenuGroup>
                   <MenuGroupLabel>Turn into</MenuGroupLabel>
@@ -488,20 +355,4 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
       </div>
     </div>
   );
-}
-
-// A tiny module-level bridge so slash-menu items (which run outside React) can
-// trigger the AI flow owned by the mounted toolbar.
-let activeRunner: ((action: Parameters<ReturnType<typeof useInlineAi>["run"]>[0]) => void) | null =
-  null;
-
-function registerInlineAiRunner(run: typeof activeRunner): () => void {
-  activeRunner = run;
-  return () => {
-    if (activeRunner === run) activeRunner = null;
-  };
-}
-
-export function triggerInlineAi(action: "continue" | "summarize"): void {
-  activeRunner?.(action);
 }

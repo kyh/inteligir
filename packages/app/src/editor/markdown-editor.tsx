@@ -13,6 +13,7 @@ import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
+import { hasTransientAiState } from "@repo/app/editor/ai/transient";
 import { Editor, EditorContainer } from "@repo/app/editor/editor-chrome";
 import { WRITE_PLACEHOLDER } from "@repo/app/editor/kits/block-placeholder-kit";
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
@@ -75,6 +76,12 @@ export function MarkdownEditor({ value, onChange }: Props) {
         // vault-context re-render it would otherwise trigger on every caret
         // move; per-event work stays bounded under input-event storms.
         if (editor.operations.every((op) => op.type === "set_selection")) return;
+        // Transient-AI gate: while an AI stream or an unresolved suggestion
+        // session is touching the document, freeze the save buffer at the
+        // pre-session bytes — the marks are UI state, never content. The
+        // resolving edit (accept/reject/discard) clears the transients and
+        // the next onChange serializes the settled document.
+        if (hasTransientAiState(editor)) return;
         const md = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
         // Drop the echo a programmatic (re)seed produces — only real edits,
         // which diverge from the seeded text, propagate.
