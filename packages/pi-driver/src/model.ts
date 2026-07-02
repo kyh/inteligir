@@ -19,3 +19,11 @@ export function resolveModel<Provider extends Parameters<typeof getModels>[0]>(
   }
   return model;
 }
+
+/** Every model pi-ai's static registry knows for `provider` — the host's
+ * source for model pickers (e.g. the ghost-text fast-model setting). */
+export function listModels<Provider extends Parameters<typeof getModels>[0]>(
+  provider: Provider,
+): Model<Api>[] {
+  return [...getModels(provider)];
+}
