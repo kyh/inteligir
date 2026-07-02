@@ -14,7 +14,11 @@ import { toast } from "@repo/ui/components/sonner";
 
 import { getBridge } from "@repo/app/lib/bridge";
 import { registerOpenNoteFlush, registerOpenNotePath } from "@repo/app/workspace/open-note-flush";
-import { isCanonical, isRichSafe, toCanonical } from "@repo/app/editor/markdown-doc";
+import {
+  type RawReason,
+  analyzeMarkdown,
+  toCanonical,
+} from "@repo/app/editor/markdown/markdown-doc";
 import {
   VaultEditorController,
   type VaultEditorState,
@@ -82,6 +86,9 @@ type VaultContextValue = {
   /** Whether Rich editing is lossless (round-trip changes only formatting).
    * Drives whether Rich is offered/default — looser than `canonical`. */
   richSafe: boolean;
+  /** Why the open file is Raw-only (parse error / out-of-vocabulary construct),
+   * or null. Drives the header's Raw badge tooltip. */
+  rawReason: RawReason | null;
   /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
   mode: "raw" | "rich";
   setMode: (mode: "raw" | "rich") => void;
@@ -301,8 +308,11 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   // ---- Editor view (mode + canonicality) ----------------------------------
   const isMarkdownOpen = editor.path !== null && MARKDOWN_RE.test(editor.path);
   const [mode, setMode] = useState<"raw" | "rich">("raw");
-  const [canonical, setCanonical] = useState(false);
-  const [richSafe, setRichSafe] = useState(false);
+  const [analysis, setAnalysis] = useState<ReturnType<typeof analyzeMarkdown>>({
+    canonical: false,
+    rawReason: null,
+    richSafe: false,
+  });
   // The mode (raw/rich) is the user's choice and is picked once per file open.
   // `richSafe`/`canonical` still recompute on every content change (badges +
   // the `showRich` gate), but the *mode* must not be re-derived afterward — a
@@ -314,28 +324,30 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (editor.path === null || !MARKDOWN_RE.test(editor.path)) {
       setMode("raw");
-      setCanonical(false);
-      setRichSafe(false);
+      setAnalysis({ canonical: false, rawReason: null, richSafe: false });
       modeChosenForPath.current = editor.path;
       return;
     }
     if (editor.dirty) return;
-    const safe = isRichSafe(editor.content);
-    setCanonical(isCanonical(editor.content));
-    setRichSafe(safe);
+    // One parse+serialize pass per content change for byte-canonical files
+    // (plus a bounded fixpoint probe otherwise — the old isRichSafe +
+    // isCanonical pair always ran two full round-trips).
+    const next = analyzeMarkdown(editor.content);
+    setAnalysis(next);
     // Choose the surface only when a different file opened. (`showRich` also
     // requires `richSafe`, so a file that turns non-rich-safe out from under us
     // still falls back to raw regardless of the retained `mode`.)
     if (modeChosenForPath.current !== editor.path) {
-      setMode(safe ? "rich" : "raw");
+      setMode(next.richSafe ? "rich" : "raw");
       modeChosenForPath.current = editor.path;
     }
   }, [editor.path, editor.content, editor.dirty]);
 
   const formatDoc = useCallback(() => {
+    // Only reachable when the header offered Format (parse+scan ok, not
+    // canonical) — toCanonical throws on unparseable content by contract.
     onEdit(toCanonical(editor.content));
-    setCanonical(true);
-    setRichSafe(true);
+    setAnalysis({ canonical: true, rawReason: null, richSafe: true });
     setMode("rich");
   }, [onEdit, editor.content]);
 
@@ -352,8 +364,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       changeFolder,
       flush,
       isMarkdownOpen,
-      canonical,
-      richSafe,
+      canonical: analysis.canonical,
+      richSafe: analysis.richSafe,
+      rawReason: analysis.rawReason,
       mode,
       setMode,
       formatDoc,
@@ -370,8 +383,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       changeFolder,
       flush,
       isMarkdownOpen,
-      canonical,
-      richSafe,
+      analysis,
       mode,
       formatDoc,
     ],

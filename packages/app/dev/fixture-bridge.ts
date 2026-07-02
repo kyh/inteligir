@@ -11,9 +11,15 @@ import type { Delegation, ListDelegationsResult } from "@repo/core/delegation";
 import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/core/ipc";
 import type { VaultEntry } from "@repo/core/ipc-registry";
 
+// Single source with the round-trip fixture matrix: the full-vocabulary sample
+// note IS the canonical kitchen-sink fixture.
+import kitchenSink from "../src/__tests__/fixtures/roundtrip/canonical/kitchen-sink.md?raw";
+
 const FIXTURE_ROOT = "/fixture-vault";
 
-const SAMPLE_NOTES: Record<string, string> = {
+// Exported for the legacy-corpus classification test: every sample note must
+// hold its expected canonical/raw class as the pipeline evolves.
+export const SAMPLE_NOTES: Record<string, string> = {
   "welcome.md": `# Welcome
 
 This is the **inteligir** dev harness — a plain-browser run of the portable
@@ -69,6 +75,27 @@ Started the harness. *Everything* renders without Electron.
 
 1. First ordered item
 2. Second ordered item
+`,
+  // WP1 pipeline notes — drive the Rich/Raw gate end-to-end in the harness.
+  "kitchen-sink.md": kitchenSink,
+  "legacy-web-clip.md": `# Clipped page
+
+<!-- saved from a browser -->
+
+<div align="center">Centered legacy HTML</div>
+
+See <https://example.com/original> for the source. Load {unmatched
+
+Latency is <50ms on a good day.
+`,
+  "frontmatter-note.md": `---
+title: Frontmatter note
+tags: [meta, demo]
+---
+
+# Frontmatter note
+
+The yaml block above survives Rich edits byte-for-byte; edit it via Raw.
 `,
 };
 

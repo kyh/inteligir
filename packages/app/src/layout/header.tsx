@@ -13,6 +13,7 @@ import {
 import { SidebarTrigger, useSidebar } from "@repo/ui/components/sidebar";
 import { cn } from "@repo/ui/lib/utils";
 
+import { describeRawReason } from "@repo/app/editor/markdown/markdown-doc";
 import { useVault } from "@repo/app/workspace/vault-context";
 
 /**
@@ -29,6 +30,7 @@ export function Header() {
     isMarkdownOpen,
     canonical,
     richSafe,
+    rawReason,
     mode,
     setMode,
     formatDoc,
@@ -69,7 +71,16 @@ export function Header() {
 
       {path !== null && (
         <div className="app-no-drag flex shrink-0 items-center gap-1.5">
-          {isMarkdownOpen && richSafe && !canonical && (
+          {isMarkdownOpen && rawReason !== null && (
+            <Badge
+              variant="dot"
+              className="text-muted-foreground"
+              title={describeRawReason(rawReason)}
+            >
+              Raw
+            </Badge>
+          )}
+          {isMarkdownOpen && rawReason === null && !canonical && (
             <Button
               variant="tertiary"
               size="sm"

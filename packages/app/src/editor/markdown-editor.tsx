@@ -6,7 +6,7 @@
 // Scope is a focused subset of Potion's editor — marks, headings, blockquote,
 // code blocks, links, and lists (incl. todo checkboxes) — rendered with small
 // Tailwind components (Plate plugins ship headless). The editor pane only mounts
-// this for documents that are already canonical (see markdown-doc.ts), so
+// this for documents that are already canonical (see markdown/markdown-doc.ts), so
 // serialization reshapes nothing the user didn't edit.
 
 import { useEffect, useRef, useState, type ComponentType } from "react";
@@ -20,7 +20,7 @@ import {
   Trash2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
-import { KEYS, NodeApi } from "platejs";
+import { KEYS, NodeApi, type Value } from "platejs";
 import {
   Plate,
   PlateContent,
@@ -54,8 +54,7 @@ import {
   TablePlugin,
   TableRowPlugin,
 } from "@platejs/table/react";
-import { MarkdownPlugin, deserializeMd, serializeMd } from "@platejs/markdown";
-import remarkGfm from "remark-gfm";
+import { serializeMd } from "@platejs/markdown";
 import { common, createLowlight } from "lowlight";
 
 import { cn } from "@repo/ui/lib/utils";
@@ -64,14 +63,20 @@ import { Menu, MenuContent, MenuItem, MenuSeparator } from "@repo/ui/components/
 import { BlockList } from "@repo/app/editor/block-list";
 import { DragKit } from "@repo/app/editor/block-draggable";
 import { AI_MARK, AiMarkKit } from "@repo/app/editor/inline-ai";
+import { CalloutBaseKit } from "@repo/app/editor/kits/callout-kit";
+import { ColumnBaseKit } from "@repo/app/editor/kits/column-kit";
+import { DateBaseKit } from "@repo/app/editor/kits/date-kit";
+import { EmbedBaseKit } from "@repo/app/editor/kits/embed-kit";
+import { FrontmatterBaseKit } from "@repo/app/editor/kits/frontmatter-kit";
+import { INDENTABLE } from "@repo/app/editor/kits/list-kit";
+import { MarkdownKit } from "@repo/app/editor/kits/markdown-kit";
+import { MathBaseKit } from "@repo/app/editor/kits/math-kit";
+import { ToggleBaseKit } from "@repo/app/editor/kits/toggle-kit";
+import { WikiLinkBaseKit } from "@repo/app/editor/kits/wiki-link-kit";
 import { SelectionToolbar } from "@repo/app/editor/selection-toolbar";
-import { MD_STRINGIFY } from "@repo/app/editor/markdown-doc";
+import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 import { SlashKit } from "@repo/app/editor/slash-menu";
 import { TableOfContents } from "@repo/app/editor/toc";
-
-// Block plugins lists/indentation attach to. Lists are modeled as indented
-// blocks (not a dedicated node), so the indent + list plugins inject into these.
-const INDENTABLE = [...KEYS.heading, KEYS.p, KEYS.blockquote, KEYS.codeBlock];
 
 // lowlight powers code-block syntax highlighting (`common` = ~35 popular
 // languages; the token classes are styled by the `.hljs-*` theme in styles.css).
@@ -258,7 +263,9 @@ function TableElement(props: PlateElementProps) {
   );
 }
 
-const EDITOR_PLUGINS = [
+// Exported for the kit-parity test only: until WP2's EDITOR_KIT replaces this
+// hand-spread list, that test is what keeps it mirroring BASE_KIT.
+export const EDITOR_PLUGINS = [
   BoldPlugin,
   ItalicPlugin,
   UnderlinePlugin,
@@ -285,9 +292,33 @@ const EDITOR_PLUGINS = [
   ...SlashKit,
   ...DragKit,
   ...AiMarkKit,
-  // remark-gfm gives task-list checkboxes (- [ ] / - [x]) + strikethrough.
-  MarkdownPlugin.configure({ options: { remarkPlugins: [remarkGfm] } }),
+  // WP1: Base halves of the new vocabulary nodes. They carry the node metadata
+  // (inline/void/element) so canonical files containing them aren't reshaped by
+  // Slate normalization — a `date` inline void without isInline registered
+  // would be REMOVED from its paragraph on the first edit. Rendering is Plate's
+  // default (skeleton) until WP2 fills the React halves.
+  ...ToggleBaseKit,
+  ...ColumnBaseKit,
+  ...EmbedBaseKit,
+  ...DateBaseKit,
+  ...MathBaseKit,
+  ...CalloutBaseKit,
+  ...FrontmatterBaseKit,
+  ...WikiLinkBaseKit,
+  // The shared serialization brain (single MarkdownPlugin instance — see
+  // kits/markdown-kit.ts).
+  ...MarkdownKit,
 ];
+
+// Seed markdown → Plate value through the owned pipeline. Unparseable content
+// is impossible behind the richSafe gate, but never crash the surface: fall
+// back to an empty paragraph and log.
+function seedValue(md: string): Value {
+  const parsed = parseMarkdown(md);
+  if (parsed.ok) return parsed.value;
+  console.error("MarkdownEditor: seed markdown failed to parse", parsed.reason);
+  return [{ children: [{ text: "" }], type: "p" }];
+}
 
 const EDITOR_COMPONENTS = {
   [BoldPlugin.key]: leaf("font-bold"),
@@ -349,8 +380,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
   const editor = usePlateEditor({
     plugins: EDITOR_PLUGINS,
     components: EDITOR_COMPONENTS,
-    // Function form: deserialize needs the constructed editor (its plugin rules).
-    value: (e) => deserializeMd(e, value),
+    value: () => seedValue(value),
   });
 
   // The last raw `value` prop we've reflected into the editor — dedupes the
@@ -372,7 +402,7 @@ export function MarkdownEditor({ value, onChange }: Props) {
   useEffect(() => {
     if (value === lastValueProp.current) return;
     lastValueProp.current = value;
-    editor.tf.setValue(deserializeMd(editor, value));
+    editor.tf.setValue(seedValue(value));
     seeded.current = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY });
   }, [value, editor]);
 

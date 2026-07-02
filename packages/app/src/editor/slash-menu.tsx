@@ -3,7 +3,7 @@
 // without a native markdown form (tables, media, callout, toggle, columns,
 // equations, colors) is deliberately omitted: it would render broken or be
 // dropped/mangled on the next save, which also kicks the file out of canonical
-// (rich) mode. See markdown-doc.ts.
+// (rich) mode. See markdown/markdown-doc.ts.
 
 import { HorizontalRulePlugin } from "@platejs/basic-nodes/react";
 import { insertCodeBlock } from "@platejs/code-block";
