@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 
 import { MarkdownEditor } from "@repo/app/editor/markdown-editor";
 import { useVault } from "@repo/app/workspace/vault-context";
@@ -22,6 +22,7 @@ export function EditorPane() {
   // note switches). We set the text imperatively when the open file changes;
   // the browser owns it while editing.
   const titleRef = useRef<HTMLHeadingElement>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (titleRef.current) titleRef.current.textContent = displayName;
   }, [displayName]);
@@ -55,28 +56,42 @@ export function EditorPane() {
     });
   };
 
+  // Enter in the title drops the caret into the body (potion behavior): the
+  // editor's editable in Rich mode, the textarea in Raw. The body mounts as a
+  // sibling inside paneRef, so the query never escapes this pane.
+  const onTitleKeyDown = (e: KeyboardEvent<HTMLHeadingElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.currentTarget.blur();
+      paneRef.current
+        ?.querySelector<HTMLElement>('[data-slate-editor="true"], textarea')
+        ?.focus();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      e.currentTarget.textContent = displayName;
+      e.currentTarget.blur();
+    }
+  };
+
   // potion-style column: a centered 700px text column (symmetric padding, not
   // max-w), the filename rendered as a large editable page title (chrome only —
-  // never serialized), then the body. Same column wraps the Raw textarea.
+  // never serialized), then the body. Same column wraps the Raw textarea; the
+  // pb-72 is the breathing room below the last block (spec §4.1 — the pane,
+  // not PlateContent, owns column + padding so title/raw/rich share bytes-
+  // exact geometry).
   return (
-    <div className="flex w-full flex-1 cursor-text flex-col px-12 pt-10 pb-72 sm:px-[max(48px,calc(50%-350px))]">
+    <div
+      ref={paneRef}
+      className="flex w-full flex-1 cursor-text flex-col px-12 pt-10 pb-72 sm:px-[max(48px,calc(50%-350px))]"
+    >
       <h1
         ref={titleRef}
         contentEditable
         suppressContentEditableWarning
         spellCheck={false}
         onBlur={(e) => commitTitle(e.currentTarget.textContent ?? "")}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            e.currentTarget.blur();
-          }
-          if (e.key === "Escape") {
-            e.preventDefault();
-            e.currentTarget.textContent = displayName;
-            e.currentTarget.blur();
-          }
-        }}
+        onKeyDown={onTitleKeyDown}
         className="mb-1 w-full break-words text-4xl font-bold leading-[1.2] text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']"
       />
       {showRich ? (

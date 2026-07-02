@@ -10,9 +10,10 @@
 
 import { useEffect, useRef } from "react";
 import type { Value } from "platejs";
-import { Plate, PlateContent, usePlateEditor } from "platejs/react";
+import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
+import { Editor, EditorContainer } from "@repo/app/editor/editor-chrome";
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_STRINGIFY, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 import { TableOfContents } from "@repo/app/editor/toc";
@@ -82,15 +83,12 @@ export function MarkdownEditor({ value, onChange }: Props) {
         onChange(md);
       }}
     >
-      {/* relative: the cursor overlay's selection ghost and the floating
-          toolbar (both afterEditable renders) position against this wrapper.
-          The toolbar itself renders from FloatingToolbarKit. */}
-      <div className="relative">
-        <PlateContent
-          className="potion-editor-typography min-h-full pt-4 text-base leading-normal caret-primary outline-none selection:bg-primary/20 [&_.slate-selection-area]:bg-primary/15"
-          spellCheck={false}
-        />
-      </div>
+      {/* EditorContainer is the relative wrapper the cursor overlay's
+          selection ghost and the floating toolbar (afterEditable renders)
+          position against. The toolbar itself renders from FloatingToolbarKit. */}
+      <EditorContainer>
+        <Editor spellCheck={false} />
+      </EditorContainer>
       <TableOfContents />
     </Plate>
   );
