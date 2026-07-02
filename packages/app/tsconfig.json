@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "dom", "dom.iterable"],
+    "jsx": "react-jsx",
+    "paths": {
+      "@repo/core/*": ["../core/src/*"],
+      "@repo/ui/*": ["../ui/src/*"]
+    }
+  },
+  "include": ["src"],
+  // `exclude` replaces (not merges with) the base list, so repeat the base
+  // entries. The STT worklet runs on the audio thread whose globals aren't in
+  // the DOM lib — it's loaded as an asset URL, not type-checked.
+  "exclude": ["node_modules", "build", "dist", ".output", "src/voice/stt-worklet.js"]
+}

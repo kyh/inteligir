@@ -22,6 +22,11 @@
     "packages/agent-runtime": {
       "includeEntryExports": true
     },
+    "packages/app": {
+      // The portable UI, consumed by the desktop shell (and later a web
+      // server). Its index + styles exports are the public API across hosts.
+      "includeEntryExports": false
+    },
     "packages/core": {
       // Isomorphic contract + pure-logic library consumed by the desktop app
       // (and, in later phases, the web server). Its `./*` exports are the
