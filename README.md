@@ -3,7 +3,7 @@
 > An AI-native notes app — Obsidian with an agent.
 
 Turborepo monorepo. The product runs two ways over the same backend + UI: an
-Electron desktop app and the browser via an `inteligir` CLI. Plus a static
+Electron desktop app and the browser via an `inteligir` CLI. Plus a
 marketing site.
 
 ## Layout
@@ -12,7 +12,7 @@ marketing site.
 apps/              Shippable artifacts
   desktop/         Thin Electron shell over host + app (@repo/desktop)
   cli/             `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
-  web/             Next.js static marketing site (landing page only)
+  web/             TanStack Start marketing site on Cloudflare Workers (landing page only)
 packages/          Libraries
   app/             Portable UI — the whole workspace as a browser React app (@repo/app)
   core/            Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)

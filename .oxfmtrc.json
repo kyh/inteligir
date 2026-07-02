@@ -6,11 +6,12 @@
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
-    ".next",
     ".expo",
     ".wxt",
     ".output",
+    ".tanstack",
     "out",
+    "routeTree.gen.ts",
     "packages/app/src/__tests__/fixtures"
   ],
   "experimentalSortPackageJson": {}

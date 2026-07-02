@@ -8,8 +8,8 @@ AI-native two ways: chat to an agent that edits those files, and highlight a
 checkbox to _delegate_ it to a background agent that does the task and writes the
 result back.
 
-Turborepo monorepo: an Electron desktop app (the product) + a static Next.js
-marketing site + shared packages.
+Turborepo monorepo: an Electron desktop app (the product) + a TanStack Start
+marketing site on Cloudflare Workers + shared packages.
 
 ## Tech Stack
 
@@ -17,7 +17,7 @@ marketing site + shared packages.
 - **Desktop**: Electron + electron-vite (@repo/desktop) — the product
 - **Editor**: Plate (platejs) rich markdown + a raw textarea fallback
 - **UI**: shadcn/ui (Base UI), lucide-react, sonner, zustand
-- **Web**: Next.js 16, React 19, Tailwind CSS 4 (static marketing site, no backend)
+- **Web**: TanStack Start + React 19 + Tailwind CSS 4 on Cloudflare Workers (marketing site, no backend)
 - **AI Agent**: pi coding agent framework (@mariozechner/pi-coding-agent)
 
 The agent runs locally in the desktop app. There is no server-side API or
@@ -29,7 +29,7 @@ symlink in its workspace and edits files with its native file tools.
 
 ```
 apps/            # shippable artifacts
-  web/           # Static marketing site (@repo/web) — landing page only
+  web/           # Marketing site (@repo/web) — landing page only
   desktop/       # Thin Electron shell — the notes product (@repo/desktop)
   cli/           # `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
 packages/        # libraries

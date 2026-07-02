@@ -15,7 +15,7 @@ function MacLogoIcon({ className }: { className?: string }) {
   );
 }
 
-// Isolate-local memo (next/font-era `cacheLife("hours")` parity): one GitHub
+// Isolate-local memo (parity with the old `cacheLife("hours")`): one GitHub
 // API hit per worker isolate per hour, falling back to the releases page.
 let cached: { url: string; expires: number } | null = null;
 
