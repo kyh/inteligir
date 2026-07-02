@@ -4,7 +4,7 @@
 // toggle/todo/bullet/numbered; columns are NOT a turn-into target. Lists are
 // indent-based (a paragraph carrying `listStyleType` + `indent`).
 
-import { ElementApi, KEYS, NodeApi, PathApi, type Path, type TRange } from "platejs";
+import { ElementApi, KEYS, NodeApi, PathApi, type Path, type TElement, type TRange } from "platejs";
 import type { PlateEditor } from "platejs/react";
 
 import { wrapBlockInToggle } from "@repo/app/editor/kits/toggle-kit";
@@ -32,6 +32,36 @@ export const TURN_INTO: TurnIntoOption[] = [
 ];
 
 const ALERT_MARKER_RE = /^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s?/;
+
+/**
+ * The block a turn-into acts on for a selection sitting at `at`: normally the
+ * lowest block, but a toggle's SUMMARY row (first nested child) stands for
+ * the toggle itself — converting "Toggle → Text" from the toolbar must
+ * unwrap the toggle, not no-op on the paragraph inside it.
+ */
+export function effectiveBlockEntry(
+  editor: PlateEditor,
+  at?: TRange,
+): [TElement, Path] | null {
+  const block = editor.api.block(at ? { at } : {});
+  if (!block || !ElementApi.isElement(block[0])) return null;
+  return retargetToggleSummary(editor, [block[0], block[1]]);
+}
+
+function retargetToggleSummary(editor: PlateEditor, entry: [TElement, Path]): [TElement, Path] {
+  const [, path] = entry;
+  if (path.length > 1 && path[path.length - 1] === 0) {
+    const parent = editor.api.node(PathApi.parent(path));
+    if (
+      parent &&
+      ElementApi.isElement(parent[0]) &&
+      parent[0].type === editor.getType(KEYS.toggle)
+    ) {
+      return [parent[0], parent[1]];
+    }
+  }
+  return entry;
+}
 
 /** The TURN_INTO entry describing `node`, for the toolbar's type indicator. */
 export function turnIntoLabelFor(node: { type: string } & Record<string, unknown>): string {
@@ -165,7 +195,17 @@ function applyTarget(editor: PlateEditor, at: Path, opt: TurnIntoOption): void {
 export function turnIntoSelection(editor: PlateEditor, opt: TurnIntoOption, at?: TRange): void {
   const entries = editor.api.blocks(at ? { at, mode: "lowest" } : { mode: "lowest" });
   editor.tf.withoutNormalizing(() => {
-    for (const [, path] of entries) turnIntoAt(editor, path, opt);
+    const seen = new Set<string>();
+    for (const [node, path] of entries) {
+      if (!ElementApi.isElement(node)) continue;
+      // A toggle's summary row stands for the toggle itself (dedupe so a
+      // range spanning summary + body doesn't convert the toggle twice).
+      const [, target] = retargetToggleSummary(editor, [node, path]);
+      const key = target.join(".");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      turnIntoAt(editor, target, opt);
+    }
   });
 }
 

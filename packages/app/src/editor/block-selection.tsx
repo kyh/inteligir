@@ -14,10 +14,12 @@ export function BlockSelection({ pluginKey }: { pluginKey: string }) {
   // Tables carry their own cell-selection UI; the overlay would double up.
   if (!isBlockSelected || pluginKey === "tr" || pluginKey === "table") return null;
 
+  // span, not div: paragraphs render as <p>, and a div child is invalid
+  // nesting (React dev warns per block).
   return (
-    <div
+    <span
       className={cn(
-        'pointer-events-none absolute inset-0 z-1 size-full rounded-[4px] content-[""]',
+        'pointer-events-none absolute inset-0 z-1 block size-full rounded-[4px] content-[""]',
         "bg-primary/15 transition-opacity duration-200",
       )}
       data-slot="block-selection"

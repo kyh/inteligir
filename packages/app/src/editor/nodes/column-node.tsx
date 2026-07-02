@@ -56,11 +56,18 @@ export function ColumnElement(props: PlateElementProps) {
     if (!(next instanceof HTMLElement)) return;
 
     e.preventDefault();
-    // Pointer capture routes move/up/cancel to the handle even when the
-    // pointer leaves it (or the window) mid-drag; pointercancel (tab switch,
-    // OS gesture, touch interruption) aborts without committing.
+    // Best-effort pointer capture (keeps move/up flowing when the pointer
+    // leaves the window or enters an iframe mid-drag). The listeners live on
+    // window regardless — capture is an assist, not the routing mechanism —
+    // and pointercancel (tab switch, OS gesture) aborts without committing.
     const handle = e.currentTarget;
-    handle.setPointerCapture(e.pointerId);
+    if (typeof handle.setPointerCapture === "function") {
+      try {
+        handle.setPointerCapture(e.pointerId);
+      } catch {
+        // Synthetic pointers (tests, automation) may not be capturable.
+      }
+    }
     const startX = e.clientX;
     const cells = Array.from(groupRow.children).filter(
       (cell): cell is HTMLElement => cell instanceof HTMLElement,
@@ -86,9 +93,9 @@ export function ColumnElement(props: PlateElementProps) {
     };
 
     const detach = () => {
-      handle.removeEventListener("pointermove", onMove);
-      handle.removeEventListener("pointerup", onUp);
-      handle.removeEventListener("pointercancel", onCancel);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
       host.style.flex = "";
       next.style.flex = "";
     };
@@ -119,9 +126,9 @@ export function ColumnElement(props: PlateElementProps) {
       });
     };
 
-    handle.addEventListener("pointermove", onMove);
-    handle.addEventListener("pointerup", onUp);
-    handle.addEventListener("pointercancel", onCancel);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
   };
 
   const path = editor.api.findPath(element);

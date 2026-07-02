@@ -96,30 +96,32 @@ export function LinkElement(props: PlateElementProps) {
       >
         <PopoverContent anchor={anchorRef} side="bottom" align="start" className="p-1">
           {editing ? (
-            <form
-              className="flex items-center gap-1"
-              onSubmit={(event) => {
-                event.preventDefault();
-                applyDraft();
-              }}
-            >
+            // Plain div, not <form>: swapping this branch in while the
+            // Edit click's default action resolves fired a spurious submit
+            // (applying the stale draft and closing the popover).
+            <div className="flex items-center gap-1">
               <input
                 autoFocus
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyDraft();
+                  }
                   if (e.key === "Escape") setEditing(false);
                 }}
                 placeholder="https://…"
                 className="h-7 w-56 bg-transparent px-1.5 text-xs outline-none placeholder:text-muted-foreground"
               />
               <button
-                type="submit"
+                type="button"
+                onClick={applyDraft}
                 className="flex items-center rounded-md px-2 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/10"
               >
                 Apply
               </button>
-            </form>
+            </div>
           ) : (
             <div className="flex items-center gap-0.5">
               <span

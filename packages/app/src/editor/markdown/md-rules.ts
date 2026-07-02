@@ -213,6 +213,37 @@ export const MD_RULES: MdRules = {
     },
   },
 
+  // Serialize-only override of Plate's column rule. A column holding only an
+  // empty paragraph — the live editor's shape for an empty column (the
+  // insert seeds one; normalization keeps one) — must emit self-closed
+  // `<column />`, the same bytes its parse produces. The default serializes
+  // it as blank expanded content (`<column>\n\n  </column>`), which
+  // re-parses to zero children and re-emits self-closed: a non-idempotent
+  // first pass that knocked the file to Raw whenever an autosave landed
+  // before every column had content.
+  column: {
+    serialize: (node: TElement, options: SerializeMdOptions) => {
+      const { id, children, type, ...rest } = node;
+      void id;
+      void type;
+      const only = children.length === 1 ? children[0] : undefined;
+      const onlyText =
+        only !== undefined &&
+        ElementApi.isElement(only) &&
+        only.type === "p" &&
+        only.children.length === 1
+          ? only.children[0]
+          : undefined;
+      const isEmpty = onlyText !== undefined && TextApi.isText(onlyText) && onlyText.text === "";
+      return {
+        attributes: propsToAttributes(rest),
+        children: isEmpty ? [] : convertNodesSerialize(children, options),
+        name: "column",
+        type: "mdxJsxFlowElement",
+      };
+    },
+  },
+
   // id-leak overrides (see mediaSerializeWithoutId).
   callout: {
     serialize: (node: TElement, options: SerializeMdOptions) => {

@@ -37,6 +37,7 @@ import { Menu, MenuContent, MenuGroup, MenuGroupLabel, MenuItem } from "@repo/ui
 
 import {
   TURN_INTO,
+  effectiveBlockEntry,
   turnIntoLabelFor,
   turnIntoSelection,
 } from "@repo/app/editor/block-transforms";
@@ -359,12 +360,13 @@ function IdleToolbar({ controller }: { controller: InlineAiController }) {
     ref: floatingRef,
   } = useFloatingToolbar(floatingToolbarState);
 
-  // Current-block-type indicator on the Turn-into trigger.
+  // Current-block-type indicator on the Turn-into trigger (a toggle's
+  // summary row reads as the toggle).
   const selection = useEditorSelection();
   const typeLabel = useMemo(() => {
-    const at = selection ?? savedSel.current;
-    const block = at ? editor.api.block({ at }) : editor.api.block();
-    return block ? turnIntoLabelFor(block[0]) : "Text";
+    const at = selection ?? savedSel.current ?? undefined;
+    const entry = effectiveBlockEntry(editor, at);
+    return entry ? turnIntoLabelFor(entry[0]) : "Text";
   }, [selection, editor]);
 
   if (hidden && !frozen) return null;

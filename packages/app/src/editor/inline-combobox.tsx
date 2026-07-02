@@ -143,17 +143,33 @@ function InlineCombobox({
   }, []);
 
   // Keystrokes race into the element's hidden text child whenever they beat
-  // the input's focus (trigger→mount window, or a focus round-trip). The
-  // element prop re-renders on every Slate change, so this absorbs each
-  // batch as it lands: prepend to the query (raced chars were typed first)
-  // and clear the slate bytes (they'd render after the input — visible
-  // reordering — and double-absorb otherwise).
+  // the input's focus (trigger→mount window, or a Slate op yanking DOM focus
+  // back to the editable mid-burst). The element prop re-renders on every
+  // Slate change, so this absorbs each batch as it lands: splice at the
+  // input's caret (chronologically where those keystrokes belong), clear the
+  // slate bytes (they'd render after the input — visible reordering — and
+  // double-absorb otherwise), and re-take focus so the next keystroke lands
+  // in the input again.
   const raced = racedComboboxText(element);
+  const pendingCaretRef = React.useRef<number | null>(null);
   React.useEffect(() => {
     if (closedRef.current || raced.length === 0) return;
     const absorbed = absorbRacedComboboxText(editor, element);
-    if (absorbed.length > 0) setValue(absorbed + valueRef.current);
+    if (absorbed.length === 0) return;
+    const input = inputRef.current;
+    const current = valueRef.current;
+    const caret = input?.selectionStart ?? current.length;
+    setValue(current.slice(0, caret) + absorbed + current.slice(caret));
+    pendingCaretRef.current = caret + absorbed.length;
+    input?.focus();
   }, [raced, editor, element, setValue]);
+  // Place the caret after the spliced text once the new value has committed.
+  React.useLayoutEffect(() => {
+    const pos = pendingCaretRef.current;
+    if (pos === null) return;
+    pendingCaretRef.current = null;
+    inputRef.current?.setSelectionRange(pos, pos);
+  });
 
   // Clicking elsewhere in the note moves the Slate selection off the element
   // while it is still mounted — cancel and restore the typed text.
