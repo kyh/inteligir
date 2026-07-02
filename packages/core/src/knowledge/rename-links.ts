@@ -8,11 +8,14 @@
 // exclusively after byte verification): aliases (`[[old|alias]]`), anchors
 // (`[[old#sec]]`), body padding, and `<>` url wrappers all survive verbatim.
 // Links inside fences/code spans were never extracted, so they are never
-// touched. Two link populations are rewritten:
+// touched. Three link populations are rewritten:
 //   1. links in ANY doc that resolve to `from` (including self-links inside
 //      the moved doc) — retargeted at `to`;
 //   2. relative md links FROM the moved doc to other files — re-based when
-//      the move changed directories (wiki links are location-independent).
+//      the move changed directories (wiki links are location-independent);
+//   3. links in ANY doc whose target the rename SHADOWS (`[[note]]` reached
+//      a/note.md; the file just renamed to note.md now wins the tie-break) —
+//      qualified so they keep meaning what they meant.
 // ---------------------------------------------------------------------------
 
 import type { Span } from "./link-extract";
@@ -68,10 +71,23 @@ export function computeRenameEdits(
           link.kind === "wiki"
             ? wikiTargetText(toPath, fromPath, postResolver, othersResolver, raw)
             : mdUrlText(postDocPath, toPath, raw);
-      } else if (link.kind === "md" && path === fromPath && movedDirs && resolved !== null) {
-        // The moved doc's own outgoing relative md links re-base to its new
-        // directory (wiki links resolve by name and need no rewrite).
-        text = mdUrlText(toPath, resolved, raw);
+      } else if (resolved !== null) {
+        if (link.kind === "md") {
+          // The moved doc's own outgoing relative md links re-base to its new
+          // directory; elsewhere an md url only changes when the rename
+          // shadowed its resolution (a case-insensitive tie now lost).
+          if (
+            (path === fromPath && movedDirs) ||
+            postResolver.resolveMd(link.target, postDocPath) !== resolved
+          ) {
+            text = mdUrlText(postDocPath, resolved, raw);
+          }
+        } else if (postResolver.resolveWiki(link.target) !== resolved) {
+          // The renamed file now wins this short name's tie-break (`[[note]]`
+          // used to reach a/note.md; the new root note.md shadows it) —
+          // qualify the target so the link keeps meaning what it meant.
+          text = qualifiedWikiText(resolved, raw);
+        }
       }
       if (text !== null && text !== raw) replacements.push({ span: link.targetSpan, text });
     }
@@ -117,6 +133,16 @@ function wikiTargetText(
     postResolver.resolveWiki(shortName) === to && othersResolver.resolveWiki(shortName) === null;
   if (unambiguous) return shortName;
   return dropExt ? to.slice(0, -3) : to;
+}
+
+/** Fully qualified wiki target for the (un-renamed) file at `path` — the
+ * anti-shadow rewrite. Tier-1 exact-path resolution makes it unambiguous;
+ * the raw text's extension style is preserved (`.md` stays implied unless
+ * written out). */
+function qualifiedWikiText(path: string, oldRaw: string): string {
+  const ext = extnamePath(path).toLowerCase();
+  const explicitExt = ext !== "" && normalizePath(oldRaw).toLowerCase().endsWith(ext);
+  return ext === ".md" && !explicitExt ? path.slice(0, -3) : path;
 }
 
 /** New md url for a link from `sourcePath` (post-rename location) to

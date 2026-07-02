@@ -89,6 +89,38 @@ describe("KnowledgeIndex — graph", () => {
     // hub edges: ->target, ->phantom, ->diagram, ->other, <-other = 5 touching.
     expect(hub?.degree).toBe(5);
   });
+
+  it("collapses a self-link into one edge counted once in the degree", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("self.md", "# Self\n\n[[self]] and again [[self]]\n");
+    const graph = index.graph();
+    expect(graph.edges).toEqual([{ source: "self.md", target: "self.md", kind: "wiki", count: 2 }]);
+    expect(graph.nodes.find((n) => n.id === "self.md")?.degree).toBe(1);
+  });
+
+  it("folds differently-cased dangling targets into one phantom node", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("a.md", "[[Ghost]]\n");
+    index.setDoc("b.md", "[[ghost]]\n");
+    const phantoms = index.graph().nodes.filter((n) => n.phantom);
+    expect(phantoms).toEqual([{ id: "phantom:ghost", title: "Ghost", phantom: true, degree: 2 }]);
+  });
+});
+
+describe("KnowledgeIndex — case-colliding paths", () => {
+  // Engine-level: a case-insensitive fs can't produce both, but a
+  // case-sensitive vault (linux) can — no double counting, cs beats ci.
+  it("keeps Note.md and note.md distinct without double-counting links", () => {
+    const index = new KnowledgeIndex();
+    index.setDoc("Note.md", "# Big\n");
+    index.setDoc("note.md", "# Small\n");
+    index.setDoc("hub.md", "[[Note]] and [[note]] and [[NOTE]]\n");
+    const targets = index.forwardLinks("hub.md").map((f) => f.targetPath);
+    expect(targets).toEqual(["Note.md", "note.md", "Note.md"]);
+    expect(index.backlinks("Note.md")).toHaveLength(2);
+    expect(index.backlinks("note.md")).toHaveLength(1);
+    expect(index.graph().nodes.filter((n) => n.phantom)).toHaveLength(0);
+  });
 });
 
 describe("KnowledgeIndex — incremental updates", () => {

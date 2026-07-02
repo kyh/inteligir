@@ -143,6 +143,47 @@ describe("computeRenameEdits — md links", () => {
   });
 });
 
+describe("computeRenameEdits — shadow protection", () => {
+  it("qualifies another doc's short link when the rename would steal its tie-break", () => {
+    // misc.md -> note.md (root): [[note]] would now tie-break to the new root
+    // file instead of a/note.md. The rewrite pins the original meaning.
+    const result = edits(
+      { "hub.md": "see [[note]]\n", "a/note.md": "# The real note\n", "misc.md": "# Misc\n" },
+      "misc.md",
+      "note.md",
+    );
+    expect(result.get("hub.md")).toBe("see [[a/note]]\n");
+    expect(result.size).toBe(1);
+  });
+
+  it("leaves short links alone when the rename does not affect their resolution", () => {
+    const result = edits(
+      { "hub.md": "see [[note]]\n", "a/note.md": "", "misc.md": "" },
+      "misc.md",
+      "z/note.md", // deeper than a/note.md — the tie-break still picks a/note.md
+    );
+    expect(result.size).toBe(0);
+  });
+
+  it("re-pins an md url whose case-insensitive fallback the rename steals", () => {
+    // [x](Note.md) fell back case-insensitively to note.md; the renamed file
+    // lands exactly at Note.md and would capture the link.
+    const result = edits(
+      { "hub.md": "[x](Note.md)\n", "note.md": "", "misc.md": "" },
+      "misc.md",
+      "Note.md",
+    );
+    expect(result.get("hub.md")).toBe("[x](note.md)\n");
+  });
+
+  it("dangling links heal silently when the rename lands on their name", () => {
+    // [[note]] dangled; renaming misc.md -> note.md makes it resolve. No
+    // rewrite — resolution simply starts working.
+    const result = edits({ "hub.md": "see [[note]]\n", "misc.md": "" }, "misc.md", "note.md");
+    expect(result.size).toBe(0);
+  });
+});
+
 describe("computeRenameEdits — no-ops", () => {
   it("returns nothing when no links point at the file", () => {
     expect(edits({ "hub.md": "# No links\n", "old.md": "" }, "old.md", "new.md").size).toBe(0);
