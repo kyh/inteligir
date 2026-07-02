@@ -47,7 +47,7 @@ export function ColumnElement(props: PlateElementProps) {
 
   const width = typeof element.width === "string" ? element.width : undefined;
 
-  const startResize = (e: React.PointerEvent) => {
+  const startResize = (e: React.PointerEvent<HTMLDivElement>) => {
     const path = editor.api.findPath(element);
     const host = hostRef.current;
     const groupRow = host?.parentElement;
@@ -56,6 +56,11 @@ export function ColumnElement(props: PlateElementProps) {
     if (!(next instanceof HTMLElement)) return;
 
     e.preventDefault();
+    // Pointer capture routes move/up/cancel to the handle even when the
+    // pointer leaves it (or the window) mid-drag; pointercancel (tab switch,
+    // OS gesture, touch interruption) aborts without committing.
+    const handle = e.currentTarget;
+    handle.setPointerCapture(e.pointerId);
     const startX = e.clientX;
     const cells = Array.from(groupRow.children).filter(
       (cell): cell is HTMLElement => cell instanceof HTMLElement,
@@ -80,11 +85,22 @@ export function ColumnElement(props: PlateElementProps) {
       next.style.flex = `0 0 ${pairPx - (startSelf + delta)}px`;
     };
 
-    const onUp = (up: PointerEvent) => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
+    const detach = () => {
+      handle.removeEventListener("pointermove", onMove);
+      handle.removeEventListener("pointerup", onUp);
+      handle.removeEventListener("pointercancel", onCancel);
       host.style.flex = "";
       next.style.flex = "";
+    };
+
+    // Aborted drag (pointercancel): restore the flex-driven layout, commit
+    // nothing — the document stays untouched.
+    const onCancel = () => {
+      detach();
+    };
+
+    const onUp = (up: PointerEvent) => {
+      detach();
       const delta = clampDelta(up.clientX);
       if (delta === 0) return; // no movement — document untouched
       // Commit-on-release: every column gets a width so the group is fully
@@ -103,8 +119,9 @@ export function ColumnElement(props: PlateElementProps) {
       });
     };
 
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointermove", onMove);
+    handle.addEventListener("pointerup", onUp);
+    handle.addEventListener("pointercancel", onCancel);
   };
 
   const path = editor.api.findPath(element);
