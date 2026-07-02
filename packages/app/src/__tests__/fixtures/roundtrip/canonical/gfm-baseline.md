@@ -17,9 +17,9 @@ Some **bold**, _italic_, and `inline code`.
 code block
 ```
 
-| a   | b   |
-| --- | --- |
-| c   | d   |
+| a | b |
+| - | - |
+| c | d |
 
 - [ ] todo one
 - [x] done two

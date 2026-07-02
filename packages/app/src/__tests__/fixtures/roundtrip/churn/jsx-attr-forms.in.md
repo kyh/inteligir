@@ -9,18 +9,17 @@
 <toggle></toggle>
 
 <column_group>
-<column>
-four-space indent
-</column>
+    <column>
+        four-space indent
+    </column>
 
     <column>
         right
     </column>
-
 </column_group>
 
 <callout
-variant="info"
-
-> attrs on lines
-> </callout>
+  variant="info"
+>
+  attrs on lines
+</callout>

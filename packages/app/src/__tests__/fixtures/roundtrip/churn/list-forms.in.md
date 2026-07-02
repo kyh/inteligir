@@ -1,8 +1,8 @@
-1. one
-2. two
+1) one
+2) two
 
-- first
-- second
+-	first
+-	second
 
 - a
 

@@ -9,14 +9,14 @@ Intro paragraph with [[Some Note]] and an alias [[Other|friendly]] plus ![[embed
 <toggle>
   Hidden content line.
 
-- nested item
-- another
-  </toggle>
+  - nested item
+  - another
+</toggle>
 
 <column_group>
-<column>
-left cell
-</column>
+  <column>
+    left cell
+  </column>
 
   <column>
     right cell
