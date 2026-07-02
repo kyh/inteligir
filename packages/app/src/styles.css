@@ -66,6 +66,25 @@ textarea,
   visibility: hidden;
 }
 
+/* GitHub-alert callouts (editor/nodes/blockquote-node.tsx + the calloutMarker
+ * decoration in kits/basic-blocks-kit.tsx). The literal `> [!TIP]` marker
+ * STAYS in the bytes — it is only hidden at render behind the variant badge.
+ * `.callout-editing` (caret anywhere inside the quote) reveals it for editing,
+ * Obsidian-live-preview style. The marker leaf needs display:none (its hidden
+ * span carries the soft break — anything layout-preserving would keep a blank
+ * first line); a marker-ONLY first paragraph collapses with the toggle-node
+ * recipe instead (Slate keeps measurable DOM for block-level APIs). */
+.callout-alert:not(.callout-editing) .callout-marker {
+  display: none;
+}
+.callout-alert:not(.callout-editing) .callout-marker-line {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
 /* Code-block syntax highlighting — the GitHub light/dark theme for lowlight's
  * `.hljs-*` token classes (emitted by CodeSyntaxPlugin). Syntax themes are
  * inherently color-specific, so these are fixed hex rather than theme tokens. */

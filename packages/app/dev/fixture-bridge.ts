@@ -222,6 +222,11 @@ Embed placeholder: ![[target note]]
 ## Section
 
 The hub links here. Backlinks arrive in a later phase.
+
+| feature | status |
+| ------- | ------ |
+| embeds  | live   |
+| tables  | boxed  |
 `,
   // Phase F knowledge notes — an interlinked cluster so tabs, chips,
   // backlinks, transclusion (incl. guards), graph, and search all demo well.
