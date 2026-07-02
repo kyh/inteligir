@@ -15,9 +15,15 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { MediaToolbar } from "@repo/app/editor/nodes/media-toolbar";
 
-import "react-lite-youtube-embed/dist/LiteYouTubeEmbed.css";
-
-const LiteYouTubeEmbed = lazy(() => import("react-lite-youtube-embed"));
+// The stylesheet rides the same lazy chunk as the component (Vite injects it
+// when the dynamic import resolves) — a static import would put it in the
+// initial bundle for notes that never embed a video.
+const LiteYouTubeEmbed = lazy(() =>
+  Promise.all([
+    import("react-lite-youtube-embed"),
+    import("react-lite-youtube-embed/dist/LiteYouTubeEmbed.css"),
+  ]).then(([mod]) => ({ default: mod.default })),
+);
 
 // Aspect paddings mirror potion's per-provider ratios.
 const PROVIDER_ASPECT: Record<string, string> = {
