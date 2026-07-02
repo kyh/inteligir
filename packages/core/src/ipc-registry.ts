@@ -339,7 +339,9 @@ export const IPC = {
     "knowledge:search",
     KnowledgeSearchSchema,
   ),
-  /** Every linkable note, for the `[[`-autocomplete picker. */
+  /** Every linkable target for the `[[`-autocomplete picker: notes first,
+   * then attachments (flagged `type: "asset"` so the picker groups them and
+   * inserts `![[embeds]]`). */
   listWikiTargets: invokeVoid<WikiTarget[]>("knowledge:wiki-targets"),
   /** Fired after every index refresh (revision is monotonic) so backlink
    * panes / graph views re-query. */

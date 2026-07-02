@@ -59,6 +59,19 @@ describe("renameWithLinkRewrite", () => {
     );
   });
 
+  it("renames a non-md asset and rewrites md image + wiki embed references", () => {
+    vault.writeText("hub.md", "shot ![the alt](pic.png), embed ![[pic.png]]\n");
+    fs.writeFileSync(path.join(root, "pic.png"), "binary-ish");
+
+    expect(renameWithLinkRewrite(vault, "pic.png", "assets/photo.png")).toEqual({ ok: true });
+
+    expect(fs.existsSync(path.join(root, "pic.png"))).toBe(false);
+    expect(fs.readFileSync(path.join(root, "assets/photo.png"), "utf8")).toBe("binary-ish");
+    expect(vault.readText("hub.md")).toBe(
+      "shot ![the alt](assets/photo.png), embed ![[photo.png]]\n",
+    );
+  });
+
   it("rewrites the moved doc's own self-link and relative links at its new path", () => {
     vault.writeText("a/doc.md", "self [[doc]] plus [sibling](sib.md)\n");
     vault.writeText("a/sib.md", "# Sib\n");

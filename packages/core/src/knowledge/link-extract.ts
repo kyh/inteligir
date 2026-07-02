@@ -1,6 +1,7 @@
 // ---------------------------------------------------------------------------
 // Doc scanning for the knowledge index: one remark parse per doc yields the
-// title, the headings, and every note link (wiki + standard relative md) with
+// title, the headings, and every vault-local link — wiki links/embeds,
+// standard relative md links (note AND asset targets), and md images — with
 // exact source spans. Parsing reuses the SAME remark-wiki-link tokenizer the
 // editor pipeline runs, so extraction agrees with what the editor renders —
 // and fence/code-span safety is inherited from the parser (text constructs
@@ -26,18 +27,21 @@ import { parseWikiBodyRange, remarkWikiLink } from "../markdown/remark-wiki-link
 import { basenamePath, extnamePath } from "./vault-path";
 
 export type Span = { start: number; end: number };
-export type LinkKind = "wiki" | "md";
+/** `wiki` = `[[..]]` / `![[..]]`, `md` = `[..](..)` + reference definitions,
+ * `image` = `![..](..)` standard md images. */
+export type LinkKind = "wiki" | "md" | "image";
 
 export type ExtractedLink = {
   kind: LinkKind;
-  /** `![[embed]]` (transclusion) vs `[[link]]`. Always false for md links. */
+  /** Rendered-inline reference: `![[embed]]` transclusions and md images.
+   * Always false for plain wiki/md links. */
   embed: boolean;
   /** Resolution input: the target as written (percent-decoded for md links),
    * anchor/alias stripped. Never empty. */
   target: string;
   /** Heading anchor after `#`, when present. */
   anchor?: string;
-  /** Display text: the wiki `|alias`, or an md link's label. */
+  /** Display text: the wiki `|alias`, an md link's label, or an image's alt. */
   alias?: string;
   /** 1-based source line the link starts on. */
   line: number;
@@ -88,7 +92,15 @@ export function scanDoc(source: string): DocScan {
         const lastEnd = last ? position(last)?.span.end : pos.span.start + 1;
         const dest =
           lastEnd === undefined ? null : locateDestination(source, lastEnd, pos.span.end);
-        const link = mdToLink(source, node.url, textOf(node), pos, dest);
+        const link = mdToLink(source, "md", node.url, textOf(node), pos, dest);
+        if (link) scan.links.push(link);
+        return;
+      }
+      case "image": {
+        const pos = position(node);
+        if (!pos) return;
+        const dest = locateImageDestination(source, pos.span);
+        const link = mdToLink(source, "image", node.url, node.alt ?? "", pos, dest);
         if (link) scan.links.push(link);
         return;
       }
@@ -96,7 +108,7 @@ export function scanDoc(source: string): DocScan {
         const pos = position(node);
         if (!pos) return;
         const dest = locateDefinitionDestination(source, pos.span);
-        const link = mdToLink(source, node.url, node.label ?? "", pos, dest);
+        const link = mdToLink(source, "md", node.url, node.label ?? "", pos, dest);
         if (link) scan.links.push(link);
         return;
       }
@@ -166,24 +178,19 @@ function wikiToLink(
   return link;
 }
 
-// ---- Standard markdown links --------------------------------------------------
+// ---- Standard markdown links and images ---------------------------------------
 
 // Everything with a scheme (`https:`, `mailto:`, `C:\…`) or protocol-relative
 // `//` is external; pure-fragment urls are same-file references.
 const SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 
-// Mirror of the vault's editable-doc set: an md link is a NOTE link only when
-// its target is extension-less (`.md` implied) or carries a doc extension —
-// links to images/pdfs are assets, not graph edges.
-const DOC_LINK_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
-
-function isNoteUrl(target: string): boolean {
-  const ext = extnamePath(target);
-  return ext === "" || DOC_LINK_EXTENSIONS.has(ext.toLowerCase());
-}
-
+// Every LOCAL url extracts, note or asset alike — `![](img.png)` and
+// `[pdf](paper.pdf)` must survive a rename of their target exactly like
+// `[[note]]` does. Queries that only want notes (the graph) filter on the
+// RESOLVED target, not at extraction.
 function mdToLink(
   source: string,
+  kind: "md" | "image",
   url: string,
   label: string,
   pos: NodePosition,
@@ -195,7 +202,6 @@ function mdToLink(
   const anchor = hash === -1 ? "" : url.slice(hash + 1);
   if (urlPath === "") return null;
   const target = safeDecode(urlPath);
-  if (!isNoteUrl(target)) return null;
   // Verify the located destination bytes re-derive the parsed url path; only
   // then is the span trusted for rewriting.
   let targetSpan: Span | undefined;
@@ -206,8 +212,8 @@ function mdToLink(
     }
   }
   const link: ExtractedLink = {
-    kind: "md",
-    embed: false,
+    kind,
+    embed: kind === "image",
     target,
     line: pos.line,
     span: pos.span,
@@ -275,6 +281,31 @@ function scanDestination(source: string, from: number, end: number): Span | null
 function locateDestination(source: string, lastEnd: number, end: number): Span | null {
   if (source.slice(lastEnd, lastEnd + 2) !== "](") return null;
   return scanDestination(source, lastEnd + 2, end);
+}
+
+/** For an image: skip `![`, walk the description with balanced brackets
+ * (image alt may contain nested link syntax), expect `](`, then scan. An alt
+ * whose brackets defeat the walk (e.g. a code span holding a stray `]`) just
+ * fails byte verification downstream — indexed, never rewritten. */
+function locateImageDestination(source: string, span: Span): Span | null {
+  if (source.slice(span.start, span.start + 2) !== "![") return null;
+  let i = span.start + 2;
+  let depth = 1;
+  while (i < span.end) {
+    const c = source.charAt(i);
+    if (c === "\\") {
+      i += 2;
+      continue;
+    }
+    if (c === "[") depth++;
+    else if (c === "]") {
+      depth--;
+      if (depth === 0) break;
+    }
+    i++;
+  }
+  if (depth !== 0 || source.charAt(i + 1) !== "(") return null;
+  return scanDestination(source, i + 2, span.end);
 }
 
 /** For a definition: skip the `[label]`, expect `:`, then scan. */

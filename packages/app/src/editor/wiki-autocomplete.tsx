@@ -1,13 +1,16 @@
 // `[[` wiki autocomplete — the third inline-combobox consumer (after slash
 // and emoji). Typing `[` after `[` swaps in a trigger element listing every
-// linkable note (listWikiTargets, fuzzy-filtered); Enter/click completes the
-// chip and the closing brackets. `|alias` and `#anchor` typed into the query
-// pass straight through into the chip body, typing `]]` completes verbatim
-// (fluent-typing parity with the kit's `]]` input rule), and an unresolved
-// query offers a create-note entry that also inserts the (now-resolving) chip.
+// linkable target (listWikiTargets, fuzzy-filtered): notes first, then
+// attachments in their own group — picking an attachment inserts an
+// `![[embed]]` chip (a bare link to a binary renders nothing useful).
+// Enter/click completes the chip and the closing brackets. `|alias` and
+// `#anchor` typed into the query pass straight through into the chip body,
+// typing `]]` completes verbatim (fluent-typing parity with the kit's `]]`
+// input rule), and an unresolved query offers a create-note entry that also
+// inserts the (now-resolving) chip.
 
 import { useCallback, useEffect, useState } from "react";
-import { FilePlusIcon, FileTextIcon } from "lucide-react";
+import { FilePlusIcon, FileTextIcon, PaperclipIcon } from "lucide-react";
 import { KEYS, createTSlatePlugin, type PluginConfig } from "platejs";
 import { PlateElement, createPlatePlugin, type PlateElementProps } from "platejs/react";
 import {
@@ -23,6 +26,7 @@ import {
   InlineComboboxContent,
   InlineComboboxEmpty,
   InlineComboboxGroup,
+  InlineComboboxGroupLabel,
   InlineComboboxItem,
   InlineComboboxInput,
   type FilterFn,
@@ -70,7 +74,10 @@ function WikiInputElement(props: PlateElementProps) {
 
   const typed = parseWikiBody(value);
 
-  const complete = useCallback((body: string) => insertWikiChipFromPicker(editor, body), [editor]);
+  const complete = useCallback(
+    (body: string, embed = false) => insertWikiChipFromPicker(editor, body, embed),
+    [editor],
+  );
 
   // Typing the closing `]]` completes the chip verbatim, exactly like the
   // editor-level input rule would have without the picker in the way.
@@ -88,6 +95,36 @@ function WikiInputElement(props: PlateElementProps) {
 
   const showCreate = typed.target !== "" && resolveWikiTarget(typed.target) === null;
 
+  // The engine returns docs first, assets after; split so each renders in its
+  // own labeled group. Picking an attachment inserts an embed (`![[asset]]`).
+  const notes = targets.filter((target) => target.type === "doc");
+  const assets = targets.filter((target) => target.type === "asset");
+
+  const itemFor = (target: WikiTarget) => (
+    <InlineComboboxItem
+      key={target.path}
+      value={target.path}
+      label={target.title}
+      keywords={[target.title]}
+      onClick={() =>
+        complete(
+          composeWikiBody(wikiBodyForPath(target.path, resolveWikiTarget), typed),
+          target.type === "asset",
+        )
+      }
+    >
+      {target.type === "doc" ? (
+        <FileTextIcon className="mr-2 text-muted-foreground" />
+      ) : (
+        <PaperclipIcon className="mr-2 text-muted-foreground" />
+      )}
+      <span className="flex min-w-0 flex-1 items-baseline gap-2">
+        <span className="truncate">{target.title}</span>
+        <span className="truncate text-xs text-muted-foreground">{target.path}</span>
+      </span>
+    </InlineComboboxItem>
+  );
+
   return (
     <PlateElement {...props} as="span">
       <InlineCombobox
@@ -101,23 +138,7 @@ function WikiInputElement(props: PlateElementProps) {
         <InlineComboboxContent>
           <InlineComboboxEmpty>No notes found</InlineComboboxEmpty>
           <InlineComboboxGroup>
-            {targets.map((target) => (
-              <InlineComboboxItem
-                key={target.path}
-                value={target.path}
-                label={target.title}
-                keywords={[target.title]}
-                onClick={() =>
-                  complete(composeWikiBody(wikiBodyForPath(target.path, resolveWikiTarget), typed))
-                }
-              >
-                <FileTextIcon className="mr-2 text-muted-foreground" />
-                <span className="flex min-w-0 flex-1 items-baseline gap-2">
-                  <span className="truncate">{target.title}</span>
-                  <span className="truncate text-xs text-muted-foreground">{target.path}</span>
-                </span>
-              </InlineComboboxItem>
-            ))}
+            {notes.map(itemFor)}
             {showCreate && (
               <InlineComboboxItem
                 value={CREATE_VALUE}
@@ -135,6 +156,12 @@ function WikiInputElement(props: PlateElementProps) {
               </InlineComboboxItem>
             )}
           </InlineComboboxGroup>
+          {assets.length > 0 && (
+            <InlineComboboxGroup>
+              <InlineComboboxGroupLabel>Attachments</InlineComboboxGroupLabel>
+              {assets.map(itemFor)}
+            </InlineComboboxGroup>
+          )}
         </InlineComboboxContent>
       </InlineCombobox>
       {children}

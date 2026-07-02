@@ -12,11 +12,12 @@
 // raw links, no re-parsing.
 // ---------------------------------------------------------------------------
 
+import { isDocPath } from "./doc-file";
 import type { ExtractedLink, LinkKind } from "./link-extract";
 import { scanDoc, titleFromPath } from "./link-extract";
 import { buildResolver } from "./link-resolve";
 import { SearchIndex, tokenize } from "./search-index";
-import { basenamePath } from "./vault-path";
+import { basenamePath, extnamePath } from "./vault-path";
 
 // ---- Wire types (Bridge channel results) ------------------------------------
 
@@ -71,7 +72,9 @@ export type LinkGraph = { nodes: GraphNode[]; edges: GraphEdge[] };
 
 export type SearchResult = { path: string; title: string; snippet: string; score: number };
 
-export type WikiTarget = { path: string; title: string };
+/** A `[[` picker entry: notes AND attachments suggest (Obsidian-style); the
+ * `type` flag lets the picker group them and insert `![[..]]` for assets. */
+export type WikiTarget = { path: string; title: string; type: "doc" | "asset" };
 
 export const SEARCH_DEFAULT_LIMIT = 20;
 const SNIPPET_MAX = 200;
@@ -182,20 +185,21 @@ export class KnowledgeIndex {
     const edgeMap = new Map<string, GraphEdge>();
     for (const [sourcePath, links] of forward) {
       for (const { link, targetPath } of links) {
+        // The graph is a NOTES graph: asset references (md images, `![[x.png]]`
+        // embeds, `[pdf](x.pdf)` links) are content inside a note, not
+        // knowledge edges between notes — they stay out so the graph doesn't
+        // silt up with attachment leaves. backlinks() still answers asset
+        // queries; only the graph filters.
+        if (link.kind === "image") continue;
         let targetId: string;
         if (targetPath !== null) {
+          if (!this.docs.has(targetPath)) continue; // resolved asset target
           targetId = targetPath;
-          if (!nodes.has(targetId)) {
-            // A resolved non-doc file (image/pdf embed target).
-            nodes.set(targetId, {
-              id: targetId,
-              title: basenamePath(targetPath),
-              path: targetPath,
-              phantom: false,
-              degree: 0,
-            });
-          }
         } else {
+          // A dangling target written with a non-doc extension is an asset
+          // reference too — no phantom "create this note" node for it.
+          const ext = extnamePath(link.target);
+          if (ext !== "" && !isDocPath(link.target)) continue;
           targetId = `phantom:${link.target.toLowerCase()}`;
           if (!nodes.has(targetId)) {
             nodes.set(targetId, { id: targetId, title: link.target, phantom: true, degree: 0 });
@@ -216,10 +220,16 @@ export class KnowledgeIndex {
     return { nodes: [...nodes.values()], edges: [...edgeMap.values()] };
   }
 
+  /** Docs first (title-bearing), assets after — the picker renders them as
+   * two groups in this order. */
   wikiTargets(): WikiTarget[] {
-    return [...this.docs.entries()]
-      .map(([path, record]) => ({ path, title: record.title }))
-      .toSorted((a, b) => (a.path < b.path ? -1 : 1));
+    const docs = [...this.docs.entries()].map(
+      ([path, record]): WikiTarget => ({ path, title: record.title, type: "doc" }),
+    );
+    const assets = [...this.others].map(
+      (path): WikiTarget => ({ path, title: basenamePath(path), type: "asset" }),
+    );
+    return [...docs.toSorted(byPath), ...assets.toSorted(byPath)];
   }
 
   search(query: string, limit: number = SEARCH_DEFAULT_LIMIT): SearchResult[] {
@@ -281,4 +291,8 @@ export class KnowledgeIndex {
 
 function clip(text: string): string {
   return text.length <= SNIPPET_MAX ? text : `${text.slice(0, SNIPPET_MAX - 1)}…`;
+}
+
+function byPath(a: WikiTarget, b: WikiTarget): number {
+  return a.path < b.path ? -1 : 1;
 }

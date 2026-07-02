@@ -54,6 +54,35 @@ describe("fixture bridge knowledge channels", () => {
     expect(await bridge.getBacklinks({ path: "review/probe renamed.md" })).toEqual([]);
   });
 
+  it("lists the seeded attachment as a grouped asset target, after docs", async () => {
+    const bridge = createFixtureBridge();
+    const targets = await bridge.listWikiTargets();
+    const asset = targets.find((t) => t.path === "wiki/diagram.png");
+    expect(asset).toEqual({ path: "wiki/diagram.png", title: "diagram.png", type: "asset" });
+    // Docs first, assets after — the picker renders the groups in this order.
+    const firstAssetIndex = targets.findIndex((t) => t.type === "asset");
+    expect(targets.slice(0, firstAssetIndex).every((t) => t.type === "doc")).toBe(true);
+    expect(targets.slice(firstAssetIndex).every((t) => t.type === "asset")).toBe(true);
+  });
+
+  it("renaming an asset rewrites md image and wiki embed references", async () => {
+    const bridge = createFixtureBridge();
+    await bridge.writeVaultDoc({
+      path: "review/gallery.md",
+      content: "shot ![alt](../wiki/diagram.png), embed ![[diagram.png]]\n",
+    });
+
+    const renamed = await bridge.renameVaultEntry({
+      from: "wiki/diagram.png",
+      to: "assets/schematic.png",
+    });
+    expect(renamed.ok).toBe(true);
+    expect(await bridge.readVaultDoc({ path: "review/gallery.md" })).toBe(
+      "shot ![alt](../assets/schematic.png), embed ![[schematic.png]]\n",
+    );
+    expect(await bridge.getBacklinks({ path: "assets/schematic.png" })).toHaveLength(2);
+  });
+
   it("refuses a clobbering rename like the host", async () => {
     const bridge = createFixtureBridge();
     await bridge.writeVaultDoc({ path: "a.md", content: "A\n" });
