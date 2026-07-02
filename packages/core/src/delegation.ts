@@ -45,6 +45,11 @@ export const DelegationSchema = Type.Object(
     resultSummary: Type.Union([Type.String(), Type.Null()]),
     /** Failure reason (status "failed"). */
     error: Type.Union([Type.String(), Type.Null()]),
+    /** True once the host captured the file's pre-run bytes — the undo point
+     * "Restore original" writes back. */
+    hasSnapshot: Type.Boolean(),
+    /** When the user last restored this delegation's snapshot (null = never). */
+    restoredAt: Type.Union([Type.Number(), Type.Null()]),
   },
   { additionalProperties: false },
 );
@@ -72,3 +77,7 @@ export type CreateDelegationResult =
   | { ok: false; error: string };
 
 export type ListDelegationsResult = { delegations: Delegation[] };
+
+/** Result of restoring a delegation's pre-run snapshot. A restore whose target
+ * file already matches the snapshot bytes is a no-op success. */
+export type RestoreSnapshotResult = { ok: true } | { ok: false; error: string };

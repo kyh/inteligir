@@ -9,6 +9,7 @@ import path from "node:path";
 
 import { configurePaths } from "./agent/paths";
 import { initMachine, shutdown } from "./app/app-machine";
+import { getDelegationManager } from "./delegation/delegation-manager";
 import { emitEvent, subscribeEvents } from "./events";
 import { initAgentLog } from "./lib/agent-log";
 import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
@@ -108,6 +109,14 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // module-scoped, so it survives a logout/login reset.
       getVaultManager().ensureReady();
       setVaultChangeNotifier((root) => emitEvent("onVaultChanged", { root }));
+
+      // Snapshot retention sweep (keep the newest SNAPSHOT_RETENTION pre-run
+      // copies). Best-effort — a prune failure must never block boot.
+      try {
+        getDelegationManager().pruneSnapshots();
+      } catch (err) {
+        console.warn("[host] delegation snapshot prune failed:", err);
+      }
 
       initMachine();
     },

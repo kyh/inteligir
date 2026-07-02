@@ -221,6 +221,33 @@ The hub links here. Backlinks arrive in a later phase.
 `,
 };
 
+// Matches one checkbox line: indent, marker, box state, label. Ordinals count
+// every checkbox (checked or not), mirroring the host's find-task-line.
+const CHECKBOX_RE = /^(\s*)- \[( |x|X)\] (.*)$/;
+
+/** Simulate the background agent's edit: check the `index`-th checkbox off and
+ * append a nested one-line result under it. Returns null when the ordinal
+ * doesn't land on a checkbox. */
+function simulateDelegationEdit(
+  content: string,
+  index: number,
+): { content: string; taskText: string; lineText: string } | null {
+  const lines = content.split("\n");
+  let ordinal = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    const match = CHECKBOX_RE.exec(line);
+    if (!match) continue;
+    ordinal++;
+    if (ordinal !== index) continue;
+    const [, indent = "", , label = ""] = match;
+    lines[i] = `${indent}- [x] ${label}`;
+    lines.splice(i + 1, 0, `${indent}  - ✅ Done in the dev harness (simulated edit)`);
+    return { content: lines.join("\n"), taskText: label, lineText: line.trim() };
+  }
+  return null;
+}
+
 /** Streams `text` in small chunks via `onDelta`, then calls `onDone`. */
 function streamText(text: string, onDelta: (delta: string) => void, onDone: () => void): void {
   const words = text.split(/(?<= )/);
@@ -265,6 +292,9 @@ export function createFixtureBridge(): Bridge {
   const uiState: Record<string, unknown> = {};
   const history: ChatHistoryEntry[] = [];
   const delegations: Delegation[] = [];
+  // Pre-run copies keyed by delegation id — the in-memory twin of the host's
+  // ~/.inteligir/snapshots store, so "Restore original" is exercisable.
+  const snapshots = new Map<string, { path: string; content: string }>();
   let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
 
@@ -402,28 +432,74 @@ export function createFixtureBridge(): Bridge {
     },
     onVaultChanged: vaultEvents.subscribe,
 
-    // Delegation — no background agent; created delegations fail immediately
-    // so the inline badge + dock plumbing stays exercisable.
+    // Delegation — no background agent, but the run is simulated against the
+    // in-memory vault (running → snapshot → check the box + append a result →
+    // done) so the badge, dock, and "Restore original" plumbing are all
+    // exercisable. The brief "running" beat matters: the dock only tracks
+    // delegations it saw go active this session.
     createDelegation: async ({ sourceFile, index }) => {
       const now = Date.now();
+      const id = `fixture-${now}-${index}`;
+      // Resolve the checkbox up front (as the host does) so the dock card has
+      // a title while the simulated run is still "running".
+      const initial = vault.get(sourceFile);
+      const resolved = initial === undefined ? null : simulateDelegationEdit(initial, index);
       const delegation: Delegation = {
-        id: `fixture-${now}-${index}`,
+        id,
         sourceFile,
-        anchor: { index, text: "", heading: null },
-        lineText: "",
-        status: "failed",
+        anchor: { index, text: resolved?.taskText ?? "", heading: null },
+        lineText: resolved?.lineText ?? "",
+        status: "running",
         createdAt: now,
-        startedAt: null,
-        finishedAt: now,
+        startedAt: now,
+        finishedAt: null,
         resultSummary: null,
-        error: "delegation is not available in the dev harness",
+        error: null,
+        hasSnapshot: false,
+        restoredAt: null,
       };
       delegations.push(delegation);
       delegationEvents.emit({ delegations: [...delegations] });
+      setTimeout(() => {
+        const content = vault.get(delegation.sourceFile);
+        const edited = content === undefined ? null : simulateDelegationEdit(content, index);
+        if (content === undefined || edited === null) {
+          delegation.status = "failed";
+          delegation.error = "That checkbox is no longer in the file.";
+        } else {
+          // Mirror the host's ordering: snapshot the pre-run bytes FIRST, then
+          // let the "agent" edit, then finish done.
+          snapshots.set(id, { path: delegation.sourceFile, content });
+          delegation.hasSnapshot = true;
+          vault.set(delegation.sourceFile, edited.content);
+          vaultEvents.emit({ root: FIXTURE_ROOT });
+          delegation.status = "done";
+          delegation.anchor = { index, text: edited.taskText, heading: null };
+          delegation.lineText = edited.lineText;
+          delegation.resultSummary = "Checked it off in the dev harness (simulated).";
+        }
+        delegation.finishedAt = Date.now();
+        delegationEvents.emit({ delegations: [...delegations] });
+      }, 800);
       return { ok: true, delegation };
     },
     listDelegations: async () => ({ delegations: [...delegations] }),
     cancelDelegation: async () => ({ ok: false }),
+    restoreDelegationSnapshot: async (id) => {
+      const delegation = delegations.find((d) => d.id === id);
+      if (!delegation) return { ok: false, error: "Unknown delegation." };
+      const snapshot = snapshots.get(id);
+      if (!snapshot) return { ok: false, error: "No snapshot exists for this delegation." };
+      // No-op success when the bytes already match; otherwise write + notify,
+      // mirroring the host's restore semantics.
+      if (vault.get(delegation.sourceFile) !== snapshot.content) {
+        vault.set(delegation.sourceFile, snapshot.content);
+        vaultEvents.emit({ root: FIXTURE_ROOT });
+      }
+      delegation.restoredAt = Date.now();
+      delegationEvents.emit({ delegations: [...delegations] });
+      return { ok: true };
+    },
     onDelegationsUpdated: delegationEvents.subscribe,
     onDelegationStreamed: () => () => {},
 

@@ -294,6 +294,7 @@ export function createWsBridge(url: string, options: WsBridgeOptions = {}): Brid
     createDelegation: rpc("createDelegation"),
     listDelegations: rpc("listDelegations"),
     cancelDelegation: rpc("cancelDelegation"),
+    restoreDelegationSnapshot: rpc("restoreDelegationSnapshot"),
     onDelegationsUpdated: sub("onDelegationsUpdated"),
     onDelegationStreamed: sub("onDelegationStreamed"),
 
