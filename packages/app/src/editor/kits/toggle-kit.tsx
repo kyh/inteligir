@@ -8,7 +8,7 @@
 // store, never on the node, so a collapse/expand can't dirty the document
 // (md rule fixture asserts `<toggle>` serializes with zero attributes).
 
-import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule } from "platejs";
+import { ElementApi, KEYS, PathApi, TextApi, createBlockStartInputRule, type Path } from "platejs";
 import type { PlateEditor } from "platejs/react";
 import { BaseTogglePlugin } from "@platejs/toggle";
 import { TogglePlugin } from "@platejs/toggle/react";
@@ -18,23 +18,28 @@ import { ToggleElement } from "@repo/app/editor/nodes/toggle-node";
 export const ToggleBaseKit = [BaseTogglePlugin];
 
 /**
- * Turn the current block into a toggle: the block becomes the toggle's summary
+ * Wrap the block at `at` into a toggle: the block becomes the toggle's summary
  * (first nested child). The new toggle is opened so a body typed next is
- * immediately visible. Slash-menu-ready; the menu entry itself lands in WP3.
+ * immediately visible. Shared by insertToggle (slash) and turn-into (menus).
  */
-export function insertToggle(editor: PlateEditor): void {
+export function wrapBlockInToggle(editor: PlateEditor, at: Path): void {
   editor.tf.withoutNormalizing(() => {
-    const block = editor.api.block();
-    if (!block) return;
-    const [node, path] = block;
-    if (node.type === KEYS.toggle) return;
+    const entry = editor.api.node(at);
+    if (!entry || !ElementApi.isElement(entry[0]) || entry[0].type === KEYS.toggle) return;
     // List props on the summary would serialize inside `<toggle>` — strip.
-    editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at: path });
-    editor.tf.wrapNodes({ children: [], type: KEYS.toggle }, { at: path });
+    editor.tf.unsetNodes(["listStyleType", "listStart", "indent", "checked"], { at });
+    editor.tf.wrapNodes({ children: [], type: KEYS.toggle }, { at });
   });
-  const toggle = editor.api.above({ match: { type: KEYS.toggle } });
+  const toggle = editor.api.node(at);
   const id = toggle && typeof toggle[0].id === "string" ? toggle[0].id : null;
   if (id) editor.getApi(TogglePlugin).toggle.toggleIds([id], true);
+}
+
+/** Turn the current block into a toggle. */
+export function insertToggle(editor: PlateEditor): void {
+  const block = editor.api.block();
+  if (!block) return;
+  wrapBlockInToggle(editor, block[1]);
 }
 
 // `+ ` at block start turns the block into a toggle (potion muscle memory).
