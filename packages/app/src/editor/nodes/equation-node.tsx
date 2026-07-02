@@ -160,7 +160,7 @@ export function InlineEquationElement(props: PlateElementProps) {
   const expression = tex(props.element);
 
   return (
-    <PlateElement {...props} className="mx-px inline-block rounded-sm select-none">
+    <PlateElement {...props} as="span" className="mx-px inline-block rounded-sm select-none">
       <NodePopover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
         <NodePopoverTrigger
           // Inline chip stays a span (a nested <button> would break the line).

@@ -60,7 +60,7 @@ export function DateElement(props: PlateElementProps) {
   const value = typeof element.date === "string" ? element.date : "";
 
   return (
-    <PlateElement {...props} className="inline-block">
+    <PlateElement {...props} as="span" className="inline-block">
       <NodePopover open={open} onOpenChange={(next) => !readOnly && setOpen(next)}>
         <NodePopoverTrigger
           className={cn(
