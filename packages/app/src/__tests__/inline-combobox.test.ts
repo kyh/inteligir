@@ -15,6 +15,7 @@ import {
   cancelComboboxInput,
   commitComboboxInput,
   racedComboboxText,
+  reconcileInsertionCaret,
 } from "@repo/app/editor/combobox-input";
 import { EDITOR_KIT } from "@repo/app/editor/kits/editor-kit";
 import { MD_STRINGIFY } from "@repo/app/editor/markdown/markdown-doc";
@@ -161,6 +162,55 @@ describe("inline combobox cancel safety (the about:blank crash class)", () => {
       for (let i = 0; i < 10; i++) editor.redo();
     }).not.toThrow();
     expect(out(editor)).toBe(":tada\n");
+  });
+});
+
+describe("reconcileInsertionCaret (the #367 first-commit caret quirk)", () => {
+  // Chromium's first IME-style commit into the freshly focused input leaves
+  // the caret BEFORE the inserted text; every later keystroke then lands one
+  // run too early ('deep' → 'eepd', ':tada' → 'adat').
+  it("moves a caret stranded before the first typed char", () => {
+    expect(reconcileInsertionCaret("", "d", 0)).toBe(1); // [[deep — first 'd'
+    expect(reconcileInsertionCaret("", "t", 0)).toBe(1); // :tada — first 't'
+  });
+
+  it("assembles 'deep' and 'tada' across the exact first-char sequence", () => {
+    for (const word of ["deep", "tada"]) {
+      let value = "";
+      let caret = 0;
+      for (const [i, char] of [...word].entries()) {
+        const next = value.slice(0, caret) + char + value.slice(caret);
+        // The browser strands the caret on the first commit, then behaves.
+        const reported = i === 0 ? caret : caret + 1;
+        caret = reconcileInsertionCaret(value, next, reported) ?? reported;
+        value = next;
+      }
+      expect(value).toBe(word);
+      expect(caret).toBe(word.length);
+    }
+  });
+
+  it("moves a stranded caret for multi-char and mid-string commits", () => {
+    expect(reconcileInsertionCaret("", "deep", 0)).toBe(4); // paste-like commit
+    expect(reconcileInsertionCaret("ab", "aXb", 1)).toBe(2); // mid-string
+  });
+
+  it("never fights a consistent native caret", () => {
+    expect(reconcileInsertionCaret("", "d", 1)).toBeNull();
+    expect(reconcileInsertionCaret("de", "dee", 3)).toBeNull();
+    expect(reconcileInsertionCaret("ab", "aXb", 2)).toBeNull();
+  });
+
+  it("repeated characters read both ways — trust the browser", () => {
+    // 'aaa' from 'aa': caret 1 is a valid post-insert position (typed at 0).
+    expect(reconcileInsertionCaret("aa", "aaa", 1)).toBeNull();
+    expect(reconcileInsertionCaret("aa", "aaa", 2)).toBeNull();
+  });
+
+  it("ignores deletions, replacements, and missing carets", () => {
+    expect(reconcileInsertionCaret("de", "d", 1)).toBeNull(); // deletion
+    expect(reconcileInsertionCaret("abc", "aXbYc", 1)).toBeNull(); // two runs
+    expect(reconcileInsertionCaret("", "d", null)).toBeNull();
   });
 });
 

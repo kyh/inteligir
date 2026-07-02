@@ -52,6 +52,20 @@ textarea,
   transition: none !important;
 }
 
+/* Collapsed toggle (editor/nodes/toggle-node.tsx): hide every Slate block
+ * after the summary (the first element child). The split lives here rather
+ * than in React because Plate hands ToggleElement all rendered children as a
+ * single child. Blocks stay mounted (Slate needs their DOM) but take no space
+ * and stay invisible — the flat-model toggle plugin's hidden style, plus
+ * zeroed padding since it applies per block instead of on a plain wrapper. */
+[data-toggle-collapsed] > [data-slate-node="element"] ~ [data-slate-node="element"] {
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  visibility: hidden;
+}
+
 /* Code-block syntax highlighting — the GitHub light/dark theme for lowlight's
  * `.hljs-*` token classes (emitted by CodeSyntaxPlugin). Syntax themes are
  * inherently color-specific, so these are fixed hex rather than theme tokens. */
