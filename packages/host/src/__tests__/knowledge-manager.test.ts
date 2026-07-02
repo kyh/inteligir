@@ -116,12 +116,16 @@ describe("KnowledgeManager", () => {
     expect(manager.wikiTargets().map((t) => t.path)).toEqual(["second.md"]);
   });
 
-  it("indexes non-doc files for resolution but not as wiki targets", () => {
-    vault.writeText("hub.md", "embed ![[pic.png]]\n");
+  it("indexes non-doc files for resolution and lists them as asset targets", () => {
+    vault.writeText("hub.md", "embed ![[pic.png]] and image ![alt](pic.png)\n");
     fs.writeFileSync(path.join(root, "pic.png"), "binary-ish");
     manager.refresh();
-    expect(manager.forwardLinks("hub.md")[0]?.targetPath).toBe("pic.png");
-    expect(manager.wikiTargets().map((t) => t.path)).toEqual(["hub.md"]);
+    expect(manager.forwardLinks("hub.md").map((f) => f.targetPath)).toEqual(["pic.png", "pic.png"]);
+    expect(manager.backlinks("pic.png")).toHaveLength(2);
+    expect(manager.wikiTargets()).toEqual([
+      { path: "hub.md", title: "hub", type: "doc" },
+      { path: "pic.png", title: "pic.png", type: "asset" },
+    ]);
   });
 
   it("serves ranked search over the vault", () => {

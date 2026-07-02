@@ -91,6 +91,24 @@ describe("picker completion", () => {
     expect(out(editor)).toBe("see ![[target note]]\n");
   });
 
+  it("an attachment pick forces a wikiEmbed even from a plain [[", () => {
+    const editor = makeEditor("see ");
+    const element = openWikiPicker(editor);
+    commitComboboxInput(editor, element, false);
+    insertWikiChipFromPicker(editor, "diagram.png", true);
+    expect(findByType(editor, "wikiEmbed")?.body).toBe("diagram.png");
+    expect(findByType(editor, "wikiLink")).toBeNull();
+    expect(out(editor)).toBe("see ![[diagram.png]]\n");
+  });
+
+  it("a forced embed after ![[ still consumes the bang (no double bang)", () => {
+    const editor = makeEditor("see !");
+    const element = openWikiPicker(editor);
+    commitComboboxInput(editor, element, false);
+    insertWikiChipFromPicker(editor, "diagram.png", true);
+    expect(out(editor)).toBe("see ![[diagram.png]]\n");
+  });
+
   it("keeps typing after completion in the text flow (caret escaped the void)", () => {
     const editor = makeEditor("");
     const element = openWikiPicker(editor);

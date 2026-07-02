@@ -15,6 +15,8 @@ function seeded(): KnowledgeIndex {
       "",
       "Md link to [other](../notes/other.md).",
       "",
+      "Image: ![the diagram](../diagram.png)",
+      "",
     ].join("\n"),
   );
   index.setDoc("wiki/target note.md", "# Target note\n\nBody text.\n");
@@ -48,6 +50,18 @@ describe("KnowledgeIndex — backlinks", () => {
     expect(seeded().backlinks("wiki/hub.md")).toHaveLength(1); // via [[hub]]
     expect(seeded().backlinks("nowhere.md")).toEqual([]);
   });
+
+  it("answers asset backlinks: wiki embeds AND md images", () => {
+    const backlinks = seeded().backlinks("diagram.png");
+    expect(backlinks).toHaveLength(2);
+    expect(backlinks[0]).toMatchObject({ sourcePath: "wiki/hub.md", kind: "wiki", embed: true });
+    expect(backlinks[1]).toMatchObject({
+      sourcePath: "wiki/hub.md",
+      kind: "image",
+      embed: true,
+      alias: "the diagram",
+    });
+  });
 });
 
 describe("KnowledgeIndex — forward links", () => {
@@ -58,7 +72,14 @@ describe("KnowledgeIndex — forward links", () => {
     expect(byTarget.get("missing note")?.targetPath).toBeNull();
     expect(byTarget.get("diagram.png")).toMatchObject({
       targetPath: "diagram.png",
+      kind: "wiki",
       embed: true,
+    });
+    expect(byTarget.get("../diagram.png")).toMatchObject({
+      targetPath: "diagram.png",
+      kind: "image",
+      embed: true,
+      alias: "the diagram",
     });
     expect(byTarget.get("../notes/other.md")?.targetPath).toBe("notes/other.md");
   });
@@ -70,7 +91,6 @@ describe("KnowledgeIndex — graph", () => {
     const ids = graph.nodes.map((n) => n.id);
     expect(ids).toContain("wiki/hub.md");
     expect(ids).toContain("wiki/target note.md");
-    expect(ids).toContain("diagram.png");
     const phantom = graph.nodes.find((n) => n.phantom);
     expect(phantom).toMatchObject({ id: "phantom:missing note", title: "missing note" });
     expect(phantom?.path).toBeUndefined();
@@ -86,8 +106,21 @@ describe("KnowledgeIndex — graph", () => {
     expect(mdEdge?.kind).toBe("md");
 
     const hub = graph.nodes.find((n) => n.id === "wiki/hub.md");
-    // hub edges: ->target, ->phantom, ->diagram, ->other, <-other = 5 touching.
-    expect(hub?.degree).toBe(5);
+    // hub edges: ->target, ->phantom, ->other, <-other = 4 touching (asset
+    // references stay off the graph).
+    expect(hub?.degree).toBe(4);
+  });
+
+  it("keeps the graph a notes graph: no asset nodes, edges, or phantoms", () => {
+    const index = seeded();
+    index.setDoc("gallery.md", "![](../diagram.png) and ![gone](missing.png) and [[lost.pdf]]\n");
+    const graph = index.graph();
+    const ids = graph.nodes.map((n) => n.id);
+    // Resolved asset target: excluded even for the wiki embed in hub.md.
+    expect(ids).not.toContain("diagram.png");
+    // Dangling asset-extension targets never become phantom "create" nodes.
+    expect(ids.filter((id) => id.startsWith("phantom:"))).toEqual(["phantom:missing note"]);
+    expect(graph.edges.some((e) => e.source === "gallery.md")).toBe(false);
   });
 
   it("collapses a self-link into one edge counted once in the degree", () => {
@@ -150,11 +183,12 @@ describe("KnowledgeIndex — incremental updates", () => {
 });
 
 describe("KnowledgeIndex — wiki targets and search", () => {
-  it("lists docs (not assets) with titles, sorted by path", () => {
+  it("lists docs first, then attachments, each sorted by path and type-flagged", () => {
     expect(seeded().wikiTargets()).toEqual([
-      { path: "notes/other.md", title: "Other" },
-      { path: "wiki/hub.md", title: "Hub" },
-      { path: "wiki/target note.md", title: "Target note" },
+      { path: "notes/other.md", title: "Other", type: "doc" },
+      { path: "wiki/hub.md", title: "Hub", type: "doc" },
+      { path: "wiki/target note.md", title: "Target note", type: "doc" },
+      { path: "diagram.png", title: "diagram.png", type: "asset" },
     ]);
   });
 
@@ -168,6 +202,8 @@ describe("KnowledgeIndex — wiki targets and search", () => {
   it("falls back to the filename title for headingless docs", () => {
     const index = new KnowledgeIndex();
     index.setDoc("plain notes.md", "just text\n");
-    expect(index.wikiTargets()).toEqual([{ path: "plain notes.md", title: "plain notes" }]);
+    expect(index.wikiTargets()).toEqual([
+      { path: "plain notes.md", title: "plain notes", type: "doc" },
+    ]);
   });
 });

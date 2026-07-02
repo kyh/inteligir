@@ -143,6 +143,61 @@ describe("computeRenameEdits — md links", () => {
   });
 });
 
+describe("computeRenameEdits — asset renames", () => {
+  it("rewrites md image links byte-surgically, preserving alt, ./ style, and encoding", () => {
+    const hub =
+      "Shot: ![the alt](old%20pic.png), styled ![x](./old%20pic.png), bare ![](<old pic.png>).\n";
+    const result = edits({ "hub.md": hub }, "old pic.png", "img/new pic.png", ["old pic.png"]);
+    expect(result.get("hub.md")).toBe(
+      "Shot: ![the alt](img/new%20pic.png), styled ![x](./img/new%20pic.png), bare ![](<img/new%20pic.png>).\n",
+    );
+  });
+
+  it("rewrites every reference form to a renamed asset in one pass", () => {
+    const hub = [
+      "Embed ![[pic.png]], image ![alt](pic.png), link [download](pic.png).",
+      "",
+      "![ref image][shot]",
+      "",
+      "[shot]: pic.png",
+      "",
+    ].join("\n");
+    const result = edits({ "hub.md": hub }, "pic.png", "assets/photo.png", ["pic.png"]);
+    expect(result.get("hub.md")).toBe(
+      [
+        "Embed ![[photo.png]], image ![alt](assets/photo.png), link [download](assets/photo.png).",
+        "",
+        "![ref image][shot]",
+        "",
+        "[shot]: assets/photo.png",
+        "",
+      ].join("\n"),
+    );
+  });
+
+  it("never rewrites images inside fences", () => {
+    const hub = "![x](pic.png)\n\n```\n![x](pic.png) stays\n```\n";
+    const result = edits({ "hub.md": hub }, "pic.png", "new.png", ["pic.png"]);
+    expect(result.get("hub.md")).toBe("![x](new.png)\n\n```\n![x](pic.png) stays\n```\n");
+  });
+
+  it("re-bases the moved doc's own outgoing image urls", () => {
+    const result = edits({ "a/doc.md": "![shot](shot.png)\n" }, "a/doc.md", "b/c/doc.md", [
+      "a/shot.png",
+    ]);
+    expect(result.get("b/c/doc.md")).toBe("![shot](../../a/shot.png)\n");
+  });
+
+  it("re-pins an image url whose case-insensitive fallback the rename steals", () => {
+    // ![x](Pic.png) fell back case-insensitively to pic.png; the renamed file
+    // lands exactly at Pic.png and would capture the reference.
+    const result = edits({ "hub.md": "![x](Pic.png)\n", "misc.md": "" }, "misc.md", "Pic.png", [
+      "pic.png",
+    ]);
+    expect(result.get("hub.md")).toBe("![x](pic.png)\n");
+  });
+});
+
 describe("computeRenameEdits — shadow protection", () => {
   it("qualifies another doc's short link when the rename would steal its tie-break", () => {
     // misc.md -> note.md (root): [[note]] would now tie-break to the new root

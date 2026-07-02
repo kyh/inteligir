@@ -6,13 +6,15 @@
 //
 // Only the recorded target span of each link changes (extraction emits spans
 // exclusively after byte verification): aliases (`[[old|alias]]`), anchors
-// (`[[old#sec]]`), body padding, and `<>` url wrappers all survive verbatim.
-// Links inside fences/code spans were never extracted, so they are never
-// touched. Three link populations are rewritten:
+// (`[[old#sec]]`), image alts (`![alt](..)`), body padding, and `<>` url
+// wrappers all survive verbatim. Links inside fences/code spans were never
+// extracted, so they are never touched. Assets rename like docs: `from` may
+// be any vault file, and `![](img.png)` / `![[img.png]]` references rewrite
+// exactly like `[[note]]` ones. Three link populations are rewritten:
 //   1. links in ANY doc that resolve to `from` (including self-links inside
 //      the moved doc) — retargeted at `to`;
-//   2. relative md links FROM the moved doc to other files — re-based when
-//      the move changed directories (wiki links are location-independent);
+//   2. relative md/image urls FROM the moved doc to other files — re-based
+//      when the move changed directories (wiki links are location-independent);
 //   3. links in ANY doc whose target the rename SHADOWS (`[[note]]` reached
 //      a/note.md; the file just renamed to note.md now wins the tie-break) —
 //      qualified so they keep meaning what they meant.
@@ -72,9 +74,9 @@ export function computeRenameEdits(
             ? wikiTargetText(toPath, fromPath, postResolver, othersResolver, raw)
             : mdUrlText(postDocPath, toPath, raw);
       } else if (resolved !== null) {
-        if (link.kind === "md") {
-          // The moved doc's own outgoing relative md links re-base to its new
-          // directory; elsewhere an md url only changes when the rename
+        if (link.kind !== "wiki") {
+          // The moved doc's own outgoing relative md/image urls re-base to its
+          // new directory; elsewhere an md url only changes when the rename
           // shadowed its resolution (a case-insensitive tie now lost).
           if (
             (path === fromPath && movedDirs) ||

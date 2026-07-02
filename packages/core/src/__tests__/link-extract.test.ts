@@ -138,8 +138,11 @@ describe("scanDoc — standard md links", () => {
     expect(links(src)).toHaveLength(0);
   });
 
-  it("skips images and asset links", () => {
-    expect(links("![alt](diagram.png) and [pdf](paper.pdf)")).toHaveLength(0);
+  it("extracts asset links as md links (rename safety beats note-only graphs)", () => {
+    const src = "[pdf](paper.pdf)";
+    const link = only(src);
+    expect(link).toMatchObject({ kind: "md", embed: false, target: "paper.pdf", alias: "pdf" });
+    expect(sliceTarget(src, link)).toBe("paper.pdf");
   });
 
   it("extracts reference definitions", () => {
@@ -150,9 +153,68 @@ describe("scanDoc — standard md links", () => {
     expect(all[0] ? sliceTarget(src, all[0]) : null).toBe("notes/other.md");
   });
 
+  it("extracts asset-target reference definitions", () => {
+    const src = "![shot][ref]\n\n[ref]: img/shot.png\n";
+    const all = links(src);
+    expect(all).toHaveLength(1);
+    expect(all[0]).toMatchObject({ kind: "md", target: "img/shot.png" });
+    expect(all[0] ? sliceTarget(src, all[0]) : null).toBe("img/shot.png");
+  });
+
   it("extracts a wiki link nested in an md link label", () => {
     const src = "[[inner]] and [label](outer.md)";
     expect(links(src).map((l) => l.target)).toEqual(["inner", "outer.md"]);
+  });
+});
+
+describe("scanDoc — md images", () => {
+  it("extracts an image as a distinct embed kind with alt as alias", () => {
+    const src = "see ![a diagram](img/diagram.png) here";
+    const link = only(src);
+    expect(link).toMatchObject({
+      kind: "image",
+      embed: true,
+      target: "img/diagram.png",
+      alias: "a diagram",
+      line: 1,
+    });
+    expect(src.slice(link.span.start, link.span.end)).toBe("![a diagram](img/diagram.png)");
+    expect(sliceTarget(src, link)).toBe("img/diagram.png");
+  });
+
+  it("omits the alias for an empty alt", () => {
+    const link = only("![](shot.png)");
+    expect(link.alias).toBeUndefined();
+    expect(link.target).toBe("shot.png");
+  });
+
+  it("percent-decodes the target but records the raw span", () => {
+    const src = "![x](my%20pic.png)";
+    const link = only(src);
+    expect(link.target).toBe("my pic.png");
+    expect(sliceTarget(src, link)).toBe("my%20pic.png");
+  });
+
+  it("handles angle-bracket destinations (span excludes the brackets)", () => {
+    const src = "![x](<my pic.png>)";
+    const link = only(src);
+    expect(link.target).toBe("my pic.png");
+    expect(sliceTarget(src, link)).toBe("my pic.png");
+  });
+
+  it("locates the destination past a bracketed alt", () => {
+    const src = "![see [inner] note](pic.png)";
+    const link = only(src);
+    expect(link.target).toBe("pic.png");
+    expect(sliceTarget(src, link)).toBe("pic.png");
+  });
+
+  it("skips external image urls", () => {
+    expect(links("![x](https://example.com/pic.png)")).toHaveLength(0);
+  });
+
+  it("ignores images inside fenced code", () => {
+    expect(links("```\n![x](pic.png)\n```\n")).toHaveLength(0);
   });
 });
 

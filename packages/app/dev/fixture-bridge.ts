@@ -353,8 +353,22 @@ function cannedEditResponse(prompt: string): string | null {
   return `${rewritten}\n\nA canned closing thought from the dev harness.`;
 }
 
+// A non-doc vault file so attachment flows are exercisable in the harness:
+// the `[[` picker's Attachments group, `![[diagram.png]]` resolution, and
+// asset rename-rewrite. The Map is string-valued, so a placeholder stands in
+// for the binary bytes — listVault classifies by extension, and the knowledge
+// engine only ever needs the PATH of a non-doc file. Kept out of SAMPLE_NOTES:
+// that record is the markdown-corpus test's contract (every entry must
+// classify as a doc).
+const SAMPLE_ASSETS: Record<string, string> = {
+  "wiki/diagram.png": "png-placeholder (dev harness fixture, not real image bytes)",
+};
+
 export function createFixtureBridge(): Bridge {
-  const vault = new Map<string, string>(Object.entries(SAMPLE_NOTES));
+  const vault = new Map<string, string>([
+    ...Object.entries(SAMPLE_NOTES),
+    ...Object.entries(SAMPLE_ASSETS),
+  ]);
   // Ghost text defaults ON in the harness — there is no cost here and the
   // whole AI surface should be drivable out of the box.
   const uiState: Record<string, unknown> = { [GHOST_TEXT_ENABLED_UI_STATE]: true };

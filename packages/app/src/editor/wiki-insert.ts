@@ -12,11 +12,18 @@ import { insertVoidAndEscape } from "@repo/app/editor/insert-void";
  * At that point the caret sits right after the literal `[` that preceded the
  * trigger (the FIRST bracket of `[[` — withTriggerCombobox swallowed the
  * second). Consume it, and when a `!` precedes it (`![[`), consume that too
- * and insert a wikiEmbed instead of a wikiLink.
+ * and insert a wikiEmbed instead of a wikiLink. `forceEmbed` inserts a
+ * wikiEmbed regardless (attachment picks embed as `![[asset]]` even from a
+ * plain `[[` — a bare `[[img.png]]` link would render nothing useful); any
+ * preceding `!` is still consumed so `![[` + attachment can't double up.
  */
-export function insertWikiChipFromPicker(editor: SlateEditor, body: string): void {
+export function insertWikiChipFromPicker(
+  editor: SlateEditor,
+  body: string,
+  forceEmbed = false,
+): void {
   editor.tf.deleteBackward("character"); // the "[" the trigger left in the text
-  let type = "wikiLink";
+  let type = forceEmbed ? "wikiEmbed" : "wikiLink";
   const selection = editor.selection;
   if (selection && editor.api.isCollapsed()) {
     const before = editor.api.before(selection.anchor);
