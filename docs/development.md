@@ -48,7 +48,7 @@ machine is logged in, chat/AI/delegation are fully live.
 pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 ```
 
-Same host + app, wrapped in `packages/desktop` (thin shell: window/menu/
+Same host + app, wrapped in `apps/desktop` (thin shell: window/menu/
 updater + the IPC Bridge fold). Uses the last-opened vault from `~/.inteligir`
 (shared with the cli host — tabs and settings carry across hosts).
 
@@ -137,4 +137,4 @@ Use the `release` skill (`.claude/skills/release/`) — bump, build, notarize,
 publish to GitHub Releases (electron-updater). Note: the electron-builder
 packaging path moved in the host split (extraResources now sources
 `packages/host/resources/agent`) — `pnpm verify:release` +
-`pnpm verify:packaged` in `packages/desktop` are the guards.
+`pnpm verify:packaged` in `apps/desktop` are the guards.

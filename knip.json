@@ -3,7 +3,7 @@
   "ignoreBinaries": ["gh", "tar", "ps", "tasklist"],
   "workspaces": {
     ".": {},
-    "packages/desktop": {
+    "apps/desktop": {
       "entry": [
         "src/main/index.ts",
         "src/preload/index.ts",
@@ -39,7 +39,7 @@
       "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}", "web/**/*.{ts,tsx}"],
       "includeEntryExports": false
     },
-    "packages/cli": {
+    "apps/cli": {
       // bin/inteligir.js (package.json bin) and src/main.ts (its import +
       // the dev script) are auto-detected entries.
       "project": ["src/**/*.ts", "bin/**/*.js"],

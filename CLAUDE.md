@@ -28,15 +28,15 @@ symlink in its workspace and edits files with its native file tools.
 ## Workspace Structure
 
 ```
-apps/
+apps/            # shippable artifacts
   web/           # Static marketing site (@repo/web) — landing page only
-packages/
   desktop/       # Thin Electron shell — the notes product (@repo/desktop)
+  cli/           # `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
+packages/        # libraries
   app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
   core/          # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
   host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
   server/        # Loopback HTTP+WS host: folds the registry over WS, serves the app build (@repo/server)
-  cli/           # `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)

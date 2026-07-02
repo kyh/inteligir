@@ -130,6 +130,11 @@ folds the same registry into WS request/response and satisfies the identical
 
 ## 3. Target package graph
 
+> **Layout note (2026-07):** the shippable artifacts later moved to `apps/` —
+> `packages/desktop` → `apps/desktop`, `packages/cli` → `apps/cli`
+> (apps/ = shippable artifacts, packages/ = libraries). Package names are
+> unchanged; paths in this document reflect the layout at the time of writing.
+
 | Package            | Contents                                                                                                                                                                                             | Comes from                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `packages/core`    | **Merged (#351).** Bridge/IPC registry, domain schemas, agent-event parser, pure helpers. Grows: MDX/markdown pipeline types, link-index schemas, doc-update channel.                                | old desktop shell `src/shared/*` (done)                                                     |
@@ -137,7 +142,7 @@ folds the same registry into WS request/response and satisfies the identical
 | `packages/host`    | Node backend as a platform-agnostic library: `VaultManager`, pi sessions, delegation, executor, voice models, search/link index, agent extensions.                                                   | old desktop shell `src/main/*` (minus Electron) + `src/agent/*`                             |
 | `packages/server`  | HTTP + WS server: serves the `app` build, folds the `IPC` registry over WS, wired to `host`. Loopback-only bind + host-header allowlist (no accounts — local single-user).                           | New                                                                                         |
 | `packages/cli`     | `npx inteligir`: pick/init vault, boot `server`, open browser.                                                                                                                                       | New                                                                                         |
-| `packages/desktop` | Thin Electron shell: window/menu/updater, IPC transport over `host`, loads the `app` build. Native voice packaging.                                                                                  | old desktop shell main/preload, slimmed (now `packages/desktop`)                            |
+| `packages/desktop` | Thin Electron shell: window/menu/updater, IPC transport over `host`, loads the `app` build. Native voice packaging.                                                                                  | old desktop shell main/preload, slimmed (now `apps/desktop`)                                |
 | `apps/web`         | Marketing → grows into docs site later.                                                                                                                                                              | Existing                                                                                    |
 
 Cut from v1: `packages/plugin` (external-harness AI — deferred).
