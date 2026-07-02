@@ -290,6 +290,14 @@ export function createWsBridge(url: string, options: WsBridgeOptions = {}): Brid
     renameVaultEntry: rpc("renameVaultEntry"),
     onVaultChanged: sub("onVaultChanged"),
 
+    // Knowledge
+    getBacklinks: rpc("getBacklinks"),
+    getForwardLinks: rpc("getForwardLinks"),
+    getLinkGraph: rpc("getLinkGraph"),
+    searchVault: rpc("searchVault"),
+    listWikiTargets: rpc("listWikiTargets"),
+    onKnowledgeUpdated: sub("onKnowledgeUpdated"),
+
     // Delegation
     createDelegation: rpc("createDelegation"),
     listDelegations: rpc("listDelegations"),

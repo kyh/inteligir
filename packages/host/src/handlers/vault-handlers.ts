@@ -1,4 +1,5 @@
 import { getDelegationManager } from "../delegation/delegation-manager";
+import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import { getPlatform } from "../platform-instance";
 import { getVaultManager } from "../vault/vault";
 import type { HandlerRegistrar } from "../lib/handler-registry";
@@ -36,7 +37,9 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
   });
   handle("deleteVaultEntry", ({ path }) => ({ removed: getVaultManager().delete(path) }));
   handle("renameVaultEntry", ({ from, to }) => {
-    const result = getVaultManager().rename(from, to);
+    // Rename, then rewrite [[wiki]] / relative md links vault-wide so nothing
+    // dangles (snapshot-verified byte surgery — see knowledge/rename-rewrite).
+    const result = renameWithLinkRewrite(getVaultManager(), from, to);
     // Repoint any delegations so badges keep matching and queued runs target the
     // new path (rename preserves content, so their positional anchors hold). The
     // disk rename is the source of truth — if this best-effort metadata remap

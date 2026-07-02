@@ -14,6 +14,11 @@
 // `[x](y)` is untouched). Text constructs never run inside code — fence-safety
 // is free.
 
+// remark-stringify's module augmentation declares `Data.toMarkdownExtensions`,
+// which the plugin below pushes into (types-only — no runtime import).
+/// <reference types="remark-stringify" />
+
+import type { Node } from "mdast";
 import type {
   CompileContext,
   Extension as FromMarkdownExtension,
@@ -23,12 +28,12 @@ import type { Options as ToMarkdownExtension } from "mdast-util-to-markdown";
 import type { Code, Effects, Extension as MicromarkExtension, State } from "micromark-util-types";
 import type { Plugin, Processor } from "unified";
 
-export interface WikiLink {
+export interface WikiLink extends Node {
   type: "wikiLink";
   /** Raw source between the brackets, verbatim. */
   body: string;
 }
-export interface WikiEmbed {
+export interface WikiEmbed extends Node {
   type: "wikiEmbed";
   /** Raw source between the brackets, verbatim. */
   body: string;
@@ -187,16 +192,33 @@ export type WikiBody = {
   alias?: string;
 };
 
-/** Split a raw wiki body into target / #anchor / |alias for display. */
-export function parseWikiBody(body: string): WikiBody {
+/** `WikiBody` plus the exact code-unit range of `target` inside `body` — the
+ * slice a rename-rewrite replaces. Absent when the body has no target text
+ * (pure-anchor links like `[[#sec]]`). */
+export type WikiBodyRange = WikiBody & { targetRange?: { start: number; end: number } };
+
+/** Split a raw wiki body into target / #anchor / |alias, tracking where the
+ * target sits inside the body (for byte-surgical rewrites). */
+export function parseWikiBodyRange(body: string): WikiBodyRange {
   const pipe = body.indexOf("|");
   const head = pipe === -1 ? body : body.slice(0, pipe);
   const alias = pipe === -1 ? undefined : body.slice(pipe + 1).trim();
   const hash = head.indexOf("#");
-  const target = (hash === -1 ? head : head.slice(0, hash)).trim();
+  const segment = hash === -1 ? head : head.slice(0, hash);
+  const target = segment.trim();
   const anchor = hash === -1 ? undefined : head.slice(hash + 1).trim();
-  const result: WikiBody = { target };
+  const result: WikiBodyRange = { target };
+  if (target !== "") {
+    const start = segment.length - segment.trimStart().length;
+    result.targetRange = { start, end: start + target.length };
+  }
   if (anchor !== undefined && anchor !== "") result.anchor = anchor;
   if (alias !== undefined && alias !== "") result.alias = alias;
   return result;
+}
+
+/** Split a raw wiki body into target / #anchor / |alias for display. */
+export function parseWikiBody(body: string): WikiBody {
+  const { targetRange: _range, ...display } = parseWikiBodyRange(body);
+  return display;
 }

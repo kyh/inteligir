@@ -12,7 +12,7 @@ import {
   roundTrip,
 } from "@repo/app/editor/markdown/markdown-doc";
 import { parseMdast } from "@repo/app/editor/markdown/parse";
-import { parseWikiBody } from "@repo/app/editor/markdown/remark-wiki-link";
+import { parseWikiBody } from "@repo/core/markdown/remark-wiki-link";
 import { scanVocabulary } from "@repo/app/editor/markdown/vocabulary";
 
 // In-tree translations of the scratchpad probe scenarios (rt/probe1-6) that

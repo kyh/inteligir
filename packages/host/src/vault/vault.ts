@@ -26,6 +26,7 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
+import { isDocPath } from "@repo/core/knowledge/doc-file";
 import type { VaultEntry } from "@repo/core/ipc-registry";
 
 // ---------------------------------------------------------------------------
@@ -50,10 +51,10 @@ function defaultVaultRoot(): string {
 
 // File-extension → entry kind. `doc` is editable markdown/text; everything else
 // (images, pdfs, json, …) is `other` and shown but not opened in the editor.
-const DOC_EXTENSIONS = new Set([".md", ".markdown", ".mdx", ".txt"]);
-
-function classify(filePath: string): VaultEntry["kind"] {
-  return DOC_EXTENSIONS.has(path.extname(filePath).toLowerCase()) ? "doc" : "other";
+// The extension set lives in core (knowledge/doc-file) so the knowledge index
+// and the dev-harness fixture classify identically.
+function classify(fileName: string): VaultEntry["kind"] {
+  return isDocPath(fileName) ? "doc" : "other";
 }
 
 const MAX_LIST_ENTRIES = 2000;
@@ -173,7 +174,7 @@ export class VaultManager {
         } else if (entry.isFile()) {
           if (out.length >= MAX_LIST_ENTRIES) return;
           const rel = path.relative(root, full).split(path.sep).join("/");
-          out.push({ path: rel, name: entry.name, kind: classify(full) });
+          out.push({ path: rel, name: entry.name, kind: classify(entry.name) });
         }
       }
     };
