@@ -20,6 +20,7 @@ import {
   H3Plugin,
   HorizontalRulePlugin,
 } from "@platejs/basic-nodes/react";
+import { ElementApi, type TElement } from "platejs";
 import { ParagraphPlugin, PlateElement, type PlateElementProps } from "platejs/react";
 
 import { BlockquoteElement } from "@repo/app/editor/nodes/blockquote-node";
@@ -33,18 +34,27 @@ export const BasicBlocksBaseKit = [
   BaseHorizontalRulePlugin,
 ];
 
-// className-only element renderers (Plate plugins ship headless). A block
-// carrying `listStyleType` hosts BlockList's <ul>/<ol> INSIDE it
-// (list-kit's render.belowNodes) — invalid DOM inside <p>/<h*>, so React
-// logged a DOM-nesting error on every list note. List-carrying blocks render
-// as <div> instead; the tag is render-only, bytes are pinned by the
-// round-trip fixtures.
+// A block hosting block-rendering children can't stay a <p>/<h*>: a block
+// carrying `listStyleType` hosts BlockList's <ul>/<ol> INSIDE it (list-kit's
+// render.belowNodes), and a `wikiEmbed` inline void expands into a
+// transclusion CARD of block content (lists, tables, nested divs). Either
+// inside <p> is invalid DOM and React logs a nesting error on every affected
+// note. Such blocks render as <div> instead; the tag is render-only, bytes
+// are pinned by the round-trip fixtures.
+function hostsBlockContent(element: TElement): boolean {
+  if (element.listStyleType) return true;
+  return element.children.some(
+    (child) => ElementApi.isElement(child) && child.type === "wikiEmbed",
+  );
+}
+
+// className-only element renderers (Plate plugins ship headless).
 function element(as: keyof HTMLElementTagNameMap, className: string) {
   return function Element(props: PlateElementProps) {
     return (
       <PlateElement
         {...props}
-        as={props.element.listStyleType ? "div" : as}
+        as={hostsBlockContent(props.element) ? "div" : as}
         className={className}
       />
     );
