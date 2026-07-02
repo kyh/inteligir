@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type MouseEvent } from "react";
 import {
   ChevronRightIcon,
   ChevronsUpDownIcon,
@@ -9,6 +9,7 @@ import {
   PencilIcon,
   SearchIcon,
   Trash2Icon,
+  WaypointsIcon,
 } from "lucide-react";
 
 import { Button } from "@repo/ui/components/button";
@@ -37,6 +38,7 @@ import { ThemeToggle } from "@repo/app/components/theme-toggle";
 import { SettingsDialog } from "@repo/app/settings/settings-dialog";
 import { useResizableSidebar } from "@repo/app/sidebar/use-resizable-sidebar";
 import { buildVaultTree, type VaultTreeNode } from "@repo/app/sidebar/vault-tree";
+import { useViewStore } from "@repo/app/stores/view-store";
 import { useVault } from "@repo/app/workspace/vault-context";
 
 function withName(path: string, name: string): string {
@@ -70,10 +72,15 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
     void createFile(name);
   }, [newName, createFile]);
 
+  const surface = useViewStore((s) => s.surface);
+  const setSurface = useViewStore((s) => s.setSurface);
+
   const rowProps = {
     selectedPath: editor.path,
     renaming,
-    onOpen: openFile,
+    // Cmd/Ctrl-click opens a new tab; a plain click replaces the active one.
+    onOpen: (path: string, e?: MouseEvent) =>
+      openFile(path, { newTab: e ? e.metaKey || e.ctrlKey : false }),
     onStartRename: setRenaming,
     onCommitRename: (from: string, to: string) => {
       setRenaming(null);
@@ -115,6 +122,23 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
       </SidebarHeader>
 
       <SidebarContent className="px-2">
+        <SidebarGroup className="gap-1 p-0">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="sm"
+                isActive={surface === "graph"}
+                onClick={() => setSurface("graph")}
+                className={cn(
+                  surface === "graph" && "bg-sidebar-accent text-sidebar-accent-foreground",
+                )}
+              >
+                <WaypointsIcon />
+                <span>Graph</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
         <SidebarGroup className="gap-1 p-0">
           <div className="flex items-center justify-between pr-1">
             <SidebarGroupLabel>Notes</SidebarGroupLabel>
@@ -181,7 +205,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 type RowHandlers = {
   selectedPath: string | null;
   renaming: string | null;
-  onOpen: (path: string) => void;
+  onOpen: (path: string, e?: MouseEvent) => void;
   onStartRename: (path: string) => void;
   onCommitRename: (from: string, to: string) => void;
   onCancelRename: () => void;
@@ -262,7 +286,7 @@ function FileRow({
       <SidebarMenuButton
         size="sm"
         isActive={selectedPath === path}
-        onClick={() => onOpen(path)}
+        onClick={(e) => onOpen(path, e)}
         className={cn(selectedPath === path && "bg-sidebar-accent text-sidebar-accent-foreground")}
       >
         {kind === "doc" ? <FileTextIcon /> : <FileIcon />}
