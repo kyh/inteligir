@@ -1,6 +1,6 @@
 # `@repo/app` — the portable UI
 
-The whole Inteligir workspace — sidebar, tabbed editor, bottom composer, command palette, settings, voice — as a plain browser React app. It talks to its host exclusively through an injected `Bridge` (`src/lib/bridge.ts::installBridge`, called once before render); no electron, no node built-ins, no host imports — lint-enforced (`.oxlintrc.json` boundary override). Three hosts mount it: the Electron renderer (preload's `window.desktopBridge`), the browser via `@repo/server` (WS bridge), and the dev harness (in-memory fixture).
+The whole Inteligir workspace — sidebar, single-document editor, bottom composer, command palette, settings, voice — as a plain browser React app. It talks to its host exclusively through an injected `Bridge` (`src/lib/bridge.ts::installBridge`, called once before render); no electron, no node built-ins, no host imports — lint-enforced (`.oxlintrc.json` boundary override). Three hosts mount it: the Electron renderer (preload's `window.desktopBridge`), the browser via `@repo/server` (WS bridge), and the dev harness (in-memory fixture).
 
 ## Layout
 
@@ -8,11 +8,11 @@ The whole Inteligir workspace — sidebar, tabbed editor, bottom composer, comma
 src/
   app-root.tsx / app.tsx   phase gate (login / onboarding / workspace) over the app state machine
   lib/bridge.ts            installBridge/getBridge — the only transport seam
-  workspace/               the single surface: vault-context (per-tab editor sessions), tabs, page
+  workspace/               the single surface: vault-context (the open note's editor session), page
   editor/                  the Plate editor (see below)
   composer/  command/  sidebar/  settings/  delegation/  voice/  login/  onboarding/
   stores/  components/  layout/  styles.css
-  __tests__/               round-trip matrix + fixtures (byte-pinned — never format), kit parity, tabs
+  __tests__/               round-trip matrix + fixtures (byte-pinned — never format), kit parity
 dev/                       vite dev harness — index.html + fixture Bridge
 web/                       browser build entry — WS bridge against the serving origin
 ```
@@ -25,7 +25,7 @@ web/                       browser build entry — WS bridge against the serving
 
 ## Editor — byte stability
 
-`editor/markdown/` owns the unified parse (GFM + math + the locked MDX vocabulary + wiki-links + frontmatter) and the canonical gate: round-trip is normalizing but **idempotent**, so a canonical file (`roundTrip(raw) === raw`) re-serializes to a minimal diff. Canonical files open Rich; everything else opens Raw (byte-exact) with a one-click **Format**. Every node type is a Base (headless) + React kit pair in `editor/kits/`; `base-kit.ts` composes the Base halves for the headless serializer mirror, and kit-parity tests fail on drift. Editor AI (selection actions, accept/reject suggestions, ghost text) lives in `editor/ai/` and is transient-only — AI state never reaches disk.
+`editor/markdown/` owns the unified parse (GFM + math + the locked MDX vocabulary + wiki-links + frontmatter); round-trip is normalizing but **idempotent** (bounded fixpoint). Rich is the default surface: any file that parses within the vocabulary opens Rich and normalizes on the first real edit; only unrepresentable content (unknown JSX, parse errors) opens Raw (byte-exact) with the badge. Every node type is a Base (headless) + React kit pair in `editor/kits/`; `base-kit.ts` composes the Base halves for the headless serializer mirror, and kit-parity tests fail on drift. Editor AI (⌘J menu, selection actions, accept/reject suggestions, default-on ghost text) lives in `editor/ai/` and is transient-only — AI state never reaches disk.
 
 Adding a node type or a Bridge channel: follow the checklists in [`docs/development.md`](../../docs/development.md).
 
