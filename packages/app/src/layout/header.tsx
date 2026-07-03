@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Trash2Icon, WandSparklesIcon } from "lucide-react";
+import { Trash2Icon } from "lucide-react";
 
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
@@ -21,7 +21,7 @@ import { useVault } from "@repo/app/workspace/vault-context";
 /**
  * The shell header — a single sticky toolbar over the editor card. Left: the
  * sidebar toggle + a breadcrumb of the open note's vault path. Right: the
- * per-file controls (Format / raw-rich / save status / delete). Also the window
+ * per-file controls (raw-rich / save status / delete). Also the window
  * drag region. When the sidebar is collapsed the card slides under the macOS
  * traffic lights, so we pad the left to keep the toggle clear of them.
  */
@@ -30,20 +30,17 @@ export function Header() {
     editor,
     folderName,
     isMarkdownOpen,
-    canonical,
-    richSafe,
+    richAvailable,
     rawReason,
     mode,
     setMode,
-    formatDoc,
     deleteEntry,
   } = useVault();
   const { state } = useSidebar();
   const path = editor.path;
   // While an AI suggestion session pends ON THIS note, its autosave is frozen
   // (the transient gate) — say so instead of silently reading "Saved" over
-  // stale bytes. Keyed by path: a background tab's pending review (its pane
-  // stays mounted, #369) must not relabel the active tab's badge.
+  // stale bytes.
   const reviewingPaths = useAiReviewStore((s) => s.reviewing);
   const reviewing = path !== null && reviewingPaths.has(path);
   const segments = path ? path.split("/") : [];
@@ -99,19 +96,7 @@ export function Header() {
               Raw
             </Badge>
           )}
-          {isMarkdownOpen && rawReason === null && !canonical && (
-            <Button
-              variant="tertiary"
-              size="sm"
-              onClick={formatDoc}
-              title="Tidy formatting to canonical markdown so future edits stay byte-stable"
-              className="h-7 gap-1 px-2 text-xs"
-            >
-              <WandSparklesIcon className="size-3.5" />
-              Format
-            </Button>
-          )}
-          {isMarkdownOpen && richSafe && (
+          {richAvailable && (
             <div className="flex items-center rounded-md border border-border p-0.5 text-xs">
               {(["raw", "rich"] as const).map((m) => (
                 <button

@@ -12,7 +12,7 @@ import { useVault } from "@repo/app/workspace/vault-context";
  * padding clears the pinned composer.
  */
 export function EditorPane() {
-  const { editor, openPath, isMarkdownOpen, richSafe, mode } = useVault();
+  const { editor, openPath, isMarkdownOpen, richAvailable, mode } = useVault();
 
   // Opening a different note starts reading from the top (the workspace
   // <main> is the scroll container and survives the swap, so it must be
@@ -34,7 +34,7 @@ export function EditorPane() {
   // fills in content or closes the note.
   if (editor.path === null) return null;
 
-  const showRich = mode === "rich" && isMarkdownOpen && richSafe;
+  const showRich = mode === "rich" && isMarkdownOpen && richAvailable;
   // Keyed by path: a fresh pane (undo history, title contentEditable) per note.
   return <NotePane key={editor.path} path={editor.path} showRich={showRich} />;
 }

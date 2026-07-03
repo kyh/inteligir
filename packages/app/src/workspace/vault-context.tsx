@@ -15,11 +15,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { getBridge } from "@repo/app/lib/bridge";
 import { settleTransients } from "@repo/app/editor/ai/transient-settle";
 import { registerOpenNoteFlush, registerOpenNotePath } from "@repo/app/workspace/open-note-flush";
-import {
-  type RawReason,
-  analyzeMarkdown,
-  toCanonical,
-} from "@repo/app/editor/markdown/markdown-doc";
+import { type RawReason, parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
 import {
   VaultEditorController,
   type VaultEditorState,
@@ -130,21 +126,16 @@ type VaultContextValue = {
   // ---- Editor view (lifted so the header can own the controls) -------------
   /** Whether the open file is a markdown doc the rich editor can render. */
   isMarkdownOpen: boolean;
-  /** Whether the open file is byte-canonical (rich editing leaves untouched
-   * blocks byte-identical). Drives the "Format" tidy affordance. */
-  canonical: boolean;
-  /** Whether Rich editing is lossless (round-trip changes only formatting).
-   * Drives whether Rich is offered/default — looser than `canonical`. */
-  richSafe: boolean;
+  /** Whether Rich editing is available: the file parses within the vocabulary.
+   * Rich normalizes formatting on the first real edit — only files the
+   * pipeline can't represent at all (rawReason) are Raw-only. */
+  richAvailable: boolean;
   /** Why the open file is Raw-only (parse error / out-of-vocabulary construct),
    * or null. Drives the header's Raw badge tooltip. */
   rawReason: RawReason | null;
   /** Raw (byte-exact textarea) vs Rich (Plate) editing surface. */
   mode: "raw" | "rich";
   setMode: (mode: "raw" | "rich") => void;
-  /** Canonicalize the open doc so rich editing stays byte-stable, then switch
-   * to Rich. */
-  formatDoc: () => void;
 };
 
 const VaultContext = createContext<VaultContextValue | null>(null);
@@ -314,14 +305,6 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       void runtime.controller.flush();
     }, AUTOSAVE_DEBOUNCE_MS);
   }, []);
-
-  const onEdit = useCallback(
-    (next: string) => {
-      const path = openPathRef.current;
-      if (path !== null) editNote(path, next);
-    },
-    [editNote],
-  );
 
   const createFileAt = useCallback(
     async (rawPath: string): Promise<boolean> => {
@@ -530,55 +513,41 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     [resolver],
   );
 
-  // ---- Editor view (mode + canonicality) ----------------------------------
+  // ---- Editor view (mode + parseability) -----------------------------------
   const isMarkdownOpen = editor.path !== null && MARKDOWN_RE.test(editor.path);
   const [mode, setMode] = useState<"raw" | "rich">("raw");
   // Analysis is derived state kept in LOCKSTEP with (path, content) within a
   // single render — the state-adjustment-during-render pattern. Recomputing in
   // an effect committed one frame where a freshly opened Raw-only file still
-  // wore the PREVIOUS file's richSafe: the rich editor mounted against
+  // wore the PREVIOUS file's verdict: the rich editor mounted against
   // unparseable bytes (console error + a throwaway editor instance) before
   // the effect corrected the gate. Adjusting state during render re-renders
   // before any child mounts, so the gate and the content can never disagree.
   const [analyzed, setAnalyzed] = useState<{
-    analysis: ReturnType<typeof analyzeMarkdown>;
+    rawReason: RawReason | null;
     content: string;
     path: string | null;
-  }>({
-    analysis: { canonical: false, rawReason: null, richSafe: false },
-    content: "",
-    path: null,
-  });
+  }>({ rawReason: null, content: "", path: null });
   // While the buffer is dirty (mid-typing, pre-autosave) the last analysis is
-  // intentionally retained — one parse+serialize pass per SAVED content change
-  // (badges + the `showRich` gate), not per keystroke.
+  // intentionally retained — one parse pass per SAVED content change (the Raw
+  // badge + the `showRich` gate), not per keystroke.
   const pathChanged = analyzed.path !== editor.path;
   if ((pathChanged || analyzed.content !== editor.content) && !editor.dirty) {
-    const analysis = isMarkdownOpen
-      ? analyzeMarkdown(editor.content)
-      : { canonical: false, rawReason: null, richSafe: false };
-    setAnalyzed({ analysis, content: editor.content, path: editor.path });
+    // Rich is the default surface: any file that parses within the vocabulary
+    // opens rich (normalizing on the first real edit); only genuinely
+    // unrepresentable content (unknown JSX, parse errors) is Raw-only.
+    const parsed =
+      isMarkdownOpen && editor.content.trim() !== "" ? parseMarkdown(editor.content) : null;
+    const rawReason = parsed !== null && !parsed.ok ? parsed.reason : null;
+    setAnalyzed({ rawReason, content: editor.content, path: editor.path });
     // The mode (raw/rich) is the user's choice, picked once per file open — a
     // post-save flush (dirty→false, content unchanged) and an external/agent
     // reload of the same file must not yank the user out of the surface they
-    // picked. (`showRich` also requires `richSafe`, so a file that turns
-    // non-rich-safe out from under us still falls back to raw regardless.)
-    if (pathChanged) setMode(analysis.richSafe ? "rich" : "raw");
+    // picked. (`showRich` also requires `richAvailable`, so a file that turns
+    // unparseable out from under us still falls back to raw regardless.)
+    if (pathChanged) setMode(isMarkdownOpen && rawReason === null ? "rich" : "raw");
   }
-  const analysis = analyzed.analysis;
-
-  const formatDoc = useCallback(() => {
-    // Only reachable when the header offered Format (parse+scan ok, not
-    // canonical) — toCanonical throws on unparseable content by contract.
-    const canonical = toCanonical(editor.content);
-    onEdit(canonical);
-    setAnalyzed({
-      analysis: { canonical: true, rawReason: null, richSafe: true },
-      content: canonical,
-      path: editor.path,
-    });
-    setMode("rich");
-  }, [onEdit, editor.content, editor.path]);
+  const richAvailable = isMarkdownOpen && analyzed.rawReason === null;
 
   const value = useMemo<VaultContextValue>(
     () => ({
@@ -596,12 +565,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       isMarkdownOpen,
-      canonical: analysis.canonical,
-      richSafe: analysis.richSafe,
-      rawReason: analysis.rawReason,
+      richAvailable,
+      rawReason: analyzed.rawReason,
       mode,
       setMode,
-      formatDoc,
     }),
     [
       editor,
@@ -618,9 +585,9 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       flush,
       resolveWikiTarget,
       isMarkdownOpen,
-      analysis,
+      richAvailable,
+      analyzed.rawReason,
       mode,
-      formatDoc,
     ],
   );
 

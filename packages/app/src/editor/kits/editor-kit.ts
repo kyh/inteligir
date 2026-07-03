@@ -49,7 +49,6 @@ export const EDITOR_KIT = [
   ...SlashKit,
   ...DragKit,
   ...AiKit,
-  // WP3 fills these three (they're empty today).
   ...BlockMenuKit,
   ...FloatingToolbarKit,
   ...BlockPlaceholderKit,

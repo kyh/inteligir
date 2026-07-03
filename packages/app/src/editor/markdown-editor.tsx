@@ -26,8 +26,8 @@ import { TableOfContents } from "@repo/app/editor/toc";
 import { useAiReviewStore } from "@repo/app/stores/ai-review-store";
 
 // Seed markdown → Plate value through the owned pipeline. Unparseable content
-// is impossible behind the richSafe gate, but never crash the surface: fall
-// back to an empty paragraph and log.
+// is impossible behind the richAvailable parse gate, but never crash the
+// surface: fall back to an empty paragraph and log.
 function seedValue(md: string): Value {
   const parsed = parseMarkdown(md);
   if (parsed.ok) return parsed.value;
