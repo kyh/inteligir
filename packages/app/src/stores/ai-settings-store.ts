@@ -30,7 +30,7 @@ let initStarted = false;
 
 export const useAiSettingsStore = create<AiSettingsState>()((set) => ({
   loaded: false,
-  ghostTextEnabled: false,
+  ghostTextEnabled: true,
   ghostTextModel: null,
   models: [],
   defaultModelId: null,
@@ -44,7 +44,9 @@ export const useAiSettingsStore = create<AiSettingsState>()((set) => ({
       bridge.getUiState().catch((): Record<string, unknown> => ({})),
       bridge.listGhostModels().catch(() => ({ models: [], defaultId: null })),
     ]);
-    const enabled = uiState[GHOST_TEXT_ENABLED_UI_STATE] === true;
+    // Default ON: absence of the key means enabled; only a stored `false`
+    // (the user toggled it off in Settings) disables.
+    const enabled = uiState[GHOST_TEXT_ENABLED_UI_STATE] !== false;
     const model = uiState[GHOST_TEXT_MODEL_UI_STATE];
     set({
       loaded: true,

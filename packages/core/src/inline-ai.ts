@@ -70,8 +70,8 @@ export type GhostModelsResult = {
   defaultId: string | null;
 };
 
-/** ui-state key: ghost-text feature flag (missing = disabled — ghost text
- * spends the user's tokens on every typing pause, so it's strictly opt-in). */
+/** ui-state key: ghost-text feature flag (missing = enabled; a stored `false`
+ * — the Settings toggle — disables). */
 export const GHOST_TEXT_ENABLED_UI_STATE = "ghostTextEnabled";
 
 /** ui-state key: ghost-text model id override (missing = host default). */

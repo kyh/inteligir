@@ -145,9 +145,9 @@ function VoiceSection() {
   );
 }
 
-// Ghost text is opt-in: it spends the user's tokens on every typing pause,
-// so the switch defaults off and the model picker names the fast tier the
-// host would use by default.
+// Ghost text is on by default (potion behavior); the switch opts out for
+// users who'd rather not spend tokens on every typing pause. The model
+// picker names the fast tier the host would use by default.
 function EditorAiSection() {
   const loaded = useAiSettingsStore((s) => s.loaded);
   const enabled = useAiSettingsStore((s) => s.ghostTextEnabled);
