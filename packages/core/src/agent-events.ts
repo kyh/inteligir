@@ -23,3 +23,6 @@ export type AppAgentEvent =
    * tool call, or pi-emitted error event — almost always an upstream/auth
    * failure swallowed silently. Renderer renders a single error bubble. */
   | { type: "turn_error"; kind: "auth" | "unknown"; reason: string };
+
+/** Session lifecycle state (used internally by the host Agent class). */
+export type SessionStatus = "idle" | "busy" | "error" | "starting";
