@@ -1,6 +1,5 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
-import { EditorPaneContext } from "@repo/app/editor/editor-pane-context";
 import { MarkdownEditor } from "@repo/app/editor/markdown-editor";
 import { BacklinksPanel } from "@repo/app/workspace/backlinks-panel";
 import { useVault } from "@repo/app/workspace/vault-context";
@@ -42,7 +41,6 @@ export function EditorPane() {
 
 function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   const { editor, editNote, renameEntry } = useVault();
-  const paneInfo = useMemo(() => ({ path, active: true }), [path]);
 
   const fileName = path.split("/").pop() ?? path;
   const dot = fileName.lastIndexOf(".");
@@ -99,42 +97,40 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
   // never serialized), then the body. Same column wraps the Raw textarea; the
   // pb-72 is the breathing room below the last block (spec §4.1).
   return (
-    <EditorPaneContext.Provider value={paneInfo}>
-      <div
-        ref={paneRef}
-        className="flex w-full flex-1 cursor-text flex-col px-12 pt-10 pb-72 sm:px-[max(48px,calc(50%-350px))]"
-      >
-        <h1
-          ref={titleRef}
-          contentEditable
-          suppressContentEditableWarning
-          spellCheck={false}
-          onBlur={(e) => commitTitle(e.currentTarget.textContent ?? "")}
-          onKeyDown={onTitleKeyDown}
-          className="mb-1 w-full break-words text-4xl font-bold leading-[1.2] text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']"
+    <div
+      ref={paneRef}
+      className="flex w-full flex-1 cursor-text flex-col px-12 pt-10 pb-72 sm:px-[max(48px,calc(50%-350px))]"
+    >
+      <h1
+        ref={titleRef}
+        contentEditable
+        suppressContentEditableWarning
+        spellCheck={false}
+        onBlur={(e) => commitTitle(e.currentTarget.textContent ?? "")}
+        onKeyDown={onTitleKeyDown}
+        className="mb-1 w-full break-words text-4xl font-bold leading-[1.2] text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']"
+      />
+      {showRich ? (
+        <MarkdownEditor
+          path={path}
+          value={editor.content}
+          onChange={(md) => editNote(path, md)}
+          // Teardown settle (#374): route by the path THIS editor served —
+          // the pane unmounts on note switch, when the open note may
+          // already differ, so the bytes carry their own path.
+          onSettled={(md) => editNote(path, md)}
         />
-        {showRich ? (
-          <MarkdownEditor
-            path={path}
-            value={editor.content}
-            onChange={(md) => editNote(path, md)}
-            // Teardown settle (#374): route by the path THIS editor served —
-            // the pane unmounts on note switch, when the open note may
-            // already differ, so the bytes carry their own path.
-            onSettled={(md) => editNote(path, md)}
-          />
-        ) : (
-          <textarea
-            value={editor.content}
-            onChange={(e) => editNote(path, e.target.value)}
-            spellCheck={false}
-            className="min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-mono text-sm leading-relaxed text-foreground outline-none"
-            placeholder="Empty note"
-          />
-        )}
-        {/* Linked mentions live in the same centered column, below the doc. */}
-        <BacklinksPanel path={path} />
-      </div>
-    </EditorPaneContext.Provider>
+      ) : (
+        <textarea
+          value={editor.content}
+          onChange={(e) => editNote(path, e.target.value)}
+          spellCheck={false}
+          className="min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-mono text-sm leading-relaxed text-foreground outline-none"
+          placeholder="Empty note"
+        />
+      )}
+      {/* Linked mentions live in the same centered column, below the doc. */}
+      <BacklinksPanel path={path} />
+    </div>
   );
 }

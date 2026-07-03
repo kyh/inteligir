@@ -25,7 +25,6 @@ import { PlateStatic, SlateElement, type SlateElementProps } from "platejs/stati
 import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@repo/app/lib/bridge";
-import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 import { BASE_KIT } from "@repo/app/editor/kits/base-kit";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@repo/app/editor/kits/table-kit";
 import { parseMarkdown } from "@repo/app/editor/markdown/markdown-doc";
@@ -270,11 +269,9 @@ function TransclusionBody({ content }: { content: string }) {
 
 export default function Transclusion({ body }: { body: string }) {
   const { resolveWikiTarget, openFile } = useVault();
-  // The cycle chain roots at the note HOSTING this embed — the pane's path,
-  // not the active tab's (every open tab keeps its pane mounted, #369).
-  // Outside a pane (standalone mounts) fall back to the open note.
-  const activePath = useVault().editor.path;
-  const hostPath = useEditorPane()?.path ?? activePath;
+  // The cycle chain roots at the note HOSTING this embed — the single
+  // mounted editor always serves vault-context's open note.
+  const hostPath = useVault().editor.path;
   const scope = useContext(TransclusionScopeContext);
   const parsed = parseWikiBody(body);
   const resolved = parsed.target === "" ? null : resolveWikiTarget(parsed.target);

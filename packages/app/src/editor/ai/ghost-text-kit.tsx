@@ -167,8 +167,8 @@ const GhostTextPlugin = createTPlatePlugin<PluginConfig<"ghostText", GhostTextOp
       // handlers. Without a ghost both keys fall through untouched.
       const editable = editor.api.toDOMNode(editor);
       const onKeyDown = (event: KeyboardEvent) => {
-        // Bare Tab only — Ctrl+Tab is the tab-strip cycle (#369) and must
-        // never accept a visible ghost on its way through.
+        // Bare Tab only — modifier combos (Shift+Tab outdent, etc.) must
+        // never accept a visible ghost on their way through.
         const modified = event.ctrlKey || event.metaKey || event.altKey || event.shiftKey;
         if (event.key === "Tab" && !modified && machine.onTab()) {
           event.preventDefault();

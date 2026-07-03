@@ -10,8 +10,6 @@ import { useEditorRef, useEditorSelector } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
 
-import { useEditorPane } from "@repo/app/editor/editor-pane-context";
-
 type HeadingItem = { id: string; depth: number; title: string };
 
 const HEADING_DEPTH: Record<string, number> = { [KEYS.h1]: 1, [KEYS.h2]: 2, [KEYS.h3]: 3 };
@@ -47,16 +45,11 @@ export function TableOfContents() {
   // ref inside so the helper keeps its concrete PlateEditor type.
   const headings = useEditorSelector(() => collectHeadings(editor), []);
   const [activeIndex, setActiveIndex] = useState(0);
-  // A hidden pane's rail must not render (it's position:fixed, so it escapes
-  // the pane's layout even though display:none on the ancestor hides it) nor
-  // scrollspy against zero-size boxes.
-  const paneActive = useEditorPane()?.active ?? true;
 
   // Scrollspy: the last heading scrolled above the header line is "active". A
   // scroll listener on the workspace scroller (IntersectionObserver never fires
   // with a custom root in this Electron renderer).
   useEffect(() => {
-    if (!paneActive) return;
     const scroller = document.querySelector("main");
     if (!scroller || headings.length === 0) return;
     const onScroll = () => {
@@ -70,9 +63,9 @@ export function TableOfContents() {
     onScroll();
     scroller.addEventListener("scroll", onScroll, { passive: true });
     return () => scroller.removeEventListener("scroll", onScroll);
-  }, [headings, paneActive, editor]);
+  }, [headings, editor]);
 
-  if (!paneActive || headings.length < 2) return null;
+  if (headings.length < 2) return null;
 
   // Smooth scrolling is a no-op in this Electron renderer (both scrollIntoView
   // and scrollTo ignore `behavior: "smooth"`), so compute the target offset and
