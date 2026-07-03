@@ -29,11 +29,10 @@ function collectHeadings(editor: ReturnType<typeof useEditorRef>): HeadingItem[]
   return out;
 }
 
-// The heading elements in THIS editor's live editable, in document order —
+// The heading elements in this editor's live editable, in document order —
 // the same order as collectHeadings, so index i lines up. Excludes the
-// page-title <h1>, which lives outside the Slate editable. Scoped to the
-// editor's own DOM node because every open tab keeps its editor mounted
-// (#369) — a bare [data-slate-editor] query would read a hidden sibling's.
+// page-title <h1>, which lives outside the Slate editable (hence the scope
+// to the editor's own DOM node rather than a bare h1/h2/h3 query).
 function editorHeadingEls(editor: ReturnType<typeof useEditorRef>): HTMLElement[] {
   const root = editor.api.toDOMNode(editor);
   return root ? [...root.querySelectorAll<HTMLElement>("h1, h2, h3")] : [];
@@ -65,31 +64,41 @@ export function TableOfContents() {
     return () => scroller.removeEventListener("scroll", onScroll);
   }, [headings, editor]);
 
-  if (headings.length < 2) return null;
+  if (headings.length === 0) return null;
 
   // Smooth scrolling is a no-op in this Electron renderer (both scrollIntoView
-  // and scrollTo ignore `behavior: "smooth"`), so compute the target offset and
-  // jump instantly, leaving room for the sticky header.
+  // and scrollTo ignore `behavior: "smooth"`), so tween the offset by hand:
+  // a short rAF ease-out to the target, leaving room for the sticky header.
   const scrollTo = (index: number) => {
     const el = editorHeadingEls(editor)[index];
     const scroller = document.querySelector("main");
     if (el && scroller) {
-      const top =
+      const from = scroller.scrollTop;
+      const to =
         el.getBoundingClientRect().top -
         scroller.getBoundingClientRect().top +
-        scroller.scrollTop -
+        from -
         HEADER_OFFSET;
-      scroller.scrollTo({ top });
+      const start = performance.now();
+      const DURATION = 200;
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / DURATION);
+        const eased = 1 - (1 - t) ** 3; // easeOutCubic
+        scroller.scrollTop = from + (to - from) * eased;
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
     }
     setActiveIndex(index);
   };
 
   return (
-    <div className="pointer-events-none fixed top-1/2 right-2 z-30 hidden -translate-y-1/2 lg:block">
+    <div className="pointer-events-none fixed top-1/2 right-2 z-40 -translate-y-1/2">
       <div className="group pointer-events-auto flex flex-col items-end py-2">
-        {/* Collapsed: dash ticks, one per heading (fade out on hover). */}
-        <div className="flex flex-col items-end gap-2 pr-2 transition-opacity duration-200 group-hover:opacity-0">
-          {headings.map((h, i) => (
+        {/* Collapsed: dash ticks, one per heading, capped so a long doc's
+            rail stays a glanceable minimap (fade out on hover). */}
+        <div className="flex flex-col items-end gap-2 pr-2 transition-opacity duration-300 group-hover:opacity-0">
+          {headings.slice(0, 20).map((h, i) => (
             <div
               key={h.id}
               className={cn(
@@ -100,10 +109,11 @@ export function TableOfContents() {
             />
           ))}
         </div>
-        {/* Expanded: the outline, revealed on hover. */}
+        {/* Expanded: the full outline, revealed on hover. max-h-96 keeps the
+            panel clear of the bottom composer and the delegation dock. */}
         <nav
           aria-label="Table of contents"
-          className="absolute top-0 right-0 max-h-[70vh] w-56 translate-x-2 overflow-auto rounded-xl border border-border bg-popover p-1.5 text-popover-foreground opacity-0 shadow-surface-4 transition-all duration-200 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100"
+          className="absolute top-0 right-0 max-h-96 w-56 translate-x-2 overflow-auto rounded-2xl border border-border bg-popover p-2 text-popover-foreground opacity-0 shadow-surface-4 transition-all duration-300 group-hover:pointer-events-auto group-hover:translate-x-0 group-hover:opacity-100"
         >
           {headings.map((h, i) => (
             <button

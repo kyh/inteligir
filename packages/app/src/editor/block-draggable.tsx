@@ -17,12 +17,7 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
-import {
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { useEffect, useRef } from "react";
 import { GripVerticalIcon, PlusIcon } from "lucide-react";
@@ -52,6 +47,12 @@ function blockId(node: object): string {
   return id;
 }
 
+// Potion-style drop indicator: the document stays STILL during a drag (no
+// live sibling displacement) and an explicit line marks where the block
+// lands. Non-active items get no transform; the active block still follows
+// the pointer (its transform is the drag delta, not the strategy's).
+const noDisplacement = () => null;
+
 function DragProvider({ children }: { children: React.ReactNode }) {
   const editor = useEditorRef();
   // 4px activation distance so a plain click on the grip/"+" still works.
@@ -80,7 +81,7 @@ function DragProvider({ children }: { children: React.ReactNode }) {
       modifiers={[restrictToVerticalAxis]}
       onDragEnd={onDragEnd}
     >
-      <SortableContext items={items} strategy={verticalListSortingStrategy}>
+      <SortableContext items={items} strategy={noDisplacement}>
         {children}
       </SortableContext>
     </DndContext>
@@ -98,13 +99,17 @@ function Draggable(props: PlateElementProps) {
   const { children, element } = props;
   const editor = useEditorRef();
   const {
+    activeIndex,
     attributes,
+    index,
+    isDragging,
+    isOver,
     listeners,
+    overIndex,
     setNodeRef,
     setActivatorNodeRef,
     transform,
     transition,
-    isDragging,
   } = useSortable({ id: blockId(element) });
 
   const gripRef = useRef<HTMLButtonElement | null>(null);
@@ -139,7 +144,9 @@ function Draggable(props: PlateElementProps) {
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // Transform only the dragged block — siblings stay put (noDisplacement)
+      // and would otherwise snap when a stale transform lingered.
+      style={isDragging ? { transform: CSS.Transform.toString(transform), transition } : undefined}
       className={cn("group/block relative", isDragging && "z-10 opacity-60")}
     >
       <div
@@ -178,6 +185,18 @@ function Draggable(props: PlateElementProps) {
       </div>
 
       {children}
+
+      {/* Drop line: where the dragged block lands relative to THIS block —
+          below it when dragging down, above it when dragging up. */}
+      {isOver && activeIndex !== index && (
+        <div
+          contentEditable={false}
+          className={cn(
+            "pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-primary/50",
+            overIndex > activeIndex ? "-bottom-px" : "-top-px",
+          )}
+        />
+      )}
     </div>
   );
 }

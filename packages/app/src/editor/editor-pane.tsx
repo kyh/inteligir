@@ -1,5 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, type KeyboardEvent } from "react";
 
+import { cn } from "@repo/ui/lib/utils";
+
+import { EDITOR_COLUMN_PX } from "@repo/app/editor/editor-chrome";
 import { MarkdownEditor } from "@repo/app/editor/markdown-editor";
 import { BacklinksPanel } from "@repo/app/workspace/backlinks-panel";
 import { useVault } from "@repo/app/workspace/vault-context";
@@ -92,15 +95,14 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
     }
   };
 
-  // potion-style column: a centered 700px text column (symmetric padding, not
-  // max-w), the filename rendered as a large editable page title (chrome only —
-  // never serialized), then the body. Same column wraps the Raw textarea; the
-  // pb-72 is the breathing room below the last block (spec §4.1).
+  // potion-style column: the editable (PlateContent) carries the centered
+  // 700px column padding itself (EDITOR_COLUMN_PX — see editor-chrome.tsx:
+  // the drag gutter must live inside its clip); the title, Raw textarea, and
+  // backlinks apply the same constant so all four align byte-exact. The pane
+  // owns only the vertical padding — pb-72 is the breathing room below the
+  // last block (spec §4.1).
   return (
-    <div
-      ref={paneRef}
-      className="flex w-full flex-1 cursor-text flex-col px-12 pt-10 pb-72 sm:px-[max(48px,calc(50%-350px))]"
-    >
+    <div ref={paneRef} className="flex w-full flex-1 cursor-text flex-col pt-10 pb-72">
       <h1
         ref={titleRef}
         contentEditable
@@ -108,7 +110,10 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         spellCheck={false}
         onBlur={(e) => commitTitle(e.currentTarget.textContent ?? "")}
         onKeyDown={onTitleKeyDown}
-        className="mb-1 w-full break-words text-4xl font-bold leading-[1.2] text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']"
+        className={cn(
+          EDITOR_COLUMN_PX,
+          "mb-1 w-full break-words text-4xl font-bold leading-[1.2] text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
+        )}
       />
       {showRich ? (
         <MarkdownEditor
@@ -125,12 +130,17 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
           value={editor.content}
           onChange={(e) => editNote(path, e.target.value)}
           spellCheck={false}
-          className="min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-mono text-sm leading-relaxed text-foreground outline-none"
+          className={cn(
+            EDITOR_COLUMN_PX,
+            "min-h-[60vh] flex-1 resize-none bg-transparent pt-4 font-mono text-sm leading-relaxed text-foreground outline-none",
+          )}
           placeholder="Empty note"
         />
       )}
       {/* Linked mentions live in the same centered column, below the doc. */}
-      <BacklinksPanel path={path} />
+      <div className={EDITOR_COLUMN_PX}>
+        <BacklinksPanel path={path} />
+      </div>
     </div>
   );
 }
