@@ -13,6 +13,7 @@
 //     excludes node_modules wholesale, so the failure mode is "didn't bundle,"
 //     not "missing from package.json."
 
+import { execFileSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,6 +114,29 @@ for (const dep of BUNDLED_RUNTIME_DEPS) {
     console.log(`[verify-packaged] OK: ${dep} bundled into main process`);
   } else {
     fail(`${dep} not found in the built main bundle — agent boot will crash in the DMG`);
+  }
+}
+
+// Notarization: a regression here is silent until a user's Gatekeeper
+// rejects the download. Hard-fail unless the build deliberately skipped
+// notarization (dry runs set INTELIGIR_SKIP_NOTARY_CHECK=1).
+if (process.env.INTELIGIR_SKIP_NOTARY_CHECK === "1") {
+  console.log("[verify-packaged] SKIPPED: notarization checks (INTELIGIR_SKIP_NOTARY_CHECK=1)");
+} else {
+  try {
+    execFileSync("xcrun", ["stapler", "validate", app], { stdio: "pipe" });
+    console.log("[verify-packaged] OK: notarization ticket stapled");
+  } catch (err) {
+    fail(`stapler validate failed — app is not notarized/stapled: ${err.message}`);
+  }
+  try {
+    const out = execFileSync("spctl", ["-a", "-vv", app], { stdio: "pipe" }).toString();
+    // spctl writes its verdict to stderr; execFileSync throws on non-zero, so
+    // reaching here means accepted. Log the source line when available.
+    console.log(`[verify-packaged] OK: Gatekeeper accepted${out.trim() ? ` (${out.trim()})` : ""}`);
+  } catch (err) {
+    const detail = err.stderr?.toString().trim() ?? err.message;
+    fail(`spctl rejected the app — Gatekeeper would block it: ${detail}`);
   }
 }
 
