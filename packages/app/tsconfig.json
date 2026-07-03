@@ -9,7 +9,7 @@
       "@repo/ui/*": ["../ui/src/*"]
     }
   },
-  "include": ["src", "dev", "web", "vite.config.ts", "vite.web.config.ts", "vitest.config.ts"],
+  "include": ["src", "dev", "vite.config.ts", "vitest.config.ts"],
   // The STT worklet runs on the audio rendering thread whose globals
   // (AudioWorkletProcessor, registerProcessor) don't exist in the DOM lib —
   // see the header comment in that file. Note: `exclude` replaces (not

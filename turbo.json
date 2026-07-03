@@ -9,12 +9,6 @@
       "dependsOn": ["^build"],
       "outputs": [".cache/tsbuildinfo.json", "dist/**", ".output/**"]
     },
-    // Static web build served by @repo/server (dist-web/, non-default
-    // outDir); the cli resolves it at runtime, so `pnpm build` must emit it.
-    "@repo/app#build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist-web/**"]
-    },
     "@repo/desktop#build": {
       "dependsOn": ["^build"],
       "outputs": [".cache/tsbuildinfo.json", ".output/**"],

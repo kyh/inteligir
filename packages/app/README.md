@@ -1,6 +1,6 @@
 # `@repo/app` — the portable UI
 
-The whole Inteligir workspace — sidebar, single-document editor, bottom composer, command palette, settings, voice — as a plain browser React app. It talks to its host exclusively through an injected `Bridge` (`src/lib/bridge.ts::installBridge`, called once before render); no electron, no node built-ins, no host imports — lint-enforced (`.oxlintrc.json` boundary override). Three hosts mount it: the Electron renderer (preload's `window.desktopBridge`), the browser via `@repo/server` (WS bridge), and the dev harness (in-memory fixture).
+The whole Inteligir workspace — sidebar, single-document editor, bottom composer, command palette, settings, voice — as a React app. It talks to its host exclusively through an injected `Bridge` (`src/lib/bridge.ts::installBridge`, called once before render); no electron, no node built-ins, no host imports — lint-enforced (`.oxlintrc.json` boundary override). Two surfaces mount it: the Electron renderer (preload's `window.desktopBridge`) and the dev harness (in-memory fixture).
 
 ## Layout
 
@@ -14,13 +14,11 @@ src/
   stores/  components/  layout/  styles.css
   __tests__/               round-trip matrix + fixtures (byte-pinned — never format), kit parity
 dev/                       vite dev harness — index.html + fixture Bridge
-web/                       browser build entry — WS bridge against the serving origin
 ```
 
-## The three entries
+## The two entries
 
 - **Dev harness** (`pnpm --filter @repo/app dev`, vite on :5173): `dev/main.tsx` installs `dev/fixture-bridge.ts` — an in-memory vault seeded with sample notes running the **real knowledge engine** (`@repo/features/knowledge`); agent chat streams a canned reply, voice/executor report unavailable. Edits persist until reload. No auth, no backend — the fastest loop for UI and editor work. The fixture is typed `: Bridge`, so a new registry channel fails typecheck here until covered.
-- **Web build** (`pnpm --filter @repo/app build` → `dist-web/`, non-default outDir wired in `vite.web.config.ts` + turbo): `web/main.tsx` installs `createWsBridge` (`@repo/features/bridge-ws-client`) against the origin that served the page, plus a connection-lost overlay. the `@repo/server` app resolves `dist-web/` at runtime via the package.
 - **Electron renderer**: the desktop shell's shim (`apps/desktop/src/renderer/main.tsx`) installs `window.desktopBridge` and renders `App` — this package is source-consumed (every host aliases `@repo/app` to `./src`; there is no exports map by design).
 
 ## Editor — byte stability

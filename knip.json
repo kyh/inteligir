@@ -35,24 +35,11 @@
       "includeEntryExports": true
     },
     "packages/app": {
-      // The portable UI, source-imported by hosts (desktop, server). Both
-      // browser entries (dev harness dev/main.tsx, web build web/main.tsx)
-      // are picked up via their vite configs.
+      // The portable UI, source-imported by the desktop renderer. The dev
+      // harness (dev/main.tsx) is picked up via its vite config.
       "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}", "web/**/*.{ts,tsx}"],
+      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}"],
       "includeEntryExports": false
-    },
-    "apps/server": {
-      // bin/inteligir.js (package.json bin) and src/main.ts (its import +
-      // the dev script) are auto-detected entries; the folded-in WS transport
-      // (create-server.ts) has its own test suite.
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts", "bin/**/*.js"],
-      // @repo/app: never imported — the server resolves its dist-web assets at
-      // runtime via require.resolve("@repo/app/package.json"), and the
-      // workspace dep is what makes that resolvable (and, at Phase 7, what
-      // ships the build to npm).
-      "ignoreDependencies": ["@repo/app"]
     },
     "packages/host": {
       // The node backend, source-imported by its shells (desktop today,

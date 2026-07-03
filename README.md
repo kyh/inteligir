@@ -2,19 +2,17 @@
 
 > An AI-native notes app — Obsidian with an agent.
 
-Turborepo monorepo. The product runs two ways over the same backend + UI: an
-Electron desktop app and the browser via an `inteligir` CLI. Plus a
-marketing site.
+Turborepo monorepo. The product is an Electron desktop app over a local
+backend, plus a marketing site.
 
 ## Layout
 
 ```
 apps/              Shippable artifacts
   desktop/         Thin Electron shell over host + app (@repo/desktop)
-  server/          `inteligir <vault>`: boot host, serve app over loopback HTTP+WS, open the browser (@repo/server)
   web/             TanStack Start marketing site on Cloudflare Workers (landing page only)
 packages/          Libraries
-  app/             Portable UI — the whole workspace as a browser React app (@repo/app)
+  app/             Portable UI — the whole workspace as a React app (@repo/app)
   features/        Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/features)
   host/            Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
   ui/              Shared UI components (@repo/ui)
@@ -27,7 +25,6 @@ Workspace `README.md`s:
 | Workspace                | README                                                                       |
 | ------------------------ | ---------------------------------------------------------------------------- |
 | `apps/desktop`           | [Electron shell — process boundary, packaging](./apps/desktop/README.md)     |
-| `apps/server`            | [`inteligir` launcher + loopback HTTP+WS host](./apps/server/README.md)      |
 | `apps/web`               | [static marketing site](./apps/web/README.md)                                |
 | `packages/app`           | [portable UI — Bridge-injected workspace](./packages/app/README.md)          |
 | `packages/features`      | [isomorphic contract — IPC registry, schemas](./packages/features/README.md) |
@@ -37,7 +34,7 @@ Workspace `README.md`s:
 | `packages/ui`            | [shared design system](./packages/ui/README.md)                              |
 
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
-three ways to run the app, ports/shared state, gates, verification, and
+ways to run the app, ports/shared state, gates, verification, and
 change checklists. `docs/replatform-plan.md` is the architecture decision
 record. `CLAUDE.md` (root) is read by Claude Code / agents working in the
 repo — architecture summary + conventions.

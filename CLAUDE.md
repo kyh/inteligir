@@ -30,10 +30,9 @@ symlink in its workspace and edits files with its native file tools.
 ```
 apps/            # shippable artifacts
   web/           # Marketing site (@repo/web) — landing page only
-  desktop/       # Thin Electron shell — the notes product (@repo/desktop)
-  server/        # `inteligir <vault>`: boot host, serve app over loopback HTTP+WS, open the browser (@repo/server)
+  desktop/       # Electron shell — the notes product (@repo/desktop)
 packages/        # libraries
-  app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
+  app/           # Portable UI — the whole workspace as a React app (@repo/app)
   features/      # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/features)
   host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
   ui/            # Shared UI components (@repo/ui)
@@ -41,12 +40,11 @@ packages/        # libraries
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
 ```
 
-The product runs two ways over the same `@repo/host` backend + `@repo/app` UI:
-the **Electron desktop** app (`pnpm dev:desktop`) and the **browser** via the
-`@repo/server` app (`pnpm --filter @repo/server exec tsx src/main.ts <vault> [--port N] [--no-open]`,
-or the `inteligir` bin post-build). It boots `@repo/host` and folds it over a
-loopback-only HTTP+WS bridge (the bind address + Host/Origin allowlists are the
-auth gate — no accounts), then opens `http://127.0.0.1:<port>`.
+The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
+`@repo/host` backend + `@repo/app` UI, communicating through Electron IPC. For
+UI work there is also a backend-free browser dev harness
+(`pnpm --filter @repo/app dev`) that drives the real UI over an in-memory
+fixture Bridge.
 
 ## Common Commands
 
@@ -60,8 +58,8 @@ pnpm lint             # Lint all   (oxlint)
 pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
 ```
 
-**`docs/development.md` is the full dev guide**: the three run modes (fixture
-harness / cli browser / Electron), ports + `~/.inteligir` shared state +
+**`docs/development.md` is the full dev guide**: the two run modes (fixture
+harness / Electron), ports + `~/.inteligir` shared state +
 `host.lock`, the fixture byte-pinning rule, verification patterns, and the
 add-a-Bridge-channel / add-a-node-type checklists.
 
@@ -179,9 +177,8 @@ in-memory session for ghost-text on a fast model.
 `packages/features/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
-schema-validated handler map (`packages/host/src/handlers/`) that both
-transports fold: desktop over `ipcMain` (preload derives automatically), server
-over WS envelopes (`packages/features/src/bridge-wire.ts`; binary frames carry
-voice PCM). Add a channel = registry entry + host handler + one line each in
-`bridge-ws-client.ts` and the dev-harness fixture Bridge
-(`packages/app/dev/fixture-bridge.ts`) — both fail typecheck until covered.
+schema-validated handler map (`packages/host/src/handlers/`) that the desktop
+shell folds over Electron `ipcMain` (the preload derives the typed
+`window.desktopBridge` automatically). Add a channel = registry entry + host
+handler + one line in the dev-harness fixture Bridge
+(`packages/app/dev/fixture-bridge.ts`), which fails typecheck until covered.

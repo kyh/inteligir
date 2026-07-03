@@ -10,9 +10,9 @@ How to run, verify, and change inteligir. Written for humans and agents alike;
   the browser host runs anywhere node does
 - `pnpm install` at the repo root (workspace-wide)
 
-## The three ways to run the app
+## The two ways to run the app
 
-Same `@repo/app` UI everywhere; they differ in what backs the Bridge.
+Same `@repo/app` UI both times; they differ in what backs the Bridge.
 
 ### 1. Browser dev harness — fixture Bridge (fastest loop, no backend)
 
@@ -26,32 +26,17 @@ a canned reply; the AI surface returns canned intents/completions; voice and
 executor report unavailable. Edits persist until reload. Use this for all UI
 and editor work — it needs no auth, no vault, no Electron.
 
-### 2. Browser via the server app — real backend (the `npx` path)
-
-```bash
-pnpm --filter @repo/app build      # produces packages/app/dist-web
-pnpm --filter @repo/server exec tsx src/main.ts <vault-path> [--port N] [--no-open]
-```
-
-`apps/server` boots `@repo/host` (real vault, real pi agent, delegation,
-knowledge indexes), folds it over a loopback-only HTTP+WS bridge
-(`src/create-server.ts`), and serves the app build at `http://127.0.0.1:<port>`.
-pi auth (OpenAI OAuth) is on-device; if this machine is logged in,
-chat/AI/delegation are fully live.
-
-- Rebuilding `dist-web` while the server runs 404s the new hashed assets —
-  restart the server after an app rebuild (#378).
-- The vault path is created if missing; `~/.inteligir` is refused.
-
-### 3. Electron desktop
+### 2. Electron desktop — the real product
 
 ```bash
 pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 ```
 
-Same host + app, wrapped in `apps/desktop` (thin shell: window/menu/
-updater + the IPC Bridge fold). Uses the last-opened vault from `~/.inteligir`
-(shared with the server host — the open note and settings carry across hosts).
+`apps/desktop` (thin shell: window/menu/updater + the IPC Bridge fold) boots
+`@repo/host` (real vault, real pi agent, delegation, knowledge indexes) and
+talks to the renderer over Electron IPC. pi auth (OpenAI OAuth) is on-device; if
+this machine is logged in, chat/AI/delegation are fully live. Uses the
+last-opened vault from `~/.inteligir`.
 
 ## Ports & shared state
 
@@ -60,14 +45,13 @@ updater + the IPC Bridge fold). Uses the last-opened vault from `~/.inteligir`
 | App dev harness (vite)                                                    | 5173 (auto-increments)                                                    |
 | Electron CDP debugging                                                    | 9222                                                                      |
 | Executor daemon                                                           | 47888                                                                     |
-| server app (`apps/server`)                                                | `--port N` or a free port                                                 |
 | App state (auth, sessions, ui-state, delegations, snapshots, `host.lock`) | `~/.inteligir`                                                            |
-| Voice model (~140 MB, shared by desktop + server)                         | per-OS user-data dir (`~/Library/Application Support/Inteligir` on macOS) |
+| Voice model (~140 MB)                                                     | per-OS user-data dir (`~/Library/Application Support/Inteligir` on macOS) |
 
 **Only one real host at a time**: `~/.inteligir/host.lock` is a pidfile — a
-second host (e.g. the server app while Electron runs) refuses to start. Stale locks from
-dead pids are reclaimed automatically. Kill leftovers between runs: anything
-holding 9222/47888 blocks the next `pnpm dev:desktop`.
+second host refuses to start. Stale locks from dead pids are reclaimed
+automatically. Kill leftovers between runs: anything holding 9222/47888 blocks
+the next `pnpm dev:desktop`.
 
 ## Quality gates
 
@@ -108,9 +92,7 @@ Type-checks passing isn't feature-correct. Drive the running app:
    result/event type).
 2. Host handler in `packages/host/src/handlers/` (grouped by domain;
    `collectHandlers` throws at boot on missing/duplicate).
-3. One line in `packages/features/src/bridge-ws-client.ts` (the WS fold is
-   hand-maintained; typecheck catches omissions).
-4. Fixture implementation in `packages/app/dev/fixture-bridge.ts` (typed
+3. Fixture implementation in `packages/app/dev/fixture-bridge.ts` (typed
    `: Bridge` — fails typecheck until covered).
    The Electron preload derives automatically.
 
@@ -128,9 +110,7 @@ canonical/idempotent behavior.
   knowledge fixtures.
 - `pnpm --filter @repo/host test` — vault, delegation (+snapshots), knowledge
   manager, handlers, secrets.
-- `pnpm --filter @repo/features test` — wire protocol, knowledge engine, parsers.
-- `pnpm --filter @repo/server test` — WS fold, origin/host gating, binary
-  frames.
+- `pnpm --filter @repo/features test` — knowledge engine, parsers, schemas.
 
 ## Releasing the desktop app
 
