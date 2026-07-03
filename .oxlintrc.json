@@ -108,9 +108,9 @@
       }
     },
     {
-      // Dependency boundary: server + cli are headless node shells over
+      // Dependency boundary: the server app is a headless node shell over
       // @repo/host — never electron or the desktop shell.
-      "files": ["packages/server/src/**", "apps/cli/src/**", "apps/cli/bin/**"],
+      "files": ["apps/server/src/**", "apps/server/bin/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -125,7 +125,7 @@
                   "@repo/desktop/*",
                   "**/apps/desktop/**"
                 ],
-                "message": "server/cli are headless node — no electron/desktop imports"
+                "message": "the server app is headless node — no electron/desktop imports"
               }
             ]
           }

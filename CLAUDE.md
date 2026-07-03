@@ -31,12 +31,11 @@ symlink in its workspace and edits files with its native file tools.
 apps/            # shippable artifacts
   web/           # Marketing site (@repo/web) — landing page only
   desktop/       # Thin Electron shell — the notes product (@repo/desktop)
-  cli/           # `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
+  server/        # `inteligir <vault>`: boot host, serve app over loopback HTTP+WS, open the browser (@repo/server)
 packages/        # libraries
   app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
   core/          # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
   host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
-  server/        # Loopback HTTP+WS host: folds the registry over WS, serves the app build (@repo/server)
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
@@ -44,10 +43,10 @@ packages/        # libraries
 
 The product runs two ways over the same `@repo/host` backend + `@repo/app` UI:
 the **Electron desktop** app (`pnpm dev:desktop`) and the **browser** via the
-cli (`pnpm --filter @repo/cli exec tsx src/main.ts <vault> [--port N] [--no-open]`,
-or the `inteligir` bin post-build). The cli boots `@repo/server` (loopback-only
-HTTP+WS; the bind address + Host/Origin allowlists are the auth gate — no
-accounts) and opens `http://127.0.0.1:<port>`.
+`@repo/server` app (`pnpm --filter @repo/server exec tsx src/main.ts <vault> [--port N] [--no-open]`,
+or the `inteligir` bin post-build). It boots `@repo/host` and folds it over a
+loopback-only HTTP+WS bridge (the bind address + Host/Origin allowlists are the
+auth gate — no accounts), then opens `http://127.0.0.1:<port>`.
 
 ## Common Commands
 

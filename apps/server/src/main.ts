@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // inteligir [vault-path] — boot the local host + server and open the app in
 // the default browser. The vault defaults to the current directory; loopback
-// is the auth gate (see @repo/server/create-server).
+// is the auth gate (see ./create-server).
 // ---------------------------------------------------------------------------
 
 import fs from "node:fs";
@@ -11,8 +11,8 @@ import { parseArgs } from "node:util";
 import open from "open";
 
 import { createHost } from "@repo/host/create-host";
-import { createServer } from "@repo/server/create-server";
 
+import { createServer } from "./create-server";
 import { createServerPlatform } from "./server-platform";
 
 const HELP = `inteligir — your vault, in a browser

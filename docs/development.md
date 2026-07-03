@@ -26,20 +26,21 @@ a canned reply; the AI surface returns canned intents/completions; voice and
 executor report unavailable. Edits persist until reload. Use this for all UI
 and editor work — it needs no auth, no vault, no Electron.
 
-### 2. Browser via the cli — real backend (the `npx` path)
+### 2. Browser via the server app — real backend (the `npx` path)
 
 ```bash
 pnpm --filter @repo/app build      # produces packages/app/dist-web
-pnpm --filter @repo/cli exec tsx src/main.ts <vault-path> [--port N] [--no-open]
+pnpm --filter @repo/server exec tsx src/main.ts <vault-path> [--port N] [--no-open]
 ```
 
-Boots `@repo/host` (real vault, real pi agent, delegation, knowledge indexes)
-behind `@repo/server` (loopback-only HTTP+WS) and serves the app build at
-`http://127.0.0.1:<port>`. pi auth (OpenAI OAuth) is on-device; if this
-machine is logged in, chat/AI/delegation are fully live.
+`apps/server` boots `@repo/host` (real vault, real pi agent, delegation,
+knowledge indexes), folds it over a loopback-only HTTP+WS bridge
+(`src/create-server.ts`), and serves the app build at `http://127.0.0.1:<port>`.
+pi auth (OpenAI OAuth) is on-device; if this machine is logged in,
+chat/AI/delegation are fully live.
 
 - Rebuilding `dist-web` while the server runs 404s the new hashed assets —
-  restart the cli after an app rebuild (#378).
+  restart the server after an app rebuild (#378).
 - The vault path is created if missing; `~/.inteligir` is refused.
 
 ### 3. Electron desktop
@@ -50,7 +51,7 @@ pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 
 Same host + app, wrapped in `apps/desktop` (thin shell: window/menu/
 updater + the IPC Bridge fold). Uses the last-opened vault from `~/.inteligir`
-(shared with the cli host — the open note and settings carry across hosts).
+(shared with the server host — the open note and settings carry across hosts).
 
 ## Ports & shared state
 
@@ -59,12 +60,12 @@ updater + the IPC Bridge fold). Uses the last-opened vault from `~/.inteligir`
 | App dev harness (vite)                                                    | 5173 (auto-increments)                                                    |
 | Electron CDP debugging                                                    | 9222                                                                      |
 | Executor daemon                                                           | 47888                                                                     |
-| cli server                                                                | `--port N` or a free port                                                 |
+| server app (`apps/server`)                                                | `--port N` or a free port                                                 |
 | App state (auth, sessions, ui-state, delegations, snapshots, `host.lock`) | `~/.inteligir`                                                            |
-| Voice model (~140 MB, shared by desktop + cli)                            | per-OS user-data dir (`~/Library/Application Support/Inteligir` on macOS) |
+| Voice model (~140 MB, shared by desktop + server)                         | per-OS user-data dir (`~/Library/Application Support/Inteligir` on macOS) |
 
 **Only one real host at a time**: `~/.inteligir/host.lock` is a pidfile — a
-second host (e.g. cli while Electron runs) refuses to start. Stale locks from
+second host (e.g. the server app while Electron runs) refuses to start. Stale locks from
 dead pids are reclaimed automatically. Kill leftovers between runs: anything
 holding 9222/47888 blocks the next `pnpm dev:desktop`.
 

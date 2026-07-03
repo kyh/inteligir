@@ -131,9 +131,11 @@ folds the same registry into WS request/response and satisfies the identical
 ## 3. Target package graph
 
 > **Layout note (2026-07):** the shippable artifacts later moved to `apps/` —
-> `packages/desktop` → `apps/desktop`, `packages/cli` → `apps/cli`
-> (apps/ = shippable artifacts, packages/ = libraries). Package names are
-> unchanged; paths in this document reflect the layout at the time of writing.
+> `packages/desktop` → `apps/desktop`, `packages/cli` → `apps/server`
+> (apps/ = shippable artifacts, packages/ = libraries). The former
+> `packages/server` (loopback HTTP+WS transport) was folded into that single
+> `apps/server` app — its only consumer — as `src/create-server.ts`. Paths in
+> this document reflect the layout at the time of writing.
 
 | Package            | Contents                                                                                                                                                                                             | Comes from                                                                                  |
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |

@@ -20,7 +20,7 @@ web/                       browser build entry — WS bridge against the serving
 ## The three entries
 
 - **Dev harness** (`pnpm --filter @repo/app dev`, vite on :5173): `dev/main.tsx` installs `dev/fixture-bridge.ts` — an in-memory vault seeded with sample notes running the **real knowledge engine** (`@repo/core/knowledge`); agent chat streams a canned reply, voice/executor report unavailable. Edits persist until reload. No auth, no backend — the fastest loop for UI and editor work. The fixture is typed `: Bridge`, so a new registry channel fails typecheck here until covered.
-- **Web build** (`pnpm --filter @repo/app build` → `dist-web/`, non-default outDir wired in `vite.web.config.ts` + turbo): `web/main.tsx` installs `createWsBridge` (`@repo/core/bridge-ws-client`) against the origin that served the page, plus a connection-lost overlay. `@repo/server`/the cli resolve `dist-web/` at runtime via the package.
+- **Web build** (`pnpm --filter @repo/app build` → `dist-web/`, non-default outDir wired in `vite.web.config.ts` + turbo): `web/main.tsx` installs `createWsBridge` (`@repo/core/bridge-ws-client`) against the origin that served the page, plus a connection-lost overlay. the `@repo/server` app resolves `dist-web/` at runtime via the package.
 - **Electron renderer**: the desktop shell's shim (`apps/desktop/src/renderer/main.tsx`) installs `window.desktopBridge` and renders `App` — this package is source-consumed (every host aliases `@repo/app` to `./src`; there is no exports map by design).
 
 ## Editor — byte stability

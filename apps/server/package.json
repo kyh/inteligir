@@ -2,20 +2,24 @@
   "name": "@repo/server",
   "version": "0.1.0",
   "private": true,
-  "description": "Local HTTP + WebSocket host for Inteligir: serves the @repo/app static build and folds a @repo/host handler map into the bridge-wire protocol. Loopback-only by design — the bind address is the auth gate for a single local user.",
-  "type": "module",
-  "exports": {
-    "./*": "./src/*.ts"
+  "description": "inteligir — pick a vault, boot a local @repo/host, serve @repo/app over a loopback HTTP+WS bridge, and open the browser. The bind address plus Host/Origin allowlists are the auth gate. Pre-publish the bin runs the workspace TS sources through tsx; Phase 7 ships a compiled dist to npm.",
+  "bin": {
+    "inteligir": "./bin/inteligir.js"
   },
+  "type": "module",
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "dev": "tsx src/main.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
+    "@repo/app": "workspace:^",
     "@repo/core": "workspace:^",
     "@repo/host": "workspace:^",
+    "open": "^11.0.0",
     "sirv": "^3.0.2",
+    "tsx": "^4.21.1",
     "ws": "^8.19.0"
   },
   "devDependencies": {
