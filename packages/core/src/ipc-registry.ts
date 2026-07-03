@@ -9,8 +9,6 @@
 
 import { type Static, type TSchema, Type } from "@sinclair/typebox";
 
-import type { PiAgentSkill } from "@repo/pi-driver/skills";
-
 import type { AppAgentEvent } from "./agent-events";
 import { AppEventSchema, type AppState } from "./app-state";
 import {
@@ -137,7 +135,18 @@ export type IntegrationInfo = {
   installed: string | null;
 };
 
-export type SkillInfo = PiAgentSkill;
+/** Plain projection of pi's `Skill` so callers can serialize it over IPC. */
+export type SkillInfo = {
+  name: string;
+  description: string;
+  /** Where the skill came from, e.g. "user", "project", or a package name. */
+  source: string;
+  /** "user" (<agentDir>/skills) or "project" (<cwd>/.pi/skills). */
+  scope: string;
+  filePath: string;
+  /** True when the skill is invoke-only (excluded from the model's prompt). */
+  disableModelInvocation: boolean;
+};
 
 export type SkillsList = {
   skills: SkillInfo[];
