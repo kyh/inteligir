@@ -123,30 +123,33 @@ The portable UI (@repo/app) consumes an injected `Bridge`
 runs standalone in a plain browser via `pnpm --filter @repo/app dev` (a vite
 harness with an in-memory fixture Bridge in `dev/` that runs the real knowledge
 engine over sample notes). `workspace/workspace-page.tsx` is the only surface:
-**Sidebar (file tree) | tabbed Editor | BottomComposer** (chat pinned bottom —
-no side chat panel), settings behind a dialog; backlinks collapse under the
-editor column; the graph view (lazy d3-force canvas) and full-text search live
-in the command palette.
+**Sidebar (file tree) | single-document Editor | BottomComposer** (chat pinned
+bottom — no side chat panel, no tabs: opening a note replaces the open one),
+settings behind a dialog; backlinks collapse under the editor column; a
+right-edge TOC minimap expands on hover; the graph view (lazy d3-force canvas)
+and full-text search live in the command palette.
 
-- `workspace/vault-context.tsx` — a `VaultProvider` owning one editor
-  controller/autosave/vanish-watcher **per open tab** (`workspace/tab-session.ts`
-  is the pure tab model; session persists in ui-state), the file listing, and
-  all vault actions. Sidebar + editor + composer consume `useVault()`.
+- `workspace/vault-context.tsx` — a `VaultProvider` owning ONE editor
+  controller/autosave/vanish-watcher for the open note (`openPath`, persisted
+  in ui-state under `workspace.openNote`), the file listing, and all vault
+  actions. Sidebar + editor + composer consume `useVault()`.
 - `editor/markdown/` is the byte-stability brain: it owns the unified parse
-  (remark-gfm + math + MDX vocabulary + wiki-links + frontmatter) and the
-  canonical gate — round-trip is normalizing but **idempotent** (bounded
-  fixpoint), so a _canonical_ file (`roundTrip(raw) === raw`) re-serializes to
-  a minimal diff. Rich for canonical files; Raw (byte-exact) + one-click
-  **Format** for the rest. Every node type lives in `editor/kits/*` as a Base
-  (headless) + React pair; `base-kit.ts` composes the Base halves for the
-  headless serializer mirror — kit-parity tests make drift impossible. The
-  round-trip fixture matrix under `src/__tests__/fixtures/` is byte-pinned
-  (oxfmt ignores it — formatting fixtures is corruption).
+  (remark-gfm + math + MDX vocabulary + wiki-links + frontmatter) with an
+  idempotent round-trip (bounded fixpoint). **Rich is the default surface**:
+  any file that parses within the vocabulary opens Rich and normalizes on the
+  first real edit; only unrepresentable content (unknown JSX, parse errors)
+  opens Raw (byte-exact) with the badge. Every node type lives in
+  `editor/kits/*` as a Base (headless) + React pair; `base-kit.ts` composes
+  the Base halves for the headless serializer mirror — kit-parity tests make
+  drift impossible. The round-trip fixture matrix under
+  `src/__tests__/fixtures/` is byte-pinned (oxfmt ignores it — formatting
+  fixtures is corruption).
 - **Editor AI** (pi-backed, transient-only — AI state never reaches disk):
-  selection-toolbar actions + AI menu with host-side intent classification
-  (generate streams under an `ai` mark; edit lands as accept/reject
-  suggestions), and opt-in ghost-text completions on a fast model
-  (Settings › Editor AI).
+  ⌘J AI menu (cursor vs selection command sets + Translate page, host-side
+  intent classification for free-form prompts; generate streams under an `ai`
+  mark; edit lands as accept/reject suggestions), reachable from the selection
+  toolbar, slash menu, block menu, and space-in-empty-paragraph; ghost-text
+  completions on a fast model, on by default (Settings › Editor AI opts out).
 
 ### Delegation — `packages/host/src/delegation/`
 

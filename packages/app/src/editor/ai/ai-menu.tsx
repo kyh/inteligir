@@ -11,11 +11,13 @@ import {
   ArrowUpIcon,
   CheckIcon,
   CornerUpLeftIcon,
+  LanguagesIcon,
   Loader2Icon,
   SparklesIcon,
   SquareIcon,
   XIcon,
 } from "lucide-react";
+import { RangeApi } from "platejs";
 import { useEditorRef, usePluginOption } from "platejs/react";
 
 import { cn } from "@repo/ui/lib/utils";
@@ -31,10 +33,11 @@ import {
   dismissAiError,
   retryLastRun,
   runCannedAction,
+  runTranslate,
   submitAiPrompt,
+  TRANSLATE_LANGUAGES,
   type AiMenuStatus,
 } from "@repo/app/editor/ai/ai-session";
-import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 
 type MenuItem = {
   key: string;
@@ -55,19 +58,26 @@ export function AiMenu() {
   const status = usePluginOption(AiSessionPlugin, "status");
   const anchor = usePluginOption(AiSessionPlugin, "anchor");
   const error = usePluginOption(AiSessionPlugin, "error");
+  const savedSelection = usePluginOption(AiSessionPlugin, "savedSelection");
+  // Potion's command-set split: selected text offers the edit set
+  // (improve/longer/shorter/…), a bare caret offers the generate set.
+  const hasSelection = savedSelection !== null && RangeApi.isExpanded(savedSelection);
 
   const [input, setInput] = React.useState("");
   const [highlight, setHighlight] = React.useState(0);
   // Arrow keys arm item-selection; typing re-arms free-form submit.
   const [navigated, setNavigated] = React.useState(false);
+  // Two-page menu: Translate opens a flat language list (Base UI nested
+  // submenus misbehave here — see block-menu.tsx).
+  const [page, setPage] = React.useState<"root" | "translate">("root");
   const inputRef = React.useRef<HTMLInputElement>(null);
-  // The popover PORTALS to <body>, escaping a hidden pane's display:none —
-  // a background tab's session (its pane stays mounted, #369) must not
-  // float its menu over the active tab. The session itself survives the
-  // hide (plugin state + streamed blocks live in the editor); the popover
-  // just re-presents when the pane is active again.
-  const paneActive = useEditorPane()?.active ?? true;
-  const open = status !== "closed" && paneActive;
+  const open = status !== "closed";
+
+  const resetList = () => {
+    setInput("");
+    setHighlight(0);
+    setNavigated(false);
+  };
 
   // Fresh prompt every time the menu opens; re-focus after busy states end.
   React.useEffect(() => {
@@ -75,6 +85,7 @@ export function AiMenu() {
       setInput("");
       setHighlight(0);
       setNavigated(false);
+      setPage("root");
     }
   }, [open]);
   React.useEffect(() => {
@@ -107,23 +118,56 @@ export function AiMenu() {
       ];
     }
     if (status !== "input") return [];
-    return CANNED_ACTIONS.filter(
-      (action) =>
-        input.length === 0 || [action.label, ...action.keywords].some((k) => filterWords(k, input)),
-    ).map((action) => ({
-      key: action.id,
-      label: action.label,
-      icon: <SparklesIcon />,
-      keywords: action.keywords,
-      run: () => runCannedAction(editor, action.id),
-    }));
-  }, [status, input, editor]);
+    if (page === "translate") {
+      return TRANSLATE_LANGUAGES.filter(
+        (lang) => input.length === 0 || filterWords(lang, input),
+      ).map((lang) => ({
+        key: `translate-${lang}`,
+        label: lang,
+        icon: <LanguagesIcon />,
+        run: () => runTranslate(editor, lang),
+      }));
+    }
+    const scoped = CANNED_ACTIONS.filter(
+      (action) => action.scope === (hasSelection ? "selection" : "cursor"),
+    );
+    const items: MenuItem[] = scoped
+      .filter(
+        (action) =>
+          input.length === 0 ||
+          [action.label, ...action.keywords].some((k) => filterWords(k, input)),
+      )
+      .map((action) => ({
+        key: action.id,
+        label: action.label,
+        icon: <SparklesIcon />,
+        keywords: action.keywords,
+        run: () => runCannedAction(editor, action.id),
+      }));
+    if (
+      hasSelection &&
+      (input.length === 0 || ["Translate", "language"].some((k) => filterWords(k, input)))
+    ) {
+      items.push({
+        key: "translate",
+        label: "Translate",
+        icon: <LanguagesIcon />,
+        run: () => {
+          setPage("translate");
+          resetList();
+        },
+      });
+    }
+    return items;
+  }, [status, input, editor, page, hasSelection]);
 
   const clampedHighlight = Math.min(highlight, Math.max(items.length - 1, 0));
   const busyLabel = BUSY_LABEL[status];
 
   const submit = () => {
     const item = items[clampedHighlight];
+    // The language page only runs list items — typed text just filters.
+    if (page === "translate") return item?.run();
     // Arrow-navigation arms the highlighted item; otherwise typed text is a
     // free-form prompt, and a bare Enter runs the highlighted item.
     if (navigated && item) return item.run();
@@ -138,7 +182,10 @@ export function AiMenu() {
       if (busyLabel) cancelActiveRun(editor);
       else if (status === "review") discardGenerate(editor);
       else if (status === "error") dismissAiError(editor);
-      else closeAiMenu(editor);
+      else if (page === "translate") {
+        setPage("root");
+        resetList();
+      } else closeAiMenu(editor);
       return;
     }
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
@@ -156,7 +203,10 @@ export function AiMenu() {
     }
     if (event.key === "Backspace" && input.length === 0 && status === "input") {
       event.preventDefault();
-      closeAiMenu(editor);
+      if (page === "translate") {
+        setPage("root");
+        resetList();
+      } else closeAiMenu(editor);
     }
   };
 
@@ -226,7 +276,11 @@ export function AiMenu() {
                   setNavigated(false);
                 }}
                 placeholder={
-                  status === "review" ? "Tell the AI what to change…" : "Ask AI anything…"
+                  page === "translate"
+                    ? "Translate to…"
+                    : status === "review"
+                      ? "Tell the AI what to change…"
+                      : "Ask AI anything…"
                 }
                 className="h-7 grow bg-transparent text-sm outline-none placeholder:text-muted-foreground"
               />

@@ -5,12 +5,15 @@
 // the cva wrappers collapse to plain class strings) and mapped onto fluid
 // tokens (brand → primary; the token table lives in the Phase E spec §4.3).
 //
-// Column geometry differs from potion by design: the pane wrapper
-// (editor-pane.tsx) owns the centered ~700px column, the horizontal padding
-// AND the pb-72 breathing room, because the filename-title <h1> and the Raw
-// textarea must share the exact column with the rich body — PlateContent gets
-// neither. The workspace <main> is the scroll container (toc.tsx depends on
-// that), so the container deliberately adds no overflow-y-auto.
+// Column geometry follows potion: PlateContent itself carries the centered
+// ~700px column padding (EDITOR_COLUMN_PX) so the block-drag hover gutter —
+// absolutely positioned at -left-11 inside each block — lands INSIDE the
+// editable's padding box and survives its overflow-x-hidden clip. The
+// filename-title <h1>, the Raw textarea, and the backlinks section apply the
+// same constant so all four surfaces share byte-exact column geometry (the
+// pane wrapper owns only the vertical padding). The workspace <main> is the
+// scroll container (toc.tsx depends on that), so the container deliberately
+// adds no overflow-y-auto.
 
 import type { HTMLAttributes } from "react";
 import { PlateContainer, PlateContent, type PlateContentProps } from "platejs/react";
@@ -21,13 +24,20 @@ import { cn } from "@repo/ui/lib/utils";
 // `ignore-click-outside/toolbar` keeps clicks inside the editor from closing
 // the floating toolbar (@platejs/floating's clickOutside ignore class).
 const CONTAINER_CLASS =
-  "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-primary/20 focus-visible:outline-none [&_.slate-selection-area]:bg-primary/15";
+  "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-focus-ring/25 focus-visible:outline-none [&_.slate-selection-area]:bg-focus-ring/15";
+
+/** The centered ~700px text column (symmetric padding, not max-w). Shared by
+ * PlateContent, the page-title <h1>, the Raw textarea, and the backlinks
+ * section so they can't drift apart. 48px min padding keeps the -left-11
+ * (44px) drag gutter inside the editable's clip with a 4px reveal. */
+export const EDITOR_COLUMN_PX = "px-12 sm:px-[max(48px,calc(50%-350px))]";
 
 const EDITOR_CLASS = cn(
-  "group/editor potion-editor-typography relative w-full overflow-x-hidden break-words whitespace-pre-wrap",
+  "group/editor relative w-full overflow-x-hidden break-words whitespace-pre-wrap",
+  EDITOR_COLUMN_PX,
   "min-h-full pt-4 text-base focus-visible:outline-none",
-  "placeholder:text-muted-foreground/60",
-  "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/60 **:data-slate-placeholder:opacity-100!",
+  "placeholder:text-muted-foreground/80",
+  "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/80 **:data-slate-placeholder:opacity-100!",
   "[&_strong]:font-semibold",
 );
 

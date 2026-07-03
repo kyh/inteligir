@@ -50,7 +50,7 @@ pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 
 Same host + app, wrapped in `apps/desktop` (thin shell: window/menu/
 updater + the IPC Bridge fold). Uses the last-opened vault from `~/.inteligir`
-(shared with the cli host — tabs and settings carry across hosts).
+(shared with the cli host — the open note and settings carry across hosts).
 
 ## Ports & shared state
 
@@ -123,7 +123,7 @@ canonical/idempotent behavior.
 ## Tests
 
 - `pnpm --filter @repo/app test` — editor pipeline (round-trip matrix,
-  adversarial harness, kit parity, corpus classification), tabs, combobox,
+  adversarial harness, kit parity, corpus classification), combobox,
   knowledge fixtures.
 - `pnpm --filter @repo/host test` — vault, delegation (+snapshots), knowledge
   manager, handlers, secrets.

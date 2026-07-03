@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["gh", "tar", "ps", "tasklist"],
+  "ignoreBinaries": ["gh", "tar", "ps", "tasklist", "xcrun", "spctl"],
   "workspaces": {
     ".": {},
     "apps/desktop": {
@@ -27,9 +27,9 @@
     "apps/web": {
       "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
       "project": ["src/**/*.{ts,tsx}"],
-      // @fontsource-variable/inter + tailwindcss are referenced only from
-      // globals.css (@import), which knip doesn't parse.
-      "ignoreDependencies": ["@fontsource-variable/inter", "tailwindcss"]
+      // tailwindcss is referenced only from globals.css (@import), which knip
+      // doesn't parse.
+      "ignoreDependencies": ["tailwindcss"]
     },
     "packages/agent-runtime": {
       "includeEntryExports": true

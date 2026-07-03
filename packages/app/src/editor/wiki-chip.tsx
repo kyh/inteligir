@@ -1,6 +1,6 @@
 // The live wiki-link chip: resolves its target against the vault listing and
-// navigates on click (Cmd/Ctrl-click opens a new tab). Unresolved targets are
-// visually distinct (dashed) and clicking offers to create the note.
+// navigates on click. Unresolved targets are visually distinct (dashed) and
+// clicking offers to create the note.
 //
 // Loaded via React.lazy from wiki-link-kit: this module reaches into
 // vault-context (and through it the markdown pipeline and base-kit), so an
@@ -43,7 +43,7 @@ export default function WikiChip({ body }: { body: string }) {
     e.preventDefault();
     if (parsed.target === "") return;
     if (resolved !== null) {
-      openFile(resolved, { newTab: e.metaKey || e.ctrlKey });
+      openFile(resolved);
       return;
     }
     setCreateOpen(true);

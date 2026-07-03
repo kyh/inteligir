@@ -34,7 +34,6 @@ import {
   reconcileInsertionCaret,
   type ComboboxCancelCause,
 } from "@repo/app/editor/combobox-input";
-import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 
 type FilterItem = {
   value: string;
@@ -197,16 +196,6 @@ function InlineCombobox({
     if (previousSelected.current && !selected) cancel("deselect");
     previousSelected.current = selected;
   }, [selected, cancel]);
-
-  // Switching tabs hides this pane WITHOUT unmounting it (#369) and doesn't
-  // move the Slate selection, so the deselect path above never fires — but
-  // the popup portals to <body> (it would float over the next tab) and the
-  // trigger element must not linger in a hidden document. Same restore
-  // semantics as clicking elsewhere.
-  const paneActive = useEditorPane()?.active ?? true;
-  React.useEffect(() => {
-    if (!paneActive) cancel("deselect");
-  }, [paneActive, cancel]);
 
   const onKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {

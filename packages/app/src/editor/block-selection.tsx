@@ -20,7 +20,7 @@ export function BlockSelection({ pluginKey }: { pluginKey: string }) {
     <span
       className={cn(
         'pointer-events-none absolute inset-0 z-1 block size-full rounded-[4px] content-[""]',
-        "bg-primary/15 transition-opacity duration-200",
+        "bg-focus-ring/15 transition-opacity duration-200",
       )}
       data-slot="block-selection"
     />

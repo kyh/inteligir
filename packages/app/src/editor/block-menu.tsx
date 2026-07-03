@@ -8,11 +8,11 @@
 // SubmenuRoot inside this controlled virtual-anchor menu closes the root with
 // reason "sibling-open" (parent/child floating-tree linkage doesn't form);
 // revisit if upstream fixes the nesting. Omitted: copy-link-to-block
-// (markdown files have no block-anchor concept) and Ask-AI (Phase F slot).
+// (markdown files have no block-anchor concept).
 
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import { BlockMenuPlugin, BlockSelectionPlugin } from "@platejs/selection/react";
-import { ArrowDownIcon, ArrowUpIcon, CopyIcon, Trash2Icon } from "lucide-react";
+import { ArrowDownIcon, ArrowUpIcon, CopyIcon, SparklesIcon, Trash2Icon } from "lucide-react";
 import type { Path } from "platejs";
 import { useEditorPlugin, usePluginOption } from "platejs/react";
 
@@ -25,22 +25,13 @@ import {
   MenuSeparator,
 } from "@repo/ui/components/menu";
 
+import { openAiMenu } from "@repo/app/editor/ai/ai-session";
 import { TURN_INTO, moveBlocks, turnIntoBlocks } from "@repo/app/editor/block-transforms";
-import { useEditorPane } from "@repo/app/editor/editor-pane-context";
 
 export function BlockMenu() {
   const { api, editor } = useEditorPlugin(BlockMenuPlugin);
   const openId = usePluginOption(BlockMenuPlugin, "openId");
   const position = usePluginOption(BlockMenuPlugin, "position");
-
-  // Switching tabs hides this pane WITHOUT unmounting it (#369), and the
-  // MenuContent PORTALS to <body> — left open it would float over the next
-  // tab and its items would edit the hidden document. Hide on deactivate;
-  // the stale anchor position is meaningless after a switch anyway.
-  const paneActive = useEditorPane()?.active ?? true;
-  useEffect(() => {
-    if (!paneActive) api.blockMenu.hide();
-  }, [paneActive, api]);
 
   const anchor = useMemo(() => {
     const { x, y } = position;
@@ -57,9 +48,31 @@ export function BlockMenu() {
 
   const blockTf = editor.getTransforms(BlockSelectionPlugin).blockSelection;
 
+  // Ask AI targets the block-selection span: select it as a real editor
+  // range (openAiMenu anchors under the range's end and the edit flow reads
+  // editTargetPaths from it), clear the block selection so the selection
+  // toolbar's isSelectingSome gate doesn't fight the menu, and defer past
+  // Base UI's close/focus-return (same timing workaround as potion).
+  const askAi = () => {
+    const paths = selectedPaths();
+    api.blockMenu.hide();
+    setTimeout(() => {
+      const first = paths[0];
+      const last = paths.at(-1);
+      if (!first || !last) return;
+      const anchorPoint = editor.api.start(first);
+      const focusPoint = editor.api.end(last);
+      if (!anchorPoint || !focusPoint) return;
+      editor.tf.focus();
+      editor.tf.select({ anchor: anchorPoint, focus: focusPoint });
+      editor.getApi(BlockSelectionPlugin).blockSelection.clear();
+      openAiMenu(editor);
+    }, 0);
+  };
+
   return (
     <Menu
-      open={openId !== null && paneActive}
+      open={openId !== null}
       onOpenChange={(open) => {
         if (!open) api.blockMenu.hide();
       }}
@@ -70,6 +83,12 @@ export function BlockMenu() {
         align="start"
         className="max-h-[70vh] min-w-[200px]"
       >
+        <MenuItem onClick={askAi}>
+          <SparklesIcon />
+          Ask AI
+          <span className="ml-auto text-xs text-muted-foreground">⌘J</span>
+        </MenuItem>
+        <MenuSeparator />
         <MenuItem onClick={() => blockTf.duplicate()}>
           <CopyIcon />
           Duplicate

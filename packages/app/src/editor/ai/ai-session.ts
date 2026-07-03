@@ -14,7 +14,15 @@
 // Free-form prompts are classified host-side (generate on any failure);
 // canned actions carry a fixed intent.
 
-import { isHotkey, RangeApi, type Path, type PluginConfig, type TRange } from "platejs";
+import {
+  isHotkey,
+  KEYS,
+  NodeApi,
+  RangeApi,
+  type Path,
+  type PluginConfig,
+  type TRange,
+} from "platejs";
 import { createTPlatePlugin, type PlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
@@ -62,6 +70,33 @@ export const AiSessionPlugin = createTPlatePlugin<PluginConfig<"aiSession", AiSe
       if (isHotkey("mod+j", event)) {
         event.preventDefault();
         openAiMenu(editor);
+        return;
+      }
+      // Potion behavior: a plain space in an empty paragraph opens the AI
+      // menu. Plain paragraphs only — list items are `p` nodes wearing
+      // listStyleType, and an empty bullet's space is more plausibly typing.
+      // Autoformat rules all require preceding text, so nothing is stolen.
+      if (
+        event.key === " " &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.nativeEvent.isComposing &&
+        editor.getOption(AiSessionPlugin, "status") === "closed"
+      ) {
+        const sel = editor.selection;
+        if (sel && RangeApi.isCollapsed(sel)) {
+          const block = editor.api.block();
+          if (
+            block &&
+            block[0].type === KEYS.p &&
+            !("listStyleType" in block[0]) &&
+            NodeApi.string(block[0]).length === 0
+          ) {
+            event.preventDefault();
+            openAiMenu(editor);
+          }
+        }
       }
     },
   },
@@ -76,29 +111,92 @@ export type CannedActionId =
   | "summarize"
   | "explain"
   | "improve"
+  | "longer"
   | "shorter"
-  | "grammar";
+  | "grammar"
+  | "simplify";
 
 export type CannedAction = {
   id: CannedActionId;
   label: string;
   intent: "generate" | "edit";
+  /** Which command set offers the action (potion's split): `cursor` when the
+   * captured selection is collapsed, `selection` when text is selected. */
+  scope: "cursor" | "selection";
   keywords: string[];
 };
 
 export const CANNED_ACTIONS: CannedAction[] = [
-  { id: "continue", label: "Continue writing", intent: "generate", keywords: ["write", "more"] },
-  { id: "summarize", label: "Summarize", intent: "generate", keywords: ["tldr", "summary"] },
-  { id: "explain", label: "Explain", intent: "generate", keywords: ["what", "meaning"] },
-  { id: "improve", label: "Improve writing", intent: "edit", keywords: ["rewrite", "better"] },
-  { id: "shorter", label: "Make shorter", intent: "edit", keywords: ["concise", "shorten"] },
+  {
+    id: "continue",
+    label: "Continue writing",
+    intent: "generate",
+    scope: "cursor",
+    keywords: ["write", "more"],
+  },
+  {
+    id: "summarize",
+    label: "Summarize",
+    intent: "generate",
+    scope: "cursor",
+    keywords: ["tldr", "summary"],
+  },
+  {
+    id: "explain",
+    label: "Explain",
+    intent: "generate",
+    scope: "cursor",
+    keywords: ["what", "meaning"],
+  },
+  {
+    id: "improve",
+    label: "Improve writing",
+    intent: "edit",
+    scope: "selection",
+    keywords: ["rewrite", "better"],
+  },
+  {
+    id: "longer",
+    label: "Make longer",
+    intent: "edit",
+    scope: "selection",
+    keywords: ["expand", "elaborate"],
+  },
+  {
+    id: "shorter",
+    label: "Make shorter",
+    intent: "edit",
+    scope: "selection",
+    keywords: ["concise", "shorten"],
+  },
   {
     id: "grammar",
     label: "Fix spelling & grammar",
     intent: "edit",
+    scope: "selection",
     keywords: ["spelling", "typo"],
   },
+  {
+    id: "simplify",
+    label: "Simplify language",
+    intent: "edit",
+    scope: "selection",
+    keywords: ["plain", "simple"],
+  },
 ];
+
+/** Translate targets offered on the AI menu's language page — a pragmatic
+ * subset (free-form prompts cover the rest). */
+export const TRANSLATE_LANGUAGES = [
+  "English",
+  "Spanish",
+  "French",
+  "German",
+  "Portuguese",
+  "Japanese",
+  "Korean",
+  "Chinese (Simplified)",
+] as const;
 
 const PROMPT_BASE =
   "You are a writing assistant inside a notes editor. Respond with ONLY the resulting text — no preamble, no surrounding quotes, no markdown code fences, no explanation.";
@@ -124,10 +222,14 @@ function editInstructionFor(action: CannedActionId | null, request: string): str
   switch (action) {
     case "improve":
       return "Improve the writing for clarity and flow, keeping the meaning and the markdown structure.";
+    case "longer":
+      return "Make the content longer by elaborating on the existing ideas, without changing meaning or adding new information. Keep the markdown structure.";
     case "shorter":
       return "Make the content more concise, keeping the meaning and the markdown structure.";
     case "grammar":
       return "Fix spelling, grammar, and punctuation only. Do not change meaning, tone, or structure.";
+    case "simplify":
+      return "Simplify the language using clearer, more straightforward wording, without changing meaning. Keep the markdown structure.";
     default:
       return request;
   }
@@ -164,13 +266,25 @@ let lastRun: LastRun | null = null;
 let undoDepth = 0;
 let streamOff: (() => void) | null = null;
 let activeRequestId: string | null = null;
-// The editor whose session owns the module-level bookkeeping above. Every
-// open tab keeps its editor mounted (#369), so "one session at a time" needs
-// enforcing rather than assuming: opening the menu on another editor CLOSES
-// the owner's session first (cancel/unwind — the same teardown the user
-// closing that menu would run), or the two runs would corrupt each other's
-// tokens and leave the first editor stuck "generating" forever.
-let sessionOwner: PlateEditor | null = null;
+
+/**
+ * Release the module-level session bookkeeping when the (single) editor
+ * unmounts — the note switched or the surface changed. Stops the stream,
+ * aborts the host-side run, and invalidates the token so a late response
+ * can't touch a dead editor. Deliberately NO editor mutations: the streamed
+ * ai-marked content dies with the editor (autosave froze during the run, so
+ * disk never saw it).
+ */
+export function releaseAiSession(): void {
+  runToken += 1;
+  streamOff?.();
+  streamOff = null;
+  if (activeRequestId !== null) {
+    void getBridge()?.cancelInlineAi({ requestId: activeRequestId });
+    activeRequestId = null;
+  }
+  lastRun = null;
+}
 
 function setOptions(editor: PlateEditor, patch: Partial<AiSessionOptions>): void {
   editor.setOptions(AiSessionPlugin, patch);
@@ -187,7 +301,6 @@ function savedSelection(editor: PlateEditor): TRange | null {
 /** Open the AI menu anchored under the block holding the selection's end. */
 export function openAiMenu(editor: PlateEditor): void {
   if (editor.getOption(AiSessionPlugin, "status") !== "closed") return;
-  if (sessionOwner !== null && sessionOwner !== editor) closeAiMenu(sessionOwner);
   const sel = editor.selection;
   if (!sel) return;
   const blockIndex = RangeApi.end(sel).path[0];
@@ -197,7 +310,6 @@ export function openAiMenu(editor: PlateEditor): void {
   const anchor = editor.api.toDOMNode(entry[0]);
   if (!anchor) return;
   setOptions(editor, { status: "input", anchor, savedSelection: sel, error: null });
-  sessionOwner = editor;
 }
 
 /**
@@ -218,7 +330,6 @@ export function closeAiMenu(editor: PlateEditor): void {
   const sel = savedSelection(editor);
   setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
   lastRun = null;
-  if (sessionOwner === editor) sessionOwner = null;
   if (sel) editor.tf.select(sel);
   editor.tf.focus();
 }
@@ -277,6 +388,14 @@ export function runCannedAction(editor: PlateEditor, id: CannedActionId): void {
   lastRun = { kind: "canned", action: id };
   if (action.intent === "edit") startEdit(editor, editInstructionFor(id, ""));
   else startGenerate(editor, id, "");
+}
+
+/** Translate the selection's blocks — the AI menu's language page. Recorded
+ * as a prompt lastRun so "Try again" re-runs it. */
+export function runTranslate(editor: PlateEditor, language: string): void {
+  const instruction = `Translate the content to ${language}, keeping the markdown structure and formatting.`;
+  lastRun = { kind: "prompt", text: instruction, intent: "edit" };
+  startEdit(editor, instruction);
 }
 
 /** Discard the current pending output (if any) and re-run the last request. */
@@ -357,7 +476,6 @@ export function acceptGenerate(editor: PlateEditor): void {
   setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
   lastRun = null;
   runToken += 1;
-  if (sessionOwner === editor) sessionOwner = null;
   if (at) editor.tf.select(at);
   editor.tf.focus();
 }
@@ -437,7 +555,6 @@ function startEdit(editor: PlateEditor, instruction: string): void {
       runToken += 1;
       setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
       lastRun = null;
-      if (sessionOwner === editor) sessionOwner = null;
       editor.tf.focus();
       return undefined;
     })

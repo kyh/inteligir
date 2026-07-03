@@ -41,7 +41,10 @@ export function TableElement(props: PlateElementProps) {
   };
 
   return (
-    <div className="group/table relative my-3 w-fit">
+    // max-w-full + the inner overflow-x-auto: a wide table scrolls inside its
+    // own block instead of being clipped by the editable's overflow-x-hidden
+    // (the hover affordances stay outside the scroll container).
+    <div className="group/table relative my-3 w-fit max-w-full">
       <button
         type="button"
         contentEditable={false}
@@ -67,9 +70,11 @@ export function TableElement(props: PlateElementProps) {
           </MenuItem>
         </MenuContent>
       </Menu>
-      <PlateElement {...props} as="table" className="w-auto border-collapse text-sm">
-        <tbody>{props.children}</tbody>
-      </PlateElement>
+      <div className="overflow-x-auto">
+        <PlateElement {...props} as="table" className="w-auto border-collapse text-sm">
+          <tbody>{props.children}</tbody>
+        </PlateElement>
+      </div>
       <button
         type="button"
         contentEditable={false}

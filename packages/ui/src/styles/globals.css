@@ -1,3 +1,4 @@
+@import "@fontsource-variable/inter";
 @import "tailwindcss";
 @import "streamdown/styles.css";
 @import "tw-animate-css";
@@ -119,32 +120,34 @@
 }
 
 :root {
-  --font-sans:
-    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "SF Pro", "Helvetica Neue",
-    system-ui, sans-serif;
+  /* Inter Variable — the fluid site's face; the weight axis powers label
+     weight transitions. Self-hosted via @fontsource-variable (imported above). */
+  --font-sans: "Inter Variable", system-ui, sans-serif;
 
-  /* Core palette — Fluid's neutral zinc theme. The structural tokens below
-     (surface ladder, --hover/--active, glass) are unchanged; only the hues swap. */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.21 0.006 285.885);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(1 0 0);
+  /* Core palette — the fluid site's neutral hex theme (app/globals.css in the
+     fluid-functionalism repo is the source of truth). The site leaves
+     --primary/--secondary/--popover undefined (shadcn-compare-only there);
+     here they map onto the same neutrals because the app uses them. */
+  --background: var(--surface-1);
+  --foreground: #171717;
+  --card: var(--surface-3);
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #171717;
+  --muted: #f4f4f5;
+  --muted-foreground: #737373;
+  --accent: #e5e5e5;
+  --accent-foreground: #171717;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
   --destructive-light: #fef2f2;
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.705 0.015 286.067);
+  --border: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --input: #e5e5e5;
+  --ring: #e5e5e5;
 
   /* Neutral scale (for opacity variants that can't reference tokens directly). */
   --neutral-100: #f5f5f5;
@@ -179,29 +182,29 @@
   /* Sidebar layout (referenced by the sidebar component's w-(--sidebar-width)). */
   --sidebar-width: 15rem;
   --sidebar-width-icon: 3rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.21 0.006 285.885);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.705 0.015 286.067);
+  --sidebar: #f4f4f5;
+  --sidebar-foreground: #171717;
+  --sidebar-primary: #171717;
+  --sidebar-primary-foreground: #fafafa;
+  --sidebar-accent: #e5e5e5;
+  --sidebar-accent-foreground: #171717;
+  --sidebar-border: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --sidebar-ring: #e5e5e5;
 
-  /* ── Surface ladder (8 levels) ──
+  /* ── Surface ladder (8 levels) — fluid site values ──
      Light: two color steps (floor, sunken) then flat white; shadow does the
      elevation work. Each surface pairs 1:1 with a shadow recipe. */
-  --surface-1: #f0f2f2;
-  --surface-2: #f6f7f7;
-  --surface-3: rgb(240 242 242 / 0.62);
-  --surface-4: rgb(240 242 242 / 0.72);
-  --surface-5: rgb(255 255 255 / 0.8);
-  --surface-6: rgb(255 255 255 / 0.86);
-  --surface-7: rgb(255 255 255 / 0.92);
+  --surface-1: #fafafa;
+  --surface-2: #fcfcfc;
+  --surface-3: #ffffff;
+  --surface-4: #ffffff;
+  --surface-5: #ffffff;
+  --surface-6: #ffffff;
+  --surface-7: #ffffff;
   --surface-8: #ffffff;
 
   /* Shadow ladder — additive layers, halving offsets (1/3/6/12/24/48/96 px). */
-  --shadow-color: rgb(19 20 27 / 0.035);
+  --shadow-color: rgb(0 0 0 / 0.06);
   --shadow-1: 0 0 0 1px var(--shadow-color);
   --shadow-2: 0 0 0 1px var(--shadow-color), 0 1px 1px -0.5px var(--shadow-color);
   --shadow-3:
@@ -233,10 +236,10 @@
      (black on light surfaces, white on dark) so hover/active read correctly at
      any elevation. */
   --overlay: 0 0 0;
-  --hover: rgb(var(--overlay) / 0.06);
-  --active: rgb(var(--overlay) / 0.1);
-  --selected: #e5e7e7;
-  --focus-ring: #65fc9f;
+  --hover: rgb(var(--overlay) / 0.04);
+  --active: rgb(var(--overlay) / 0.07);
+  --selected: #d4d4d4;
+  --focus-ring: #6b97ff;
 
   /* ── Dotted canvas ── fine low-contrast dot lattice over the surface-1
      floor (texture, not pattern), plus a faint vignette under the dots. */
@@ -306,27 +309,27 @@
 }
 
 .dark {
-  /* Core palette — Fluid's neutral zinc theme, dark. */
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.92 0.004 286.32);
-  --primary-foreground: oklch(0.21 0.006 285.885);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --destructive-foreground: oklch(0.985 0 0);
+  /* Core palette — the fluid site's neutral hex theme, dark. */
+  --background: var(--surface-1);
+  --foreground: #f5f5f5;
+  --card: var(--surface-3);
+  --card-foreground: #f5f5f5;
+  --popover: var(--surface-3);
+  --popover-foreground: #f5f5f5;
+  --primary: #e5e5e5;
+  --primary-foreground: #171717;
+  --secondary: var(--surface-2);
+  --secondary-foreground: #f5f5f5;
+  --muted: var(--surface-2);
+  --muted-foreground: #a3a3a3;
+  --accent: #525252;
+  --accent-foreground: #f5f5f5;
+  --destructive: #f87171;
+  --destructive-foreground: #f5f5f5;
   --destructive-light: #450a0a;
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.552 0.016 285.938);
+  --border: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --input: #404040;
+  --ring: #404040;
 
   --neutral-100: #f5f5f5;
   --neutral-200: #e5e5e5;
@@ -345,24 +348,24 @@
   --chart-3: oklch(0.442 0.017 285.786);
   --chart-4: oklch(0.37 0.013 285.805);
   --chart-5: oklch(0.274 0.006 286.033);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.92 0.004 286.32);
-  --sidebar-primary-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.552 0.016 285.938);
+  --sidebar: var(--surface-2);
+  --sidebar-foreground: #f5f5f5;
+  --sidebar-primary: #e5e5e5;
+  --sidebar-primary-foreground: #171717;
+  --sidebar-accent: #525252;
+  --sidebar-accent-foreground: #f5f5f5;
+  --sidebar-border: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --sidebar-ring: #404040;
 
-  /* Surface ladder — additive white over the near-black canvas floor. */
-  --surface-1: #141415;
-  --surface-2: #1a1a1c;
-  --surface-3: #202023;
-  --surface-4: #242427;
-  --surface-5: #28282b;
-  --surface-6: #2c2c30;
-  --surface-7: #313135;
-  --surface-8: #363639;
+  /* Surface ladder — additive white over #171717 (fluid site values). */
+  --surface-1: #171717;
+  --surface-2: #1e1e1e;
+  --surface-3: #252525;
+  --surface-4: #2c2c2c;
+  --surface-5: #333333;
+  --surface-6: #3a3a3a;
+  --surface-7: #414141;
+  --surface-8: #484848;
 
   /* Dark shadow recipe — inset highlight + ring + stacked drops. */
   --dm-hi-base: rgba(255, 255, 255, 0.01);
@@ -408,7 +411,7 @@
   --hover: rgb(var(--overlay) / 0.06);
   --active: rgb(var(--overlay) / 0.1);
   --selected: #525252;
-  --focus-ring: #65fc9f;
+  --focus-ring: #6b97ff;
 
   /* Dotted canvas — lighter dots on near-black, deeper vignette. */
   --dot: rgb(255 255 255 / 0.1);
@@ -520,23 +523,37 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* Inherited by everything (portals included) — the fluid site's font
+       smoothing; `subpixel-antialiased` on a subtree opts back out. */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
+  /* Native scrollbar theme — the fluid site's recipe: a 10px hit area whose
+     3px transparent border + content-box clip leaves a ~4px visible thumb;
+     low-contrast, darkens on hover. color-mix on --foreground adapts to dark
+     mode automatically. */
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 10px;
+    height: 10px;
   }
-  ::-webkit-scrollbar-track {
+  ::-webkit-scrollbar-track,
+  ::-webkit-scrollbar-corner {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: color-mix(in oklab, var(--foreground) 25%, transparent);
-    border-radius: 5px;
+    background-color: color-mix(in oklab, var(--foreground), transparent 75%);
+    border: 3px solid transparent;
+    background-clip: content-box;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklab, var(--foreground), transparent 55%);
   }
 
   * {
     scrollbar-width: thin;
-    scrollbar-color: color-mix(in oklab, var(--foreground) 25%, transparent) transparent;
+    scrollbar-color: color-mix(in oklab, var(--foreground), transparent 75%) transparent;
   }
 }
 
