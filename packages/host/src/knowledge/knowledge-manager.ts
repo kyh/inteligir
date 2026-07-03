@@ -15,14 +15,14 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
+import { KnowledgeIndex } from "@repo/features/knowledge/knowledge-index";
 import type {
   BacklinkEntry,
   ForwardLinkEntry,
   LinkGraph,
   SearchResult,
   WikiTarget,
-} from "@repo/core/knowledge/knowledge-index";
+} from "@repo/features/knowledge/knowledge-index";
 
 import { emitEvent } from "../events";
 import { getVaultManager, type VaultManager } from "../vault/vault";

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DelegationManager, type DelegationAgent } from "../delegation/delegation-manager";
 import { DelegationSnapshotStore, SNAPSHOT_RETENTION } from "../delegation/delegation-snapshots";
 import type { FsAdapter } from "../lib/json-store";
-import { isRecord } from "@repo/core/ipc";
+import { isRecord } from "@repo/features/ipc";
 
 function memoryFs(): FsAdapter {
   const files = new Map<string, string>();

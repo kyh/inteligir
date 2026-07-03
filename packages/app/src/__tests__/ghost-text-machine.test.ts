@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 
 import { GhostTextMachine, type GhostHooks } from "@repo/app/editor/ai/ghost-text-machine";
-import type { GhostTextResult } from "@repo/core/inline-ai";
+import type { GhostTextResult } from "@repo/features/inline-ai";
 
 type Pending = { requestId: string; resolve: (r: GhostTextResult) => void };
 

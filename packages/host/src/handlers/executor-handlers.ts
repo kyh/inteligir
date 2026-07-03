@@ -6,7 +6,7 @@ import { getExecutorDaemon } from "../executor/executor-daemon";
 import { ensureGoogleOAuthClient, getBundledGoogleClient } from "../executor/google-oauth-client";
 import type { HandlerRegistrar } from "../lib/handler-registry";
 import { getHostOptions, getPlatform } from "../platform-instance";
-import { isHttpUrl, type ExecutorStatus } from "@repo/core/ipc";
+import { isHttpUrl, type ExecutorStatus } from "@repo/features/ipc";
 
 export function registerExecutorHandlers(handle: HandlerRegistrar): void {
   handle("listExecutorIntegrations", executor.listIntegrations);

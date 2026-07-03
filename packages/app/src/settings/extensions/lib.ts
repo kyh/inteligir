@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getBridge } from "@repo/app/lib/bridge";
-import type { OAuthStartInput } from "@repo/core/executor";
-import type { Bridge } from "@repo/core/ipc";
+import type { OAuthStartInput } from "@repo/features/executor";
+import type { Bridge } from "@repo/features/ipc";
 
 export function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;

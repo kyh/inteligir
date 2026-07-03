@@ -11,8 +11,8 @@ import { useTheme, type Theme } from "@repo/app/lib/use-theme";
 import { useAgentStore } from "@repo/app/stores/agent-store";
 import { useAiSettingsStore } from "@repo/app/stores/ai-settings-store";
 import { useVoiceStore } from "@repo/app/stores/voice-store";
-import type { NotificationSettings } from "@repo/core/ipc";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
+import type { NotificationSettings } from "@repo/features/ipc";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
 
 const THEME_OPTIONS: { value: Theme; label: string; icon: typeof SunIcon }[] = [
   { value: "system", label: "System", icon: MonitorIcon },

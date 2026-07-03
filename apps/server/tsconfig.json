@@ -6,7 +6,7 @@
     // bin/inteligir.js imports the TS entry directly (tsx runs it pre-publish).
     "allowImportingTsExtensions": true,
     "paths": {
-      "@repo/core/*": ["../../packages/core/src/*"],
+      "@repo/features/*": ["../../packages/features/src/*"],
       "@repo/host/*": ["../../packages/host/src/*"],
       "@repo/pi-driver/*": ["../../packages/pi-driver/src/*"],
       "@repo/agent-runtime/*": ["../../packages/agent-runtime/src/*"]

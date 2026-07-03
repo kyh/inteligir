@@ -4,9 +4,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BINARY_TAG_STT_PCM, BINARY_TAG_TTS_PCM, encodeBinaryFrame } from "@repo/core/bridge-wire";
-import { createWsBridge } from "@repo/core/bridge-ws-client";
-import type { EventMethod, IpcEvent } from "@repo/core/ipc-registry";
+import {
+  BINARY_TAG_STT_PCM,
+  BINARY_TAG_TTS_PCM,
+  encodeBinaryFrame,
+} from "@repo/features/bridge-wire";
+import { createWsBridge } from "@repo/features/bridge-ws-client";
+import type { EventMethod, IpcEvent } from "@repo/features/ipc-registry";
 import type { Host } from "@repo/host/create-host";
 import type { WireHandler } from "@repo/host/lib/handler-registry";
 

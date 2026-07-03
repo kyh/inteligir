@@ -13,8 +13,12 @@
 import { Agent } from "../agent/agent";
 import { INLINE_AI_SESSION_DIR } from "../agent/paths";
 import { getAgentPorts } from "../lib/agent-lifecycle";
-import { parseAgentEvent } from "@repo/core/agent-event-parser";
-import { parseAiIntent, type AiGenerateResult, type AiIntentResult } from "@repo/core/inline-ai";
+import { parseAgentEvent } from "@repo/features/agent-event-parser";
+import {
+  parseAiIntent,
+  type AiGenerateResult,
+  type AiIntentResult,
+} from "@repo/features/inline-ai";
 
 const GEN_TIMEOUT_MS = 60_000;
 const CLASSIFY_TIMEOUT_MS = 15_000;

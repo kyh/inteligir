@@ -25,7 +25,7 @@ import {
   QueueList,
 } from "@repo/ui/components/ai-elements/queue";
 
-import type { ImageAttachment } from "@repo/core/voice";
+import type { ImageAttachment } from "@repo/features/voice";
 import { useAgentStore } from "@repo/app/stores/agent-store";
 
 const ACCEPTED_IMAGE_MIME = "image/png,image/jpeg,image/gif,image/webp";

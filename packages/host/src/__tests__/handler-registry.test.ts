@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { HOST_METHODS, collectHandlers, type HandlerRegistrar } from "../lib/handler-registry";
-import { IPC, IPC_METHODS, UPDATE_METHODS } from "@repo/core/ipc-registry";
+import { IPC, IPC_METHODS, UPDATE_METHODS } from "@repo/features/ipc-registry";
 
 /** Register a stub for every host method, optionally overriding some. */
 function registerAll(overrides: Partial<Record<string, (payload: unknown) => unknown>> = {}) {

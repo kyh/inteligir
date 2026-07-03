@@ -4,7 +4,7 @@ import os from "node:os";
 import { type TSchema } from "@sinclair/typebox";
 import { Value } from "@sinclair/typebox/value";
 
-import { isRecord, toErrorMessage } from "@repo/core/ipc";
+import { isRecord, toErrorMessage } from "@repo/features/ipc";
 
 const INTELIGIR_DIR = path.join(os.homedir(), ".inteligir");
 

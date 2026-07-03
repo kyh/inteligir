@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@repo/agent-runtime": "workspace:^",
-    "@repo/core": "workspace:^",
+    "@repo/features": "workspace:^",
     "@repo/pi-driver": "workspace:^",
     "@sinclair/typebox": "catalog:",
     "open": "^11.0.0",

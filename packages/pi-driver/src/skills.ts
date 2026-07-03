@@ -6,7 +6,7 @@ import { loadSkills } from "@mariozechner/pi-coding-agent";
  * kept in lockstep at the host boundary, where `listSkills()` here feeds
  * `host/agent/setup.ts::listSkills(): SkillInfo[]` — a drift makes that
  * assignment a type error. Defined locally so this vendor wrapper stays a leaf
- * (no @repo/core dependency, no pulling core's module graph into its compile).
+ * (no @repo/features dependency, no pulling core's module graph into its compile).
  */
 export type PiAgentSkill = {
   name: string;

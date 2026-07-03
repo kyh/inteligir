@@ -20,8 +20,8 @@ import {
   GOOGLE_TOKEN_URL,
   type CreateOAuthClientInput,
   type ExecutorOAuthClient,
-} from "@repo/core/executor";
-import type { EnsureGoogleClientResult } from "@repo/core/ipc-registry";
+} from "@repo/features/executor";
+import type { EnsureGoogleClientResult } from "@repo/features/ipc-registry";
 
 export type BundledGoogleClient = { clientId: string; clientSecret: string };
 

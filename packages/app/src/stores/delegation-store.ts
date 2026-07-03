@@ -1,7 +1,7 @@
 import { create } from "zustand";
 
 import { getBridge } from "@repo/app/lib/bridge";
-import type { Delegation } from "@repo/core/delegation";
+import type { Delegation } from "@repo/features/delegation";
 
 type DelegationStore = {
   delegations: Delegation[];

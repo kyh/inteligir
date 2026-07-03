@@ -29,9 +29,9 @@ import {
 } from "../delegation/delegation-manager";
 import { getNotifications } from "../notifications";
 import { downloadModel } from "../voice/model-download";
-import { parseAgentEvent } from "@repo/core/agent-event-parser";
-import type { AppAgentEvent } from "@repo/core/agent-events";
-import type { AppState, MachineEvent } from "@repo/core/app-state";
+import { parseAgentEvent } from "@repo/features/agent-event-parser";
+import type { AppAgentEvent } from "@repo/features/agent-events";
+import type { AppState, MachineEvent } from "@repo/features/app-state";
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process

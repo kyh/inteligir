@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildPromptFailureEvents } from "@repo/pi-driver/agent";
 
-import { parseAgentEvent } from "@repo/core/agent-event-parser";
+import { parseAgentEvent } from "@repo/features/agent-event-parser";
 
 type ModelArg = Parameters<typeof buildPromptFailureEvents>[0];
 

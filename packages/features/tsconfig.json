@@ -5,7 +5,7 @@
     // package stays free of *node* types by design.
     "lib": ["ES2023", "dom"],
     "paths": {
-      "@repo/core/*": ["./src/*"]
+      "@repo/features/*": ["./src/*"]
     }
   },
   "include": ["src", "vitest.config.ts"]

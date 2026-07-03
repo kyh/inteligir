@@ -15,7 +15,7 @@
 // refresh through the normal path.
 // ---------------------------------------------------------------------------
 
-import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
+import { computeRenameEdits } from "@repo/features/knowledge/rename-links";
 
 import type { VaultManager } from "../vault/vault";
 

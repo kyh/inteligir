@@ -22,7 +22,7 @@ import {
   parseHeaders,
   slug,
 } from "@repo/app/settings/extensions/lib";
-import { isHttpUrl } from "@repo/core/ipc";
+import { isHttpUrl } from "@repo/features/ipc";
 
 type CustomKind = "mcp" | "openapi" | "graphql" | "google";
 const KINDS: { id: CustomKind; label: string }[] = [

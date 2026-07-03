@@ -17,15 +17,15 @@ import { DelegationSnapshotStore } from "./delegation-snapshots";
 import { findTaskLine } from "./find-task-line";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
-import { parseAgentEvent } from "@repo/core/agent-event-parser";
+import { parseAgentEvent } from "@repo/features/agent-event-parser";
 import {
   DelegationSchema,
   type CreateDelegationParams,
   type CreateDelegationResult,
   type Delegation,
   type RestoreSnapshotResult,
-} from "@repo/core/delegation";
-import { isRecord, toErrorMessage } from "@repo/core/ipc";
+} from "@repo/features/delegation";
+import { isRecord, toErrorMessage } from "@repo/features/ipc";
 
 // v2: anchor moved from text/heading matching to a positional `index`.
 // v3: pre-run snapshots — records gained `hasSnapshot` + `restoredAt`.

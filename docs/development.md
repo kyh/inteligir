@@ -104,11 +104,11 @@ Type-checks passing isn't feature-correct. Drive the running app:
 
 **Adding a Bridge channel** (the most common cross-cutting change):
 
-1. Registry entry in `packages/core/src/ipc-registry.ts` (TypeBox payload +
+1. Registry entry in `packages/features/src/ipc-registry.ts` (TypeBox payload +
    result/event type).
 2. Host handler in `packages/host/src/handlers/` (grouped by domain;
    `collectHandlers` throws at boot on missing/duplicate).
-3. One line in `packages/core/src/bridge-ws-client.ts` (the WS fold is
+3. One line in `packages/features/src/bridge-ws-client.ts` (the WS fold is
    hand-maintained; typecheck catches omissions).
 4. Fixture implementation in `packages/app/dev/fixture-bridge.ts` (typed
    `: Bridge` — fails typecheck until covered).
@@ -128,7 +128,7 @@ canonical/idempotent behavior.
   knowledge fixtures.
 - `pnpm --filter @repo/host test` — vault, delegation (+snapshots), knowledge
   manager, handlers, secrets.
-- `pnpm --filter @repo/core test` — wire protocol, knowledge engine, parsers.
+- `pnpm --filter @repo/features test` — wire protocol, knowledge engine, parsers.
 - `pnpm --filter @repo/server test` — WS fold, origin/host gating, binary
   frames.
 

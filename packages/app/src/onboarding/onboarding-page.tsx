@@ -5,7 +5,7 @@ import { Button } from "@repo/ui/components/button";
 import { InitialOrb } from "@repo/app/components/initial-orb";
 import { getBridge } from "@repo/app/lib/bridge";
 import { useAgentStore } from "@repo/app/stores/agent-store";
-import type { VoiceModelStateEvent } from "@repo/core/ipc";
+import type { VoiceModelStateEvent } from "@repo/features/ipc";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;

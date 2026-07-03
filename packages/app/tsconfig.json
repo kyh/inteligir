@@ -5,7 +5,7 @@
     "jsx": "react-jsx",
     "paths": {
       "@repo/app/*": ["./src/*"],
-      "@repo/core/*": ["../core/src/*"],
+      "@repo/features/*": ["../features/src/*"],
       "@repo/ui/*": ["../ui/src/*"]
     }
   },

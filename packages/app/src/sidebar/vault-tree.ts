@@ -3,7 +3,7 @@
 // folders that expand. Pure + deterministic so it can be unit-tested and so the
 // sidebar re-renders identically for the same listing.
 
-import type { VaultEntry } from "@repo/core/ipc-registry";
+import type { VaultEntry } from "@repo/features/ipc-registry";
 
 export type VaultTreeNode =
   | { type: "folder"; name: string; path: string; children: VaultTreeNode[] }

@@ -28,7 +28,7 @@ import { getBridge } from "@repo/app/lib/bridge";
 import { useTheme } from "@repo/app/lib/use-theme";
 import { useViewStore } from "@repo/app/stores/view-store";
 import { useVault } from "@repo/app/workspace/vault-context";
-import type { LinkGraph } from "@repo/core/knowledge/knowledge-index";
+import type { LinkGraph } from "@repo/features/knowledge/knowledge-index";
 
 type SimNode = SimulationNodeDatum & {
   id: string;

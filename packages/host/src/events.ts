@@ -5,7 +5,7 @@
 // singleton model.
 // ---------------------------------------------------------------------------
 
-import type { EventMethod, IpcEvent } from "@repo/core/ipc-registry";
+import type { EventMethod, IpcEvent } from "@repo/features/ipc-registry";
 
 type EventsListener = (method: EventMethod, payload: unknown) => void;
 

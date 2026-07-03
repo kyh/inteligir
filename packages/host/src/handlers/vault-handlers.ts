@@ -3,8 +3,8 @@ import { renameWithLinkRewrite } from "../knowledge/rename-rewrite";
 import { getPlatform } from "../platform-instance";
 import { getVaultManager } from "../vault/vault";
 import type { HandlerRegistrar } from "../lib/handler-registry";
-import { toErrorMessage } from "@repo/core/ipc";
-import type { ChooseVaultResult } from "@repo/core/ipc-registry";
+import { toErrorMessage } from "@repo/features/ipc";
+import type { ChooseVaultResult } from "@repo/features/ipc-registry";
 
 export function registerVaultHandlers(handle: HandlerRegistrar): void {
   // ---- Trusted surface (Vault panel) ----------------------------------------

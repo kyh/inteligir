@@ -3,7 +3,7 @@
 // (state, event) → { next, effect } | null
 // ---------------------------------------------------------------------------
 
-import type { AppState, MachineEvent } from "@repo/core/app-state";
+import type { AppState, MachineEvent } from "@repo/features/app-state";
 
 export type EffectTag = "LOGIN" | "SETUP" | "LOGOUT" | "NEW_SESSION";
 

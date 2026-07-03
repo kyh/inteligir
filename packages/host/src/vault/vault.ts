@@ -26,8 +26,8 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
-import { isDocPath } from "@repo/core/knowledge/doc-file";
-import type { VaultEntry } from "@repo/core/ipc-registry";
+import { isDocPath } from "@repo/features/knowledge/doc-file";
+import type { VaultEntry } from "@repo/features/ipc-registry";
 
 // ---------------------------------------------------------------------------
 // Settings store — records the vault location. Lives in ~/.inteligir so it is

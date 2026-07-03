@@ -32,7 +32,7 @@ import {
   resumeVaultWrites,
   suspendVaultWrites,
 } from "../vault/vault";
-import type { SetupProgress } from "@repo/core/ipc";
+import type { SetupProgress } from "@repo/features/ipc";
 
 /** Bundled agent assets (skills/, AGENTS.md), resolved by the shell. */
 export function getBundledResources(): BundledResources {

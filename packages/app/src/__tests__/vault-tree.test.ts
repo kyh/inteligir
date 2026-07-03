@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildVaultTree, type VaultTreeNode } from "@repo/app/sidebar/vault-tree";
-import type { VaultEntry } from "@repo/core/ipc-registry";
+import type { VaultEntry } from "@repo/features/ipc-registry";
 
 function doc(path: string): VaultEntry {
   return { path, name: path.split("/").pop() ?? path, kind: "doc" };

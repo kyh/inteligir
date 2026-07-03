@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { parseAgentEvent } from "@repo/core/agent-event-parser";
+import { parseAgentEvent } from "@repo/features/agent-event-parser";
 
 describe("parseAgentEvent", () => {
   it("parses agent_start", () => {

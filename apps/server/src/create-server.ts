@@ -24,8 +24,8 @@ import {
   decodeBinaryFrame,
   encodeBinaryFrame,
   parseClientFrame,
-} from "@repo/core/bridge-wire";
-import { toErrorMessage } from "@repo/core/ipc";
+} from "@repo/features/bridge-wire";
+import { toErrorMessage } from "@repo/features/ipc";
 import type { Host } from "@repo/host/create-host";
 
 const LOOPBACK_ADDRESS = "127.0.0.1";

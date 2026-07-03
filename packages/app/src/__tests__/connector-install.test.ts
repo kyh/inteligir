@@ -12,8 +12,8 @@ import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ExecutorConnection,
   type ExecutorIntegration,
-} from "@repo/core/executor";
-import type { Bridge } from "@repo/core/ipc";
+} from "@repo/features/executor";
+import type { Bridge } from "@repo/features/ipc";
 
 function connector(id: string) {
   const c = CONNECTOR_CATALOG.find((x) => x.id === id);

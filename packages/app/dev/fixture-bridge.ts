@@ -5,15 +5,15 @@
 // chat streams a canned reply; voice/executor/updates report unavailable.
 // ---------------------------------------------------------------------------
 
-import type { AppAgentEvent } from "@repo/core/agent-events";
-import type { AppState } from "@repo/core/app-state";
-import type { Delegation, ListDelegationsResult } from "@repo/core/delegation";
-import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/core/inline-ai";
-import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/core/ipc";
-import type { VaultEntry } from "@repo/core/ipc-registry";
-import { isDocPath } from "@repo/core/knowledge/doc-file";
-import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
-import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
+import type { AppAgentEvent } from "@repo/features/agent-events";
+import type { AppState } from "@repo/features/app-state";
+import type { Delegation, ListDelegationsResult } from "@repo/features/delegation";
+import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/features/inline-ai";
+import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/features/ipc";
+import type { VaultEntry } from "@repo/features/ipc-registry";
+import { isDocPath } from "@repo/features/knowledge/doc-file";
+import { KnowledgeIndex } from "@repo/features/knowledge/knowledge-index";
+import { computeRenameEdits } from "@repo/features/knowledge/rename-links";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
 // note IS the canonical kitchen-sink fixture.

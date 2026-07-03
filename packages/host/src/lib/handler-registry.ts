@@ -17,7 +17,7 @@ import {
   type HostMethod,
   type IpcHandler,
   type IpcMethod,
-} from "@repo/core/ipc-registry";
+} from "@repo/features/ipc-registry";
 
 const updateMethods = new Set<string>(UPDATE_METHODS);
 

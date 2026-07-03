@@ -26,13 +26,13 @@ so a wedged teardown can't hold the process.
 
 - serves the `@repo/app` static build (`dist-web/`) with an SPA fallback (sirv,
   `single: true`);
-- folds `host.handlers` into the bridge-wire protocol (`@repo/core/bridge-wire`)
+- folds `host.handlers` into the bridge-wire protocol (`@repo/features/bridge-wire`)
   over a `/bridge` WebSocket — JSON envelopes for the registry, tagged binary
   frames for voice PCM (STT `0x01` in, TTS `0x02` out);
 - fans `host.events` out to every connected client (single local user, possibly
   several tabs).
 
-The browser client is `@repo/core/bridge-ws-client` (`createWsBridge`), which
+The browser client is `@repo/features/bridge-ws-client` (`createWsBridge`), which
 reconnects forever with capped backoff and resyncs on reopen. The wire is
 derived from the IPC registry at runtime, so a new channel needs no change here.
 

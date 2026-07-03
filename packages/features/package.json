@@ -1,5 +1,5 @@
 {
-  "name": "@repo/core",
+  "name": "@repo/features",
   "version": "0.1.0",
   "private": true,
   "description": "Isomorphic core for Inteligir: the Bridge/IPC registry, domain schemas, and pure logic shared by every host (Electron desktop, web server). No node or electron imports.",

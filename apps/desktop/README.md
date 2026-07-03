@@ -14,7 +14,7 @@ src/
     electron-platform.ts HostPlatform impl — dialogs, keychain cipher, notifications, resource paths
     host-fold.ts         folds host.handlers into ipcMain + forwards host.events
     updater.ts           electron-updater wiring
-  preload/   contextBridge — exposes the typed window.desktopBridge derived from @repo/core/ipc-registry
+  preload/   contextBridge — exposes the typed window.desktopBridge derived from @repo/features/ipc-registry
   renderer/  entry shim — index.html + main.tsx that install window.desktopBridge into @repo/app
   __tests__/ Vitest — host-fold, updater, agent-event parsing
 
@@ -33,7 +33,7 @@ main (full Node + Electron) — createHost(@repo/host) behind an ElectronPlatfor
 ```
 
 - **Renderer** never touches Node APIs. Sandboxed, no nodeIntegration, contextIsolation on.
-- **Preload** is the narrow bridge, derived from the registry in `@repo/core/ipc-registry`.
+- **Preload** is the narrow bridge, derived from the registry in `@repo/features/ipc-registry`.
 - **Main** composes `@repo/host` and folds its handler map into `ipcMain` (`host-fold.ts`).
 
 IPC is typed end-to-end via the registry: each method pairs a channel name with

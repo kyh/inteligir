@@ -34,7 +34,7 @@ apps/            # shippable artifacts
   server/        # `inteligir <vault>`: boot host, serve app over loopback HTTP+WS, open the browser (@repo/server)
 packages/        # libraries
   app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
-  core/          # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
+  features/      # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/features)
   host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
   ui/            # Shared UI components (@repo/ui)
   agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
@@ -176,12 +176,12 @@ in-memory session for ghost-text on a fast model.
 
 ### IPC / Bridge
 
-`packages/core/src/ipc-registry.ts` is the single source of truth: each channel
+`packages/features/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
 schema-validated handler map (`packages/host/src/handlers/`) that both
 transports fold: desktop over `ipcMain` (preload derives automatically), server
-over WS envelopes (`packages/core/src/bridge-wire.ts`; binary frames carry
+over WS envelopes (`packages/features/src/bridge-wire.ts`; binary frames carry
 voice PCM). Add a channel = registry entry + host handler + one line each in
 `bridge-ws-client.ts` and the dev-harness fixture Bridge
 (`packages/app/dev/fixture-bridge.ts`) — both fail typecheck until covered.

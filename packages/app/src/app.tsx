@@ -6,7 +6,7 @@ import { Toaster } from "@repo/ui/components/sonner";
 import { ReauthDialog } from "@repo/app/components/reauth-dialog";
 import { useAgentStore } from "@repo/app/stores/agent-store";
 import { useUiStateStore } from "@repo/app/stores/ui-state-store";
-import type { AppState } from "@repo/core/app-state";
+import type { AppState } from "@repo/features/app-state";
 
 type Phase = AppState["phase"];
 

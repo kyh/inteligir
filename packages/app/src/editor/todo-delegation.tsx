@@ -27,7 +27,7 @@ import { toast } from "@repo/ui/components/sonner";
 import { isTodoItem } from "@repo/app/editor/todo-item";
 import { findDelegation, useDelegationStore } from "@repo/app/stores/delegation-store";
 import { useVault } from "@repo/app/workspace/vault-context";
-import type { Delegation } from "@repo/core/delegation";
+import type { Delegation } from "@repo/features/delegation";
 
 // The checkbox's ordinal — its position among all real todo items in the
 // document. main counts the same `- [ ]` / `- [x]` lines in the raw markdown, so

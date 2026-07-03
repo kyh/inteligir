@@ -21,7 +21,7 @@ import { installHostRuntime } from "./platform-instance";
 import { setStoreRecoveryNotifier } from "./lib/json-store";
 import { getVaultManager, setVaultChangeNotifier } from "./vault/vault";
 import type { HostOptions, HostPlatform } from "./platform";
-import type { EventMethod } from "@repo/core/ipc-registry";
+import type { EventMethod } from "@repo/features/ipc-registry";
 
 export type HostEvents = {
   /** Every event-kind emission, in emit order. Returns unsubscribe. */

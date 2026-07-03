@@ -21,7 +21,7 @@ import { getBridge } from "@repo/app/lib/bridge";
 import { useTheme } from "@repo/app/lib/use-theme";
 import { useViewStore } from "@repo/app/stores/view-store";
 import { useVault } from "@repo/app/workspace/vault-context";
-import type { SearchResult } from "@repo/core/knowledge/knowledge-index";
+import type { SearchResult } from "@repo/features/knowledge/knowledge-index";
 
 const SEARCH_DEBOUNCE_MS = 150;
 const SEARCH_LIMIT = 8;

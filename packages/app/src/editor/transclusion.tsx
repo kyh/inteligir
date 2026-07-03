@@ -35,7 +35,7 @@ import {
 } from "@repo/app/editor/transclusion-guard";
 import WikiChip, { wikiChipLabel } from "@repo/app/editor/wiki-chip";
 import { useVault } from "@repo/app/workspace/vault-context";
-import { parseWikiBody } from "@repo/core/markdown/remark-wiki-link";
+import { parseWikiBody } from "@repo/features/markdown/remark-wiki-link";
 
 // Depth/cycle scope context — the policy itself lives in transclusion-guard.ts.
 const TransclusionScopeContext = createContext<TransclusionScope | null>(null);

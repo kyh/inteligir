@@ -18,12 +18,12 @@ import { Agent } from "../agent/agent";
 import { AUTH_PROVIDER } from "../agent/paths";
 import { getAgentPorts } from "../lib/agent-lifecycle";
 import { getUiState } from "../ui-state";
-import { parseAgentEvent } from "@repo/core/agent-event-parser";
+import { parseAgentEvent } from "@repo/features/agent-event-parser";
 import {
   GHOST_TEXT_MODEL_UI_STATE,
   type GhostModelsResult,
   type GhostTextResult,
-} from "@repo/core/inline-ai";
+} from "@repo/features/inline-ai";
 
 const GHOST_TIMEOUT_MS = 20_000;
 const RECYCLE_AFTER_TURNS = 24;

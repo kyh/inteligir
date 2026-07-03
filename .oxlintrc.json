@@ -133,10 +133,10 @@
       }
     },
     {
-      // Dependency boundary: core is isomorphic — the same modules load in
+      // Dependency boundary: features is isomorphic — the same modules load in
       // the browser (bridge-ws-client), the Electron renderer, and node
       // hosts. No node built-ins, no electron.
-      "files": ["packages/core/src/**"],
+      "files": ["packages/features/src/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -144,7 +144,7 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "packages/core is isomorphic — no node/electron imports"
+                "message": "packages/features is isomorphic — no node/electron imports"
               }
             ]
           }

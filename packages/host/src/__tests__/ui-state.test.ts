@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { UiStateManager } from "../ui-state";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
 
 type FakeSink = {
   values: Map<string, string>;

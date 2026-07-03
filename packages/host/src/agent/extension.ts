@@ -10,8 +10,8 @@
 
 import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver/pi-types";
 
-import { isRecord, type SetupProgress } from "@repo/core/ipc";
-import type { ExecutorExecuteResult } from "@repo/core/executor";
+import { isRecord, type SetupProgress } from "@repo/features/ipc";
+import type { ExecutorExecuteResult } from "@repo/features/executor";
 
 // ---------------------------------------------------------------------------
 // Ports — main-owned capabilities handed to extensions at register/setup time.

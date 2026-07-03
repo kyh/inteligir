@@ -16,7 +16,7 @@
 
 import { emitEvent } from "../events";
 import { getUiState } from "../ui-state";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
 
 const DEFAULT_VOICE_ID = "SAz9YHcvj6GT2YYXdXww";
 const MODEL_ID = "eleven_flash_v2_5";

@@ -12,8 +12,8 @@
 
 import { JsonStore, inteligirPath } from "./lib/json-store";
 import { getSecretStore } from "./secrets";
-import { UiStateSchema, type UiState } from "@repo/core/ui-state";
-import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/core/voice";
+import { UiStateSchema, type UiState } from "@repo/features/ui-state";
+import { ELEVENLABS_API_KEY_UI_STATE } from "@repo/features/voice";
 
 const DEFAULT_STATE: UiState = {};
 

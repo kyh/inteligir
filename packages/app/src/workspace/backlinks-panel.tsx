@@ -18,7 +18,7 @@ import {
 
 import { getBridge } from "@repo/app/lib/bridge";
 import { useVault } from "@repo/app/workspace/vault-context";
-import type { BacklinkEntry } from "@repo/core/knowledge/knowledge-index";
+import type { BacklinkEntry } from "@repo/features/knowledge/knowledge-index";
 
 function noteTitle(path: string): string {
   const name = path.split("/").pop() ?? path;

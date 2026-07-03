@@ -26,7 +26,7 @@ import {
 import { createTPlatePlugin, type PlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
-import type { AiIntentResult } from "@repo/core/inline-ai";
+import type { AiIntentResult } from "@repo/features/inline-ai";
 
 import { getBridge } from "@repo/app/lib/bridge";
 import { createMarkdownStream, stripAiMarks } from "@repo/app/editor/ai/stream-markdown";

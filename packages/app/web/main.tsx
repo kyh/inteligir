@@ -10,7 +10,7 @@ import { createRoot } from "react-dom/client";
 
 import { App } from "@repo/app/app-root";
 import { installBridge } from "@repo/app/lib/bridge";
-import { createWsBridge, type WsBridgeConnectionState } from "@repo/core/bridge-ws-client";
+import { createWsBridge, type WsBridgeConnectionState } from "@repo/features/bridge-ws-client";
 
 let connectionState: WsBridgeConnectionState = "connecting";
 const connectionListeners = new Set<() => void>();

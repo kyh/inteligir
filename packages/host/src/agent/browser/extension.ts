@@ -23,7 +23,7 @@ import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
 import { inteligirPath } from "../paths";
 import type { PiExtensionBundle } from "../extension";
 import { textResult } from "../extension-helpers";
-import type { SetupProgress } from "@repo/core/ipc";
+import type { SetupProgress } from "@repo/features/ipc";
 
 const AGENT_BROWSER_VERSION = "0.26.0";
 

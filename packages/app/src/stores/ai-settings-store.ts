@@ -9,7 +9,7 @@ import {
   GHOST_TEXT_ENABLED_UI_STATE,
   GHOST_TEXT_MODEL_UI_STATE,
   type GhostModel,
-} from "@repo/core/inline-ai";
+} from "@repo/features/inline-ai";
 
 import { getBridge } from "@repo/app/lib/bridge";
 

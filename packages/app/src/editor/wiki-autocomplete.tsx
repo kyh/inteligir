@@ -35,8 +35,8 @@ import { insertWikiChipFromPicker } from "@repo/app/editor/wiki-insert";
 import { WIKI_INPUT_KEY } from "@repo/app/editor/wiki-input-key";
 import { composeWikiBody, wikiBodyForPath } from "@repo/app/editor/wiki-target";
 import { useVault } from "@repo/app/workspace/vault-context";
-import type { WikiTarget } from "@repo/core/knowledge/knowledge-index";
-import { parseWikiBody } from "@repo/core/markdown/remark-wiki-link";
+import type { WikiTarget } from "@repo/features/knowledge/knowledge-index";
+import { parseWikiBody } from "@repo/features/markdown/remark-wiki-link";
 
 const CREATE_VALUE = "__create__";
 

@@ -1,4 +1,4 @@
-# `@repo/core` — the isomorphic contract
+# `@repo/features` — the isomorphic contract
 
 The shared vocabulary every host and UI speaks: the Bridge/IPC registry, the WS wire protocol, domain schemas, and pure engines (knowledge index, agent-event parsing). **Isomorphic** — the same modules load in the browser, the Electron renderer, and node hosts, so no node built-ins and no electron anywhere (lint-enforced). No barrel; import by file.
 
@@ -33,5 +33,5 @@ A renamed channel or changed payload is a compile error in every process. The `U
 ## Test
 
 ```bash
-pnpm --filter @repo/core test   # wire protocol, knowledge engine, parsers
+pnpm --filter @repo/features test   # wire protocol, knowledge engine, parsers
 ```

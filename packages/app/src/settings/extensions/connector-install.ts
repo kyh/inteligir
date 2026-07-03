@@ -16,8 +16,8 @@ import {
   GOOGLE_OAUTH_CLIENT_SLUG,
   type ExecutorConnection,
   type ExecutorOwner,
-} from "@repo/core/executor";
-import type { Bridge } from "@repo/core/ipc";
+} from "@repo/features/executor";
+import type { Bridge } from "@repo/features/ipc";
 import type { CatalogConnector } from "@repo/app/settings/extensions/connector-catalog";
 import { runOAuthFlow } from "@repo/app/settings/extensions/lib";
 

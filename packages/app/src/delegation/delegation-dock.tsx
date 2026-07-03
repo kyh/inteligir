@@ -24,7 +24,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { useDelegationStore } from "@repo/app/stores/delegation-store";
 import { useVault } from "@repo/app/workspace/vault-context";
-import type { Delegation } from "@repo/core/delegation";
+import type { Delegation } from "@repo/features/delegation";
 
 /**
  * A Messenger-style dock of delegation cards pinned bottom-right. Each card

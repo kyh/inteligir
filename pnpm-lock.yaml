@@ -89,9 +89,9 @@ importers:
       '@repo/app':
         specifier: workspace:^
         version: link:../../packages/app
-      '@repo/core':
+      '@repo/features':
         specifier: workspace:^
-        version: link:../../packages/core
+        version: link:../../packages/features
       '@repo/host':
         specifier: workspace:^
         version: link:../../packages/host
@@ -169,9 +169,9 @@ importers:
       '@repo/app':
         specifier: workspace:^
         version: link:../../packages/app
-      '@repo/core':
+      '@repo/features':
         specifier: workspace:^
-        version: link:../../packages/core
+        version: link:../../packages/features
       '@repo/host':
         specifier: workspace:^
         version: link:../../packages/host
@@ -336,9 +336,9 @@ importers:
       '@platejs/toggle':
         specifier: ^53.0.0
         version: 53.0.0(@babel/core@7.29.0)(@babel/template@7.28.6)(@types/react@19.2.15)(platejs@53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6)))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@repo/core':
+      '@repo/features':
         specifier: workspace:^
-        version: link:../core
+        version: link:../features
       '@repo/ui':
         specifier: workspace:^
         version: link:../ui
@@ -446,7 +446,7 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(msw@2.14.6(@types/node@25.9.1)(typescript@6.0.3))(vite@8.0.14(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.44.1)(tsx@4.22.3)(yaml@2.9.0))
 
-  packages/core:
+  packages/features:
     dependencies:
       '@sinclair/typebox':
         specifier: 'catalog:'
@@ -491,9 +491,9 @@ importers:
       '@repo/agent-runtime':
         specifier: workspace:^
         version: link:../agent-runtime
-      '@repo/core':
+      '@repo/features':
         specifier: workspace:^
-        version: link:../core
+        version: link:../features
       '@repo/pi-driver':
         specifier: workspace:^
         version: link:../pi-driver

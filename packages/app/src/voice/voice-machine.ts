@@ -8,7 +8,7 @@
 // transitions bump, so callers can't forget.
 // ---------------------------------------------------------------------------
 
-import type { VoiceModelStateEvent } from "@repo/core/ipc";
+import type { VoiceModelStateEvent } from "@repo/features/ipc";
 
 export type VoiceState =
   | { kind: "idle" }
