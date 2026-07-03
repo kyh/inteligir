@@ -14,6 +14,7 @@ import type { Value } from "platejs";
 import { Plate, usePlateEditor } from "platejs/react";
 import { serializeMd } from "@platejs/markdown";
 
+import { releaseAiSession } from "@repo/app/editor/ai/ai-session";
 import { hasTransientSuggestions, resolveAllSuggestions } from "@repo/app/editor/ai/suggestions";
 import { hasTransientAiState } from "@repo/app/editor/ai/transient";
 import { registerTransientSettler } from "@repo/app/editor/ai/transient-settle";
@@ -106,14 +107,17 @@ export function MarkdownEditor({ path, value, onChange, onSettled }: Props) {
   // flushing this file (tab replace/close, folder switch, explicit flush).
   useEffect(() => registerTransientSettler(path, settleSuggestions), [path, settleSuggestions]);
 
-  // Unmount path (tab switch without a flush, raw-mode flip, surface change):
-  // settle and hand the bytes to the owner for path-routed persistence.
+  // Unmount path (note switch without a flush, raw-mode flip, surface
+  // change): settle and hand the bytes to the owner for path-routed
+  // persistence, and release the AI session — with one mounted editor this
+  // teardown is the only thing that cancels an in-flight generation.
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
   useEffect(
     () => () => {
       const md = settleSuggestions();
       if (md !== null) onSettledRef.current(md);
+      releaseAiSession();
       useAiReviewStore.getState().setReviewing(path, false);
     },
     [settleSuggestions, path],
