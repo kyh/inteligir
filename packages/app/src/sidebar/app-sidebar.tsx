@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type MouseEvent } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   ChevronRightIcon,
   ChevronsUpDownIcon,
@@ -79,9 +79,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
   const rowProps = {
     selectedPath: editor.path,
     renaming,
-    // Cmd/Ctrl-click opens a new tab; a plain click replaces the active one.
-    onOpen: (path: string, e?: MouseEvent) =>
-      openFile(path, { newTab: e ? e.metaKey || e.ctrlKey : false }),
+    onOpen: (path: string) => openFile(path),
     onStartRename: setRenaming,
     onCommitRename: (from: string, to: string) => {
       setRenaming(null);
@@ -206,7 +204,7 @@ export function AppSidebar({ onOpenPalette }: { onOpenPalette: () => void }) {
 type RowHandlers = {
   selectedPath: string | null;
   renaming: string | null;
-  onOpen: (path: string, e?: MouseEvent) => void;
+  onOpen: (path: string) => void;
   onStartRename: (path: string) => void;
   onCommitRename: (from: string, to: string) => void;
   onCancelRename: () => void;
@@ -297,7 +295,7 @@ function FileRow({
       <SidebarMenuButton
         size="sm"
         isActive={selectedPath === path}
-        onClick={(e) => onOpen(path, e)}
+        onClick={() => onOpen(path)}
         className={cn(selectedPath === path && "bg-sidebar-accent text-sidebar-accent-foreground")}
       >
         {kind === "doc" ? <FileTextIcon /> : <FileIcon />}

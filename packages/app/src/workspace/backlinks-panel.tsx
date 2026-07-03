@@ -3,11 +3,11 @@
 // right rail: the workspace is a single centered text column with the
 // composer pinned bottom, so a rail would fight both the 700px measure and
 // the chat popover. Entries group by source note with the linking line as a
-// snippet; click navigates (Cmd/Ctrl-click opens a new tab). Refreshes on
-// onKnowledgeUpdated (the index lags saves by ~200-300ms, which is fine for
-// a reference panel) plus on note switch.
+// snippet; click navigates. Refreshes on onKnowledgeUpdated (the index lags
+// saves by ~200-300ms, which is fine for a reference panel) plus on note
+// switch.
 
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ChevronRightIcon } from "lucide-react";
 
 import {
@@ -56,8 +56,8 @@ export function BacklinksPanel({ path }: { path: string }) {
     groups.set(entry.sourcePath, lines);
   }
 
-  const open = (source: string) => (e: MouseEvent) => {
-    openFile(source, { newTab: e.metaKey || e.ctrlKey });
+  const open = (source: string) => () => {
+    openFile(source);
   };
 
   return (

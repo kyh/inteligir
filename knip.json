@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "ignoreBinaries": ["gh", "tar", "ps", "tasklist"],
+  "ignoreBinaries": ["gh", "tar", "ps", "tasklist", "xcrun", "spctl"],
   "workspaces": {
     ".": {},
     "apps/desktop": {

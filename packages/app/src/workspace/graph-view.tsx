@@ -106,7 +106,7 @@ function readPalette(canvas: HTMLCanvasElement): Palette {
 }
 
 export default function GraphView() {
-  const { openFile, createFile, activeTab } = useVault();
+  const { openFile, createFile, openPath } = useVault();
   const setSurface = useViewStore((s) => s.setSurface);
   const { resolved: resolvedTheme } = useTheme();
   const [empty, setEmpty] = useState(false);
@@ -116,8 +116,8 @@ export default function GraphView() {
   const simRef = useRef<Simulation<SimNode, SimulationLinkDatum<SimNode>> | null>(null);
   const transformRef = useRef<Transform>({ x: 0, y: 0, k: 1 });
   const hoveredRef = useRef<SimNode | null>(null);
-  const activePathRef = useRef<string | null>(activeTab);
-  activePathRef.current = activeTab;
+  const activePathRef = useRef<string | null>(openPath);
+  activePathRef.current = openPath;
   const frameRef = useRef<number | null>(null);
 
   const draw = useCallback(() => {
@@ -289,7 +289,7 @@ export default function GraphView() {
   // Redraw on theme flips (colors are read at draw time) and active-note moves.
   useEffect(() => {
     scheduleDraw();
-  }, [scheduleDraw, resolvedTheme, activeTab]);
+  }, [scheduleDraw, resolvedTheme, openPath]);
 
   // Esc returns to the editor surface.
   useEffect(() => {
@@ -387,7 +387,7 @@ export default function GraphView() {
         void offerCreate();
         return;
       }
-      if (node.path !== undefined) openFile(node.path, { newTab: e.metaKey || e.ctrlKey });
+      if (node.path !== undefined) openFile(node.path);
     },
     [createFile, nodeAt, openFile],
   );

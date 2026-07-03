@@ -305,7 +305,7 @@ export default function Transclusion({ body }: { body: string }) {
   const title = wikiChipLabel(body);
   const onOpen = (e: MouseEvent) => {
     e.preventDefault();
-    openFile(target, { newTab: e.metaKey || e.ctrlKey });
+    openFile(target);
   };
 
   return (
