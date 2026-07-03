@@ -24,7 +24,7 @@ import { cn } from "@repo/ui/lib/utils";
 // `ignore-click-outside/toolbar` keeps clicks inside the editor from closing
 // the floating toolbar (@platejs/floating's clickOutside ignore class).
 const CONTAINER_CLASS =
-  "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-primary/20 focus-visible:outline-none [&_.slate-selection-area]:bg-primary/15";
+  "ignore-click-outside/toolbar relative h-full w-full cursor-text select-text caret-primary selection:bg-focus-ring/25 focus-visible:outline-none [&_.slate-selection-area]:bg-focus-ring/15";
 
 /** The centered ~700px text column (symmetric padding, not max-w). Shared by
  * PlateContent, the page-title <h1>, the Raw textarea, and the backlinks
@@ -33,11 +33,11 @@ const CONTAINER_CLASS =
 export const EDITOR_COLUMN_PX = "px-12 sm:px-[max(48px,calc(50%-350px))]";
 
 const EDITOR_CLASS = cn(
-  "group/editor potion-editor-typography relative w-full overflow-x-hidden break-words whitespace-pre-wrap",
+  "group/editor relative w-full overflow-x-hidden break-words whitespace-pre-wrap",
   EDITOR_COLUMN_PX,
   "min-h-full pt-4 text-base focus-visible:outline-none",
-  "placeholder:text-muted-foreground/60",
-  "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/60 **:data-slate-placeholder:opacity-100!",
+  "placeholder:text-muted-foreground/80",
+  "**:data-slate-placeholder:top-[auto] **:data-slate-placeholder:text-muted-foreground/80 **:data-slate-placeholder:opacity-100!",
   "[&_strong]:font-semibold",
 );
 

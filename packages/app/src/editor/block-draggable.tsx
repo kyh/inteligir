@@ -192,7 +192,7 @@ function Draggable(props: PlateElementProps) {
         <div
           contentEditable={false}
           className={cn(
-            "pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-primary/50",
+            "pointer-events-none absolute inset-x-0 z-10 h-0.5 rounded-full bg-focus-ring/50",
             overIndex > activeIndex ? "-bottom-px" : "-top-px",
           )}
         />

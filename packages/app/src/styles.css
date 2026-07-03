@@ -30,21 +30,6 @@ textarea,
   -webkit-app-region: no-drag;
 }
 
-.potion-editor-typography {
-  font-family:
-    ui-sans-serif,
-    -apple-system,
-    "system-ui",
-    "Segoe UI Variable Display",
-    "Segoe UI",
-    Helvetica,
-    "Apple Color Emoji",
-    Arial,
-    sans-serif,
-    "Segoe UI Emoji",
-    "Segoe UI Symbol";
-}
-
 /* While dragging the sidebar resize handle, suppress the primitive's width
  * transition so the sidebar tracks the cursor 1:1 instead of easing behind it. */
 .sidebar-resizing [data-slot="sidebar-gap"],

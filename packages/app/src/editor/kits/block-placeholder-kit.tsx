@@ -15,7 +15,7 @@ export const BlockPlaceholderKit = [
   BlockPlaceholderPlugin.configure({
     options: {
       className:
-        "before:absolute before:cursor-text before:text-muted-foreground/60 before:content-[attr(placeholder)]",
+        "before:absolute before:cursor-text before:text-muted-foreground/80 before:content-[attr(placeholder)]",
       placeholders: {
         [KEYS.p]: WRITE_PLACEHOLDER,
         [KEYS.h1]: "Heading 1",
