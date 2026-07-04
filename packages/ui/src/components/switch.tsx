@@ -5,7 +5,7 @@ import { motion, useMotionValue, animate } from "framer-motion";
 import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
-import { toMotionStyle } from "@repo/ui/lib/motion-style";
+import { toMotionStyle } from "@repo/ui/lib/motion-bridge";
 
 interface SwitchProps extends HTMLAttributes<HTMLDivElement> {
   label: string;

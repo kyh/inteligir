@@ -9,7 +9,7 @@ import { spring } from "@repo/ui/lib/springs";
 import { useShape } from "@repo/ui/lib/shape-context";
 import { SurfaceProvider, useSurface } from "@repo/ui/lib/surface-context";
 import { surfaceClasses } from "@repo/ui/lib/surface-classes";
-import { toMotionStyle } from "@repo/ui/lib/motion-style";
+import { toMotionStyle } from "@repo/ui/lib/motion-bridge";
 import { Button } from "@repo/ui/components/button";
 
 const DIALOG_OFFSET = 4;
