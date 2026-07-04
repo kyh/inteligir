@@ -1,51 +1,24 @@
 "use client";
 
-import type { JSX } from "react";
 import { memo, useMemo } from "react";
-import type { MotionProps } from "motion/react";
-import { motion } from "motion/react";
+import { motion } from "framer-motion";
 
 import { cn } from "@repo/ui/lib/utils";
 import { toMotionStyle } from "@repo/ui/lib/motion-bridge";
 
-type MotionHTMLProps = MotionProps & Record<string, unknown>;
-
-const motionComponentCache = new Map<
-  keyof JSX.IntrinsicElements,
-  React.ComponentType<MotionHTMLProps>
->();
-
-const getMotionComponent = (element: keyof JSX.IntrinsicElements) => {
-  let component = motionComponentCache.get(element);
-  if (!component) {
-    component = motion.create(element);
-    motionComponentCache.set(element, component);
-  }
-  return component;
-};
+const SPREAD_PER_CHAR = 2;
 
 export interface TextShimmerProps {
   children: string;
-  /** Intrinsic tag to render — the motion component cache is keyed by tag. */
-  as?: keyof JSX.IntrinsicElements | undefined;
   className?: string | undefined;
   duration?: number | undefined;
-  spread?: number | undefined;
 }
 
-const ShimmerComponent = ({
-  children,
-  as: Component = "p",
-  className,
-  duration = 2,
-  spread = 2,
-}: TextShimmerProps) => {
-  const MotionComponent = getMotionComponent(Component);
-
-  const dynamicSpread = useMemo(() => (children?.length ?? 0) * spread, [children, spread]);
+const ShimmerComponent = ({ children, className, duration = 2 }: TextShimmerProps) => {
+  const dynamicSpread = useMemo(() => (children?.length ?? 0) * SPREAD_PER_CHAR, [children]);
 
   return (
-    <MotionComponent
+    <motion.p
       animate={{ backgroundPosition: "0% center" }}
       className={cn(
         "relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
@@ -65,7 +38,7 @@ const ShimmerComponent = ({
       }}
     >
       {children}
-    </MotionComponent>
+    </motion.p>
   );
 };
 

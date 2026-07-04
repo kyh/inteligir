@@ -5,8 +5,6 @@
 // start()/dispose() around its own lifecycle.
 // ---------------------------------------------------------------------------
 
-import path from "node:path";
-
 import { configurePaths } from "./agent/paths";
 import { initMachine, shutdown } from "./app/app-machine";
 import { getDelegationManager } from "./delegation/delegation-manager";
@@ -28,21 +26,12 @@ export type HostEvents = {
   onAny: (listener: (method: EventMethod, payload: unknown) => void) => () => void;
 };
 
-export type HostCapabilities = {
-  /** platform.pickDirectory present — the UI may offer "change vault". */
-  canPickVault: boolean;
-  /** Always false here: only the desktop shell overlays real electron-updater
-   * handlers for the UPDATE_METHODS trio. */
-  canSelfUpdate: boolean;
-};
-
 export type Host = {
   /** One validated handler per non-event registry method the host owns
    * (UPDATE_METHODS excluded — shell concern). Payloads are schema-checked
    * inside, so transports pass raw wire values straight in. */
   handlers: HostHandlers;
   events: HostEvents;
-  capabilities: HostCapabilities;
   /** Boot the backend: pi paths, vault + watcher, app state machine.
    * Idempotent. Call after the transport fold is in place so early events
    * aren't dropped. */
@@ -64,7 +53,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   installHostRuntime(platform, options);
 
   // Crash/debug visibility first, so even boot failures land in agent.log.
-  if (options.agentLog !== false) initAgentLog();
+  initAgentLog();
 
   // Quarantine notices must be user-visible before any store is read. This
   // was an import-time side effect of notifications.ts; explicit here so a
@@ -78,10 +67,6 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   return {
     handlers,
     events: { onAny: subscribeEvents },
-    capabilities: {
-      canPickVault: platform.pickDirectory !== undefined,
-      canSelfUpdate: false,
-    },
     start() {
       if (started) return;
       started = true;
@@ -94,16 +79,6 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
 
       // Must run before any pi-coding-agent call that consults getAgentDir().
       configurePaths();
-
-      // Boot-time vault preset (cli): repoint the persisted root before the
-      // watcher starts. setRoot creates the dir and enforces the
-      // not-inside-~/.inteligir guard; a violation throws out to the shell.
-      if (options.vaultPath !== undefined) {
-        const requested = path.resolve(options.vaultPath);
-        if (requested !== getVaultManager().getRoot()) {
-          getVaultManager().setRoot(requested);
-        }
-      }
 
       // Vault: ensure the folder + agent symlink exist and stream file changes
       // to the UI so the sidebar and editor stay live. The notifier is

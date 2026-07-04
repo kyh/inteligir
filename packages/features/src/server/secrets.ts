@@ -1,10 +1,10 @@
 // ---------------------------------------------------------------------------
 // Host secret store — a small key→credential map persisted at
 // ~/.inteligir/secrets.json. Values are encrypted at rest with the
-// platform's SecretCipher (Electron safeStorage / server file-key) when
-// available, with a documented plaintext fallback (e.g. Linux without a
-// keyring); either way the file is written 0o600 and the ~/.inteligir dir is
-// kept 0o700 by the store layer.
+// platform's SecretCipher (Electron safeStorage) when available, with a
+// documented plaintext fallback (e.g. Linux without a keyring); either way
+// the file is written 0o600 and the ~/.inteligir dir is kept 0o700 by the
+// store layer.
 //
 // Scope: credentials that host features read directly (currently the
 // ElevenLabs TTS key, routed here by UiStateManager). This is distinct from
@@ -23,14 +23,6 @@ const SecretEntrySchema = Type.Union([
   // Encrypted via Electron safeStorage; `data` is the base64 ciphertext.
   Type.Object(
     { kind: Type.Literal("safe-storage"), data: Type.String() },
-    { additionalProperties: false },
-  ),
-  // Encrypted via the server-mode file-key cipher (lib/file-key-cipher.ts).
-  // Both encrypted kinds live in the schema so a store written by one
-  // install mode never quarantines in the other — a cross-mode entry just
-  // reads as "not configured" (see get()).
-  Type.Object(
-    { kind: Type.Literal("file-key"), data: Type.String() },
     { additionalProperties: false },
   ),
   // The cipher was unavailable at write time (no OS keyring / unwritable key
@@ -98,21 +90,13 @@ export class SecretStore {
     }));
   }
 
-  /** Decrypted secret, or null when missing, written by another install
-   * mode (desktop safeStorage vs server file-key), or undecryptable
-   * (keychain reset). All of those read as absent so the owning feature
-   * reports "not configured" instead of failing with garbage. */
+  /** Decrypted secret, or null when missing or undecryptable (keychain
+   * reset). Both read as absent so the owning feature reports "not
+   * configured" instead of failing with garbage. */
   get(key: string): string | null {
     const entry = this.store.read().secrets[key];
     if (!entry) return null;
     if (entry.kind === "plaintext") return entry.data;
-    if (entry.kind !== this.cipher.kind) {
-      console.warn(
-        `[secrets] '${key}' was written by another install mode (${entry.kind}); ` +
-          "treating as not configured",
-      );
-      return null;
-    }
     try {
       return this.cipher.decrypt(entry.data);
     } catch (err) {

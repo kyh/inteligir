@@ -8,7 +8,7 @@
  * phase only sees what's meaningful at that point in the lifecycle.
  */
 
-import type { ExtensionAPI, ExtensionFactory } from "@repo/pi-driver/pi-types";
+import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi-types";
 
 import { isRecord, type SetupProgress } from "@repo/features/ipc";
 import type { ExecutorExecuteResult } from "@repo/features/executor";

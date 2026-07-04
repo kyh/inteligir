@@ -27,5 +27,7 @@ linkWorkspacePackages: true
 onlyBuiltDependencies:
   - "@tailwindcss/oxide"
   - electron
+  - electron-winstaller
   - esbuild
+  - sharp
   - workerd

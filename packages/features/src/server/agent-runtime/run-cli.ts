@@ -7,6 +7,8 @@ export type RunCliOptions = {
   maxBuffer: number;
   /** Optional stdin payload — piped to the child and closed. */
   stdin?: string | undefined;
+  /** Environment for the child. Defaults to inheriting process.env. */
+  env?: NodeJS.ProcessEnv | undefined;
   /**
    * Message thrown when the binary is missing (ENOENT). Defaults to a
    * generic "<binPath> not installed". Tool wrappers usually want a
@@ -41,7 +43,11 @@ export function runCli(
     const child = execFile(
       binPath,
       args,
-      { timeout: opts.timeoutMs, maxBuffer: opts.maxBuffer },
+      {
+        timeout: opts.timeoutMs,
+        maxBuffer: opts.maxBuffer,
+        ...(opts.env ? { env: opts.env } : {}),
+      },
       (err, stdout, stderr) => {
         const rawCode = err instanceof Error && "code" in err ? err.code : undefined;
         if (rawCode === "ENOENT") {

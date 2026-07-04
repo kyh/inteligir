@@ -34,9 +34,6 @@ const AUTOSAVE_DEBOUNCE_MS = 600;
 
 /** ui-state key the open note persists under (restored on boot). */
 const OPEN_NOTE_KEY = "workspace.openNote";
-/** Retired multi-tab session key — read once for a courtesy restore of its
- * active path, then cleared. */
-const LEGACY_TAB_SESSION_KEY = "workspace.tabs";
 
 // IO the editor controller acts through — thin wrappers over the bridge so the
 // controller stays bridge-agnostic and unit-testable. A missing bridge throws,
@@ -437,27 +434,17 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [refreshList]);
 
   // Restore the persisted open note once ui-state has loaded — but never over
-  // a note the user already opened while it was loading. Falls back once to
-  // the retired multi-tab session's active path, then clears that key.
+  // a note the user already opened while it was loading.
   const restored = useRef(false);
   useEffect(() => {
     if (!uiLoaded || restored.current) return;
     restored.current = true;
     if (openPathRef.current !== null) return;
-    const values = useUiStateStore.getState().values;
-    let path: string | null = null;
-    const stored = values[OPEN_NOTE_KEY];
-    if (typeof stored === "string" && stored !== "") path = stored;
-    const legacy = values[LEGACY_TAB_SESSION_KEY];
-    if (path === null && typeof legacy === "object" && legacy !== null && "active" in legacy) {
-      const active = legacy.active;
-      if (typeof active === "string" && active !== "") path = active;
-    }
-    if (legacy !== undefined && legacy !== null) setUiState(LEGACY_TAB_SESSION_KEY, null);
-    if (path === null) return;
-    ensureRuntime(path);
-    applyOpenPath(path);
-  }, [uiLoaded, ensureRuntime, applyOpenPath, setUiState]);
+    const stored = useUiStateStore.getState().values[OPEN_NOTE_KEY];
+    if (typeof stored !== "string" || stored === "") return;
+    ensureRuntime(stored);
+    applyOpenPath(stored);
+  }, [uiLoaded, ensureRuntime, applyOpenPath]);
 
   // Live updates: hand every vault-changed broadcast to the open note's
   // controller (reload or drop) and re-list the tree. A real root switch drops

@@ -12,7 +12,7 @@
 // launches never pay for it.
 // ---------------------------------------------------------------------------
 
-import { listModels } from "@repo/pi-driver/model";
+import { listModels } from "@repo/features/server/pi/model";
 
 import { Agent } from "../agent/agent";
 import { AUTH_PROVIDER } from "../agent/paths";

@@ -8,9 +8,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { listSkills as listSkillsFromDisk } from "@repo/pi-driver/skills";
-import { prependPath, seedDirectory, seedFile } from "@repo/agent-runtime/seed";
-import { readCliVersion } from "@repo/agent-runtime/install";
+import { listSkills as listSkillsFromDisk } from "@repo/features/server/pi/skills";
+import { prependPath, seedDirectory, seedFile } from "@repo/features/server/agent-runtime/seed";
+import { readCliVersion } from "@repo/features/server/agent-runtime/install";
 
 import { EXTENSION_BUNDLES } from "./bundles";
 import {

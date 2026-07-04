@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ArrowUpIcon, ListPlusIcon, PaperclipIcon, SquareIcon, ZapIcon } from "lucide-react";
 
-import { cn } from "@repo/ui/lib/utils";
 import { toast } from "@repo/ui/components/sonner";
 import {
   Attachment,
@@ -83,7 +82,7 @@ function QueuedRow({ msg, icon }: { msg: QueuedMessage; icon: ReactNode }) {
  * Talks to the agent via agent-store (routing user/follow-up/steer by live busy
  * state) and auto-attaches the open note as context.
  */
-export function Composer({ className }: { className?: string }) {
+export function Composer() {
   const [hasInput, setHasInput] = useState(false);
   const pendingSteerRef = useRef(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
@@ -148,7 +147,7 @@ export function Composer({ className }: { className?: string }) {
   }, []);
 
   return (
-    <div ref={wrapperRef} className={cn("flex flex-col gap-1.5", className)}>
+    <div ref={wrapperRef} className="flex flex-col gap-1.5">
       {steeringQueue.length + followUpQueue.length > 0 && (
         <Queue className="rounded-lg border border-border bg-card px-1.5 py-1 text-card-foreground shadow-xs">
           <QueueList className="mt-0 -mb-1">
@@ -313,7 +312,7 @@ function ComposerAttachments() {
   const { files, remove } = usePromptInputAttachments();
   if (files.length === 0) return null;
   return (
-    <Attachments variant="grid" className="px-2 pt-2 pb-1">
+    <Attachments className="px-2 pt-2 pb-1">
       {files.map((file) => (
         <Attachment
           key={file.id}

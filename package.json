@@ -27,16 +27,5 @@
   "engines": {
     "node": ">=24"
   },
-  "packageManager": "pnpm@10.33.2",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@tailwindcss/oxide",
-      "electron",
-      "electron-winstaller",
-      "esbuild",
-      "sharp",
-      "spawn-sync",
-      "workerd"
-    ]
-  }
+  "packageManager": "pnpm@10.33.2"
 }

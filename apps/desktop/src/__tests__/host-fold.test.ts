@@ -30,7 +30,6 @@ function fakeHost(): Host & { handlerCalls: Map<string, unknown[]> } {
     handlerCalls,
     handlers: handlers as Host["handlers"],
     events: { onAny: vi.fn().mockReturnValue(() => {}) },
-    capabilities: { canPickVault: true, canSelfUpdate: false },
     start: vi.fn(),
     dispose: vi.fn(),
   };

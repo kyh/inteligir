@@ -27,7 +27,7 @@ import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
-import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
+import { installCliFromGithubRelease } from "@repo/features/server/agent-runtime/install";
 
 import { inteligirPath } from "../lib/json-store";
 

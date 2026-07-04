@@ -12,11 +12,7 @@ export function registerVaultHandlers(handle: HandlerRegistrar): void {
   handle("getVaultRoot", () => getVaultManager().getRoot());
 
   handle("chooseVaultRoot", async (): Promise<ChooseVaultResult> => {
-    const pickDirectory = getPlatform().pickDirectory;
-    // No native picker on this platform (server mode) — the vault was chosen
-    // at boot and the UI hides the affordance via capabilities.canPickVault.
-    if (!pickDirectory) return { error: "Vault location is fixed for this session" };
-    const chosen = await pickDirectory({
+    const chosen = await getPlatform().pickDirectory({
       title: "Choose vault folder",
       defaultPath: getVaultManager().getRoot(),
     });

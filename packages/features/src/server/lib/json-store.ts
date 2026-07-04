@@ -16,17 +16,6 @@ export type FsAdapter = {
   read: (filePath: string) => string | null;
   write: (filePath: string, content: string, mode?: number) => void;
   /**
-   * Async atomic write used by coalesced stores. `shouldAbort` is checked
-   * between steps so a store closed mid-write (logout teardown) stops before
-   * it can resurrect a file the caller is about to delete. Adapters without
-   * it fall back to the synchronous `write`.
-   */
-  writeAsync?: (
-    filePath: string,
-    content: string,
-    opts?: { mode?: number | undefined; shouldAbort?: (() => boolean) | undefined },
-  ) => Promise<void>;
-  /**
    * Atomic move — used to quarantine corrupt/newer-version files so they
    * stop being re-detected on every launch. Adapters without it fall back
    * to copy-on-write (backup written, original left in place).
@@ -70,20 +59,6 @@ const realFs: FsAdapter = {
     const tmp = `${filePath}.tmp`;
     fs.writeFileSync(tmp, content, writeFileOptions(mode));
     fs.renameSync(tmp, filePath);
-  },
-  writeAsync: async (filePath, content, opts = {}) => {
-    const aborted = opts.shouldAbort ?? ((): boolean => false);
-    if (aborted()) return;
-    await fs.promises.mkdir(path.dirname(filePath), { recursive: true, mode: 0o700 });
-    restrictInteligirDir(filePath);
-    if (aborted()) return;
-    const tmp = `${filePath}.tmp`;
-    await fs.promises.writeFile(tmp, content, writeFileOptions(opts.mode));
-    if (aborted()) {
-      await fs.promises.rm(tmp, { force: true }).catch(() => undefined);
-      return;
-    }
-    await fs.promises.rename(tmp, filePath);
   },
   rename: (from, to) => {
     fs.renameSync(from, to);
@@ -166,15 +141,6 @@ export type JsonStoreOptions<T> = {
    * credential-bearing stores). Backups written on recovery inherit it too.
    */
   mode?: number;
-  /**
-   * Coalesce disk writes: `write()` returns after updating the in-memory
-   * cache; the file write runs asynchronously with a single in-flight write
-   * plus at most one trailing write (latest cache wins). Opt-in for hot-path
-   * stores (runtime-ui.json), where every renderer state tick otherwise
-   * rewrites the whole file synchronously. Callers that need durability
-   * (the widget flush protocol) must `await flush()`.
-   */
-  coalesceWrites?: boolean;
 };
 
 function readVersion(value: unknown): number | null {
@@ -191,23 +157,17 @@ type MigrateOutcome =
 export class JsonStore<T> {
   private cache: T | undefined;
   // One-way kill switch — once `close()` runs, every subsequent write/update
-  // is a no-op. This prevents a stale ShellManager reference (captured before
-  // resetShellCache) from resurrecting `~/.inteligir/` between resetShellCache
-  // and the recursive `fs.rmSync(AGENT_DIR)` later in teardownResources: any
-  // such write would have re-created the dir via the `mkdirSync(dirname)` in
+  // is a no-op. Logout teardown closes every store before rm -rf'ing
+  // `~/.inteligir/`; without it a stale reference held by an in-flight
+  // handler could re-create the dir via the `mkdirSync(dirname)` in
   // `realFs.write`, undoing the deletion.
   private closed = false;
-  // Coalesced-write machinery: `dirty` means the cache is ahead of disk;
-  // `writeLoop` is the single in-flight drain (null when idle).
-  private dirty = false;
-  private writeLoop: Promise<void> | null = null;
   private readonly fs: FsAdapter;
   private readonly onRecovery: ((event: StoreRecoveryEvent) => void) | undefined;
   private readonly decode: (raw: unknown) => T;
   private readonly encode: (value: T) => unknown;
   private readonly versioning: StoreVersioning | undefined;
   private readonly mode: number | undefined;
-  private readonly coalesce: boolean;
 
   constructor(
     private readonly filePath: string,
@@ -229,7 +189,6 @@ export class JsonStore<T> {
     this.encode = opts.encode ?? ((value) => value);
     this.versioning = opts.versioning;
     this.mode = opts.mode;
-    this.coalesce = opts.coalesceWrites ?? false;
   }
 
   /**
@@ -286,11 +245,6 @@ export class JsonStore<T> {
     if (this.closed) return;
     this.assertWritable(data);
     this.cache = structuredClone(data);
-    if (this.coalesce) {
-      this.dirty = true;
-      void this.ensureDrain();
-      return;
-    }
     this.fs.write(this.filePath, JSON.stringify(this.encode(this.cache), null, 2), this.mode);
   }
 
@@ -299,9 +253,8 @@ export class JsonStore<T> {
    * schema is a programmer bug. Persisting it would be worse than failing —
    * the next read would Value.Check-reject the file and corrupt-recovery
    * would quarantine it, silently wiping the user's state to defaults. Throws
-   * before the cache or disk are touched (covers both sync and coalesced
-   * paths) and logs unconditionally so fire-and-forget callers still leave a
-   * record.
+   * before the cache or disk are touched and logs unconditionally so
+   * fire-and-forget callers still leave a record.
    */
   private assertWritable(data: T): void {
     const encoded = this.encode(data);
@@ -320,23 +273,7 @@ export class JsonStore<T> {
     return updated;
   }
 
-  /**
-   * Resolves once every write issued so far is durably on disk; rejects if
-   * the disk write failed (the cache stays ahead and the next write/flush
-   * retries). Synchronous-write stores have nothing pending, so this resolves
-   * immediately. The widget flush protocol's persisted=true depends on this:
-   * `ShellManager.setInstanceState` awaits it before acking.
-   */
-  async flush(): Promise<void> {
-    while (!this.closed && (this.dirty || this.writeLoop !== null)) {
-      await this.ensureDrain();
-    }
-  }
-
   invalidate(): void {
-    // A pending coalesced write means the cache is ahead of disk; dropping it
-    // would make the next read resurrect the stale on-disk value.
-    if (this.dirty || this.writeLoop !== null) return;
     this.cache = undefined;
   }
 
@@ -348,45 +285,6 @@ export class JsonStore<T> {
    */
   close(): void {
     this.closed = true;
-  }
-
-  /** Start (or join) the single in-flight drain. Fire-and-forget `write()`
-   * callers never await it, so failures are logged here; `flush()` callers
-   * still observe the rejection through the returned promise. */
-  private ensureDrain(): Promise<void> {
-    if (this.writeLoop) return this.writeLoop;
-    const loop = this.drainWrites().finally(() => {
-      if (this.writeLoop === loop) this.writeLoop = null;
-    });
-    this.writeLoop = loop;
-    loop.catch((err: unknown) => {
-      console.error(`[json-store] ${this.filePath}: coalesced write failed:`, err);
-    });
-    return loop;
-  }
-
-  /** Write the latest cache to disk, looping while writes land mid-flight —
-   * single in-flight write, one trailing write, latest cache wins. */
-  private async drainWrites(): Promise<void> {
-    while (this.dirty && !this.closed) {
-      const current = this.cache;
-      if (current === undefined) return; // unreachable: dirty implies write() set the cache
-      this.dirty = false;
-      const payload = JSON.stringify(this.encode(current), null, 2);
-      try {
-        if (this.fs.writeAsync) {
-          await this.fs.writeAsync(this.filePath, payload, {
-            mode: this.mode,
-            shouldAbort: () => this.closed,
-          });
-        } else {
-          this.fs.write(this.filePath, payload, this.mode);
-        }
-      } catch (err) {
-        this.dirty = true; // disk is behind the cache; the next write/flush retries
-        throw err;
-      }
-    }
   }
 
   private migrate(parsed: unknown, versioning: StoreVersioning): MigrateOutcome {
