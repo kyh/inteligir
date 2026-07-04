@@ -28,14 +28,12 @@ const REPO_ROOT = fileURLToPath(new URL("../../../../..", import.meta.url));
 
 const REPO_DOCS: Record<string, string> = {
   "README.md": readFileSync(`${REPO_ROOT}/README.md`, "utf8"),
-  "docs/replatform-plan.md": readFileSync(`${REPO_ROOT}/docs/replatform-plan.md`, "utf8"),
 };
 
 // The expected-set. A change here must be a conscious decision, not a driveby.
 const EXPECTED: Record<string, Classification> = {
   // repo docs (real-world hand-written markdown)
   "README.md": "formattable", // wrapped paragraphs → soft-break churn (pre-WP1 behavior too)
-  "docs/replatform-plan.md": "letters-diverge", // entity-style sequences decode on round-trip
   // dev fixture vault — pre-canonicalized (WP4): a first edit must produce a
   // minimal diff, not a wholesale reflow. legacy-web-clip.md stays the Raw
   // exemplar; README.md above keeps the formattable path covered.

@@ -30,9 +30,8 @@ Workspace `README.md`s:
 
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
 ways to run the app, ports/shared state, gates, verification, and
-change checklists. `docs/replatform-plan.md` is the architecture decision
-record. `CLAUDE.md` (root) is read by Claude Code / agents working in the
-repo — architecture summary + conventions.
+change checklists. `CLAUDE.md` (root) is read by Claude Code / agents working
+in the repo — architecture summary + conventions.
 
 ## Common commands
 
