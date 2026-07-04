@@ -7,7 +7,7 @@ How to run, verify, and change inteligir. Written for humans and agents alike;
 
 - Node ≥ 24 (repo developed on 24.x), pnpm 10 (`corepack enable`)
 - macOS for the Electron desktop app + voice (sherpa-onnx native module);
-  the browser host runs anywhere node does
+  the browser dev harness runs anywhere
 - `pnpm install` at the repo root (workspace-wide)
 
 ## The two ways to run the app

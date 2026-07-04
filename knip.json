@@ -31,9 +31,6 @@
       // doesn't parse.
       "ignoreDependencies": ["tailwindcss"]
     },
-    "packages/agent-runtime": {
-      "includeEntryExports": true
-    },
     "packages/features": {
       // The backend + isomorphic contract. `src/**` is the iso contract +
       // pure engines; `src/server/**` is the node backend (host, pi-driver,

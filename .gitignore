@@ -17,12 +17,8 @@ out/
 .nitro/
 .output/
 
-# expo
-.expo/
+# build output
 dist/
-dist-web/
-expo-env.d.ts
-apps/expo/.gitignore
 
 # production
 .source

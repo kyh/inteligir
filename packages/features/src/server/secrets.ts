@@ -98,10 +98,10 @@ export class SecretStore {
     }));
   }
 
-  /** Decrypted secret, or null when missing, written by another install
-   * mode (desktop safeStorage vs server file-key), or undecryptable
-   * (keychain reset). All of those read as absent so the owning feature
-   * reports "not configured" instead of failing with garbage. */
+  /** Decrypted secret, or null when missing, written under a different
+   * cipher kind, or undecryptable (keychain reset). All of those read as
+   * absent so the owning feature reports "not configured" instead of
+   * failing with garbage. */
   get(key: string): string | null {
     const entry = this.store.read().secrets[key];
     if (!entry) return null;

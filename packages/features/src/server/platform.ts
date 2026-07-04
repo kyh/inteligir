@@ -39,8 +39,8 @@ export type HostPlatform = {
 
   /**
    * Directory holding bundled agent resources (skills/, AGENTS.md).
-   * Electron packaged: <resources>/agent; dev + server: the repo/package's
-   * packages/host/resources/agent. Injecting the resolved path removes the
+   * Electron packaged: <resources>/agent; dev: the repo's
+   * packages/features/resources/agent. Injecting the resolved path removes the
    * host's app.isPackaged / process.resourcesPath branches.
    */
   resourcesDir: string;

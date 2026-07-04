@@ -2,13 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/nicolo-ribaudo/oxc/json-schema-for-oxfmt/npm/oxlint/configuration_schema.json",
   "ignorePatterns": [
     "dist",
-    "dist-electron",
-    "dist-web",
     "node_modules",
     "pnpm-lock.yaml",
     "*.tsbuildinfo",
-    ".expo",
-    ".wxt",
     ".output",
     ".tanstack",
     "out",
@@ -30,9 +26,7 @@
     "react/react-in-jsx-scope": "off",
     "eslint/no-shadow": "off",
     "eslint/no-await-in-loop": "off",
-    // expo-status-bar's StatusBar takes `style` as a string variant, not CSS.
-    "react/style-prop-object": ["error", { "allow": ["StatusBar"] }],
-    // Render props (React Navigation headerRight, FlatList renderItem) are legit.
+    // Component-as-prop render slots (e.g. react-day-picker's `components`) are legit.
     "react/no-unstable-nested-components": ["error", { "allowAsProps": true }],
     // Force the `node:` protocol on all builtins. This keeps the isomorphic /
     // renderer boundary rules below sufficient: they block `node:*`, and a bare
