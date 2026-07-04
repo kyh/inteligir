@@ -20,8 +20,8 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChatStatus, FileUIPart } from "ai";
-import { CornerDownLeftIcon, SquareIcon, XIcon } from "lucide-react";
+import type { FileUIPart } from "ai";
+import { CornerDownLeftIcon } from "lucide-react";
 import { nanoid } from "nanoid";
 
 import {
@@ -29,7 +29,6 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@renderer/ai-elements/input-group";
-import { Spinner } from "@repo/ui/components/spinner";
 import {
   Tooltip,
   TooltipContent,
@@ -88,7 +87,6 @@ export interface PromptInputMessage {
 export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" | "onError"> & {
   accept?: string;
   multiple?: boolean;
-  globalDrop?: boolean;
   maxFiles?: number;
   maxFileSize?: number;
   onError?: (err: { code: "max_files" | "max_file_size" | "accept"; message: string }) => void;
@@ -102,7 +100,6 @@ export const PromptInput = ({
   className,
   accept,
   multiple,
-  globalDrop,
   maxFiles,
   maxFileSize,
   onError,
@@ -219,7 +216,7 @@ export const PromptInput = ({
 
   useEffect(() => {
     const form = formRef.current;
-    if (!form || globalDrop) return;
+    if (!form) return;
 
     const onDragOver = (e: DragEvent) => {
       if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
@@ -236,26 +233,7 @@ export const PromptInput = ({
       form.removeEventListener("dragover", onDragOver);
       form.removeEventListener("drop", onDrop);
     };
-  }, [add, globalDrop]);
-
-  useEffect(() => {
-    if (!globalDrop) return;
-    const onDragOver = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
-    };
-    const onDrop = (e: DragEvent) => {
-      if (e.dataTransfer?.types?.includes("Files")) e.preventDefault();
-      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-        add(e.dataTransfer.files);
-      }
-    };
-    document.addEventListener("dragover", onDragOver);
-    document.addEventListener("drop", onDrop);
-    return () => {
-      document.removeEventListener("dragover", onDragOver);
-      document.removeEventListener("drop", onDrop);
-    };
-  }, [add, globalDrop]);
+  }, [add]);
 
   useEffect(
     () => () => {
@@ -483,51 +461,23 @@ export const PromptInputButton = ({
   );
 };
 
-export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton> & {
-  status?: ChatStatus;
-  onStop?: () => void;
-};
+export type PromptInputSubmitProps = ComponentProps<typeof InputGroupButton>;
 
 export const PromptInputSubmit = ({
   className,
   variant = "primary",
   size = "icon-sm",
-  status,
-  onStop,
-  onClick,
   children,
   ...props
-}: PromptInputSubmitProps) => {
-  const isGenerating = status === "submitted" || status === "streaming";
-
-  let Icon: ReactNode = <CornerDownLeftIcon className="size-4" />;
-  if (status === "submitted") Icon = <Spinner />;
-  else if (status === "streaming") Icon = <SquareIcon className="size-4" />;
-  else if (status === "error") Icon = <XIcon className="size-4" />;
-
-  const handleClick: NonNullable<ComponentProps<typeof InputGroupButton>["onClick"]> = useCallback(
-    (e) => {
-      if (isGenerating && onStop) {
-        e.preventDefault();
-        onStop();
-        return;
-      }
-      onClick?.(e);
-    },
-    [isGenerating, onStop, onClick],
-  );
-
-  return (
-    <InputGroupButton
-      aria-label={isGenerating ? "Stop" : "Submit"}
-      className={cn(className)}
-      onClick={handleClick}
-      size={size}
-      type={isGenerating && onStop ? "button" : "submit"}
-      variant={variant}
-      {...props}
-    >
-      {children ?? Icon}
-    </InputGroupButton>
-  );
-};
+}: PromptInputSubmitProps) => (
+  <InputGroupButton
+    aria-label="Submit"
+    className={cn(className)}
+    size={size}
+    type="submit"
+    variant={variant}
+    {...props}
+  >
+    {children ?? <CornerDownLeftIcon className="size-4" />}
+  </InputGroupButton>
+);

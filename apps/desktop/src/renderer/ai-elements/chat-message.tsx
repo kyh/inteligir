@@ -5,23 +5,11 @@ import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
 import { useShape } from "@repo/ui/lib/shape-context";
-import { FileThumbnail } from "@renderer/ai-elements/file-thumbnail";
 
 interface ChatMessageProps extends Omit<HTMLMotionProps<"div">, "children"> {
   /** Who sent the message. Drives alignment and bubble colour:
    *  `user` → right-aligned accent bubble, `assistant` → left-aligned plain text. */
   from: "user" | "assistant";
-  /** Optional attachments rendered as square thumbnails above the bubble. */
-  files?: File[];
-  /** Side length of each attachment thumbnail in pixels. Defaults to 64. */
-  thumbnailSize?: number;
-  /** Timestamp shown in the hover-revealed meta row, before the actions.
-   *  User-message only — ignored on assistant replies. Caller pre-formats it
-   *  (e.g. `"Wednesday 6:08 PM"`). */
-  time?: ReactNode;
-  /** Icon-only action buttons shown in the hover-revealed meta row (e.g. copy,
-   *  edit, regenerate). Rendered next to the timestamp. */
-  actions?: ReactNode;
   /** Message body. When omitted the text bubble is dropped (attachment-only message). */
   children?: ReactNode;
 }
@@ -31,11 +19,9 @@ interface ChatMessageProps extends Omit<HTMLMotionProps<"div">, "children"> {
 // InputMessage's onSend: render one per sent/received message. `layout="position"`
 // lets earlier messages slide up smoothly when a new one is appended.
 const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(
-  ({ from, files, thumbnailSize = 64, time, actions, children, className, ...props }, ref) => {
+  ({ from, children, className, ...props }, ref) => {
     const shape = useShape();
     const isUser = from === "user";
-    // Timestamps are a user-message affordance; assistant replies show actions only.
-    const showTime = isUser && time != null;
 
     return (
       <motion.div
@@ -52,17 +38,6 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(
         )}
         {...props}
       >
-        {files && files.length > 0 && (
-          <div className={cn("flex flex-wrap gap-1.5", isUser ? "justify-end" : "justify-start")}>
-            {files.map((file) => (
-              <FileThumbnail
-                key={`${file.name}-${file.size}-${file.lastModified}`}
-                file={file}
-                size={thumbnailSize}
-              />
-            ))}
-          </div>
-        )}
         {children != null && children !== "" && (
           <div
             className={cn(
@@ -84,24 +59,6 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(
             )}
           >
             {children}
-          </div>
-        )}
-        {(showTime || actions != null) && (
-          // Meta row: timestamp + icon-only actions. Always rendered (so it
-          // reserves its height and the gap between bubbles never shifts) but
-          // hidden until the message is hovered or an action is focused.
-          // The timestamp is a user-message affordance only — assistant replies
-          // show their actions alone. User rows read date → icons left-to-right.
-          <div
-            className={cn(
-              "flex items-center gap-2 px-1 text-[12px] leading-none text-muted-foreground select-none",
-              "opacity-0 pointer-events-none transition-opacity duration-150",
-              "group-hover:opacity-100 group-hover:pointer-events-auto",
-              "group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
-            )}
-          >
-            {showTime && <span className="tabular-nums">{time}</span>}
-            {actions != null && <span className="flex items-center gap-0.5">{actions}</span>}
           </div>
         )}
       </motion.div>
