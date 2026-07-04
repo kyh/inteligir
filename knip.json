@@ -9,11 +9,15 @@
         "src/preload/index.ts",
         "src/renderer/index.html",
         "src/renderer/main.tsx",
+        "src/renderer/router.tsx",
+        "src/renderer/routes/**/*.tsx",
         "src/__tests__/**/*.test.ts",
         "src/renderer/__tests__/**/*.test.ts",
         "scripts/**/*.mjs"
       ],
       "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
+      // TanStack Router's generated route tree — don't analyze its exports.
+      "ignore": ["src/renderer/routeTree.gen.ts"],
       // sherpa-onnx-node: not imported by desktop source (host imports it),
       // but it must stay a desktop dependency so electron-builder packs the
       // externalized native module (+ its sherpa-onnx-* platform binaries)

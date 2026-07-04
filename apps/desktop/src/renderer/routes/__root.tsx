@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Navigate, Outlet, useLocation } from "react-router";
+import { createRootRoute, Navigate, Outlet, useLocation } from "@tanstack/react-router";
 
 import { ConfirmDialogHost } from "@repo/ui/components/confirm-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
@@ -7,6 +7,8 @@ import { ReauthDialog } from "@renderer/components/reauth-dialog";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import type { AppState } from "@repo/features/app-state";
+
+export const Route = createRootRoute({ component: RootLayout });
 
 type Phase = AppState["phase"];
 
@@ -25,7 +27,7 @@ function phaseToPath(phase: Phase): "/" | "/login" | "/onboarding" {
   }
 }
 
-export function AppLayout() {
+function RootLayout() {
   const appState = useAgentStore((s) => s.appState);
   const init = useAgentStore((s) => s.init);
   const initUiState = useUiStateStore((s) => s.init);
@@ -35,7 +37,7 @@ export function AppLayout() {
   useEffect(() => void initUiState(), [initUiState]);
 
   // Redirect during render (not in useEffect) so we never flash the wrong
-  // route while the navigation effect runs after first paint.
+  // route while the navigation runs after first paint.
   const target =
     appState.phase === "error" ? phaseToPath(appState.prev) : phaseToPath(appState.phase);
   const needsRedirect = pathname !== target;
