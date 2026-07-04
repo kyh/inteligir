@@ -32,16 +32,16 @@ apps/            # shippable artifacts
   web/           # Marketing site (@repo/web) — landing page only
   desktop/       # Electron shell — the notes product (@repo/desktop)
 packages/        # libraries
-  features/      # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/features)
-  host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
+  features/      # Contract + backend (@repo/features):
+                 #   src/        — iso: Bridge/IPC registry, schemas, knowledge engine, markdown
+                 #   src/server/ — node: vault, pi agent, delegation, executor, voice, handlers,
+                 #                 createHost, HostPlatform (pi-driver + agent-runtime folded in)
   ui/            # Shared UI components (@repo/ui)
-  agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
-  pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
 ```
 
 The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
-`@repo/host` backend, communicating through Electron IPC. For
+`@repo/features/server` backend, communicating through Electron IPC. For
 UI work there is also a backend-free browser dev harness
 (`pnpm --filter @repo/desktop dev:harness`) that drives the real UI over an in-memory
 fixture Bridge.
@@ -95,7 +95,7 @@ injected `AgentPorts` (`{ executor }`).
 
 ### Data model — the vault
 
-`packages/host/src/vault/` (`VaultManager`) owns the vault: a user-chosen
+`packages/features/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files), writes atomically, watches for changes (broadcasts
 `onVaultChanged`), and maintains a `./vault` symlink in the agent workspace so
@@ -110,7 +110,7 @@ and the MDX components `<toggle>`, `<column_group>/<column>`, `<video>`,
 JSX, expressions, HTML comments) sends the file to Raw mode rather than being
 mangled. Files stay `.md`.
 
-`packages/host/src/knowledge/` maintains the derived indexes (wiki/md link
+`packages/features/src/server/knowledge/` maintains the derived indexes (wiki/md link
 graph, backlinks, lexical search, wiki-target list) — incrementally updated
 from vault events; renames rewrite `[[links]]` across the vault byte-surgically
 (shadow-protection qualifies links the new name would steal).
@@ -150,7 +150,7 @@ and full-text search live in the command palette.
   toolbar, slash menu, block menu, and space-in-empty-paragraph; ghost-text
   completions on a fast model, on by default (Settings › Editor AI opts out).
 
-### Delegation — `packages/host/src/delegation/`
+### Delegation — `packages/features/src/server/delegation/`
 
 A checkbox's "Delegate" → `delegation-manager.ts` (versioned `JsonStore` +
 event-driven serialized queue) runs it on `background-agent.ts` (a second pi
@@ -161,7 +161,7 @@ via `./vault`, checks the box, and appends a result; the watcher refreshes the
 editor. Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
 
-### Agent surface — `packages/host/src/agent/`
+### Agent surface — `packages/features/src/server/agent/`
 
 Extension bundles are listed in `agent/bundles.ts` (static registry + disk-drift
 test) and receive `AgentPorts` at register time — adding/removing a capability
@@ -179,7 +179,7 @@ in-memory session for ghost-text on a fast model.
 `packages/features/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
-schema-validated handler map (`packages/host/src/handlers/`) that the desktop
+schema-validated handler map (`packages/features/src/server/handlers/`) that the desktop
 shell folds over Electron `ipcMain` (the preload derives the typed
 `window.desktopBridge` automatically). Add a channel = registry entry + host
 handler + one line in the dev-harness fixture Bridge

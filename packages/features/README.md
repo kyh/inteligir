@@ -1,14 +1,19 @@
-# `@repo/features` — the isomorphic contract
+# `@repo/features` — the contract + the backend
 
-The shared vocabulary every host and UI speaks: the Bridge/IPC registry, domain schemas, and pure engines (knowledge index, agent-event parsing). **Isomorphic** — the same modules load in the Electron renderer (a browser context) and the node host, so no node built-ins and no electron anywhere (lint-enforced). No barrel; import by file.
+One package, two halves split by subpath:
+
+- **`src/` — isomorphic.** The shared vocabulary the renderer and backend both speak: the Bridge/IPC registry, domain schemas, and pure engines (knowledge index, agent-event parsing, markdown). The same modules load in the Electron renderer (a browser context) and node, so no node built-ins and no electron here (lint-enforced).
+- **`src/server/` — the node backend.** vault, pi agent, delegation, executor, voice, and the Bridge handler map behind `createHost()` (pi-driver + agent-runtime folded in). Node is fine here; electron/desktop are not — the shell injects a `HostPlatform`. See [`src/server/README.md`](./src/server/README.md).
+
+No barrel; import by file. The renderer imports the iso half (`@repo/features/...`); the desktop main process imports the backend (`@repo/features/server/...`).
 
 ## IPC registry → Bridge
 
 `src/ipc-registry.ts` is the single source of truth for every channel crossing the main↔renderer boundary. Each entry pairs a channel name with a TypeBox payload schema (runtime validation) and a result/event type (compile-time inference). Everything else is **derived** from it:
 
-- the transport-agnostic `Bridge` type (re-exported via `src/ipc.ts`) that `@repo/app` consumes;
+- the transport-agnostic `Bridge` type (re-exported via `src/ipc.ts`) that the renderer consumes;
 - the Electron preload bridge object (automatic — no per-channel code);
-- the host handler registrar (`@repo/host` validates payloads and throws at boot on missing/duplicate handlers).
+- the backend handler registrar (`src/server` validates payloads and throws at boot on missing/duplicate handlers).
 
 A renamed channel or changed payload is a compile error in every process. The `UPDATE_METHODS` trio (electron-updater) is a desktop-shell overlay, answered locally rather than by the host.
 

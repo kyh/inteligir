@@ -1,9 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": {
-    "paths": {
-      "@repo/pi-driver/*": ["./src/*"]
-    }
-  },
-  "include": ["src"]
-}

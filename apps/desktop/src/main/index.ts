@@ -22,8 +22,8 @@ if (!app.isPackaged) {
   }
 }
 
-import { createHost, type Host } from "@repo/host/create-host";
-import type { HostOptions } from "@repo/host/platform";
+import { createHost, type Host } from "@repo/features/server/create-host";
+import type { HostOptions } from "@repo/features/server/platform";
 import { isHttpUrl, isRecord, toErrorMessage } from "@repo/features/ipc";
 
 import { createElectronPlatform } from "@/main/electron-platform";

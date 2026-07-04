@@ -44,98 +44,10 @@
       }
     },
     {
-      // Dependency boundary: the host library is platform-agnostic. Electron
-      // (and the desktop shell) reach it only through the injected
-      // HostPlatform (packages/host/src/platform.ts).
-      "files": ["packages/host/src/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "electron-updater",
-                  "@repo/desktop",
-                  "@repo/desktop/*",
-                  "**/apps/desktop/**"
-                ],
-                "message": "packages/host is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/platform.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      // Dependency boundary: agent/ must stay host-free (the old "agent never
-      // imports main" rule, re-rooted). Any relative import that climbs out
-      // of src/agent/ reaches host internals; capabilities are injected as
-      // AgentPorts from lib/agent-lifecycle.ts. Two blocks because the rule
-      // is per-specifier text: one "../" escapes from agent/*.ts, two from
-      // agent/<bundle>/*.ts.
-      "files": ["packages/host/src/agent/*.ts"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["electron", "electron/*", "../**"],
-                "message": "agent/ must not reach into the host — inject via AgentPorts (lib/agent-lifecycle.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "files": ["packages/host/src/agent/*/*.ts"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": ["electron", "electron/*", "../../**"],
-                "message": "agent/ must not reach into the host — inject via AgentPorts (lib/agent-lifecycle.ts)"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      // Dependency boundary: the server app is a headless node shell over
-      // @repo/host — never electron or the desktop shell.
-      "files": ["apps/server/src/**", "apps/server/bin/**"],
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "group": [
-                  "electron",
-                  "electron/*",
-                  "electron-updater",
-                  "@repo/desktop",
-                  "@repo/desktop/*",
-                  "**/apps/desktop/**"
-                ],
-                "message": "the server app is headless node — no electron/desktop imports"
-              }
-            ]
-          }
-        ]
-      }
-    },
-    {
-      // Dependency boundary: features is isomorphic — the same modules load in
-      // the browser (bridge-ws-client), the Electron renderer, and node
-      // hosts. No node built-ins, no electron.
+      // Dependency boundary: `packages/features/src/**` is isomorphic — the
+      // same modules load in the Electron renderer (browser) and node. No node
+      // built-ins, no electron. The `src/server/**` override below re-permits
+      // node for the backend half (it must come AFTER this rule to win).
       "files": ["packages/features/src/**"],
       "rules": {
         "no-restricted-imports": [
@@ -144,7 +56,71 @@
             "patterns": [
               {
                 "group": ["electron", "electron/*", "node:*", "@repo/desktop", "@repo/desktop/*"],
-                "message": "packages/features is isomorphic — no node/electron imports"
+                "message": "packages/features/src is isomorphic — no node/electron imports (the node backend lives in src/server)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // The node backend half of features: node built-ins are fine here, but it
+      // stays platform-agnostic — electron and the desktop shell reach it only
+      // through the injected HostPlatform (src/server/platform.ts).
+      "files": ["packages/features/src/server/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "electron-updater",
+                  "@repo/desktop",
+                  "@repo/desktop/*",
+                  "**/apps/desktop/**"
+                ],
+                "message": "the features backend is platform-agnostic — no electron/desktop imports; inject via HostPlatform (src/server/platform.ts)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Dependency boundary: agent/ must stay backbone-free. Any relative
+      // import that climbs out of server/agent/ reaches the backend internals;
+      // capabilities are injected as AgentPorts from lib/agent-lifecycle.ts.
+      // Two blocks because the rule is per-specifier text: one "../" escapes
+      // from agent/*.ts, two from agent/<bundle>/*.ts. (pi-driver /
+      // agent-runtime are reached via their @repo/* aliases, not "../".)
+      "files": ["packages/features/src/server/agent/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["electron", "electron/*", "../**"],
+                "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/features/src/server/agent/*/*.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["electron", "electron/*", "../../**"],
+                "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
               }
             ]
           }
@@ -154,7 +130,7 @@
     {
       // Dependency boundary: the renderer UI is host-agnostic. It reaches the
       // backend only through the injected Bridge (renderer/lib/bridge.ts) —
-      // never electron, node built-ins, the node host, or the main process.
+      // never electron, node built-ins, the node backend, or the main process.
       "files": ["apps/desktop/src/renderer/**", "apps/desktop/dev/**"],
       "rules": {
         "no-restricted-imports": [
@@ -167,12 +143,12 @@
                   "electron/*",
                   "electron-updater",
                   "node:*",
-                  "@repo/host",
-                  "@repo/host/*",
+                  "@repo/features/server",
+                  "@repo/features/server/*",
                   "@/main/*",
                   "@/preload/*"
                 ],
-                "message": "the renderer UI is host-agnostic — no electron/node/host/main imports; reach the backend through the injected Bridge (@renderer/lib/bridge)"
+                "message": "the renderer UI is host-agnostic — no electron/node/backend/main imports; reach the backend through the injected Bridge (@renderer/lib/bridge)"
               }
             ]
           }

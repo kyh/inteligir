@@ -31,7 +31,17 @@ export default defineConfig(() => ({
       ),
     },
     resolve: {
-      alias: { "@": resolve(configDir, "src") },
+      alias: {
+        "@": resolve(configDir, "src"),
+        // pi-driver / agent-runtime are folded into @repo/features/src/server;
+        // the backend imports them via these @repo/* aliases (the agent
+        // boundary forbids "../" reaches). Mirror the tsconfig paths here.
+        "@repo/pi-driver": resolve(configDir, "../../packages/features/src/server/pi"),
+        "@repo/agent-runtime": resolve(
+          configDir,
+          "../../packages/features/src/server/agent-runtime",
+        ),
+      },
     },
     build: {
       externalizeDeps: false,

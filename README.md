@@ -12,24 +12,21 @@ apps/              Shippable artifacts
   desktop/         Electron app — main/preload + the product UI (renderer) (@repo/desktop)
   web/             TanStack Start marketing site on Cloudflare Workers (landing page only)
 packages/          Libraries
-  features/        Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/features)
-  host/            Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
+  features/        Isomorphic contract + node backend (@repo/features)
+                     src/         iso — Bridge/IPC registry, schemas, knowledge engine, markdown
+                     src/server/  node — vault, pi agent, delegation, executor, voice, handlers
   ui/              Shared UI components (@repo/ui)
-  agent-runtime/   Filesystem + install primitives for the agent (@repo/agent-runtime)
-  pi-driver/       Wrapper around pi-coding-agent — stable surface for app code (@repo/pi-driver)
 ```
 
 Workspace `README.md`s:
 
-| Workspace                | README                                                                       |
-| ------------------------ | ---------------------------------------------------------------------------- |
-| `apps/desktop`           | [Electron shell — process boundary, packaging](./apps/desktop/README.md)     |
-| `apps/web`               | [static marketing site](./apps/web/README.md)                                |
-| `packages/features`      | [isomorphic contract — IPC registry, schemas](./packages/features/README.md) |
-| `packages/host`          | [node backend — createHost, HostPlatform](./packages/host/README.md)         |
-| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md)    |
-| `packages/pi-driver`     | [pi-coding-agent wrapper](./packages/pi-driver/README.md)                    |
-| `packages/ui`            | [shared design system](./packages/ui/README.md)                              |
+| Workspace                      | README                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `apps/desktop`                 | [Electron shell — process boundary, packaging](./apps/desktop/README.md)            |
+| `apps/web`                     | [static marketing site](./apps/web/README.md)                                       |
+| `packages/features`            | [contract + backend — iso `src`, node `src/server`](./packages/features/README.md)  |
+| `packages/features/src/server` | [node backend — createHost, HostPlatform](./packages/features/src/server/README.md) |
+| `packages/ui`                  | [shared design system](./packages/ui/README.md)                                     |
 
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
 ways to run the app, ports/shared state, gates, verification, and

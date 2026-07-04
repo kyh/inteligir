@@ -33,7 +33,7 @@ pnpm dev:desktop                   # electron-vite, HMR, CDP on :9222
 ```
 
 `apps/desktop` (thin shell: window/menu/updater + the IPC Bridge fold) boots
-`@repo/host` (real vault, real pi agent, delegation, knowledge indexes) and
+`@repo/features/server` (real vault, real pi agent, delegation, knowledge indexes) and
 talks to the renderer over Electron IPC. pi auth (OpenAI OAuth) is on-device; if
 this machine is logged in, chat/AI/delegation are fully live. Uses the
 last-opened vault from `~/.inteligir`.
@@ -90,7 +90,7 @@ Type-checks passing isn't feature-correct. Drive the running app:
 
 1. Registry entry in `packages/features/src/ipc-registry.ts` (TypeBox payload +
    result/event type).
-2. Host handler in `packages/host/src/handlers/` (grouped by domain;
+2. Host handler in `packages/features/src/server/handlers/` (grouped by domain;
    `collectHandlers` throws at boot on missing/duplicate).
 3. Fixture implementation in `apps/desktop/dev/fixture-bridge.ts` (typed
    `: Bridge` — fails typecheck until covered).
@@ -105,17 +105,17 @@ canonical/idempotent behavior.
 
 ## Tests
 
-- `pnpm --filter @repo/desktop test` — editor pipeline (round-trip matrix,
-  adversarial harness, kit parity, corpus classification), combobox,
+- `pnpm --filter @repo/desktop test` — the renderer: editor pipeline (round-trip
+  matrix, adversarial harness, kit parity, corpus classification), combobox,
   knowledge fixtures.
-- `pnpm --filter @repo/host test` — vault, delegation (+snapshots), knowledge
-  manager, handlers, secrets.
-- `pnpm --filter @repo/features test` — knowledge engine, parsers, schemas.
+- `pnpm --filter @repo/features test` — the iso contract (knowledge engine,
+  parsers, schemas) **and** the backend under `src/server` (vault, delegation
+  +snapshots, knowledge manager, handlers, secrets).
 
 ## Releasing the desktop app
 
 Use the `release` skill (`.claude/skills/release/`) — bump, build, notarize,
 publish to GitHub Releases (electron-updater). Note: the electron-builder
 packaging path moved in the host split (extraResources now sources
-`packages/host/resources/agent`) — `pnpm verify:release` +
+`packages/features/resources/agent`) — `pnpm verify:release` +
 `pnpm verify:packaged` in `apps/desktop` are the guards.

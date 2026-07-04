@@ -30,23 +30,15 @@
     "packages/agent-runtime": {
       "includeEntryExports": true
     },
-    "packages/host": {
-      // The node backend, source-imported by its shells (desktop today,
-      // server later) through its `./*` exports — don't flag them as unused.
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
     "packages/features": {
-      // Isomorphic contract + pure-logic library consumed by every host
-      // (desktop shell, web server, browser client). Its `./*` exports are
-      // the public API across hosts, so don't flag them as unused.
-      "entry": ["src/__tests__/**/*.test.ts"],
+      // The backend + isomorphic contract. `src/**` is the iso contract +
+      // pure engines; `src/server/**` is the node backend (host, pi-driver,
+      // agent-runtime folded in). Its `./*` exports are the public API
+      // (renderer imports the iso half, desktop main the server half), so
+      // don't flag them as unused.
+      "entry": ["src/__tests__/**/*.test.ts", "src/server/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
-    },
-    "packages/pi-driver": {
-      "includeEntryExports": true
     },
     "packages/ui": {
       // A consumed component library: its exports are the public API, and the
