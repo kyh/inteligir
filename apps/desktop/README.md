@@ -1,9 +1,11 @@
-# `@repo/desktop` — the Electron shell
+# `@repo/desktop` — the Electron app
 
-The thin Electron wrapper over `@repo/host` (node backend) + `@repo/app`
-(portable UI). Everything product-shaped lives in those packages; this one owns
-only what is Electron's to own: window/menu lifecycle, the IPC transport, the
-auto-updater, and native packaging (including the sherpa-onnx voice binaries).
+The desktop product: the Electron main/preload processes plus the whole
+renderer UI (the workspace — editor, sidebar, composer, settings, voice). The
+node backend is `@repo/host`; the shared contract is `@repo/features`; shared
+primitives are `@repo/ui`. Main owns what is Electron's to own: window/menu
+lifecycle, the IPC transport, the auto-updater, and native packaging (including
+the sherpa-onnx voice binaries).
 
 ## Layout
 
@@ -15,9 +17,11 @@ src/
     host-fold.ts         folds host.handlers into ipcMain + forwards host.events
     updater.ts           electron-updater wiring
   preload/   contextBridge — exposes the typed window.desktopBridge derived from @repo/features/ipc-registry
-  renderer/  entry shim — index.html + main.tsx that install window.desktopBridge into @repo/app
+  renderer/  the product UI — main.tsx installs window.desktopBridge and renders App;
+             editor/, workspace/, composer/, sidebar/, settings/, voice/, … (imported via @renderer)
   __tests__/ Vitest — host-fold, updater, agent-event parsing
 
+dev/         browser dev harness — in-memory fixture Bridge (`dev:harness`)
 resources/   icons + entitlements shipped in the .app (agent assets live in packages/host/resources/agent)
 scripts/     build-time verifiers (packaged runtime deps, model registry)
 ```
@@ -25,7 +29,7 @@ scripts/     build-time verifiers (packaged runtime deps, model registry)
 ## Process boundary
 
 ```
-renderer (sandboxed Chromium) — @repo/app
+renderer (sandboxed Chromium) — the product UI, host-agnostic (talks via the Bridge)
    ↕  contextBridge → window.desktopBridge
 preload (Node, isolated)
    ↕  ipcRenderer ⇄ ipcMain

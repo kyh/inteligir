@@ -1,10 +1,13 @@
-// The css/?url wildcard declarations are needed because desktop's tsc program
-// pulls @repo/app sources in through paths mapping, without @repo/app's own
-// env.d.ts (ambient files outside `include` are not loaded).
+// Ambient module declarations for the renderer UI (moved here from the former
+// @repo/app package): css side-effect imports and ?url / ?raw asset imports.
 declare module "*.css";
 declare module "*?url" {
   const url: string;
   export default url;
+}
+declare module "*?raw" {
+  const content: string;
+  export default content;
 }
 
 interface Window {

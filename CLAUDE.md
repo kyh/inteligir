@@ -32,7 +32,6 @@ apps/            # shippable artifacts
   web/           # Marketing site (@repo/web) — landing page only
   desktop/       # Electron shell — the notes product (@repo/desktop)
 packages/        # libraries
-  app/           # Portable UI — the whole workspace as a React app (@repo/app)
   features/      # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/features)
   host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
   ui/            # Shared UI components (@repo/ui)
@@ -40,10 +39,11 @@ packages/        # libraries
   pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
 ```
 
+The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
-`@repo/host` backend + `@repo/app` UI, communicating through Electron IPC. For
+`@repo/host` backend, communicating through Electron IPC. For
 UI work there is also a backend-free browser dev harness
-(`pnpm --filter @repo/app dev`) that drives the real UI over an in-memory
+(`pnpm --filter @repo/desktop dev:harness`) that drives the real UI over an in-memory
 fixture Bridge.
 
 ## Common Commands
@@ -86,10 +86,12 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build
 ## Desktop architecture (@repo/desktop)
 
 Three processes: **main** (Electron), **preload**, **renderer**. The renderer
-is a thin shim (`src/renderer/main.tsx`) that installs `window.desktopBridge`
-into `@repo/app` and renders its `App` — the actual UI lives in `packages/app`.
-The `agent/` boundary never imports `main/` — it's lint-enforced; main composes
-capabilities and hands the agent an injected `AgentPorts` (`{ executor }`).
+(`src/renderer/`) is the whole product UI: `main.tsx` installs
+`window.desktopBridge` and renders `App`. Renderer code is host-agnostic —
+it reaches the backend only through the injected Bridge (`@renderer/lib/bridge`),
+never electron/node/host (lint-enforced). The `agent/` boundary never imports
+`main/` — also lint-enforced; main composes capabilities and hands the agent an
+injected `AgentPorts` (`{ executor }`).
 
 ### Data model — the vault
 
@@ -113,13 +115,13 @@ graph, backlinks, lexical search, wiki-target list) — incrementally updated
 from vault events; renames rewrite `[[links]]` across the vault byte-surgically
 (shadow-protection qualifies links the new name would steal).
 
-### UI — `packages/app`, one fixed workspace
+### UI — `apps/desktop/src/renderer`, one fixed workspace
 
-The portable UI (@repo/app) consumes an injected `Bridge`
-(`src/lib/bridge.ts::installBridge`) — never electron/node (lint-enforced). It
-runs standalone in a plain browser via `pnpm --filter @repo/app dev` (a vite
-harness with an in-memory fixture Bridge in `dev/` that runs the real knowledge
-engine over sample notes). `workspace/workspace-page.tsx` is the only surface:
+The renderer UI consumes an injected `Bridge`
+(`lib/bridge.ts::installBridge`) — never electron/node (lint-enforced). It
+runs standalone in a plain browser via `pnpm --filter @repo/desktop dev:harness` (a vite
+harness with an in-memory fixture Bridge in `apps/desktop/dev/` that runs the
+real knowledge engine over sample notes). `workspace/workspace-page.tsx` is the only surface:
 **Sidebar (file tree) | single-document Editor | BottomComposer** (chat pinned
 bottom — no side chat panel, no tabs: opening a note replaces the open one),
 settings behind a dialog; backlinks collapse under the editor column; a
@@ -181,4 +183,4 @@ schema-validated handler map (`packages/host/src/handlers/`) that the desktop
 shell folds over Electron `ipcMain` (the preload derives the typed
 `window.desktopBridge` automatically). Add a channel = registry entry + host
 handler + one line in the dev-harness fixture Bridge
-(`packages/app/dev/fixture-bridge.ts`), which fails typecheck until covered.
+(`apps/desktop/dev/fixture-bridge.ts`), which fails typecheck until covered.

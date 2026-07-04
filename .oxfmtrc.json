@@ -12,7 +12,7 @@
     ".tanstack",
     "out",
     "routeTree.gen.ts",
-    "packages/app/src/__tests__/fixtures"
+    "apps/desktop/src/renderer/__tests__/fixtures"
   ],
   "experimentalSortPackageJson": {}
 }

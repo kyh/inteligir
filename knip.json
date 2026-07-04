@@ -10,19 +10,15 @@
         "src/renderer/index.html",
         "src/renderer/main.tsx",
         "src/__tests__/**/*.test.ts",
+        "src/renderer/__tests__/**/*.test.ts",
         "scripts/**/*.mjs"
       ],
-      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}"],
+      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
       // sherpa-onnx-node: not imported by desktop source (host imports it),
       // but it must stay a desktop dependency so electron-builder packs the
       // externalized native module (+ its sherpa-onnx-* platform binaries)
       // into the app bundle.
-      "ignoreDependencies": [
-        "@tailwindcss/vite",
-        "@vitejs/plugin-react",
-        "electron-builder",
-        "sherpa-onnx-node"
-      ]
+      "ignoreDependencies": ["electron-builder", "sherpa-onnx-node"]
     },
     "apps/web": {
       "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
@@ -33,13 +29,6 @@
     },
     "packages/agent-runtime": {
       "includeEntryExports": true
-    },
-    "packages/app": {
-      // The portable UI, source-imported by the desktop renderer. The dev
-      // harness (dev/main.tsx) is picked up via its vite config.
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}"],
-      "includeEntryExports": false
     },
     "packages/host": {
       // The node backend, source-imported by its shells (desktop today,

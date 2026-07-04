@@ -152,10 +152,10 @@
       }
     },
     {
-      // Dependency boundary: the portable app is host-agnostic. It reaches
-      // the host only through the injected Bridge (src/lib/bridge.ts) —
-      // never electron, node built-ins, or the desktop shell.
-      "files": ["packages/app/src/**", "packages/app/dev/**", "packages/app/web/**"],
+      // Dependency boundary: the renderer UI is host-agnostic. It reaches the
+      // backend only through the injected Bridge (renderer/lib/bridge.ts) —
+      // never electron, node built-ins, the node host, or the main process.
+      "files": ["apps/desktop/src/renderer/**", "apps/desktop/dev/**"],
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -165,12 +165,14 @@
                 "group": [
                   "electron",
                   "electron/*",
+                  "electron-updater",
                   "node:*",
-                  "@repo/desktop",
-                  "@repo/desktop/*",
-                  "**/apps/desktop/**"
+                  "@repo/host",
+                  "@repo/host/*",
+                  "@/main/*",
+                  "@/preload/*"
                 ],
-                "message": "packages/app is portable — no electron/node/desktop imports; go through the injected Bridge (src/lib/bridge.ts)"
+                "message": "the renderer UI is host-agnostic — no electron/node/host/main imports; reach the backend through the injected Bridge (@renderer/lib/bridge)"
               }
             ]
           }
@@ -179,9 +181,9 @@
     },
     {
       // Tests run under vitest on node and read fixture files from disk. The
-      // portability boundary above applies to shipped app code, not the test
-      // harness.
-      "files": ["packages/app/src/__tests__/**"],
+      // portability boundary above applies to shipped renderer code, not the
+      // test harness.
+      "files": ["apps/desktop/src/renderer/__tests__/**"],
       "rules": {
         "no-restricted-imports": "off"
       }

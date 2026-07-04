@@ -75,10 +75,9 @@ export default defineConfig(() => ({
     resolve: {
       alias: {
         "@": resolve(configDir, "src"),
-        // @repo/app is source-only with no exports map (an `exports` fallback
-        // array resolves inconsistently across TS/Vite/node); every host pins
-        // `@repo/app` to ./src, like the package's own dev harness does.
-        "@repo/app": resolve(configDir, "../../packages/app/src"),
+        // The renderer UI (the whole workspace) lives under src/renderer;
+        // `@renderer` is its internal import root.
+        "@renderer": resolve(configDir, "src/renderer"),
       },
     },
     build: {

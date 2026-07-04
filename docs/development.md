@@ -12,15 +12,15 @@ How to run, verify, and change inteligir. Written for humans and agents alike;
 
 ## The two ways to run the app
 
-Same `@repo/app` UI both times; they differ in what backs the Bridge.
+Same renderer UI both times; they differ in what backs the Bridge.
 
 ### 1. Browser dev harness — fixture Bridge (fastest loop, no backend)
 
 ```bash
-pnpm --filter @repo/app dev        # vite on http://localhost:5173
+pnpm --filter @repo/desktop dev:harness        # vite on http://localhost:5173
 ```
 
-An in-memory fixture Bridge (`packages/app/dev/fixture-bridge.ts`) seeds a
+An in-memory fixture Bridge (`apps/desktop/dev/fixture-bridge.ts`) seeds a
 sample vault and runs the **real knowledge engine** over it; agent chat streams
 a canned reply; the AI surface returns canned intents/completions; voice and
 executor report unavailable. Edits persist until reload. Use this for all UI
@@ -65,7 +65,7 @@ Rules that have bitten before:
 - **Format before gates, commit after gates.** A `format:fix` run after green
   gates once corrupted test fixtures and shipped red (#362).
 - **Never hand-edit or format round-trip fixtures**
-  (`packages/app/src/__tests__/fixtures/`): their bytes ARE the test contract
+  (`apps/desktop/src/renderer/__tests__/fixtures/`): their bytes ARE the test contract
   (trailing spaces, indentation, line endings). oxfmt ignores the directory;
   editors must too. Generate fixture bytes through the pipeline itself
   (`roundTrip`) — see the fixture tests for the pattern.
@@ -92,12 +92,12 @@ Type-checks passing isn't feature-correct. Drive the running app:
    result/event type).
 2. Host handler in `packages/host/src/handlers/` (grouped by domain;
    `collectHandlers` throws at boot on missing/duplicate).
-3. Fixture implementation in `packages/app/dev/fixture-bridge.ts` (typed
+3. Fixture implementation in `apps/desktop/dev/fixture-bridge.ts` (typed
    `: Bridge` — fails typecheck until covered).
    The Electron preload derives automatically.
 
 **Adding an editor node type**: Base + React halves in one
-`packages/app/src/editor/kits/*-kit.tsx`; add the Base half to `base-kit.ts`
+`apps/desktop/src/renderer/editor/kits/*-kit.tsx`; add the Base half to `base-kit.ts`
 (kit-parity tests fail on drift); a markdown rule in
 `editor/markdown/md-rules.ts` if the node has bytes; vocabulary allowlist in
 `editor/markdown/vocabulary.ts` for MDX nodes; round-trip fixtures proving
@@ -105,7 +105,7 @@ canonical/idempotent behavior.
 
 ## Tests
 
-- `pnpm --filter @repo/app test` — editor pipeline (round-trip matrix,
+- `pnpm --filter @repo/desktop test` — editor pipeline (round-trip matrix,
   adversarial harness, kit parity, corpus classification), combobox,
   knowledge fixtures.
 - `pnpm --filter @repo/host test` — vault, delegation (+snapshots), knowledge

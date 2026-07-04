@@ -9,10 +9,9 @@ backend, plus a marketing site.
 
 ```
 apps/              Shippable artifacts
-  desktop/         Thin Electron shell over host + app (@repo/desktop)
+  desktop/         Electron app — main/preload + the product UI (renderer) (@repo/desktop)
   web/             TanStack Start marketing site on Cloudflare Workers (landing page only)
 packages/          Libraries
-  app/             Portable UI — the whole workspace as a React app (@repo/app)
   features/        Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/features)
   host/            Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
   ui/              Shared UI components (@repo/ui)
@@ -26,7 +25,6 @@ Workspace `README.md`s:
 | ------------------------ | ---------------------------------------------------------------------------- |
 | `apps/desktop`           | [Electron shell — process boundary, packaging](./apps/desktop/README.md)     |
 | `apps/web`               | [static marketing site](./apps/web/README.md)                                |
-| `packages/app`           | [portable UI — Bridge-injected workspace](./packages/app/README.md)          |
 | `packages/features`      | [isomorphic contract — IPC registry, schemas](./packages/features/README.md) |
 | `packages/host`          | [node backend — createHost, HostPlatform](./packages/host/README.md)         |
 | `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md)    |
