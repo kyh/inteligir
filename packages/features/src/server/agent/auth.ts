@@ -5,8 +5,8 @@
 import fs from "node:fs";
 import open from "open";
 
-import { createAuthStorage, hasAuth, loginWithProvider } from "@repo/pi-driver/auth";
-import type { AuthStorage } from "@repo/pi-driver/pi-types";
+import { createAuthStorage, hasAuth, loginWithProvider } from "@repo/features/server/pi/auth";
+import type { AuthStorage } from "@repo/features/server/pi/pi-types";
 
 import { AUTH_PATH, AUTH_PROVIDER } from "./paths";
 

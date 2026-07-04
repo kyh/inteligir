@@ -8,9 +8,7 @@
     "lib": ["ES2023", "dom"],
     "types": ["node"],
     "paths": {
-      "@repo/features/*": ["./src/*"],
-      "@repo/pi-driver/*": ["./src/server/pi/*"],
-      "@repo/agent-runtime/*": ["./src/server/agent-runtime/*"]
+      "@repo/features/*": ["./src/*"]
     }
   },
   "include": ["src", "vitest.config.ts"]

@@ -92,8 +92,9 @@
       // import that climbs out of server/agent/ reaches the backend internals;
       // capabilities are injected as AgentPorts from lib/agent-lifecycle.ts.
       // Two blocks because the rule is per-specifier text: one "../" escapes
-      // from agent/*.ts, two from agent/<bundle>/*.ts. (pi-driver /
-      // agent-runtime are reached via their @repo/* aliases, not "../".)
+      // from agent/*.ts, two from agent/<bundle>/*.ts. The pi wrapper and
+      // agent-runtime helpers are the only server modules agent/ may import
+      // directly (via @repo/features/server/…, exempted below).
       "files": ["packages/features/src/server/agent/*.ts"],
       "rules": {
         "no-restricted-imports": [
@@ -101,7 +102,14 @@
           {
             "patterns": [
               {
-                "group": ["electron", "electron/*", "../**"],
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "../**",
+                  "@repo/features/server/**",
+                  "!@repo/features/server/pi/**",
+                  "!@repo/features/server/agent-runtime/**"
+                ],
                 "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
               }
             ]
@@ -117,7 +125,14 @@
           {
             "patterns": [
               {
-                "group": ["electron", "electron/*", "../../**"],
+                "group": [
+                  "electron",
+                  "electron/*",
+                  "../../**",
+                  "@repo/features/server/**",
+                  "!@repo/features/server/pi/**",
+                  "!@repo/features/server/agent-runtime/**"
+                ],
                 "message": "agent/ must not reach into the backend — inject via AgentPorts (lib/agent-lifecycle.ts)"
               }
             ]

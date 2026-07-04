@@ -8,8 +8,6 @@
       "@/*": ["./src/*"],
       "@renderer/*": ["./src/renderer/*"],
       "@repo/features/*": ["../../packages/features/src/*"],
-      "@repo/pi-driver/*": ["../../packages/features/src/server/pi/*"],
-      "@repo/agent-runtime/*": ["../../packages/features/src/server/agent-runtime/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     }
   },

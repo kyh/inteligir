@@ -9,7 +9,7 @@ import {
   type TextContent,
   type ToolCall,
   type ToolResultMessage,
-} from "@repo/pi-driver/pi-types";
+} from "@repo/features/server/pi/pi-types";
 
 import { inteligirPath } from "../lib/json-store";
 import { isRecord, type ChatHistoryEntry } from "@repo/features/ipc";

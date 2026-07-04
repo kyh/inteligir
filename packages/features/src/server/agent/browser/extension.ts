@@ -18,7 +18,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
-import { installCliFromGithubRelease } from "@repo/agent-runtime/install";
+import { installCliFromGithubRelease } from "@repo/features/server/agent-runtime/install";
 
 import { inteligirPath } from "../paths";
 import type { PiExtensionBundle } from "../extension";
