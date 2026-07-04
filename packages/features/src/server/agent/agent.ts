@@ -122,10 +122,6 @@ export class Agent {
     return this.pi?.getState() ?? { status: "starting", error: null };
   }
 
-  getLastAssistantText(): string | undefined {
-    return this.pi?.getLastAssistantText();
-  }
-
   subscribe(listener: (event: AgentSessionEvent) => void): () => void {
     // Throw — silently dropping the listener would mean no agent events
     // ever reach the renderer.

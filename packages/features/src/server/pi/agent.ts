@@ -17,14 +17,6 @@ export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
 export type PiAgentEventListener = (event: AgentSessionEvent) => void;
 
-/** Plain projection of pi's `ToolInfo` so callers can serialize over IPC. */
-export type PiAgentTool = {
-  name: string;
-  description: string;
-  source: string;
-  active: boolean;
-};
-
 export type PiAgentConfig = {
   /** Working directory the agent operates against. */
   cwd: string;
@@ -223,28 +215,6 @@ export class PiAgent {
 
   getState(): { status: PiAgentStatus; error: string | null } {
     return { status: this.status, error: this.error };
-  }
-
-  getLastAssistantText(): string | undefined {
-    return this.session?.getLastAssistantText();
-  }
-
-  // ---- tools / extensions --------------------------------------------------
-
-  listTools(): PiAgentTool[] {
-    if (!this.session) return [];
-    const all = this.session.getAllTools();
-    const active = new Set(this.session.getActiveToolNames());
-    return all.map((t) => ({
-      name: t.name,
-      description: t.description ?? "",
-      source: t.sourceInfo.source,
-      active: active.has(t.name),
-    }));
-  }
-
-  setActiveTools(toolNames: string[]): void {
-    this.session?.setActiveToolsByName(toolNames);
   }
 
   // ---- subscriptions -------------------------------------------------------

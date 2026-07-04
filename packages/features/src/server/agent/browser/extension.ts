@@ -13,16 +13,17 @@
  * if the binary is missing.
  */
 
-import { execFile, type ExecFileException } from "node:child_process";
+import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
 import { installCliFromGithubRelease } from "@repo/features/server/agent-runtime/install";
+import { runCli } from "@repo/features/server/agent-runtime/run-cli";
 
 import { inteligirPath } from "../paths";
 import type { PiExtensionBundle } from "../extension";
-import { textResult } from "../extension-helpers";
+import { formatCliOutput, textResult } from "../extension-helpers";
 import type { SetupProgress } from "@repo/features/ipc";
 
 const AGENT_BROWSER_VERSION = "0.26.0";
@@ -96,7 +97,19 @@ const browserExtension: PiExtensionBundle = {
         parameters: BrowserRunSchema,
         execute: async (_toolCallId, params: Static<typeof BrowserRunSchema>) => {
           try {
-            const result = await runAgentBrowser(browserPath, params.args, params.stdin);
+            const result = await runCli(browserPath, params.args, {
+              timeoutMs: BROWSER_TIMEOUT_MS,
+              maxBuffer: BROWSER_MAX_BUFFER,
+              stdin: params.stdin,
+              env: {
+                ...process.env,
+                AGENT_BROWSER_JSON: "true",
+                AGENT_BROWSER_HEADED: "true",
+                AGENT_BROWSER_SESSION: BROWSER_SESSION,
+                AGENT_BROWSER_SCREENSHOT_DIR: SCREENSHOT_DIR,
+              },
+              notFoundMessage: "agent-browser binary not installed",
+            });
             return await toToolResult(params.args, result);
           } catch (err) {
             return textResult(`browser error: ${err instanceof Error ? err.message : String(err)}`);
@@ -180,61 +193,13 @@ function installBrowserRuntime(
   });
 }
 
-function isEnoent(err: ExecFileException | null): boolean {
-  return err?.code === "ENOENT";
-}
-
-function runAgentBrowser(
-  browserPath: string,
-  args: string[],
-  stdin?: string,
-): Promise<{ stdout: string; stderr: string; code: number }> {
-  return new Promise((resolve, reject) => {
-    const child = execFile(
-      browserPath,
-      args,
-      {
-        timeout: BROWSER_TIMEOUT_MS,
-        maxBuffer: BROWSER_MAX_BUFFER,
-        env: {
-          ...process.env,
-          AGENT_BROWSER_JSON: "true",
-          AGENT_BROWSER_HEADED: "true",
-          AGENT_BROWSER_SESSION: BROWSER_SESSION,
-          AGENT_BROWSER_SCREENSHOT_DIR: SCREENSHOT_DIR,
-        },
-      },
-      (err, stdout, stderr) => {
-        if (isEnoent(err)) {
-          reject(new Error("agent-browser binary not installed"));
-          return;
-        }
-        const code = err?.code;
-        resolve({
-          stdout: String(stdout),
-          stderr: String(stderr),
-          code: typeof code === "number" ? code : err ? 1 : 0,
-        });
-      },
-    );
-    if (stdin !== undefined) {
-      child.stdin?.end(stdin);
-    }
-  });
-}
-
 async function toToolResult(
   args: string[],
   result: { stdout: string; stderr: string; code: number },
 ): Promise<BrowserToolResult> {
-  const parts: string[] = [];
-  if (result.stdout) parts.push(result.stdout);
-  if (result.stderr) parts.push(`[stderr]\n${result.stderr}`);
-  if (result.code !== 0) parts.push(`[exit ${result.code}]`);
-
   const textContent: BrowserTextContent = {
     type: "text",
-    text: parts.join("\n\n") || "(no output)",
+    text: formatCliOutput(result),
   };
   const content: (BrowserTextContent | BrowserImageContent)[] = [textContent];
 

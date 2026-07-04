@@ -5,13 +5,13 @@
 // crosses this seam, so the host library itself never imports electron.
 // ---------------------------------------------------------------------------
 
-/** Which non-plaintext entry kind a cipher produces in secrets.json. Entries
- * written by one cipher kind are unreadable by the other by design — a
- * cross-mode read degrades to "not configured", never a store quarantine. */
-export type SecretCipherKind = "safe-storage" | "file-key";
+/** Which non-plaintext entry kind a cipher produces in secrets.json. An entry
+ * written under a kind the current cipher can't read degrades to "not
+ * configured", never a store quarantine. */
+export type SecretCipherKind = "safe-storage";
 
 /** Encryption seam for the secret store. Electron: safeStorage (OS keychain).
- * Server: file-key AES-GCM (lib/file-key-cipher.ts). Tests inject fakes. */
+ * Tests inject fakes. */
 export type SecretCipher = {
   kind: SecretCipherKind;
   isAvailable: () => boolean;
@@ -58,35 +58,20 @@ export type HostPlatform = {
   /** Open a URL in the user's default browser (OAuth consent, links). */
   openExternal: (url: string) => Promise<void>;
 
-  /**
-   * Native directory picker for the vault chooser. OPTIONAL — server mode
-   * picks the vault at boot and has no native dialog; when absent the
-   * chooseVaultRoot handler reports the location as fixed and the UI hides
-   * the affordance (Host.capabilities.canPickVault).
-   */
-  pickDirectory?: (opts: { title: string; defaultPath: string }) => Promise<string | null>;
+  /** Native directory picker for the vault chooser. */
+  pickDirectory: (opts: { title: string; defaultPath: string }) => Promise<string | null>;
 
-  /** OS-level notification. Electron: Notification + focus-window activate.
-   * Server: no-op until browser-side notifications ride the Bridge. */
+  /** OS-level notification. Electron: Notification + focus-window activate. */
   notify: (notification: HostNotification) => void;
 
   /** True when any app UI is foreground — suppresses agent-idle
-   * notifications. Server: false (always notify). */
+   * notifications. */
   anyUiFocused: () => boolean;
 };
 
 export type HostOptions = {
   /** Bundled Google OAuth "Desktop app" client. The desktop shell passes its
-   * build-define values; server/cli rely on the runtime
-   * INTELIGIR_GOOGLE_OAUTH_CLIENT_* env fallback. Absent → the
-   * paste-your-own-GCP-app dialog flow (unchanged). */
+   * build-define values; absent → the runtime INTELIGIR_GOOGLE_OAUTH_CLIENT_*
+   * env fallback, then the paste-your-own-GCP-app dialog flow. */
   bundledGoogleClient?: { clientId: string; clientSecret: string };
-  /** Mirror console to ~/.inteligir/logs/agent.log (default true). */
-  agentLog?: boolean;
-  /** Open this vault folder at boot (cli mode: the vault is chosen on the
-   * command line, no native picker). Persisted through the same setRoot()
-   * path the picker uses, so all its guards apply — a root inside
-   * ~/.inteligir throws out of host.start(). Absent → the stored
-   * settings.json pointer (desktop). */
-  vaultPath?: string;
 };
