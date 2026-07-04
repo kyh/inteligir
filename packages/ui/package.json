@@ -10,6 +10,7 @@
     "./lib/icon-context": "./src/lib/icon-context.tsx",
     "./lib/icon-map": "./src/lib/icon-map.tsx",
     "./lib/shape-context": "./src/lib/shape-context.tsx",
+    "./lib/theme": "./src/lib/theme.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts"

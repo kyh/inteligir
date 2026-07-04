@@ -3,10 +3,11 @@ import { GlobalAlertDialog } from "@repo/ui/components/alert-dialog";
 import { Toaster } from "@repo/ui/components/sonner";
 import { TooltipProvider } from "@repo/ui/components/tooltip";
 import { createRootRoute, HeadContent, Outlet, Scripts } from "@tanstack/react-router";
+import { noFlashThemeScript } from "@repo/ui/lib/theme";
 
 import { siteConfig } from "@/lib/site-config";
 import { SiteHeader } from "@/components/site-header";
-import { ThemeProvider } from "@/components/theme-provider";
+import { THEME_FALLBACK, THEME_STORAGE_KEY, ThemeProvider } from "@/components/theme-provider";
 
 import appCss from "../styles/globals.css?url";
 
@@ -79,11 +80,17 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: { children: React.ReactNode }) {
-  // suppressHydrationWarning: next-themes sets the theme class on <html>
-  // before hydration via its inline script.
+  // suppressHydrationWarning: the inline script below sets the theme class on
+  // <html> before hydration, so the server markup and client differ by design.
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        {/* Apply the saved/system theme before first paint — no flash. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: noFlashThemeScript(THEME_STORAGE_KEY, THEME_FALLBACK),
+          }}
+        />
         <HeadContent />
         {/* Both theme-color variants — HeadContent's meta dedupes by name,
             which would drop one of the media-queried pair. */}
