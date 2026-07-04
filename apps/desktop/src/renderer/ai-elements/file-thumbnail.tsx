@@ -126,5 +126,4 @@ function FileThumbnail({ file, size, className }: FileThumbnailProps) {
   );
 }
 
-export { FileThumbnail, loadPdfjs, renderPdfFirstPage };
-export type { FileThumbnailProps };
+export { FileThumbnail };

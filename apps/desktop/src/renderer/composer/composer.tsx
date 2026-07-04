@@ -8,7 +8,7 @@ import {
   AttachmentPreview,
   AttachmentRemove,
   Attachments,
-} from "@repo/ui/components/ai-elements/attachments";
+} from "@renderer/ai-elements/attachments";
 import {
   PromptInput,
   PromptInputButton,
@@ -16,14 +16,14 @@ import {
   PromptInputTextarea,
   usePromptInputAttachments,
   type PromptInputMessage,
-} from "@repo/ui/components/ai-elements/prompt-input";
+} from "@renderer/ai-elements/prompt-input";
 import {
   Queue,
   QueueItem,
   QueueItemContent,
   QueueItemIndicator,
   QueueList,
-} from "@repo/ui/components/ai-elements/queue";
+} from "@renderer/ai-elements/queue";
 
 import type { ImageAttachment } from "@repo/features/voice";
 import { useAgentStore } from "@renderer/stores/agent-store";

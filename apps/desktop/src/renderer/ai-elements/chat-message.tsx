@@ -5,7 +5,7 @@ import { motion, type HTMLMotionProps } from "framer-motion";
 import { cn } from "@repo/ui/lib/utils";
 import { spring } from "@repo/ui/lib/springs";
 import { useShape } from "@repo/ui/lib/shape-context";
-import { FileThumbnail } from "@repo/ui/components/file-thumbnail";
+import { FileThumbnail } from "@renderer/ai-elements/file-thumbnail";
 
 interface ChatMessageProps extends Omit<HTMLMotionProps<"div">, "children"> {
   /** Who sent the message. Drives alignment and bubble colour:
@@ -112,5 +112,3 @@ const ChatMessage = forwardRef<HTMLDivElement, ChatMessageProps>(
 ChatMessage.displayName = "ChatMessage";
 
 export { ChatMessage };
-export type { ChatMessageProps };
-export default ChatMessage;

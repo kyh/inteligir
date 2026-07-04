@@ -161,15 +161,33 @@ importers:
       '@sinclair/typebox':
         specifier: 'catalog:'
         version: 0.34.49
+      '@streamdown/cjk':
+        specifier: ^1.0.3
+        version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.2)(micromark@4.0.2)(react@19.2.6)(unified@11.0.5)
+      '@streamdown/code':
+        specifier: ^1.1.1
+        version: 1.1.1(react@19.2.6)
+      '@streamdown/math':
+        specifier: ^1.0.2
+        version: 1.0.2(react@19.2.6)
+      '@streamdown/mermaid':
+        specifier: ^1.0.2
+        version: 1.0.2(react@19.2.6)
       ai:
         specifier: ^6.0.191
         version: 6.0.191(zod@4.4.3)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
       d3-force:
         specifier: ^3.0.0
         version: 3.0.0
       electron-updater:
         specifier: ^6.8.3
         version: 6.8.3
+      framer-motion:
+        specifier: ^12.42.1
+        version: 12.42.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       katex:
         specifier: ^0.16.22
         version: 0.16.47
@@ -194,6 +212,15 @@ importers:
       micromark-extension-mdx:
         specifier: ^2.1.0
         version: 2.1.0
+      motion:
+        specifier: ^12.40.0
+        version: 12.40.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
+      nanoid:
+        specifier: ^5.1.11
+        version: 5.1.11
+      pdfjs-dist:
+        specifier: ^6.1.200
+        version: 6.1.200
       platejs:
         specifier: ^53.2.1
         version: 53.2.1(@types/react@19.2.15)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(scheduler@0.27.0)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -230,9 +257,15 @@ importers:
       sherpa-onnx-node:
         specifier: ^1.10.41
         version: 1.13.2
+      streamdown:
+        specifier: ^2.5.0
+        version: 2.5.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       unified:
         specifier: ^11.0.5
         version: 11.0.5
+      use-stick-to-bottom:
+        specifier: ^1.1.4
+        version: 1.1.4(react@19.2.6)
       zustand:
         specifier: ^5.0.13
         version: 5.0.13(@types/react@19.2.15)(immer@10.2.0)(react@19.2.6)(use-sync-external-store@1.6.0(react@19.2.6))
@@ -435,21 +468,6 @@ importers:
       '@react-three/fiber':
         specifier: ^9.6.1
         version: 9.6.1(@types/react@19.2.15)(expo-asset@56.0.15(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(typescript@6.0.3))(expo-file-system@56.0.7(expo@56.0.8)(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6)))(expo@56.0.8)(immer@10.2.0)(react-dom@19.2.6(react@19.2.6))(react-native@0.85.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.6))(react@19.2.6)(three@0.184.0)
-      '@streamdown/cjk':
-        specifier: ^1.0.3
-        version: 1.0.3(@types/mdast@4.0.4)(micromark-util-types@2.0.2)(micromark@4.0.2)(react@19.2.6)(unified@11.0.5)
-      '@streamdown/code':
-        specifier: ^1.1.1
-        version: 1.1.1(react@19.2.6)
-      '@streamdown/math':
-        specifier: ^1.0.2
-        version: 1.0.2(react@19.2.6)
-      '@streamdown/mermaid':
-        specifier: ^1.0.2
-        version: 1.0.2(react@19.2.6)
-      ai:
-        specifier: ^6.0.191
-        version: 6.0.191(zod@4.4.3)
       class-variance-authority:
         specifier: ^0.7.1
         version: 0.7.1
@@ -468,12 +486,6 @@ importers:
       motion:
         specifier: ^12.40.0
         version: 12.40.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      nanoid:
-        specifier: ^5.1.11
-        version: 5.1.11
-      pdfjs-dist:
-        specifier: ^6.1.200
-        version: 6.1.200
       react:
         specifier: 'catalog:'
         version: 19.2.6
@@ -483,9 +495,6 @@ importers:
       sonner:
         specifier: ^2.0.7
         version: 2.0.7(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      streamdown:
-        specifier: ^2.5.0
-        version: 2.5.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
       tailwind-merge:
         specifier: ^3.6.0
         version: 3.6.0
@@ -495,9 +504,6 @@ importers:
       tw-animate-css:
         specifier: ^1.4.0
         version: 1.4.0
-      use-stick-to-bottom:
-        specifier: ^1.1.4
-        version: 1.1.4(react@19.2.6)
     devDependencies:
       '@tailwindcss/postcss':
         specifier: 'catalog:'
@@ -12334,9 +12340,7 @@ snapshots:
       metro-runtime: 0.84.4
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
     optional: true
 
   '@react-native/normalize-colors@0.85.3':

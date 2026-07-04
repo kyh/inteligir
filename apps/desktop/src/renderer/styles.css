@@ -1,4 +1,7 @@
 @import "@repo/ui/globals.css";
+/* Markdown-render styles for the AI chat surface (ai-elements/response). Lives
+   here, not in @repo/ui's shared globals, since only the renderer renders it. */
+@import "streamdown/styles.css";
 
 html,
 body,

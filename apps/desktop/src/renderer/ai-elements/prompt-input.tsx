@@ -24,7 +24,11 @@ import type { ChatStatus, FileUIPart } from "ai";
 import { CornerDownLeftIcon, SquareIcon, XIcon } from "lucide-react";
 import { nanoid } from "nanoid";
 
-import { InputGroup, InputGroupButton, InputGroupTextarea } from "@repo/ui/components/input-group";
+import {
+  InputGroup,
+  InputGroupButton,
+  InputGroupTextarea,
+} from "@renderer/ai-elements/input-group";
 import { Spinner } from "@repo/ui/components/spinner";
 import {
   Tooltip,

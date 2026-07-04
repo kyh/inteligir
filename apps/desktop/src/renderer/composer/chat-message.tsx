@@ -1,8 +1,8 @@
 import { ImageIcon } from "lucide-react";
 // Fluid's message bubble; aliased to avoid colliding with the ChatMessage data type.
-import { ChatMessage as ChatBubble } from "@repo/ui/components/chat-message";
-import { Response } from "@repo/ui/components/ai-elements/response";
-import { Shimmer } from "@repo/ui/components/ai-elements/shimmer";
+import { ChatMessage as ChatBubble } from "@renderer/ai-elements/chat-message";
+import { Response } from "@renderer/ai-elements/response";
+import { Shimmer } from "@renderer/ai-elements/shimmer";
 
 import { getBridge } from "@renderer/lib/bridge";
 import type { ChatMessage } from "@renderer/stores/agent-store";

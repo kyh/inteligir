@@ -5,7 +5,7 @@ import {
   Conversation,
   ConversationContent,
   ConversationScrollButton,
-} from "@repo/ui/components/ai-elements/conversation";
+} from "@renderer/ai-elements/conversation";
 import { cn } from "@repo/ui/lib/utils";
 
 import { ChatActivityRow, ChatMessageView } from "@renderer/composer/chat-message";
