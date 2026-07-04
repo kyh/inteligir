@@ -6,15 +6,31 @@
     "types": ["electron-vite/node"],
     "paths": {
       "@/*": ["./src/*"],
-      "@repo/app/*": ["../../packages/app/src/*"],
-      "@repo/core/*": ["../../packages/core/src/*"],
-      "@repo/host/*": ["../../packages/host/src/*"],
+      "@renderer/*": ["./src/renderer/*"],
+      "@repo/features/*": ["../../packages/features/src/*"],
+      "@repo/pi-driver/*": ["../../packages/features/src/server/pi/*"],
+      "@repo/agent-runtime/*": ["../../packages/features/src/server/agent-runtime/*"],
       "@repo/ui/*": ["../../packages/ui/src/*"]
     }
   },
   "include": [
     "src/**/*",
+    "dev/**/*",
     "electron.vite.config.ts",
-    "../../packages/host/src/voice/sherpa-onnx-node.d.ts"
+    "vite.harness.config.ts",
+    "vitest.config.ts",
+    "../../packages/features/src/server/voice/sherpa-onnx-node.d.ts"
+  ],
+  // The STT worklet runs on the audio rendering thread whose globals
+  // (AudioWorkletProcessor, registerProcessor) don't exist in the DOM lib.
+  // `exclude` replaces (not merges with) the base list, so repeat its entries.
+  "exclude": [
+    "node_modules",
+    "build",
+    "dist",
+    ".next",
+    ".expo",
+    ".output",
+    "src/renderer/voice/stt-worklet.js"
   ]
 }

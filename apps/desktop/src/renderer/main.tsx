@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 
-import { App } from "@repo/app/app-root";
-import { installBridge } from "@repo/app/lib/bridge";
+import { App } from "@renderer/app-root";
+import { installBridge } from "@renderer/lib/bridge";
 
 // The preload script exposes the IPC bridge on window before this module
 // runs. Missing means preload failed to load — render the failure instead of

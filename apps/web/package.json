@@ -16,7 +16,6 @@
     "@tanstack/react-router": "catalog:",
     "@tanstack/react-start": "catalog:",
     "lucide-react": "catalog:",
-    "next-themes": "^0.4.6",
     "react": "catalog:",
     "react-dom": "catalog:"
   },

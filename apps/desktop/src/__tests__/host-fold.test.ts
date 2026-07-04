@@ -10,9 +10,9 @@ vi.mock("electron", () => ({
 import { ipcMain } from "electron";
 
 import { foldHostIntoIpc } from "@/main/host-fold";
-import { HOST_METHODS } from "@repo/host/lib/handler-registry";
-import type { Host } from "@repo/host/create-host";
-import { IPC } from "@repo/core/ipc-registry";
+import { HOST_METHODS } from "@repo/features/server/lib/handler-registry";
+import type { Host } from "@repo/features/server/create-host";
+import { IPC } from "@repo/features/ipc-registry";
 
 const mockHandle = vi.mocked(ipcMain.handle);
 const mockOn = vi.mocked(ipcMain.on);

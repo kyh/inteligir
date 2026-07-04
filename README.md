@@ -2,47 +2,36 @@
 
 > An AI-native notes app — Obsidian with an agent.
 
-Turborepo monorepo. The product runs two ways over the same backend + UI: an
-Electron desktop app and the browser via an `inteligir` CLI. Plus a
-marketing site.
+Turborepo monorepo. The product is an Electron desktop app over a local
+backend, plus a marketing site.
 
 ## Layout
 
 ```
 apps/              Shippable artifacts
-  desktop/         Thin Electron shell over host + app (@repo/desktop)
-  cli/             `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
+  desktop/         Electron app — main/preload + the product UI (renderer) (@repo/desktop)
   web/             TanStack Start marketing site on Cloudflare Workers (landing page only)
 packages/          Libraries
-  app/             Portable UI — the whole workspace as a browser React app (@repo/app)
-  core/            Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
-  host/            Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
-  server/          Loopback HTTP+WS host: folds the registry over WS, serves the app build (@repo/server)
+  features/        Isomorphic contract + node backend (@repo/features)
+                     src/         iso — Bridge/IPC registry, schemas, knowledge engine, markdown
+                     src/server/  node — vault, pi agent, delegation, executor, voice, handlers
   ui/              Shared UI components (@repo/ui)
-  agent-runtime/   Filesystem + install primitives for the agent (@repo/agent-runtime)
-  pi-driver/       Wrapper around pi-coding-agent — stable surface for app code (@repo/pi-driver)
 ```
 
 Workspace `README.md`s:
 
-| Workspace                | README                                                                    |
-| ------------------------ | ------------------------------------------------------------------------- |
-| `apps/desktop`           | [Electron shell — process boundary, packaging](./apps/desktop/README.md)  |
-| `apps/cli`               | [`inteligir` launcher](./apps/cli/README.md)                              |
-| `apps/web`               | [static marketing site](./apps/web/README.md)                             |
-| `packages/app`           | [portable UI — Bridge-injected workspace](./packages/app/README.md)       |
-| `packages/core`          | [isomorphic contract — IPC registry, schemas](./packages/core/README.md)  |
-| `packages/host`          | [node backend — createHost, HostPlatform](./packages/host/README.md)      |
-| `packages/server`        | [browser host — loopback HTTP+WS](./packages/server/README.md)            |
-| `packages/agent-runtime` | [install / seed / run-cli primitives](./packages/agent-runtime/README.md) |
-| `packages/pi-driver`     | [pi-coding-agent wrapper](./packages/pi-driver/README.md)                 |
-| `packages/ui`            | [shared design system](./packages/ui/README.md)                           |
+| Workspace                      | README                                                                              |
+| ------------------------------ | ----------------------------------------------------------------------------------- |
+| `apps/desktop`                 | [Electron shell — process boundary, packaging](./apps/desktop/README.md)            |
+| `apps/web`                     | [static marketing site](./apps/web/README.md)                                       |
+| `packages/features`            | [contract + backend — iso `src`, node `src/server`](./packages/features/README.md)  |
+| `packages/features/src/server` | [node backend — createHost, HostPlatform](./packages/features/src/server/README.md) |
+| `packages/ui`                  | [shared design system](./packages/ui/README.md)                                     |
 
 **[`docs/development.md`](./docs/development.md) is the dev guide** — the
-three ways to run the app, ports/shared state, gates, verification, and
-change checklists. `docs/replatform-plan.md` is the architecture decision
-record. `CLAUDE.md` (root) is read by Claude Code / agents working in the
-repo — architecture summary + conventions.
+ways to run the app, ports/shared state, gates, verification, and
+change checklists. `CLAUDE.md` (root) is read by Claude Code / agents working
+in the repo — architecture summary + conventions.
 
 ## Common commands
 

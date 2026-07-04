@@ -1,0 +1,39 @@
+{
+  "name": "@repo/features",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Inteligir backend + isomorphic contract. `src/` (browser-safe) holds the Bridge/IPC registry, domain schemas, knowledge engine, and markdown pipeline; `src/server/` is the node backend (vault, pi agent, delegation, executor, voice, handlers) behind createHost(). Consumed by the desktop renderer (iso) and main (server).",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@mariozechner/pi-ai": "^0.73.1",
+    "@mariozechner/pi-coding-agent": "^0.73.1",
+    "@sinclair/typebox": "catalog:",
+    "open": "^11.0.0",
+    "remark-frontmatter": "^5.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-parse": "^11.0.0",
+    "sherpa-onnx-node": "^1.10.41",
+    "tar": "^7.5.15",
+    "unbzip2-stream": "^1.4.3",
+    "unified": "^11.0.5"
+  },
+  "devDependencies": {
+    "@types/mdast": "^4.0.4",
+    "@types/node": "catalog:",
+    "@types/unbzip2-stream": "^1.4.3",
+    "mdast-util-from-markdown": "^2.0.3",
+    "mdast-util-to-markdown": "^2.1.2",
+    "micromark-util-types": "^2.0.2",
+    "remark-stringify": "^11.0.0",
+    "typescript": "catalog:",
+    "vitest": "^4.1.7"
+  }
+}

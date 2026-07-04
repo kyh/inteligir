@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { MoonIcon, SunIcon } from "lucide-react";
-import { useTheme } from "next-themes";
+import { useTheme } from "@repo/ui/lib/theme";
 
 import { Button } from "@repo/ui/components/button";
 
@@ -26,11 +26,11 @@ function XIcon({ className }: { className?: string }) {
 }
 
 function ThemeToggle() {
-  const { resolvedTheme, setTheme } = useTheme();
+  const { resolved, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const isDark = resolvedTheme === "dark";
+  const isDark = resolved === "dark";
   return (
     <Button
       variant="secondary"
@@ -40,7 +40,7 @@ function ThemeToggle() {
       aria-label="Toggle theme"
     >
       {/* Render an invisible icon before mount to avoid a hydration mismatch
-          while next-themes resolves the active theme. */}
+          while the theme provider reconciles from localStorage. */}
       {mounted && !isDark ? (
         <MoonIcon />
       ) : (

@@ -9,20 +9,20 @@
         "src/preload/index.ts",
         "src/renderer/index.html",
         "src/renderer/main.tsx",
+        "src/renderer/router.tsx",
+        "src/renderer/routes/**/*.tsx",
         "src/__tests__/**/*.test.ts",
+        "src/renderer/__tests__/**/*.test.ts",
         "scripts/**/*.mjs"
       ],
-      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}"],
+      "project": ["scripts/**/*.mjs", "src/**/*.{ts,tsx,css}", "dev/**/*.{ts,tsx}"],
+      // TanStack Router's generated route tree — don't analyze its exports.
+      "ignore": ["src/renderer/routeTree.gen.ts"],
       // sherpa-onnx-node: not imported by desktop source (host imports it),
       // but it must stay a desktop dependency so electron-builder packs the
       // externalized native module (+ its sherpa-onnx-* platform binaries)
       // into the app bundle.
-      "ignoreDependencies": [
-        "@tailwindcss/vite",
-        "@vitejs/plugin-react",
-        "electron-builder",
-        "sherpa-onnx-node"
-      ]
+      "ignoreDependencies": ["electron-builder", "sherpa-onnx-node"]
     },
     "apps/web": {
       "entry": ["src/router.tsx", "src/routes/**/*.tsx"],
@@ -34,47 +34,15 @@
     "packages/agent-runtime": {
       "includeEntryExports": true
     },
-    "packages/app": {
-      // The portable UI, source-imported by hosts (desktop, server). Both
-      // browser entries (dev harness dev/main.tsx, web build web/main.tsx)
-      // are picked up via their vite configs.
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.{ts,tsx,css,js}", "dev/**/*.{ts,tsx}", "web/**/*.{ts,tsx}"],
-      "includeEntryExports": false
-    },
-    "apps/cli": {
-      // bin/inteligir.js (package.json bin) and src/main.ts (its import +
-      // the dev script) are auto-detected entries.
-      "project": ["src/**/*.ts", "bin/**/*.js"],
-      // @repo/app: never imported — the cli resolves its dist-web assets at
-      // runtime via require.resolve("@repo/app/package.json"), and the
-      // workspace dep is what makes that resolvable (and, at Phase 7, what
-      // ships the build to npm).
-      "ignoreDependencies": ["@repo/app"]
-    },
-    "packages/server": {
-      // Consumed by @repo/cli through its `./*` exports.
-      "entry": ["src/__tests__/**/*.test.ts"],
+    "packages/features": {
+      // The backend + isomorphic contract. `src/**` is the iso contract +
+      // pure engines; `src/server/**` is the node backend (host, pi-driver,
+      // agent-runtime folded in). Its `./*` exports are the public API
+      // (renderer imports the iso half, desktop main the server half), so
+      // don't flag them as unused.
+      "entry": ["src/__tests__/**/*.test.ts", "src/server/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false
-    },
-    "packages/host": {
-      // The node backend, source-imported by its shells (desktop today,
-      // server later) through its `./*` exports — don't flag them as unused.
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
-    "packages/core": {
-      // Isomorphic contract + pure-logic library consumed by every host
-      // (desktop shell, web server, browser client). Its `./*` exports are
-      // the public API across hosts, so don't flag them as unused.
-      "entry": ["src/__tests__/**/*.test.ts"],
-      "project": ["src/**/*.ts"],
-      "includeEntryExports": false
-    },
-    "packages/pi-driver": {
-      "includeEntryExports": true
     },
     "packages/ui": {
       // A consumed component library: its exports are the public API, and the

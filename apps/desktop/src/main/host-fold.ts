@@ -7,9 +7,9 @@
 
 import { BrowserWindow, ipcMain } from "electron";
 
-import type { Host } from "@repo/host/create-host";
-import { HOST_METHODS } from "@repo/host/lib/handler-registry";
-import { IPC } from "@repo/core/ipc-registry";
+import type { Host } from "@repo/features/server/create-host";
+import { HOST_METHODS } from "@repo/features/server/lib/handler-registry";
+import { IPC } from "@repo/features/ipc-registry";
 
 export function sendToAllWindows(channel: string, payload: unknown): void {
   for (const window of BrowserWindow.getAllWindows()) {

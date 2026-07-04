@@ -15,7 +15,7 @@ import {
   type OpenDialogOptions,
 } from "electron";
 
-import type { HostNotification, HostPlatform } from "@repo/host/platform";
+import type { HostNotification, HostPlatform } from "@repo/features/server/platform";
 
 declare const PROJECT_ROOT: string;
 
@@ -44,11 +44,11 @@ export function createElectronPlatform(): ElectronPlatform {
   const platform: HostPlatform = {
     userDataDir: app.getPath("userData"),
 
-    // Packaged: electron-builder copies packages/host/resources/agent into
+    // Packaged: electron-builder copies packages/features/resources/agent into
     // Contents/Resources/agent (extraResources). Dev: read the workspace copy.
     resourcesDir: app.isPackaged
       ? path.join(process.resourcesPath, "agent")
-      : path.resolve(PROJECT_ROOT, "../../packages/host/resources/agent"),
+      : path.resolve(PROJECT_ROOT, "../../packages/features/resources/agent"),
 
     // A packaged install missing its resources is corrupt — fail loudly.
     strictResources: app.isPackaged,

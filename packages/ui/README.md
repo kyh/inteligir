@@ -1,9 +1,10 @@
 # `@repo/ui` — shared UI components
 
-The design system shared by the portable app (`packages/app`) and the marketing
-site (`apps/web`). shadcn/ui built on **Base UI** (`@base-ui/react`), styled
-with Tailwind 4, plus a few heavier shared pieces (a Three.js orb, streamed
-markdown chat rendering, motion helpers).
+The design system shared by the desktop renderer (`apps/desktop/src/renderer`)
+and the marketing site (`apps/web`). shadcn/ui built on **Base UI**
+(`@base-ui/react`), styled with Tailwind 4, plus a couple of heavier shared
+pieces (a Three.js orb, motion helpers). App-specific chat UI (the AI
+`ai-elements`, message bubble, file thumbnail) lives in the renderer, not here.
 
 ## Layout
 
@@ -11,7 +12,6 @@ markdown chat rendering, motion helpers).
 src/
   components/        shadcn-style primitives — button, dialog, alert/confirm-dialog,
                      menu, popover, command, sidebar, tabs, sonner, geometric-orb, …
-    ai-elements/     chat surface — conversation, prompt-input, response (streamdown), queue
   hooks/             use-proximity-hover, use-merge-refs
   lib/
     utils.ts         cn() and friends
@@ -44,9 +44,8 @@ import { useSurface } from "@repo/ui/lib/surface-context";
 export { default } from "@repo/ui/postcss.config";
 ```
 
-`globals.css` uses `@source` globs to scan this package, `apps/**`, and
-`packages/app` for class usage, so consuming apps don't re-declare content
-paths.
+`globals.css` uses `@source` globs to scan this package and `apps/**` for class
+usage, so consuming apps don't re-declare content paths.
 
 ## Surfaces
 

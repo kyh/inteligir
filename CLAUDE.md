@@ -30,24 +30,21 @@ symlink in its workspace and edits files with its native file tools.
 ```
 apps/            # shippable artifacts
   web/           # Marketing site (@repo/web) — landing page only
-  desktop/       # Thin Electron shell — the notes product (@repo/desktop)
-  cli/           # `inteligir <vault>`: boot host+server, open the browser (@repo/cli)
+  desktop/       # Electron shell — the notes product (@repo/desktop)
 packages/        # libraries
-  app/           # Portable UI — the whole workspace as a browser React app (@repo/app)
-  core/          # Isomorphic contract: Bridge/IPC registry, domain schemas (@repo/core)
-  host/          # Platform-agnostic node backend: vault, pi, delegation, executor, voice (@repo/host)
-  server/        # Loopback HTTP+WS host: folds the registry over WS, serves the app build (@repo/server)
+  features/      # Contract + backend (@repo/features):
+                 #   src/        — iso: Bridge/IPC registry, schemas, knowledge engine, markdown
+                 #   src/server/ — node: vault, pi agent, delegation, executor, voice, handlers,
+                 #                 createHost, HostPlatform (pi-driver + agent-runtime folded in)
   ui/            # Shared UI components (@repo/ui)
-  agent-runtime/ # CLI install/seed/run helpers for agent extensions (@repo/agent-runtime)
-  pi-driver/     # pi-coding-agent wrapper: sessions, auth, models (@repo/pi-driver)
 ```
 
-The product runs two ways over the same `@repo/host` backend + `@repo/app` UI:
-the **Electron desktop** app (`pnpm dev:desktop`) and the **browser** via the
-cli (`pnpm --filter @repo/cli exec tsx src/main.ts <vault> [--port N] [--no-open]`,
-or the `inteligir` bin post-build). The cli boots `@repo/server` (loopback-only
-HTTP+WS; the bind address + Host/Origin allowlists are the auth gate — no
-accounts) and opens `http://127.0.0.1:<port>`.
+The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
+The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
+`@repo/features/server` backend, communicating through Electron IPC. For
+UI work there is also a backend-free browser dev harness
+(`pnpm --filter @repo/desktop dev:harness`) that drives the real UI over an in-memory
+fixture Bridge.
 
 ## Common Commands
 
@@ -61,8 +58,8 @@ pnpm lint             # Lint all   (oxlint)
 pnpm format:fix       # Format     (oxfmt) — run BEFORE gates, never after
 ```
 
-**`docs/development.md` is the full dev guide**: the three run modes (fixture
-harness / cli browser / Electron), ports + `~/.inteligir` shared state +
+**`docs/development.md` is the full dev guide**: the two run modes (fixture
+harness / Electron), ports + `~/.inteligir` shared state +
 `host.lock`, the fixture byte-pinning rule, verification patterns, and the
 add-a-Bridge-channel / add-a-node-type checklists.
 
@@ -89,14 +86,16 @@ pnpm typecheck && pnpm lint && pnpm test && pnpm knip && pnpm build
 ## Desktop architecture (@repo/desktop)
 
 Three processes: **main** (Electron), **preload**, **renderer**. The renderer
-is a thin shim (`src/renderer/main.tsx`) that installs `window.desktopBridge`
-into `@repo/app` and renders its `App` — the actual UI lives in `packages/app`.
-The `agent/` boundary never imports `main/` — it's lint-enforced; main composes
-capabilities and hands the agent an injected `AgentPorts` (`{ executor }`).
+(`src/renderer/`) is the whole product UI: `main.tsx` installs
+`window.desktopBridge` and renders `App`. Renderer code is host-agnostic —
+it reaches the backend only through the injected Bridge (`@renderer/lib/bridge`),
+never electron/node/host (lint-enforced). The `agent/` boundary never imports
+`main/` — also lint-enforced; main composes capabilities and hands the agent an
+injected `AgentPorts` (`{ executor }`).
 
 ### Data model — the vault
 
-`packages/host/src/vault/` (`VaultManager`) owns the vault: a user-chosen
+`packages/features/src/server/vault/` (`VaultManager`) owns the vault: a user-chosen
 folder whose markdown files are canonical. It reads through to disk (never
 quarantines user files), writes atomically, watches for changes (broadcasts
 `onVaultChanged`), and maintains a `./vault` symlink in the agent workspace so
@@ -111,18 +110,18 @@ and the MDX components `<toggle>`, `<column_group>/<column>`, `<video>`,
 JSX, expressions, HTML comments) sends the file to Raw mode rather than being
 mangled. Files stay `.md`.
 
-`packages/host/src/knowledge/` maintains the derived indexes (wiki/md link
+`packages/features/src/server/knowledge/` maintains the derived indexes (wiki/md link
 graph, backlinks, lexical search, wiki-target list) — incrementally updated
 from vault events; renames rewrite `[[links]]` across the vault byte-surgically
 (shadow-protection qualifies links the new name would steal).
 
-### UI — `packages/app`, one fixed workspace
+### UI — `apps/desktop/src/renderer`, one fixed workspace
 
-The portable UI (@repo/app) consumes an injected `Bridge`
-(`src/lib/bridge.ts::installBridge`) — never electron/node (lint-enforced). It
-runs standalone in a plain browser via `pnpm --filter @repo/app dev` (a vite
-harness with an in-memory fixture Bridge in `dev/` that runs the real knowledge
-engine over sample notes). `workspace/workspace-page.tsx` is the only surface:
+The renderer UI consumes an injected `Bridge`
+(`lib/bridge.ts::installBridge`) — never electron/node (lint-enforced). It
+runs standalone in a plain browser via `pnpm --filter @repo/desktop dev:harness` (a vite
+harness with an in-memory fixture Bridge in `apps/desktop/dev/` that runs the
+real knowledge engine over sample notes). `workspace/workspace-page.tsx` is the only surface:
 **Sidebar (file tree) | single-document Editor | BottomComposer** (chat pinned
 bottom — no side chat panel, no tabs: opening a note replaces the open one),
 settings behind a dialog; backlinks collapse under the editor column; a
@@ -151,7 +150,7 @@ and full-text search live in the command palette.
   toolbar, slash menu, block menu, and space-in-empty-paragraph; ghost-text
   completions on a fast model, on by default (Settings › Editor AI opts out).
 
-### Delegation — `packages/host/src/delegation/`
+### Delegation — `packages/features/src/server/delegation/`
 
 A checkbox's "Delegate" → `delegation-manager.ts` (versioned `JsonStore` +
 event-driven serialized queue) runs it on `background-agent.ts` (a second pi
@@ -162,7 +161,7 @@ via `./vault`, checks the box, and appends a result; the watcher refreshes the
 editor. Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
 
-### Agent surface — `packages/host/src/agent/`
+### Agent surface — `packages/features/src/server/agent/`
 
 Extension bundles are listed in `agent/bundles.ts` (static registry + disk-drift
 test) and receive `AgentPorts` at register time — adding/removing a capability
@@ -177,12 +176,11 @@ in-memory session for ghost-text on a fast model.
 
 ### IPC / Bridge
 
-`packages/core/src/ipc-registry.ts` is the single source of truth: each channel
+`packages/features/src/ipc-registry.ts` is the single source of truth: each channel
 pairs a TypeBox payload schema with a result/event type, and the
 transport-agnostic `Bridge` type is derived from it. `createHost` returns a
-schema-validated handler map (`packages/host/src/handlers/`) that both
-transports fold: desktop over `ipcMain` (preload derives automatically), server
-over WS envelopes (`packages/core/src/bridge-wire.ts`; binary frames carry
-voice PCM). Add a channel = registry entry + host handler + one line each in
-`bridge-ws-client.ts` and the dev-harness fixture Bridge
-(`packages/app/dev/fixture-bridge.ts`) — both fail typecheck until covered.
+schema-validated handler map (`packages/features/src/server/handlers/`) that the desktop
+shell folds over Electron `ipcMain` (the preload derives the typed
+`window.desktopBridge` automatically). Add a channel = registry entry + host
+handler + one line in the dev-harness fixture Bridge
+(`apps/desktop/dev/fixture-bridge.ts`), which fails typecheck until covered.

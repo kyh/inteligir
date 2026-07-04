@@ -8,8 +8,8 @@
 import { ipcMain } from "electron";
 import electronUpdater from "electron-updater";
 
-import { IPC } from "@repo/core/ipc-registry";
-import { toErrorMessage, type UpdateState } from "@repo/core/ipc";
+import { IPC } from "@repo/features/ipc-registry";
+import { toErrorMessage, type UpdateState } from "@repo/features/ipc";
 
 import { sendToAllWindows } from "./host-fold";
 

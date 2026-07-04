@@ -1,6 +1,7 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
+import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "electron-vite";
 import type { LibraryFormats } from "vite";
@@ -31,7 +32,17 @@ export default defineConfig(() => ({
       ),
     },
     resolve: {
-      alias: { "@": resolve(configDir, "src") },
+      alias: {
+        "@": resolve(configDir, "src"),
+        // pi-driver / agent-runtime are folded into @repo/features/src/server;
+        // the backend imports them via these @repo/* aliases (the agent
+        // boundary forbids "../" reaches). Mirror the tsconfig paths here.
+        "@repo/pi-driver": resolve(configDir, "../../packages/features/src/server/pi"),
+        "@repo/agent-runtime": resolve(
+          configDir,
+          "../../packages/features/src/server/agent-runtime",
+        ),
+      },
     },
     build: {
       externalizeDeps: false,
@@ -71,14 +82,24 @@ export default defineConfig(() => ({
     },
   },
   renderer: {
-    plugins: [tailwindcss(), react()],
+    plugins: [
+      // Must run before the React plugin. Generates routeTree.gen.ts from
+      // src/renderer/routes and code-transforms createFileRoute calls.
+      tanstackRouter({
+        target: "react",
+        routesDirectory: resolve(configDir, "src/renderer/routes"),
+        generatedRouteTree: resolve(configDir, "src/renderer/routeTree.gen.ts"),
+        autoCodeSplitting: false,
+      }),
+      tailwindcss(),
+      react(),
+    ],
     resolve: {
       alias: {
         "@": resolve(configDir, "src"),
-        // @repo/app is source-only with no exports map (an `exports` fallback
-        // array resolves inconsistently across TS/Vite/node); every host pins
-        // `@repo/app` to ./src, like the package's own dev harness does.
-        "@repo/app": resolve(configDir, "../../packages/app/src"),
+        // The renderer UI (the whole workspace) lives under src/renderer;
+        // `@renderer` is its internal import root.
+        "@renderer": resolve(configDir, "src/renderer"),
       },
     },
     build: {

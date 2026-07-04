@@ -20,7 +20,7 @@ vi.mock("electron-updater", () => ({
 import { ipcMain } from "electron";
 
 import { setupAutoUpdater } from "@/main/updater";
-import { IPC, UPDATE_METHODS } from "@repo/core/ipc-registry";
+import { IPC, UPDATE_METHODS } from "@repo/features/ipc-registry";
 
 const mockHandle = vi.mocked(ipcMain.handle);
 
