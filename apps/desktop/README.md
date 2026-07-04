@@ -2,7 +2,7 @@
 
 The desktop product: the Electron main/preload processes plus the whole
 renderer UI (the workspace — editor, sidebar, composer, settings, voice). The
-node backend is `@repo/host`; the shared contract is `@repo/features`; shared
+node backend is `@repo/features/server`; the shared contract is `@repo/features`; shared
 primitives are `@repo/ui`. Main owns what is Electron's to own: window/menu
 lifecycle, the IPC transport, the auto-updater, and native packaging (including
 the sherpa-onnx voice binaries).
@@ -22,7 +22,7 @@ src/
   __tests__/ Vitest — host-fold, updater, agent-event parsing
 
 dev/         browser dev harness — in-memory fixture Bridge (`dev:harness`)
-resources/   icons + entitlements shipped in the .app (agent assets live in packages/host/resources/agent)
+resources/   icons + entitlements shipped in the .app (agent assets live in packages/features/resources/agent)
 scripts/     build-time verifiers (packaged runtime deps, model registry)
 ```
 
@@ -33,12 +33,12 @@ renderer (sandboxed Chromium) — the product UI, host-agnostic (talks via the B
    ↕  contextBridge → window.desktopBridge
 preload (Node, isolated)
    ↕  ipcRenderer ⇄ ipcMain
-main (full Node + Electron) — createHost(@repo/host) behind an ElectronPlatform
+main (full Node + Electron) — createHost(@repo/features/server) behind an ElectronPlatform
 ```
 
 - **Renderer** never touches Node APIs. Sandboxed, no nodeIntegration, contextIsolation on.
 - **Preload** is the narrow bridge, derived from the registry in `@repo/features/ipc-registry`.
-- **Main** composes `@repo/host` and folds its handler map into `ipcMain` (`host-fold.ts`).
+- **Main** composes `@repo/features/server` and folds its handler map into `ipcMain` (`host-fold.ts`).
 
 IPC is typed end-to-end via the registry: each method pairs a channel name with
 a TypeBox payload schema and a result/event type, so renaming a method or
@@ -56,6 +56,6 @@ Opens Electron with HMR (renderer). CDP exposed on port 9222 — inspect with
 ## Build & ship
 
 - `pnpm build` — `electron.vite.config.ts` bundles main/preload/renderer into `.output/app`.
-- `electron-builder.yml` packages the .app (dmg + zip) and configures auto-update; agent assets are copied from `packages/host/resources/agent` via `extraResources`.
+- `electron-builder.yml` packages the .app (dmg + zip) and configures auto-update; agent assets are copied from `packages/features/resources/agent` via `extraResources`.
 - `scripts/verify-packaged-runtime-deps.mjs` walks the packed .app to catch missing native deps (sherpa-onnx) before release.
 - Releases ship via the `release` skill — see `.claude/skills/release/SKILL.md`.

@@ -33,7 +33,11 @@
     // expo-status-bar's StatusBar takes `style` as a string variant, not CSS.
     "react/style-prop-object": ["error", { "allow": ["StatusBar"] }],
     // Render props (React Navigation headerRight, FlatList renderItem) are legit.
-    "react/no-unstable-nested-components": ["error", { "allowAsProps": true }]
+    "react/no-unstable-nested-components": ["error", { "allowAsProps": true }],
+    // Force the `node:` protocol on all builtins. This keeps the isomorphic /
+    // renderer boundary rules below sufficient: they block `node:*`, and a bare
+    // `import fs from "fs"` can no longer slip past that.
+    "unicorn/prefer-node-protocol": "error"
   },
   "overrides": [
     {
@@ -145,7 +149,9 @@
                   "node:*",
                   "@repo/features/server",
                   "@repo/features/server/*",
+                  "@/main",
                   "@/main/*",
+                  "@/preload",
                   "@/preload/*"
                 ],
                 "message": "the renderer UI is host-agnostic — no electron/node/backend/main imports; reach the backend through the injected Bridge (@renderer/lib/bridge)"
