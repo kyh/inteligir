@@ -29,12 +29,7 @@ import {
   InputGroupButton,
   InputGroupTextarea,
 } from "@renderer/ai-elements/input-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@repo/ui/components/tooltip";
+import { Tooltip, TooltipProvider, type TooltipSide } from "@repo/ui/components/tooltip";
 import { cn } from "@repo/ui/lib/utils";
 
 const convertBlobUrlToDataUrl = async (url: string): Promise<string | null> => {
@@ -413,7 +408,7 @@ type PromptInputButtonTooltip =
   | {
       content: ReactNode;
       shortcut?: string;
-      side?: ComponentProps<typeof TooltipContent>["side"];
+      side?: TooltipSide;
     };
 
 export type PromptInputButtonProps = ComponentProps<typeof InputGroupButton> & {
@@ -450,12 +445,16 @@ export const PromptInputButton = ({
 
   return (
     <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger render={button} />
-        <TooltipContent side={side}>
-          {tooltipContent}
-          {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
-        </TooltipContent>
+      <Tooltip
+        side={side}
+        content={
+          <>
+            {tooltipContent}
+            {shortcut && <span className="ml-2 text-muted-foreground">{shortcut}</span>}
+          </>
+        }
+      >
+        {button}
       </Tooltip>
     </TooltipProvider>
   );

@@ -10,7 +10,12 @@ import { EllipsisIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { deleteColumn, deleteRow, insertTableColumn, insertTableRow } from "@platejs/table";
 import { PlateElement, useEditorRef, type PlateElementProps } from "platejs/react";
 
-import { Menu, MenuContent, MenuItem, MenuSeparator } from "@repo/ui/components/menu";
+import {
+  DropdownContent,
+  DropdownMenu,
+  DropdownSeparator,
+  MenuItem,
+} from "@repo/ui/components/menu";
 
 export function TableElement(props: PlateElementProps) {
   const editor = useEditorRef();
@@ -56,20 +61,20 @@ export function TableElement(props: PlateElementProps) {
       >
         <EllipsisIcon className="size-3.5" />
       </button>
-      <Menu open={menuOpen} onOpenChange={setMenuOpen}>
-        <MenuContent anchor={menuBtnRef} side="bottom" align="start">
-          <MenuItem onClick={() => deleteRow(editor)}>Delete row</MenuItem>
-          <MenuItem onClick={() => deleteColumn(editor)}>Delete column</MenuItem>
-          <MenuSeparator />
+      <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
+        <DropdownContent anchor={menuBtnRef} side="bottom" align="start">
+          <MenuItem index={0} label="Delete row" onSelect={() => deleteRow(editor)} />
+          <MenuItem index={1} label="Delete column" onSelect={() => deleteColumn(editor)} />
+          <DropdownSeparator />
           <MenuItem
-            onClick={removeTable}
-            className="text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
-          >
-            <Trash2Icon />
-            Delete table
-          </MenuItem>
-        </MenuContent>
-      </Menu>
+            index={2}
+            icon={Trash2Icon}
+            label="Delete table"
+            destructive
+            onSelect={removeTable}
+          />
+        </DropdownContent>
+      </DropdownMenu>
       <div className="overflow-x-auto">
         <PlateElement {...props} as="table" className="w-auto border-collapse text-sm">
           <tbody>{props.children}</tbody>

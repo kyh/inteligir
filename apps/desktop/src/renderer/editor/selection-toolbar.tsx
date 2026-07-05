@@ -35,12 +35,11 @@ import {
 
 import { cn } from "@repo/ui/lib/utils";
 import {
-  Menu,
-  MenuContent,
-  MenuGroup,
-  MenuGroupLabel,
+  DropdownContent,
+  DropdownLabel,
+  DropdownMenu,
+  DropdownTrigger,
   MenuItem,
-  MenuTrigger,
 } from "@repo/ui/components/menu";
 
 import { AiSessionPlugin, openAiMenu } from "@renderer/editor/ai/ai-session";
@@ -92,22 +91,22 @@ function IconButton({
   );
 }
 
-// A real Base UI MenuTrigger (must render inside <Menu>): a detached
+// A real Base UI Menu.Trigger (must render inside <DropdownMenu>): a detached
 // controlled menu anchored to a plain button ref closes itself with reason
 // `trigger-hover` as soon as the pointer travels from the button into the
 // popup — every mouse click on an item died mid-flight (keyboard worked).
 // The registered trigger gives Base UI the correct press/hover linkage.
 // `onMouseDown` preventDefault keeps the editor selection alive through the
 // opening click.
-function DropdownTrigger({ children }: { children: ReactNode }) {
+function TurnIntoTrigger({ children }: { children: ReactNode }) {
   return (
-    <MenuTrigger
+    <DropdownTrigger
       onMouseDown={(e) => e.preventDefault()}
       className="flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-foreground/90 transition-colors hover:bg-accent [&_svg]:size-3.5"
     >
       {children}
       <ChevronDownIcon className="!size-3 text-muted-foreground/70" />
-    </MenuTrigger>
+    </DropdownTrigger>
   );
 }
 
@@ -298,36 +297,34 @@ export function SelectionToolbar() {
 
             <Sep />
 
-            <Menu
+            <DropdownMenu
               open={openMenu === "turn"}
               onOpenChange={(o) => {
                 if (o) remember();
                 setOpenMenu(o ? "turn" : null);
               }}
             >
-              <DropdownTrigger>{typeLabel}</DropdownTrigger>
+              <TurnIntoTrigger>{typeLabel}</TurnIntoTrigger>
               {/* ignore-click-outside/toolbar: the portaled popup escapes the
                   hook's clickOutsideRef; without the ignore class a mousedown
                   on a menu item flips the hook's open state, display:none-s
                   the bar, and the popup (anchored to the hidden trigger)
                   jumps away before mouseup — items become unclickable. */}
-              <MenuContent side="bottom" align="start" className="ignore-click-outside/toolbar">
-                <MenuGroup>
-                  <MenuGroupLabel>Turn into</MenuGroupLabel>
-                  {TURN_INTO.map((opt) => (
-                    <MenuItem
-                      key={opt.label}
-                      onClick={() => {
-                        turnIntoSelection(editor, opt, savedSel.current ?? undefined);
-                        editor.tf.focus();
-                      }}
-                    >
-                      {opt.label}
-                    </MenuItem>
-                  ))}
-                </MenuGroup>
-              </MenuContent>
-            </Menu>
+              <DropdownContent side="bottom" align="start" className="ignore-click-outside/toolbar">
+                <DropdownLabel>Turn into</DropdownLabel>
+                {TURN_INTO.map((opt, i) => (
+                  <MenuItem
+                    key={opt.label}
+                    index={i}
+                    label={opt.label}
+                    onSelect={() => {
+                      turnIntoSelection(editor, opt, savedSel.current ?? undefined);
+                      editor.tf.focus();
+                    }}
+                  />
+                ))}
+              </DropdownContent>
+            </DropdownMenu>
 
             <Sep />
 

@@ -1,7 +1,13 @@
 "use client";
 
-import { forwardRef, type ButtonHTMLAttributes } from "react";
-import { Slot } from "@radix-ui/react-slot";
+import {
+  cloneElement,
+  forwardRef,
+  isValidElement,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+} from "react";
+import { Button as ButtonPrimitive } from "@base-ui/react/button";
 import { cva, type VariantProps } from "class-variance-authority";
 import type { IconComponent } from "@repo/ui/lib/icon-context";
 import { cn } from "@repo/ui/lib/utils";
@@ -10,10 +16,9 @@ import { useShape } from "@repo/ui/lib/shape-context";
 const buttonVariants = cva(
   [
     "group/button relative isolate inline-flex items-center justify-center outline-none cursor-pointer",
-    "text-box-trim-both text-box-edge-cap-alphabetic",
     "transition-colors duration-80",
     "disabled:opacity-50 disabled:pointer-events-none",
-    "focus-visible:ring-1 focus-visible:ring-[#6B97FF]",
+    "focus-visible:ring-1 focus-visible:ring-[color:var(--focus-ring,#6B97FF)]",
   ],
   {
     variants: {
@@ -22,6 +27,9 @@ const buttonVariants = cva(
         secondary: "text-foreground",
         tertiary: "border border-border text-foreground",
         ghost: "text-muted-foreground hover:text-foreground",
+        // Retained beyond upstream FF (which drops it): the app's confirm()
+        // dialog maps `destructive: true` onto this variant (delete-shaped
+        // actions in app-sidebar / header).
         destructive: "text-destructive-foreground",
       },
       size: {
@@ -52,6 +60,7 @@ const buttonVariants = cva(
 
 interface ButtonProps
   extends ButtonHTMLAttributes<HTMLButtonElement>, VariantProps<typeof buttonVariants> {
+  /** When true, the given single React-element child becomes the rendered element (slot-style). */
   asChild?: boolean;
   loading?: boolean;
   leadingIcon?: IconComponent;
@@ -60,6 +69,14 @@ interface ButtonProps
    *  external open piece of UI (a popover, dropdown, etc.) so it reads as
    *  engaged while the menu is showing. */
   active?: boolean;
+}
+
+// Props read/overwritten on the slot element in the asChild path.
+interface AsChildElementProps {
+  children?: ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  ref?: React.Ref<HTMLButtonElement>;
 }
 
 const bgVariants: Record<string, string> = {
@@ -97,31 +114,34 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    const Comp = asChild ? Slot : "button";
+    // asChild: the user's element becomes the root while the button's internal
+    // structure (bg layer, content wrapper, spinner, icons) survives as its
+    // children — the element's own children become the label. We clone the
+    // element directly instead of routing through ButtonPrimitive's `render`:
+    // Base UI would bolt button semantics (role="button", Space activation)
+    // onto e.g. a link, diverging from the Radix flavour's plain-link output.
+    const asChildElement =
+      asChild && isValidElement<AsChildElementProps>(children) ? children : null;
+    const label = asChildElement ? asChildElement.props.children : children;
     const isIconOnly = size === "icon" || size === "icon-sm" || size === "icon-lg";
     const iconSize = size === "sm" ? 14 : size === "lg" ? 20 : 16;
+    // Spinner box tracks the button height (sm is h-7, lg/icon are h-9, …) so
+    // the loading glyph stays proportionate across sizes.
+    const spinnerSizeClass =
+      size === "sm"
+        ? "h-7 w-7"
+        : size === "lg" || size === "icon"
+          ? "h-9 w-9"
+          : size === "icon-lg"
+            ? "h-10 w-10"
+            : "h-8 w-8";
     const shape = useShape();
     const bgClass = active
       ? activeBgVariants[variant ?? "primary"]
       : bgVariants[variant ?? "primary"];
 
-    return (
-      <Comp
-        ref={ref}
-        className={cn(
-          buttonVariants({
-            variant,
-            size,
-            iconLeft: !isIconOnly && !!LeadingIcon,
-            iconRight: !isIconOnly && !!TrailingIcon,
-          }),
-          shape.button,
-          className,
-        )}
-        disabled={disabled || loading}
-        style={style}
-        {...props}
-      >
+    const internals = (
+      <>
         <span
           aria-hidden
           className={cn(
@@ -134,11 +154,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             <>
               <span className="flex items-center justify-center gap-[inherit] opacity-0">
                 {LeadingIcon && !isIconOnly && <LeadingIcon size={iconSize} strokeWidth={2} />}
-                {children}
+                {label}
                 {TrailingIcon && !isIconOnly && <TrailingIcon size={iconSize} strokeWidth={2} />}
               </span>
               <span className="absolute inset-0 flex items-center justify-center">
-                <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none">
+                <svg className={spinnerSizeClass} viewBox="0 0 24 24" fill="none">
                   <path
                     d="M 12 12 C 14 8.5 19 8.5 19 12 C 19 15.5 14 15.5 12 12 C 10 8.5 5 8.5 5 12 C 5 15.5 10 15.5 12 12 Z"
                     stroke="currentColor"
@@ -156,7 +176,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             </>
           ) : isIconOnly ? (
             <span className="[&_svg]:stroke-[1.5] [&_svg]:transition-[stroke-width] [&_svg]:duration-80 group-hover/button:[&_svg]:stroke-[2]">
-              {children}
+              {label}
             </span>
           ) : (
             <>
@@ -167,7 +187,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
                   className="transition-[stroke-width] duration-80 group-hover/button:stroke-[2]"
                 />
               )}
-              <span>{children}</span>
+              {/* text-box only applies to block containers, so the trim lives
+                  on the label span (a blockified flex item), not the flex root.
+                  The button's height is fixed (h-*), so this doesn't change
+                  layout — it just centers the cap-to-baseline box optically. */}
+              <span className="[text-box:trim-both_cap_alphabetic]">{label}</span>
               {TrailingIcon && (
                 <TrailingIcon
                   size={iconSize}
@@ -178,7 +202,44 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
             </>
           )}
         </span>
-      </Comp>
+      </>
+    );
+
+    const rootClassName = cn(
+      buttonVariants({
+        variant,
+        size,
+        iconLeft: !isIconOnly && !!LeadingIcon,
+        iconRight: !isIconOnly && !!TrailingIcon,
+      }),
+      shape.button,
+      className,
+    );
+
+    if (asChildElement) {
+      const childProps = asChildElement.props;
+      return cloneElement(
+        asChildElement,
+        {
+          ...props,
+          ref,
+          className: cn(rootClassName, childProps.className),
+          style: { ...style, ...childProps.style },
+        },
+        internals,
+      );
+    }
+
+    return (
+      <ButtonPrimitive
+        ref={ref}
+        className={rootClassName}
+        disabled={disabled || loading}
+        style={style}
+        {...props}
+      >
+        {internals}
+      </ButtonPrimitive>
     );
   },
 );

@@ -11,7 +11,7 @@ import { PanelLeftIcon } from "lucide-react";
 
 import { cn } from "@repo/ui/lib/utils";
 import { Button } from "@repo/ui/components/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@repo/ui/components/tooltip";
+import { Tooltip, type TooltipProps } from "@repo/ui/components/tooltip";
 
 // --sidebar-width / --sidebar-width-icon are defined in globals.css :root.
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
@@ -282,7 +282,7 @@ function SidebarMenuButton({
 }: useRender.ComponentProps<"button"> &
   React.ComponentProps<"button"> & {
     isActive?: boolean;
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+    tooltip?: string | Omit<TooltipProps, "children">;
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { state } = useSidebar();
   const comp = useRender({
@@ -291,21 +291,16 @@ function SidebarMenuButton({
       { className: cn(sidebarMenuButtonVariants({ size }), className) },
       props,
     ),
-    render: !tooltip ? render : <TooltipTrigger render={render} />,
+    render,
     state: { slot: "sidebar-menu-button", sidebar: "menu-button", size, active: isActive },
   });
 
-  if (!tooltip) return comp;
-  const tooltipProps = typeof tooltip === "string" ? { children: tooltip } : tooltip;
+  // The tooltip only surfaces the label while the rail is collapsed to icons.
+  if (!tooltip || state !== "collapsed") return comp;
+  const tooltipProps = typeof tooltip === "string" ? { content: tooltip } : tooltip;
   return (
-    <Tooltip>
+    <Tooltip side="right" {...tooltipProps}>
       {comp}
-      <TooltipContent
-        side="right"
-        align="center"
-        hidden={state !== "collapsed"}
-        {...tooltipProps}
-      />
     </Tooltip>
   );
 }
