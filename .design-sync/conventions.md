@@ -34,9 +34,24 @@ Style layout and surfaces with these **real** utility families (backed by CSS-va
 
 All standard Tailwind utilities (`flex`, `grid`, `gap-*`, `p-*`, `text-*`) are available for your own layout glue.
 
+## Document / prose type scale
+
+For document, note, and doc-page content, use this **compact scale** (the app's editor and the Fluid Functionalism doc pages share it). Sizes are explicit `text-[…px]`, headings are `font-semibold tracking-tight`, body is regular weight. Base text is small (13px) — this is a dense, information-forward scale, not a marketing scale.
+
+| Role | Class | Size / treatment |
+|---|---|---|
+| Page title | `text-[28px] font-semibold tracking-tight leading-[1.2]` | 28px |
+| Heading 1 | `text-[22px] font-semibold tracking-tight leading-[1.3]` | 22px |
+| Heading 2 | `text-[16px] font-semibold tracking-tight leading-[1.3]` | 16px |
+| Heading 3 | `text-[15px] font-semibold tracking-tight leading-[1.3]` | 15px |
+| Body | `text-[13px] leading-relaxed` | 13px |
+| Caption / meta | `text-[12px] text-muted-foreground` | 12px |
+
+Headings use `text-foreground`; secondary/body copy often uses `text-muted-foreground`. Keep heading→body contrast via weight + color, not just size (H2 16px is only 3px over body).
+
 ## Compound components
 
-Compose from subparts imported from the same library, e.g. `Dialog` + `DialogTrigger` + `DialogContent` + `DialogHeader` + `DialogTitle` + `DialogDescription` + `DialogFooter` + `DialogClose`; likewise `Menu*`, `Popover*`, `Tabs`/`TabsList`/`TabItem`/`TabPanel`, `Breadcrumb*`, `Collapsible*`, `Command*`, `Sidebar*`. **Overlay triggers use the `render` prop, not children**: `<DialogTrigger render={<Button>Open</Button>} />`. Open state is controlled by `open`/`defaultOpen` on the root.
+Compose from subparts imported from the same library, e.g. `Dialog` + `DialogTrigger` + `DialogContent` + `DialogHeader` + `DialogTitle` + `DialogDescription` + `DialogFooter` + `DialogClose`; likewise `DropdownMenu`/`DropdownTrigger`/`DropdownContent`/`MenuItem`, `Popover*`, `Tabs`/`TabsList`/`TabItem`/`TabPanel`, `Breadcrumb*`, `Collapsible*`, `Command*`, `Sidebar*`. **Overlay triggers use the `render` prop, not children**: `<DialogTrigger render={<Button>Open</Button>} />`. Open state is controlled by `open`/`defaultOpen` on the root.
 
 ## Where the truth lives
 
