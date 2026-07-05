@@ -1,7 +1,19 @@
-@import "@fontsource-variable/inter";
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+
+/* Inter Variable — self-hosted, full axis range (wght + opsz). Matches the
+   Fluid Functionalism reference (public/fonts/InterVariable.ttf). fontsource's
+   variable build is wght-only, so its opsz axis was missing and the optical
+   sizing driven by lib/font-weight.ts ('opsz' 14/15/20/25) was silently
+   ignored — this restores it. Family name "Inter" mirrors the reference. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("../fonts/InterVariable.ttf") format("truetype");
+}
 
 @source "../../../../apps/**/*.{ts,tsx}";
 @source "../**/*.{ts,tsx}";
@@ -119,8 +131,8 @@
 
 :root {
   /* Inter Variable — the fluid site's face; the weight axis powers label
-     weight transitions. Self-hosted via @fontsource-variable (imported above). */
-  --font-sans: "Inter Variable", system-ui, sans-serif;
+     weight transitions. Self-hosted via the @font-face above (full wght+opsz). */
+  --font-sans: "Inter", system-ui, sans-serif;
 
   /* Core palette — the fluid site's neutral hex theme (app/globals.css in the
      fluid-functionalism repo is the source of truth). The site leaves

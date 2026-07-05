@@ -112,7 +112,7 @@ function NotePane({ path, showRich }: { path: string; showRich: boolean }) {
         onKeyDown={onTitleKeyDown}
         className={cn(
           EDITOR_COLUMN_PX,
-          "mb-1 w-full break-words text-4xl font-bold leading-[1.2] text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
+          "mb-1 w-full break-words text-4xl font-semibold leading-[1.2] tracking-tight text-foreground outline-none empty:before:text-muted-foreground/40 empty:before:content-['Untitled']",
         )}
       />
       {showRich ? (

@@ -113,7 +113,7 @@ function ParagraphElement(props: PlateElementProps) {
 function heading(as: "h1" | "h2" | "h3", top: string, size: string) {
   return element(
     as,
-    `relative ${top} mb-1 px-0.5 py-[3px] ${size} font-semibold leading-[1.3] first:mt-0`,
+    `relative ${top} mb-1 px-0.5 py-[3px] ${size} font-semibold leading-[1.3] tracking-tight first:mt-0`,
   );
 }
 
