@@ -156,13 +156,13 @@ const CalloutMarkerPlugin = createSlatePlugin({
 export const BasicBlocksKit = [
   ParagraphPlugin.withComponent(ParagraphElement),
   H1Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(
-    heading("h1", "mt-8", "text-[1.875em]"),
+    heading("h1", "mt-8", "text-[22px]"),
   ),
   H2Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(
-    heading("h2", "mt-[1.4em]", "text-[1.5em]"),
+    heading("h2", "mt-[1.4em]", "text-[16px]"),
   ),
   H3Plugin.configure({ inputRules: [HeadingRules.markdown()] }).withComponent(
-    heading("h3", "mt-[1em]", "text-[1.25em]"),
+    heading("h3", "mt-[1em]", "text-[15px]"),
   ),
   BlockquotePlugin.configure({ inputRules: [BlockquoteRules.markdown()] }).withComponent(
     BlockquoteElement,
