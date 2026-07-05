@@ -62,13 +62,31 @@ Font family token: `"Inter Variable"` (fontsource ships 42 subsets; we ship Lati
 - All 20 cards are in ONE flat `general` group. To split into Actions/Forms/Overlays/… add
   `category` frontmatter via stub docs + `cfg.docsMap`, or `@category` JSDoc in source.
 
+## GeometricOrb DROPPED (scheduler crash — the bug that broke the first upload)
+
+First upload rendered NOTHING in the live pane: `[BUNDLE_EXPORT] not a component on
+window.InteligirUI` for all 20, root cause `[SCHEDULER_MISSING]`. `geometric-orb.tsx` is the
+only file importing `@react-three/fiber` → it bundles its own `react-reconciler` which imports
+`scheduler` directly; the DS bundle externalizes react-dom and **stubs `scheduler` with a
+throwing shim** (`lib/bundle.mjs`, deliberate — assumes react-dom is the only scheduler user).
+That throw blew up the whole IIFE at load, so `window.InteligirUI` was never assigned and every
+component (and every preview importing them) came up empty.
+
+**Fix:** exclude react-three-fiber files from the synth entry via a committed fork
+`.design-sync/overrides/source-kit.mjs` (declared in `cfg.libOverrides`; the fork's bare
+`ts-morph` import resolves through the `.design-sync/node_modules` symlink prepare.mjs creates).
+`GeometricOrb` is also nulled in `componentSrcMap` (no card). Result: 19 components, bundle
+3768 KB → ~1521 KB, no scheduler. **Don't fork `lib/bundle.mjs`** to "fix" scheduler — the guidance
+forbids it and keeping the WebGL orb (which won't render in the 2D pane anyway) isn't worth the
+3 MB. If the orb is ever wanted, it needs a real scheduler bundled — a separate effort.
+
 ## Known render warns
-- **Renders were NOT machine-verified** (playwright declined, Chrome extension not connected).
-  Authored from source + compile-verified only. Post-upload, eyeball the live DS pane.
-- **GeometricOrb** (WebGL/react-three-fiber): HIGH risk of painting blank in the DS pane's
-  render context. If blank → `cfg.componentSrcMap.GeometricOrb=null` (drops the card; stays in bundle).
-- **Toaster**: imperative — toasts fire via `useEffect` on mount; may snapshot blank if captured
-  before the effect flushes. If blank → floor-card / null it.
+- **AlertDialog** `[RENDER_THIN]` (rendered height 0px): BENIGN — the dialog portals/fixed-positions
+  so the measured root height is 0, but the screenshot renders the full dialog correctly. Don't rework.
+- **Toaster**: imperative — toasts fire via `useEffect` on mount. VERIFIED renders (3 toasts show in
+  the capture); `duration: Infinity` keeps them up for the snapshot.
+- **Command** was `[GRID_OVERFLOW]` (palette wider than grid cell) → fixed with
+  `cfg.overrides.Command = {"cardMode":"column"}`.
 
 ## Re-sync — the whole flow
 

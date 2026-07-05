@@ -67,7 +67,8 @@
     "ThemeProvider": null,
     "TooltipContent": null,
     "TooltipProvider": null,
-    "TooltipTrigger": null
+    "TooltipTrigger": null,
+    "GeometricOrb": null
   },
   "dtsPropsFor": {
     "Input": "placeholder?: string; defaultValue?: string; value?: string; disabled?: boolean; type?: string; id?: string; className?: string; \"aria-invalid\"?: boolean; onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void",
@@ -83,7 +84,6 @@
     "Menu": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; modal?: boolean; children?: React.ReactNode",
     "Tooltip": "open?: boolean; defaultOpen?: boolean; onOpenChange?: (open: boolean) => void; delay?: number; children?: React.ReactNode",
     "Sidebar": "side?: \"left\" | \"right\"; collapsible?: \"offcanvas\" | \"icon\" | \"none\"; className?: string; children?: React.ReactNode",
-    "GeometricOrb": "status?: \"idle\" | \"busy\" | \"error\" | \"starting\" | \"listening\" | \"speaking\"; baseColor?: string; frameloop?: \"always\" | \"demand\"; lineWidth?: number; numLines?: number; className?: string",
     "Toaster": "glass?: boolean; position?: \"top-left\" | \"top-center\" | \"top-right\" | \"bottom-left\" | \"bottom-center\" | \"bottom-right\"; expand?: boolean; duration?: number; className?: string"
   },
   "overrides": {
@@ -117,17 +117,18 @@
       "viewport": "960x460",
       "primaryStory": "VaultNavigator"
     },
-    "GeometricOrb": {
-      "cardMode": "single",
-      "viewport": "480x260",
-      "primaryStory": "Statuses"
-    },
     "Toaster": {
       "cardMode": "single",
       "viewport": "420x300",
       "primaryStory": "Notifications"
+    },
+    "Command": {
+      "cardMode": "column"
     }
   },
   "readmeHeader": ".design-sync/conventions.md",
-  "buildCmd": "node .design-sync/prepare.mjs"
+  "buildCmd": "node .design-sync/prepare.mjs",
+  "libOverrides": {
+    "source-kit.mjs": "exclude react-three-fiber files (GeometricOrb) from the synth entry — 2nd reconciler needs scheduler the DS bundle stubs"
+  }
 }
