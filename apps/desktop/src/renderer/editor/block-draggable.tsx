@@ -151,7 +151,17 @@ function Draggable(props: PlateElementProps) {
     >
       <div
         contentEditable={false}
-        className="absolute top-0 -left-11 z-40 flex h-[1.5em] items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100"
+        // Match the gutter's font-size to the block's first line so the
+        // em-based box (h-[1.3em]) + items-center lands the handles on the
+        // text center — headings are larger than the 13px body base, so a
+        // fixed base-em box floats above them. top-[3px] matches the block
+        // content's py-[3px]; the size-5 buttons stay a fixed 20px (rem).
+        className={cn(
+          "absolute top-[3px] -left-11 z-40 flex h-[1.3em] items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100",
+          element.type === "h1" && "text-[22px]",
+          element.type === "h2" && "text-[16px]",
+          element.type === "h3" && "text-[15px]",
+        )}
       >
         <button
           type="button"
