@@ -42,7 +42,6 @@ import {
   editInstructionFor,
   generatePromptFor,
   TRANSLATE_LANGUAGES,
-  type CannedAction,
   type CannedActionId,
 } from "@renderer/editor/ai/ai-prompts";
 import { runManager } from "@renderer/editor/ai/run-manager";
