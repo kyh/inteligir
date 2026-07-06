@@ -224,7 +224,7 @@ function executorArtifactName(): string | null {
   return `executor-${os}-${arch}.${ext}`;
 }
 
-class ExecutorDaemon {
+export class ExecutorDaemon {
   private proc: ChildProcess | null = null;
   private connection: ExecutorConnection | null = null;
   private starting: Promise<ExecutorConnection | null> | null = null;
