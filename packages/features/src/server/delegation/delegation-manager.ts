@@ -17,6 +17,7 @@ import { DelegationSnapshotStore } from "./delegation-snapshots";
 import { findTaskLine } from "./find-task-line";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
+import { getHostNotifiers } from "../host-notifiers";
 import { runTextTurn } from "../app/text-turn";
 import {
   DelegationSchema,
@@ -52,26 +53,6 @@ export type DelegationAgent = {
   interrupt(): Promise<unknown>;
 };
 
-// Change notification — push channel for the editor's inline badges. Wired from
-// Electron-side composition (app-machine) so this module stays electron-free.
-let changedNotifier: ((delegations: Delegation[]) => void) | null = null;
-
-export function setDelegationsChangedNotifier(
-  notifier: ((delegations: Delegation[]) => void) | null,
-): void {
-  changedNotifier = notifier;
-}
-
-// Streaming transcript channel — pushes a delegation's accumulating response
-// text (keyed by id) for the live response dock. Same electron-free pattern.
-let streamNotifier: ((id: string, text: string) => void) | null = null;
-
-export function setDelegationStreamNotifier(
-  notifier: ((id: string, text: string) => void) | null,
-): void {
-  streamNotifier = notifier;
-}
-
 export type DelegationManagerOptions = {
   fs?: FsAdapter;
   path?: string;
@@ -83,6 +64,14 @@ export type DelegationManagerOptions = {
   writeVault?: (rel: string, content: string) => void;
   /** Pre-run snapshot store. Defaults to the real ~/.inteligir-backed one. */
   snapshots?: DelegationSnapshotStore;
+  /** Push channel for the editor's inline badges — the delegation list changed.
+   * Injected at construction by the composition root so this module never
+   * imports the IPC event registry; the live singleton (getDelegationManager)
+   * sources it from the host notifier bundle, unit tests leave it unset. */
+  onChanged?: (delegations: Delegation[]) => void;
+  /** Streaming transcript channel — a delegation's accumulating response text
+   * (keyed by id) for the live response dock. Same injection story as onChanged. */
+  onStream?: (id: string, text: string) => void;
 };
 
 export class DelegationManager {
@@ -90,6 +79,8 @@ export class DelegationManager {
   private readonly readVault: (rel: string) => string;
   private readonly writeVault: (rel: string, content: string) => void;
   private readonly snapshots: DelegationSnapshotStore;
+  private readonly onChanged: ((delegations: Delegation[]) => void) | null;
+  private readonly onStream: ((id: string, text: string) => void) | null;
   private getAgent: (() => DelegationAgent | null) | null = null;
   private running = false;
   // Id of a running delegation the user asked to stop — the run marks it stopped
@@ -110,6 +101,8 @@ export class DelegationManager {
     this.writeVault =
       opts?.writeVault ?? ((rel, content) => getVaultManager().writeText(rel, content));
     this.snapshots = opts?.snapshots ?? new DelegationSnapshotStore();
+    this.onChanged = opts?.onChanged ?? null;
+    this.onStream = opts?.onStream ?? null;
     this.store = new JsonStore<Delegation[]>(
       opts?.path ?? inteligirPath("delegations.json"),
       DelegationsFileSchema,
@@ -383,7 +376,7 @@ export class DelegationManager {
 
   private notify(): void {
     try {
-      changedNotifier?.(this.getDelegations());
+      this.onChanged?.(this.getDelegations());
     } catch (err) {
       console.warn("[delegation] change notification failed:", err);
     }
@@ -502,11 +495,11 @@ export class DelegationManager {
       timeoutMs: RUN_TIMEOUT_MS,
       onDelta: (delta) => {
         streamed += delta;
-        streamNotifier?.(delegation.id, streamed);
+        this.onStream?.(delegation.id, streamed);
       },
       onToolCall: (toolName) => {
         streamed += `${streamed ? "\n\n" : ""}\`⚙ ${toolName}\``;
-        streamNotifier?.(delegation.id, streamed);
+        this.onStream?.(delegation.id, streamed);
       },
     });
 
@@ -574,7 +567,17 @@ function buildPrompt(d: Delegation): string {
 let instance: DelegationManager | null = null;
 
 export function getDelegationManager(): DelegationManager {
-  if (!instance) instance = new DelegationManager();
+  if (!instance) {
+    // Inject the change/stream notifiers at construction from the host notifier
+    // bundle (composed by create-host). Rebuilt after a logout/login reset, the
+    // fresh instance re-reads the same bundle so badges/streams stay wired.
+    const notifiers = getHostNotifiers();
+    instance = new DelegationManager(
+      notifiers
+        ? { onChanged: notifiers.delegationsChanged, onStream: notifiers.delegationStream }
+        : {},
+    );
+  }
   return instance;
 }
 

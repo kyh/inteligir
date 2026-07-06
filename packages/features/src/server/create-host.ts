@@ -1,28 +1,27 @@
 // ---------------------------------------------------------------------------
-// createHost — a one-shot singleton wiring/sequencer for the node backend, NOT
-// a graph composition root. It builds no object graph: the host's pieces are
-// process-global singletons (vault, knowledge, machine, executor daemon) and
-// the notifier slots it fills (store-recovery here, vault-change in start())
-// are module-global mutable function pointers. It just sequences their
-// init/teardown in order; a second call would silently share that module state,
-// so the `created` guard below makes it fail fast. A shell (Electron desktop
-// today, WebSocket server later) injects a HostPlatform, folds the returned
-// handler map into its transport, forwards `events`, and drives start()/dispose().
+// createHost — the composition root for the node backend. It constructs the
+// explicit HostContext object graph (host-context.ts) in dependency order,
+// owns the whole notifier composition (the 5 slots are wired at build/start,
+// not mutated from app-machine), and sequences init/teardown over that graph.
+// The pieces are still process-global singletons under the hood — getX() stays
+// an accessor into this constructed graph with a lazy test fallback — so the
+// `created` guard makes a second call fail fast rather than silently share
+// module state. A shell (Electron desktop today, WebSocket server later)
+// injects a HostPlatform, folds the returned handler map into its transport,
+// forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
 import { configurePaths } from "./agent/paths";
 import { initMachine, shutdown } from "./app/app-machine";
-import { getDelegationManager } from "./delegation/delegation-manager";
-import { emitEvent, subscribeEvents } from "./events";
+import { subscribeEvents } from "./events";
+import { buildHostContext } from "./host-context";
 import { initAgentLog } from "./lib/agent-log";
 import { acquireHostLock, releaseHostLock } from "./lib/host-lock";
 import { collectHandlers, type HostHandlers } from "./lib/handler-registry";
 import { registerAllHandlers } from "./handlers/register-handlers";
-import { disposeKnowledgeManager, getKnowledgeManager } from "./knowledge/knowledge-manager";
-import { getNotifications } from "./notifications";
+import { disposeKnowledgeManager } from "./knowledge/knowledge-manager";
 import { installHostRuntime } from "./platform-instance";
-import { setStoreRecoveryNotifier } from "./lib/json-store";
-import { getVaultManager, setVaultChangeNotifier } from "./vault/vault";
+import { setVaultChangeNotifier } from "./vault/vault";
 import type { HostOptions, HostPlatform } from "./platform";
 import type { EventMethod } from "@repo/features/ipc-registry";
 
@@ -60,10 +59,12 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
   // Crash/debug visibility first, so even boot failures land in agent.log.
   initAgentLog();
 
-  // Quarantine notices must be user-visible before any store is read. This
-  // was an import-time side effect of notifications.ts; explicit here so a
-  // shell that never constructs notifications still surfaces recovery events.
-  setStoreRecoveryNotifier((event) => getNotifications().notifyStoreRecovered(event));
+  // Build the object graph: constructs the core singletons in dependency order
+  // and installs the notifier composition (store-recovery is wired inside,
+  // before any store is read — it used to be an import-time side effect of
+  // notifications.ts). ctx.notifiers holds the other four; vault-change is wired
+  // in start() because the watcher must not start until ensureReady() has run.
+  const ctx = buildHostContext();
 
   const handlers = collectHandlers(registerAllHandlers);
 
@@ -85,23 +86,22 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // Must run before any pi-coding-agent call that consults getAgentDir().
       configurePaths();
 
-      // Vault: ensure the folder + agent symlink exist and stream file changes
-      // to the UI so the sidebar and editor stay live. The notifier is
-      // module-scoped, so it survives a logout/login reset. Every vault change
-      // also nudges the knowledge index (debounced incremental refresh).
-      getVaultManager().ensureReady();
-      setVaultChangeNotifier((root) => {
-        emitEvent("onVaultChanged", { root });
-        getKnowledgeManager().scheduleRefresh();
-      });
+      // Vault: ensure the folder + agent symlink exist, THEN wire the change
+      // notifier (which starts the watcher — it must not start before the dir
+      // exists), streaming file changes to the UI so the sidebar and editor
+      // stay live. The notifier is module-scoped, so it survives a logout/login
+      // reset. Every vault change also nudges the knowledge index (debounced
+      // incremental refresh — that fan-out lives in ctx.notifiers.vaultChange).
+      ctx.vault.ensureReady();
+      setVaultChangeNotifier(ctx.notifiers.vaultChange);
       // First index build rides the debounce too, keeping it off the boot
       // path; a query landing earlier builds lazily.
-      getKnowledgeManager().scheduleRefresh();
+      ctx.knowledge.scheduleRefresh();
 
       // Snapshot retention sweep (keep the newest SNAPSHOT_RETENTION pre-run
       // copies). Best-effort — a prune failure must never block boot.
       try {
-        getDelegationManager().pruneSnapshots();
+        ctx.delegation.pruneSnapshots();
       } catch (err) {
         console.warn("[host] delegation snapshot prune failed:", err);
       }

@@ -21,12 +21,8 @@ import {
   stopBackgroundAgent,
 } from "../delegation/background-agent";
 import { stopGhostAgent } from "./ghost-text";
-import { setInlineAiStreamNotifier, startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
-import {
-  getDelegationManager,
-  setDelegationsChangedNotifier,
-  setDelegationStreamNotifier,
-} from "../delegation/delegation-manager";
+import { startInlineAiAgent, stopInlineAiAgent } from "./inline-ai";
+import { getDelegationManager } from "../delegation/delegation-manager";
 import { getNotifications } from "../notifications";
 import { downloadModel } from "../voice/model-download";
 import { parseAgentEvent } from "@repo/features/agent-event-parser";
@@ -362,15 +358,11 @@ export function transition(event: MachineEvent): void {
   machine?.ingest(event);
 }
 
-/** Determine initial state from persisted auth/setup and auto-start if ready. */
+/** Determine initial state from persisted auth/setup and auto-start if ready.
+ * The delegation + inline-AI push channels are no longer wired here — the
+ * composition root (create-host → buildHostContext) owns the whole notifier
+ * composition and injects them at construction. */
 export function initMachine(): void {
-  // Delegation push channel: the manager is electron-free, so the broadcast
-  // hookup happens here (composition root for the machine's main singletons).
-  setDelegationsChangedNotifier((delegations) =>
-    emitEvent("onDelegationsUpdated", { delegations }),
-  );
-  setDelegationStreamNotifier((id, text) => emitEvent("onDelegationStreamed", { id, text }));
-  setInlineAiStreamNotifier((requestId, delta) => emitEvent("onAiStreamed", { requestId, delta }));
   const loggedIn = isLoggedIn();
   const initial: AppState = loggedIn ? { phase: "logged_in" } : { phase: "logged_out" };
   machine = new AppMachine(realDeps, broadcastAppState, initial);
