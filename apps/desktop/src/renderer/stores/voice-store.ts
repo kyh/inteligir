@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { toErrorMessage } from "@repo/features/ipc";
 import { getBridge } from "@renderer/lib/bridge";
 import { VoicePipeline } from "@renderer/voice/voice-pipeline";
 import { VoiceMachine, type VoiceState } from "@renderer/voice/voice-machine";
@@ -98,7 +99,7 @@ async function runConnect(): Promise<void> {
     if (gen !== machine.generation) return;
     machine.dispatch({
       type: "model_download_failed",
-      message: err instanceof Error ? err.message : String(err),
+      message: toErrorMessage(err),
     });
     return;
   }
@@ -114,7 +115,7 @@ async function runConnect(): Promise<void> {
       if (gen !== machine.generation) return;
       machine.dispatch({
         type: "model_download_failed",
-        message: err instanceof Error ? err.message : String(err),
+        message: toErrorMessage(err),
       });
       return;
     }
@@ -136,7 +137,7 @@ async function runConnect(): Promise<void> {
     if (gen !== machine.generation) return;
     machine.dispatch({
       type: "connect_failed",
-      message: err instanceof Error ? err.message : String(err),
+      message: toErrorMessage(err),
     });
     return;
   }

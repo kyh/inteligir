@@ -8,7 +8,9 @@
     ".output",
     ".tanstack",
     "out",
-    "routeTree.gen.ts"
+    "routeTree.gen.ts",
+    ".design-sync",
+    ".ds-sync"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "categories": {

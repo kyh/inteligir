@@ -3,6 +3,7 @@
 // chunks to the main process where sherpa-onnx + streaming Parakeet runs.
 // ---------------------------------------------------------------------------
 
+import { toErrorMessage } from "@repo/features/ipc";
 import { getBridge } from "@renderer/lib/bridge";
 import sttWorkletUrl from "./stt-worklet.js?url"; // relative: the ./src exports map can't address a raw .js asset
 
@@ -82,7 +83,7 @@ export async function startSTT(
       // can transfer a typed chunk without exposing its backing buffer here.
       bridge.sendSttAudio(event.data);
     } catch (err) {
-      onError(err instanceof Error ? err.message : String(err));
+      onError(toErrorMessage(err));
     }
   };
   workletNode.port.addEventListener("message", handleWorkletMessage);
@@ -117,7 +118,7 @@ export async function startSTT(
           return undefined;
         })
         .catch((err: unknown) => {
-          onError(err instanceof Error ? err.message : String(err));
+          onError(toErrorMessage(err));
         })
         .finally(() => {
           workletNode.port.removeEventListener("message", handleWorkletMessage);

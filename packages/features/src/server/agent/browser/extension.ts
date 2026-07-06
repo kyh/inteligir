@@ -18,6 +18,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
+import { toErrorMessage } from "@repo/features/ipc";
 import { installCliFromGithubRelease } from "@repo/features/server/agent-runtime/install";
 import { runCli } from "@repo/features/server/agent-runtime/run-cli";
 
@@ -112,7 +113,7 @@ const browserExtension: PiExtensionBundle = {
             });
             return await toToolResult(params.args, result);
           } catch (err) {
-            return textResult(`browser error: ${err instanceof Error ? err.message : String(err)}`);
+            return textResult(`browser error: ${toErrorMessage(err)}`);
           }
         },
       });
@@ -213,7 +214,7 @@ async function toToolResult(
         mimeType: mimeTypeForPath(screenshotPath),
       });
     } catch (err) {
-      textContent.text = `${textContent.text}\n\n[screenshot read failed]\n${err instanceof Error ? err.message : String(err)}`;
+      textContent.text = `${textContent.text}\n\n[screenshot read failed]\n${toErrorMessage(err)}`;
     }
   }
 

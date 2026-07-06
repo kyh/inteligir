@@ -14,6 +14,7 @@
 import path from "node:path";
 
 import { Type, type Static } from "@sinclair/typebox";
+import { toErrorMessage } from "@repo/features/ipc";
 import { installCliFromGithubRelease } from "@repo/features/server/agent-runtime/install";
 import { runCli } from "@repo/features/server/agent-runtime/run-cli";
 
@@ -81,9 +82,7 @@ const peekabooExtension: PiExtensionBundle = {
             });
             return textResult(formatCliOutput(result));
           } catch (err) {
-            return textResult(
-              `peekaboo error: ${err instanceof Error ? err.message : String(err)}`,
-            );
+            return textResult(`peekaboo error: ${toErrorMessage(err)}`);
           }
         },
       });

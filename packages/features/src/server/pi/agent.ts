@@ -12,6 +12,7 @@ import type {
   ExtensionFactory,
 } from "@mariozechner/pi-coding-agent";
 import type { Api, AssistantMessage, ImageContent, Model } from "@mariozechner/pi-ai";
+import { toErrorMessage } from "@repo/features/ipc";
 
 export type PiAgentStatus = "starting" | "idle" | "busy" | "error";
 
@@ -185,7 +186,7 @@ export class PiAgent {
     this.status = "busy";
 
     void session.prompt(message, imgs ? { images: imgs } : undefined).catch((err: unknown) => {
-      this.error = err instanceof Error ? err.message : String(err);
+      this.error = toErrorMessage(err);
       console.error("[pi-driver] prompt error:", this.error);
       // Surface the rejection to subscribers — without this the user's
       // message renders as sent while the turn silently never happens (pi
