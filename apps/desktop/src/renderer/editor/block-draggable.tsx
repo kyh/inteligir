@@ -146,7 +146,11 @@ function Draggable(props: PlateElementProps) {
       ref={setNodeRef}
       // Transform only the dragged block — siblings stay put (noDisplacement)
       // and would otherwise snap when a stale transform lingered.
-      style={isDragging ? { transform: CSS.Transform.toString(transform), transition } : undefined}
+      // CSS.Translate (not CSS.Transform): the sortable transform carries a
+      // scaleX/scaleY when the drag-over block differs in size (heading vs
+      // paragraph), which stretches the dragged block. Translate-only keeps it
+      // 1:1 while following the pointer.
+      style={isDragging ? { transform: CSS.Translate.toString(transform), transition } : undefined}
       className={cn("group/block relative", isDragging && "z-10 opacity-60")}
     >
       <div
