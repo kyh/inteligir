@@ -17,12 +17,11 @@ import type { Path } from "platejs";
 import { useEditorPlugin, usePluginOption } from "platejs/react";
 
 import {
-  Menu,
-  MenuContent,
-  MenuGroup,
-  MenuGroupLabel,
+  DropdownContent,
+  DropdownLabel,
+  DropdownMenu,
+  DropdownSeparator,
   MenuItem,
-  MenuSeparator,
 } from "@repo/ui/components/menu";
 
 import { openAiMenu } from "@renderer/editor/ai/ai-session";
@@ -71,53 +70,56 @@ export function BlockMenu() {
   };
 
   return (
-    <Menu
+    <DropdownMenu
       open={openId !== null}
       onOpenChange={(open) => {
         if (!open) api.blockMenu.hide();
       }}
     >
-      <MenuContent
+      <DropdownContent
         anchor={anchor}
         side="bottom"
         align="start"
         className="max-h-[70vh] min-w-[200px]"
       >
-        <MenuItem onClick={askAi}>
-          <SparklesIcon />
-          Ask AI
-          <span className="ml-auto text-xs text-muted-foreground">⌘J</span>
-        </MenuItem>
-        <MenuSeparator />
-        <MenuItem onClick={() => blockTf.duplicate()}>
-          <CopyIcon />
-          Duplicate
-        </MenuItem>
-        <MenuItem onClick={() => moveBlocks(editor, selectedPaths(), "up")}>
-          <ArrowUpIcon />
-          Move up
-        </MenuItem>
-        <MenuItem onClick={() => moveBlocks(editor, selectedPaths(), "down")}>
-          <ArrowDownIcon />
-          Move down
-        </MenuItem>
+        <MenuItem index={0} icon={SparklesIcon} label="Ask AI" shortcut="⌘J" onSelect={askAi} />
+        <DropdownSeparator />
         <MenuItem
-          onClick={() => blockTf.removeNodes()}
-          className="text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive"
-        >
-          <Trash2Icon />
-          Delete
-        </MenuItem>
-        <MenuSeparator />
-        <MenuGroup>
-          <MenuGroupLabel>Turn into</MenuGroupLabel>
-          {TURN_INTO.map((opt) => (
-            <MenuItem key={opt.label} onClick={() => turnIntoBlocks(editor, selectedPaths(), opt)}>
-              {opt.label}
-            </MenuItem>
-          ))}
-        </MenuGroup>
-      </MenuContent>
-    </Menu>
+          index={1}
+          icon={CopyIcon}
+          label="Duplicate"
+          onSelect={() => blockTf.duplicate()}
+        />
+        <MenuItem
+          index={2}
+          icon={ArrowUpIcon}
+          label="Move up"
+          onSelect={() => moveBlocks(editor, selectedPaths(), "up")}
+        />
+        <MenuItem
+          index={3}
+          icon={ArrowDownIcon}
+          label="Move down"
+          onSelect={() => moveBlocks(editor, selectedPaths(), "down")}
+        />
+        <MenuItem
+          index={4}
+          icon={Trash2Icon}
+          label="Delete"
+          destructive
+          onSelect={() => blockTf.removeNodes()}
+        />
+        <DropdownSeparator />
+        <DropdownLabel>Turn into</DropdownLabel>
+        {TURN_INTO.map((opt, i) => (
+          <MenuItem
+            key={opt.label}
+            index={5 + i}
+            label={opt.label}
+            onSelect={() => turnIntoBlocks(editor, selectedPaths(), opt)}
+          />
+        ))}
+      </DropdownContent>
+    </DropdownMenu>
   );
 }

@@ -329,7 +329,7 @@ const TabsList = forwardRef<HTMLDivElement, TabsListProps>(
             {focusRect && (
               <motion.div
                 className={cn(
-                  "absolute pointer-events-none z-20 border border-[#6B97FF]",
+                  "absolute pointer-events-none z-20 border border-[color:var(--focus-ring,#6B97FF)]",
                   shape.focusRing,
                 )}
                 initial={false}
@@ -368,7 +368,7 @@ interface TabItemProps extends ComponentPropsWithoutRef<typeof TabsPrimitive.Tab
 }
 
 const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
-  ({ value, icon: Icon, label, _index = 0, className, ...props }, ref) => {
+  ({ value, icon: Icon, label, _index = 0, className, onClick, ...props }, ref) => {
     const internalRef = useRef<HTMLButtonElement>(null);
     const { registerTab, hoveredIndex, selectedValue, setOptimisticIdx } = useTabsList();
 
@@ -382,7 +382,12 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
 
     return (
       <TabsPrimitive.Tab
-        onClick={() => setOptimisticIdx(_index)}
+        // Composed (not spread-overridable): a consumer onClick must not
+        // replace the optimistic indicator jump.
+        onClick={(e) => {
+          setOptimisticIdx(_index);
+          onClick?.(e);
+        }}
         ref={(node) => {
           // Base UI types Tab's ref as HTMLElement; it always renders a <button>.
           const buttonNode = node instanceof HTMLButtonElement ? node : null;
@@ -393,7 +398,9 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
         value={value}
         data-proximity-index={_index}
         className={cn(
-          "relative z-10 flex items-center gap-2 px-3 py-1.5 cursor-pointer bg-transparent border-none outline-none",
+          // Fixed height (not py) so the text-box trim below doesn't shrink
+          // the tab — browsers without text-box support render identically.
+          "relative z-10 flex h-8 items-center gap-2 px-3 cursor-pointer bg-transparent border-none outline-none",
           className,
         )}
         {...props}
@@ -408,9 +415,11 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
             )}
           />
         )}
+        {/* Both stacked spans carry the text-box trim so the invisible bold
+            sizer and the visible label keep identical boxes. */}
         <span className="inline-grid text-[13px] whitespace-nowrap">
           <span
-            className="col-start-1 row-start-1 invisible"
+            className="col-start-1 row-start-1 invisible [text-box:trim-both_cap_alphabetic]"
             style={{ fontVariationSettings: fontWeights.semibold }}
             aria-hidden="true"
           >
@@ -418,7 +427,7 @@ const TabItem = forwardRef<HTMLButtonElement, TabItemProps>(
           </span>
           <span
             className={cn(
-              "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80",
+              "col-start-1 row-start-1 transition-[color,font-variation-settings] duration-80 [text-box:trim-both_cap_alphabetic]",
               isActive ? "text-foreground" : "text-muted-foreground",
             )}
             style={{

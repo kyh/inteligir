@@ -18,3 +18,7 @@ export const spring = {
     exit: { duration: 0.16 },
   },
 } as const;
+
+// Fallback delay (ms) for deferred-unmount timers guarding an exit tween.
+export const exitFallbackMs = (tier: { exit: { duration: number } }) =>
+  Math.round(tier.exit.duration * 1000) + 100;

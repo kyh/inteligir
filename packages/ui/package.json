@@ -11,6 +11,7 @@
     "./lib/icon-map": "./src/lib/icon-map.tsx",
     "./lib/shape-context": "./src/lib/shape-context.tsx",
     "./lib/theme": "./src/lib/theme.tsx",
+    "./lib/elevated": "./src/lib/elevated.tsx",
     "./lib/*": "./src/lib/*.ts",
     "./components/*": "./src/components/*.tsx",
     "./hooks/*": "./src/hooks/*.ts"
@@ -21,8 +22,6 @@
   },
   "dependencies": {
     "@base-ui/react": "catalog:",
-    "@fontsource-variable/inter": "^5.2.8",
-    "@radix-ui/react-slot": "^1.3.0",
     "@react-three/fiber": "^9.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",

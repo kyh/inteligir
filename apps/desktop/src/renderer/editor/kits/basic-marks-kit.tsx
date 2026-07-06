@@ -48,7 +48,7 @@ function leaf(className: string) {
 export const BasicMarksKit = [
   BoldPlugin.configure({
     inputRules: [BoldRules.markdown(), MarkComboRules.markdown({ variant: "boldItalic" })],
-  }).withComponent(leaf("font-bold")),
+  }).withComponent(leaf("font-semibold")),
   ItalicPlugin.configure({
     inputRules: [ItalicRules.markdown(), ItalicRules.markdown({ variant: "_" })],
   }).withComponent(leaf("italic")),
