@@ -195,6 +195,23 @@ export class VaultManager {
     atomicWrite(target, content);
   }
 
+  /** Raw file bytes — the binary-safe primitive the sync protocol reads (markdown
+   * is UTF-8, but images/pdfs are opaque bytes a text round-trip would corrupt).
+   * A fresh `Uint8Array` copy so callers can't mutate node's internal buffer. */
+  readBytes(rel: string): Uint8Array {
+    const target = this.resolve(rel);
+    return new Uint8Array(fs.readFileSync(target));
+  }
+
+  /** Atomically write raw bytes — the binary-safe write the sync client uses to
+   * land a pulled file. Same confinement + atomic-rename story as writeText. */
+  writeBytes(rel: string, content: Uint8Array): void {
+    assertVaultWritable();
+    const target = this.resolve(rel);
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    atomicWrite(target, content);
+  }
+
   delete(rel: string): boolean {
     assertVaultWritable();
     const target = this.resolve(rel);
@@ -335,8 +352,10 @@ export class VaultManager {
 
 // Write to <path>.tmp then rename — atomic on POSIX + NTFS, so a crash
 // mid-write leaves the previous file intact. Mirrors json-store's realFs.write
-// but for arbitrary vault files (no mode restriction — user-owned data).
-function atomicWrite(filePath: string, content: string): void {
+// but for arbitrary vault files (no mode restriction — user-owned data). Accepts
+// UTF-8 text (editor path) or raw bytes (sync path); the encoding argument is
+// ignored for a Uint8Array, so one helper serves both.
+function atomicWrite(filePath: string, content: string | Uint8Array): void {
   const tmp = `${filePath}.tmp`;
   fs.writeFileSync(tmp, content, "utf8");
   fs.renameSync(tmp, filePath);

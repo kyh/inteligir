@@ -9,6 +9,7 @@
     ".tanstack",
     "out",
     "routeTree.gen.ts",
+    "worker-configuration.d.ts",
     "apps/desktop/src/renderer/__tests__/fixtures"
   ],
   "experimentalSortPackageJson": {}

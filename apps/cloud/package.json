@@ -1,0 +1,24 @@
+{
+  "name": "@repo/cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "clean": "git clean -xdf .cache .turbo .wrangler dist node_modules",
+    "cf-typegen": "wrangler types",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@repo/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^4.1.7",
+    "wrangler": "catalog:"
+  }
+}

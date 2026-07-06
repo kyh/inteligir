@@ -9,6 +9,7 @@
     ".tanstack",
     "out",
     "routeTree.gen.ts",
+    "worker-configuration.d.ts",
     ".design-sync",
     ".ds-sync"
   ],

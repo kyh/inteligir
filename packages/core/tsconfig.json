@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    // Purity guard: no `dom`, no `node`. `lib` is ES2023 (pure JS — `toSorted`
+    // etc.; still no dom) and `"types": []` blocks auto-inclusion of ambient
+    // @types/node globals hoisted in the monorepo, so an accidental
+    // `process`/`Buffer`/`fs` or `document`/`window` reference is a type error.
+    // This package must run in a CF Worker AND React Native AND the browser.
+    "lib": ["ES2023"],
+    "types": [],
+    "paths": {
+      "@repo/core/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}
