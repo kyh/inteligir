@@ -13,7 +13,7 @@
 import { Agent } from "../agent/agent";
 import { INLINE_AI_SESSION_DIR } from "../agent/paths";
 import { getAgentPorts } from "../lib/agent-lifecycle";
-import { parseAgentEvent } from "@repo/features/agent-event-parser";
+import { runTextTurn } from "./text-turn";
 import {
   parseAiIntent,
   type AiGenerateResult,
@@ -66,32 +66,23 @@ export async function generateInline(prompt: string, requestId: string): Promise
   if (busy) return { ok: false, error: "Another AI request is already running." };
   busy = true;
   currentRequestId = requestId;
-  let captured = "";
-  const unsubscribe = agent.subscribe((raw) => {
-    const event = parseAgentEvent(raw);
-    if (event?.type === "message_update") {
-      captured += event.delta;
-      streamNotifier?.(requestId, event.delta);
-    } else if (event?.type === "message_end" && event.role === "assistant" && event.text) {
-      captured = event.text;
-    }
-  });
   try {
-    await agent.sendMessage(prompt);
-    const finished = await agent.waitForIdle(GEN_TIMEOUT_MS);
-    if (!finished) {
-      await agent.interrupt().catch(() => {});
-      return { ok: false, error: "The AI request timed out." };
+    const result = await runTextTurn(agent, prompt, {
+      timeoutMs: GEN_TIMEOUT_MS,
+      onDelta: (delta) => streamNotifier?.(requestId, delta),
+    });
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.kind === "timeout" ? "The AI request timed out." : result.error,
+      };
     }
     // Canceled mid-stream: the renderer already unwound its inserts; report
     // failure so no caller mistakes the truncated text for a completion.
     if (currentRequestId !== requestId) return { ok: false, error: "Canceled." };
-    const text = captured.trim();
+    const text = result.text.trim();
     return text.length > 0 ? { ok: true, text } : { ok: false, error: "No response." };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "AI request failed." };
   } finally {
-    unsubscribe();
     busy = false;
     if (currentRequestId === requestId) currentRequestId = null;
   }
@@ -132,25 +123,15 @@ export async function classifyIntent(
   const fallback: AiIntentResult = { intent: "generate" };
   if (!agent || busy) return fallback;
   busy = true;
-  let captured = "";
-  const unsubscribe = agent.subscribe((raw) => {
-    const event = parseAgentEvent(raw);
-    if (event?.type === "message_end" && event.role === "assistant" && event.text) {
-      captured = event.text;
-    }
-  });
   try {
-    await agent.sendMessage(buildClassifyPrompt(prompt, hasSelection));
-    const finished = await agent.waitForIdle(CLASSIFY_TIMEOUT_MS);
-    if (!finished) {
-      await agent.interrupt().catch(() => {});
-      return fallback;
-    }
-    return { intent: parseAiIntent(captured) };
-  } catch {
-    return fallback;
+    const result = await runTextTurn(agent, buildClassifyPrompt(prompt, hasSelection), {
+      timeoutMs: CLASSIFY_TIMEOUT_MS,
+    });
+    // Any failure (timeout, thrown) falls back to generate — the non-destructive
+    // branch. An unparseable reply is handled by parseAiIntent's own fallback.
+    if (!result.ok) return fallback;
+    return { intent: parseAiIntent(result.text) };
   } finally {
-    unsubscribe();
     busy = false;
   }
 }

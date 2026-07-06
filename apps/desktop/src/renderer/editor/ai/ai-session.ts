@@ -13,6 +13,11 @@
 //   floating bar.
 // Free-form prompts are classified host-side (generate on any failure);
 // canned actions carry a fixed intent.
+//
+// Two siblings hold what used to live inline here: prompt DATA + builders in
+// ai-prompts.ts, and the run/token lifecycle (supersession fencing, streaming
+// requestIds, host-side abort) in run-manager.ts. This file is the
+// editor-facing state machine that wires them together.
 
 import {
   isHotkey,
@@ -31,7 +36,22 @@ import type { AiIntentResult } from "@repo/features/inline-ai";
 import { getBridge } from "@renderer/lib/bridge";
 import { createMarkdownStream, stripAiMarks } from "@renderer/editor/ai/stream-markdown";
 import { applyEditSuggestions } from "@renderer/editor/ai/suggestions";
+import {
+  buildEditPrompt,
+  CANNED_ACTIONS,
+  editInstructionFor,
+  generatePromptFor,
+  TRANSLATE_LANGUAGES,
+  type CannedAction,
+  type CannedActionId,
+} from "@renderer/editor/ai/ai-prompts";
+import { runManager } from "@renderer/editor/ai/run-manager";
 import { MD_STRINGIFY, parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
+
+// The menu UI + canned-action tests import these from here — re-exported so
+// their import paths stay put while the definitions live in ai-prompts.ts.
+export { CANNED_ACTIONS, TRANSLATE_LANGUAGES };
+export type { CannedActionId };
 
 // ---------------------------------------------------------------------------
 // Plugin state
@@ -103,169 +123,20 @@ export const AiSessionPlugin = createTPlatePlugin<PluginConfig<"aiSession", AiSe
 });
 
 // ---------------------------------------------------------------------------
-// Canned actions
-// ---------------------------------------------------------------------------
-
-export type CannedActionId =
-  | "continue"
-  | "summarize"
-  | "explain"
-  | "improve"
-  | "longer"
-  | "shorter"
-  | "grammar"
-  | "simplify";
-
-export type CannedAction = {
-  id: CannedActionId;
-  label: string;
-  intent: "generate" | "edit";
-  /** Which command set offers the action (potion's split): `cursor` when the
-   * captured selection is collapsed, `selection` when text is selected. */
-  scope: "cursor" | "selection";
-  keywords: string[];
-};
-
-export const CANNED_ACTIONS: CannedAction[] = [
-  {
-    id: "continue",
-    label: "Continue writing",
-    intent: "generate",
-    scope: "cursor",
-    keywords: ["write", "more"],
-  },
-  {
-    id: "summarize",
-    label: "Summarize",
-    intent: "generate",
-    scope: "cursor",
-    keywords: ["tldr", "summary"],
-  },
-  {
-    id: "explain",
-    label: "Explain",
-    intent: "generate",
-    scope: "cursor",
-    keywords: ["what", "meaning"],
-  },
-  {
-    id: "improve",
-    label: "Improve writing",
-    intent: "edit",
-    scope: "selection",
-    keywords: ["rewrite", "better"],
-  },
-  {
-    id: "longer",
-    label: "Make longer",
-    intent: "edit",
-    scope: "selection",
-    keywords: ["expand", "elaborate"],
-  },
-  {
-    id: "shorter",
-    label: "Make shorter",
-    intent: "edit",
-    scope: "selection",
-    keywords: ["concise", "shorten"],
-  },
-  {
-    id: "grammar",
-    label: "Fix spelling & grammar",
-    intent: "edit",
-    scope: "selection",
-    keywords: ["spelling", "typo"],
-  },
-  {
-    id: "simplify",
-    label: "Simplify language",
-    intent: "edit",
-    scope: "selection",
-    keywords: ["plain", "simple"],
-  },
-];
-
-/** Translate targets offered on the AI menu's language page — a pragmatic
- * subset (free-form prompts cover the rest). */
-export const TRANSLATE_LANGUAGES = [
-  "English",
-  "Spanish",
-  "French",
-  "German",
-  "Portuguese",
-  "Japanese",
-  "Korean",
-  "Chinese (Simplified)",
-] as const;
-
-const PROMPT_BASE =
-  "You are a writing assistant inside a notes editor. Respond with ONLY the resulting text — no preamble, no surrounding quotes, no markdown code fences, no explanation.";
-
-function generatePromptFor(
-  action: CannedActionId | null,
-  request: string,
-  context: string,
-): string {
-  switch (action) {
-    case "continue":
-      return `${PROMPT_BASE}\n\nContinue the following text naturally with one short paragraph:\n\n${context}`;
-    case "summarize":
-      return `${PROMPT_BASE}\n\nWrite a concise summary of the following:\n\n${context}`;
-    case "explain":
-      return `${PROMPT_BASE}\n\nExplain the following in one short, plain-language paragraph:\n\n${context}`;
-    default:
-      return `${PROMPT_BASE}\n\nContext:\n\n${context}\n\nRequest: ${request}`;
-  }
-}
-
-function editInstructionFor(action: CannedActionId | null, request: string): string {
-  switch (action) {
-    case "improve":
-      return "Improve the writing for clarity and flow, keeping the meaning and the markdown structure.";
-    case "longer":
-      return "Make the content longer by elaborating on the existing ideas, without changing meaning or adding new information. Keep the markdown structure.";
-    case "shorter":
-      return "Make the content more concise, keeping the meaning and the markdown structure.";
-    case "grammar":
-      return "Fix spelling, grammar, and punctuation only. Do not change meaning, tone, or structure.";
-    case "simplify":
-      return "Simplify the language using clearer, more straightforward wording, without changing meaning. Keep the markdown structure.";
-    default:
-      return request;
-  }
-}
-
-// The <markdown> sentinel is load-bearing: the host passes the prompt through
-// verbatim, and the dev-harness fixture parses the block back out to fake an
-// edit. Keep in sync with fixture-bridge.ts.
-function buildEditPrompt(instruction: string, markdown: string): string {
-  return [
-    "You are a writing assistant inside a notes editor. Apply the instruction to the markdown document below.",
-    "Respond with ONLY the full rewritten markdown — same dialect (GitHub-flavored), no code fences around the whole answer, no commentary.",
-    "",
-    `<instruction>\n${instruction}\n</instruction>`,
-    `<markdown>\n${markdown}\n</markdown>`,
-  ].join("\n");
-}
-
-// ---------------------------------------------------------------------------
-// Run bookkeeping (module-level: one editor surface, one session at a time)
+// Session bookkeeping (module-level: one editor surface, one session at a time).
+// The run/token lifecycle — supersession fencing, streaming, host-side abort —
+// lives in run-manager.ts; what stays here is session-level state: the last
+// request (for "Try again") and the generate-flow undo depth.
 // ---------------------------------------------------------------------------
 
 type LastRun =
   | { kind: "canned"; action: CannedActionId }
   | { kind: "prompt"; text: string; intent: "generate" | "edit" };
 
-let runCounter = 0;
-// Bumped on every cancel/close; async continuations check it before touching
-// the editor so a stale response can't land after the user moved on.
-let runToken = 0;
 let lastRun: LastRun | null = null;
-// Generate-flow unwind state: history depth before the AI touched the doc,
-// stream unsubscribe, and the in-flight requestId (for host-side abort).
+// Generate-flow unwind state: editor history depth before the AI touched the
+// doc, so discard/cancel can undo precisely back to it.
 let undoDepth = 0;
-let streamOff: (() => void) | null = null;
-let activeRequestId: string | null = null;
 
 /**
  * Release the module-level session bookkeeping when the (single) editor
@@ -276,13 +147,7 @@ let activeRequestId: string | null = null;
  * disk never saw it).
  */
 export function releaseAiSession(): void {
-  runToken += 1;
-  streamOff?.();
-  streamOff = null;
-  if (activeRequestId !== null) {
-    void getBridge()?.cancelInlineAi({ requestId: activeRequestId });
-    activeRequestId = null;
-  }
+  runManager.abort();
   lastRun = null;
 }
 
@@ -326,7 +191,7 @@ export function closeAiMenu(editor: PlateEditor): void {
   } else if (status === "review") {
     unwindGenerate(editor);
   }
-  runToken += 1;
+  runManager.bumpToken();
   const sel = savedSelection(editor);
   setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
   lastRun = null;
@@ -336,13 +201,7 @@ export function closeAiMenu(editor: PlateEditor): void {
 
 /** Abort the in-flight run (Escape / stop button) and return to the prompt. */
 export function cancelActiveRun(editor: PlateEditor): void {
-  runToken += 1;
-  streamOff?.();
-  streamOff = null;
-  if (activeRequestId !== null) {
-    void getBridge()?.cancelInlineAi({ requestId: activeRequestId });
-    activeRequestId = null;
-  }
+  runManager.abort();
   const status = editor.getOption(AiSessionPlugin, "status");
   if (status === "generating") unwindGenerate(editor);
   setOptions(editor, { status: "input", error: null });
@@ -364,7 +223,7 @@ export function submitAiPrompt(editor: PlateEditor, text: string): void {
   const prompt = text.trim();
   if (!bridge || prompt.length === 0) return;
   if (editor.getOption(AiSessionPlugin, "status") === "review") unwindGenerate(editor);
-  const token = ++runToken;
+  const token = runManager.bumpToken();
   setOptions(editor, { status: "classifying", error: null });
   const sel = savedSelection(editor);
   const hasSelection = sel !== null && RangeApi.isExpanded(sel);
@@ -373,7 +232,7 @@ export function submitAiPrompt(editor: PlateEditor, text: string): void {
     .classifyAiIntent({ prompt, hasSelection })
     .catch(() => fallback)
     .then(({ intent }) => {
-      if (runToken !== token) return; // canceled / closed while classifying
+      if (!runManager.isCurrent(token)) return; // canceled / closed while classifying
       lastRun = { kind: "prompt", text: prompt, intent };
       if (intent === "edit") startEdit(editor, editInstructionFor(null, prompt));
       else startGenerate(editor, null, prompt);
@@ -431,24 +290,22 @@ function startGenerate(editor: PlateEditor, action: CannedActionId | null, reque
 
   undoDepth = editor.history.undos.length;
   const stream = createMarkdownStream(editor, caretBlock);
-  const token = ++runToken;
-  runCounter += 1;
-  const requestId = `menu-${runCounter}`;
-  activeRequestId = requestId;
+  const { token, requestId } = runManager.begin();
   setOptions(editor, { status: "generating", error: null });
 
-  streamOff = bridge.onAiStreamed(({ requestId: id, delta }) => {
-    if (id !== requestId || delta.length === 0 || runToken !== token) return;
-    stream.append(delta);
-  });
+  runManager.setStream(
+    bridge.onAiStreamed(({ requestId: id, delta }) => {
+      if (id !== requestId || delta.length === 0 || !runManager.isCurrent(token)) return;
+      stream.append(delta);
+    }),
+  );
 
   void bridge
     .generateInlineAi({ prompt: generatePromptFor(action, request, context), requestId })
     .then((result) => {
-      if (runToken !== token) return undefined;
-      streamOff?.();
-      streamOff = null;
-      activeRequestId = null;
+      if (!runManager.isCurrent(token)) return undefined;
+      runManager.stopStream();
+      runManager.clearActive();
       if (!result.ok) {
         unwindGenerate(editor);
         setOptions(editor, { status: "error", error: result.error });
@@ -460,10 +317,9 @@ function startGenerate(editor: PlateEditor, action: CannedActionId | null, reque
       return undefined;
     })
     .catch(() => {
-      if (runToken !== token) return;
-      streamOff?.();
-      streamOff = null;
-      activeRequestId = null;
+      if (!runManager.isCurrent(token)) return;
+      runManager.stopStream();
+      runManager.clearActive();
       setOptions(editor, { status: "error", error: "AI request failed." });
     });
 }
@@ -475,7 +331,7 @@ export function acceptGenerate(editor: PlateEditor): void {
   const at = editor.selection;
   setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
   lastRun = null;
-  runToken += 1;
+  runManager.bumpToken();
   if (at) editor.tf.select(at);
   editor.tf.focus();
 }
@@ -527,17 +383,14 @@ function startEdit(editor: PlateEditor, instruction: string): void {
     return;
   }
   const markdown = serializeMd(editor, { remarkStringifyOptions: MD_STRINGIFY, value: nodes });
-  const token = ++runToken;
-  runCounter += 1;
-  const requestId = `menu-${runCounter}`;
-  activeRequestId = requestId;
+  const { token, requestId } = runManager.begin();
   setOptions(editor, { status: "editing", error: null });
 
   void bridge
     .generateInlineAi({ prompt: buildEditPrompt(instruction, markdown), requestId })
     .then((result) => {
-      if (runToken !== token) return undefined; // canceled / closed
-      activeRequestId = null;
+      if (!runManager.isCurrent(token)) return undefined; // canceled / closed
+      runManager.clearActive();
       if (!result.ok) {
         setOptions(editor, { status: "error", error: result.error });
         return undefined;
@@ -552,15 +405,15 @@ function startEdit(editor: PlateEditor, instruction: string): void {
         return undefined;
       }
       // Suggestions are in the document; the review bar owns them from here.
-      runToken += 1;
+      runManager.bumpToken();
       setOptions(editor, { status: "closed", anchor: null, savedSelection: null, error: null });
       lastRun = null;
       editor.tf.focus();
       return undefined;
     })
     .catch(() => {
-      if (runToken !== token) return;
-      activeRequestId = null;
+      if (!runManager.isCurrent(token)) return;
+      runManager.clearActive();
       setOptions(editor, { status: "error", error: "AI request failed." });
     });
 }

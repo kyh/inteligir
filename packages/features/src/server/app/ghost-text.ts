@@ -18,7 +18,7 @@ import { Agent } from "../agent/agent";
 import { AUTH_PROVIDER } from "../agent/paths";
 import { getAgentPorts } from "../lib/agent-lifecycle";
 import { getUiState } from "../ui-state";
-import { parseAgentEvent } from "@repo/features/agent-event-parser";
+import { runTextTurn } from "./text-turn";
 import {
   GHOST_TEXT_MODEL_UI_STATE,
   type GhostModelsResult,
@@ -124,30 +124,23 @@ async function runGhost(prompt: string, requestId: string): Promise<GhostTextRes
   }
   if (!a) return { ok: false, error: "No ghost-text model is available." };
   currentRequestId = requestId;
-  let captured = "";
-  const unsubscribe = a.subscribe((raw) => {
-    const event = parseAgentEvent(raw);
-    if (event?.type === "message_update") captured += event.delta;
-    else if (event?.type === "message_end" && event.role === "assistant" && event.text) {
-      captured = event.text;
-    }
-  });
   try {
-    await a.sendMessage(prompt);
-    const finished = await a.waitForIdle(GHOST_TIMEOUT_MS);
-    turns += 1;
-    if (!finished) {
-      await a.interrupt().catch(() => {});
-      return { ok: false, error: "Ghost text timed out." };
+    const result = await runTextTurn(a, prompt, { timeoutMs: GHOST_TIMEOUT_MS });
+    // A turn counts toward the recycle budget once it reaches idle or times out,
+    // but not when the send itself threw (matching the original placement of the
+    // increment right after waitForIdle).
+    if (result.ok || result.kind === "timeout") turns += 1;
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.kind === "timeout" ? "Ghost text timed out." : result.error,
+      };
     }
     // Canceled or superseded mid-turn — the caller's completion is stale.
     if (currentRequestId !== requestId) return { ok: false, error: "Canceled." };
-    const text = captured.trim();
+    const text = result.text.trim();
     return text.length > 0 ? { ok: true, text } : { ok: false, error: "No completion." };
-  } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Ghost text failed." };
   } finally {
-    unsubscribe();
     if (currentRequestId === requestId) currentRequestId = null;
   }
 }
