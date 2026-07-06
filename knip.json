@@ -49,6 +49,14 @@
       // sub-components, foundations) the app may not use internally yet. Treat
       // entry exports as the API rather than flag them as dead.
       "includeEntryExports": false
+    },
+    "packages/core": {
+      // Pure, platform-agnostic domain core (the vault-sync protocol). Its
+      // subpath exports are the public API for future CF-sync + mobile
+      // consumers that don't exist yet, so don't flag them as unused.
+      "entry": ["src/**/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      "includeEntryExports": false
     }
   }
 }

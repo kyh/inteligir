@@ -1,0 +1,23 @@
+{
+  "name": "@repo/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pure, platform-agnostic domain core. ZERO node/react/fs/dom deps so it runs unchanged in a Cloudflare Worker (future sync coordinator), React Native (future mobile client), and the desktop renderer. `src/sync/` is the vault-sync protocol: wire types + the pure last-write-wins/conflict-copy reconcile brain. No I/O, no clock, no crypto — the caller supplies hashes + timestamps.",
+  "type": "module",
+  "exports": {
+    "./sync/vault-file": "./src/sync/vault-file.ts",
+    "./sync/manifest": "./src/sync/manifest.ts",
+    "./sync/sync-port": "./src/sync/sync-port.ts",
+    "./sync/plan": "./src/sync/plan.ts",
+    "./sync/reconcile": "./src/sync/reconcile.ts"
+  },
+  "scripts": {
+    "clean": "git clean -xdf .cache .turbo dist node_modules",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "^4.1.7"
+  }
+}
