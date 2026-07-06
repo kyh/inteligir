@@ -33,6 +33,17 @@
       // doesn't parse.
       "ignoreDependencies": ["tailwindcss"]
     },
+    "apps/cloud": {
+      // A Cloudflare Worker. `src/index.ts` is the Worker entry (exports the
+      // VaultCoordinator DO + the default fetch handler, auto-detected from
+      // wrangler.jsonc `main`); tests run under the Workers vitest pool.
+      "entry": ["test/**/*.test.ts"],
+      "project": ["src/**/*.ts"],
+      // `cloudflare:workers` / `cloudflare:test` are Workers runtime virtual
+      // modules, not npm packages — knip reads the `cloudflare:` prefix as a
+      // `cloudflare` dependency.
+      "ignoreDependencies": ["cloudflare"]
+    },
     "packages/features": {
       // The backend + isomorphic contract. `src/**` is the iso contract +
       // pure engines; `src/server/**` is the node backend (host, pi-driver,

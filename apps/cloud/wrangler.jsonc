@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "inteligir-cloud",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-01",
+  "observability": { "enabled": true },
+
+  // One Durable Object per vault: the source of truth for that vault's manifest
+  // (path -> version) + generation counter. Addressed by `idFromName(vaultId)`.
+  "durable_objects": {
+    "bindings": [{ "name": "VaultCoordinator", "class_name": "VaultCoordinator" }],
+  },
+  // SQLite-backed storage for the manifest table + generation meta.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VaultCoordinator"] }],
+
+  // R2 holds the raw file bytes, keyed `${vaultId}/${path}`. The manifest (in the
+  // DO) is authoritative for versions/hashes; R2 is just the blob store.
+  "r2_buckets": [{ "binding": "VAULT_FILES", "bucket_name": "inteligir-vault-files" }],
+}

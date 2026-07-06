@@ -74,4 +74,9 @@ export type HostOptions = {
    * build-define values; absent → the runtime INTELIGIR_GOOGLE_OAUTH_CLIENT_*
    * env fallback, then the paste-your-own-GCP-app dialog flow. */
   bundledGoogleClient?: { clientId: string; clientSecret: string };
+  /** Vault-sync capability toggle. OFF by default: the SyncManager
+   * (server/sync/) is built but NOT started in the live boot path. Flip this on
+   * (and supply the coordinator origin + token) to wire it — see the seam in
+   * create-host.ts's start(). */
+  syncEnabled?: boolean;
 };
