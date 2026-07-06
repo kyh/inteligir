@@ -37,6 +37,7 @@ import {
   ParagraphPlugin,
   PlateElement,
   PlateLeaf,
+  type PlateEditor,
   type PlateElementProps,
   type PlateLeafProps,
 } from "platejs/react";
@@ -152,6 +153,18 @@ const CalloutMarkerPlugin = createSlatePlugin({
     return [range];
   },
 }).withComponent(CalloutMarkerLeaf);
+
+/**
+ * Insert a horizontal rule (void divider), then a trailing empty paragraph so
+ * the caret has a landing spot below it. Slash-menu insert.
+ */
+export function insertHorizontalRule(editor: PlateEditor): void {
+  editor.tf.insertNodes(
+    { type: HorizontalRulePlugin.key, children: [{ text: "" }] },
+    { select: true },
+  );
+  editor.tf.insertNodes({ type: editor.getType(KEYS.p), children: [{ text: "" }] });
+}
 
 export const BasicBlocksKit = [
   ParagraphPlugin.withComponent(ParagraphElement),

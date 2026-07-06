@@ -8,7 +8,6 @@
 // Phase F slot: the `[[` wiki-link picker will be a second inline-combobox
 // consumer following the emoji-input pattern.
 
-import { HorizontalRulePlugin } from "@platejs/basic-nodes/react";
 import { SlashInputPlugin, SlashPlugin } from "@platejs/slash-command/react";
 import { insertTable } from "@platejs/table";
 import {
@@ -50,6 +49,8 @@ import {
   InlineComboboxInput,
   InlineComboboxItem,
 } from "@renderer/editor/inline-combobox";
+import { insertHorizontalRule } from "@renderer/editor/kits/basic-blocks-kit";
+import { insertMermaid } from "@renderer/editor/kits/code-block-kit";
 import { insertColumnGroup } from "@renderer/editor/kits/column-kit";
 import { insertDate } from "@renderer/editor/kits/date-kit";
 import { insertEquation, insertInlineEquation } from "@renderer/editor/kits/math-kit";
@@ -59,27 +60,6 @@ import { openAiMenu, runCannedAction } from "@renderer/editor/ai/ai-session";
 function turnInto(editor: PlateEditor, label: string): void {
   const opt = TURN_INTO.find((o) => o.label === label);
   if (opt) turnIntoSelection(editor, opt);
-}
-
-function insertHorizontalRule(editor: PlateEditor) {
-  editor.tf.insertNodes(
-    { type: HorizontalRulePlugin.key, children: [{ text: "" }] },
-    { select: true },
-  );
-  editor.tf.insertNodes({ type: editor.getType(KEYS.p), children: [{ text: "" }] });
-}
-
-// A mermaid diagram is a plain ```mermaid fence (render-only preview — zero
-// serialization surface), seeded with a minimal valid graph.
-function insertMermaid(editor: PlateEditor) {
-  turnInto(editor, "Code block");
-  editor.tf.setNodes(
-    { lang: "mermaid" },
-    { match: (n) => n.type === editor.getType(KEYS.codeBlock) },
-  );
-  editor.tf.insertText("graph TD;");
-  editor.tf.insertBreak();
-  editor.tf.insertText("  A-->B;");
 }
 
 type SlashItem = {

@@ -26,6 +26,7 @@ import { cn } from "@repo/ui/lib/utils";
 
 import { getBridge } from "@renderer/lib/bridge";
 import { BASE_KIT } from "@renderer/editor/kits/base-kit";
+import { classNameSlateElement } from "@renderer/editor/kits/kit-utils";
 import { TABLE_CELL_CLASS, TABLE_HEADER_CELL_CLASS } from "@renderer/editor/kits/table-kit";
 import { parseMarkdown } from "@renderer/editor/markdown/markdown-doc";
 import {
@@ -154,12 +155,6 @@ function TableRowStatic(props: SlateElementProps) {
   return <SlateElement {...props} as="tr" />;
 }
 
-function tableCellStatic(as: "td" | "th", className: string) {
-  return function TableCellStatic(props: SlateElementProps) {
-    return <SlateElement {...props} as={as} className={className} />;
-  };
-}
-
 const STATIC_COMPONENTS: Record<string, (props: SlateElementProps) => ReactNode> = {
   a: LinkStatic,
   date: DateStatic,
@@ -171,8 +166,8 @@ const STATIC_COMPONENTS: Record<string, (props: SlateElementProps) => ReactNode>
   frontmatter: FrontmatterStatic,
   table: TableStatic,
   tr: TableRowStatic,
-  td: tableCellStatic("td", TABLE_CELL_CLASS),
-  th: tableCellStatic("th", TABLE_HEADER_CELL_CLASS),
+  td: classNameSlateElement("td", TABLE_CELL_CLASS),
+  th: classNameSlateElement("th", TABLE_HEADER_CELL_CLASS),
   wikiLink: WikiLinkStatic,
   wikiEmbed: WikiEmbedStatic,
 };
