@@ -9,7 +9,8 @@
     "./sync/manifest": "./src/sync/manifest.ts",
     "./sync/sync-port": "./src/sync/sync-port.ts",
     "./sync/plan": "./src/sync/plan.ts",
-    "./sync/reconcile": "./src/sync/reconcile.ts"
+    "./sync/reconcile": "./src/sync/reconcile.ts",
+    "./sync/wire": "./src/sync/wire.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

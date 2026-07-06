@@ -11,9 +11,12 @@ import type { VaultFile, VaultPath } from "./vault-file";
 // it.
 // ---------------------------------------------------------------------------
 
-/** Result of reading a file from the coordinator. */
+/**
+ * Result of reading a file from the coordinator. `content` is the file's raw
+ * bytes (`Uint8Array`) — UTF-8 for markdown, opaque bytes for images/pdfs.
+ */
 export type GetResult =
-  | { readonly ok: true; readonly file: VaultFile; readonly content: string }
+  | { readonly ok: true; readonly file: VaultFile; readonly content: Uint8Array }
   | { readonly ok: false; readonly reason: "not-found" };
 
 /**
@@ -41,9 +44,11 @@ export type Unsubscribe = () => void;
 
 /**
  * The vault-sync transport. Implemented by the backend (a Cloudflare Durable
- * Object, later), called by clients (desktop, mobile). Content is markdown text
- * (`string`); binary vault files (images, pdfs) are out of scope for now — a
- * follow-up would widen `content` to bytes.
+ * Object, later), called by clients (desktop, mobile). File content is raw
+ * bytes (`Uint8Array`) — UTF-8 for markdown, opaque bytes for images/pdfs — so
+ * the one protocol carries text and binary vault files alike. (`Uint8Array` is
+ * available in Workers, React Native, the browser, and node; node `Buffer` is
+ * deliberately NOT used — it would break this package's purity.)
  */
 export interface SyncPort {
   /** The coordinator's current snapshot of the vault. */
@@ -57,7 +62,7 @@ export interface SyncPort {
    * version equals `expectedBaseVersion` (`ABSENT_VERSION` = "must not exist");
    * otherwise returns `version-conflict` with the current file.
    */
-  putFile(path: VaultPath, content: string, expectedBaseVersion: number): Promise<PutResult>;
+  putFile(path: VaultPath, content: Uint8Array, expectedBaseVersion: number): Promise<PutResult>;
 
   /** Delete a file, guarded by the same optimistic-concurrency token. */
   deleteFile(path: VaultPath, expectedBaseVersion: number): Promise<DeleteResult>;

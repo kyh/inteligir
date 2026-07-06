@@ -42,7 +42,10 @@ export type VaultPath = string;
 export type VaultFile = {
   /** Vault-relative POSIX path — the file's identity. */
   readonly path: VaultPath;
-  /** sha-256 of the file bytes. Changes iff the content changes. */
+  /**
+   * sha-256 of the file's raw bytes (UTF-8 for markdown, opaque bytes for
+   * images/pdfs). Changes iff the content changes.
+   */
   readonly contentHash: Hash;
   /**
    * Monotonic per-file counter the coordinator assigns on every accepted write
