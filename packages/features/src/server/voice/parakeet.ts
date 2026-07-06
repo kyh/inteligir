@@ -6,7 +6,7 @@
 import { join } from "node:path";
 
 import { getModelDir, isModelInstalled } from "./model-download";
-import { isRecord } from "@repo/features/ipc";
+import { isRecord, toErrorMessage } from "@repo/features/ipc";
 
 // sherpa-onnx-node is loaded lazily so the app still boots when the model
 // isn't downloaded yet (the renderer just sees STT unavailable).
@@ -102,7 +102,7 @@ async function doInit(): Promise<InitResult> {
     recognizer = null;
     return {
       ok: false,
-      reason: `Failed to load sherpa-onnx native module: ${err instanceof Error ? err.message : String(err)}`,
+      reason: `Failed to load sherpa-onnx native module: ${toErrorMessage(err)}`,
     };
   }
 }

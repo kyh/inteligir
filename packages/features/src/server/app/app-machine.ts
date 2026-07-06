@@ -32,6 +32,7 @@ import { downloadModel } from "../voice/model-download";
 import { parseAgentEvent } from "@repo/features/agent-event-parser";
 import type { AppAgentEvent } from "@repo/features/agent-events";
 import type { AppState, MachineEvent } from "@repo/features/app-state";
+import { toErrorMessage } from "@repo/features/ipc";
 
 // ---------------------------------------------------------------------------
 // Agent singleton — runs in the main process
@@ -243,7 +244,7 @@ export async function reauthenticate(): Promise<{ ok: boolean; error?: string }>
       await newSession();
       return { ok: true };
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
+      const message = toErrorMessage(err);
       console.error("[machine] reauthenticate failed:", message);
       return { ok: false, error: message };
     }

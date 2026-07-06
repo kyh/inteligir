@@ -17,7 +17,7 @@ import { DelegationSnapshotStore } from "./delegation-snapshots";
 import { findTaskLine } from "./find-task-line";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
 import { getVaultManager } from "../vault/vault";
-import { parseAgentEvent } from "@repo/features/agent-event-parser";
+import { runTextTurn } from "../app/text-turn";
 import {
   DelegationSchema,
   type CreateDelegationParams,
@@ -494,48 +494,44 @@ export class DelegationManager {
     }
     this.patch(delegation.id, { hasSnapshot: true });
 
-    const captured: { text: string | null } = { text: null };
+    // Build a live transcript for the response dock: the assistant's text deltas
+    // + a line per tool call so the user sees what it's doing before it writes
+    // anything. Only the turn's final message becomes the persisted summary.
     let streamed = "";
-    const unsubscribe = agent.subscribe((raw) => {
-      const event = parseAgentEvent(raw);
-      if (!event) return;
-      // Build a live transcript for the response dock: the assistant's text
-      // deltas + a line per tool call so the user sees what it's doing before it
-      // writes anything. Only the final message becomes the persisted summary.
-      if (event.type === "message_update") {
-        streamed += event.delta;
+    const result = await runTextTurn(agent, buildPrompt(fresh), {
+      timeoutMs: RUN_TIMEOUT_MS,
+      onDelta: (delta) => {
+        streamed += delta;
         streamNotifier?.(delegation.id, streamed);
-      } else if (event.type === "tool_execution_start") {
-        streamed += `${streamed ? "\n\n" : ""}\`⚙ ${event.toolName}\``;
+      },
+      onToolCall: (toolName) => {
+        streamed += `${streamed ? "\n\n" : ""}\`⚙ ${toolName}\``;
         streamNotifier?.(delegation.id, streamed);
-      } else if (event.type === "message_end" && event.role === "assistant" && event.text) {
-        captured.text = event.text;
-      }
+      },
     });
 
-    try {
-      await agent.sendMessage(buildPrompt(fresh));
-      const finished = await agent.waitForIdle(RUN_TIMEOUT_MS);
-      if (this.stopRequested === delegation.id) {
-        this.stopRequested = null;
-        this.finishRun(delegation.id, failedPatch("Stopped."));
-        return;
-      }
-      if (!finished) {
-        await agent.interrupt().catch(() => {});
-        this.finishRun(delegation.id, failedPatch("Timed out"));
-        return;
-      }
-      this.finishRun(delegation.id, {
-        status: "done",
-        finishedAt: Date.now(),
-        resultSummary: captured.text?.trim().slice(0, SUMMARY_LEN) ?? "Done",
-      });
-    } catch (err) {
-      this.finishRun(delegation.id, failedPatch(toErrorMessage(err)));
-    } finally {
-      unsubscribe();
+    // A thrown send/wait failure fails the run outright and — matching the
+    // original catch — is never reinterpreted as a user stop.
+    if (!result.ok && result.kind === "error") {
+      this.finishRun(delegation.id, failedPatch(result.error));
+      return;
     }
+    // A stop the user requested wins over a timeout, exactly as before (the stop
+    // path already interrupted the agent).
+    if (this.stopRequested === delegation.id) {
+      this.stopRequested = null;
+      this.finishRun(delegation.id, failedPatch("Stopped."));
+      return;
+    }
+    if (!result.ok) {
+      this.finishRun(delegation.id, failedPatch("Timed out"));
+      return;
+    }
+    this.finishRun(delegation.id, {
+      status: "done",
+      finishedAt: Date.now(),
+      resultSummary: result.text.length > 0 ? result.text.trim().slice(0, SUMMARY_LEN) : "Done",
+    });
   }
 }
 

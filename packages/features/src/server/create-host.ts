@@ -1,8 +1,13 @@
 // ---------------------------------------------------------------------------
-// createHost — the composition root of the node backend. A shell (Electron
-// desktop today, WebSocket server later) injects a HostPlatform, folds the
-// returned handler map into its transport, forwards `events`, and drives
-// start()/dispose() around its own lifecycle.
+// createHost — a one-shot singleton wiring/sequencer for the node backend, NOT
+// a graph composition root. It builds no object graph: the host's pieces are
+// process-global singletons (vault, knowledge, machine, executor daemon) and
+// the notifier slots it fills (store-recovery here, vault-change in start())
+// are module-global mutable function pointers. It just sequences their
+// init/teardown in order; a second call would silently share that module state,
+// so the `created` guard below makes it fail fast. A shell (Electron desktop
+// today, WebSocket server later) injects a HostPlatform, folds the returned
+// handler map into its transport, forwards `events`, and drives start()/dispose().
 // ---------------------------------------------------------------------------
 
 import { configurePaths } from "./agent/paths";

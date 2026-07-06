@@ -68,19 +68,40 @@ const ALERT_RE = /^\s*\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]/;
 // rules spread it — leaking `id="…"` junk into user files. These serialize
 // overrides mirror the defaults minus the leak; deserialize is not overridden
 // (rule dispatch falls back to the default per-function).
-function mediaSerializeWithoutId(node: TElement, options: SerializeMdOptions) {
-  const { id, children, type, url, ...rest } = node;
+// Shared body of the four MDX-flow serialize rules below (media, toggle,
+// column, callout): drop the leaked `id`, serialize children, emit an
+// `mdxJsxFlowElement`. Overrides carry each rule's specifics — `name` defaults
+// to the node's own type (media's video/media_embed/file), `mapProps` reshapes
+// the leftover props before they become attributes (media's url→src), and
+// `children` overrides the default child serialization (column's empty `[]`).
+type JsxFlowOverrides = {
+  name?: string;
+  children?: ReturnType<typeof convertNodesSerialize>;
+  mapProps?: (rest: Record<string, unknown>) => Record<string, unknown>;
+};
+
+function jsxFlowSerialize(node: TElement, options: SerializeMdOptions, overrides: JsxFlowOverrides) {
+  const { id, children, type, ...rest } = node;
   void id;
-  // A url-less media node (`<video />`) must OMIT src entirely: spreading
-  // `src: undefined` emits a bare `src` attribute, which the vocabulary scan
-  // itself rejects on the next parse (non-string attr → Raw).
-  const props = typeof url === "string" ? { ...rest, src: url } : rest;
   return {
-    attributes: propsToAttributes(props),
-    children: convertNodesSerialize(children, options),
-    name: type,
+    attributes: propsToAttributes(overrides.mapProps ? overrides.mapProps(rest) : rest),
+    children: overrides.children ?? convertNodesSerialize(children, options),
+    name: overrides.name ?? type,
     type: "mdxJsxFlowElement",
   };
+}
+
+function mediaSerializeWithoutId(node: TElement, options: SerializeMdOptions) {
+  return jsxFlowSerialize(node, options, {
+    // A url-less media node (`<video />`) must OMIT src entirely: spreading
+    // `src: undefined` emits a bare `src` attribute, which the vocabulary scan
+    // itself rejects on the next parse (non-string attr → Raw). `name` falls
+    // back to the node's own type (video / media_embed / file).
+    mapProps: (rest) => {
+      const { url, ...props } = rest;
+      return typeof url === "string" ? { ...props, src: url } : props;
+    },
+  });
 }
 
 // --- links -----------------------------------------------------------------
@@ -205,17 +226,8 @@ export const MD_RULES: MdRules = {
       type: "toggle",
       ...parseAttributes(node.attributes),
     }),
-    serialize: (node: TElement, options: SerializeMdOptions) => {
-      const { id, children, type, ...rest } = node;
-      void id;
-      void type;
-      return {
-        attributes: propsToAttributes(rest),
-        children: convertNodesSerialize(children, options),
-        name: "toggle",
-        type: "mdxJsxFlowElement",
-      };
-    },
+    serialize: (node: TElement, options: SerializeMdOptions) =>
+      jsxFlowSerialize(node, options, { name: "toggle" }),
   },
 
   // Serialize-only override of Plate's column rule. A column holding only an
@@ -228,9 +240,7 @@ export const MD_RULES: MdRules = {
   // before every column had content.
   column: {
     serialize: (node: TElement, options: SerializeMdOptions) => {
-      const { id, children, type, ...rest } = node;
-      void id;
-      void type;
+      const { children } = node;
       const only = children.length === 1 ? children[0] : undefined;
       const onlyText =
         only !== undefined &&
@@ -240,12 +250,12 @@ export const MD_RULES: MdRules = {
           ? only.children[0]
           : undefined;
       const isEmpty = onlyText !== undefined && TextApi.isText(onlyText) && onlyText.text === "";
-      return {
-        attributes: propsToAttributes(rest),
-        children: isEmpty ? [] : convertNodesSerialize(children, options),
+      // Empty column ⇒ self-closed `<column />` (children: []); populated ⇒
+      // default child serialization.
+      return jsxFlowSerialize(node, options, {
         name: "column",
-        type: "mdxJsxFlowElement",
-      };
+        ...(isEmpty ? { children: [] } : {}),
+      });
     },
   },
 
@@ -273,17 +283,8 @@ export const MD_RULES: MdRules = {
 
   // id-leak overrides (see mediaSerializeWithoutId).
   callout: {
-    serialize: (node: TElement, options: SerializeMdOptions) => {
-      const { id, children, type, ...rest } = node;
-      void id;
-      void type;
-      return {
-        attributes: propsToAttributes(rest),
-        children: convertNodesSerialize(children, options),
-        name: "callout",
-        type: "mdxJsxFlowElement",
-      };
-    },
+    serialize: (node: TElement, options: SerializeMdOptions) =>
+      jsxFlowSerialize(node, options, { name: "callout" }),
   },
   video: { serialize: mediaSerializeWithoutId },
   media_embed: { serialize: mediaSerializeWithoutId },

@@ -16,7 +16,7 @@ import unbzip2 from "unbzip2-stream";
 
 import { emitEvent } from "../events";
 import { getPlatform } from "../platform-instance";
-import type { VoiceModelStateEvent } from "@repo/features/ipc";
+import { toErrorMessage, type VoiceModelStateEvent } from "@repo/features/ipc";
 
 const streamPipeline = promisify(pipelineCb);
 
@@ -98,7 +98,7 @@ async function doDownload(): Promise<ModelDownloadResult> {
     emitProgress({ status: "ready" });
     return { ok: true };
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    const message = toErrorMessage(err);
     await rm(archive).catch(() => {});
     emitProgress({ status: "error", message });
     return { ok: false, error: message };

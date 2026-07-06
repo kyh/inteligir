@@ -28,7 +28,8 @@ import {
   StrikethroughPlugin,
   UnderlinePlugin,
 } from "@platejs/basic-nodes/react";
-import { PlateLeaf, type PlateLeafProps } from "platejs/react";
+
+import { classNameLeaf } from "@renderer/editor/kits/kit-utils";
 
 export const BasicMarksBaseKit = [
   BaseBoldPlugin,
@@ -38,27 +39,20 @@ export const BasicMarksBaseKit = [
   BaseCodePlugin,
 ];
 
-// className-only leaf renderers keep the marks trivial and on-theme.
-function leaf(className: string) {
-  return function Leaf(props: PlateLeafProps) {
-    return <PlateLeaf {...props} className={className} />;
-  };
-}
-
 export const BasicMarksKit = [
   BoldPlugin.configure({
     inputRules: [BoldRules.markdown(), MarkComboRules.markdown({ variant: "boldItalic" })],
-  }).withComponent(leaf("font-semibold")),
+  }).withComponent(classNameLeaf("font-semibold")),
   ItalicPlugin.configure({
     inputRules: [ItalicRules.markdown(), ItalicRules.markdown({ variant: "_" })],
-  }).withComponent(leaf("italic")),
-  UnderlinePlugin.withComponent(leaf("underline")),
+  }).withComponent(classNameLeaf("italic")),
+  UnderlinePlugin.withComponent(classNameLeaf("underline")),
   StrikethroughPlugin.configure({
     inputRules: [StrikethroughRules.markdown()],
-  }).withComponent(leaf("line-through")),
+  }).withComponent(classNameLeaf("line-through")),
   CodePlugin.configure({
     inputRules: [CodeRules.markdown()],
   }).withComponent(
-    leaf("whitespace-pre-wrap rounded-md bg-muted px-[0.3em] py-[0.2em] font-mono text-sm"),
+    classNameLeaf("whitespace-pre-wrap rounded-md bg-muted px-[0.3em] py-[0.2em] font-mono text-sm"),
   ),
 ];

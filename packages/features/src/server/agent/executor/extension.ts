@@ -21,6 +21,7 @@
  */
 
 import { Type } from "@sinclair/typebox";
+import { toErrorMessage } from "@repo/features/ipc";
 import type { ExtensionAPI } from "@repo/features/server/pi/pi-types";
 
 import type { ExecutorPort, PiExtensionBundle } from "../extension";
@@ -162,7 +163,7 @@ function registerExecute(pi: ExtensionAPI, executor: ExecutorPort): void {
         const result = await executor.execute(params.code);
         return textResult(withAuthHint(result));
       } catch (err) {
-        return textResult(`execute failed: ${err instanceof Error ? err.message : String(err)}`);
+        return textResult(`execute failed: ${toErrorMessage(err)}`);
       }
     },
   });
@@ -181,7 +182,7 @@ function registerResume(pi: ExtensionAPI, executor: ExecutorPort): void {
         const result = await executor.resume(params.executionId, params.action, params.content);
         return textResult(withAuthHint(result));
       } catch (err) {
-        return textResult(`resume failed: ${err instanceof Error ? err.message : String(err)}`);
+        return textResult(`resume failed: ${toErrorMessage(err)}`);
       }
     },
   });

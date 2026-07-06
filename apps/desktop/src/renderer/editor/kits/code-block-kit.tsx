@@ -5,10 +5,11 @@
 
 import { useState } from "react";
 import { CodeIcon, EyeIcon } from "lucide-react";
-import { NodeApi } from "platejs";
+import { KEYS, NodeApi } from "platejs";
 import {
   PlateElement,
   PlateLeaf,
+  type PlateEditor,
   type PlateElementProps,
   type PlateLeafProps,
 } from "platejs/react";
@@ -18,6 +19,7 @@ import { common, createLowlight } from "lowlight";
 
 import { cn } from "@repo/ui/lib/utils";
 
+import { TURN_INTO, turnIntoSelection } from "@renderer/editor/block-transforms";
 import { MermaidPreview } from "@renderer/editor/nodes/code-block-mermaid";
 
 export const CodeBlockBaseKit = [BaseCodeBlockPlugin, BaseCodeLinePlugin];
@@ -101,6 +103,21 @@ function CodeBlockElement(props: PlateElementProps) {
 
 function CodeLineElement(props: PlateElementProps) {
   return <PlateElement {...props} as="div" />;
+}
+
+// A mermaid diagram is a plain ```mermaid fence (render-only preview — zero
+// serialization surface), seeded with a minimal valid graph. Reuses the "Code
+// block" turn-into so the fence's byte-form matches every other code block's.
+export function insertMermaid(editor: PlateEditor): void {
+  const codeBlock = TURN_INTO.find((opt) => opt.label === "Code block");
+  if (codeBlock) turnIntoSelection(editor, codeBlock);
+  editor.tf.setNodes(
+    { lang: "mermaid" },
+    { match: (n) => n.type === editor.getType(KEYS.codeBlock) },
+  );
+  editor.tf.insertText("graph TD;");
+  editor.tf.insertBreak();
+  editor.tf.insertText("  A-->B;");
 }
 
 export const CodeBlockKit = [

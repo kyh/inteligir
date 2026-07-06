@@ -14,8 +14,8 @@ import {
   TablePlugin,
   TableRowPlugin,
 } from "@platejs/table/react";
-import { PlateElement, type PlateElementProps } from "platejs/react";
 
+import { classNameElement } from "@renderer/editor/kits/kit-utils";
 import { TableElement } from "@renderer/editor/nodes/table-node";
 
 export const TableBaseKit = [
@@ -25,12 +25,6 @@ export const TableBaseKit = [
   BaseTableCellHeaderPlugin,
 ];
 
-function element(as: keyof HTMLElementTagNameMap, className: string) {
-  return function Element(props: PlateElementProps) {
-    return <PlateElement {...props} as={as} className={className} />;
-  };
-}
-
 // Cell styling shared with the transclusion card's read-only static render
 // (transclusion.tsx) so live tables and embedded tables can't drift apart.
 export const TABLE_CELL_CLASS = "min-w-24 border border-border px-3 py-1.5 align-top [&>*]:my-0";
@@ -39,7 +33,7 @@ export const TABLE_HEADER_CELL_CLASS =
 
 export const TableKit = [
   TablePlugin.withComponent(TableElement),
-  TableRowPlugin.withComponent(element("tr", "")),
-  TableCellPlugin.withComponent(element("td", TABLE_CELL_CLASS)),
-  TableCellHeaderPlugin.withComponent(element("th", TABLE_HEADER_CELL_CLASS)),
+  TableRowPlugin.withComponent(classNameElement("tr", "")),
+  TableCellPlugin.withComponent(classNameElement("td", TABLE_CELL_CLASS)),
+  TableCellHeaderPlugin.withComponent(classNameElement("th", TABLE_HEADER_CELL_CLASS)),
 ];

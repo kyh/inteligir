@@ -35,6 +35,14 @@ const AUTOSAVE_DEBOUNCE_MS = 600;
 /** ui-state key the open note persists under (restored on boot). */
 const OPEN_NOTE_KEY = "workspace.openNote";
 
+/**
+ * Append the default `.md` extension unless `name` already ends in one (any
+ * lowercase-alphanumeric extension). `name` is assumed already trimmed.
+ */
+function withDefaultExtension(name: string): string {
+  return /\.[a-z0-9]+$/i.test(name) ? name : `${name}.md`;
+}
+
 // IO the editor controller acts through — thin wrappers over the bridge so the
 // controller stays bridge-agnostic and unit-testable. A missing bridge throws,
 // which the controller treats like any read/write failure.
@@ -307,7 +315,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string): Promise<boolean> => {
       const trimmed = rawPath.trim();
       if (!trimmed) return false;
-      const path = /\.[a-z0-9]+$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
+      const path = withDefaultExtension(trimmed);
       const bridge = getBridge();
       if (!bridge) return false;
       // Don't truncate an existing file — it already satisfies "exists".
@@ -331,7 +339,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     async (rawPath: string) => {
       const trimmed = rawPath.trim();
       if (!trimmed) return;
-      const path = /\.[a-z0-9]+$/i.test(trimmed) ? trimmed : `${trimmed}.md`;
+      const path = withDefaultExtension(trimmed);
       if (await createFileAt(path)) openFile(path);
     },
     [createFileAt, openFile],
