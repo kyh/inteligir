@@ -9,7 +9,7 @@ authentication served in-process by **Better Auth** over **D1**.
 ```
 apps/cloud/
   wrangler.jsonc          # Worker + R2 (VAULT_FILES) + DO (VaultCoordinator) + D1 (DB) bindings
-  drizzle.config.ts       # drizzle-kit: generate the D1 migration SQL from the schema
+  drizzle.config.ts       # drizzle-kit push -> REMOTE D1 (d1-http); *.local.ts -> local miniflare D1
   src/
     index.ts              # Worker entry: /api/auth/* (Better Auth) + /v1/vault/* (sync) + CORS
     vault-coordinator.ts  # Durable Object: owns the manifest + versions + SSE + R2 writes
@@ -20,11 +20,10 @@ apps/cloud/
     db/
       schema.ts           # Drizzle schema: Better Auth tables + vault_owner (ownership)
       client.ts           # createDb(d1): per-request Drizzle client over the D1 binding
-      migrations/         # drizzle-kit generated SQL (applied by wrangler + tests)
   test/
     sync.test.ts          # miniflare DO + R2 + D1 in-process (@cloudflare/vitest-pool-workers)
-    apply-migrations.ts   # applies the D1 migration SQL to each test file's database
-    env.d.ts              # types cloudflare:test's env (+ the test-only TEST_MIGRATIONS binding)
+    apply-schema.ts       # applies the exported schema DDL to each test file's D1
+    env.d.ts              # types cloudflare:test's env (+ the test-only TEST_SCHEMA binding)
 ```
 
 ### Sync (`/v1/vault/*`)
@@ -42,15 +41,15 @@ apps/cloud/
 
 ### Auth (`/api/auth/*`) — Better Auth on the Worker
 
-- `src/auth/auth.ts::createAuth(env)` builds a **per-request** Better Auth instance
-  (D1 is a runtime binding, not a module singleton). Plugins: **bearer** (clients
-  authenticate with `Authorization: Bearer <token>` — the token comes back in the
-  `set-auth-token` header on sign-in/up) and **expo** (mobile). Email+password is
-  enabled; the `socialProviders` seam turns on GitHub when `GITHUB_CLIENT_ID` +
-  `GITHUB_CLIENT_SECRET` are set.
+- `src/auth/auth.ts::createAuth(env, baseURL)` builds a **per-request** Better Auth
+  instance (D1 is a runtime binding, not a module singleton; `baseURL` is the
+  request origin). Plugin: **bearer** (clients authenticate with `Authorization:
+Bearer <token>` — the token comes back in the `set-auth-token` header on
+  sign-in/up). Email+password is enabled; the `socialProviders` seam turns on
+  GitHub when `GITHUB_CLIENT_ID` + `GITHUB_CLIENT_SECRET` are set.
 - The auth tables live in **D1** (`DB` binding) via the Drizzle adapter
-  (`provider: "sqlite"`). Schema in `src/db/schema.ts`; migration SQL in
-  `src/db/migrations/` (regenerate with `pnpm --filter @repo/cloud db:generate`).
+  (`provider: "sqlite"`). Schema in `src/db/schema.ts`, applied with `drizzle-kit
+push` — no migration files (`pnpm db:push:local` / `db:push:remote`).
 - **Ownership** (`vault_owner` table): the first authenticated user to touch a
   `vaultId` claims it. A sync request for a claimed vault by a different user → 403;
   no/invalid bearer token → 401.
@@ -64,11 +63,11 @@ CORS headers, `OPTIONS` is answered as a preflight, and `x-vault-version` /
 ## Local development
 
 ```bash
-pnpm --filter @repo/cloud dev         # wrangler dev (local R2 + DO + D1 simulation)
-pnpm --filter @repo/cloud test        # vitest against real in-process miniflare (applies D1 migrations)
-pnpm --filter @repo/cloud typecheck   # tsc --noEmit
-pnpm --filter @repo/cloud db:generate # regenerate src/db/migrations after a schema change
-pnpm --filter @repo/cloud cf-typegen  # regenerate worker-configuration.d.ts after config changes
+pnpm --filter @repo/cloud dev          # wrangler dev (local R2 + DO + D1 simulation)
+pnpm --filter @repo/cloud db:push:local # push the schema to the local miniflare D1 (run `dev` once first)
+pnpm --filter @repo/cloud test         # vitest vs in-process miniflare (schema exported from schema.ts)
+pnpm --filter @repo/cloud typecheck    # tsc --noEmit
+pnpm --filter @repo/cloud cf-typegen   # regenerate worker-configuration.d.ts after config changes
 ```
 
 ## Deploy (run by the account owner)
@@ -86,8 +85,11 @@ wrangler r2 bucket create inteligir-vault-files
 #    wrangler.jsonc -> d1_databases[0].database_id (replace the 0000… placeholder)
 wrangler d1 create inteligir-auth
 
-# 4. Apply the auth + vault_owner migrations to the remote D1
-wrangler d1 migrations apply inteligir-auth --remote
+# 4. Push the schema (user/session/account/verification + vault_owner) to the
+#    remote D1. No migration files — set the three creds, then push:
+#      CLOUDFLARE_ACCOUNT_ID  CLOUDFLARE_DATABASE_ID  CLOUDFLARE_D1_TOKEN
+#    (D1_TOKEN = a Cloudflare API token with D1 edit; DATABASE_ID = the id above)
+pnpm --filter @repo/cloud db:push:remote
 
 # 5. Set the runtime secrets (NOT committed). AUTH_SECRET is a DEDICATED signing
 #    key — generate a fresh random 32+ char value, don't reuse another key.

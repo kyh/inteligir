@@ -1,13 +1,17 @@
-import { defineConfig } from "drizzle-kit";
+import type { Config } from "drizzle-kit";
 
-// drizzle-kit is used ONLY to GENERATE the D1 migration SQL from src/db/schema.ts
-// (`pnpm --filter @repo/cloud db:generate`). It never connects to a database here
-// — the generated SQL under src/db/migrations/ is applied by wrangler at deploy
-// (`migrations_dir` in wrangler.jsonc) and by the vitest Workers pool in tests
-// (readD1Migrations + applyD1Migrations). Dialect is plain `sqlite`, which is
-// what D1 runs.
-export default defineConfig({
-  schema: "./src/db/schema.ts",
-  out: "./src/db/migrations",
+// `drizzle-kit push` workflow (no migration files — solo-dev simple). This config
+// targets the REMOTE D1 over the HTTP API. Set these before `pnpm db:push:remote`:
+//   CLOUDFLARE_ACCOUNT_ID   CLOUDFLARE_DATABASE_ID   CLOUDFLARE_D1_TOKEN
+// For local, use drizzle.config.local.ts (points at the miniflare sqlite file).
+// Column names are explicit in src/db/schema.ts, so no `casing` inference needed.
+export default {
   dialect: "sqlite",
-});
+  driver: "d1-http",
+  schema: "./src/db/schema.ts",
+  dbCredentials: {
+    accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
+    databaseId: process.env.CLOUDFLARE_DATABASE_ID ?? "",
+    token: process.env.CLOUDFLARE_D1_TOKEN ?? "",
+  },
+} satisfies Config;
