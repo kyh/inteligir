@@ -23,15 +23,15 @@
 
   // D1 (SQLite) backs Better Auth (user/session/account/verification) + the
   // `vault_owner` ownership table. `database_id` is filled in at deploy time
-  // (`wrangler d1 create inteligir-auth` prints it). Migrations live in
-  // src/db/migrations (drizzle-kit generated); `wrangler d1 migrations apply`
-  // runs them, and the vitest Workers pool applies the same SQL in tests.
+  // (`wrangler d1 create inteligir-auth` prints it). The schema lives in
+  // src/db/schema.ts and is applied with `drizzle-kit push` — no migration files
+  // (`pnpm db:push:local` / `db:push:remote`); tests derive the same schema via
+  // `drizzle-kit export` (see vitest.config.ts).
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "inteligir-auth",
       "database_id": "00000000-0000-0000-0000-000000000000",
-      "migrations_dir": "src/db/migrations",
     },
   ],
 
