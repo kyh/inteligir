@@ -28,6 +28,7 @@ import type { VaultManifest } from "@repo/core/sync/manifest";
 import type { SyncPort } from "@repo/core/sync/sync-port";
 import { SyncEngine, type Clock, type Hasher, type SyncIo } from "@repo/core/sync/engine";
 import type { BaseStore } from "@repo/core/sync/base-store";
+import { fsSafeStamp } from "@repo/core/sync/reconcile";
 
 // ---------------------------------------------------------------------------
 // Hasher — node's synchronous sha-256, wrapped in the engine's async contract
@@ -44,7 +45,7 @@ export function createNodeHasher(): Hasher {
 // ---------------------------------------------------------------------------
 
 export function nodeStamp(now: () => Date = () => new Date()): Clock {
-  return () => now().toISOString().replaceAll(":", "-").replace(".", "-");
+  return () => fsSafeStamp(now());
 }
 
 // ---------------------------------------------------------------------------

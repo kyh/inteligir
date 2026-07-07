@@ -121,6 +121,17 @@ function pickWinner(localVersion: number, local: LocalFile, remote: VaultFile): 
 }
 
 /**
+ * Format a Date as the filesystem-safe ISO timestamp `conflictCopyName`
+ * expects (`2026-07-05T12-34-56-000Z` — `:` and `.` swapped for `-`; Windows/
+ * exFAT reject `:`). PURE: the Date comes from the caller's platform clock —
+ * @repo/core never reads time. One implementation for every platform's Clock
+ * adapter (desktop node, mobile Expo).
+ */
+export function fsSafeStamp(date: Date): string {
+  return date.toISOString().replaceAll(":", "-").replace(".", "-");
+}
+
+/**
  * The sibling filename that preserves the losing side of a conflict, e.g.
  * `conflictCopyName("notes/todo.md", "2026-07-05T12-34-56Z")` →
  * `"notes/todo (conflict 2026-07-05T12-34-56Z).md"`. Keeps the file in the same
@@ -128,7 +139,7 @@ function pickWinner(localVersion: number, local: LocalFile, remote: VaultFile): 
  *
  * PURE: the timestamp is supplied by the caller (the executor passes an ISO
  * string from its platform clock) — @repo/core never reads time. Pass a
- * filesystem-safe timestamp (avoid `:` for Windows/exFAT targets).
+ * filesystem-safe timestamp (`fsSafeStamp`).
  */
 export function conflictCopyName(path: VaultPath, isoTimestamp: string): VaultPath {
   const slash = path.lastIndexOf("/");

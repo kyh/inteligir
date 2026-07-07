@@ -11,6 +11,7 @@
     "./sync/plan": "./src/sync/plan.ts",
     "./sync/reconcile": "./src/sync/reconcile.ts",
     "./sync/wire": "./src/sync/wire.ts",
+    "./sync/testing/in-memory-sync-port": "./src/sync/__tests__/in-memory-sync-port.ts",
     "./sync/guards": "./src/sync/guards.ts",
     "./sync/base-store": "./src/sync/base-store.ts",
     "./sync/engine": "./src/sync/engine.ts",

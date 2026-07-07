@@ -75,9 +75,10 @@
       "includeEntryExports": false
     },
     "packages/core": {
-      // Pure, platform-agnostic domain core (the vault-sync protocol). Its
-      // subpath exports are the public API for future CF-sync + mobile
-      // consumers that don't exist yet, so don't flag them as unused.
+      // Pure, platform-agnostic domain core (sync engine + protocol, knowledge
+      // engine, markdown pipeline). Its subpath exports are the public API for
+      // the CF Worker (apps/cloud), mobile (apps/mobile), features, and the
+      // desktop renderer.
       "entry": ["src/**/__tests__/**/*.test.ts"],
       "project": ["src/**/*.ts"],
       "includeEntryExports": false

@@ -1,6 +1,6 @@
 # `agent/` — pi extensions
 
-Inteligir-specific composition over `@repo/pi-driver`. Each "extension" plugs a third-party capability (connected APIs via the executor, agent-browser, native macOS automation) into pi as a tool.
+Inteligir-specific composition over the pi wrapper (`@repo/features/server/pi/*`). Each "extension" plugs a third-party capability (connected APIs via the executor, agent-browser, native macOS automation) into pi as a tool.
 
 ## The bundle pattern
 
@@ -53,7 +53,7 @@ peekaboo and browser are conceptually identical — pi tools backed by a third-p
 - Bootstrap and tool registration live next to each other instead of split across packages.
 - `setup()` failures are isolated by default — a broken install logs and continues; the rest of onboarding still works. Mark a bundle `critical: true` if its setup is genuinely required.
 
-The mechanics of CLI install (GitHub release fetch, sha256 verify or version-check, atomic rename) live in `@repo/agent-runtime/install` as a single generic primitive — see the package README. Each bundle just calls it with its own naming convention.
+The mechanics of CLI install (GitHub release fetch, sha256 verify or version-check, atomic rename) live in `@repo/features/server/agent-runtime/install` as a single generic primitive — see the package README. Each bundle just calls it with its own naming convention.
 
 ## Adding an extension
 

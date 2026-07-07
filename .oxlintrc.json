@@ -48,6 +48,40 @@
       }
     },
     {
+      // Dependency boundary: @repo/core is PURE and platform-neutral — it runs
+      // unchanged in a Cloudflare Worker, React Native, and the desktop
+      // renderer. No node, no electron, no react, no other workspace package.
+      // (tsconfig `lib: WebWorker, types: []` enforces the same at the type
+      // level; this states the invariant in lint like every other boundary.)
+      "files": ["packages/core/src/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "node:*",
+                  "electron",
+                  "electron/*",
+                  "react",
+                  "react-dom",
+                  "react/*",
+                  "@repo/features",
+                  "@repo/features/*",
+                  "@repo/ui",
+                  "@repo/ui/*",
+                  "@repo/desktop",
+                  "@repo/desktop/*"
+                ],
+                "message": "@repo/core is pure and platform-neutral — no node/electron/react/workspace imports; callers inject platform capabilities (see sync/engine.ts)"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       // Dependency boundary: `packages/features/src/**` is isomorphic — the
       // same modules load in the Electron renderer (browser) and node. No node
       // built-ins, no electron. The `src/server/**` override below re-permits

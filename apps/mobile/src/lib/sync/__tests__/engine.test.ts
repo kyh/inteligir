@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { SyncEngine } from "@repo/core/sync/engine";
 import { conflictCopyName } from "@repo/core/sync/reconcile";
-// The coordinator fake isn't part of @repo/core's public export surface, so it
-// is reached by relative path (only test code does this). It mints monotonic
-// versions and honors optimistic concurrency exactly like the wire contract.
-import { InMemorySyncPort } from "../../../../../../packages/core/src/sync/__tests__/in-memory-sync-port";
+// The coordinator fake ships under core's `./sync/testing/*` subpath (test-only
+// surface). It mints monotonic versions and honors optimistic concurrency
+// exactly like the wire contract.
+import { InMemorySyncPort } from "@repo/core/sync/testing/in-memory-sync-port";
 
 import { createBaseStore } from "../base-store";
 import { createFsStamp } from "../clock";
