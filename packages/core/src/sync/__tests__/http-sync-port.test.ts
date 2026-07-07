@@ -1,4 +1,3 @@
-import crypto from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import { HttpSyncPort, createHttpSyncPort, type FetchFn } from "../http-sync-port";
@@ -8,15 +7,20 @@ import {
   HEADER_VERSION,
   formatBearer,
   formatChangeFrame,
-} from "@repo/core/sync/wire";
-import type { VaultManifest } from "@repo/core/sync/manifest";
+} from "../wire";
+import type { VaultManifest } from "../manifest";
 
 const BASE_URL = "https://sync.example.test";
 const VAULT_ID = "vault-1";
 const TOKEN = "secret-token";
 
+// A deterministic, valid-shaped (64 lowercase hex) content hash. HttpSyncPort
+// only checks `isValidHash` and round-trips the value verbatim, so a real sha256
+// is unneeded here — keeping @repo/core node-free even in tests.
 function sha256Hex(text: string): string {
-  return crypto.createHash("sha256").update(new TextEncoder().encode(text)).digest("hex");
+  let hash = 0;
+  for (const char of text) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return hash.toString(16).padStart(8, "0").repeat(8);
 }
 
 type Recorded = { url: string; method: string; headers: Headers; body: string | null };

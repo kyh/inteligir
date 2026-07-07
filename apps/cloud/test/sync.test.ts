@@ -12,38 +12,74 @@ import {
   manifestPath,
 } from "@repo/core/sync/wire";
 import { SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { sha256Hex } from "../src/hash";
 
-// Real miniflare DO + R2 in-process (see vitest.config.ts). Every test uses a
-// fresh vaultId -> a fresh DO instance, so state never bleeds across tests.
-const ORIGIN = "http://coordinator";
+// Real miniflare DO + R2 + D1 in-process (see vitest.config.ts). Auth is real
+// Better Auth over D1: tests sign a user up + in through `/api/auth/*`, pull the
+// bearer token from the `set-auth-token` response header, and send it on the
+// sync routes. The host matches `BETTER_AUTH_URL` so the auth base URL lines up.
+const ORIGIN = "https://inteligir-cloud.workers.dev";
 
-/** Bearer auth for the stub: token === vaultId (see src/auth.ts). */
-function auth(vaultId: string): Record<string, string> {
-  return { authorization: formatBearer(vaultId) };
+/**
+ * Sign a user up then in via the Better Auth handler; return the bearer token
+ * (the bearer plugin surfaces it in the `set-auth-token` response header).
+ */
+async function signUpAndSignIn(email: string): Promise<string> {
+  const password = "test-password-1234";
+  const name = email.split("@")[0] ?? "user";
+  const signUp = await SELF.fetch(ORIGIN + "/api/auth/sign-up/email", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: ORIGIN },
+    body: JSON.stringify({ email, password, name }),
+  });
+  if (signUp.status !== 200) {
+    throw new Error(`sign-up failed: ${signUp.status} ${await signUp.text()}`);
+  }
+  const signIn = await SELF.fetch(ORIGIN + "/api/auth/sign-in/email", {
+    method: "POST",
+    headers: { "content-type": "application/json", origin: ORIGIN },
+    body: JSON.stringify({ email, password }),
+  });
+  if (signIn.status !== 200) {
+    throw new Error(`sign-in failed: ${signIn.status} ${await signIn.text()}`);
+  }
+  const token = signIn.headers.get("set-auth-token");
+  if (token === null || token === "") throw new Error("no set-auth-token header");
+  return token;
+}
+
+// One shared owner for the sync-coordinator tests; each test uses a fresh
+// vaultId, which this user claims on first touch.
+let ownerToken = "";
+beforeAll(async () => {
+  ownerToken = await signUpAndSignIn("owner@example.com");
+});
+
+function auth(): Record<string, string> {
+  return { authorization: formatBearer(ownerToken) };
 }
 
 function getManifest(vaultId: string): Promise<Response> {
-  return SELF.fetch(ORIGIN + manifestPath(vaultId), { headers: auth(vaultId) });
+  return SELF.fetch(ORIGIN + manifestPath(vaultId), { headers: auth() });
 }
 
 function putFile(vaultId: string, path: string, base: number, body: Uint8Array): Promise<Response> {
   return SELF.fetch(ORIGIN + filePath(vaultId, path), {
     method: "PUT",
-    headers: { ...auth(vaultId), [HEADER_BASE_VERSION]: formatVersionHeader(base) },
+    headers: { ...auth(), [HEADER_BASE_VERSION]: formatVersionHeader(base) },
     body,
   });
 }
 
 function getFile(vaultId: string, path: string): Promise<Response> {
-  return SELF.fetch(ORIGIN + filePath(vaultId, path), { headers: auth(vaultId) });
+  return SELF.fetch(ORIGIN + filePath(vaultId, path), { headers: auth() });
 }
 
 function deleteFile(vaultId: string, path: string, base: number): Promise<Response> {
   return SELF.fetch(ORIGIN + filePath(vaultId, path), {
     method: "DELETE",
-    headers: { ...auth(vaultId), [HEADER_BASE_VERSION]: formatVersionHeader(base) },
+    headers: { ...auth(), [HEADER_BASE_VERSION]: formatVersionHeader(base) },
   });
 }
 
@@ -71,7 +107,7 @@ describe("vault sync coordinator", () => {
     const noAuth = await SELF.fetch(ORIGIN + manifestPath("vault-auth"));
     expect(noAuth.status).toBe(401);
     const wrong = await SELF.fetch(ORIGIN + manifestPath("vault-auth"), {
-      headers: { authorization: formatBearer("someone-else") },
+      headers: { authorization: formatBearer("not-a-real-token") },
     });
     expect(wrong.status).toBe(401);
   });
@@ -188,7 +224,7 @@ describe("vault sync coordinator", () => {
 
   it("broadcasts an upsert to a subscribed changes (SSE) stream", async () => {
     const vaultId = "vault-sse";
-    const streamRes = await SELF.fetch(ORIGIN + changesPath(vaultId), { headers: auth(vaultId) });
+    const streamRes = await SELF.fetch(ORIGIN + changesPath(vaultId), { headers: auth() });
     expect(streamRes.status).toBe(200);
     expect(streamRes.headers.get("content-type")).toContain("text/event-stream");
 
@@ -212,6 +248,44 @@ describe("vault sync coordinator", () => {
     } finally {
       await reader.cancel();
     }
+  });
+});
+
+describe("vault auth (Better Auth + ownership)", () => {
+  it("sign-up + sign-in issues a bearer token that authenticates a sync request", async () => {
+    const token = await signUpAndSignIn("flow@example.com");
+    expect(token.length).toBeGreaterThan(0);
+    const res = await SELF.fetch(ORIGIN + manifestPath("vault-flow"), {
+      headers: { authorization: formatBearer(token) },
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("first access to an unclaimed vault claims it, and the owner keeps access", async () => {
+    const token = await signUpAndSignIn("claimer@example.com");
+    const first = await SELF.fetch(ORIGIN + manifestPath("vault-claim"), {
+      headers: { authorization: formatBearer(token) },
+    });
+    expect(first.status).toBe(200);
+    const second = await SELF.fetch(ORIGIN + manifestPath("vault-claim"), {
+      headers: { authorization: formatBearer(token) },
+    });
+    expect(second.status).toBe(200);
+  });
+
+  it("a second user cannot access a vault claimed by the first (403)", async () => {
+    const alice = await signUpAndSignIn("alice@example.com");
+    const bob = await signUpAndSignIn("bob@example.com");
+
+    const claim = await SELF.fetch(ORIGIN + manifestPath("vault-shared"), {
+      headers: { authorization: formatBearer(alice) },
+    });
+    expect(claim.status).toBe(200);
+
+    const denied = await SELF.fetch(ORIGIN + manifestPath("vault-shared"), {
+      headers: { authorization: formatBearer(bob) },
+    });
+    expect(denied.status).toBe(403);
   });
 });
 

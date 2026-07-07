@@ -11,6 +11,7 @@ import type { Delegation, ListDelegationsResult } from "@repo/features/delegatio
 import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/features/inline-ai";
 import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/features/ipc";
 import type { VaultEntry } from "@repo/features/ipc-registry";
+import type { SyncState } from "@repo/features/sync";
 import { isDocPath } from "@repo/features/knowledge/doc-file";
 import { KnowledgeIndex } from "@repo/features/knowledge/knowledge-index";
 import { computeRenameEdits } from "@repo/features/knowledge/rename-links";
@@ -379,6 +380,15 @@ export function createFixtureBridge(): Bridge {
   const snapshots = new Map<string, { path: string; content: string }>();
   let notifications = { enabled: false };
   let appState: AppState = { phase: "ready", agent: "idle" };
+  // Sync — an in-memory stand-in so the settings Sync section is demoable
+  // without a coordinator: sign-in always succeeds, syncNow returns a stub.
+  let syncState: SyncState = {
+    enabled: false,
+    signedIn: false,
+    email: null,
+    coordinatorUrl: "",
+    status: { phase: "idle" },
+  };
 
   const agentEvents = new Emitter<AppAgentEvent>();
   const appStateEvents = new Emitter<AppState>();
@@ -386,6 +396,8 @@ export function createFixtureBridge(): Bridge {
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();
   const knowledgeEvents = new Emitter<{ revision: number }>();
+  const syncEvents = new Emitter<SyncState>();
+  const emitSync = () => syncEvents.emit(syncState);
 
   const setAppState = (next: AppState) => {
     appState = next;
@@ -714,6 +726,42 @@ export function createFixtureBridge(): Bridge {
     },
     executorOAuthAwait: async () => null,
     executorOpenExternal: async () => {},
+
+    // Sync — an in-memory account so the settings Sync section is drivable:
+    // toggle enable, set a URL, sign in (always succeeds), sync now (stub
+    // outcome). onSyncStateChanged makes the section reactive.
+    getSyncState: async () => syncState,
+    setSyncConfig: async (patch) => {
+      syncState = {
+        ...syncState,
+        enabled: patch.enabled ?? syncState.enabled,
+        coordinatorUrl: patch.coordinatorUrl ?? syncState.coordinatorUrl,
+      };
+      emitSync();
+      return syncState;
+    },
+    syncSignIn: async ({ email }) => {
+      syncState = { ...syncState, signedIn: true, email };
+      emitSync();
+      return { ok: true };
+    },
+    syncSignOut: async () => {
+      syncState = { ...syncState, signedIn: false, email: null, status: { phase: "idle" } };
+      emitSync();
+    },
+    syncNow: async () => {
+      if (!syncState.enabled || !syncState.signedIn) {
+        const message = "Enable sync and sign in first.";
+        syncState = { ...syncState, status: { phase: "error", message } };
+        emitSync();
+        return { status: "error", message };
+      }
+      const outcome = { status: "ok", pushed: 2, pulled: 1, deleted: 0, conflicts: 0 } as const;
+      syncState = { ...syncState, status: { ...outcome, phase: "ok" } };
+      emitSync();
+      return outcome;
+    },
+    onSyncStateChanged: syncEvents.subscribe,
 
     // Skills / integrations
     listSkills: async () => ({ skills: [] }),

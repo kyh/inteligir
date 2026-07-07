@@ -10,7 +10,11 @@
     "./sync/sync-port": "./src/sync/sync-port.ts",
     "./sync/plan": "./src/sync/plan.ts",
     "./sync/reconcile": "./src/sync/reconcile.ts",
-    "./sync/wire": "./src/sync/wire.ts"
+    "./sync/wire": "./src/sync/wire.ts",
+    "./sync/guards": "./src/sync/guards.ts",
+    "./sync/base-store": "./src/sync/base-store.ts",
+    "./sync/engine": "./src/sync/engine.ts",
+    "./sync/http-sync-port": "./src/sync/http-sync-port.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",

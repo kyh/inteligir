@@ -1,19 +1,21 @@
 // ---------------------------------------------------------------------------
-// HttpSyncPort — the desktop's SyncPort implementation over the wire.ts HTTP
-// contract. It calls the coordinator's routes with `fetch` (node 24 ships a
-// global one) and PARSES every response at the boundary into the @repo/core
-// result ADTs: a version conflict is a typed value carried in an HTTP-200 body
-// (never a thrown exception), and only genuine transport failures (a non-200
-// that isn't a documented conflict/404, a malformed envelope, a missing header)
-// become thrown errors. Nothing here is node-specific beyond `fetch`; the
-// class stays a pure translation of `wire.ts` ↔ `SyncPort`.
+// HttpSyncPort — a SyncPort implementation over the wire.ts HTTP contract. It
+// calls the coordinator's routes with `fetch` and PARSES every response at the
+// boundary into the @repo/core result ADTs: a version conflict is a typed value
+// carried in an HTTP-200 body (never a thrown exception), and only genuine
+// transport failures (a non-200 that isn't a documented conflict/404, a
+// malformed envelope, a missing header) become thrown errors.
 //
-// `fetch` is injectable so tests drive it against `new Response(...)` fakes
-// without a real Worker.
+// Universal: `fetch`/`Response`/`ReadableStream`/`TextDecoder`/`AbortController`
+// are all Web-standard globals present in node, the browser, React Native, and a
+// Cloudflare Worker — so this client lives in @repo/core and every platform
+// reuses it. Nothing here is platform-specific; the class stays a pure
+// translation of `wire.ts` ↔ `SyncPort`. `fetch` is injectable so tests drive it
+// against `new Response(...)` fakes without a real Worker.
 // ---------------------------------------------------------------------------
 
-import { isValidHash, type VaultFile, type VaultPath } from "@repo/core/sync/vault-file";
-import type { VaultManifest } from "@repo/core/sync/manifest";
+import { isValidHash, type VaultFile, type VaultPath } from "./vault-file";
+import type { VaultManifest } from "./manifest";
 import type {
   DeleteResult,
   GetResult,
@@ -21,7 +23,7 @@ import type {
   SyncPort,
   Unsubscribe,
   VaultChange,
-} from "@repo/core/sync/sync-port";
+} from "./sync-port";
 import {
   CONTENT_TYPE_OCTET_STREAM,
   CONTENT_TYPE_SSE,
@@ -35,8 +37,8 @@ import {
   formatVersionHeader,
   manifestPath,
   parseVersionHeader,
-} from "@repo/core/sync/wire";
-import { isRecord } from "@repo/features/ipc";
+} from "./wire";
+import { isRecord } from "./guards";
 
 /** The `fetch` surface HttpSyncPort needs — the global by default, a fake in tests. */
 export type FetchFn = typeof fetch;

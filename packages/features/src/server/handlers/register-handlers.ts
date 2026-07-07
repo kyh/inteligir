@@ -12,6 +12,7 @@ import { registerKnowledgeHandlers } from "./knowledge-handlers";
 import { registerLifecycleHandlers } from "./lifecycle-handlers";
 import { registerNotificationHandlers } from "./notification-handlers";
 import { registerSkillsHandlers } from "./skills-handlers";
+import { registerSyncHandlers } from "./sync-handlers";
 import { registerUiStateHandlers } from "./ui-state-handlers";
 import { registerVaultHandlers } from "./vault-handlers";
 import { registerVoiceHandlers } from "./voice-handlers";
@@ -28,4 +29,5 @@ export function registerAllHandlers(handle: HandlerRegistrar): void {
   registerDelegationHandlers(handle);
   registerAiHandlers(handle);
   registerSkillsHandlers(handle);
+  registerSyncHandlers(handle);
 }

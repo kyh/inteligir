@@ -11,7 +11,10 @@
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
     ".design-sync",
-    ".ds-sync"
+    ".ds-sync",
+    ".expo",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts"
   ],
   "plugins": ["eslint", "typescript", "unicorn", "react", "oxc", "node", "promise"],
   "categories": {

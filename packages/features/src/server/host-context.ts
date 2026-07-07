@@ -36,6 +36,7 @@ import { getExecutorDaemon, type ExecutorDaemon } from "./executor/executor-daem
 import { getKnowledgeManager, type KnowledgeManager } from "./knowledge/knowledge-manager";
 import { getNotifications, type NotificationsManager } from "./notifications";
 import { getSecretStore, type SecretStore } from "./secrets";
+import { getSyncCoordinator, type SyncCoordinator } from "./sync/sync-coordinator";
 import { getUiState, type UiStateManager } from "./ui-state";
 import { getVaultManager, type VaultManager } from "./vault/vault";
 import { getHostOptions, getPlatform } from "./platform-instance";
@@ -62,6 +63,7 @@ export type HostContext = {
   readonly authStorage: AuthStorage;
   readonly bundledResources: BundledResources;
   readonly agentPorts: AgentPorts;
+  readonly sync: SyncCoordinator;
 };
 
 /** Compose the five host notifiers. Each fans into the IPC event bus / the
@@ -77,6 +79,7 @@ function buildHostNotifiers(): HostNotifiers {
     delegationsChanged: (delegations) => emitEvent("onDelegationsUpdated", { delegations }),
     delegationStream: (id, text) => emitEvent("onDelegationStreamed", { id, text }),
     inlineAiStream: (requestId, delta) => emitEvent("onAiStreamed", { requestId, delta }),
+    syncStateChanged: (state) => emitEvent("onSyncStateChanged", state),
   };
 }
 
@@ -107,6 +110,7 @@ export function buildHostContext(): HostContext {
   getKnowledgeManager(); // vault
   getDelegationManager(); // vault + delegation notifiers (installed above)
   getExecutorDaemon(); // paths
+  getSyncCoordinator(); // sync account stores (allocation only; disk stays lazy)
 
   return {
     platform: getPlatform(),
@@ -141,6 +145,9 @@ export function buildHostContext(): HostContext {
     },
     get agentPorts() {
       return getAgentPorts();
+    },
+    get sync() {
+      return getSyncCoordinator();
     },
   };
 }

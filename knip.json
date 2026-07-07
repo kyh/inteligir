@@ -33,6 +33,19 @@
       // doesn't parse.
       "ignoreDependencies": ["tailwindcss"]
     },
+    "apps/mobile": {
+      // An Expo app. knip's Expo plugin auto-detects the config entries
+      // (index.ts / app.config.ts / metro.config.js / postcss.config.js) and the
+      // deps they reference; these entries are the Expo Router route files + the
+      // vitest specs, which it doesn't infer.
+      "entry": ["src/app/**/*.tsx", "src/lib/sync/__tests__/**/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx}", "*.{ts,js}"],
+      // metro-cache is required by metro.config.js but provided transitively by
+      // metro (not a direct dependency), so knip can't see it as listed.
+      // expo-updates is implied by knip's Expo plugin, but this companion does
+      // no OTA updates, so it isn't a real dependency.
+      "ignoreDependencies": ["metro-cache", "expo-updates"]
+    },
     "apps/cloud": {
       // A Cloudflare Worker. `src/index.ts` is the Worker entry (exports the
       // VaultCoordinator DO + the default fetch handler, auto-detected from

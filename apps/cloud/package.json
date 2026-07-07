@@ -7,16 +7,20 @@
     "build": "wrangler deploy --dry-run --outdir dist",
     "clean": "git clean -xdf .cache .turbo .wrangler dist node_modules",
     "cf-typegen": "wrangler types",
+    "db:generate": "drizzle-kit generate",
     "deploy": "wrangler deploy",
     "dev": "wrangler dev",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@repo/core": "workspace:*"
+    "@repo/core": "workspace:*",
+    "better-auth": "catalog:",
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "catalog:",
+    "drizzle-kit": "catalog:",
     "typescript": "catalog:",
     "vitest": "^4.1.7",
     "wrangler": "catalog:"

@@ -54,6 +54,13 @@ import type {
   SearchResult,
   WikiTarget,
 } from "./knowledge/knowledge-index";
+import {
+  SyncSetConfigSchema,
+  SyncSignInSchema,
+  type SyncOutcome,
+  type SyncSignInResult,
+  type SyncState,
+} from "./sync";
 import { UiStateSetSchema } from "./ui-state";
 import { TextChatMessageSchema } from "./voice";
 
@@ -483,6 +490,25 @@ export const IPC = {
     "executor:open-external",
     Type.String(),
   ),
+
+  // Vault sync — reconcile the local vault against the coordinator Worker.
+  // OFF by default; gated at runtime by the sync-config store + a bearer token.
+  /** Current sync state (enabled/signed-in/coordinator/last-status). */
+  getSyncState: invokeVoid<SyncState>("sync:get-state"),
+  /** Patch the sync config (enable toggle + coordinator URL). */
+  setSyncConfig: invoke<typeof SyncSetConfigSchema, SyncState>(
+    "sync:set-config",
+    SyncSetConfigSchema,
+  ),
+  /** Email+password sign-in against the configured coordinator. */
+  syncSignIn: invoke<typeof SyncSignInSchema, SyncSignInResult>("sync:sign-in", SyncSignInSchema),
+  /** Clear the local session (best-effort remote revoke). */
+  syncSignOut: invokeVoid<void>("sync:sign-out"),
+  /** Force one reconcile pass now; returns the outcome. */
+  syncNow: invokeVoid<SyncOutcome>("sync:now"),
+  /** Fired on every config / auth / status change so the settings Sync UI is
+   * reactive. Same shape as getSyncState. */
+  onSyncStateChanged: event<SyncState>("sync:state-changed"),
 
   // Skills
   listSkills: invokeVoid<SkillsList>("skills:list"),
