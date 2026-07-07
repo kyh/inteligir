@@ -8,8 +8,9 @@ AI-native two ways: chat to an agent that edits those files, and highlight a
 checkbox to _delegate_ it to a background agent that does the task and writes the
 result back.
 
-Turborepo monorepo: an Electron desktop app (the product) + a TanStack Start
-marketing site on Cloudflare Workers + shared packages.
+Turborepo monorepo: an Electron desktop app (the product) + an Expo mobile
+companion + a Cloudflare Worker vault-sync/auth backend + a TanStack Start
+marketing site + shared packages.
 
 ## Tech Stack
 
@@ -18,12 +19,17 @@ marketing site on Cloudflare Workers + shared packages.
 - **Editor**: Plate (platejs) rich markdown + a raw textarea fallback
 - **UI**: shadcn/ui (Base UI), lucide-react, sonner, zustand
 - **Web**: TanStack Start + React 19 + Tailwind CSS 4 on Cloudflare Workers (marketing site, no backend)
+- **Mobile**: Expo SDK 56 + Expo Router + NativeWind (@repo/mobile) — sync/read/light-edit companion, no agent
+- **Cloud**: Cloudflare Worker (@repo/cloud) — Better Auth on D1 + a Durable Object per vault + R2
 - **AI Agent**: pi coding agent framework (@mariozechner/pi-coding-agent)
 
-The agent runs locally in the desktop app. There is no server-side API or
-database — auth is provider OAuth (OpenAI), handled by pi on-device. The vault is
-just a folder of markdown the user owns; the agent reaches it through a `./vault`
-symlink in its workspace and edits files with its native file tools.
+The agent runs locally in the desktop app; agent auth is provider OAuth
+(OpenAI), handled by pi on-device. The vault is a folder of markdown the user
+owns; the agent reaches it through a `./vault` symlink in its workspace and
+edits files with its native file tools. The only server-side surface is the
+**opt-in vault sync** (apps/cloud: Better Auth sessions + file bytes in R2 +
+per-vault manifests in a Durable Object) — **off by default**, and it syncs
+vault FILES only; notes never live in a server database.
 
 ## Workspace Structure
 
@@ -31,13 +37,24 @@ symlink in its workspace and edits files with its native file tools.
 apps/            # shippable artifacts
   web/           # Marketing site (@repo/web) — landing page only
   desktop/       # Electron shell — the notes product (@repo/desktop)
+  mobile/        # Expo companion (@repo/mobile) — sync + read + light-edit, no agent
+  cloud/         # CF Worker (@repo/cloud) — /api/auth/* (Better Auth/D1) + /v1/vault/* (DO+R2)
 packages/        # libraries
+  core/          # PURE platform-neutral domain (@repo/core) — runs in Worker/RN/renderer:
+                 #   sync/      — vault-sync engine + protocol (reconcile, wire, HttpSyncPort)
+                 #   knowledge/ — link graph, backlinks, lexical search, rename byte-surgery
+                 #   markdown/  — remark parse pipeline, MDX vocabulary gate, wiki-links
   features/      # Contract + backend (@repo/features):
-                 #   src/        — iso: Bridge/IPC registry, schemas, knowledge engine, markdown
-                 #   src/server/ — node: vault, pi agent, delegation, executor, voice, handlers,
-                 #                 createHost, HostPlatform (pi-driver + agent-runtime folded in)
-  ui/            # Shared UI components (@repo/ui)
+                 #   src/        — iso: Bridge/IPC registry, schemas (loads in the renderer)
+                 #   src/server/ — node: vault, pi agent, delegation, executor, voice, sync
+                 #                 adapters, handlers, createHost, HostPlatform
+  ui/            # Shared UI components (@repo/ui) — web-only (Base UI + Tailwind)
 ```
+
+`@repo/core` is the sharing seam: no node/electron/react/workspace imports
+(lint- and tsconfig-enforced); platforms inject capabilities (hasher, IO,
+clock) — see `core/src/sync/engine.ts`. Desktop and mobile drive the SAME sync
+engine and knowledge/markdown code through thin adapters.
 
 The product's UI lives in the desktop renderer (`apps/desktop/src/renderer`).
 The product is the **Electron desktop** app (`pnpm dev:desktop`) over the
@@ -110,10 +127,12 @@ and the MDX components `<toggle>`, `<column_group>/<column>`, `<video>`,
 JSX, expressions, HTML comments) sends the file to Raw mode rather than being
 mangled. Files stay `.md`.
 
-`packages/features/src/server/knowledge/` maintains the derived indexes (wiki/md link
-graph, backlinks, lexical search, wiki-target list) — incrementally updated
-from vault events; renames rewrite `[[links]]` across the vault byte-surgically
-(shadow-protection qualifies links the new name would steal).
+The derived indexes (wiki/md link graph, backlinks, lexical search,
+wiki-target list) are `@repo/core/knowledge/*` — pure, platform-neutral.
+`packages/features/src/server/knowledge/` is the node host shell around them:
+incremental refresh from vault events, and renames that rewrite `[[links]]`
+across the vault byte-surgically (shadow-protection qualifies links the new
+name would steal). Derived indexes are rebuilt per device and NEVER synced.
 
 ### UI — `apps/desktop/src/renderer`, one fixed workspace
 
@@ -132,9 +151,11 @@ and full-text search live in the command palette.
   controller/autosave/vanish-watcher for the open note (`openPath`, persisted
   in ui-state under `workspace.openNote`), the file listing, and all vault
   actions. Sidebar + editor + composer consume `useVault()`.
-- `editor/markdown/` is the byte-stability brain: it owns the unified parse
-  (remark-gfm + math + MDX vocabulary + wiki-links + frontmatter) with an
-  idempotent round-trip (bounded fixpoint). **Rich is the default surface**:
+- The markdown parse pipeline (remark-gfm + math + MDX vocabulary +
+  wiki-links + frontmatter) lives in `@repo/core/markdown/*`;
+  `editor/markdown/` is the Plate-coupled byte-stability brain over it — the
+  Slate↔mdast rules and the idempotent round-trip (bounded fixpoint). **Rich
+  is the default surface**:
   any file that parses within the vocabulary opens Rich and normalizes on the
   first real edit; only unrepresentable content (unknown JSX, parse errors)
   opens Raw (byte-exact) with the badge. Every node type lives in
@@ -160,6 +181,23 @@ session on `BACKGROUND_SESSION_DIR`). Before the agent dispatches, the host
 via `./vault`, checks the box, and appends a result; the watcher refreshes the
 editor. Status streams to inline badges (`onDelegationsUpdated`).
 `find-task-line.ts` is the pure, content-addressed locator.
+
+### Vault sync — `@repo/core/sync` + `apps/cloud` + platform adapters
+
+**Off by default** (runtime `sync-config` store; Settings → Sync). One pure
+engine — `core/sync/engine.ts` (3-way last-write-wins `reconcile`, conflicts
+preserved as sibling copies, never lost) — with injected platform ports:
+desktop binds node crypto/VaultManager/JsonStore
+(`features/src/server/sync/sync-manager.ts`, lifecycle in
+`sync-coordinator.ts`), mobile binds expo-crypto/expo-file-system
+(`apps/mobile/src/lib/sync/`). The coordinator (`apps/cloud`) is ONE Worker:
+`/api/auth/*` = Better Auth (email+password, bearer tokens) over Drizzle + D1,
+`/v1/vault/*` = per-vault `VaultCoordinator` Durable Object (SQLite manifest,
+optimistic concurrency — a version conflict is an HTTP-200 `{ok:false}` VALUE,
+never a throw) with bytes in R2. First authenticated user to touch a vaultId
+owns it. D1 schema ships via `drizzle-kit push` (no migration files);
+`test/e2e-sync.test.ts` drives the real engine against the real Worker
+in-process. Deploy is owner-only (see `apps/cloud/README.md`).
 
 ### Agent surface — `packages/features/src/server/agent/`
 

@@ -14,8 +14,8 @@
 // against `new Response(...)` fakes without a real Worker.
 // ---------------------------------------------------------------------------
 
-import { isValidHash, type VaultFile, type VaultPath } from "./vault-file";
-import type { VaultManifest } from "./manifest";
+import { isValidHash, type VaultPath } from "./vault-file";
+import { parseVaultFile, parseVaultManifest, type VaultManifest } from "./manifest";
 import type {
   DeleteResult,
   GetResult,
@@ -76,7 +76,7 @@ export class HttpSyncPort implements SyncPort {
     });
     if (!res.ok) throw transportError("manifest", res.status);
     const raw: unknown = await res.json();
-    const manifest = parseManifest(raw);
+    const manifest = parseVaultManifest(raw);
     if (!manifest) throw new Error("sync: coordinator returned a malformed manifest");
     return manifest;
   }
@@ -192,37 +192,11 @@ export function createHttpSyncPort(opts: HttpSyncPortOptions): HttpSyncPort {
 }
 
 // ---- boundary parsers (never trust the wire) ------------------------------
+// The manifest/file decoders live in ./manifest (shared with the persisted
+// base-manifest caches); only the envelope/SSE parsers are wire-specific.
 
 function transportError(route: string, status: number): Error {
   return new Error(`sync: ${route} failed with HTTP ${status}`);
-}
-
-function isNonNegativeInt(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-function parseVaultFile(raw: unknown): VaultFile | null {
-  if (!isRecord(raw)) return null;
-  const { path, contentHash, version, size } = raw;
-  if (typeof path !== "string" || path === "") return null;
-  if (typeof contentHash !== "string" || !isValidHash(contentHash)) return null;
-  if (!isNonNegativeInt(version) || !isNonNegativeInt(size)) return null;
-  return { path, contentHash, version, size };
-}
-
-function parseManifest(raw: unknown): VaultManifest | null {
-  if (!isRecord(raw)) return null;
-  const { vaultId, generation, files } = raw;
-  if (typeof vaultId !== "string" || !isNonNegativeInt(generation) || !Array.isArray(files)) {
-    return null;
-  }
-  const parsed: VaultFile[] = [];
-  for (const entry of files) {
-    const file = parseVaultFile(entry);
-    if (!file) return null;
-    parsed.push(file);
-  }
-  return { vaultId, generation, files: parsed };
 }
 
 function parsePutResult(raw: unknown): PutResult | null {

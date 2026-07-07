@@ -12,43 +12,13 @@
 // ---------------------------------------------------------------------------
 
 import type { BaseStore } from "@repo/core/sync/base-store";
-import type { VaultManifest } from "@repo/core/sync/manifest";
-import { isValidHash, type VaultFile } from "@repo/core/sync/vault-file";
-import { isRecord } from "@repo/core/sync/guards";
+import { parseVaultManifest } from "@repo/core/sync/manifest";
 
 /** A tiny synchronous text file. `read` returns `null` when the file is absent. */
 export type JsonFile = {
   read(): string | null;
   write(text: string): void;
 };
-
-function isNonNegativeInt(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value >= 0;
-}
-
-function parseVaultFile(raw: unknown): VaultFile | null {
-  if (!isRecord(raw)) return null;
-  const { path, contentHash, version, size } = raw;
-  if (typeof path !== "string" || path === "") return null;
-  if (typeof contentHash !== "string" || !isValidHash(contentHash)) return null;
-  if (!isNonNegativeInt(version) || !isNonNegativeInt(size)) return null;
-  return { path, contentHash, version, size };
-}
-
-function parseManifest(raw: unknown): VaultManifest | null {
-  if (!isRecord(raw)) return null;
-  const { vaultId, generation, files } = raw;
-  if (typeof vaultId !== "string" || !isNonNegativeInt(generation) || !Array.isArray(files)) {
-    return null;
-  }
-  const parsed: VaultFile[] = [];
-  for (const entry of files) {
-    const file = parseVaultFile(entry);
-    if (!file) return null;
-    parsed.push(file);
-  }
-  return { vaultId, generation, files: parsed };
-}
 
 /** Adapt a `JsonFile` to the engine's `BaseStore` port. */
 export function createBaseStore(file: JsonFile): BaseStore {
@@ -62,7 +32,7 @@ export function createBaseStore(file: JsonFile): BaseStore {
       } catch {
         return null; // corrupt cache → re-sync from empty
       }
-      return parseManifest(raw);
+      return parseVaultManifest(raw); // boundary validation is core's (shared)
     },
     save: (manifest) => {
       file.write(JSON.stringify(manifest));
