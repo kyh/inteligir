@@ -7,11 +7,14 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 //  1. The Better Auth core tables (`user`, `session`, `account`, `verification`)
 //     — the SQLite shape Better Auth's Drizzle adapter (`provider: "sqlite"`)
 //     expects. Hand-written to mirror `@better-auth/cli generate` output for the
-//     configured plugins (emailAndPassword + bearer + expo add NO columns beyond
-//     the core set). The JS property keys are Better Auth's field names (camelCase);
+//     current plugin set (emailAndPassword + bearer add NO columns beyond the
+//     core set). The JS property keys are Better Auth's field names (camelCase);
 //     the DB column names (snake_case) are ours and travel with the generated
 //     migration, so schema + migration always agree. The `session.token` column
 //     is what the bearer plugin matches an `Authorization: Bearer …` token against.
+//     If you add a plugin that needs columns (organization, admin, apiKey, …),
+//     REGENERATE via `pnpx @better-auth/cli generate` rather than editing by hand,
+//     then `drizzle-kit generate` a new migration — hand-editing risks drift.
 //
 //  2. `vault_owner` — first-writer-wins vault ownership: the first authenticated
 //     user to touch a vaultId claims it; later requests from other users get 403.

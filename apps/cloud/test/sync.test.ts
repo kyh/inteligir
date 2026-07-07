@@ -18,7 +18,8 @@ import { sha256Hex } from "../src/hash";
 // Real miniflare DO + R2 + D1 in-process (see vitest.config.ts). Auth is real
 // Better Auth over D1: tests sign a user up + in through `/api/auth/*`, pull the
 // bearer token from the `set-auth-token` response header, and send it on the
-// sync routes. The host matches `BETTER_AUTH_URL` so the auth base URL lines up.
+// sync routes. Every request uses one ORIGIN, and the worker derives the auth
+// baseURL from the request origin, so they line up automatically.
 const ORIGIN = "https://inteligir-cloud.workers.dev";
 
 /**

@@ -3,6 +3,10 @@
   "name": "inteligir-cloud",
   "main": "src/index.ts",
   "compatibility_date": "2026-06-01",
+  // Better Auth's crypto paths (password hashing, token signing) need node
+  // built-ins on workerd — every Cloudflare worker that runs Better Auth sets
+  // this. Without it the failure is a latent runtime one that passes typecheck.
+  "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
   // One Durable Object per vault: the source of truth for that vault's manifest
@@ -31,9 +35,8 @@
     },
   ],
 
-  // Public, non-secret config. BETTER_AUTH_SECRET + any OAuth client secrets are
-  // NOT here — set them with `wrangler secret put` (see README).
-  "vars": {
-    "BETTER_AUTH_URL": "https://inteligir-cloud.workers.dev",
-  },
+  // No `vars`: the Better Auth baseURL is derived per-request from the incoming
+  // request origin (so localhost/preview/prod all work with no config), and
+  // AUTH_SECRET + any OAuth client secrets are secrets — set them with
+  // `wrangler secret put` (see README), never committed here.
 }

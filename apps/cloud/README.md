@@ -15,8 +15,8 @@ apps/cloud/
     vault-coordinator.ts  # Durable Object: owns the manifest + versions + SSE + R2 writes
     route.ts              # matchRoute(): parse the @repo/core/sync/wire routes into an ADT
     hash.ts               # sha256Hex() — server-authoritative content hashing
-    env.d.ts              # types the runtime secrets (BETTER_AUTH_SECRET, OAuth) onto Env
-    auth/auth.ts          # createAuth(env): per-request Better Auth (Drizzle+D1, bearer, expo)
+    env.d.ts              # types the runtime secrets (AUTH_SECRET, OAuth) onto Env
+    auth/auth.ts          # createAuth(env, baseURL): per-request Better Auth (Drizzle+D1, bearer)
     db/
       schema.ts           # Drizzle schema: Better Auth tables + vault_owner (ownership)
       client.ts           # createDb(d1): per-request Drizzle client over the D1 binding
@@ -89,17 +89,17 @@ wrangler d1 create inteligir-auth
 # 4. Apply the auth + vault_owner migrations to the remote D1
 wrangler d1 migrations apply inteligir-auth --remote
 
-# 5. Set the runtime secrets (NOT committed). BETTER_AUTH_SECRET is a DEDICATED
-#    signing key — generate a fresh random 32+ char value, don't reuse another key.
-wrangler secret put BETTER_AUTH_SECRET          # e.g. `openssl rand -base64 32`
+# 5. Set the runtime secrets (NOT committed). AUTH_SECRET is a DEDICATED signing
+#    key — generate a fresh random 32+ char value, don't reuse another key.
+wrangler secret put AUTH_SECRET                 # e.g. `openssl rand -base64 32`
 #    Optional GitHub OAuth (only if you enable the provider):
 # wrangler secret put GITHUB_CLIENT_ID
 # wrangler secret put GITHUB_CLIENT_SECRET
 
-# 6. Point BETTER_AUTH_URL at the deployed origin (edit wrangler.jsonc vars, or
-#    override per-env) so Better Auth builds correct callback/redirect URLs.
+#    (No BETTER_AUTH_URL to set — the auth baseURL is derived per-request from
+#    the request origin, so localhost/preview/prod all work with no config.)
 
-# 7. Deploy the Worker + Durable Object (creates the DO on first deploy)
+# 6. Deploy the Worker + Durable Object (creates the DO on first deploy)
 pnpm --filter @repo/cloud deploy       # == wrangler deploy
 
 # (optional) tail logs

@@ -81,9 +81,10 @@ export default {
       return withCors(request, new Response(null, { status: 204 }));
     }
 
-    // Better Auth surface.
+    // Better Auth surface. baseURL = this request's origin so callbacks/cookies
+    // match whatever host served the request (localhost/preview/prod).
     if (url.pathname.startsWith("/api/auth/")) {
-      return withCors(request, await createAuth(env).handler(request));
+      return withCors(request, await createAuth(env, url.origin).handler(request));
     }
 
     // Sync surface.
@@ -93,7 +94,7 @@ export default {
     }
 
     // Authenticate: the bearer plugin reads `Authorization: Bearer …`.
-    const auth = createAuth(env);
+    const auth = createAuth(env, url.origin);
     const authResult = await auth.api.getSession({ headers: request.headers });
     if (authResult === null) {
       return withCors(request, new Response("unauthorized", { status: 401 }));

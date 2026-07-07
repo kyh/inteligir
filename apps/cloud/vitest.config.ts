@@ -20,8 +20,8 @@ const MIGRATIONS_DIR = fileURLToPath(new URL("./src/db/migrations", import.meta.
 // ./test/apply-migrations.ts (`applyD1Migrations`). One source of truth for the
 // schema across deploy + test.
 //
-// BETTER_AUTH_SECRET is a runtime secret (not in wrangler.jsonc), so it's absent
-// from the test env — inject a deterministic dummy so Better Auth can sign/verify.
+// AUTH_SECRET is a runtime secret (not in wrangler.jsonc), so it's absent from
+// the test env — inject a deterministic dummy so Better Auth can sign/verify.
 export default defineConfig(async () => {
   const migrations = await readD1Migrations(MIGRATIONS_DIR);
   return {
@@ -31,7 +31,7 @@ export default defineConfig(async () => {
         miniflare: {
           bindings: {
             TEST_MIGRATIONS: migrations,
-            BETTER_AUTH_SECRET: "test-better-auth-secret-000000000000",
+            AUTH_SECRET: "test-better-auth-secret-000000000000",
           },
         },
       }),
