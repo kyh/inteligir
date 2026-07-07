@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { PinIcon, PinOffIcon, XIcon } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion, type Transition } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 
 import {
   Conversation,
@@ -11,42 +11,49 @@ import { cn } from "@repo/ui/lib/utils";
 
 import {
   CAPSULE_RADIUS,
-  CAPSULE_SPRING,
   CAPSULE_SURFACE,
   ThinkingSweep,
+  useCapsuleSpring,
 } from "@renderer/composer/capsule-motion";
-import { ChatActivityRow, ChatMessageView } from "@renderer/composer/chat-message";
+import {
+  ChatActivityRow,
+  ChatMessageView,
+  isRenderableMessage,
+} from "@renderer/composer/chat-message";
 import { Composer } from "@renderer/composer/composer";
-import { useAgentStore, type ChatMessage } from "@renderer/stores/agent-store";
+import { currentTurnMessages, useAgentStore, type ChatMessage } from "@renderer/stores/agent-store";
 import { useViewStore } from "@renderer/stores/view-store";
 
 const IDLE_LINGER_MS = 7000;
 
-/** The messages ChatMessageView actually renders as a bubble. Tool activity
- * and empty stream-starts render null — skip their motion wrappers too, so
- * the list's flex gap doesn't produce phantom rows. */
-function isRenderableMessage(msg: ChatMessage): boolean {
-  const first = msg.parts[0];
-  if (!first || first.type !== "text") return false;
-  if (msg.role === "assistant" && first.text.length === 0) return false;
-  return true;
-}
-
 /** Thinking = busy with no assistant text streamed for the CURRENT turn yet
- * (tool-only activity still counts as thinking). Walk back to the turn's
- * user prompt; steer nudges ride mid-turn and don't reset the boundary. */
+ * (tool-only activity still counts as thinking). */
 function isThinking(messages: ChatMessage[], busy: boolean): boolean {
   if (!busy) return false;
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const msg = messages[i];
-    if (!msg) continue;
-    if (msg.role === "user" && !msg.metadata?.steer) return true;
-    if (msg.role !== "assistant") continue;
+  return !currentTurnMessages(messages).some((msg) => {
+    if (msg.role !== "assistant") return false;
     const first = msg.parts[0];
-    if (first?.type === "text" && first.text.length > 0) return false;
-  }
-  return true;
+    return first?.type === "text" && first.text.length > 0;
+  });
 }
+
+/** One popover row: entrance animation + the bubble. Memoized on the message
+ * object — the store preserves identity of untouched messages, so while a
+ * reply streams (a new `messages` array per delta) only the streaming row
+ * re-renders instead of every historical bubble + motion wrapper. */
+const MessageRow = memo(function MessageRow({ msg }: { msg: ChatMessage }) {
+  const reduceMotion = useReducedMotion() === true;
+  return (
+    <motion.div
+      className="flex flex-col"
+      initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
+      animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.3, delay: 0.05 }}
+    >
+      <ChatMessageView message={msg} />
+    </motion.div>
+  );
+});
 
 /**
  * The bottom AI surface — the composer pinned to the bottom of the editor inset,
@@ -60,7 +67,7 @@ export function BottomComposer() {
   const appState = useAgentStore((s) => s.appState);
   const busy = appState.phase === "ready" && appState.agent === "busy";
   const thinking = isThinking(messages, busy);
-  const reduceMotion = useReducedMotion() === true;
+  const { capsule: popoverSpring } = useCapsuleSpring();
 
   const pinned = useViewStore((s) => s.responsePinned);
   const togglePinned = useViewStore((s) => s.togglePinned);
@@ -80,7 +87,6 @@ export function BottomComposer() {
 
   const open = (pinned || busy || recentlyActive) && messages.length > 0;
   const visibleMessages = messages.filter(isRenderableMessage);
-  const popoverSpring: Transition = reduceMotion ? { duration: 0 } : CAPSULE_SPRING;
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 flex flex-col items-center gap-2 px-4 pb-4">
@@ -126,17 +132,7 @@ export function BottomComposer() {
             <Conversation className="max-h-[46vh] min-h-0 select-text">
               <ConversationContent className="gap-1 p-2">
                 {visibleMessages.map((msg) => (
-                  // Blur-in entrance for each landing message; the bubble's own
-                  // spring (ai-elements/chat-message) supplies the rise.
-                  <motion.div
-                    key={msg.id}
-                    className="flex flex-col"
-                    initial={{ opacity: 0, y: 6, filter: "blur(4px)" }}
-                    animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                    transition={reduceMotion ? { duration: 0 } : { duration: 0.3, delay: 0.05 }}
-                  >
-                    <ChatMessageView message={msg} />
-                  </motion.div>
+                  <MessageRow key={msg.id} msg={msg} />
                 ))}
                 <ChatActivityRow messages={messages} busy={busy} />
               </ConversationContent>

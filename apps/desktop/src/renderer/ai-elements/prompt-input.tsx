@@ -85,6 +85,10 @@ export type PromptInputProps = Omit<HTMLAttributes<HTMLFormElement>, "onSubmit" 
   maxFiles?: number;
   maxFileSize?: number;
   onError?: (err: { code: "max_files" | "max_file_size" | "accept"; message: string }) => void;
+  /** Fires whenever the staged attachment set changes. Lets a parent ABOVE the
+   * provider react to attachment state (e.g. hold a collapsible composer open)
+   * without a child bridging `usePromptInputAttachments` out via effects. */
+  onFilesChange?: (files: FileUIPart[]) => void;
   onSubmit: (
     message: PromptInputMessage,
     event: FormEvent<HTMLFormElement>,
@@ -98,6 +102,7 @@ export const PromptInput = ({
   maxFiles,
   maxFileSize,
   onError,
+  onFilesChange,
   onSubmit,
   children,
   ...props
@@ -120,7 +125,8 @@ export const PromptInput = ({
   useEffect(() => {
     filesRef.current = items;
     liveCountRef.current = items.length;
-  }, [items]);
+    onFilesChange?.(items);
+  }, [items, onFilesChange]);
 
   const openFileDialog = useCallback(() => {
     inputRef.current?.click();

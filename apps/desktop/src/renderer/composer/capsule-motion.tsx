@@ -10,10 +10,10 @@ import { motion, useReducedMotion, type Transition } from "framer-motion";
 
 import { GeometricOrb } from "@repo/ui/components/geometric-orb";
 
-import { useTheme } from "@renderer/lib/use-theme";
+import { useOrbBaseColor } from "@renderer/lib/use-theme";
 
-/** One spring drives every capsule size/shape change. */
-export const CAPSULE_SPRING: Transition = { type: "spring", duration: 0.55, bounce: 0.3 };
+/** One spring drives every capsule size/shape change (via useCapsuleSpring). */
+const CAPSULE_SPRING: Transition = { type: "spring", duration: 0.55, bounce: 0.3 };
 
 /** Continuous corner radius across every capsule state (px). Applied via the
  * motion `style` prop so layout animations scale-correct the corners. The
@@ -25,22 +25,38 @@ export const CAPSULE_RADIUS = 24;
 export const CAPSULE_SURFACE =
   "relative overflow-hidden bg-popover text-popover-foreground shadow-lg shadow-black/5 ring-1 ring-border";
 
+/** The content crossfade every capsule state change shares: content blurs in a
+ * beat after the shape settles, so the shape reads first and details second.
+ * Stable identities (vs inline literals) also let framer skip re-diffing. */
+export const CAPSULE_CONTENT_HIDDEN = { opacity: 0, scale: 0.96, filter: "blur(6px)" };
+export const CAPSULE_CONTENT_VISIBLE = { opacity: 1, scale: 1, filter: "blur(0px)" };
+
+/** The capsule's reduced-motion-aware transitions: `capsule` drives the shape
+ * (layout spring), `content` the crossfade (same spring, a beat later). One
+ * derivation for every consumer instead of a per-file `useReducedMotion` dance;
+ * `reduceMotion` rides along for props that need the raw flag (e.g. `layout`). */
+export function useCapsuleSpring(): {
+  capsule: Transition;
+  content: Transition;
+  reduceMotion: boolean;
+} {
+  const reduceMotion = useReducedMotion() === true;
+  if (reduceMotion) {
+    return { capsule: { duration: 0 }, content: { duration: 0 }, reduceMotion };
+  }
+  return { capsule: CAPSULE_SPRING, content: { ...CAPSULE_SPRING, delay: 0.05 }, reduceMotion };
+}
+
 /** The focal voice animation while listening: the shared GeometricOrb in its
  * built-in "listening" mood. It's a WebGL canvas, so it gets a fixed square
- * box; the base color tracks the theme (like the initial-surface orb) so any
- * neutral frames stay legible on both light and dark surfaces. Fewer, thinner
- * strands than the hero placement so the sphere reads at ~44px. The orb keeps
- * its own internal animation under prefers-reduced-motion. */
+ * box; the base color tracks the theme (shared with the initial-surface orb).
+ * Fewer, thinner strands than the hero placement so the sphere reads at ~44px.
+ * The orb keeps its own internal animation under prefers-reduced-motion. */
 export function ListeningOrb() {
-  const { resolved } = useTheme();
+  const baseColor = useOrbBaseColor();
   return (
     <div aria-hidden className="size-11 shrink-0">
-      <GeometricOrb
-        status="listening"
-        baseColor={resolved === "dark" ? "#eeeeee" : "#0a0a0a"}
-        numLines={12}
-        lineWidth={1.5}
-      />
+      <GeometricOrb status="listening" baseColor={baseColor} numLines={12} lineWidth={1.5} />
     </div>
   );
 }

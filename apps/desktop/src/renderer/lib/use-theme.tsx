@@ -5,6 +5,14 @@ import { useDiskState } from "@renderer/lib/use-disk-state";
 export { useTheme };
 export type { Theme };
 
+/** The GeometricOrb's neutral palette, tracked to the theme. One source for
+ * every orb placement (initial surface, composer listening) so a retune can't
+ * drift between them. */
+export function useOrbBaseColor(): string {
+  const { resolved } = useTheme();
+  return resolved === "dark" ? "#eeeeee" : "#0a0a0a";
+}
+
 const THEME_KEY = "theme";
 
 /**

@@ -35,6 +35,21 @@ export type ChatMessageMetadata = {
 
 export type ChatMessage = UIMessage<ChatMessageMetadata>;
 
+/**
+ * The messages of the CURRENT turn: everything after the last non-steer user
+ * message (steer nudges ride mid-turn and don't reset the boundary). This is
+ * the one place the turn-boundary rule lives — every consumer that asks "what
+ * is the agent doing right now" (thinking flag, activity label) derives from
+ * this slice instead of re-walking with its own copy of the steer exception.
+ */
+export function currentTurnMessages(messages: ChatMessage[]): ChatMessage[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (msg && msg.role === "user" && !msg.metadata?.steer) return messages.slice(i + 1);
+  }
+  return messages;
+}
+
 type SendOptions = {
   intent?: "steer";
 };
