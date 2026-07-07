@@ -2,11 +2,15 @@
 // Shared motion vocabulary for the AI capsule. The composer and its response
 // popover are styled as ONE spring-morphing surface — same radius, same ring,
 // same spring — so every state change reads as a single object stretching,
-// never a cut between panels. The decorative treatments (listening wave +
+// never a cut between panels. The decorative treatments (listening orb +
 // glow aura, thinking sweep) live here so both halves stay visually locked.
 // ---------------------------------------------------------------------------
 
 import { motion, useReducedMotion, type Transition } from "framer-motion";
+
+import { GeometricOrb } from "@repo/ui/components/geometric-orb";
+
+import { useTheme } from "@renderer/lib/use-theme";
 
 /** One spring drives every capsule size/shape change. */
 export const CAPSULE_SPRING: Transition = { type: "spring", duration: 0.55, bounce: 0.3 };
@@ -21,41 +25,22 @@ export const CAPSULE_RADIUS = 24;
 export const CAPSULE_SURFACE =
   "relative overflow-hidden bg-popover text-popover-foreground shadow-lg shadow-black/5 ring-1 ring-border";
 
-const BAR_COUNT = 27;
-
-/** Animated voice bars. Heights are deterministic pseudo-random (a fixed
- * envelope × per-bar wobble) so the wave reads organic without re-rolling on
- * re-render. Renders static mid-height bars under prefers-reduced-motion. */
-export function ListeningWave() {
-  const reduceMotion = useReducedMotion() === true;
+/** The focal voice animation while listening: the shared GeometricOrb in its
+ * built-in "listening" mood. It's a WebGL canvas, so it gets a fixed square
+ * box; the base color tracks the theme (like the initial-surface orb) so any
+ * neutral frames stay legible on both light and dark surfaces. Fewer, thinner
+ * strands than the hero placement so the sphere reads at ~44px. The orb keeps
+ * its own internal animation under prefers-reduced-motion. */
+export function ListeningOrb() {
+  const { resolved } = useTheme();
   return (
-    <div className="flex h-8 min-w-0 flex-1 items-center justify-center gap-[3px] overflow-hidden">
-      {Array.from({ length: BAR_COUNT }, (_, index) => {
-        const envelope = 0.3 + 0.7 * Math.sin((index / (BAR_COUNT - 1)) * Math.PI);
-        const wobble = 0.45 + (Math.sin(index * 12.9898) * 0.5 + 0.5) * 0.55;
-        if (reduceMotion) {
-          return (
-            <div
-              key={index}
-              className="h-7 w-[3px] rounded-full bg-primary"
-              style={{ transform: `scaleY(${envelope * wobble})` }}
-            />
-          );
-        }
-        return (
-          <motion.div
-            key={index}
-            className="h-7 w-[3px] rounded-full bg-primary"
-            animate={{ scaleY: [0.12, envelope * wobble, 0.22, envelope, 0.12] }}
-            transition={{
-              duration: 0.9 + (index % 5) * 0.13,
-              repeat: Infinity,
-              ease: "easeInOut",
-              delay: (index % 7) * 0.07,
-            }}
-          />
-        );
-      })}
+    <div aria-hidden className="size-11 shrink-0">
+      <GeometricOrb
+        status="listening"
+        baseColor={resolved === "dark" ? "#eeeeee" : "#0a0a0a"}
+        numLines={12}
+        lineWidth={1.5}
+      />
     </div>
   );
 }

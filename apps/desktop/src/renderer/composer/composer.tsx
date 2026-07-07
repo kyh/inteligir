@@ -5,6 +5,7 @@ import {
   ListPlusIcon,
   MicIcon,
   PaperclipIcon,
+  SparklesIcon,
   SquareIcon,
   XIcon,
   ZapIcon,
@@ -42,7 +43,7 @@ import {
   CAPSULE_SPRING,
   CAPSULE_SURFACE,
   ListeningGlow,
-  ListeningWave,
+  ListeningOrb,
 } from "@renderer/composer/capsule-motion";
 import { useAgentStore } from "@renderer/stores/agent-store";
 import { startSTT, type STTHandle } from "@renderer/voice/stt";
@@ -122,13 +123,23 @@ function formatElapsed(seconds: number): string {
 
 /**
  * The AI composer — a spring-morphing capsule pinned at the bottom of the
- * workspace. Talks to the agent via agent-store (routing user/follow-up/steer
+ * workspace. It rests as a compact centered pill and springs open to the full
+ * input on click/focus, collapsing back when the draft empties and focus
+ * leaves. Talks to the agent via agent-store (routing user/follow-up/steer
  * by live busy state) and auto-attaches the open note as context. Tapping the
  * mic morphs the capsule into a listening surface driven by local STT; the
  * confirmed transcript lands in the draft for review, never auto-sent.
  */
 export function Composer() {
   const [hasInput, setHasInput] = useState(false);
+  // Attachment presence, lifted out of the PromptInput context (via
+  // AttachmentsSync) so the collapse logic below can hold the capsule open
+  // while files are staged even though the tray lives inside the form.
+  const [hasAttachments, setHasAttachments] = useState(false);
+  // User-engagement latch: set by pill click / textarea focus, cleared by an
+  // empty blur that leaves the form (see ComposerTextarea's blur handler).
+  const [engaged, setEngaged] = useState(false);
+  const engage = useCallback(() => setEngaged(true), []);
   const pendingSteerRef = useRef(false);
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const reduceMotion = useReducedMotion() === true;
@@ -165,6 +176,13 @@ export function Composer() {
   const committedRef = useRef("");
   const partialRef = useRef("");
   const voiceActive = voicePhase !== "idle";
+
+  // The capsule is expanded (full input) or resting (compact pill). `engaged`
+  // is pure user intent; everything that must hold the surface open — a
+  // running turn, the listening surface, drafted text, staged attachments —
+  // is OR'd on top so a collapse can never eat state. When busy ends with the
+  // draft empty and focus elsewhere, this falls back to the pill on its own.
+  const expanded = engaged || busy || voiceActive || hasInput || hasAttachments;
 
   const startListening = useCallback(async () => {
     if (voicePhase !== "idle") return;
@@ -242,7 +260,8 @@ export function Composer() {
   );
 
   // Returning from the listening surface hands focus back to the textarea so
-  // the transcript is immediately reviewable/editable.
+  // the transcript is immediately reviewable/editable. A cancelled pill-mic
+  // session collapses straight back to the pill — nothing to focus.
   const wasVoiceRef = useRef(false);
   useEffect(() => {
     if (voiceActive) {
@@ -251,8 +270,9 @@ export function Composer() {
     }
     if (!wasVoiceRef.current) return;
     wasVoiceRef.current = false;
+    if (!expanded) return;
     findTextarea()?.focus();
-  }, [voiceActive, findTextarea]);
+  }, [voiceActive, expanded, findTextarea]);
 
   // mm:ss fallback readout while no transcript has arrived yet.
   useEffect(() => {
@@ -285,6 +305,26 @@ export function Composer() {
     },
     [],
   );
+
+  // --- Collapse / expand -----------------------------------------------------
+
+  // The textarea owns the collapse decision (it can see the attachment tray);
+  // this only vetoes it mid-listening, where the inert input blurs itself as
+  // the listening surface takes over.
+  const requestCollapse = useCallback(() => {
+    if (voiceActive) return;
+    setEngaged(false);
+  }, [voiceActive]);
+
+  // Expanding mounts the input surface — hand focus to the textarea so typing
+  // can start immediately (skipped when the expansion IS the listening
+  // surface; the voice-return effect above focuses afterwards instead).
+  const wasExpandedRef = useRef(expanded);
+  useEffect(() => {
+    const was = wasExpandedRef.current;
+    wasExpandedRef.current = expanded;
+    if (expanded && !was && !voiceActive) findTextarea()?.focus();
+  }, [expanded, voiceActive, findTextarea]);
 
   // --- Submission ------------------------------------------------------------
 
@@ -379,7 +419,7 @@ export function Composer() {
           layout={!reduceMotion}
           transition={capsuleSpring}
           style={{ borderRadius: CAPSULE_RADIUS }}
-          className={CAPSULE_SURFACE}
+          className={cn(CAPSULE_SURFACE, expanded ? "w-full" : "w-fit mx-auto")}
         >
           <AnimatePresence initial={false} mode="popLayout">
             {voiceActive && (
@@ -401,57 +441,81 @@ export function Composer() {
             )}
           </AnimatePresence>
 
-          {/* The input surface stays MOUNTED while listening (attachments and
-           * the draft live in it) — it fades out and drops out of flow so the
-           * capsule can spring down to the listening row's height. */}
-          <motion.div
-            animate={
-              voiceActive
-                ? { opacity: 0, scale: 0.96, filter: "blur(6px)" }
-                : { opacity: 1, scale: 1, filter: "blur(0px)" }
-            }
-            transition={voiceActive ? { duration: 0.15 } : contentSpring}
-            inert={voiceActive}
-            className={cn(voiceActive && "pointer-events-none absolute inset-x-0 top-0")}
-          >
-            <PromptInput
-              accept={ACCEPTED_IMAGE_MIME}
-              multiple
-              maxFiles={MAX_ATTACHMENT_COUNT}
-              maxFileSize={MAX_ATTACHMENT_BYTES}
-              onError={onAttachError}
-              onSubmit={handleSubmit}
-              className="bg-transparent [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-0 [&_[data-slot=input-group]]:rounded-3xl [&_[data-slot=input-group]]:border-transparent [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0 [&_[data-slot=input-group]]:shadow-none"
-            >
-              <ComposerAttachments />
-              {/* Two-row layout (the InputGroup block-end pattern): the textarea owns
-               * the top row full-width, a toolbar sits beneath with attach + mic
-               * pinned left and steer/send pinned right — so the controls stay
-               * aligned regardless of how tall the textarea grows. */}
-              <ComposerTextarea
-                busy={busy}
-                onInterrupt={interrupt}
-                onHasInputChange={setHasInput}
-              />
-              <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
-                <div className="flex items-center gap-1">
-                  <AttachButton />
-                  <MicButton onStart={() => void startListening()} />
-                </div>
-                <div className="flex items-center gap-1">
-                  <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
-                  <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
-                </div>
-              </div>
-            </PromptInput>
-          </motion.div>
+          {/* Resting, the capsule is a compact pill; engaging (click/focus/type/
+           * attach/voice/busy) springs it open to the full input. The input
+           * surface unmounts when collapsed — the draft is empty by definition
+           * there, so nothing is lost. While listening the input stays mounted
+           * (it holds the transcript-bound draft) but blurs out of flow so the
+           * capsule can spring down to the listening row. */}
+          <AnimatePresence initial={false} mode="popLayout">
+            {expanded ? (
+              <motion.div
+                key="input"
+                initial={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
+                animate={
+                  voiceActive
+                    ? { opacity: 0, scale: 0.96, filter: "blur(6px)" }
+                    : { opacity: 1, scale: 1, filter: "blur(0px)" }
+                }
+                exit={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
+                transition={voiceActive ? { duration: 0.15 } : contentSpring}
+                inert={voiceActive}
+                className={cn(voiceActive && "pointer-events-none absolute inset-x-0 top-0")}
+              >
+                <PromptInput
+                  accept={ACCEPTED_IMAGE_MIME}
+                  multiple
+                  maxFiles={MAX_ATTACHMENT_COUNT}
+                  maxFileSize={MAX_ATTACHMENT_BYTES}
+                  onError={onAttachError}
+                  onSubmit={handleSubmit}
+                  className="bg-transparent [&_[data-slot=input-group]]:flex-col [&_[data-slot=input-group]]:items-stretch [&_[data-slot=input-group]]:gap-0 [&_[data-slot=input-group]]:rounded-3xl [&_[data-slot=input-group]]:border-transparent [&_[data-slot=input-group]]:bg-transparent [&_[data-slot=input-group]]:px-0 [&_[data-slot=input-group]]:py-0 [&_[data-slot=input-group]]:shadow-none"
+                >
+                  <AttachmentsSync onChange={setHasAttachments} />
+                  <ComposerAttachments />
+                  {/* Two-row layout (the InputGroup block-end pattern): the textarea owns
+                   * the top row full-width, a toolbar sits beneath with attach + mic
+                   * pinned left and steer/send pinned right — so the controls stay
+                   * aligned regardless of how tall the textarea grows. */}
+                  <ComposerTextarea
+                    busy={busy}
+                    wrapperRef={wrapperRef}
+                    onInterrupt={interrupt}
+                    onHasInputChange={setHasInput}
+                    onEngage={engage}
+                    onRequestCollapse={requestCollapse}
+                  />
+                  <div className="flex items-center justify-between gap-1 px-1.5 pb-1.5">
+                    <div className="flex items-center gap-1">
+                      <AttachButton />
+                      <MicButton onStart={() => void startListening()} />
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <SteerButton busy={busy} hasInput={hasInput} onSteer={requestSteer} />
+                      <SubmitOrStop busy={busy} hasInput={hasInput} onInterrupt={interrupt} />
+                    </div>
+                  </div>
+                </PromptInput>
+              </motion.div>
+            ) : (
+              <motion.div
+                key="pill"
+                initial={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, scale: 0.96, filter: "blur(6px)" }}
+                transition={contentSpring}
+              >
+                <CollapsedPill onExpand={engage} onStartVoice={() => void startListening()} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
       </div>
     </div>
   );
 }
 
-/** The listening surface: cancel | wave | live transcript (or a timer until
+/** The listening surface: cancel | orb + live transcript (or a timer until
  * words arrive) | confirm. Height-locked to one row so the capsule reads as
  * the input collapsing into a voice pill. */
 function ListeningRow({
@@ -468,7 +532,7 @@ function ListeningRow({
   onConfirm: () => void;
 }) {
   return (
-    <div className="flex h-12 items-center gap-2 px-2">
+    <div className="flex h-14 items-center gap-2 px-2">
       <button
         type="button"
         aria-label="Cancel voice input"
@@ -477,18 +541,19 @@ function ListeningRow({
       >
         <XIcon className="size-4" />
       </button>
-      <ListeningWave />
-      {transcript ? (
-        // Right-aligned in an overflow-hidden box so the TAIL of the live
-        // transcript stays visible as it grows.
-        <div className="flex max-w-[45%] justify-end overflow-hidden">
-          <span className="text-xs whitespace-nowrap text-muted-foreground">{transcript}</span>
-        </div>
-      ) : (
-        <span className="w-10 shrink-0 text-center text-xs tabular-nums text-muted-foreground">
-          {formatElapsed(elapsed)}
-        </span>
-      )}
+      {/* The orb is the focal voice animation; the live transcript (or a mm:ss
+       * timer until words arrive) rides beside it, truncated so the tail stays
+       * readable. */}
+      <div className="flex min-w-0 flex-1 items-center justify-center gap-3">
+        <ListeningOrb />
+        {transcript ? (
+          <span className="max-w-[55%] truncate text-xs text-muted-foreground">{transcript}</span>
+        ) : (
+          <span className="text-xs tabular-nums text-muted-foreground">
+            {formatElapsed(elapsed)}
+          </span>
+        )}
+      </div>
       <button
         type="button"
         aria-label="Confirm voice input"
@@ -531,12 +596,18 @@ function MicButton({ onStart }: { onStart: () => void }) {
 
 function ComposerTextarea({
   busy,
+  wrapperRef,
   onInterrupt,
   onHasInputChange,
+  onEngage,
+  onRequestCollapse,
 }: {
   busy: boolean;
+  wrapperRef: React.RefObject<HTMLDivElement | null>;
   onInterrupt: () => void;
   onHasInputChange: (has: boolean) => void;
+  onEngage: () => void;
+  onRequestCollapse: () => void;
 }) {
   const { files, clear } = usePromptInputAttachments();
   const handleKeyDown = useCallback(
@@ -555,14 +626,75 @@ function ComposerTextarea({
     },
     [busy, onInterrupt, onHasInputChange, files.length, clear],
   );
+  const handleBlur = useCallback(
+    (e: React.FocusEvent<HTMLTextAreaElement>) => {
+      // Collapse only when focus truly LEAVES the composer — clicking a toolbar
+      // button (attach/mic/send) keeps focus inside the wrapper and must not
+      // fold the capsule. The `expanded` OR-chain still holds it open if a
+      // draft, attachments, or a running turn remain.
+      const next = e.relatedTarget;
+      if (next instanceof Node && wrapperRef.current?.contains(next)) return;
+      onRequestCollapse();
+    },
+    [wrapperRef, onRequestCollapse],
+  );
   return (
     <PromptInputTextarea
       className="max-h-[160px] min-h-9 w-full bg-transparent px-3 pt-3 pb-1 text-sm leading-5 text-foreground placeholder:text-muted-foreground"
       placeholder={busy ? "Queue a message…" : "Ask the agent to edit your notes…"}
       onChange={(e) => onHasInputChange(e.currentTarget.value.trim().length > 0)}
       onKeyDown={handleKeyDown}
+      onFocus={onEngage}
+      onBlur={handleBlur}
     />
   );
+}
+
+/** The resting pill — a compact capsule that springs open to the full input on
+ * click (or when the mic starts a voice session). Kept narrow (`whitespace-
+ * nowrap` + a short prompt) so the capsule's `w-fit` reads as a small pill. */
+function CollapsedPill({
+  onExpand,
+  onStartVoice,
+}: {
+  onExpand: () => void;
+  onStartVoice: () => void;
+}) {
+  return (
+    <div className="flex h-12 items-center gap-1 pr-1.5 pl-3">
+      <button
+        type="button"
+        onClick={onExpand}
+        className="flex h-full flex-1 items-center gap-2 text-left"
+      >
+        <SparklesIcon className="size-4 shrink-0 text-muted-foreground/70" />
+        <span className="text-sm whitespace-nowrap text-muted-foreground">Ask the agent…</span>
+      </button>
+      <button
+        type="button"
+        aria-label="Start voice input"
+        onClick={onStartVoice}
+        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      >
+        <MicIcon className="size-4" />
+      </button>
+    </div>
+  );
+}
+
+/** Bridges the attachment tray's file count (only known inside PromptInput's
+ * context) up to the composer so the collapse logic can hold the capsule open
+ * while images are staged. Renders nothing. */
+function AttachmentsSync({ onChange }: { onChange: (has: boolean) => void }) {
+  const { files } = usePromptInputAttachments();
+  const has = files.length > 0;
+  useEffect(() => {
+    onChange(has);
+  }, [has, onChange]);
+  // On unmount (capsule collapses) report empty so a stale `true` can't wedge
+  // it open.
+  useEffect(() => () => onChange(false), [onChange]);
+  return null;
 }
 
 function useHasContent(hasInput: boolean): boolean {
