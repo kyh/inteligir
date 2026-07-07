@@ -109,12 +109,14 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // ---------------------------------------------------------------------
       // Vault-sync capability — OFF by default (server/sync/). Deliberately not
       // constructed or started here: it is an available capability, not part of
-      // the live boot path. When ctx.options.syncEnabled is flipped on (and the
-      // coordinator origin + bearer token are configured), wire it HERE, e.g.:
+      // the live boot path. The engine is platform-neutral (@repo/core); the
+      // desktop supplies node adapters via createSyncManager. When
+      // ctx.options.syncEnabled is flipped on (and the coordinator origin +
+      // bearer token are configured), wire it HERE, e.g.:
       //
       //   if (ctx.options.syncEnabled) {
-      //     const port = createHttpSyncPort({ baseUrl, vaultId, token });
-      //     const sync = createSyncManager({ vaultId, port });
+      //     const port = createHttpSyncPort({ baseUrl, vaultId, token }); // @repo/core/sync/http-sync-port
+      //     const sync = createSyncManager({ vaultId, port });            // server/sync/sync-manager
       //     sync.start();                       // subscribe to remote changes
       //     const prevNotifier = ctx.notifiers.vaultChange;
       //     setVaultChangeNotifier((root) => {  // + local-change debounce
@@ -125,7 +127,7 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       //   }
       //
       // Only vault FILES sync; the knowledge index + AI state live under
-      // ~/.inteligir (outside the vault) and are never listed by the manager.
+      // ~/.inteligir (outside the vault) and are never listed by the engine.
       // ---------------------------------------------------------------------
 
       initMachine();

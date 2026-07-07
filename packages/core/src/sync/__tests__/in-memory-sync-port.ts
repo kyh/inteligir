@@ -1,14 +1,12 @@
-// A Map-backed SyncPort fake for driving SyncManager end-to-end without a real
+// A Map-backed SyncPort fake for driving SyncEngine end-to-end without a real
 // coordinator. It mints monotonic per-file versions, honors optimistic
 // concurrency exactly like the wire contract (a stale expected-version comes
 // back as a typed `version-conflict`, never a throw), bumps a vault generation,
 // and broadcasts VaultChange to subscribers — enough to exercise the whole
 // reconcile+execute loop.
 
-import crypto from "node:crypto";
-
-import { ABSENT_VERSION, type VaultFile, type VaultPath } from "@repo/core/sync/vault-file";
-import type { VaultManifest } from "@repo/core/sync/manifest";
+import { ABSENT_VERSION, type VaultFile, type VaultPath } from "../vault-file";
+import type { VaultManifest } from "../manifest";
 import type {
   DeleteResult,
   GetResult,
@@ -16,10 +14,17 @@ import type {
   SyncPort,
   Unsubscribe,
   VaultChange,
-} from "@repo/core/sync/sync-port";
+} from "../sync-port";
 
-function sha256Hex(bytes: Uint8Array): string {
-  return crypto.createHash("sha256").update(bytes).digest("hex");
+// Web Crypto (the WebWorker-lib global) rather than node crypto: @repo/core
+// stays node-free even in tests, and this is the exact async digest the mobile
+// client will use. It must match the engine's injected hasher so equal bytes
+// hash equal (reconcile relies on that).
+async function sha256Hex(bytes: Uint8Array): Promise<string> {
+  // Copy into a fresh (non-shared) buffer so the type is `<ArrayBuffer>`, which
+  // `BufferSource` requires — a plain Uint8Array may be SharedArrayBuffer-backed.
+  const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 type Stored = { file: VaultFile; content: Uint8Array };
@@ -53,7 +58,11 @@ export class InMemorySyncPort implements SyncPort {
     );
   }
 
-  putFile(path: VaultPath, content: Uint8Array, expectedBaseVersion: number): Promise<PutResult> {
+  async putFile(
+    path: VaultPath,
+    content: Uint8Array,
+    expectedBaseVersion: number,
+  ): Promise<PutResult> {
     const current = this.files.get(path);
     const currentVersion = current?.file.version ?? ABSENT_VERSION;
     if (currentVersion !== expectedBaseVersion) {
@@ -65,18 +74,18 @@ export class InMemorySyncPort implements SyncPort {
           `InMemorySyncPort: putFile on absent ${path} with expected ${expectedBaseVersion}`,
         );
       }
-      return Promise.resolve({ ok: false, reason: "version-conflict", current: current.file });
+      return { ok: false, reason: "version-conflict", current: current.file };
     }
     const file: VaultFile = {
       path,
-      contentHash: sha256Hex(content),
+      contentHash: await sha256Hex(content),
       version: currentVersion + 1,
       size: content.length,
     };
     this.files.set(path, { file, content: new Uint8Array(content) });
     this.generation += 1;
     this.emit({ kind: "upserted", file });
-    return Promise.resolve({ ok: true, file });
+    return { ok: true, file };
   }
 
   deleteFile(path: VaultPath, expectedBaseVersion: number): Promise<DeleteResult> {
