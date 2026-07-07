@@ -7,6 +7,9 @@ catalog:
   "@cloudflare/vite-plugin": ^1.43.0
   "@cloudflare/vitest-pool-workers": ^0.18.0
   "@sinclair/typebox": ^0.34.49
+  better-auth: ^1.6.11
+  drizzle-kit: ^0.31.10
+  drizzle-orm: ^0.45.2
   "@tailwindcss/postcss": ^4.3.0
   "@tailwindcss/vite": ^4.3.0
   "@tanstack/react-router": ^1.170.17
