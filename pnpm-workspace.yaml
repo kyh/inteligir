@@ -4,12 +4,36 @@ packages:
 
 catalog:
   "@base-ui/react": ^1.5.0
+  "@better-auth/expo": ^1.6.23
   "@cloudflare/vite-plugin": ^1.43.0
   "@cloudflare/vitest-pool-workers": ^0.18.0
+  "@expo/metro-runtime": ~56.0.16
   "@sinclair/typebox": ^0.34.49
   better-auth: ^1.6.11
   drizzle-kit: ^0.31.10
   drizzle-orm: ^0.45.2
+  expo: ~56.0.7
+  expo-constants: ~56.0.16
+  expo-crypto: ~56.0.4
+  expo-dev-client: ~56.0.18
+  expo-file-system: ~56.0.8
+  expo-linking: ~56.0.13
+  expo-network: ~56.0.5
+  expo-router: ~56.2.8
+  expo-secure-store: ~56.0.4
+  expo-splash-screen: ~56.0.10
+  expo-status-bar: ~56.0.4
+  expo-system-ui: ~56.0.5
+  expo-web-browser: ~56.0.5
+  nativewind: 5.0.0-preview.3
+  react-native: ~0.85.3
+  react-native-css: 3.0.7
+  react-native-gesture-handler: ~2.31.2
+  react-native-markdown-display: ^7.0.2
+  react-native-reanimated: ~4.3.1
+  react-native-safe-area-context: ~5.8.0
+  react-native-screens: ~4.25.2
+  react-native-worklets: ~0.8.3
   "@tailwindcss/postcss": ^4.3.0
   "@tailwindcss/vite": ^4.3.0
   "@tanstack/react-router": ^1.170.17

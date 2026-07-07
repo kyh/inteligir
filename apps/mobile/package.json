@@ -1,0 +1,51 @@
+{
+  "name": "@repo/mobile",
+  "private": true,
+  "main": "index.ts",
+  "scripts": {
+    "clean": "git clean -xdf .cache .expo .turbo android ios node_modules",
+    "dev": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@better-auth/expo": "catalog:",
+    "@expo/metro-runtime": "catalog:",
+    "@repo/core": "workspace:*",
+    "better-auth": "catalog:",
+    "expo": "catalog:",
+    "expo-constants": "catalog:",
+    "expo-crypto": "catalog:",
+    "expo-dev-client": "catalog:",
+    "expo-file-system": "catalog:",
+    "expo-linking": "catalog:",
+    "expo-network": "catalog:",
+    "expo-router": "catalog:",
+    "expo-secure-store": "catalog:",
+    "expo-splash-screen": "catalog:",
+    "expo-status-bar": "catalog:",
+    "expo-system-ui": "catalog:",
+    "expo-web-browser": "catalog:",
+    "nativewind": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-native": "catalog:",
+    "react-native-css": "catalog:",
+    "react-native-gesture-handler": "catalog:",
+    "react-native-markdown-display": "catalog:",
+    "react-native-reanimated": "catalog:",
+    "react-native-safe-area-context": "catalog:",
+    "react-native-screens": "catalog:",
+    "react-native-worklets": "catalog:"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "^4.1.7"
+  }
+}

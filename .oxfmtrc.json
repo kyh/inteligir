@@ -10,7 +10,10 @@
     "out",
     "routeTree.gen.ts",
     "worker-configuration.d.ts",
-    "apps/desktop/src/renderer/__tests__/fixtures"
+    "apps/desktop/src/renderer/__tests__/fixtures",
+    ".expo",
+    "expo-env.d.ts",
+    "nativewind-env.d.ts"
   ],
   "experimentalSortPackageJson": {}
 }
