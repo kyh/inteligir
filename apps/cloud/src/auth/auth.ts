@@ -22,9 +22,11 @@ import { createDb } from "../db/client";
 // independently. If social OAuth on mobile is added later, revisit isolating
 // the server expo plugin so it doesn't bloat the Worker.
 //
-// Secrets are runtime env, NOT hardcoded: `BETTER_AUTH_SECRET` (a DEDICATED key,
-// never reused — set via `wrangler secret put`) and the optional OAuth client
-// credentials. `BETTER_AUTH_URL` is the public base URL (a wrangler `var`).
+// Secrets are runtime env, NOT hardcoded: `AUTH_SECRET` (a DEDICATED key, never
+// reused — set via `wrangler secret put`) and the optional OAuth client
+// credentials. `baseURL` is NOT configured — it's derived per-request from the
+// incoming request origin (passed in by the fetch handler), so localhost,
+// preview, and prod all work with zero config.
 // ---------------------------------------------------------------------------
 
 /** Extra trusted origins for cross-origin clients (desktop Electron, Expo). */
@@ -56,12 +58,14 @@ function socialProviders(env: Env) {
   return {};
 }
 
-/** Build the request-scoped Better Auth instance from the Worker `env`. */
-export function createAuth(env: Env) {
+/** Build the request-scoped Better Auth instance from the Worker `env`. The
+ * `baseURL` is the incoming request origin (`new URL(request.url).origin`), so
+ * callback/cookie URLs match whatever host actually served the request. */
+export function createAuth(env: Env, baseURL: string) {
   return betterAuth({
     database: drizzleAdapter(createDb(env.DB), { provider: "sqlite" }),
-    secret: env.BETTER_AUTH_SECRET,
-    baseURL: env.BETTER_AUTH_URL,
+    secret: env.AUTH_SECRET,
+    baseURL,
     plugins: [bearer()],
     emailAndPassword: { enabled: true },
     trustedOrigins: trustedOrigins(env),
