@@ -20,7 +20,10 @@
     "./knowledge/link-resolve": "./src/knowledge/link-resolve.ts",
     "./knowledge/rename-links": "./src/knowledge/rename-links.ts",
     "./knowledge/knowledge-index": "./src/knowledge/knowledge-index.ts",
-    "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts"
+    "./markdown/remark-wiki-link": "./src/markdown/remark-wiki-link.ts",
+    "./markdown/parse": "./src/markdown/parse.ts",
+    "./markdown/vocabulary": "./src/markdown/vocabulary.ts",
+    "./markdown/md-plugins": "./src/markdown/md-plugins.ts"
   },
   "scripts": {
     "clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -28,15 +31,19 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
+    "mdast-util-gfm-task-list-item": "^2.0.0",
+    "mdast-util-mdx": "^3.0.0",
+    "mdast-util-to-markdown": "^2.1.2",
+    "micromark-extension-mdx": "^2.1.0",
     "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
     "remark-parse": "^11.0.0",
     "unified": "^11.0.5"
   },
   "devDependencies": {
     "@types/mdast": "^4.0.4",
     "mdast-util-from-markdown": "^2.0.3",
-    "mdast-util-to-markdown": "^2.1.2",
     "micromark-util-types": "^2.0.2",
     "remark-stringify": "^11.0.0",
     "typescript": "catalog:",

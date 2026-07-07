@@ -29,7 +29,7 @@ import {
   serializeMd,
 } from "@platejs/markdown";
 
-import { MD_STRINGIFY } from "@renderer/editor/markdown/md-plugins";
+import { MD_STRINGIFY } from "@repo/core/markdown/md-plugins";
 import type { WikiEmbed, WikiLink } from "@repo/core/markdown/remark-wiki-link";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
@@ -80,7 +80,11 @@ type JsxFlowOverrides = {
   mapProps?: (rest: Record<string, unknown>) => Record<string, unknown>;
 };
 
-function jsxFlowSerialize(node: TElement, options: SerializeMdOptions, overrides: JsxFlowOverrides) {
+function jsxFlowSerialize(
+  node: TElement,
+  options: SerializeMdOptions,
+  overrides: JsxFlowOverrides,
+) {
   const { id, children, type, ...rest } = node;
   void id;
   return {

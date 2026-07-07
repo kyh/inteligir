@@ -317,21 +317,9 @@ importers:
       lucide-react:
         specifier: 'catalog:'
         version: 1.16.0(react@19.2.6)
-      mdast-util-gfm-task-list-item:
-        specifier: ^2.0.0
-        version: 2.0.0
-      mdast-util-mdx:
-        specifier: ^3.0.0
-        version: 3.0.0
-      mdast-util-to-markdown:
-        specifier: ^2.1.2
-        version: 2.1.2
       mermaid:
         specifier: ^11.16.0
         version: 11.16.0
-      micromark-extension-mdx:
-        specifier: ^2.1.0
-        version: 2.1.0
       nanoid:
         specifier: ^5.1.11
         version: 5.1.11
@@ -353,27 +341,12 @@ importers:
       react-tweet:
         specifier: ^3.3.1
         version: 3.3.1(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      remark-frontmatter:
-        specifier: ^5.0.0
-        version: 5.0.0
-      remark-gfm:
-        specifier: ^4.0.1
-        version: 4.0.1
-      remark-math:
-        specifier: ^6.0.0
-        version: 6.0.0
-      remark-parse:
-        specifier: ^11.0.0
-        version: 11.0.0
       sherpa-onnx-node:
         specifier: ^1.10.41
         version: 1.13.2
       streamdown:
         specifier: ^2.5.0
         version: 2.5.0(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      unified:
-        specifier: ^11.0.5
-        version: 11.0.5
       use-stick-to-bottom:
         specifier: ^1.1.4
         version: 1.1.4(react@19.2.6)
@@ -606,12 +579,27 @@ importers:
 
   packages/core:
     dependencies:
+      mdast-util-gfm-task-list-item:
+        specifier: ^2.0.0
+        version: 2.0.0
+      mdast-util-mdx:
+        specifier: ^3.0.0
+        version: 3.0.0
+      mdast-util-to-markdown:
+        specifier: ^2.1.2
+        version: 2.1.2
+      micromark-extension-mdx:
+        specifier: ^2.1.0
+        version: 2.1.0
       remark-frontmatter:
         specifier: ^5.0.0
         version: 5.0.0
       remark-gfm:
         specifier: ^4.0.1
         version: 4.0.1
+      remark-math:
+        specifier: ^6.0.0
+        version: 6.0.0
       remark-parse:
         specifier: ^11.0.0
         version: 11.0.0
@@ -625,9 +613,6 @@ importers:
       mdast-util-from-markdown:
         specifier: ^2.0.3
         version: 2.0.3
-      mdast-util-to-markdown:
-        specifier: ^2.1.2
-        version: 2.1.2
       micromark-util-types:
         specifier: ^2.0.2
         version: 2.0.2
