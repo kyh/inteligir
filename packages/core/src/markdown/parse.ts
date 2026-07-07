@@ -7,7 +7,7 @@ import type { Root } from "mdast";
 import remarkParse from "remark-parse";
 import { unified } from "unified";
 
-import { MD_REMARK_PLUGINS } from "@renderer/editor/markdown/md-plugins";
+import { MD_REMARK_PLUGINS } from "./md-plugins";
 
 type ParseFailure = { message: string; line: number | null };
 

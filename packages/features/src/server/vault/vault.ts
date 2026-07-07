@@ -26,7 +26,7 @@ import { Value } from "@sinclair/typebox/value";
 
 import { AGENT_DIR, WORKSPACE_DIR } from "../agent/paths";
 import { JsonStore, inteligirPath, type FsAdapter } from "../lib/json-store";
-import { isDocPath } from "@repo/features/knowledge/doc-file";
+import { isDocPath } from "@repo/core/knowledge/doc-file";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 
 // ---------------------------------------------------------------------------

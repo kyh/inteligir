@@ -14,7 +14,7 @@ import { Popover, PopoverContent } from "@repo/ui/components/popover";
 import { cn } from "@repo/ui/lib/utils";
 
 import { useVault } from "@renderer/workspace/vault-context";
-import { parseWikiBody } from "@repo/features/markdown/remark-wiki-link";
+import { parseWikiBody } from "@repo/core/markdown/remark-wiki-link";
 
 /** Shared chip label: alias wins, else target(+anchor) as written. */
 export function wikiChipLabel(body: string): string {

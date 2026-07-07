@@ -15,10 +15,11 @@
 import { type Descendant, type Value, createSlateEditor } from "platejs";
 import { getMergedOptionsDeserialize, mdastToSlate, serializeMd } from "@platejs/markdown";
 
+import { MD_STRINGIFY } from "@repo/core/markdown/md-plugins";
+import { parseMdast } from "@repo/core/markdown/parse";
+import { type RawReason, scanVocabulary } from "@repo/core/markdown/vocabulary";
+
 import { BASE_KIT } from "@renderer/editor/kits/base-kit";
-import { MD_STRINGIFY } from "@renderer/editor/markdown/md-plugins";
-import { parseMdast } from "@renderer/editor/markdown/parse";
-import { type RawReason, scanVocabulary } from "@renderer/editor/markdown/vocabulary";
 
 export type { RawReason };
 export { MD_STRINGIFY };

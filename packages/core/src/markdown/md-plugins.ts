@@ -16,8 +16,8 @@ import remarkFrontmatter from "remark-frontmatter";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 
-import { remarkMdxAgnostic } from "@renderer/editor/markdown/remark-mdx-agnostic";
-import { remarkWikiLink } from "@repo/features/markdown/remark-wiki-link";
+import { remarkMdxAgnostic } from "./remark-mdx-agnostic";
+import { remarkWikiLink } from "./remark-wiki-link";
 
 // Single-dollar math is OFF (locked decision): "$5 and $6" in meeting notes
 // must never render as math. Inline math is `$$x$$` (remark-math still treats
