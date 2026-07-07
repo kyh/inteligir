@@ -74,9 +74,12 @@ export function ChatActivityRow({ messages, busy }: { messages: ChatMessage[]; b
   if (!busy) return null;
 
   // Walk from the end: the latest text/tool message reflects the current step.
+  // Stop at the turn's user prompt (steer nudges ride mid-turn) — otherwise a
+  // fresh turn with history would read the PREVIOUS turn's answer as current.
   let label = "Thinking";
   for (let i = messages.length - 1; i >= 0; i--) {
     const m = messages[i];
+    if (m && m.role === "user" && !m.metadata?.steer) break;
     const part = m?.parts[0];
     if (!part) continue;
     if (part.type === "dynamic-tool") {

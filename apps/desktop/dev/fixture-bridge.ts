@@ -2,7 +2,8 @@
 // In-memory fixture Bridge for the browser dev harness. Fully typed against
 // the real Bridge contract — when the IPC registry changes, this file fails
 // typecheck. Vault reads/writes hit a Map seeded with sample notes; agent
-// chat streams a canned reply; voice/executor/updates report unavailable.
+// chat streams a canned reply; STT streams a canned transcript;
+// TTS/executor/updates report unavailable.
 // ---------------------------------------------------------------------------
 
 import type { AppAgentEvent } from "@repo/features/agent-events";
@@ -287,8 +288,15 @@ function simulateDelegationEdit(
   return null;
 }
 
-/** Streams `text` in small chunks via `onDelta`, then calls `onDone`. */
-function streamText(text: string, onDelta: (delta: string) => void, onDone: () => void): void {
+/** Streams `text` in small chunks via `onDelta`, then calls `onDone`.
+ * `initialDelayMs` holds the pre-stream gap — the chat reply uses a longer
+ * one so the composer's "thinking" treatment is visible in the harness. */
+function streamText(
+  text: string,
+  onDelta: (delta: string) => void,
+  onDone: () => void,
+  initialDelayMs = 120,
+): void {
   const words = text.split(/(?<= )/);
   let i = 0;
   const tick = () => {
@@ -298,7 +306,7 @@ function streamText(text: string, onDelta: (delta: string) => void, onDone: () =
     if (i < words.length) setTimeout(tick, 40);
     else onDone();
   };
-  setTimeout(tick, 120);
+  setTimeout(tick, initialDelayMs);
 }
 
 class Emitter<T> {
@@ -325,6 +333,11 @@ const IDLE_UPDATE: UpdateState = {
 
 const unavailable = (feature: string) =>
   new Error(`${feature} is not available in the dev harness`);
+
+// Canned STT transcript, streamed partial → partial → final (harness stub —
+// no recognizer runs) so the composer's listening capsule is demoable in a
+// plain browser tab.
+const STT_CANNED_TRANSCRIPT = "What should I write about today?";
 
 // ---------------------------------------------------------------------------
 // Canned editor-AI behaviors, so the whole AI surface (menu intents, edit
@@ -392,6 +405,9 @@ export function createFixtureBridge(): Bridge {
 
   const agentEvents = new Emitter<AppAgentEvent>();
   const appStateEvents = new Emitter<AppState>();
+  const sttEvents = new Emitter<{ text: string; isFinal: boolean }>();
+  let sttTimers: ReturnType<typeof setTimeout>[] = [];
+  let sttFinalPending = false;
   const vaultEvents = new Emitter<{ root: string }>();
   const aiEvents = new Emitter<{ requestId: string; delta: string }>();
   const delegationEvents = new Emitter<ListDelegationsResult>();
@@ -444,6 +460,9 @@ export function createFixtureBridge(): Bridge {
         history.push({ role: "assistant", text: reply });
         setAppState({ phase: "ready", agent: "idle" });
       },
+      // A beat of pre-stream silence so the busy-with-no-text "thinking"
+      // treatment is observable before deltas arrive.
+      1200,
     );
   };
 
@@ -486,16 +505,44 @@ export function createFixtureBridge(): Bridge {
     getAgentHistory: async () => [...history],
     reauthenticate: async () => ({ ok: true }),
 
-    // Voice — reports unavailable; the harness has no STT/TTS host.
+    // Voice — TTS reports unavailable; STT is SIMULATED: startStt arms timers
+    // that stream a canned transcript so the listening capsule is demoable.
     isTtsAvailable: async () => false,
     ttsSend: () => {},
     ttsFlush: () => {},
     ttsInterrupt: () => {},
     onTtsAudio: () => () => {},
-    startStt: async () => ({ ok: false, reason: "voice is not available in the dev harness" }),
+    startStt: async () => {
+      for (const t of sttTimers) clearTimeout(t);
+      sttFinalPending = true;
+      const words = STT_CANNED_TRANSCRIPT.split(" ");
+      sttTimers = [
+        setTimeout(
+          () => sttEvents.emit({ text: words.slice(0, 3).join(" "), isFinal: false }),
+          900,
+        ),
+        setTimeout(
+          () => sttEvents.emit({ text: words.slice(0, 5).join(" "), isFinal: false }),
+          1800,
+        ),
+        setTimeout(() => {
+          sttFinalPending = false;
+          sttEvents.emit({ text: STT_CANNED_TRANSCRIPT, isFinal: true });
+        }, 2700),
+      ];
+      return { ok: true };
+    },
     sendSttAudio: () => {},
-    stopStt: async () => [],
-    onSttTranscript: () => () => {},
+    stopStt: async () => {
+      for (const t of sttTimers) clearTimeout(t);
+      sttTimers = [];
+      // Stopped mid-stream → the "recognizer" flushes the tail final once;
+      // after the timed final already fired there is nothing left to return.
+      if (!sttFinalPending) return [];
+      sttFinalPending = false;
+      return [{ text: STT_CANNED_TRANSCRIPT, isFinal: true }];
+    },
+    onSttTranscript: sttEvents.subscribe,
     getVoiceModelStatus: async () => "missing",
     downloadVoiceModel: async () => ({
       ok: false,
