@@ -53,7 +53,7 @@ import type {
   LinkGraph,
   SearchResult,
   WikiTarget,
-} from "./knowledge/knowledge-index";
+} from "@repo/core/knowledge/knowledge-index";
 import {
   SyncSetConfigSchema,
   SyncSignInSchema,

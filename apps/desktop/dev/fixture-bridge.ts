@@ -12,9 +12,9 @@ import { GHOST_TEXT_ENABLED_UI_STATE, type AiIntent } from "@repo/features/inlin
 import type { Bridge, ChatHistoryEntry, UpdateState } from "@repo/features/ipc";
 import type { VaultEntry } from "@repo/features/ipc-registry";
 import type { SyncState } from "@repo/features/sync";
-import { isDocPath } from "@repo/features/knowledge/doc-file";
-import { KnowledgeIndex } from "@repo/features/knowledge/knowledge-index";
-import { computeRenameEdits } from "@repo/features/knowledge/rename-links";
+import { isDocPath } from "@repo/core/knowledge/doc-file";
+import { KnowledgeIndex } from "@repo/core/knowledge/knowledge-index";
+import { computeRenameEdits } from "@repo/core/knowledge/rename-links";
 
 // Single source with the round-trip fixture matrix: the full-vocabulary sample
 // note IS the canonical kitchen-sink fixture.

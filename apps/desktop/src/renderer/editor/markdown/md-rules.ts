@@ -30,7 +30,7 @@ import {
 } from "@platejs/markdown";
 
 import { MD_STRINGIFY } from "@renderer/editor/markdown/md-plugins";
-import type { WikiEmbed, WikiLink } from "@repo/features/markdown/remark-wiki-link";
+import type { WikiEmbed, WikiLink } from "@repo/core/markdown/remark-wiki-link";
 
 // Fail fast if a @platejs/markdown bump reshapes defaultRules — the alert rule
 // delegates every non-alert blockquote to the stock path, and the table rule

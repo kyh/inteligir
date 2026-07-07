@@ -19,7 +19,6 @@
     "@sinclair/typebox": "catalog:",
     "better-auth": "catalog:",
     "open": "^11.0.0",
-    "remark-frontmatter": "^5.0.0",
     "remark-gfm": "^4.0.1",
     "remark-parse": "^11.0.0",
     "sherpa-onnx-node": "^1.10.41",
@@ -31,10 +30,6 @@
     "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
     "@types/unbzip2-stream": "^1.4.3",
-    "mdast-util-from-markdown": "^2.0.3",
-    "mdast-util-to-markdown": "^2.1.2",
-    "micromark-util-types": "^2.0.2",
-    "remark-stringify": "^11.0.0",
     "typescript": "catalog:",
     "vitest": "^4.1.7"
   }

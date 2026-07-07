@@ -23,7 +23,7 @@ import {
 } from "@renderer/editor/vault-editor";
 import { useUiStateStore } from "@renderer/stores/ui-state-store";
 import { useViewStore } from "@renderer/stores/view-store";
-import { buildResolver } from "@repo/features/knowledge/link-resolve";
+import { buildResolver } from "@repo/core/knowledge/link-resolve";
 
 // Files the rich (Plate) editor can render. `.mdx` is excluded — the Plate
 // markdown pipeline doesn't round-trip MDX.
