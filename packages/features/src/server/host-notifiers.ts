@@ -15,8 +15,9 @@
 
 import type { StoreRecoveryEvent } from "./lib/json-store";
 import type { Delegation } from "@repo/features/delegation";
+import type { SyncState } from "@repo/features/sync";
 
-/** The five host notifier slots, composed by the host and fired by the graph.
+/** The six host notifier slots, composed by the host and fired by the graph.
  * Each is a plain callback that fans into `emitEvent(...)` / the notifications
  * manager — that wiring lives in the composition root, not here. */
 export type HostNotifiers = {
@@ -30,6 +31,8 @@ export type HostNotifiers = {
   delegationStream: (id: string, text: string) => void;
   /** Inline-AI generation streamed a text delta (drives live insertion). */
   inlineAiStream: (requestId: string, delta: string) => void;
+  /** Vault-sync config / auth / status changed (drives the settings Sync UI). */
+  syncStateChanged: (state: SyncState) => void;
 };
 
 let notifiers: HostNotifiers | null = null;

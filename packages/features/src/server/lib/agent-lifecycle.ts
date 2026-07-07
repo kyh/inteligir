@@ -25,6 +25,7 @@ import {
 } from "../executor/executor-daemon";
 import { resetNotifications } from "../notifications";
 import { resetSecretStore } from "../secrets";
+import { resetSyncCoordinator } from "../sync/sync-coordinator";
 import { resetUiState } from "../ui-state";
 import {
   getVaultManager,
@@ -103,6 +104,7 @@ export function teardownAgentResources(): void {
   resetNotifications();
   resetDelegationManager();
   resetExecutorDaemon();
+  resetSyncCoordinator();
   resetUiState();
   resetSecretStore();
   // Suspend vault writes BEFORE wiping ~/.inteligir, so a late autosave from a

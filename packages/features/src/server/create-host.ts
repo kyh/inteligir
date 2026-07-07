@@ -91,9 +91,16 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
       // exists), streaming file changes to the UI so the sidebar and editor
       // stay live. The notifier is module-scoped, so it survives a logout/login
       // reset. Every vault change also nudges the knowledge index (debounced
-      // incremental refresh — that fan-out lives in ctx.notifiers.vaultChange).
+      // incremental refresh — that fan-out lives in ctx.notifiers.vaultChange)
+      // and, when sync is live, the sync engine (ctx.sync.onVaultChanged →
+      // debounced reconcile). Wrapping here (once) keeps the sync engine
+      // rebuildable underneath without re-installing this notifier.
       ctx.vault.ensureReady();
-      setVaultChangeNotifier(ctx.notifiers.vaultChange);
+      const baseVaultNotifier = ctx.notifiers.vaultChange;
+      setVaultChangeNotifier((root) => {
+        baseVaultNotifier(root);
+        ctx.sync.onVaultChanged();
+      });
       // First index build rides the debounce too, keeping it off the boot
       // path; a query landing earlier builds lazily.
       ctx.knowledge.scheduleRefresh();
@@ -106,33 +113,20 @@ export function createHost(platform: HostPlatform, options: HostOptions = {}): H
         console.warn("[host] delegation snapshot prune failed:", err);
       }
 
-      // ---------------------------------------------------------------------
-      // Vault-sync capability — OFF by default (server/sync/). Deliberately not
-      // constructed or started here: it is an available capability, not part of
-      // the live boot path. The engine is platform-neutral (@repo/core); the
-      // desktop supplies node adapters via createSyncManager. When
-      // ctx.options.syncEnabled is flipped on (and the coordinator origin +
-      // bearer token are configured), wire it HERE, e.g.:
-      //
-      //   if (ctx.options.syncEnabled) {
-      //     const port = createHttpSyncPort({ baseUrl, vaultId, token }); // @repo/core/sync/http-sync-port
-      //     const sync = createSyncManager({ vaultId, port });            // server/sync/sync-manager
-      //     sync.start();                       // subscribe to remote changes
-      //     const prevNotifier = ctx.notifiers.vaultChange;
-      //     setVaultChangeNotifier((root) => {  // + local-change debounce
-      //       prevNotifier(root);
-      //       sync.onVaultChanged();
-      //     });
-      //     void sync.syncOnce();               // initial reconcile
-      //   }
-      //
-      // Only vault FILES sync; the knowledge index + AI state live under
-      // ~/.inteligir (outside the vault) and are never listed by the engine.
-      // ---------------------------------------------------------------------
+      // Vault-sync — LIVE, gated at runtime (not by the build). The coordinator
+      // reads its own config store (server/sync/sync-account.ts): it constructs
+      // + starts the SyncEngine only when sync is enabled AND a bearer token is
+      // present, and kicks an initial reconcile. Toggling config / signing in at
+      // runtime rebuilds or tears the engine down; the vault-change wrapper above
+      // routes local edits into it. OFF by default (no config = disabled). Only
+      // vault FILES sync; the knowledge index + AI state live under ~/.inteligir
+      // (outside the vault) and are never listed by the engine.
+      ctx.sync.start();
 
       initMachine();
     },
     async dispose() {
+      ctx.sync.dispose();
       disposeKnowledgeManager();
       await shutdown();
       releaseHostLock();
