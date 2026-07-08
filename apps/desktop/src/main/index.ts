@@ -212,9 +212,30 @@ function createWindow(backgroundColor: string): BrowserWindow {
   // navigation that stays on the loaded origin (HMR relies on this in dev) and
   // block everything else, routing http(s) out to the system browser to match
   // the window-open handler above. `loadedUrlPrefix` is set at load time below.
+  //
+  // http(s) compares true URL origins — a raw startsWith on a prefix like
+  // "http://localhost:5173" would also match "http://localhost:5173.evil.com".
+  // file: URLs all parse to the opaque origin "null", so the packaged bundle
+  // is matched by exact URL (plus a "#fragment" suffix for in-page anchors).
   let loadedUrlPrefix = "";
-  const isSameOrigin = (candidate: string): boolean =>
-    loadedUrlPrefix.length > 0 && candidate.startsWith(loadedUrlPrefix);
+  const isSameOrigin = (candidate: string): boolean => {
+    if (loadedUrlPrefix.length === 0) return false;
+    let parsed: URL;
+    let loaded: URL;
+    try {
+      parsed = new URL(candidate);
+      loaded = new URL(loadedUrlPrefix);
+    } catch {
+      return false; // unparseable → not same origin
+    }
+    if (loaded.protocol === "file:") {
+      return (
+        parsed.protocol === "file:" &&
+        (candidate === loadedUrlPrefix || candidate.startsWith(loadedUrlPrefix + "#"))
+      );
+    }
+    return parsed.origin === loaded.origin;
+  };
   const guardNavigation = (event: Electron.Event, url: string): void => {
     if (isSameOrigin(url)) return;
     event.preventDefault();
