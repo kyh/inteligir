@@ -112,12 +112,21 @@ Latency is <50ms on a good day.
 `,
   "frontmatter-note.md": `---
 title: Frontmatter note
-tags: [meta, demo]
+published: true
+draft: false
+priority: 2
+due: 2026-07-01
+status: on
+tags:
+  - meta
+  - demo
+nested:
+  keep: me
 ---
 
 # Frontmatter note
 
-The yaml block above survives Rich edits byte-for-byte; edit it via Raw.
+Edit the typed properties above; the yaml block round-trips byte-for-byte.
 `,
   // WP2 vocabulary notes — every kit exercisable in the harness. All four are
   // CANONICAL (the corpus test pins that): editing them must never flip the
