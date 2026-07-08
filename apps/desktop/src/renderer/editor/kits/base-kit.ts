@@ -12,6 +12,7 @@ import { ColumnBaseKit } from "@renderer/editor/kits/column-kit";
 import { DateBaseKit } from "@renderer/editor/kits/date-kit";
 import { EmbedBaseKit } from "@renderer/editor/kits/embed-kit";
 import { FrontmatterBaseKit } from "@renderer/editor/kits/frontmatter-kit";
+import { ImageBaseKit } from "@renderer/editor/kits/image-kit";
 import { LinkBaseKit } from "@renderer/editor/kits/link-kit";
 import { ListBaseKit } from "@renderer/editor/kits/list-kit";
 import { MarkdownKit } from "@renderer/editor/kits/markdown-kit";
@@ -30,6 +31,7 @@ export const BASE_KIT = [
   ...ToggleBaseKit,
   ...ColumnBaseKit,
   ...EmbedBaseKit,
+  ...ImageBaseKit,
   ...DateBaseKit,
   ...MathBaseKit,
   ...CalloutBaseKit,

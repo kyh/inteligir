@@ -190,6 +190,18 @@ const VaultRenameSchema = Type.Object(
   { additionalProperties: false },
 );
 
+// Attachment ingestion — image (or other) bytes written into the vault. The
+// renderer is sandboxed (Bridge-only), so bytes cross as base64 both ways.
+const VaultWriteAssetSchema = Type.Object(
+  { dir: Type.String(), baseName: Type.String(), bytesBase64: Type.String() },
+  { additionalProperties: false },
+);
+
+/** readVaultAsset result: base64 bytes of an in-vault file, or an error (the
+ * file is missing, escapes the vault, or exceeds the transfer cap). Rendering
+ * a broken image is a UI state, not an exception — hence a Result, not a throw. */
+export type ReadVaultAssetResult = { ok: true; bytesBase64: string } | { ok: false; error: string };
+
 // ---------------------------------------------------------------------------
 // Knowledge — the host's link + lexical search indexes over the vault
 // (backlinks, graph, palette search, wiki autocomplete). Result shapes live
@@ -332,6 +344,19 @@ export const IPC = {
   renameVaultEntry: invoke<typeof VaultRenameSchema, { ok: true } | { ok: false; error: string }>(
     "vault:rename",
     VaultRenameSchema,
+  ),
+  /** Write image (or other) bytes into the vault under `dir` (e.g. "assets"),
+   * picking a collision-free name derived from `baseName`. Returns the final
+   * vault-relative path. The editor's paste/drop image ingestion uses this. */
+  writeVaultAsset: invoke<typeof VaultWriteAssetSchema, { path: string }>(
+    "vault:write-asset",
+    VaultWriteAssetSchema,
+  ),
+  /** Read an in-vault asset's bytes as base64 (image rendering). Capped; a
+   * missing/oversized file returns `{ ok: false }` rather than throwing. */
+  readVaultAsset: invoke<typeof VaultPathSchema, ReadVaultAssetResult>(
+    "vault:read-asset",
+    VaultPathSchema,
   ),
   /** Fired on every vault change (file edit by anyone, or a root switch) so the
    * sidebar re-lists and the editor reloads. */
