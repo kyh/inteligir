@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { InMemoryBaseStore } from "@repo/core/sync/base-store";
 import { SyncEngine, type SyncIo } from "@repo/core/sync/engine";
 import { createHttpSyncPort } from "@repo/core/sync/http-sync-port";
+import { ABSENT_VERSION } from "@repo/core/sync/vault-file";
+import {
+  filePath,
+  formatBearer,
+  formatVersionHeader,
+  HEADER_BASE_VERSION,
+} from "@repo/core/sync/wire";
 
 // ---------------------------------------------------------------------------
 // END-TO-END sync test. Unlike sync.test.ts (which pokes the Worker's routes
@@ -26,9 +33,17 @@ const fetchSelf: typeof fetch = (input, init) => SELF.fetch(input, init);
 async function signIn(email: string): Promise<string> {
   const body = JSON.stringify({ email, password: "e2e-password-1234", name: email.split("@")[0] });
   const headers = { "content-type": "application/json", origin: ORIGIN };
-  const up = await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, { method: "POST", headers, body });
+  const up = await SELF.fetch(`${ORIGIN}/api/auth/sign-up/email`, {
+    method: "POST",
+    headers,
+    body,
+  });
   if (up.status !== 200) throw new Error(`sign-up ${up.status}: ${await up.text()}`);
-  const inRes = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, { method: "POST", headers, body });
+  const inRes = await SELF.fetch(`${ORIGIN}/api/auth/sign-in/email`, {
+    method: "POST",
+    headers,
+    body,
+  });
   if (inRes.status !== 200) throw new Error(`sign-in ${inRes.status}: ${await inRes.text()}`);
   const token = inRes.headers.get("set-auth-token");
   if (token === null || token === "") throw new Error("no bearer token in set-auth-token header");
@@ -155,5 +170,50 @@ describe("end-to-end sync", () => {
     // Carol's file is NOT pulled onto Mallory's device.
     expect(outM.status).toBe("error");
     expect(m.has("secret.md")).toBe(false);
+  });
+
+  // The coordinator's PUT size cap (32 MiB — mirrors the literal in
+  // vault-coordinator.ts) isn't reachable through SyncPort's typed ADTs (a 413
+  // is a raw transport failure, not a PutResult variant), so these two hit the
+  // coordinator's PUT route directly, the same way sync.test.ts does.
+  describe("PUT size cap (413)", () => {
+    const MAX_FILE_BYTES = 33_554_432; // 32 MiB — keep in sync with vault-coordinator.ts
+
+    async function putRaw(vaultId: string, token: string, body: Uint8Array): Promise<Response> {
+      return SELF.fetch(`${ORIGIN}${filePath(vaultId, "big.bin")}`, {
+        method: "PUT",
+        headers: {
+          authorization: formatBearer(token),
+          [HEADER_BASE_VERSION]: formatVersionHeader(ABSENT_VERSION),
+        },
+        body,
+      });
+    }
+
+    it("a body over the cap is rejected with 413 and the manifest is untouched", async () => {
+      const token = await signIn("dave@example.com");
+      const vaultId = "vault-e2e-oversized";
+
+      const res = await putRaw(vaultId, token, new Uint8Array(MAX_FILE_BYTES + 1));
+      expect(res.status).toBe(413);
+
+      const manifest = (await (
+        await SELF.fetch(`${ORIGIN}/v1/vault/${vaultId}/manifest`, {
+          headers: { authorization: formatBearer(token) },
+        })
+      ).json()) as { generation: number; files: unknown[] };
+      expect(manifest.generation).toBe(0);
+      expect(manifest.files).toEqual([]);
+    });
+
+    it("a body at exactly the cap is accepted", async () => {
+      const token = await signIn("erin@example.com");
+      const vaultId = "vault-e2e-at-cap";
+
+      const res = await putRaw(vaultId, token, new Uint8Array(MAX_FILE_BYTES));
+      expect(res.status).toBe(200);
+      const put = (await res.json()) as { ok: boolean };
+      expect(put.ok).toBe(true);
+    }, 30_000);
   });
 });
