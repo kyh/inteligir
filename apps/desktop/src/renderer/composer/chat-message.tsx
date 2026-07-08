@@ -5,7 +5,7 @@ import { Response } from "@renderer/ai-elements/response";
 import { Shimmer } from "@renderer/ai-elements/shimmer";
 
 import { getBridge } from "@renderer/lib/bridge";
-import type { ChatMessage } from "@renderer/stores/agent-store";
+import { currentTurnMessages, type ChatMessage } from "@renderer/stores/agent-store";
 import { isRecord } from "@repo/features/ipc";
 
 // Hoisted so the array reference is stable across renders.
@@ -14,17 +14,26 @@ const ASSISTANT_SHIKI_THEME: ["github-dark-dimmed", "github-dark-dimmed"] = [
   "github-dark-dimmed",
 ];
 
-export function ChatMessageView({ message }: { message: ChatMessage }) {
+/**
+ * Whether ChatMessageView renders this message as visible content. Exported so
+ * list containers can skip wrappers (flex gap would otherwise show phantom
+ * rows) — co-located with the component so the two can't drift.
+ *
+ * Renders nothing for: tool calls (the <ChatActivityRow> shimmer is the live
+ * activity signal; the store sweeps these on agent_end), non-text parts, and
+ * the empty assistant text between message_start and the first delta.
+ */
+export function isRenderableMessage(message: ChatMessage): boolean {
   const first = message.parts[0];
-  if (!first) return null;
+  if (!first || first.type !== "text") return false;
+  if (message.role === "assistant" && first.text.length === 0) return false;
+  return true;
+}
 
-  // Tool calls are never rendered as bubbles. While the turn is live, a single
-  // <ChatActivityRow> below the message list shows the current activity as a
-  // rolling shimmer line; on agent_end the store sweeps these messages so
-  // only the user prompt and final assistant answer remain.
-  if (first.type === "dynamic-tool") return null;
-
-  if (first.type !== "text") return null;
+export function ChatMessageView({ message }: { message: ChatMessage }) {
+  if (!isRenderableMessage(message)) return null;
+  const first = message.parts[0];
+  if (!first || first.type !== "text") return null; // narrowing for TS; covered above
 
   const text = first.text;
   const imageCount = message.metadata?.imageCount ?? 0;
@@ -73,10 +82,12 @@ function ErrorMessage({ text, kind }: { text: string; kind: "auth" | "unknown" }
 export function ChatActivityRow({ messages, busy }: { messages: ChatMessage[]; busy: boolean }) {
   if (!busy) return null;
 
-  // Walk from the end: the latest text/tool message reflects the current step.
+  // Walk the current turn from the end: the latest text/tool message reflects
+  // the current step (currentTurnMessages owns the turn-boundary rule).
+  const turn = currentTurnMessages(messages);
   let label = "Thinking";
-  for (let i = messages.length - 1; i >= 0; i--) {
-    const m = messages[i];
+  for (let i = turn.length - 1; i >= 0; i--) {
+    const m = turn[i];
     const part = m?.parts[0];
     if (!part) continue;
     if (part.type === "dynamic-tool") {
@@ -101,7 +112,10 @@ export function ChatActivityRow({ messages, busy }: { messages: ChatMessage[]; b
 
 function UserMessage({ text, imageCount }: { text: string; imageCount: number }) {
   return (
-    <ChatBubble from="user" className="text-xs">
+    // initial={false}: the popover's MessageRow wrapper owns the entrance —
+    // without this the bubble's baked-in mount spring animates a second time
+    // underneath it (and ignores reduced-motion).
+    <ChatBubble from="user" initial={false} className="text-xs">
       {text && <span>{text}</span>}
       <ImageCount count={imageCount} withLabel />
     </ChatBubble>
@@ -124,13 +138,10 @@ function SteerMessage({ text, imageCount }: { text: string; imageCount: number }
 }
 
 function AssistantMessage({ text }: { text: string }) {
-  // Empty text is the brief gap between message_start and either the first
-  // tool call or the first text delta — render nothing. The compact tool
-  // rows downstream are the active "agent is working" signal; doubling up
-  // with a bubble shimmer makes the UI feel noisy.
-  if (!text) return null;
+  // Empty assistant text never reaches here — isRenderableMessage filters it.
+  // initial={false}: the popover's MessageRow wrapper owns the entrance.
   return (
-    <ChatBubble from="assistant">
+    <ChatBubble from="assistant" initial={false}>
       <Response
         className="prose prose-sm max-w-none break-words text-xs dark:prose-invert [&_*]:text-xs"
         shikiTheme={ASSISTANT_SHIKI_THEME}
