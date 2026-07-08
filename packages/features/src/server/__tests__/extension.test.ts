@@ -24,6 +24,10 @@ function fakePorts(): AgentPorts {
       execute: unused,
       resume: unused,
     },
+    knowledge: {
+      search: () => [],
+      backlinks: () => [],
+    },
   };
 }
 

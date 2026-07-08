@@ -16,6 +16,7 @@ import { seedResources, type BundledResources } from "../agent/setup";
 import { getPlatform } from "../platform-instance";
 import { reassertHostLock } from "./host-lock";
 import { resetDelegationManager } from "../delegation/delegation-manager";
+import { getKnowledgeManager } from "../knowledge/knowledge-manager";
 import { executeEnsuringDaemon, resumeEnsuringDaemon } from "../executor/executor-client";
 import {
   EXECUTOR_CLI,
@@ -55,6 +56,12 @@ export function getAgentPorts(): AgentPorts {
       // agent's execute tool.
       execute: executeEnsuringDaemon,
       resume: resumeEnsuringDaemon,
+    },
+    // Read-only knowledge queries. Defers to the live singleton so a
+    // logout/login vault reset stays transparent (mirrors executor above).
+    knowledge: {
+      search: (query, limit) => getKnowledgeManager().search(query, limit),
+      backlinks: (path) => getKnowledgeManager().backlinks(path),
     },
   };
 }
