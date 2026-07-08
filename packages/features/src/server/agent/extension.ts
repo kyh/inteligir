@@ -9,6 +9,7 @@
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@repo/features/server/pi/pi-types";
+import type { BacklinkEntry, SearchResult } from "@repo/core/knowledge/knowledge-index";
 
 import { isRecord, type SetupProgress } from "@repo/features/ipc";
 import type { ExecutorExecuteResult } from "@repo/features/executor";
@@ -39,8 +40,16 @@ export type ExecutorPort = {
   ): Promise<ExecutorExecuteResult>;
 };
 
+/** Knowledge-engine access (derived indexes live OUTSIDE the vault, so the
+ * agent's file tools can't reach them — hence a port). Read-only. */
+export type KnowledgePort = {
+  search(query: string, limit?: number): SearchResult[];
+  backlinks(path: string): BacklinkEntry[];
+};
+
 export type AgentPorts = {
   executor: ExecutorPort;
+  knowledge: KnowledgePort;
 };
 
 /**

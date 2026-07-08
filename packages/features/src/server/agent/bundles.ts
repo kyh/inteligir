@@ -6,9 +6,13 @@
 
 import browser from "./browser/extension";
 import executor from "./executor/extension";
+import knowledge from "./knowledge/extension";
 import peekaboo from "./peekaboo/extension";
 import type { PiExtensionBundle } from "./extension";
 
-export const EXTENSION_BUNDLES: PiExtensionBundle[] = [browser, executor, peekaboo].toSorted(
-  (a, b) => a.name.localeCompare(b.name),
-);
+export const EXTENSION_BUNDLES: PiExtensionBundle[] = [
+  browser,
+  executor,
+  knowledge,
+  peekaboo,
+].toSorted((a, b) => a.name.localeCompare(b.name));
