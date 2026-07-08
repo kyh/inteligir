@@ -57,7 +57,7 @@ export function nodeStamp(now: () => Date = () => new Date()): Clock {
 /** Adapt the live `VaultManager` to the engine's `SyncIo` port. */
 export function createVaultSyncIo(vault: VaultManager): SyncIo {
   return {
-    list: () => vault.list().map((entry) => entry.path),
+    list: () => vault.listAllPaths(),
     read: (path) => vault.readBytes(path),
     write: (path, content) => vault.writeBytes(path, content),
     remove: (path) => {

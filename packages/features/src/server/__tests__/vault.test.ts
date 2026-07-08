@@ -96,6 +96,29 @@ describe("VaultManager", () => {
     expect(mgr.readText("a.md")).toBe("after");
   });
 
+  it("caps list() at MAX_LIST_ENTRIES but listAllPaths() sees every file (plan 001)", () => {
+    const mgr = newManager();
+    mgr.ensureReady();
+    const TOTAL = 2050;
+    for (let i = 0; i < TOTAL; i++) {
+      const name = `f${String(i).padStart(4, "0")}.md`;
+      fs.writeFileSync(path.join(root, name), "x");
+    }
+    // Plant entries that must be excluded from both listings.
+    fs.mkdirSync(path.join(root, ".git"), { recursive: true });
+    fs.writeFileSync(path.join(root, ".git", "x"), "x");
+    fs.writeFileSync(path.join(root, "foo.tmp"), "x");
+    fs.writeFileSync(path.join(root, ".dotfile"), "x");
+
+    expect(mgr.list().length).toBe(2000);
+    expect(mgr.listAllPaths().length).toBe(TOTAL);
+
+    const all = mgr.listAllPaths();
+    expect(all).not.toContain(".git/x");
+    expect(all).not.toContain("foo.tmp");
+    expect(all).not.toContain(".dotfile");
+  });
+
   it("repoints the root and persists it across instances", () => {
     const mgr = newManager();
     mgr.writeText("a.md", "first");
